@@ -1402,12 +1402,7 @@ fn damageable(s: &State, target: Who) -> bool {
 }
 
 /// What a death is reported as: a part breaks, everything else dies.
-fn death_event(
-    s: &State,
-    target: Who,
-    id: EntityId,
-    killer: Option<PlayerIdx>,
-) -> DomainEvent {
+fn death_event(s: &State, target: Who, id: EntityId, killer: Option<PlayerIdx>) -> DomainEvent {
     match (target, s.boss.as_ref()) {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),

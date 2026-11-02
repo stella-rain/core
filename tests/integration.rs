@@ -94,6 +94,7 @@ mod phases;
 mod pick_input;
 mod pick_pins;
 mod places;
+mod player_stats;
 mod players_api;
 mod poison_burn;
 mod progression;

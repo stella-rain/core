@@ -1486,7 +1486,14 @@ mod stats_events {
         }
     }
 
-    fn hit_by(w: &World, s: &mut State, by: EntityId, me: u8, at: usize, damage: u32) -> Vec<DomainEvent> {
+    fn hit_by(
+        w: &World,
+        s: &mut State,
+        by: EntityId,
+        me: u8,
+        at: usize,
+        damage: u32,
+    ) -> Vec<DomainEvent> {
         let mut ev = Vec::new();
         let b = shot(s, by, at, damage);
         super::super::damage(w, s, slot(me), b, Who::Enemy(at), &mut ev);

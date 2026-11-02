@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::attack::DamageType;
 use crate::event::DomainEvent;
-use crate::id::ContentId;
+use crate::id::{ContentId, EntityId, MAX_PLAYERS, PlayerIdx};
 use crate::kinds::{KindIndex, KindTable};
 use crate::rewards::{Rarity, Rewards};
 use crate::savepoint::codec::{Decode, DecodeError, Encode, Reader, Writer, decode_vec};
@@ -436,6 +436,102 @@ impl Counted {
     }
 }
 
+/// What one player slot did in the run, folded from the events (ADR-SIM-13).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SlotStats {
+    /// Damage the slot's hits dealt, overkill included (a `Hit`'s `damage`); echoes count.
+    pub damage_dealt: u64,
+    /// Enemies the slot defeated: a `Died` of class `Enemy` naming it as the killer.
+    pub kills: u32,
+    /// Damage dealt by other players while buffed by this slot, plus the hit points it healed in
+    /// another entity.
+    pub support: u64,
+}
+
+/// Per-slot damage dealt, kills and support, folded from the events of every step by the
+/// `Engine` and kept outside the hashed state and the savepoint's first format (ADR-SIM-13):
+/// a replay steps an engine and so rebuilds it exactly. A run resumed from a savepoint
+/// starts it at zero at the savepoint's tick (`from_tick`), and `is_complete` says whether it
+/// covers the whole run. Runs of `sim_version` 1 name no player in their events, so theirs stay zero.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlayerStats {
+    slots: [SlotStats; MAX_PLAYERS as usize],
+    from_tick: u32,
+}
+
+impl PlayerStats {
+    /// Totals of zero for a run resumed at `tick`, which they cover from there on.
+    pub(crate) fn resumed_at(tick: u32) -> PlayerStats {
+        PlayerStats {
+            from_tick: tick,
+            ..PlayerStats::default()
+        }
+    }
+
+    /// The totals of one slot.
+    pub fn slot(&self, player: PlayerIdx) -> SlotStats {
+        self.slots[player.get()]
+    }
+
+    /// The tick the folding began at: 0 for a run stepped from its start.
+    pub fn from_tick(&self) -> u32 {
+        self.from_tick
+    }
+
+    /// Whether the totals cover the whole run, not only the ticks since a savepoint.
+    pub fn is_complete(&self) -> bool {
+        self.from_tick == 0
+    }
+
+    /// The slot an entity number names, if it is a player's.
+    fn at(&mut self, id: EntityId) -> Option<&mut SlotStats> {
+        self.slots.get_mut(usize::try_from(id.0).ok()?)
+    }
+
+    /// Adds the events of one step.
+    pub fn fold(&mut self, events: &[DomainEvent]) {
+        for event in events {
+            match event {
+                DomainEvent::Hit {
+                    player: Some(player),
+                    buffed_by,
+                    damage,
+                    ..
+                } => {
+                    let damage = u64::from(*damage);
+                    if let Some(slot) = self.at(*player) {
+                        slot.damage_dealt = slot.damage_dealt.saturating_add(damage);
+                    }
+                    if let Some(buffer) = buffed_by.filter(|b| b != player) {
+                        if let Some(slot) = self.at(buffer) {
+                            slot.support = slot.support.saturating_add(damage);
+                        }
+                    }
+                }
+                DomainEvent::Healed {
+                    source: Some(giver),
+                    target,
+                    amount,
+                } if giver != target => {
+                    if let Some(slot) = self.at(*giver) {
+                        slot.support = slot.support.saturating_add(u64::from(*amount));
+                    }
+                }
+                DomainEvent::Died {
+                    class: EntityKind::Enemy,
+                    killer: Some(killer),
+                    ..
+                } => {
+                    if let Some(slot) = self.at(*killer) {
+                        slot.kills = slot.kills.saturating_add(1);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 // ---- The savepoint encoding ----
 
 /// The most entries of the ledger's lists: one per kind and a few more for the weapon's three
@@ -805,7 +901,10 @@ mod player_stats_tests {
         assert_eq!(stats.slot(slot(1)).damage_dealt, 50);
         assert_eq!(stats.slot(slot(0)).support, 50);
         assert_eq!(stats.slot(slot(1)).support, 0);
-        assert_eq!(folded(&[hit(Some(1), Some(1), 50)]).slot(slot(1)).support, 0);
+        assert_eq!(
+            folded(&[hit(Some(1), Some(1), 50)]).slot(slot(1)).support,
+            0
+        );
     }
 
     #[test]
@@ -826,15 +925,30 @@ mod player_stats_tests {
     #[test]
     fn an_event_keeps_its_old_json_when_the_new_fields_are_absent() {
         let plain = serde_json::to_string(&hit(None, None, 5)).unwrap();
-        assert!(!plain.contains("player") && !plain.contains("buffed_by"), "{plain}");
+        assert!(
+            !plain.contains("player") && !plain.contains("buffed_by"),
+            "{plain}"
+        );
         let named = hit(Some(1), Some(0), 5);
         let text = serde_json::to_string(&named).unwrap();
-        assert!(text.contains("\"player\":1") && text.contains("\"buffed_by\":0"), "{text}");
+        assert!(
+            text.contains("\"player\":1") && text.contains("\"buffed_by\":0"),
+            "{text}"
+        );
         assert_eq!(serde_json::from_str::<DomainEvent>(&text).unwrap(), named);
-        assert_eq!(serde_json::from_str::<DomainEvent>(&plain).unwrap(), hit(None, None, 5));
-        let old = r#"{"type":"Died","data":{"entity":40,"class":"Enemy"}}"#;
-        assert_eq!(serde_json::from_str::<DomainEvent>(old).unwrap(), died(EntityKind::Enemy, None));
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(&plain).unwrap(),
+            hit(None, None, 5)
+        );
+        let old = r#"{"type":"Died","data":{"entity":40,"class":"enemy"}}"#;
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(old).unwrap(),
+            died(EntityKind::Enemy, None)
+        );
         let old = r#"{"type":"Healed","data":{"target":0,"amount":3}}"#;
-        assert_eq!(serde_json::from_str::<DomainEvent>(old).unwrap(), healed(None, 0, 3));
+        assert_eq!(
+            serde_json::from_str::<DomainEvent>(old).unwrap(),
+            healed(None, 0, 3)
+        );
     }
 }
