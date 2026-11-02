@@ -36,7 +36,7 @@ use stella_rain_core::validate::{self, parse_and_validate};
 use stella_rain_core::version::{
     FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, Versions,
 };
-use stella_rain_core::{base64, share};
+use stella_rain_core::{RangeStep, StepRange, base64, read_step_range, share};
 
 /// Ticks `stage_run` simulates: long enough for waves, attacks and boss phases to start, short
 /// enough that the fuzzer keeps its speed.
@@ -700,4 +700,111 @@ pub fn minisign_verify(data: &[u8]) -> bool {
     };
     assert_eq!(packs.seq(), 1);
     true
+}
+
+/// The bytes `step_log_range` reads: `ticks`, `a` and `b` as little-endian `u32`, then the step
+/// log.
+pub fn step_log_range_input(ticks: u32, a: u32, b: u32, log: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(12 + log.len());
+    for n in [ticks, a, b] {
+        out.extend_from_slice(&n.to_le_bytes());
+    }
+    out.extend_from_slice(log);
+    out
+}
+
+/// One entry per tick, and the picks where they fall: the oracle's form of a range.
+#[derive(Debug, PartialEq)]
+enum RangeEntry {
+    Tick(Vec<Input>),
+    Picks(Vec<Option<u32>>),
+}
+
+/// The whole log expanded to one entry per tick, cut to `a..b` by the written rule and not by the
+/// reader's code: a tick `t` is in iff `a <= t < b`; a PICKS after `p` ticks is in iff
+/// `a <= p < b`, or `b == ticks` and `p == ticks` and the range is not empty.
+fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry> {
+    let mut out = Vec::new();
+    let mut world = 0u32;
+    for step in &full.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                for t in world..world + run {
+                    if a <= t && t < b {
+                        out.push(RangeEntry::Tick(inputs.clone()));
+                    }
+                }
+                world += run;
+            }
+            RangeStep::Picks { picks } => {
+                let inside = (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                if inside {
+                    out.push(RangeEntry::Picks(picks.clone()));
+                }
+            }
+        }
+    }
+    out
+}
+
+fn expand_range(range: &StepRange) -> Vec<RangeEntry> {
+    let mut out = Vec::new();
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                out.extend((0..*run).map(|_| RangeEntry::Tick(inputs.clone())));
+            }
+            RangeStep::Picks { picks } => out.push(RangeEntry::Picks(picks.clone())),
+        }
+    }
+    out
+}
+
+/// The step log range reader (ADR-REPL-10, ADR-SVC-1). The bytes are `ticks`, `a`, `b` (little-endian
+/// `u32`) and a schema 2 step log. A range that is backwards or past `ticks` is refused; for a
+/// range inside the log the verdict is the full read's, error for error, because the whole log is
+/// validated; and when both succeed on a log of at most 65,536 ticks the range equals the full
+/// read expanded to one entry per tick and cut by the written rule. Returns whether the log got
+/// past the scanner.
+pub fn step_log_range(data: &[u8]) -> bool {
+    const EXPAND_LIMIT: u32 = 65_536;
+    let Some((head, log)) = data.split_at_checked(12) else {
+        return false;
+    };
+    let word = |i: usize| u32::from_le_bytes([head[i], head[i + 1], head[i + 2], head[i + 3]]);
+    let (ticks, a, b) = (word(0), word(4), word(8));
+    if a > b || b > ticks {
+        assert!(
+            read_step_range(log, ticks, u32::MAX, a, b).is_err(),
+            "a bad range is read"
+        );
+    }
+    // A range inside the log: the raw one when it is, else the raw pair folded into it.
+    let (x, y) = if a <= b && b <= ticks {
+        (a, b)
+    } else {
+        let fold = |n: u32| u32::try_from(u64::from(n) % (u64::from(ticks) + 1)).unwrap_or(0);
+        (fold(a).min(fold(b)), fold(a).max(fold(b)))
+    };
+    let full = read_step_range(log, ticks, u32::MAX, 0, ticks);
+    let part = read_step_range(log, ticks, u32::MAX, x, y);
+    match (&full, &part) {
+        (Ok(full), Ok(part)) => {
+            assert_eq!((part.first, part.end, part.present), (x, y, full.present));
+            assert!(
+                part.steps.len() <= full.steps.len(),
+                "a range has more steps"
+            );
+            if ticks <= EXPAND_LIMIT {
+                assert_eq!(
+                    expand_range(part),
+                    range_oracle(full, ticks, x, y),
+                    "{x}..{y} of {ticks}"
+                );
+            }
+        }
+        (Err(full), Err(part)) => assert_eq!(full, part, "the range read refuses another way"),
+        _ => panic!("the range read and the full read disagree on {x}..{y}"),
+    }
+    full.is_ok()
 }
