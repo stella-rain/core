@@ -59,5 +59,36 @@ class PackLoadLength(unittest.TestCase):
                 self.assertNotIn("-max_len=65536", block)
 
 
+def step(block, name):
+    """The step named `name`, from its `- name:` line to the next step."""
+    m = re.search(rf"^      - name: {re.escape(name)}\n((?:(?!      - ).*\n)*)", block, re.M)
+    assert m, f"no step '{name}'"
+    return m.group(0)
+
+
+SHORT_STEP = "Fuzz each target for 60 seconds, one per CPU"
+
+
+class ShortRunInParallel(unittest.TestCase):
+    """Ten targets one after another took 10 of the job's 13.5 minutes on one of four CPUs."""
+
+    def setUp(self):
+        self.step = step(job_block(read(".github/workflows/rust.yml"), "fuzz-short"), SHORT_STEP)
+
+    def test_it_builds_once_then_runs_one_target_per_cpu(self):
+        build = self.step.index('cargo "+$FUZZ_NIGHTLY" fuzz build\n')
+        parallel = self.step.index('xargs -P "$(nproc)"')
+        self.assertLess(build, parallel)
+        self.assertIn("python3 .github/scripts/fuzz_targets.py words", self.step)
+
+    def test_each_target_still_runs_60_seconds(self):
+        self.assertIn("-max_total_time=60 ", self.step)
+
+    def test_every_log_is_shown_and_a_failure_fails_the_step(self):
+        self.assertIn('echo "::group::$target"', self.step)
+        self.assertRegex(self.step, r"::error[^\n]*\$target")
+        self.assertTrue(self.step.rstrip().endswith('exit "$status"'))
+
+
 if __name__ == "__main__":
     unittest.main()
