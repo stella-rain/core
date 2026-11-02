@@ -54,7 +54,9 @@ use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
 use crate::step_log::{Record, StepLog};
 use crate::validate;
-use crate::version::{self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, Versions};
+use crate::version::{
+    self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
+};
 
 /// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 1 gives at most 99 points in a run; the rest is room for the offers' choices, a few
@@ -565,6 +567,15 @@ pub fn pack_commands(commands: &[TickCommand]) -> String {
     base64::encode(&out)
 }
 
+/// The setup as the recorder writes it: at `SCHEMA_VERSION`, the schema its streams are packed
+/// in, whatever schema the setup or the prefix it comes from was read at.
+fn written(setup: &RunSetup) -> RunSetup {
+    RunSetup {
+        schema_version: SCHEMA_VERSION,
+        ..setup.clone()
+    }
+}
+
 /// A run being played and recorded: every command goes through it to the engine, and only the
 /// commands the engine takes are recorded, so the replay always verifies.
 #[derive(Clone, Debug)]
@@ -592,7 +603,7 @@ impl RunRecorder {
         let content = content_sha256_with(setup.mode.as_str(), content)
             .expect("a mode that starts has content");
         Ok(RunRecorder {
-            setup: setup.clone(),
+            setup: written(setup),
             content_sha256: to_hex(&content),
             engine,
             inputs: Vec::new(),
@@ -635,7 +646,7 @@ impl RunRecorder {
         }
         let (inputs, commands) = run.log.to_solo()?;
         Ok(RunRecorder {
-            setup: prefix.setup.clone(),
+            setup: written(&prefix.setup),
             content_sha256: prefix.content_sha256.clone(),
             engine,
             inputs,
@@ -667,7 +678,7 @@ impl RunRecorder {
             .to_solo()
             .map_err(|_| SavepointError::PrefixMismatch)?;
         Ok(RunRecorder {
-            setup: prefix.setup.clone(),
+            setup: written(&prefix.setup),
             content_sha256: prefix.content_sha256.clone(),
             engine,
             inputs,

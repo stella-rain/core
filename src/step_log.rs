@@ -657,4 +657,30 @@ mod tests {
             Err(RunReplayError::BadInputs("a run has unknown flags"))
         );
     }
+
+    #[test]
+    fn the_recorder_writes_schema_1_whatever_it_started_or_resumed_from() {
+        use crate::pack::Pack;
+        use crate::run_replay::RunRecorder;
+        use crate::run_setup::RunSetup;
+        let setup = RunSetup {
+            schema_version: 2,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start(&setup).unwrap();
+        for tick in 0..30u8 {
+            rec.step(Input {
+                move_x: i8::try_from(tick).unwrap(),
+                ..Input::default()
+            })
+            .unwrap();
+        }
+        let one = rec.replay();
+        assert_eq!(one.setup.schema_version, 1);
+        assert!(verify_run(&one.to_bytes()).is_ok());
+        // A schema 2 prefix of the same run resumes into a schema 1 recorder.
+        let two = schema_2_of(&one);
+        let resumed = RunRecorder::resume_with_pack(&two, Pack::bundled()).unwrap();
+        assert_eq!(resumed.replay(), one);
+    }
 }
