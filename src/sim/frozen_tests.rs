@@ -77,6 +77,10 @@ fn sim_v1_is_the_frozen_copy() {
 /// Whether `line` reaches the live event module: `crate::event` followed by anything that is
 /// not part of an identifier, or a `crate::{ .. }` list that names `event`.
 fn imports_live_event(line: &str) -> bool {
+    // A comment may name the live type; only code imports it.
+    if line.trim_start().starts_with("//") {
+        return false;
+    }
     let is_ident = |c: char| c.is_alphanumeric() || c == '_';
     let mut rest = line;
     while let Some(at) = rest.find("crate::") {
@@ -108,6 +112,9 @@ fn the_event_scan_finds_a_live_import() {
     assert!(!imports_live_event("use super::event::DomainEvent;"));
     assert!(!imports_live_event("use crate::snapshot::Press;"));
     assert!(!imports_live_event("use crate::event_log::Log;"));
+    assert!(!imports_live_event(
+        "//! into the live `crate::event::DomainEvent`."
+    ));
 }
 
 /// The frozen rules own the events they emit (ADR-REPL-9 point 1, ADR-REPL-7 point 3): a change
