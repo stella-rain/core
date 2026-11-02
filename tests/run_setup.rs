@@ -63,12 +63,19 @@ fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
         .collect()
 }
 
-/// The snapshot after each of `ticks` ticks.
-fn views(mut engine: Engine, ticks: u32) -> Vec<String> {
+/// The snapshot after each of `ticks` ticks, as text. `live` is an engine of the newest rules,
+/// whose entity numbers leave the player slots 0 to 2 reserved: they are mapped to the numbers
+/// of a version 1 engine, which does not, so that the two are compared by what they show.
+fn views(mut engine: Engine, ticks: u32, live: bool) -> Vec<String> {
     (0..ticks)
         .map(|t| {
             engine.step(&[script(t)]);
-            serde_json::to_string(&engine.snapshot()).unwrap()
+            let text = format!("{:?}", engine.snapshot());
+            if live {
+                crate::gameplay_observables::rewrite_ids(&text)
+            } else {
+                text
+            }
         })
         .collect()
 }
@@ -106,10 +113,10 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     let (plain, content) = (common::run::plain_setup(), common::run::plain_content());
     // The state hash holds the difficulty's setup (its rarity range), which a stage run alone
     // does not have, so the runs are compared by what they show, tick by tick.
-    let started = views(Engine::start_with(&plain, &content).unwrap(), 600);
+    let started = views(Engine::start_with(&plain, &content).unwrap(), 600, true);
     assert_eq!(
         started,
-        views(Engine::new_with(&by_hand, &content).unwrap(), 600)
+        views(Engine::new_with(&by_hand, &content).unwrap(), 600, false)
     );
 }
 

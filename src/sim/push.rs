@@ -173,8 +173,11 @@ pub(super) fn apply(stage: &World, s: &mut State) {
         ..
     } = &mut scratch;
     bodies.clear();
+    let gap = s.id_gap();
+    let key_of = |id: crate::id::EntityId| crate::id::to_compact(id, gap);
     bodies.extend(s.enemies.iter().map(|e| Body {
-        id: e.id.0,
+        // The key, not the number: the angle is that of the numbering without empty slots.
+        id: key_of(e.id),
         at: e.at,
         radius: push_radius(stage.defs.agent(e.def).radius),
     }));

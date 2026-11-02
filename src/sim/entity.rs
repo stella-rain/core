@@ -32,6 +32,19 @@ const MAX_BONUS_PCT: u32 = 1000;
 const MAX_SLOW_PCT: u32 = 90;
 
 impl State {
+    /// The entity numbers this party leaves empty (`id::id_gap`): 2 for a party of one.
+    pub(crate) fn id_gap(&self) -> u32 {
+        crate::id::id_gap(self.players.len())
+    }
+
+    /// The number a roll or an angle reads for the entity `id`: its number without the empty
+    /// player slots, so a party of one rolls as it did before the slots were reserved
+    /// (ADR-SIM-13).
+    #[inline]
+    pub(crate) fn roll_key(&self, id: EntityId) -> u32 {
+        crate::id::to_compact(id, self.id_gap())
+    }
+
     /// The boss that is on the field, or was the last: its definition as it came (a `time_limit`
     /// boss is moved to the main character and scaled when it comes).
     pub(super) fn boss_def<'a>(&self, stage: &'a World) -> Option<&'a crate::stage::Boss> {

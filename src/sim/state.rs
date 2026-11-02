@@ -98,6 +98,9 @@ pub(crate) struct State {
     pub zones: Vec<ZoneState>,
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
+    /// The next entity number. It starts at `MAX_PLAYERS`: the numbers 0 to 2 are the player slots,
+    /// present or not (ADR-SIM-13). The hash and the savepoint write it, like every entity number,
+    /// without the empty slots (`id_gap`, ADR-SIM-12).
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
     pub next_orb_group: u32,
@@ -316,27 +319,32 @@ pub(crate) struct Progress {
 
 pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
-/// The players of a run: `1..=MAX_PLAYERS` of them. All places are held, the ones past `len`
-/// as copies of the first that nothing reads, so that an index is a plain offset and a steady
-/// tick allocates nothing.
+/// The players of a run: `1..=MAX_PLAYERS` of them, in the slots a presence mask names. All
+/// places are held, the absent ones as copies of the first that nothing reads, so that an index
+/// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
+/// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
 #[derive(Clone, Debug)]
 pub(crate) struct Players {
     items: [PlayerState; MAX_PLAYERS as usize],
-    len: u8,
+    /// Bit `i` is set when slot `i` is in the party.
+    present: u8,
 }
 
 #[cfg(test)]
 impl PartialEq for Players {
     fn eq(&self, other: &Players) -> bool {
-        self.iter().eq(other.iter())
+        self.present == other.present && self.iter().eq(other.iter())
     }
 }
 
 impl Players {
+    /// The mask of a party of one.
+    const SOLO_MASK: u8 = 0b001;
+
     pub(crate) fn solo(p: PlayerState) -> Players {
         Players {
             items: [p.clone(), p.clone(), p],
-            len: 1,
+            present: Self::SOLO_MASK,
         }
     }
 
@@ -345,31 +353,68 @@ impl Players {
         if ps.is_empty() || ps.len() > usize::from(MAX_PLAYERS) {
             return None;
         }
-        let len = u8::try_from(ps.len()).ok()?;
+        let present = (1u8 << ps.len()) - 1;
         let first = ps[0].clone();
         let mut it = ps.into_iter();
         Some(Players {
             items: std::array::from_fn(|_| it.next().unwrap_or_else(|| first.clone())),
-            len,
+            present,
         })
     }
 
+    /// A party of the slots in `mask`, each a copy of `p` (tests).
+    #[cfg(test)]
+    pub(crate) fn with_mask(mask: u8, p: PlayerState) -> Players {
+        assert!(mask & Self::SOLO_MASK != 0, "slot 0 is always present");
+        assert!(mask < 1 << MAX_PLAYERS, "a mask of {MAX_PLAYERS} slots");
+        Players {
+            items: [p.clone(), p.clone(), p],
+            present: mask,
+        }
+    }
+
+    /// The slots in the party, bit `i` for slot `i`.
+    #[inline]
+    pub(crate) fn mask(&self) -> u8 {
+        self.present
+    }
+
+    #[inline]
     pub(crate) fn len(&self) -> usize {
-        usize::from(self.len)
+        self.present.count_ones() as usize
     }
 
-    pub(crate) fn iter(&self) -> std::slice::Iter<'_, PlayerState> {
-        self.items[..self.len()].iter()
+    #[inline]
+    pub(crate) fn is_present(&self, i: PlayerIdx) -> bool {
+        self.present >> i.get() & 1 == 1
     }
 
-    /// The players of the party, in `PlayerIdx` order.
-    pub(crate) fn as_slice(&self) -> &[PlayerState] {
-        &self.items[..self.len()]
+    /// Whether the slots in the party are the first `len()` slots, as a party of one is: the
+    /// `id_gap` map of the hash and the savepoint is one-to-one only then.
+    pub(crate) fn is_prefix(&self) -> bool {
+        self.present & (self.present + 1) == 0
     }
 
-    /// Players 1 and up.
-    pub(crate) fn others(&self) -> &[PlayerState] {
-        &self.items[1..self.len()]
+    /// The players of the party, in slot order.
+    pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = &PlayerState> + '_ {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| self.present >> i & 1 == 1)
+            .map(|(_, p)| p)
+    }
+
+    /// The `PlayerIdx` of each player of the party, in slot order.
+    #[cfg(test)]
+    pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + '_ {
+        (0..MAX_PLAYERS)
+            .filter(|i| self.present >> i & 1 == 1)
+            .filter_map(PlayerIdx::new)
+    }
+
+    /// Players 1 and up that are present, in slot order.
+    pub(crate) fn others(&self) -> impl Iterator<Item = &PlayerState> + '_ {
+        self.iter().skip(1)
     }
 }
 
@@ -377,7 +422,7 @@ impl std::ops::Index<PlayerIdx> for Players {
     type Output = PlayerState;
     #[inline]
     fn index(&self, i: PlayerIdx) -> &PlayerState {
-        debug_assert!(i.get() < self.len());
+        debug_assert!(self.is_present(i));
         &self.items[i.get()]
     }
 }
@@ -385,7 +430,7 @@ impl std::ops::Index<PlayerIdx> for Players {
 impl std::ops::IndexMut<PlayerIdx> for Players {
     #[inline]
     fn index_mut(&mut self, i: PlayerIdx) -> &mut PlayerState {
-        debug_assert!(i.get() < self.len());
+        debug_assert!(self.is_present(i));
         &mut self.items[i.get()]
     }
 }

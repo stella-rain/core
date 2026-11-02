@@ -167,7 +167,7 @@ use crate::sim::state::{
     AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
     Smash, StarField, StatRule, State, Streams,
 };
-use crate::sim::state::{PlayerIdx, Players};
+use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
@@ -340,9 +340,9 @@ fn unreserved_state(
 ) -> State {
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
-    // The players take the first entity IDs, the boss and the companions come after them.
-    let players = 1;
-    let mut next_id = players;
+    // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
+    // (ADR-SIM-13); the boss and the companions come after them.
+    let mut next_id = u32::from(MAX_PLAYERS);
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
         next_id += 1;
@@ -368,7 +368,9 @@ fn unreserved_state(
             agents::new_agent(id, index, stage.defs.get(index), key, start, angle)
         })
         .collect();
-    // The boss's parts come after the companions in the order of entity IDs.
+    // The boss's parts come after the companions in the order of entity IDs. Of these, the crit roll
+    // and the push-apart angle read a number: they read `State::roll_key`, the number without
+    // the empty player slots (ADR-SIM-13).
     let boss = boss_id.map(|id| {
         let arrival = Arrival {
             at: stage.boss(BossIndex(0)).boss.spawn,

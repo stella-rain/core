@@ -6,6 +6,7 @@
 //! The layout is the fields in declaration order, an enum a `u8` tag (the number its
 //! `StableHash` writes), an `Option` a `0`/`1` tag, a list a `u32` length (see `savepoint`).
 
+use crate::id::EntityId;
 use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
     max_path,
@@ -1741,6 +1742,20 @@ impl Decode for std::sync::Arc<str> {
 
 impl Encode for State {
     fn encode(&self, w: &mut Writer) {
+        // Format 1 holds one player: the entity IDs are written without the empty slots.
+        assert!(
+            self.players.len() == 1,
+            "savepoint format 1 holds one player"
+        );
+        let outer = w.id_gap();
+        w.set_id_gap(self.id_gap());
+        self.encode_fields(w);
+        w.set_id_gap(outer);
+    }
+}
+
+impl State {
+    fn encode_fields(&self, w: &mut Writer) {
         let State {
             // not saved: buffers reused from tick to tick, never state.
             scratch: _,
@@ -1799,7 +1814,7 @@ impl Encode for State {
         orbs.encode(w);
         zones.encode(w);
         spawned.encode(w);
-        next_id.encode(w);
+        EntityId(*next_id).encode(w);
         next_orb_group.encode(w);
         progress.encode(w);
         stars.encode(w);
@@ -1824,6 +1839,21 @@ impl State {
     /// lists are only as long as the format allows: `decode_state` checks them against `fresh`,
     /// and fills the index and the content-sized fields of `progress` and `horde` in.
     pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
+        // The gap the bytes were written with: format 1 holds the one player `Players::solo` is.
+        let outer = r.id_gap();
+        r.set_id_gap(crate::id::id_gap(1));
+        let state = Self::decode_fields(r, fresh);
+        r.set_id_gap(outer);
+        // The next entity number is past the player slots, whatever the bytes say.
+        match state {
+            Ok(state) if state.next_id < u32::from(crate::id::MAX_PLAYERS) => {
+                Err(DecodeError::Invalid("next entity id in the player slots"))
+            }
+            other => other,
+        }
+    }
+
+    fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
         let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
         Ok(State {
@@ -1843,7 +1873,7 @@ impl State {
             orbs: decode_vec(r, crate::limits::MAX_ORBS_ALIVE)?,
             zones: decode_vec(r, crate::limits::MAX_ZONES_ALIVE)?,
             spawned: decode_vec(r, MAX_CONTENT_LEN)?,
-            next_id: Decode::decode(r)?,
+            next_id: EntityId::decode(r)?.0,
             next_orb_group: Decode::decode(r)?,
             progress: Decode::decode(r)?,
             stars: Decode::decode(r)?,
