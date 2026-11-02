@@ -5,15 +5,14 @@
 //! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
 //! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
 
-/// Structure of stage, event and replay files, as writers write it. The next change sets it
-/// to 2 (replay schema 2).
-pub const SCHEMA_VERSION: u32 = 1;
+/// Structure of stage, event and replay files, as writers write it: 2 since the replay step log
+/// (ADR-REPL-7 point 4, ADR-REPL-10); files at `FIRST_SCHEMA_VERSION` are still read.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// The oldest `schema_version` still read (ADR-REPL-7 point 4): schema 1 files keep loading.
 pub const FIRST_SCHEMA_VERSION: u32 = 1;
 
-/// The newest `schema_version` this build reads; the writer's `SCHEMA_VERSION` rises to it in
-/// the next change. Schema 2 changes the run replay's input stream and adds `Input.interact`;
+/// The newest `schema_version` this build reads, the one `SCHEMA_VERSION` writes. Schema 2 changes the run replay's input stream and adds `Input.interact`;
 /// stage, pack and setup files have the same structure at 1 and 2 (ADR-REPL-7 point 4).
 pub const NEWEST_READ_SCHEMA_VERSION: u32 = 2;
 

@@ -48,7 +48,7 @@ use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
-use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack, write_varint};
+use crate::replay::{hash_from_hex, hash_to_hex, read_varint, unpack, write_varint};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
@@ -755,6 +755,12 @@ impl RunRecorder {
         self.commands.push(TickCommand { tick, kind, index });
     }
 
+    /// The schema 2 `inputs` field for `inputs` and `commands`: the step log, then base64. The
+    /// recorder keeps the solo lists of schema 1 and builds the file at its two output points.
+    fn step_log(&self, inputs: &[Input], commands: &[TickCommand]) -> String {
+        base64::encode(&StepLog::from_schema1(inputs, commands).encode())
+    }
+
     /// The replay of the run so far: complete once the run has ended, a bug report before.
     pub fn replay(&self) -> RunReplay {
         RunReplay {
@@ -763,8 +769,8 @@ impl RunRecorder {
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
             checkpoints: self.checkpoints.iter().map(|h| hash_to_hex(*h)).collect(),
-            inputs: pack_inputs(&self.inputs),
-            commands: pack_commands(&self.commands),
+            inputs: self.step_log(&self.inputs, &self.commands),
+            commands: String::new(),
         }
     }
 
@@ -798,8 +804,8 @@ impl RunRecorder {
                 .iter()
                 .map(|h| hash_to_hex(*h))
                 .collect(),
-            inputs: pack_inputs(&self.inputs[..inputs]),
-            commands: pack_commands(&commands),
+            inputs: self.step_log(&self.inputs[..inputs], &commands),
+            commands: String::new(),
         }
     }
 }

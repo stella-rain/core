@@ -24,7 +24,9 @@ use crate::input::Input;
 use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
-use crate::version::{self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, Versions};
+use crate::version::{
+    self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
+};
 
 /// A stage's clear replay file is at most this big (ADR-020). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
@@ -480,13 +482,13 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
         used += 1;
     }
     Ok(Replay {
-        schema_version: stage.schema_version,
+        schema_version: SCHEMA_VERSION,
         sim_version: stage.sim_version,
         seed: stage.seed,
         stage_sha256: to_hex(&content_hash::sha256(stage_bytes)),
         ticks: engine.tick(),
         final_hash: hash_to_hex(engine.state_hash()),
-        inputs: pack_inputs(&inputs[..used]),
+        inputs: pack_inputs_with(&inputs[..used], true),
     })
 }
 

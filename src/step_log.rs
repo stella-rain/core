@@ -130,7 +130,6 @@ impl StepLog {
     }
 
     /// The canonical bytes: `decode(encode(x)) == x` for any log `decode` can return.
-    #[allow(dead_code)] // The writer of the next change calls it; tests call it now.
     pub(crate) fn encode(&self) -> Vec<u8> {
         let mut out = vec![self.present];
         for record in &self.records {
