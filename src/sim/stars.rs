@@ -36,7 +36,7 @@ use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{
-    Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
+    Career, Due, HeldRune, OfferState, Offers, PlayerState, Progress, StarField, StarState, State,
 };
 use crate::snapshot::{
     CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
@@ -48,8 +48,8 @@ use super::{levels, orbit, overlaps, player, runes, skill, widened};
 
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
-fn offer_size(stage: &World, f: &StarField) -> usize {
-    (stage.tuning.offer_size + usize::from(f.extra_candidates)).min(MAX_OFFER_CANDIDATES)
+fn offer_size(stage: &World, o: &Offers) -> usize {
+    (stage.tuning.offer_size + usize::from(o.extra_candidates)).min(MAX_OFFER_CANDIDATES)
 }
 
 /// The drop chance is out of this.
@@ -133,11 +133,14 @@ pub(super) fn boss_killed(stage: &World, s: &mut State) {
     else {
         return;
     };
-    if let Some(f) = s.stars.as_mut() {
+    if let (Some(f), Some(o)) = (
+        s.stars.as_ref(),
+        s.players.career_mut(PlayerIdx::SOLO).offers.as_mut(), // N=1: M-PER-PLAYER
+    ) {
         // Inside the difficulty's range (ADR-110).
         let rarity = rarity.clamp(f.rarity.0, f.rarity.1);
         let kind = OfferKind::Boss;
-        f.due.insert(0, Due { kind, rarity });
+        o.due.insert(0, Due { kind, rarity });
     }
 }
 
@@ -170,10 +173,11 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
     };
     let at = s.players[me].at;
     let radius = widened(cfg.pickup_radius.0, s.players[me].pickup_radius_pct);
-    let Some(f) = s.stars.as_mut() else {
+    let State { stars, players, .. } = s;
+    let (Some(f), Some(o)) = (stars.as_mut(), players.career_mut(me).offers.as_mut()) else {
         return;
     };
-    let (on_map, due) = (&mut f.on_map, &mut f.due);
+    let (on_map, due) = (&mut f.on_map, &mut o.due);
     on_map.retain(|star| {
         let taken = overlaps(at, radius, star.at, 0);
         if taken {
@@ -203,31 +207,30 @@ pub(super) fn open_due(
         return;
     }
     let rune_weight = random_rune_weight(stage, s);
-    let State {
-        rng,
-        stars,
-        players,
-        ..
-    } = s;
-    let player = &players[PlayerIdx::SOLO]; // N=1: M-PER-PLAYER
-    let Some(f) = stars.as_mut() else {
+    let State { stars, players, .. } = s;
+    let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let Career {
+        offer: rng, offers, ..
+    } = career;
+    let (Some(f), Some(o)) = (stars.as_ref(), offers.as_mut()) else {
         return;
     };
     let held_runes = &player.runes;
-    while f.offer.is_none()
-        && f.due
+    while o.offer.is_none()
+        && o.due
             .first()
             .is_some_and(|d| !boss_only || d.kind == OfferKind::Boss)
     {
-        let Due { kind, rarity } = f.due.remove(0);
-        let size = offer_size(stage, f);
+        let Due { kind, rarity } = o.due.remove(0);
+        let size = offer_size(stage, o);
         let mut candidates = Vec::with_capacity(size);
         while candidates.len() < size {
             match draw(
                 rewards,
                 f,
+                o,
                 held_runes,
-                &mut rng.offer,
+                rng,
                 rarity,
                 &candidates,
                 rune_weight,
@@ -244,7 +247,7 @@ pub(super) fn open_due(
             rarity,
             candidates: candidates.iter().map(|i| id(rewards, *i)).collect(),
         });
-        f.offer = Some(OfferState {
+        o.offer = Some(OfferState {
             kind,
             rarity,
             candidates,
@@ -257,6 +260,7 @@ pub(super) fn open_due(
 fn eligible(
     rewards: &Rewards,
     f: &StarField,
+    o: &Offers,
     runes: &[HeldRune],
     i: u16,
     rarity: Rarity,
@@ -266,10 +270,10 @@ fn eligible(
     rewards.rewards().get(at).is_some_and(|r| {
         let room = match (r.is_random_rune(), r.limit) {
             (true, _) => !runes::all_held(runes, f.rune_pool),
-            (false, Some(limit)) => f.taken[at] < limit,
+            (false, Some(limit)) => o.taken[at] < limit,
             (false, None) => false,
         };
-        r.rarity == rarity && !f.banished[at] && room && !held.contains(&i)
+        r.rarity == rarity && !o.banished[at] && room && !held.contains(&i)
     })
 }
 
@@ -277,6 +281,7 @@ fn eligible(
 fn first_rarity(
     rewards: &Rewards,
     f: &StarField,
+    o: &Offers,
     runes: &[HeldRune],
     top: Rarity,
     held: &[u16],
@@ -289,7 +294,7 @@ fn first_rarity(
         .find(|r| {
             f.pool
                 .iter()
-                .any(|i| eligible(rewards, f, runes, *i, *r, held))
+                .any(|i| eligible(rewards, f, o, runes, *i, *r, held))
         })
 }
 
@@ -305,21 +310,23 @@ fn random_rune_weight(stage: &World, s: &State) -> Option<u16> {
 
 /// Draws one reward from the pool at `top`, or the rarest rarity below it with one left,
 /// leaving out `held`. The random rune weighs `rune_weight` when given.
+#[allow(clippy::too_many_arguments)]
 fn draw(
     rewards: &Rewards,
     f: &StarField,
+    o: &Offers,
     runes: &[HeldRune],
     rng: &mut SplitMix64,
     top: Rarity,
     held: &[u16],
     rune_weight: Option<u16>,
 ) -> Option<u16> {
-    let rarity = first_rarity(rewards, f, runes, top, held)?;
+    let rarity = first_rarity(rewards, f, o, runes, top, held)?;
     let list: Vec<u16> = f
         .pool
         .iter()
         .copied()
-        .filter(|i| eligible(rewards, f, runes, *i, rarity, held))
+        .filter(|i| eligible(rewards, f, o, runes, *i, rarity, held))
         .collect();
     // One draw over the weights, divided by their greatest common divisor: equal weights are
     // one each, so the draw is `below(len)` as it was before rewards had weights.
@@ -355,7 +362,10 @@ fn id(rewards: &Rewards, i: u16) -> ContentId {
 
 /// The options of the open offer, in index order; empty without one.
 pub(crate) fn options(rewards: &Rewards, s: &State, me: PlayerIdx) -> Vec<OfferOption> {
-    let Some((f, o)) = s.stars.as_ref().and_then(|f| Some((f, f.offer.as_ref()?))) else {
+    let Some((f, offers)) = s.stars.as_ref().zip(s.players.career(me).offers.as_ref()) else {
+        return Vec::new();
+    };
+    let Some(o) = offers.offer.as_ref() else {
         return Vec::new();
     };
     let n = u8::try_from(o.candidates.len()).unwrap_or(u8::MAX);
@@ -363,13 +373,15 @@ pub(crate) fn options(rewards: &Rewards, s: &State, me: PlayerIdx) -> Vec<OfferO
         .map(|candidate| OfferOption::Take { candidate })
         .collect();
     let runes = &s.players[me].runes;
-    if f.rerolls_left > 0 && first_rarity(rewards, f, runes, o.rarity, &o.candidates).is_some() {
+    if offers.rerolls_left > 0
+        && first_rarity(rewards, f, offers, runes, o.rarity, &o.candidates).is_some()
+    {
         out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
     }
     if o.kind == OfferKind::Star {
         out.push(OfferOption::Skip);
     }
-    if f.banishes_left > 0 {
+    if offers.banishes_left > 0 {
         out.extend((0..n).map(|candidate| OfferOption::Banish { candidate }));
     }
     out
@@ -397,11 +409,12 @@ pub(super) fn take(
     progress: &mut Option<Progress>,
     player: &mut PlayerState,
     regen: &mut u32,
-    f: &mut StarField,
+    f: &StarField,
+    o: &mut Offers,
     i: u16,
 ) -> Taken {
     let at = usize::from(i);
-    f.taken[at] = f.taken[at].saturating_add(1);
+    o.taken[at] = o.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
     let rune = apply_effects(
         stage,
@@ -411,6 +424,7 @@ pub(super) fn take(
         player,
         regen,
         f,
+        o,
         i,
         &reward.effects,
     );
@@ -421,11 +435,11 @@ pub(super) fn take(
         let held = c
             .members
             .iter()
-            .filter(|m| rewards.index_of(m).is_some_and(|p| f.taken[p] > 0))
+            .filter(|m| rewards.index_of(m).is_some_and(|p| o.taken[p] > 0))
             .count();
         let held = u8::try_from(held).unwrap_or(u8::MAX);
-        let before = f.set_counts.get(set).copied().unwrap_or(0);
-        if let Some(count) = f.set_counts.get_mut(set) {
+        let before = o.set_counts.get(set).copied().unwrap_or(0);
+        if let Some(count) = o.set_counts.get_mut(set) {
             *count = held;
         }
         for (t, tier) in c.tiers.iter().enumerate() {
@@ -434,7 +448,9 @@ pub(super) fn take(
                 let delta = constellations::tier_delta(lower, tier);
                 // A tier's orbit is keyed on its set (`Rewards::orbit_def`).
                 let key = ORBIT_SET_BASE + u16::try_from(set).unwrap_or(0);
-                apply_effects(stage, rewards, rng, progress, player, regen, f, key, &delta);
+                apply_effects(
+                    stage, rewards, rng, progress, player, regen, f, o, key, &delta,
+                );
                 tiers.push((set, u8::try_from(t + 1).unwrap_or(u8::MAX)));
             }
         }
@@ -452,7 +468,8 @@ fn apply_effects(
     progress: &mut Option<Progress>,
     player: &mut PlayerState,
     regen: &mut u32,
-    f: &mut StarField,
+    f: &StarField,
+    o: &mut Offers,
     i: u16,
     effects: &[EffectEntry],
 ) -> Option<Rune> {
@@ -527,10 +544,10 @@ fn apply_effects(
                 let room =
                     u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size).unwrap_or(u8::MAX);
                 let more = u8::try_from(amount).unwrap_or(u8::MAX);
-                f.extra_candidates = f.extra_candidates.saturating_add(more).min(room);
+                o.extra_candidates = o.extra_candidates.saturating_add(more).min(room);
             }
-            RewardEffect::Rerolls => f.rerolls_left = f.rerolls_left.saturating_add(amount),
-            RewardEffect::Banishes => f.banishes_left = f.banishes_left.saturating_add(amount),
+            RewardEffect::Rerolls => o.rerolls_left = o.rerolls_left.saturating_add(amount),
+            RewardEffect::Banishes => o.banishes_left = o.banishes_left.saturating_add(amount),
             RewardEffect::RuneHaste => {
                 player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
             }
@@ -569,18 +586,21 @@ pub(super) fn choose(
 ) {
     let rune_weight = random_rune_weight(stage, s);
     let State {
-        rng,
         stars,
         players,
         regen,
         ..
     } = s;
     let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
-    let progress = &mut career.progress;
-    let Some(f) = stars.as_mut() else {
+    let Career {
+        progress,
+        offer: rng,
+        offers,
+    } = career;
+    let (Some(f), Some(offers)) = (stars.as_ref(), offers.as_mut()) else {
         return;
     };
-    let Some(mut o) = f.offer.take() else {
+    let Some(mut o) = offers.offer.take() else {
         return;
     };
     let open = match option {
@@ -588,20 +608,12 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(usize::from(candidate)) else {
                 return;
             };
-            let Taken { rune, tiers } = take(
-                stage,
-                rewards,
-                &mut rng.offer,
-                progress,
-                player,
-                regen,
-                f,
-                i,
-            );
+            let Taken { rune, tiers } =
+                take(stage, rewards, rng, progress, player, regen, f, offers, i);
             let at = usize::from(i);
             events.push(DomainEvent::RewardTaken {
                 reward: rewards.rewards()[at].id.clone(),
-                taken: f.taken[at],
+                taken: offers.taken[at],
                 rune,
                 star: rewards.rewards()[at].star.clone(),
             });
@@ -618,13 +630,14 @@ pub(super) fn choose(
             if let Some(new) = draw(
                 rewards,
                 f,
+                offers,
                 &player.runes,
-                &mut rng.offer,
+                rng,
                 o.rarity,
                 &o.candidates,
                 rune_weight,
             ) {
-                f.rerolls_left = f.rerolls_left.saturating_sub(1);
+                offers.rerolls_left = offers.rerolls_left.saturating_sub(1);
                 o.candidates[slot] = new;
                 events.push(DomainEvent::CandidateReplaced {
                     slot: candidate,
@@ -642,16 +655,17 @@ pub(super) fn choose(
             let Some(&i) = o.candidates.get(slot) else {
                 return;
             };
-            f.banished[usize::from(i)] = true;
-            f.banishes_left = f.banishes_left.saturating_sub(1);
+            offers.banished[usize::from(i)] = true;
+            offers.banishes_left = offers.banishes_left.saturating_sub(1);
             events.push(DomainEvent::RewardBanished {
                 reward: id(rewards, i),
             });
             match draw(
                 rewards,
                 f,
+                offers,
                 &player.runes,
-                &mut rng.offer,
+                rng,
                 o.rarity,
                 &o.candidates,
                 rune_weight,
@@ -671,15 +685,15 @@ pub(super) fn choose(
         }
     };
     if open {
-        f.offer = Some(o);
+        offers.offer = Some(o);
     }
 }
 
 /// The set `reward` is a member of, with what is held and needed.
-fn progress(rewards: &Rewards, f: &StarField, reward: &ContentId) -> Option<ConstellationProgress> {
+fn progress(rewards: &Rewards, o: &Offers, reward: &ContentId) -> Option<ConstellationProgress> {
     let sets = rewards.constellations();
     let at = sets.set_of(reward)?;
-    let held = f.set_counts.get(at).copied().unwrap_or(0);
+    let held = o.set_counts.get(at).copied().unwrap_or(0);
     Some(ConstellationProgress {
         set: sets.sets()[at].id.clone(),
         held,
@@ -689,14 +703,14 @@ fn progress(rewards: &Rewards, f: &StarField, reward: &ContentId) -> Option<Cons
 
 /// The run's sets and how far each is, for the snapshot.
 pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<ConstellationView> {
-    let Some(f) = s.stars.as_ref() else {
-        return Vec::new();
+    let Some(o) = s.players.career(PlayerIdx::SOLO).offers.as_ref() else {
+        return Vec::new(); // N=1: M-PER-PLAYER
     };
     rewards
         .constellations()
         .sets()
         .iter()
-        .zip(&f.set_counts)
+        .zip(&o.set_counts)
         .map(|(c, held)| ConstellationView {
             id: c.id.clone(),
             name: c.name.clone(),
@@ -709,8 +723,8 @@ pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<Constella
 
 /// What the frontend shows of the open offer.
 pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
-    let f = s.stars.as_ref()?;
-    let o = f.offer.as_ref()?;
+    let offers = s.players.career(PlayerIdx::SOLO).offers.as_ref()?; // N=1: M-PER-PLAYER
+    let o = offers.offer.as_ref()?;
     Some(OfferView {
         kind: o.kind,
         rarity: o.rarity,
@@ -725,13 +739,13 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
                     hidden: r.is_random_rune(),
                     named: r.named,
                     star: r.star.clone(),
-                    constellation: progress(rewards, f, &r.id),
+                    constellation: progress(rewards, offers, &r.id),
                 }
             })
             .collect(),
         options: options(rewards, s, PlayerIdx::SOLO), // N=1: M-PER-PLAYER
-        rerolls_left: f.rerolls_left,
-        banishes_left: f.banishes_left,
+        rerolls_left: offers.rerolls_left,
+        banishes_left: offers.banishes_left,
     })
 }
 
@@ -822,7 +836,13 @@ mod tests {
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
         boss_killed(&stage, &mut s);
-        let due = &s.stars.as_ref().expect("a star field").due;
+        let due = &s
+            .players
+            .career(PlayerIdx::SOLO)
+            .offers
+            .as_ref()
+            .expect("star offers")
+            .due;
         assert_eq!(due.len(), 1, "{due:?}");
         assert_eq!(
             (due[0].kind, due[0].rarity),
@@ -862,36 +882,22 @@ mod tests {
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
         let State {
-            rng,
             stars,
             players,
             regen,
             ..
         } = &mut s;
         let (player, career) = players.both_mut(PlayerIdx::SOLO);
-        let progress = &mut career.progress;
-        let f = stars.as_mut().expect("a star field");
-        take(
-            &stage,
-            &rewards,
-            &mut rng.offer,
+        let Career {
             progress,
-            player,
-            regen,
-            f,
-            0,
-        );
+            offer: rng,
+            offers,
+        } = career;
+        let f = stars.as_ref().expect("a star field");
+        let o = offers.as_mut().expect("star offers");
+        take(&stage, &rewards, rng, progress, player, regen, f, o, 0);
         assert_eq!((player.kill_heal, player.kill_heal_every), (300, 10));
-        take(
-            &stage,
-            &rewards,
-            &mut rng.offer,
-            progress,
-            player,
-            regen,
-            f,
-            1,
-        );
+        take(&stage, &rewards, rng, progress, player, regen, f, o, 1);
         assert_eq!((player.kill_heal, player.kill_heal_every), (500, 4));
     }
 }

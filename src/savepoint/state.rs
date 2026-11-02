@@ -439,6 +439,12 @@ macro_rules! state_codec_v2 {
                 if a.pool.len() != f.pool.len() {
                     return Err(differs("star pool length differs from the content"));
                 }
+            }
+            // Slot 0's offers: the content-sized lists are the slot's.
+            if let (Some(a), Some(f)) = (
+                &s.players.career(PlayerIdx::SOLO).offers,
+                &fresh.players.career(PlayerIdx::SOLO).offers,
+            ) {
                 if a.taken.len() != f.taken.len() {
                     return Err(differs("star taken length differs from the content"));
                 }
@@ -559,7 +565,9 @@ macro_rules! state_codec_v2 {
                 for p in &f.pool {
                     below(usize::from(*p), rewards, "star pool entry out of range")?;
                 }
-                let offer = f.offer.iter().flat_map(|o| &o.candidates);
+            }
+            if let Some(o) = &s.players.career(PlayerIdx::SOLO).offers {
+                let offer = o.offer.iter().flat_map(|o| &o.candidates);
                 for c in offer {
                     below(usize::from(*c), rewards, "offer candidate out of range")?;
                 }

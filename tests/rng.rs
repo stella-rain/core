@@ -115,8 +115,14 @@ fn each_slot_has_its_own_offer_stream() {
             .map(|&t| derive(seed, t).next_u64())
             .collect();
         for (i, a) in firsts.iter().enumerate() {
-            assert!(!firsts[i + 1..].contains(a), "seed {seed}: offer streams collide");
-            assert!(!others.contains(a), "seed {seed}: an offer stream equals another purpose");
+            assert!(
+                !firsts[i + 1..].contains(a),
+                "seed {seed}: offer streams collide"
+            );
+            assert!(
+                !others.contains(a),
+                "seed {seed}: an offer stream equals another purpose"
+            );
         }
     }
 }

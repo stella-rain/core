@@ -38,7 +38,9 @@ fn two_players(s: &State) -> State {
     let mut s2 = s.clone();
     let mut p1 = s.players[PlayerIdx::SOLO].clone();
     p1.at.x.0 += 10;
-    s2.players = Players::of(vec![s.players[PlayerIdx::SOLO].clone(), p1]).expect("two players");
+    s2.players = Players::of(vec![s.players[PlayerIdx::SOLO].clone(), p1])
+        .expect("two players")
+        .keeping_career_of(&s.players);
     s2
 }
 
@@ -77,7 +79,7 @@ fn a_second_player_is_a_tail_of_the_hash() {
     assert_ne!(hash_of(&s2), hash_of(s));
     let mut swapped = s2.clone();
     let v: Vec<_> = s2.players.iter().rev().cloned().collect();
-    swapped.players = Players::of(v).unwrap();
+    swapped.players = Players::of(v).unwrap().keeping_career_of(&s2.players);
     assert_ne!(hash_of(&swapped), hash_of(&s2));
     let mut hurt = s2.clone();
     hurt.players[p1()].hp -= 1;
@@ -204,7 +206,7 @@ fn a_party_without_slot_zero_is_refused() {
 fn the_hash_refuses_a_party_with_a_hole() {
     let e = worst_case::warmed_up();
     let mut s = live(&e).1.clone();
-    s.players = Players::with_mask(0b101, ps(&e));
+    s.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&live(&e).1.players);
     hash_of(&s);
 }
 
@@ -302,7 +304,9 @@ mod careers {
     fn party(mask: u8) -> State {
         let e = worst_case::warmed_up();
         let mut s = live(&e).1.clone();
-        s.players = Players::with_mask(mask, ps(&e));
+        s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
+        // The levels' progress starts empty; the offers stay with the stage's stars.
+        s.players.career_mut(PlayerIdx::SOLO).progress = None;
         s
     }
 

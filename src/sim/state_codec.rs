@@ -17,6 +17,7 @@ use super::state::*;
 use super::world::RangedPool;
 use crate::engine::Outcome;
 use crate::rewards::Rarity;
+use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
@@ -998,34 +999,40 @@ impl Decode for Echo {
 
 // ---- The generators ----
 
-impl Encode for Streams {
-    /// Five `u64`, each generator's state, in the order the hash writes them.
-    fn encode(&self, w: &mut Writer) {
-        let Streams {
+/// Five `u64`, each generator's state, in the order the hash writes them: `spawn, attack, loot`,
+/// slot 0's offer generator, `horde`. `State` writes them, since the offer generator is the
+/// career's.
+fn encode_streams(rng: &Streams, offer: &SplitMix64, w: &mut Writer) {
+    let Streams {
+        spawn,
+        attack,
+        loot,
+        horde,
+    } = rng;
+    spawn.encode(w);
+    attack.encode(w);
+    loot.encode(w);
+    offer.encode(w);
+    horde.encode(w);
+}
+
+/// The generators, and slot 0's offer generator apart: the five in the order of
+/// `encode_streams`.
+fn decode_streams(r: &mut Reader<'_>) -> Result<(Streams, SplitMix64), DecodeError> {
+    let spawn = Decode::decode(r)?;
+    let attack = Decode::decode(r)?;
+    let loot = Decode::decode(r)?;
+    let offer = Decode::decode(r)?;
+    let horde = Decode::decode(r)?;
+    Ok((
+        Streams {
             spawn,
             attack,
             loot,
-            offer,
             horde,
-        } = self;
-        spawn.encode(w);
-        attack.encode(w);
-        loot.encode(w);
-        offer.encode(w);
-        horde.encode(w);
-    }
-}
-
-impl Decode for Streams {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(Streams {
-            spawn: Decode::decode(r)?,
-            attack: Decode::decode(r)?,
-            loot: Decode::decode(r)?,
-            offer: Decode::decode(r)?,
-            horde: Decode::decode(r)?,
-        })
-    }
+        },
+        offer,
+    ))
 }
 
 // ---- Enums of the state ----
@@ -1430,15 +1437,23 @@ impl Decode for DashState {
 
 impl Encode for Career {
     fn encode(&self, w: &mut Writer) {
-        let Career { progress } = self;
+        // Slot 0's offer generator and offers are written by `State`, at the places the run's
+        // generator and star field were (`encode_streams`, `encode_star_field`).
+        let Career {
+            progress,
+            offer: _,
+            offers: _,
+        } = self;
         progress.encode(w);
     }
 }
 
 impl Decode for Career {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        // The generator and the offers come from `State`'s own places; `decode_fields` sets them.
         Ok(Career {
             progress: Decode::decode(r)?,
+            ..Career::default()
         })
     }
 }
@@ -1485,57 +1500,88 @@ impl Decode for Progress {
     }
 }
 
-impl Encode for StarField {
-    fn encode(&self, w: &mut Writer) {
-        let StarField {
+/// The star field as one field was: the `Option` tag, then the run part and slot 0's offers
+/// interleaved in the old order. The two are `Some` together.
+fn encode_star_field(stars: &Option<StarField>, offers: &Option<Offers>, w: &mut Writer) {
+    debug_assert_eq!(stars.is_some(), offers.is_some());
+    let (Some(f), Some(o)) = (stars, offers) else {
+        w.u8(0);
+        return;
+    };
+    w.u8(1);
+    let StarField {
+        misses,
+        on_map,
+        rarity,
+        rune_pool,
+        pool,
+    } = f;
+    let Offers {
+        due,
+        offer,
+        rerolls_left,
+        banishes_left,
+        extra_candidates,
+        taken,
+        banished,
+        set_counts,
+    } = o;
+    misses.encode(w);
+    on_map.encode(w);
+    due.encode(w);
+    offer.encode(w);
+    rerolls_left.encode(w);
+    banishes_left.encode(w);
+    extra_candidates.encode(w);
+    rarity.encode(w);
+    rune_pool.encode(w);
+    pool.encode(w);
+    taken.encode(w);
+    banished.encode(w);
+    set_counts.encode(w);
+}
+
+/// The star field in the order of `encode_star_field`, split into the run part and the offers.
+fn decode_star_field(
+    r: &mut Reader<'_>,
+) -> Result<(Option<StarField>, Option<Offers>), DecodeError> {
+    match r.u8()? {
+        0 => return Ok((None, None)),
+        1 => {}
+        _ => return Err(DecodeError::Invalid("option tag")),
+    }
+    let misses = Decode::decode(r)?;
+    let on_map = decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?;
+    let due = decode_vec(r, MAX_CONTENT_LEN)?;
+    let offer = Decode::decode(r)?;
+    let rerolls_left = Decode::decode(r)?;
+    let banishes_left = Decode::decode(r)?;
+    let extra_candidates = Decode::decode(r)?;
+    let rarity = Decode::decode(r)?;
+    let rune_pool = Decode::decode(r)?;
+    let pool = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
+    let taken = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
+    let banished = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
+    let set_counts = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
+    Ok((
+        Some(StarField {
             misses,
             on_map,
+            rarity,
+            rune_pool,
+            pool,
+        }),
+        Some(Offers {
             due,
             offer,
             rerolls_left,
             banishes_left,
             extra_candidates,
-            rarity,
-            rune_pool,
-            pool,
             taken,
             banished,
             set_counts,
-        } = self;
-        misses.encode(w);
-        on_map.encode(w);
-        due.encode(w);
-        offer.encode(w);
-        rerolls_left.encode(w);
-        banishes_left.encode(w);
-        extra_candidates.encode(w);
-        rarity.encode(w);
-        rune_pool.encode(w);
-        pool.encode(w);
-        taken.encode(w);
-        banished.encode(w);
-        set_counts.encode(w);
-    }
-}
-
-impl Decode for StarField {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(StarField {
-            misses: Decode::decode(r)?,
-            on_map: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?,
-            due: decode_vec(r, MAX_CONTENT_LEN)?,
-            offer: Decode::decode(r)?,
-            rerolls_left: Decode::decode(r)?,
-            banishes_left: Decode::decode(r)?,
-            extra_candidates: Decode::decode(r)?,
-            rarity: Decode::decode(r)?,
-            rune_pool: Decode::decode(r)?,
-            pool: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
-            taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
-            banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
-            set_counts: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
-        })
-    }
+        }),
+    ))
 }
 
 impl Encode for StarState {
@@ -1814,7 +1860,7 @@ impl State {
             echoes,
         } = self;
         tick.encode(w);
-        rng.encode(w);
+        encode_streams(rng, &players.career(PlayerIdx::SOLO).offer, w);
         outcome.encode(w);
         // Format 1 holds one player, written where it was a field of its own.
         assert!(players.len() == 1, "savepoint format 1 holds one player");
@@ -1832,7 +1878,7 @@ impl State {
         next_orb_group.encode(w);
         // Format 1 holds one player: slot 0's career, where the one player's progress was.
         players.career(PlayerIdx::SOLO).encode(w);
-        stars.encode(w);
+        encode_star_field(stars, &players.career(PlayerIdx::SOLO).offers, w);
         heal_pickups.encode(w);
         expertise.encode(w);
         max_attack_speed_pct.encode(w);
@@ -1871,13 +1917,21 @@ impl State {
     fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
         let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
-        // Slot 0's career comes later in the bytes than the player; it is set after the fields.
-        let career: Career;
+        // Slot 0's career comes later in the bytes than the player; it is set after the fields,
+        // with the offer generator and the offers, which sit where the run's generator and star
+        // field were.
+        let mut career: Career;
+        let offer: SplitMix64;
+        let offers: Option<Offers>;
         let mut state = State {
             scratch: Default::default(),
             kinds: fresh.kinds.clone(),
             tick: Decode::decode(r)?,
-            rng: Decode::decode(r)?,
+            rng: {
+                let (rng, slot0) = decode_streams(r)?;
+                offer = slot0;
+                rng
+            },
             outcome: Decode::decode(r)?,
             players: Players::solo(Decode::decode(r)?, Career::default()),
             boss: Decode::decode(r)?,
@@ -1894,7 +1948,9 @@ impl State {
             next_orb_group: Decode::decode(r)?,
             stars: {
                 career = Decode::decode(r)?;
-                Decode::decode(r)?
+                let (stars, slot0) = decode_star_field(r)?;
+                offers = slot0;
+                stars
             },
             heal_pickups: match r.u8()? {
                 0 => None,
@@ -1919,6 +1975,8 @@ impl State {
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
         };
+        career.offer = offer;
+        career.offers = offers;
         *state.players.career_mut(PlayerIdx::SOLO) = career;
         Ok(state)
     }

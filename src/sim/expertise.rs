@@ -275,8 +275,11 @@ pub(super) fn open_due(
         return;
     }
     let State {
-        rng, expertise: g, ..
+        players,
+        expertise: g,
+        ..
     } = s;
+    let rng = &mut players.career_mut(PlayerIdx::SOLO).offer; // N=1: M-PER-PLAYER
     let Some(g) = g.as_mut() else {
         return;
     };
@@ -296,7 +299,7 @@ pub(super) fn open_due(
             let pool = pool(stage, expertise);
             let mut candidates = Vec::with_capacity(stage.tuning.offer_size);
             while candidates.len() < stage.tuning.offer_size {
-                match draw(pool, &mut rng.offer, &candidates) {
+                match draw(pool, rng, &candidates) {
                     Some(i) => candidates.push(i),
                     None => break,
                 }
@@ -330,7 +333,11 @@ pub(super) fn open_due(
 
 /// Rerolls left in the run, shared with the stars' offers; none in a stage without stars.
 fn rerolls_left(s: &State) -> u32 {
-    s.stars.as_ref().map_or(0, |f| f.rerolls_left)
+    s.players
+        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .offers
+        .as_ref()
+        .map_or(0, |o| o.rerolls_left)
 }
 
 /// The options of the open expertise offer, in index order; empty without one.
@@ -365,14 +372,16 @@ pub(super) fn choose(
     events: &mut Vec<DomainEvent>,
 ) {
     let State {
-        rng,
-        stars,
         players,
         expertise: g,
         ..
     } = s;
     let (player, career) = players.both_mut(me);
-    let progress = &mut career.progress;
+    let crate::sim::state::Career {
+        progress,
+        offer: rng,
+        offers,
+    } = career;
     let Some(g) = g.as_mut() else {
         return;
     };
@@ -425,13 +434,13 @@ pub(super) fn choose(
         }
         OfferOption::Reroll { candidate } if o.kind == ExpertiseOfferKind::Common => {
             let slot = usize::from(candidate);
-            let left = stars.as_ref().is_some_and(|f| f.rerolls_left > 0);
+            let left = offers.as_ref().is_some_and(|f| f.rerolls_left > 0);
             let new = if left {
-                draw(pool, &mut rng.offer, &o.candidates)
+                draw(pool, rng, &o.candidates)
             } else {
                 None
             };
-            if let (Some(new), Some(f), true) = (new, stars.as_mut(), slot < o.candidates.len()) {
+            if let (Some(new), Some(f), true) = (new, offers.as_mut(), slot < o.candidates.len()) {
                 f.rerolls_left = f.rerolls_left.saturating_sub(1);
                 o.candidates[slot] = new;
                 events.push(DomainEvent::ExpertiseCandidateReplaced {

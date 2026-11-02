@@ -9,7 +9,10 @@ use crate::inline::InlineVec;
 use crate::kinds::{KindIndex, KindTable};
 use crate::match_ups::MatchUps;
 use crate::rewards::Rarity;
-use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive};
+use crate::rng::{
+    SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2, TAG_SPAWN,
+    derive,
+};
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
@@ -23,7 +26,8 @@ pub(crate) const UNLIMITED: u32 = u32::MAX;
 
 /// The run's generators, one per purpose, so a change to one kind of draw leaves the others
 /// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
-/// order.
+/// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-12): the hash and
+/// savepoint format 1 write slot 0's between `loot` and `horde`, where it was.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Streams {
@@ -33,8 +37,6 @@ pub(crate) struct Streams {
     pub attack: SplitMix64,
     /// Heal drops, star drops and a star's rarity.
     pub loot: SplitMix64,
-    /// The star, expertise and rune offers.
-    pub offer: SplitMix64,
     /// The horde's boss and elite draws.
     pub horde: SplitMix64,
 }
@@ -45,19 +47,17 @@ impl Streams {
             spawn: derive(seed, TAG_SPAWN),
             attack: derive(seed, TAG_ATTACK),
             loot: derive(seed, TAG_LOOT),
-            offer: derive(seed, TAG_OFFER),
             horde: derive(seed, TAG_HORDE),
         }
     }
 
-    /// The five states, in hash order.
+    /// The four states, in hash order (the offer generator is each career's).
     #[cfg(test)]
-    pub fn states(&self) -> [u64; 5] {
+    pub fn states(&self) -> [u64; 4] {
         [
             self.spawn.state(),
             self.attack.state(),
             self.loot.state(),
-            self.offer.state(),
             self.horde.state(),
         ]
     }
@@ -212,8 +212,9 @@ pub(crate) struct ExpertiseOffer {
     pub candidates: Vec<u8>,
 }
 
-/// Falling stars, the offers due and the open one, and what the run's offers have used
-/// (ADR-079 §2, §3).
+/// The run part of the star field: falling stars and what the run's setup fixes for every
+/// player's offers (ADR-079 §2, §3). The offers due and open, and what each player's offers have
+/// used, are per slot in `Offers` (ADR-SIM-12).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -221,6 +222,21 @@ pub(crate) struct StarField {
     pub misses: u32,
     /// The stars waiting on the map, in the order they dropped (entity-ID order).
     pub on_map: Vec<StarState>,
+    /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
+    /// run, part of the setup, and hashed with it.
+    pub rarity: (Rarity, Rarity),
+    /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
+    /// of the setup, and hashed with it.
+    pub rune_pool: u8,
+    /// The run's pool: places in the rewards file, in its order, fixed for the run.
+    pub pool: Vec<u16>,
+}
+
+/// One player's star offers: those due and the open one, and what the player's offers have used
+/// (ADR-079 §2, §3). A slot holds `Some` exactly when the stage has stars (`State::stars`).
+#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct Offers {
     /// The offers due that have not opened yet: a boss kill's first, then the stars taken, in
     /// the order taken.
     pub due: Vec<Due>,
@@ -230,14 +246,6 @@ pub(crate) struct StarField {
     /// Candidates the offer-candidates rewards taken add to every offer, held to
     /// `MAX_OFFER_CANDIDATES` less the base `offer_size` of `rules.json`.
     pub extra_candidates: u8,
-    /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
-    /// run, part of the setup, and hashed with it.
-    pub rarity: (Rarity, Rarity),
-    /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
-    /// of the setup, and hashed with it.
-    pub rune_pool: u8,
-    /// The run's pool: places in the rewards file, in its order, fixed for the run.
-    pub pool: Vec<u16>,
     /// For each reward of the file: times taken, and whether it is banished.
     pub taken: Vec<u8>,
     pub banished: Vec<bool>,
@@ -318,11 +326,52 @@ pub(crate) struct Progress {
 pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
 /// What one player carries through the run besides the player's body: the experience and levels
-/// (`None` in a stage without levels). One per slot in `Players` (ADR-SIM-12).
-#[derive(Clone, Debug, Default)]
+/// (`None` in a stage without levels), the offer generator and the star offers (`None` in a stage
+/// without stars). One per slot in `Players` (ADR-SIM-12, ADR-SIM-2).
+#[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Career {
     pub progress: Option<Progress>,
+    /// The star, expertise and rune offers' generator: `derive(seed, tag)` with the slot's tag
+    /// (`TAG_OFFER` for slot 0).
+    pub offer: SplitMix64,
+    pub offers: Option<Offers>,
+}
+
+/// The offer generator's tag of slot `me`.
+fn offer_tag(me: PlayerIdx) -> u64 {
+    match me.get() {
+        0 => TAG_OFFER,
+        1 => TAG_OFFER_1,
+        _ => TAG_OFFER_2,
+    }
+}
+
+impl Career {
+    /// The career of slot `me` at the start of a run seeded `seed`.
+    pub(crate) fn new(
+        seed: u64,
+        me: PlayerIdx,
+        progress: Option<Progress>,
+        offers: Option<Offers>,
+    ) -> Career {
+        Career {
+            progress,
+            offer: derive(seed, offer_tag(me)),
+            offers,
+        }
+    }
+}
+
+/// An absent slot's placeholder: nothing reads or hashes it.
+impl Default for Career {
+    fn default() -> Career {
+        Career {
+            progress: None,
+            offer: SplitMix64::new(0),
+            offers: None,
+        }
+    }
 }
 
 /// The players of a run: `1..=MAX_PLAYERS` of them, in the slots a presence mask names. All
@@ -330,10 +379,11 @@ pub(crate) struct Career {
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
 /// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
 ///
-/// Each slot also holds its `Career` (the level progress). The state hash and savepoint format 1
-/// write slot 0's career where the run's single progress was, so a run of one is byte for byte
-/// what it was; the careers of slots 1 and 2 are hashed in the tail after their players, a
-/// provisional layout the hash-layout work will settle. Format 1 holds one player, so a party is
+/// Each slot also holds its `Career` (the level progress, the offer generator and the star
+/// offers). The state hash and savepoint format 1 write slot 0's career where the run's single
+/// progress, offer generator and offers were, so a run of one is byte for byte what it was; the
+/// careers of slots 1 and 2 are hashed in the tail after their players, a provisional layout the
+/// hash-layout work will settle. Format 1 holds one player, so a party is
 /// not yet a savepoint. A party builder supplies a career for every present slot.
 #[derive(Clone, Debug)]
 pub(crate) struct Players {
@@ -390,6 +440,14 @@ impl Players {
             careers: Default::default(),
             present: mask,
         }
+    }
+
+    /// This party with slot 0's career taken from `old`: a test that swaps the players of a live
+    /// state keeps its progress, offer generator and offers.
+    #[cfg(test)]
+    pub(crate) fn keeping_career_of(mut self, old: &Players) -> Players {
+        self.careers[0] = old.career(PlayerIdx::SOLO).clone();
+        self
     }
 
     /// The slots in the party, bit `i` for slot `i`.

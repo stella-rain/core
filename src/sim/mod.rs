@@ -165,8 +165,8 @@ use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::sim::state::AgentState;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, PartState, PlayerState, Progress,
-    Pull, Smash, StarField, StatRule, State, Streams,
+    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, Offers, PartState, PlayerState,
+    Progress, Pull, Smash, StarField, StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
@@ -310,7 +310,17 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     if let (Some(cfg), Some(f)) = (&stage.stars, s.stars.as_mut()) {
         let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
         scratch::reserve_to(&mut f.on_map, stars);
-        scratch::reserve_to(&mut f.due, stars + 1);
+    }
+    // Each present slot reserves its own offers due.
+    if let Some(cfg) = &stage.stars {
+        let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
+        for me in (0..MAX_PLAYERS).filter_map(PlayerIdx::new) {
+            if s.players.is_present(me) {
+                if let Some(o) = s.players.career_mut(me).offers.as_mut() {
+                    scratch::reserve_to(&mut o.due, stars + 1);
+                }
+            }
+        }
     }
     if let (Some(cfg), Some(pickups)) = (&stage.heal, s.heal_pickups.as_mut()) {
         scratch::reserve_to(pickups, usize::from(cfg.cap));
@@ -411,6 +421,16 @@ fn unreserved_state(
         spent: vec![0; run_stats.stats().len()],
         totals: [0; StatEffect::ALL.len()],
     });
+    let offers = stage.stars.as_ref().map(|st| Offers {
+        due: Vec::new(),
+        offer: None,
+        rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
+        banishes_left: u32::from(st.banishes),
+        extra_candidates: 0,
+        taken: vec![0; rewards],
+        banished: vec![false; rewards],
+        set_counts: vec![0; content.constellations().sets().len()],
+    });
     State {
         scratch: Scratch::default(),
         tick: 0,
@@ -462,7 +482,7 @@ fn unreserved_state(
                 aggro: 0,
                 statuses: Default::default(),
             },
-            Career { progress },
+            Career::new(seed, PlayerIdx::SOLO, progress, offers), // N=1: M-PER-PLAYER
         ),
         boss,
         companions,
@@ -476,20 +496,12 @@ fn unreserved_state(
         spawned: vec![0; stage.waves.len()],
         next_id,
         next_orb_group: 0,
-        stars: stage.stars.as_ref().map(|st| StarField {
+        stars: stage.stars.as_ref().map(|_| StarField {
             misses: 0,
             on_map: Vec::new(),
-            due: Vec::new(),
-            offer: None,
             rarity: pool.difficulty.rarity,
-            rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
-            banishes_left: u32::from(st.banishes),
-            extra_candidates: 0,
             rune_pool: runes::FULL_POOL,
             pool: pool.rewards,
-            taken: vec![0; rewards],
-            banished: vec![false; rewards],
-            set_counts: vec![0; content.constellations().sets().len()],
         }),
         heal_pickups: stage.heal.as_ref().map(|_| Vec::new()),
         expertise: expertise::initial(stage, content.expertise()),
@@ -623,7 +635,7 @@ fn stat_offer_open(s: &State) -> bool {
 /// An offer is open, a star's, a boss's, an expertise level's or a stat offer: the world is
 /// stopped.
 pub(crate) fn offer_open(s: &State) -> bool {
-    s.stars.as_ref().is_some_and(|f| f.offer.is_some())
+    s.players.career(PlayerIdx::SOLO).offers.as_ref().is_some_and(|o| o.offer.is_some()) // N=1: M-PER-PLAYER
         || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
         || stat_offer_open(s)
 }
