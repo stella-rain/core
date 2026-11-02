@@ -6,10 +6,13 @@ use stella_rain_core::engine::Engine;
 
 /// The teardown of every bench: the result goes through `black_box` and is forgotten.
 ///
-/// In iai-callgrind 0.16 the teardown runs inside the counted wrapper, so a drop here would count
-/// `drop_glue` and the allocator's consolidation, which depend on the heap layout and are not the
-/// operation a bench names. The value is leaked instead; each bench is its own process, so the
-/// leak ends with it.
+/// In iai-callgrind 0.16 only the bench function is counted (the wrapper function the macro
+/// generates); the teardown runs after it, outside the count. So a bench function must return its
+/// fixture and not drop it: a drop inside the function is counted, as `drop_glue` and the
+/// allocator's consolidation, which depend on the heap layout and are not the operation a bench
+/// names (`.github/scripts/bench_drop_guard.py` fails a measured profile that shows one). The
+/// teardown forgets the returned value, so no heap work is done outside the count either; each
+/// bench is its own process, so the leak ends with it.
 pub fn forget_measured<T>(value: T) {
     std::mem::forget(std::hint::black_box(value));
 }
