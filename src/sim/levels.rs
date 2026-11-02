@@ -40,7 +40,8 @@ pub(crate) fn xp_next(stage: &World, level: u32) -> u32 {
 
 /// Experience for the enemies at 0 hp, before they are removed.
 pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
-    if s.progress.is_none() {
+    if s.players.career(PlayerIdx::SOLO).progress.is_none() {
+        // N=1: M-PER-PLAYER
         return;
     }
     let xp = s
@@ -60,8 +61,9 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
 }
 
 fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<DomainEvent>) {
-    let xp = raised(xp, total(s, StatEffect::XpPct));
-    let Some(p) = s.progress.as_mut() else {
+    let xp = raised(xp, total(s, me, StatEffect::XpPct));
+    let (player, career) = s.players.both_mut(me);
+    let Some(p) = career.progress.as_mut() else {
         return;
     };
     if xp == 0 || p.level >= MAX_LEVEL {
@@ -79,7 +81,7 @@ fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<D
         if p.pick_stats {
             p.offers_due = p.offers_due.saturating_add(1);
         } else if let Some(at) = first_below_limit(p) {
-            raise(p, &mut s.players[me], at, events);
+            raise(p, player, at, events);
         }
     }
     if p.level >= MAX_LEVEL {
@@ -95,7 +97,8 @@ pub(crate) fn set_policy(
     priority: &[ContentId],
     pick_stats: bool,
 ) {
-    let Some(p) = s.progress.as_mut() else {
+    let Some(p) = s.players.career_mut(PlayerIdx::SOLO).progress.as_mut() else {
+        // N=1: M-PER-PLAYER
         return;
     };
     let named = |id: &ContentId| run_stats.stats().iter().position(|st| st.id == *id);
@@ -155,7 +158,8 @@ pub(super) fn open_due(s: &mut State, events: &mut Vec<DomainEvent>) {
     if super::offer_open(s) {
         return;
     }
-    let Some(p) = s.progress.as_mut() else {
+    let Some(p) = s.players.career_mut(PlayerIdx::SOLO).progress.as_mut() else {
+        // N=1: M-PER-PLAYER
         return;
     };
     if p.offers_due == 0 {
@@ -175,7 +179,8 @@ pub(super) fn open_due(s: &mut State, events: &mut Vec<DomainEvent>) {
 
 /// The open stat offer's options: a take of each stat below its limit.
 pub(super) fn options(s: &State) -> Vec<OfferOption> {
-    s.progress.as_ref().map_or_else(Vec::new, |p| {
+    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    career.progress.as_ref().map_or_else(Vec::new, |p| {
         (0..open_stats(p).len())
             .map(|i| OfferOption::Take {
                 candidate: u8::try_from(i).unwrap_or(u8::MAX),
@@ -191,11 +196,8 @@ pub(super) fn choose(
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
-    let State {
-        progress, players, ..
-    } = s;
-    let player = &mut players[me];
-    let Some(p) = progress.as_mut() else {
+    let (player, career) = s.players.both_mut(me);
+    let Some(p) = career.progress.as_mut() else {
         return;
     };
     let OfferOption::Take { candidate } = option else {
@@ -209,7 +211,8 @@ pub(super) fn choose(
 
 /// The open stat offer, for the snapshot.
 pub(crate) fn offer_view(s: &State) -> Option<StatOfferView> {
-    let p = s.progress.as_ref().filter(|p| p.offer_open)?;
+    let career = s.players.career(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
+    let p = career.progress.as_ref().filter(|p| p.offer_open)?;
     Some(StatOfferView {
         options: open_stats(p)
             .iter()
@@ -234,8 +237,12 @@ pub(super) fn add_effect(
     }
 }
 
-fn total(s: &State, effect: StatEffect) -> u32 {
-    s.progress.as_ref().map_or(0, |p| p.totals[effect as usize])
+fn total(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
+    let career = s.players.career(me);
+    career
+        .progress
+        .as_ref()
+        .map_or(0, |p| p.totals[effect as usize])
 }
 
 fn raised(value: u32, pct: u32) -> u32 {
@@ -249,21 +256,86 @@ fn shortened(ticks: u32, pct: u32) -> u32 {
 }
 
 /// The main character's attack stat with the points spent on attack.
-pub(super) fn attack(s: &State, atk: u32) -> u32 {
-    raised(atk, total(s, StatEffect::AttackPct))
+pub(super) fn attack(s: &State, me: PlayerIdx, atk: u32) -> u32 {
+    raised(atk, total(s, me, StatEffect::AttackPct))
 }
 
 /// The main character's attack speed, in percent, with the points spent on it.
-pub(super) fn attack_speed(s: &State) -> u32 {
-    run_stats::capped_attack_speed_pct(total(s, StatEffect::AttackSpeedPct), s.max_attack_speed_pct)
+pub(super) fn attack_speed(s: &State, me: PlayerIdx) -> u32 {
+    run_stats::capped_attack_speed_pct(
+        total(s, me, StatEffect::AttackSpeedPct),
+        s.max_attack_speed_pct,
+    )
 }
 
 /// The evade's cooldown with the points spent on evading.
-pub(super) fn evade_cooldown(s: &State, ticks: u32) -> u32 {
-    shortened(ticks, total(s, StatEffect::EvadePct))
+pub(super) fn evade_cooldown(s: &State, me: PlayerIdx, ticks: u32) -> u32 {
+    shortened(ticks, total(s, me, StatEffect::EvadePct))
 }
 
 /// A speed cap with the points spent on speed.
-pub(super) fn speed(s: &State, cap: i64) -> i64 {
-    cap * (100 + i64::from(total(s, StatEffect::SpeedPct))) / 100
+pub(super) fn speed(s: &State, me: PlayerIdx, cap: i64) -> i64 {
+    cap * (100 + i64::from(total(s, me, StatEffect::SpeedPct))) / 100
+}
+
+#[cfg(test)]
+mod tests {
+    //! The helpers read the career of the player they are given (ADR-SIM-12).
+
+    use super::*;
+    use crate::bench_fixtures::worst_case;
+    use crate::engine::Run;
+    use crate::sim::state::{Career, Players};
+
+    fn party() -> (World, State, PlayerIdx) {
+        let e = worst_case::warmed_up();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules")
+        };
+        let mut s = state.clone();
+        let p = s.players[PlayerIdx::SOLO].clone();
+        let mut progress = s
+            .players
+            .career(PlayerIdx::SOLO)
+            .progress
+            .clone()
+            .expect("levels");
+        progress.totals = [0; StatEffect::ALL.len()];
+        s.players = Players::with_mask(0b011, p);
+        s.players.career_mut(PlayerIdx::SOLO).progress = Some(progress.clone());
+        let one = PlayerIdx::new(1).unwrap();
+        *s.players.career_mut(one) = Career {
+            progress: Some(progress),
+        };
+        (world.clone(), s, one)
+    }
+
+    #[test]
+    fn the_helpers_read_the_player_they_are_given() {
+        let (_, mut s, one) = party();
+        let t = |s: &mut State, e: StatEffect| {
+            s.players.career_mut(one).progress.as_mut().unwrap().totals[e as usize] = 50;
+        };
+        t(&mut s, StatEffect::AttackPct);
+        t(&mut s, StatEffect::EvadePct);
+        t(&mut s, StatEffect::SpeedPct);
+        assert_eq!(attack(&s, one, 100), 150);
+        assert_eq!(attack(&s, PlayerIdx::SOLO, 100), 100);
+        assert_eq!(evade_cooldown(&s, one, 100), 50);
+        assert_eq!(evade_cooldown(&s, PlayerIdx::SOLO, 100), 100);
+        assert_eq!(speed(&s, one, 100), 150);
+        assert_eq!(speed(&s, PlayerIdx::SOLO, 100), 100);
+        t(&mut s, StatEffect::AttackSpeedPct);
+        assert!(attack_speed(&s, one) > attack_speed(&s, PlayerIdx::SOLO));
+    }
+
+    #[test]
+    fn experience_goes_to_the_player_it_is_given() {
+        let (world, mut s, one) = party();
+        let before = s.players.career(PlayerIdx::SOLO).progress.clone();
+        gain(&world, &mut s, one, 1, &mut Vec::new());
+        assert_eq!(s.players.career(PlayerIdx::SOLO).progress, before);
+        let mine = s.players.career(one).progress.as_ref().unwrap();
+        assert!(mine.xp > 0 || mine.level > 1);
+    }
 }

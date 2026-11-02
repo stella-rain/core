@@ -77,7 +77,7 @@ pub(super) fn act(
         o.cooldown_left = o.cooldown_left.saturating_sub(1);
         let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, me.id(), slot(k, j)));
         if o.cooldown_left == 0 && !attacking {
-            let damage = levels::attack(s, stage.player.atk);
+            let damage = levels::attack(s, me, stage.player.atk);
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,

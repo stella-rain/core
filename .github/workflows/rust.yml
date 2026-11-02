@@ -411,7 +411,7 @@ jobs:
             src/rewards.rs src/run_stats.rs src/expertise.rs src/stage_skill.rs \
             src/run_replay.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
             src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs src/attack_presets.rs src/weapons.rs \
-            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs content \
+            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs src/step_log.rs content \
             tests/fixtures/run_setup fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
@@ -472,6 +472,14 @@ jobs:
           SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
           test -n "$(find seeds/savepoint -type f)"
           find seeds/savepoint -type f | wc -l
+      - name: Seeds for step_log_range
+        run: |
+          set -eu
+          # Generated, not committed: the bytes move with the step log format and SIM_VERSION. The test
+          # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/step_log_range of the root.
+          STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_step_log_range_seeds -- --ignored
+          test -n "$(find seeds/step_log_range -type f)"
+          find seeds/step_log_range -type f | wc -l
       - name: Fuzz each target for 60 seconds, one per CPU
         run: |
           set -eu
@@ -496,6 +504,7 @@ jobs:
               run_setup) seeds=seeds/setup ;;
               pack_load) seeds=seeds/pack max_len=1048577 ;;
               savepoint_load) seeds=seeds/savepoint ;;
+              step_log_range) seeds=seeds/step_log_range ;;
               *) seeds= ;;
             esac
             echo "start $target"
@@ -740,6 +749,12 @@ jobs:
           ARCH: ${{ matrix.arch }}
           BENCH: ${{ matrix.bench }}
         run: python3 .github/scripts/bench_budget.py --arch "$ARCH" --bench "$BENCH" --bench-output "$RUNNER_TEMP/bench.txt"
+      # A profile that counts the drop of a bench fixture (drop_glue of an Engine, Run or Case under the
+      # bench wrapper) measures the heap layout, not the tick (ADR-SIM-8). This reads the measured profile;
+      # tests/bench_teardown.rs is the check of the bench text. It fails when it cannot read a profile.
+      - name: Check the teardown of the benches
+        if: ${{ !cancelled() && steps.count.outcome == 'success' }}
+        run: python3 .github/scripts/bench_drop_guard.py --home "$IAI_CALLGRIND_HOME"
       # A compared case that rose over BENCH_ALARM_PCT fails unless a new entry of benches/accepted.toml,
       # merged by Kade, names this PR and covers the count (ADR-SIM-8). The base commit's ledger
       # tells new entries from old ones. A case that moved is printed, not gated (ADR-SIM-10).

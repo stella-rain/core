@@ -1428,6 +1428,21 @@ impl Decode for DashState {
 
 // ---- Progression: levels, stars, offers, healing, expertise and the horde ----
 
+impl Encode for Career {
+    fn encode(&self, w: &mut Writer) {
+        let Career { progress } = self;
+        progress.encode(w);
+    }
+}
+
+impl Decode for Career {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        Ok(Career {
+            progress: Decode::decode(r)?,
+        })
+    }
+}
+
 impl Encode for Progress {
     fn encode(&self, w: &mut Writer) {
         let Progress {
@@ -1778,7 +1793,6 @@ impl State {
             spawned,
             next_id,
             next_orb_group,
-            progress,
             stars,
             heal_pickups,
             expertise,
@@ -1816,7 +1830,8 @@ impl State {
         spawned.encode(w);
         EntityId(*next_id).encode(w);
         next_orb_group.encode(w);
-        progress.encode(w);
+        // Format 1 holds one player: slot 0's career, where the one player's progress was.
+        players.career(PlayerIdx::SOLO).encode(w);
         stars.encode(w);
         heal_pickups.encode(w);
         expertise.encode(w);
@@ -1856,13 +1871,15 @@ impl State {
     fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
         let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
-        Ok(State {
+        // Slot 0's career comes later in the bytes than the player; it is set after the fields.
+        let career: Career;
+        let mut state = State {
             scratch: Default::default(),
             kinds: fresh.kinds.clone(),
             tick: Decode::decode(r)?,
             rng: Decode::decode(r)?,
             outcome: Decode::decode(r)?,
-            players: Players::solo(Decode::decode(r)?),
+            players: Players::solo(Decode::decode(r)?, Career::default()),
             boss: Decode::decode(r)?,
             companions: decode_vec(r, companions_cap)?,
             enemies: decode_vec(r, enemies_cap)?,
@@ -1875,8 +1892,10 @@ impl State {
             spawned: decode_vec(r, MAX_CONTENT_LEN)?,
             next_id: EntityId::decode(r)?.0,
             next_orb_group: Decode::decode(r)?,
-            progress: Decode::decode(r)?,
-            stars: Decode::decode(r)?,
+            stars: {
+                career = Decode::decode(r)?;
+                Decode::decode(r)?
+            },
             heal_pickups: match r.u8()? {
                 0 => None,
                 1 => Some(decode_vec(
@@ -1899,7 +1918,9 @@ impl State {
             damage_pct: Decode::decode(r)?,
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
-        })
+        };
+        *state.players.career_mut(PlayerIdx::SOLO) = career;
+        Ok(state)
     }
 }
 
@@ -1950,5 +1971,24 @@ mod enum_tests {
             Rune::Burn,
         ]);
         tags(&[RangedPool::Zone, RangedPool::Line]);
+    }
+}
+
+#[cfg(test)]
+mod career_tests {
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    use crate::sim::state::Career;
+
+    #[test]
+    fn a_career_is_its_progress_and_nothing_else() {
+        let e = crate::bench_fixtures::worst_case::warmed_up();
+        let crate::engine::Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        assert_eq!(to_bytes(&Career::default()), [0]);
+        let career = state.players.career(crate::id::PlayerIdx::SOLO).clone();
+        assert_eq!(to_bytes(&career), to_bytes(&career.progress));
+        let back: Career = from_bytes(&to_bytes(&career)).expect("decodes");
+        assert_eq!(back.progress.is_some(), career.progress.is_some());
     }
 }

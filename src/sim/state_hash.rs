@@ -809,6 +809,13 @@ impl StableHash for PlayerState {
     }
 }
 
+impl StableHash for Career {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Career { progress } = self;
+        progress.stable_hash(h);
+    }
+}
+
 impl StableHash for Progress {
     fn stable_hash(&self, h: &mut StateHasher) {
         let Progress {
@@ -1012,7 +1019,6 @@ impl State {
             spawned,
             next_id,
             next_orb_group,
-            progress,
             stars,
             heal_pickups,
             expertise,
@@ -1049,7 +1055,8 @@ impl State {
         spawned.stable_hash(h);
         EntityId(*next_id).stable_hash(h);
         next_orb_group.stable_hash(h);
-        progress.stable_hash(h);
+        // Slot 0's career, where the one player's progress was.
+        players.career(PlayerIdx::SOLO).stable_hash(h);
         stars.stable_hash(h);
         heal_pickups.stable_hash(h);
         expertise.stable_hash(h);
@@ -1064,7 +1071,8 @@ impl State {
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
         // Players 1 and up, after everything else, only when there are any (provisional
-        // layout for a party; ADR-SIM-12).
+        // layout for a party, the hash-layout work owns the final one: the others' players, then
+        // their careers; ADR-SIM-12).
         // The map of the entity IDs needs the present slots to be a prefix.
         if players.mask() != 0b001 {
             assert!(
@@ -1074,6 +1082,9 @@ impl State {
             h.write_u8(players.mask());
             for p in players.others() {
                 p.stable_hash(h);
+            }
+            for c in players.other_careers() {
+                c.stable_hash(h);
             }
         }
     }
