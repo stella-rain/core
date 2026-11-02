@@ -77,7 +77,7 @@ def main():
         for callee, caller in find_hits(text):
             print(
                 f"::error title=bench teardown::{label}: {callee} is called from {caller}; "
-                "end the bench with teardown = support::forget_measured (benches/support/mod.rs)"
+                "the bench function must return its fixture, and end with teardown = support::forget_measured (benches/support/mod.rs)"
             )
             summary.append(f"- {label}: `{callee}` called from `{caller}`")
             failed = True
