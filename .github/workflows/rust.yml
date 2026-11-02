@@ -408,7 +408,7 @@ jobs:
             src/rewards.rs src/run_stats.rs src/expertise.rs src/stage_skill.rs \
             src/run_replay.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
             src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs src/attack_presets.rs src/weapons.rs \
-            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs content \
+            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs src/step_log.rs content \
             tests/fixtures/run_setup fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
@@ -466,6 +466,14 @@ jobs:
           SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
           test -n "$(find seeds/savepoint -type f)"
           find seeds/savepoint -type f | wc -l
+      - name: Seeds for step_log_range
+        run: |
+          set -eu
+          # Generated, not committed: the bytes move with the step log format and SIM_VERSION. The test
+          # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/step_log_range of the root.
+          STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_step_log_range_seeds -- --ignored
+          test -n "$(find seeds/step_log_range -type f)"
+          find seeds/step_log_range -type f | wc -l
       - name: Fuzz each target for 60 seconds
         run: |
           set -eu
@@ -479,6 +487,7 @@ jobs:
               run_setup) seeds=seeds/setup ;;
               pack_load) seeds=seeds/pack ;;
               savepoint_load) seeds=seeds/savepoint ;;
+              step_log_range) seeds=seeds/step_log_range ;;
               *) seeds= ;;
             esac
             # shellcheck disable=SC2086
