@@ -4,12 +4,12 @@
 //! from domain events and state observations, matching the rules previously kept in
 //! the app wrapper's `Tally`.
 
+use crate::common;
 use std::fs;
 
 use stella_rain_core::attack::{DamageType, MatchUp};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::kinds::{KindIndex, KindTable};
 use stella_rain_core::ledger::{RunLedger, Seen, StarPick};
@@ -241,11 +241,11 @@ fn corpus_run_computes_expected_ledger() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
                 stella_rain_core::run_replay::CommandKind::Choose => {
-                    engine.choose(PlayerIdx::SOLO, c.index).unwrap();
+                    common::pick(&mut engine, c.index).unwrap();
                 }
             }
         }
-        engine.step(*input);
+        engine.step(&[*input]);
     }
 
     let ledger = engine.ledger();

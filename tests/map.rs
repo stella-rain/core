@@ -61,12 +61,12 @@ fn the_main_character_is_clamped_to_the_map_not_the_portrait_field() {
         json!({ "width": WIDTH, "height": HEIGHT, "start": { "x": WIDTH - 1000, "y": 1000 } }),
     );
     let mut e = engine(&stage);
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(player_at(&e), (WIDTH - 1000 + SPEED, 1000));
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(player_at(&e), (WIDTH, 1000), "clamped at the right edge");
     for _ in 0..3 {
-        e.step(moving(0, -127));
+        e.step(&[moving(0, -127)]);
     }
     assert_eq!(player_at(&e), (WIDTH, 0), "and at the top edge");
 }
@@ -75,7 +75,7 @@ fn the_main_character_is_clamped_to_the_map_not_the_portrait_field() {
 fn xs_until_gone(e: &mut Engine, ticks: u32, pick: impl Fn(&Engine) -> Vec<i32>) -> Vec<i32> {
     let mut seen = Vec::new();
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         let now = pick(e);
         if now.is_empty() && !seen.is_empty() {
             break;
@@ -134,7 +134,7 @@ fn companions_stay_on_the_map() {
     let stay = companion(10, hold(WIDTH + FIELD_MARGIN, 40_000), json!([]));
     let stage = wide(quiet(stage_full(600, Some(far_boss()), vec![], vec![stay])));
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     let s = e.snapshot();
     let c = s
         .entities
@@ -215,7 +215,7 @@ const LEFT: i32 = 32_768;
 fn on_the_map(e: &mut Engine, ticks: u32) -> Vec<bool> {
     (0..ticks)
         .map(|_| {
-            e.step(idle());
+            e.step(&[idle()]);
             !e.snapshot().orbs.is_empty()
         })
         .collect()
@@ -267,7 +267,7 @@ fn an_orbs_lifetime_is_part_of_the_state_hash() {
     let hash_after = |ticks: u32| {
         let mut e = engine(&one_orb(ticks));
         for _ in 0..5 {
-            e.step(idle());
+            e.step(&[idle()]);
         }
         e.state_hash()
     };

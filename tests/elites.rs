@@ -5,7 +5,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -149,7 +148,7 @@ fn target(tick: u32, is_elite: bool) -> Value {
 fn drops(e: &mut Engine, ticks: u32) -> (Vec<usize>, Vec<Rarity>) {
     let (mut kills, mut at, mut rarities) = (0, Vec::new(), Vec::new());
     for _ in 0..ticks {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -334,8 +333,8 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
             .map(|v| v.id.0)
             .collect();
         match c {
-            Command::Step(input) => e.step(input),
-            Command::Choose(i) => e.choose(PlayerIdx::SOLO, i).unwrap(),
+            Command::Step(input) => e.step(&[input]),
+            Command::Choose(i) => common::pick(&mut e, i).unwrap(),
         }
         for ev in e.events() {
             match ev {

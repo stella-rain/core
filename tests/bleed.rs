@@ -77,7 +77,7 @@ fn a_combo_step_hit_applies_bleed() {
     let target = wait_for_target(&mut e);
     assert!(statuses(&e, target).is_empty());
     let start = e.tick();
-    e.step(once(start)(start));
+    e.step(&[once(start)(start)]);
     assert!(e.events().iter().any(|ev| matches!(
         ev,
         DomainEvent::Hit { target: t, damage: 10, .. } if *t == target
@@ -122,7 +122,7 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
     let mut seen = Vec::new();
     for _ in 0..=240 {
         let t = e.tick();
-        e.step(presses(start, &[0, 10, 20, 40])(t));
+        e.step(&[presses(start, &[0, 10, 20, 40])(t)]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Hit {
@@ -177,11 +177,11 @@ fn each_enemy_has_its_own_bleed() {
     );
     take_all(&mut e);
     while e.tick() < TARGET_TICK {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let start = e.tick();
     for t in start..start + 15 {
-        e.step(presses(start, &[0, 10])(t));
+        e.step(&[presses(start, &[0, 10])(t)]);
     }
     let bleeding: Vec<(EntityId, u16)> = e
         .snapshot()
@@ -308,10 +308,10 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     take(&mut e, "war_cry_r");
     take(&mut e, "bonus");
     let target = wait_for_target(&mut e);
-    e.step(Input {
+    e.step(&[Input {
         skill: true,
         ..idle()
-    });
+    }]);
     let start = e.tick();
     let seen = hits(&mut e, target, 100, presses(start, &[0, 45]));
     seen.into_iter().map(|(t, d)| (t - start - 1, d)).collect()
@@ -366,10 +366,10 @@ fn the_boss_bleeds_too() {
     // run out.
     let boss = EntityId(1);
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     while !statuses(&e, boss).is_empty() {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let start = e.tick();
     let seen = hits(&mut e, boss, 200, once(start));
@@ -388,8 +388,8 @@ fn the_state_hash_holds_bleed() {
     wait_for_target(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
-    a.step(once(start)(start));
-    b.step(once(start)(start));
+    a.step(&[once(start)(start)]);
+    b.step(&[once(start)(start)]);
     assert_ne!(a.state_hash(), b.state_hash());
 }
 
@@ -456,7 +456,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
     };
     assert!(listed(&e).is_empty());
     let start = e.tick();
-    e.step(once(start)(start));
+    e.step(&[once(start)(start)]);
     assert_eq!(
         listed(&e),
         [StatusView {
@@ -465,7 +465,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
             total: 180
         }]
     );
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(
         listed(&e),
         [StatusView {
@@ -475,7 +475,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
         }]
     );
     for _ in 0..178 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     assert_eq!(
         listed(&e),
@@ -485,7 +485,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
             total: 180
         }]
     );
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert!(
         listed(&e).is_empty(),
         "it runs out on the 180th tick after it was applied"
@@ -526,7 +526,7 @@ fn a_smash_hit_applies_bleed_without_the_rune_held() {
     let target = wait_for_target(&mut e);
     assert!(statuses(&e, target).is_empty());
     let start = e.tick();
-    e.step(smash_presses(start, &[0])(start));
+    e.step(&[smash_presses(start, &[0])(start)]);
     assert!(e.events().iter().any(|ev| matches!(
         ev,
         DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
@@ -573,7 +573,7 @@ fn a_smash_stacks_to_the_maximum_and_each_hit_starts_its_duration_again() {
     let mut stacks = Vec::new();
     for _ in 0..=60 {
         let t = e.tick();
-        e.step(smash_presses(start, &[0, 10, 20, 40])(t));
+        e.step(&[smash_presses(start, &[0, 10, 20, 40])(t)]);
         for ev in e.events() {
             if let DomainEvent::StatusApplied {
                 target: id,
@@ -633,7 +633,7 @@ fn a_smash_that_kills_applies_no_bleed() {
     let mut e = smashing_stage(runes(30, 180, 3, 5), target);
     let id = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(smash_presses(start, &[0])(start));
+    e.step(&[smash_presses(start, &[0])(start)]);
     assert!(e.events().iter().any(|ev| matches!(
         ev,
         DomainEvent::Died { entity, .. } if *entity == id
@@ -656,11 +656,11 @@ fn a_smash_and_the_rune_share_one_bleed() {
     let mut stacks = Vec::new();
     for _ in 0..=70 {
         let t = e.tick();
-        e.step(Input {
+        e.step(&[Input {
             main: t == start,
             smash: t == start + 60,
             ..idle()
-        });
+        }]);
         for ev in e.events() {
             if let DomainEvent::StatusApplied {
                 target: id,

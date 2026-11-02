@@ -11,7 +11,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::expertise::Expertise;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::hash_to_hex;
 use stella_rain_core::run_content::RunContent;
@@ -175,7 +174,7 @@ fn openings(events: &[DomainEvent]) -> Vec<String> {
 fn take_all(e: &mut Engine, first: &[DomainEvent]) -> Vec<String> {
     let mut seen = openings(first);
     while e.offer_open() {
-        e.choose(PlayerIdx::SOLO, 0).unwrap();
+        common::pick(e, 0).unwrap();
         seen.extend(openings(e.events()));
     }
     seen
@@ -224,7 +223,7 @@ fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
         "the kill's tick opens level 1's offer"
     );
     let tick = e.tick();
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.tick(), tick, "the world is stopped");
     assert!(e.events().is_empty());
 }
@@ -277,11 +276,8 @@ fn a_reroll_draws_that_candidate_alone_again_and_spends_a_reroll() {
         .into_iter()
         .find(|id| !before.iter().any(|c| c == id))
         .unwrap();
-    e.choose(
-        PlayerIdx::SOLO,
-        index_of(&e, OfferOption::Reroll { candidate: 1 }),
-    )
-    .unwrap();
+    let index = index_of(&e, OfferOption::Reroll { candidate: 1 });
+    common::pick(&mut e, index).unwrap();
     assert!(e.offer_open(), "a reroll leaves the offer open");
     let after = candidates(&e);
     assert_eq!(
@@ -332,7 +328,7 @@ fn taking_an_option_applies_it_and_counts_it_for_its_weapon() {
     );
     until_offer(&mut e);
     let hp = e.snapshot().players[0].hp;
-    e.choose(PlayerIdx::SOLO, 0).unwrap();
+    common::pick(&mut e, 0).unwrap();
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
@@ -350,7 +346,7 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
     let main = vec![option("quick", "attack_speed_pct", 10)];
     let mut e = with(&stage(Some((1, to_level(16))), vec![]), &content(main));
     until_offer(&mut e);
-    e.choose(PlayerIdx::SOLO, 0).unwrap(); // The boss offer.
+    common::pick(&mut e, 0).unwrap(); // The boss offer.
     let mut quick_offers = 0;
     while e.offer_open() {
         let offer = expertise_offer(&e);
@@ -361,7 +357,7 @@ fn an_attack_speed_option_is_offered_however_often_it_was_taken() {
         {
             quick_offers += 1;
         }
-        e.choose(PlayerIdx::SOLO, 0).unwrap();
+        common::pick(&mut e, 0).unwrap();
     }
     assert_eq!(quick_offers, 12, "offered at the 12 common levels of 16");
     assert_eq!(gauge(&e).taken, [u8::try_from(quick_offers).unwrap()]);
@@ -441,7 +437,7 @@ fn damage_stays_bounded_with_many_damage_options_stacked() {
     assert!(!before.is_empty(), "the slash hits the tough enemy too");
     let mut picks = 0u32;
     while e.offer_open() {
-        e.choose(PlayerIdx::SOLO, 0).unwrap();
+        common::pick(&mut e, 0).unwrap();
         picks += 1;
     }
     assert!(picks > 9_000, "{picks} offers");
@@ -475,17 +471,14 @@ fn the_offer_and_the_picks_are_in_the_state_hash() {
     until_offer(&mut a);
     until_offer(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
-    b.choose(
-        PlayerIdx::SOLO,
-        index_of(&b, OfferOption::Reroll { candidate: 0 }),
-    )
-    .unwrap();
+    let index = index_of(&b, OfferOption::Reroll { candidate: 0 });
+    common::pick(&mut b, index).unwrap();
     assert_ne!(a.state_hash(), b.state_hash(), "the candidates are hashed");
     let (mut c, mut d) = (make(), make());
     until_offer(&mut c);
     until_offer(&mut d);
-    c.choose(PlayerIdx::SOLO, 0).unwrap();
-    d.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut c, 0).unwrap();
+    common::pick(&mut d, 1).unwrap();
     // Each takes 10 percent more damage, so only the pick's place tells them apart.
     assert_ne!(c.state_hash(), d.state_hash(), "the picks are hashed");
 }
@@ -499,7 +492,7 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
     let (mut expertise_choices, mut style_choices) = (0, 0);
     for c in &commands {
         match c {
-            Command::Step(input) => e.step(*input),
+            Command::Step(input) => e.step(&[*input]),
             Command::Choose(i) => {
                 if let Some(offer) = e.snapshot().expertise.and_then(|g| g.offer) {
                     expertise_choices += 1;
@@ -507,7 +500,7 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
                         style_choices += 1;
                     }
                 }
-                e.choose(PlayerIdx::SOLO, *i).unwrap();
+                common::pick(&mut e, *i).unwrap();
             }
         }
     }
@@ -560,7 +553,7 @@ fn next_offer_of(e: &mut Engine, level: u32, mut events: Vec<DomainEvent>) -> Ve
             return events;
         }
         assert!(e.offer_open(), "level {level}'s offer never opened");
-        e.choose(PlayerIdx::SOLO, 0).unwrap();
+        common::pick(e, 0).unwrap();
         events = e.events().to_vec();
     }
 }
@@ -611,7 +604,7 @@ fn the_style_level_offers_the_three_styles_fixed_with_no_reroll_skip_or_banish()
     );
     let hash = e.state_hash();
     assert!(
-        e.choose(PlayerIdx::SOLO, 3).is_err(),
+        common::pick(&mut e, 3).is_err(),
         "no reroll after the candidates"
     );
     assert_eq!(e.state_hash(), hash, "the refused choice changes nothing");
@@ -645,7 +638,7 @@ fn choosing_a_style_applies_its_effect_and_holds_it_for_the_run() {
     let mut e = with(&stage(Some((1, to_level(5))), vec![]), &styled(main));
     to_offer_of(&mut e, 3);
     let hp = e.snapshot().players[0].hp;
-    e.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut e, 1).unwrap();
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
@@ -668,7 +661,7 @@ fn walk_the_path(table: LevelTable) {
     );
     to_offer_of(&mut e, table.style);
     assert_eq!(expertise_offer(&e).kind, ExpertiseOfferKind::Style);
-    e.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut e, 1).unwrap();
     for (level, kind, choices, pick) in [
         (
             table.upgrades[0],
@@ -701,7 +694,7 @@ fn walk_the_path(table: LevelTable) {
             candidates: ids(&choices),
         }));
         let hp = e.snapshot().players[0].hp;
-        e.choose(PlayerIdx::SOLO, pick).unwrap();
+        common::pick(&mut e, pick).unwrap();
         assert_eq!(
             e.events().first(),
             Some(&DomainEvent::ExpertiseOptionTaken {
@@ -745,15 +738,15 @@ fn the_styles_and_the_path_taken_are_in_the_state_hash() {
     to_offer_of(&mut b, 3);
     assert_eq!(a.state_hash(), b.state_hash());
     // Each style adds 1 percent more damage: only which one was chosen tells them apart.
-    a.choose(PlayerIdx::SOLO, 0).unwrap();
-    b.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut a, 0).unwrap();
+    common::pick(&mut b, 1).unwrap();
     assert_ne!(a.state_hash(), b.state_hash(), "the style is hashed");
     let (mut c, mut d) = (make(), make());
     to_offer_of(&mut c, 6);
     to_offer_of(&mut d, 6);
     assert_eq!(c.state_hash(), d.state_hash());
-    c.choose(PlayerIdx::SOLO, 0).unwrap();
-    d.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut c, 0).unwrap();
+    common::pick(&mut d, 1).unwrap();
     assert_ne!(
         c.state_hash(),
         d.state_hash(),

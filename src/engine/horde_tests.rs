@@ -53,7 +53,7 @@ fn engine_edited(
 
 fn run_to(e: &mut Engine, tick: u32) {
     while e.tick() < tick {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
 }
 
@@ -64,7 +64,7 @@ fn arrivals_and_calls(e: &mut Engine, until: u32) -> (Vec<u32>, Vec<u32>) {
     let mut last = None;
     while e.tick() < until {
         e.run.player.hp = e.run.player.max_hp;
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         let id = e.run.boss.as_ref().map(|b| b.id);
         if id.is_some() && id != last {
             arrived.push(e.tick());
@@ -95,7 +95,7 @@ fn a_boss_calls_its_elites_after_the_same_time_whenever_it_arrives() {
 fn calls_below_70_pct(e: &mut Engine) -> bool {
     let boss = e.run.boss.as_mut().unwrap();
     boss.hp = boss.max_hp * 69 / 100;
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     e.events()
         .iter()
         .any(|ev| matches!(ev, DomainEvent::ElitesCalled { .. }))
@@ -152,7 +152,7 @@ fn a_boss_summon_outlives_its_boss_and_keeps_its_definition() {
     e.run.boss.as_mut().unwrap().hp = 0;
     for _ in 0..60 {
         e.run.player.hp = e.run.player.max_hp;
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     assert_ne!(
         e.run.boss.as_ref().unwrap().id,
@@ -239,7 +239,7 @@ fn the_final_boss_is_the_core_pair_and_its_death_clears_the_run() {
     assert_eq!(boss_def(&e).base.as_str(), "core_pair");
     assert_eq!(e.run.boss.as_ref().unwrap().parts.len(), 2);
     e.run.boss.as_mut().unwrap().hp = 0;
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.outcome(), Outcome::Cleared);
 }
 
@@ -256,7 +256,7 @@ fn a_mid_boss_s_death_does_not_clear_the_run_and_the_final_boss_s_does() {
     let final_boss = e.run.boss.as_ref().unwrap();
     assert!(final_boss.hp > 0, "a new boss at the last time");
     e.run.boss.as_mut().unwrap().hp = 0;
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.outcome(), Outcome::Cleared);
     assert!(e.events().contains(&DomainEvent::StageCleared));
 }
@@ -267,7 +267,7 @@ fn the_main_character_s_death_fails_the_run_and_wins_over_the_final_boss_s() {
     run_to(&mut e, 100);
     e.run.boss.as_mut().unwrap().hp = 0;
     e.run.player.hp = 0;
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.outcome(), Outcome::Failed);
     assert!(e.events().contains(&DomainEvent::StageFailed));
     assert!(!e.events().contains(&DomainEvent::StageCleared));
@@ -292,7 +292,7 @@ fn the_run_fails_when_the_overtime_runs_out_with_the_final_boss_alive() {
     e.run.player.max_hp = u32::MAX;
     run_to(&mut e, 100 + 18_000 - 1);
     assert_eq!(e.outcome(), Outcome::Running);
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.outcome(), Outcome::Failed);
     assert!(e.events().contains(&DomainEvent::StageFailed));
 }
@@ -334,7 +334,7 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
 fn elites_spawned(e: &mut Engine, until: u32) -> Vec<(u32, String)> {
     let mut out = Vec::new();
     while e.tick() < until {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         for ev in e.events() {
             if let DomainEvent::EliteSpawned { asset, .. } = ev {
                 out.push((e.tick(), asset.to_string()));
@@ -502,7 +502,7 @@ fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
     });
     let mut called = Vec::new();
     while e.tick() < 7_200 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         for ev in e.events() {
             if let DomainEvent::ElitesCalled { elites } = ev {
                 called.push((e.tick(), *elites));
@@ -552,7 +552,7 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
 fn boss_sprite_at(e: &mut Engine, tick: u32) -> Option<String> {
     while e.tick() < tick {
         e.run.player.hp = e.run.player.max_hp;
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     e.snapshot()
         .entities
@@ -711,7 +711,7 @@ fn directed(target: u16, waves: &[(u32, u16, u32)]) -> Engine {
 /// One tick with the main character kept alive.
 fn step_alive(e: &mut Engine) {
     e.run.player.hp = e.run.player.max_hp;
-    e.step(Input::default());
+    e.step(&[Input::default()]);
 }
 
 fn held(e: &Engine, wave: usize) -> u32 {

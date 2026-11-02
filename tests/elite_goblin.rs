@@ -195,7 +195,7 @@ fn it_flees_at_its_speed_and_stays_on_the_map() {
     let mut last = at.0;
     let mut steps = Vec::new();
     for _ in 0..30 {
-        e.step(idle());
+        e.step(&[idle()]);
         let now = elites(&e);
         assert_eq!(
             now.len(),
@@ -254,7 +254,7 @@ fn it_leaves_after_leave_after_ticks_from_its_disturbance_without_a_reward() {
     let mut disturbed = 0;
     for _ in 0..400 {
         let before = elites(&e);
-        e.step(idle());
+        e.step(&[idle()]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         if disturbed == 0 && elites(&e) != before {
             disturbed = e.tick();

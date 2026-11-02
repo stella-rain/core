@@ -15,7 +15,7 @@ use crate::rewards::Rewards;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
 
-/// What the steps of a tick read and write: the run's content, its state, the tick's input,
+/// What the steps of a tick read and write: the run's content, its state, the tick's inputs (one per player),
 /// and what the steps pass on to each other within the tick.
 pub(super) struct Ctx<'a> {
     pub(super) world: &'a World,
@@ -24,7 +24,8 @@ pub(super) struct Ctx<'a> {
     pub(super) s: &'a mut State,
     /// The player the tick's per-player steps act for: the only one, until a run holds a party.
     pub(super) me: PlayerIdx,
-    pub(super) input: Input,
+    /// One input per player, indexed by `PlayerIdx`.
+    pub(super) inputs: &'a [Input],
     pub(super) events: &'a mut Vec<DomainEvent>,
     pub(super) load: &'a mut Load,
     /// A status that deals damage over time is on someone: set by `statuses_and_aggro`, read by
@@ -38,7 +39,7 @@ impl<'a> Ctx<'a> {
         rewards: &'a Rewards,
         expertise: &'a Expertise,
         s: &'a mut State,
-        input: Input,
+        inputs: &'a [Input],
         events: &'a mut Vec<DomainEvent>,
         load: &'a mut Load,
     ) -> Ctx<'a> {
@@ -48,11 +49,16 @@ impl<'a> Ctx<'a> {
             expertise,
             s,
             me: PlayerIdx::SOLO,
-            input,
+            inputs,
             events,
             load,
             dots: false,
         }
+    }
+
+    /// The input of the player the per-player steps act for.
+    pub(super) fn input(&self) -> Input {
+        self.inputs[self.me.get()]
     }
 }
 
@@ -110,7 +116,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn player_update(c: &mut Ctx) {
-        player::update(c.world, c.rewards, c.s, c.me, c.input, c.events);
+        player::update(c.world, c.rewards, c.s, c.me, c.input(), c.events);
     }
 
     #[inline(never)]

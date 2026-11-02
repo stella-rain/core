@@ -76,7 +76,7 @@ fn the_main_character_s_timed_statuses_are_listed_by_id_and_count_down_to_zero()
             .collect()
     };
     for tick in 1..=6 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         assert_eq!(player_statuses(&e), expected(tick), "tick {tick}");
     }
 }
@@ -113,7 +113,7 @@ fn a_pack_leader_s_aura_is_a_status_of_each_enemy_in_its_reach_and_leaves_with_i
     let aura = || view("aura", 0, 0);
     let mut reached = Vec::new();
     for tick in 1..=30 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         let snap = e.snapshot();
         let leader = snap.entities.iter().find(|v| v.elite).expect("the leader");
         let walker = snap

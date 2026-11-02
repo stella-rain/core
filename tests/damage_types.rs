@@ -217,7 +217,7 @@ fn a_zones_type_is_part_of_the_state_hash() {
         let far = enemy(100_000, hold(CX + 25_600, CY), json!([]));
         let mut e = engine(&striker(once(shot), wave(1, 1, 0, far, CX + 25_600, CY)));
         for _ in 0..ticks {
-            e.step(idle());
+            e.step(&[idle()]);
         }
         e.state_hash()
     };

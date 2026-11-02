@@ -64,7 +64,7 @@ fn held(main: bool) -> Input {
 fn play(e: &mut Engine, inputs: impl IntoIterator<Item = Input>) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for input in inputs {
-        e.step(input);
+        e.step(&[input]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
     }
     seen
@@ -102,7 +102,7 @@ fn holding_raises_the_level_and_the_snapshot_shows_the_perfect_window() {
     let mut e = engine(&far());
     let mut seen = Vec::new();
     for _ in 0..40 {
-        e.step(held(true));
+        e.step(&[held(true)]);
         seen.push(e.snapshot().players[0].charge);
     }
     let view = |level, held, perfect| {
@@ -189,7 +189,7 @@ fn a_charge_has_no_cooldown() {
     // A tap releases on tick 2; a press on tick 4 charges again at once.
     let mut e = engine(&far());
     play(&mut e, (1..=3).map(|t| held(t == 1)));
-    e.step(held(true));
+    e.step(&[held(true)]);
     assert_eq!(
         e.snapshot().players[0].charge.map(|c| (c.level, c.held)),
         Some((0, 0))
@@ -268,13 +268,13 @@ fn a_buffered_step_charges_only_if_its_button_is_held_as_it_starts() {
 #[test]
 fn charging_slows_the_main_character() {
     let mut e = engine(&far());
-    e.step(Input {
+    e.step(&[Input {
         main: true,
         ..moving(127, 0)
-    });
+    }]);
     assert_eq!(player_at(&e), (START_X + SPEED / 2, START_Y));
     // Let go: the release, then full speed.
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(player_at(&e), (START_X + SPEED / 2 + SPEED, START_Y));
 }
 

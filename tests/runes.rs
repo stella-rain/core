@@ -10,7 +10,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -143,8 +142,7 @@ fn pick(e: &mut Engine, option: OfferOption) {
         .iter()
         .position(|o| *o == option)
         .unwrap_or_else(|| panic!("{option:?} is not an option"));
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 fn take(e: &mut Engine, reward: &str) {
@@ -428,8 +426,8 @@ fn nothing_is_drawn_before_the_pick() {
     pick(&mut a, OfferOption::Skip);
     pick(&mut b, OfferOption::Skip);
     for _ in 0..30 {
-        a.step(idle());
-        b.step(idle());
+        a.step(&[idle()]);
+        b.step(&[idle()]);
     }
     assert_eq!(a.state_hash(), b.state_hash());
 }

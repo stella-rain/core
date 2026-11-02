@@ -364,6 +364,8 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
     let canonical = |i: &Input| Input {
         move_x: i.move_x.max(-i8::MAX),
         move_y: i.move_y.max(-i8::MAX),
+        // The pick is not part of the schema 1 stream.
+        pick: None,
         ..*i
     };
     let inputs: Vec<Input> = inputs.iter().map(canonical).collect();
@@ -414,6 +416,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             skill: flags & 0b1000 != 0,
             assist: flags & 0b1_0000 != 0,
             auto: flags & 0b10_0000 != 0,
+            pick: None,
         };
         // Packing writes equal inputs as one run, so each list of inputs has one encoding.
         if inputs.last() == Some(&input) {
@@ -439,7 +442,7 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
         if engine.outcome() != Outcome::Running {
             break;
         }
-        engine.step(*input);
+        engine.step(&[*input]);
         used += 1;
     }
     Ok(Replay {
@@ -511,7 +514,7 @@ fn verify_inner(
                 });
             }
         }
-        engine.step(*input);
+        engine.step(&[*input]);
         if let Some(expected) = expected {
             let actual = engine.state_hash();
             if expected[i] != actual {

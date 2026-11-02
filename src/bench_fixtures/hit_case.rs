@@ -158,7 +158,7 @@ pub fn input(tick: u32) -> Input {
 fn warmed(stage: &Stage) -> Engine {
     let mut engine = common::engine(stage);
     for tick in 1..=WARMUP_TICKS {
-        engine.step(input(tick));
+        engine.step(&[input(tick)]);
     }
     engine
 }

@@ -68,7 +68,7 @@ fn patterns(e: &Engine) -> Vec<PatternView> {
 fn zones_per_tick(e: &mut Engine, ticks: u32) -> Vec<usize> {
     (0..ticks)
         .map(|_| {
-            e.step(idle());
+            e.step(&[idle()]);
             let snapshot = serde_json::to_value(e.snapshot()).expect("json");
             snapshot["zones"].as_array().map_or(0, Vec::len)
         })
@@ -105,7 +105,7 @@ fn the_high_elite_slam_winds_up_for_at_least_the_placeholder_and_is_not_announce
     let mut winding = 0;
     let mut zones = Vec::new();
     for _ in 0..(wind_up + 60) {
-        e.step(idle());
+        e.step(&[idle()]);
         assert_eq!(
             patterns(&e),
             Vec::<PatternView>::new(),

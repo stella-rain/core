@@ -59,7 +59,7 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
         let mut engine = common::engine(&stage);
         let mut died = 0;
         for input in &inputs {
-            engine.step(*input);
+            engine.step(&[*input]);
             died += kills(&engine);
         }
         let hp = engine.snapshot().players[0].hp;

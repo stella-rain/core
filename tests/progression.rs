@@ -2,11 +2,11 @@
 //! the difficulties a clear opens and a new save's unlocks come from the run's content files.
 //! "Today" is what the app computes at c3d1c43 (`tally.rs`, `setup.rs`, `migrations.rs`).
 
+use crate::common;
 use proptest::prelude::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::ContentId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::progression::{
     Bank, RunOutcome, RunResult, Settlement, StartingSave, Unlock, UnlockKind, open_difficulties,
@@ -218,10 +218,10 @@ fn a_result_exists_only_for_an_ended_run() {
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
-                CommandKind::Choose => engine.choose(PlayerIdx::SOLO, c.index).unwrap(),
+                CommandKind::Choose => common::pick(&mut engine, c.index).unwrap(),
             }
         }
-        engine.step(input);
+        engine.step(&[input]);
     }
     let result = RunResult::from_run(&replay.setup, &engine).expect("the run ended");
     let outcome = match engine.outcome() {

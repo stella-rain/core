@@ -10,7 +10,6 @@ use stella_rain_core::attack::HitBox;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::expertise::Expertise;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_RANGE_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -116,8 +115,7 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 fn offered(e: &Engine) -> Vec<String> {
@@ -153,18 +151,18 @@ fn swing(e: &mut Engine) -> HitBox {
         if step_attack(e).is_none() {
             break;
         }
-        e.step(idle());
+        e.step(&[idle()]);
     }
-    e.step(Input {
+    e.step(&[Input {
         main: true,
         ..Input::default()
-    });
+    }]);
     for _ in 0..60 {
         let step = step_attack(e).expect("a combo step started");
         if let Some(h) = step.hit_box {
             return h;
         }
-        e.step(idle());
+        e.step(&[idle()]);
     }
     panic!("no active phase within 60 ticks")
 }
@@ -188,8 +186,8 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
 #[test]
 fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
     let mut e = with(&targets(3), vec![range("reach", 40, 3)]);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     assert_eq!(swing(&mut e), hit_box(circle(1_024, 8_192)));
     next_offer(&mut e);
     take(&mut e, "reach");
@@ -280,17 +278,17 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
         )
     };
 
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     assert_eq!(swing(&mut e), arc(2_048, 8_192));
     for _ in 0..30 {
         if e.offer_open() {
             break;
         }
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert!(e.offer_open(), "the expertise offer");
-    e.choose(PlayerIdx::SOLO, 0).unwrap();
+    common::pick(&mut e, 0).unwrap();
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {

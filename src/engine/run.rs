@@ -211,7 +211,7 @@ impl Run {
         &mut self,
         rewards: &Rewards,
         expertise: &Expertise,
-        input: Input,
+        inputs: &[Input],
         events: &mut Vec<DomainEvent>,
         load: &mut Load,
     ) {
@@ -219,12 +219,12 @@ impl Run {
         match self {
             Run::V1 { world, state } => {
                 sim_v1::step(
-                    version, world, rewards, expertise, state, input, events, load,
+                    version, world, rewards, expertise, state, inputs[0], events, load,
                 );
             }
             Run::V2 { world, state } => {
                 sim::step(
-                    version, world, rewards, expertise, state, input, events, load,
+                    version, world, rewards, expertise, state, inputs, events, load,
                 );
             }
         }

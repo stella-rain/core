@@ -52,7 +52,7 @@ fn inline(nodes: Vec<Value>) -> Value {
 fn run(e: &mut Engine, ticks: u32, input: Input) -> Vec<Snapshot> {
     (0..ticks)
         .map(|_| {
-            e.step(firing(input, e.tick()));
+            e.step(&[firing(input, e.tick())]);
             e.snapshot()
         })
         .collect()
@@ -69,7 +69,7 @@ fn friendly(s: &Snapshot) -> Vec<(i32, i32)> {
 
 fn first_tick_zones(stage: &Stage) -> Vec<(i32, i32)> {
     let mut e = engine(stage);
-    e.step(pressing_main());
+    e.step(&[pressing_main()]);
     friendly(&e.snapshot())
 }
 
@@ -113,7 +113,7 @@ fn the_default_twin_shot_makes_two_lines_beside_each_other() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(pressing_main());
+    e.step(&[pressing_main()]);
     let lines: Vec<_> = e.snapshot().zones.iter().map(|z| z.direction).collect();
     assert_eq!(lines.len(), 2);
     assert!((lines[0].x + lines[1].x).abs() <= 1, "{lines:?}");
@@ -194,10 +194,10 @@ fn aimed_and_relative_follow_the_facing_and_absolute_does_not() {
     let one = |direction: Value| {
         let mut e = engine(&shooting(inline(vec![fire(1024, direction)]), 10, vec![]));
         // Turned right on the tick of the press, by a stick too small to move it.
-        e.step(Input {
+        e.step(&[Input {
             main: true,
             ..moving(1, 0)
-        });
+        }]);
         // The stick of 1 moves the main character 6 units (1 * 768 / 127, truncated).
         let at = e.snapshot().zones[0].at;
         (at.x.0 - START_X - 6, at.y.0 - START_Y)
@@ -218,7 +218,7 @@ fn a_shot_that_has_started_carries_on_along_its_first_facing() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(firing(idle(), e.tick()));
+    e.step(&[firing(idle(), e.tick())]);
     let mut seen = vec![e.snapshot()];
     seen.extend(run(&mut e, 10, moving(0, 1)));
     let counts: Vec<usize> = seen.iter().map(|s| friendly(s).len()).collect();
@@ -242,10 +242,10 @@ fn a_shot_follows_the_main_character_while_it_runs() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(firing(idle(), e.tick()));
+    e.step(&[firing(idle(), e.tick())]);
     // 100 / 127 of the speed cap: 100 × 768 / 127 = 604.7, truncated.
     for _ in 0..5 {
-        e.step(moving(100, 0));
+        e.step(&[moving(100, 0)]);
     }
     let b = e.snapshot().zones;
     assert_eq!(b.len(), 2);
@@ -266,7 +266,7 @@ fn every_zone_of_the_shot_does_the_attack_stat_in_damage() {
     stage.boss = Some(serde_json::from_value(boss_at(1_000, 100_000)).expect("the boss parses"));
     let mut e = engine(&stage);
     for _ in 0..60 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         if e.snapshot().entities.iter().any(|v| v.hp < 1_000) {
             break;
         }
@@ -284,7 +284,7 @@ fn a_raised_attack_stat_raises_the_damage() {
         // The damage of the first hit.
         let mut e = engine(&stage);
         for _ in 0..60 {
-            e.step(firing(idle(), e.tick()));
+            e.step(&[firing(idle(), e.tick())]);
             if e.snapshot().entities[0].hp < 1_000 {
                 break;
             }
@@ -302,12 +302,12 @@ fn the_main_shot_starts_on_the_tick_of_the_press() {
     let stage = shooting(inline(vec![fire(256, aimed(0))]), 10, vec![]);
     let mut e = engine(&stage);
     assert!(friendly(&e.snapshot()).is_empty());
-    e.step(idle());
+    e.step(&[idle()]);
     assert!(
         friendly(&e.snapshot()).is_empty(),
         "nothing without a press"
     );
-    e.step(pressing_main());
+    e.step(&[pressing_main()]);
     assert_eq!(friendly(&e.snapshot()).len(), 1);
     assert_eq!(e.snapshot().players[0].at.x, Fx(START_X));
 }
@@ -330,7 +330,7 @@ fn a_run_with_the_main_shot_is_the_same_every_time() {
         let mut e = engine(&stage);
         (0..200)
             .map(|t| {
-                e.step(if t % 9 < 6 { idle() } else { moving(0, -64) });
+                e.step(&[if t % 9 < 6 { idle() } else { moving(0, -64) }]);
                 e.state_hash()
             })
             .collect::<Vec<_>>()

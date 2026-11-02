@@ -3,10 +3,10 @@
 //! level-ups. Beside the common fixtures, not in them, so that the benches that
 //! share `tests/common/` do not build it.
 
+use crate::common;
 use crate::common::run::{STEER_FROM, answer_all, trial_setup};
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
@@ -47,7 +47,7 @@ pub fn play_run_with(
         }
         between(&mut engine, &mut out, &mut offers);
         let input = input(&engine, t);
-        engine.step(input);
+        engine.step(&[input]);
         out.push(Command::Step(input));
     }
     between(&mut engine, &mut out, &mut offers);
@@ -60,8 +60,8 @@ pub fn first_point_tick() -> u32 {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     for command in play_run(STEER_FROM) {
         match command {
-            Command::Step(input) => engine.step(input),
-            Command::Choose(index) => engine.choose(PlayerIdx::SOLO, index).unwrap(),
+            Command::Step(input) => engine.step(&[input]),
+            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
         }
         if engine.snapshot().progress.is_some_and(|p| p.level > 1) {
             return engine.tick();

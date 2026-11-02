@@ -6,7 +6,6 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 
@@ -56,7 +55,7 @@ fn kills(e: &mut Engine, ticks: u32) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..ticks {
         let before = stardust(e);
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         let gained = stardust(e) - before;
         if gained > 0 {
             out.push((e.tick(), gained));
@@ -74,7 +73,7 @@ fn a_stage_without_a_factor_counts_nothing_and_its_snapshot_has_no_stardust() {
         vec![],
     ));
     for _ in 0..300 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
     }
     assert_eq!(e.snapshot().stardust, None);
 }
@@ -122,7 +121,7 @@ fn the_counter_is_in_the_state_hash() {
     let run = |base| {
         let mut e = engine(&stage(100, vec![targets(2, Some(base))]));
         for _ in 0..120 {
-            e.step(firing(idle(), e.tick()));
+            e.step(&[firing(idle(), e.tick())]);
         }
         e.state_hash()
     };
@@ -163,7 +162,7 @@ fn a_base_without_a_factor_counts_nothing() {
         vec![],
     ));
     for _ in 0..300 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
     }
     assert_eq!(e.snapshot().stardust, None);
 }
@@ -191,8 +190,8 @@ fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
     for c in commands {
         let before = e.stardust();
         match c {
-            Command::Step(input) => e.step(*input),
-            Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
+            Command::Step(input) => e.step(&[*input]),
+            Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
         }
         if e.stardust() > before {
             out.push((e.tick(), e.stardust() - before));
@@ -222,8 +221,8 @@ fn a_verified_run_reports_the_stardust_it_earned() {
     let mut e = Engine::start(&setup).unwrap();
     for c in &commands {
         match c {
-            Command::Step(input) => e.step(*input),
-            Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
+            Command::Step(input) => e.step(&[*input]),
+            Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
         }
     }
     assert!(e.stardust() > 0);

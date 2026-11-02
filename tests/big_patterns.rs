@@ -52,14 +52,14 @@ fn none() -> Vec<PatternView> {
 fn a_big_pattern_is_announced_with_its_ticks_counting_down_and_dropped_when_it_starts() {
     let mut e = Engine::new(&timed(30, Some(true))).expect("valid");
     for tick in 1..=30 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         assert_eq!(
             patterns(&e),
             [view("aimed_single", 30, 31 - tick)],
             "tick {tick}"
         );
     }
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(patterns(&e), none(), "it starts on tick 31");
     let boss = e
         .snapshot()
@@ -74,7 +74,7 @@ fn a_pattern_that_is_not_big_is_never_announced() {
     for big in [None, Some(false)] {
         let mut e = Engine::new(&timed(30, big)).expect("valid");
         for _ in 0..40 {
-            e.step(Input::default());
+            e.step(&[Input::default()]);
             assert_eq!(patterns(&e), none(), "{big:?}");
         }
     }
@@ -87,10 +87,10 @@ fn a_big_pattern_counts_the_timed_steps_before_it() {
         { "type": "wait", "ticks": 20 }, { "type": "telegraph", "ticks": 10 }, aimed(Some(true))
     ] }]);
     let mut e = Engine::new(&stage_full(18_000, Some(boss), vec![], vec![])).expect("valid");
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(patterns(&e), [view("aimed_single", 30, 30)]);
     for _ in 0..24 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     assert_eq!(patterns(&e), [view("aimed_single", 30, 6)]);
 }
@@ -127,7 +127,7 @@ fn the_call_is_a_big_pattern_counting_down_from_the_boss_s_arrival() {
     let mut e = Engine::new(&calling(1_000_000, json!({ "after_ticks": 60 }))).expect("valid");
     let mut seen = Vec::new();
     for tick in 1..=61 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         seen.extend(e.events().iter().map(|ev| (tick, ev.clone())));
         let expected = if tick <= 60 {
             vec![view("call_elites", 60, 61 - tick)]
@@ -159,7 +159,7 @@ fn a_call_by_the_share_of_hit_points_is_unchanged_and_drops_the_announcement() {
 #[test]
 fn a_call_at_once_is_never_announced() {
     let mut e = Engine::new(&calling(1_000_000, json!({ "after_ticks": 0 }))).expect("valid");
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(patterns(&e), none());
 }
 
@@ -190,13 +190,13 @@ fn the_golem_s_slam_is_announced_for_its_telegraph_before_it_starts() {
             .collect()
     };
     for tick in 1..=60 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         assert_eq!(
             slams(&e),
             [view("elite_slam", 60, 61 - tick)],
             "tick {tick}"
         );
     }
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(slams(&e), none(), "it starts on tick 61");
 }

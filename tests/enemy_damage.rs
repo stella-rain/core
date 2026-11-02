@@ -78,7 +78,7 @@ fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
     assert_eq!(start, 50_000, "the trial's main character");
     let (mut last, mut hits) = (start, 0);
     for _ in 0..20_000 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         let hp = e.snapshot().players[0].hp;
         if hp < last {
             assert_eq!(last - hp, if hp == 0 { last } else { 10_000 }, "hit {hits}");

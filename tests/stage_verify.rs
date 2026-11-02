@@ -97,7 +97,7 @@ fn a_clear_is_verified_and_reported() {
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let parsed = parse_and_validate(&c.stage).unwrap();
     let mut engine = Engine::new(&parsed).unwrap();
-    clearing_inputs().iter().for_each(|i| engine.step(*i));
+    clearing_inputs().iter().for_each(|i| engine.step(&[*i]));
     assert_eq!(
         out(&o),
         format!(
@@ -136,7 +136,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let mut hashes: Vec<u64> = clearing_inputs()
         .iter()
         .map(|i| {
-            engine.step(*i);
+            engine.step(&[*i]);
             engine.state_hash()
         })
         .collect();

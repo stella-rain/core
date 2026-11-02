@@ -80,7 +80,7 @@ fn the_hash_lines_are_the_engines_and_end_on_the_replays_final_hash() {
     let stage = parse_and_validate(&stage_bytes()).unwrap();
     let mut engine = Engine::new(&stage).unwrap();
     for (input, expected) in clearing_inputs().iter().zip(&hashes) {
-        engine.step(*input);
+        engine.step(&[*input]);
         assert_eq!(engine.state_hash(), *expected);
     }
     let replay = replay::record(&stage_bytes(), &clearing_inputs()).unwrap();

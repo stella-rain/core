@@ -58,7 +58,7 @@ pub fn with(stage: &Stage, content: &RunContent) -> Engine {
 /// Fires until an offer is open, then takes the candidate that is `reward`.
 pub fn take(e: &mut Engine, reward: &str) {
     for _ in 0..600 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         if e.offer_open() {
             break;
         }
@@ -82,11 +82,7 @@ pub fn take(e: &mut Engine, reward: &str) {
         .iter()
         .position(|o| *o == option)
         .expect("the take option");
-    e.choose(
-        crate::id::PlayerIdx::SOLO,
-        u32::try_from(index).expect("an option index"),
-    )
-    .expect("the choice");
+    crate::bench_fixtures::take_option(e, u32::try_from(index).expect("an option index"));
 }
 
 /// Takes the random rune from the next seven offers: the Main holds every rune, in the order

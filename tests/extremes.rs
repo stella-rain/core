@@ -168,7 +168,7 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
 fn run(stage: &Stage, ticks: u32) -> (u32, u64) {
     let mut e = engine(stage);
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     (e.tick(), e.state_hash())
 }

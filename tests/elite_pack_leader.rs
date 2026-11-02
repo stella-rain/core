@@ -284,7 +284,7 @@ fn the_bonus_ends_with_the_leader_s_death_tick() {
                 main: e.tick() >= from && e.tick() % 6 == 0,
                 ..idle()
             };
-            e.step(input);
+            e.step(&[input]);
             events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         }
         let Some(&died) = ticks_of(&events, |ev| matches!(ev, DomainEvent::Died { .. })).first()

@@ -288,7 +288,7 @@ fn a_recorded_clear_verifies() {
     // The hash is the engine's own.
     let parsed = validate::parse_and_validate(&stage).unwrap();
     let mut engine = Engine::new(&parsed).unwrap();
-    clearing_inputs().iter().for_each(|i| engine.step(*i));
+    clearing_inputs().iter().for_each(|i| engine.step(&[*i]));
     assert_eq!(engine.state_hash(), verified.final_hash);
 }
 
@@ -437,7 +437,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let hashes: Vec<u64> = clearing_inputs()
         .iter()
         .map(|i| {
-            engine.step(*i);
+            engine.step(&[*i]);
             engine.state_hash()
         })
         .collect();
@@ -539,7 +539,7 @@ fn clearing_hashes() -> Vec<u64> {
     clearing_inputs()
         .iter()
         .map(|i| {
-            engine.step(*i);
+            engine.step(&[*i]);
             engine.state_hash()
         })
         .collect()

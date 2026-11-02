@@ -82,7 +82,7 @@ fn edge_wave(at_tick: u32, count: u16, edge: Value) -> Value {
 fn enemy_places(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
     let mut e = engine(stage);
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let mut v: Vec<_> = e
         .snapshot()
@@ -235,7 +235,7 @@ fn spawns_land_outside_the_21_9_view() {
     );
     let mut e = engine(&right);
     for _ in 0..50 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let places: Vec<_> = e
         .snapshot()
@@ -341,7 +341,7 @@ fn no_spawn_near_a_map_edge_is_relocated_on_its_spawn_tick() {
     for ((x, y), edge, (sx, sy)) in cases {
         let stage = map_stage(4000, 4000, x, y, vec![edge_wave(0, 1, edge.clone())]);
         let mut e = engine(&stage);
-        e.step(idle());
+        e.step(&[idle()]);
         let (cx, cy) = centre(4000, 4000, i64::from(x), i64::from(y));
         let spawn = (sx * 256, sy * 256);
         // The spawn point is on the centre's spawn rectangle.
@@ -680,7 +680,7 @@ fn spawns_and_relocations(
         }
         answer_all(&mut e, &mut offers, &mut out);
         let i = input(&e, t);
-        e.step(i);
+        e.step(&[i]);
         let now = ids(&e);
         spawned += now.difference(&known).count();
         for ev in e.events() {
@@ -776,7 +776,7 @@ fn elite_places(cap: u32) -> Vec<(i32, i32)> {
             .unwrap();
     let mut out = Vec::new();
     while e.tick() < 5 * 3600 - 1 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         let me = e.snapshot().players[0].at;
         for ev in e.events() {
             if let DomainEvent::EliteSpawned { elite, .. } = ev {

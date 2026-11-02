@@ -90,14 +90,14 @@ fn relocated(e: &Engine) -> Vec<EntityId> {
 /// and the enemy at (`ex`, `ey`) px.
 fn lands(px: i32, py: i32, ex: i32, ey: i32) -> (i32, i32) {
     let mut e = engine(&stage_at_xy(px, py, vec![still_at(ex, ey)], vec![], None));
-    e.step(idle());
+    e.step(&[idle()]);
     spot(&e, 1)
 }
 
 #[test]
 fn an_enemy_841_px_to_the_side_moves_and_keeps_its_hit_points() {
     let mut e = engine(&stage_at(2000, vec![still(2841)], vec![], None));
-    e.step(idle());
+    e.step(&[idle()]);
     let id = e
         .snapshot()
         .entities
@@ -122,7 +122,7 @@ fn an_enemy_841_px_to_the_side_moves_and_keeps_its_hit_points() {
 #[test]
 fn an_enemy_840_px_to_the_side_stays() {
     let mut e = engine(&stage_at(2000, vec![still(2840)], vec![], None));
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(spot(&e, 1), (2840 * PX, 2000 * PX));
     assert_eq!(e.load().relocated, 0);
     assert!(relocated(&e).is_empty());
@@ -210,11 +210,11 @@ fn the_land_point_is_on_the_clamped_view_rectangle_plus_its_margin() {
 fn at_most_16_move_a_tick_the_lowest_ids_first() {
     let waves: Vec<Value> = (0..20).map(|_| still(3000)).collect();
     let mut e = engine(&stage_at(2000, waves, vec![], None));
-    e.step(idle());
+    e.step(&[idle()]);
     let first = relocated(&e);
     assert_eq!(first, (1..=16).map(EntityId).collect::<Vec<_>>());
     assert_eq!(e.load().relocated, 16);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(relocated(&e), (17..=20).map(EntityId).collect::<Vec<_>>());
     assert_eq!(e.load().relocated, 4);
 }
@@ -236,7 +236,7 @@ fn a_relocation_draws_no_random_number() {
     let at = |x: i32| {
         let mut e = engine(&stage_at(2000, vec![still(x), ring.clone()], vec![], None));
         for _ in 0..6 {
-            e.step(idle());
+            e.step(&[idle()]);
         }
         let id = e
             .snapshot()
@@ -286,11 +286,11 @@ fn an_elite_the_boss_a_companion_and_an_enemy_in_a_wind_up_stay() {
                      "spawn": { "x": 3000 * PX, "y": 3000 * PX }, "phases": [{}] })),
     ));
     let before: Vec<_> = {
-        e.step(idle());
+        e.step(&[idle()]);
         e.snapshot().entities.iter().map(|v| (v.id, v.at)).collect()
     };
     for _ in 0..80 {
-        e.step(moving(-127, 0));
+        e.step(&[moving(-127, 0)]);
         assert_eq!(e.load().relocated, 0);
         assert!(relocated(&e).is_empty());
     }
@@ -341,15 +341,15 @@ fn a_refused_spawn_is_counted_in_load() {
     ));
     let mut e = engine(&stage_at(2000, waves, vec![], None));
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(e.load().refused_spawns, 0, "room, nothing due");
     for _ in 10..59 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(e.load().enemies, 260);
     assert_eq!(e.load().refused_spawns, 0, "full, but nothing due");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.tick(), 60);
     assert_eq!(e.load().refused_spawns, 1);
     assert_eq!(e.load().enemies, 260);
@@ -365,7 +365,7 @@ fn standing() -> Value {
 fn run_relocating(e: &mut Engine, ticks: u32, input: Input) -> Vec<EntityId> {
     let mut all = Vec::new();
     for _ in 0..ticks {
-        e.step(input);
+        e.step(&[input]);
         all.extend(relocated(e));
     }
     all
@@ -436,7 +436,7 @@ fn a_shrines_guardians_are_never_relocated() {
     shrine["elite"] = json!({ "range": 256, "boss_call": "stay" });
     let w = wave(1, 1, 0, shrine, 2000 * PX, 2000 * PX);
     let mut e = engine(&stage_at(2000, vec![w], vec![], None));
-    e.step(idle());
+    e.step(&[idle()]);
     assert!(run_relocating(&mut e, 400, moving(-127, 0)).is_empty());
     assert!(far_enemies(&e) >= 3, "the guardians are left far behind");
 }

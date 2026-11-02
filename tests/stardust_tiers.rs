@@ -7,7 +7,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;
 use stella_rain_core::engine::Engine;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, record_run, verify_run};
 use stella_rain_core::run_setup::{self, RunSetup};
@@ -64,7 +63,7 @@ fn kills(e: &mut Engine, ticks: u32) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..ticks {
         let before = e.stardust();
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         let gained = e.stardust() - before;
         if gained > 0 {
             out.push((e.tick(), gained));
@@ -184,8 +183,8 @@ fn a_mode_run_earns_by_its_tier_and_its_replay_verifies() {
         for c in &commands {
             let before = e.stardust();
             match c {
-                Command::Step(input) => e.step(*input),
-                Command::Choose(i) => e.choose(PlayerIdx::SOLO, *i).unwrap(),
+                Command::Step(input) => e.step(&[*input]),
+                Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
             }
             if e.stardust() > before {
                 gains.push(e.stardust() - before);

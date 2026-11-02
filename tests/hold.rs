@@ -103,7 +103,7 @@ fn run(stage: &Stage, inputs: impl IntoIterator<Item = Input>) -> (Engine, Trace
     let mut trace = Trace::default();
     let mut alive = 0;
     for input in inputs {
-        e.step(input);
+        e.step(&[input]);
         let tick = e.tick();
         let snap = e.snapshot();
         let now = snap.zones.iter().filter(|z| z.friendly).count();
@@ -290,11 +290,11 @@ fn walk(main: bool) -> Vec<i32> {
     let mut e = engine(&stage(held_step(180, 0, 0, json!({}))));
     (0..6)
         .map(|_| {
-            e.step(Input {
+            e.step(&[Input {
                 main,
                 move_x: 127,
                 ..idle()
-            });
+            }]);
             player_at(&e).0
         })
         .collect()
@@ -308,11 +308,11 @@ fn holding_moves_the_main_character_at_the_hold_s_percentage() {
     let mut e = engine(&stage(step));
     let held: Vec<i32> = (0..6)
         .map(|_| {
-            e.step(Input {
+            e.step(&[Input {
                 main: true,
                 move_x: 127,
                 ..idle()
-            });
+            }]);
             player_at(&e).0
         })
         .collect();

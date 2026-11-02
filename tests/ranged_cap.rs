@@ -81,7 +81,7 @@ fn held_per_tick(stage: &Stage, ticks: u32) -> Vec<usize> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|_| {
-            e.step(idle());
+            e.step(&[idle()]);
             holding(&e)
         })
         .collect()
@@ -92,7 +92,7 @@ fn first_attack_ticks(stage: &Stage, ticks: u32) -> Vec<Option<u32>> {
     let mut e = engine(stage);
     let mut first = vec![None; SHOOTERS as usize];
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         for (i, f) in first.iter_mut().enumerate() {
             if f.is_none() && kind_of(&e, FIRST_SHOOTER + u32::try_from(i).unwrap()).is_some() {
                 *f = Some(e.tick());

@@ -8,7 +8,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
@@ -137,8 +136,7 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 fn pressing_skill() -> Input {
@@ -150,9 +148,9 @@ fn pressing_skill() -> Input {
 
 /// Presses the skill on one tick, then lets go on the next.
 fn use_skill(e: &mut Engine) -> Vec<DomainEvent> {
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     let events = e.events().to_vec();
-    e.step(idle());
+    e.step(&[idle()]);
     events
 }
 
@@ -212,7 +210,7 @@ fn the_slot_is_empty_at_the_start_and_a_press_does_nothing() {
         content(vec![skill("aura", &[buff(50)])], &[("aura_r", "aura", 1)]),
     );
     assert_eq!(e.snapshot().players[0].skill, None);
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     assert_eq!(used(e.events()), None);
 }
 
@@ -241,21 +239,21 @@ fn a_press_uses_it_and_its_level_s_cooldown_counts_from_the_use() {
         content(skills, &[("aura_r", "aura", 2)]),
     );
     take(&mut e, "aura_r");
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     let at = e.tick();
     assert_eq!(used(e.events()), Some(("aura".into(), 2)));
-    e.step(idle());
+    e.step(&[idle()]);
     // Level 2's cooldown is 110 ticks; one tick has passed since the use.
     let view = e.snapshot().players[0].skill.clone().unwrap();
     assert_eq!((view.ready, view.cooldown_left), (false, COOLDOWN - 10 - 1));
     // Pressed on every other tick from then on: used again 110 ticks after the first use.
     let mut again = None;
     for _ in 0..COOLDOWN {
-        e.step(pressing_skill());
+        e.step(&[pressing_skill()]);
         if again.is_none() && used(e.events()).is_some() {
             again = Some(e.tick());
         }
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(again, Some(at + COOLDOWN - 10));
 }
@@ -344,7 +342,7 @@ fn an_area_status_makes_the_enemies_near_its_point_vulnerable() {
     );
     take(&mut e, "hex_r");
     while enemies_at(&e).len() < 2 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let near = enemies_at(&e)[0].0;
     let events = use_skill(&mut e);
@@ -368,25 +366,25 @@ fn a_pull_draws_the_enemies_near_its_point_to_it_and_holds_them_there() {
     );
     take(&mut e, "well_r");
     while enemies_at(&e).len() < 2 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let far = enemies_at(&e)[1];
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     assert_eq!(enemies_at(&e)[0].1, START_X + 2_560 - 256, "the first pull");
     let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X, point_y));
     assert_eq!((view.radius.0, view.ticks_left), (16_384, DURATION));
     for _ in 0..20 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let near = enemies_at(&e)[0];
     assert_eq!((near.1, near.2), (START_X, point_y), "pulled in and held");
     assert_eq!(enemies_at(&e)[1], far, "out of its radius");
     for _ in 21..DURATION {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert!(e.snapshot().players[0].pull.is_some(), "its last tick");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.snapshot().players[0].pull, None, "over after its time");
 }
 
@@ -423,7 +421,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
     );
     let mut hits = Vec::new();
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
         for ev in e.events() {
             if let DomainEvent::PlayerHit { hp_left, .. } = ev {
                 hits.push(*hp_left);
@@ -449,13 +447,13 @@ fn an_attack_runs_in_its_own_slot_beside_a_combo_step() {
     );
     take(&mut e, "nova_r");
     while enemies_at(&e).is_empty() {
-        e.step(idle());
+        e.step(&[idle()]);
     }
-    e.step(Input {
+    e.step(&[Input {
         main: true,
         skill: true,
         ..idle()
-    });
+    }]);
     assert!(
         e.events()
             .iter()
@@ -493,12 +491,12 @@ fn with_assist_on_the_point_is_ahead_toward_the_target() {
     );
     take(&mut e, "well_r");
     while enemies_at(&e).is_empty() {
-        e.step(idle());
+        e.step(&[idle()]);
     }
-    e.step(Input {
+    e.step(&[Input {
         assist: true,
         ..pressing_skill()
-    });
+    }]);
     let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X + AHEAD, START_Y));
 }
@@ -536,7 +534,7 @@ fn two_standing(skills: Vec<Value>) -> Engine {
     );
     take(&mut e, "it_r");
     while enemies_at(&e).len() < 2 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     e
 }
@@ -571,7 +569,7 @@ fn a_pull_and_an_area_status_act_at_the_one_point() {
         &[json!([pull(16_384, 256), area("vulnerable", 16_384)])],
     )]);
     let (near, far) = (enemies_at(&e)[0], enemies_at(&e)[1]);
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     assert_eq!(
         applied(e.events()),
         [(near.0, "vulnerable".to_string())],
@@ -602,7 +600,7 @@ fn each_level_brings_its_own_effects() {
     );
     take(&mut e, "aura_r");
     for _ in 0..COOLDOWN {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let events = use_skill(&mut e);
     assert_eq!(used(&events), Some(("aura".into(), 2)));
@@ -630,12 +628,12 @@ fn a_new_pull_shield_or_attack_replaces_the_one_still_going() {
     take(&mut e, "it_r");
     use_skill(&mut e);
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let p = e.snapshot().players[0].clone();
     assert_eq!(p.pull.unwrap().ticks_left, DURATION - 11);
     assert_eq!(p.shield.unwrap().ticks_left, DURATION - 11);
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     let p = e.snapshot().players[0].clone();
     assert_eq!(p.pull.unwrap().ticks_left, DURATION, "a new pull");
     assert_eq!(p.shield.unwrap().ticks_left, DURATION, "a new shield");
@@ -661,9 +659,9 @@ fn a_stage_skill_attack_names_its_damage_type_in_the_hit() {
     );
     take(&mut e, "nova_r");
     while enemies_at(&e).is_empty() {
-        e.step(idle());
+        e.step(&[idle()]);
     }
-    e.step(pressing_skill());
+    e.step(&[pressing_skill()]);
     let types: Vec<_> = e
         .events()
         .iter()

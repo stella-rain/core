@@ -194,7 +194,7 @@ fn measure(spec: &Spec) -> Pins {
             ]);
             let input_json = serde_json::to_vec(&tick_input).expect("the input serializes");
             input = digest(&[b"stella-rain/bench-input/v2\n", &input_json]);
-            engine.step(tick_input);
+            engine.step(&[tick_input]);
             after = hash_hex(engine.state_hash());
         }
         Kind::Run(run, ticks) => {

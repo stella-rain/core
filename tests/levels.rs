@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -57,7 +56,7 @@ fn spent(e: &Engine) -> Vec<u8> {
 /// Steps idle, firing, until the second level, returning the events of that tick.
 fn until_level_up(e: &mut Engine, max_ticks: u32) -> Vec<DomainEvent> {
     for _ in 0..max_ticks {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         if level(e) > 1 {
             return e.events().to_vec();
         }
@@ -87,10 +86,10 @@ fn a_stage_without_levels_has_no_progress_and_nothing_to_choose() {
         vec![],
     ));
     for _ in 0..300 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert!(e.snapshot().progress.is_none());
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -138,9 +137,9 @@ fn a_level_up_raises_the_first_stat_and_the_run_goes_on() {
     want[0] = 1;
     assert_eq!((progress.level, progress.xp, progress.spent), (2, 0, want));
     // No offer opens: the next step is the next tick, and there is nothing to choose.
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
     let tick = e.tick();
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.tick(), tick + 1);
 }
 
@@ -187,7 +186,7 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
     let hit_after = |mut e: Engine| {
         let mut damages = Vec::new();
         for _ in 0..120 {
-            e.step(firing(idle(), e.tick()));
+            e.step(&[firing(idle(), e.tick())]);
             damages.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -218,7 +217,7 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
 fn speed_raises_the_movement_speed() {
     let moved = |mut e: Engine| {
         let before = player_at(&e).0;
-        e.step(moving(127, 0));
+        e.step(&[moving(127, 0)]);
         player_at(&e).0 - before
     };
     let stage = effect_stage();
@@ -232,10 +231,10 @@ fn speed_raises_the_movement_speed() {
 #[test]
 fn evade_shortens_the_evade_s_cooldown() {
     let cooldown = |mut e: Engine| {
-        e.step(Input {
+        e.step(&[Input {
             evade: true,
             ..idle()
-        });
+        }]);
         e.snapshot().players[0].evade.recovering[0]
     };
     let stage = effect_stage();
@@ -264,15 +263,15 @@ fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
     let stage = armed(effect_stage(), weapon_ref(step));
     let phases = |mut e: Engine| {
         while !e.snapshot().players[0].attacks.is_empty() {
-            e.step(idle());
+            e.step(&[idle()]);
         }
         let mut seen: Vec<(u8, u32)> = Vec::new();
-        e.step(pressing_main());
+        e.step(&[pressing_main()]);
         while let Some(a) = e.snapshot().players[0].attacks.first().cloned() {
             if seen.last().is_none_or(|p| p.0 != a.phase) {
                 seen.push((a.phase, a.ticks));
             }
-            e.step(idle());
+            e.step(&[idle()]);
         }
         seen
     };
@@ -345,7 +344,7 @@ fn stats_with_the_same_effect_add_up() {
         fire_until(&mut e, idle(), 199, |e| level(e) >= 4);
         let mut seen = Vec::new();
         for _ in 0..200 {
-            e.step(firing(idle(), e.tick()));
+            e.step(&[firing(idle(), e.tick())]);
             seen.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -386,10 +385,10 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
     let mut raised = 0;
     while e.outcome() == Outcome::Running && e.tick() < 5400 {
         if e.offer_open() {
-            e.choose(PlayerIdx::SOLO, 0).unwrap();
+            common::pick(&mut e, 0).unwrap();
             continue;
         }
-        e.step(common::run::run_input(&e, e.tick()));
+        e.step(&[common::run::run_input(&e, e.tick())]);
         raised += e
             .events()
             .iter()
@@ -559,19 +558,18 @@ fn pick_stats_opens_one_offer_per_level_in_order() {
             .any(|ev| matches!(ev, DomainEvent::StatOfferOpened { options } if *options == ids))
     );
     let tick = e.tick();
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(
         e.tick(),
         tick,
         "the world is stopped while the offer is open"
     );
     assert_eq!(
-        e.choose(PlayerIdx::SOLO, u32::try_from(ids.len()).unwrap())
-            .map_err(|_| ()),
+        common::pick(&mut e, u32::try_from(ids.len()).unwrap()).map_err(|_| ()),
         Err(())
     );
     // Choosing closes it, raises that stat, and opens the second level's offer.
-    e.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut e, 1).unwrap();
     assert!(matches!(
         e.events(),
         [
@@ -580,13 +578,13 @@ fn pick_stats_opens_one_offer_per_level_in_order() {
         ] if *stat == ids[1]
     ));
     assert!(e.offer_open());
-    e.choose(PlayerIdx::SOLO, 0).unwrap();
+    common::pick(&mut e, 0).unwrap();
     assert!(!e.offer_open());
     assert_eq!(stat_offer(&e), None);
     let mut want = vec![0; ids.len()];
     (want[0], want[1]) = (1, 1);
     assert_eq!(spent(&e), want);
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -600,7 +598,7 @@ fn every_stat_at_its_limit_gives_nothing() {
         fire_until(&mut e, idle(), 600, |e| level(e) > 1);
         let mut offers = 0;
         while e.offer_open() {
-            e.choose(PlayerIdx::SOLO, 0).unwrap();
+            common::pick(&mut e, 0).unwrap();
             offers += 1;
         }
         assert_eq!(level(&e), all + 6, "pick_stats {pick_stats}");
@@ -610,7 +608,7 @@ fn every_stat_at_its_limit_gives_nothing() {
         );
         assert_eq!(offers, if pick_stats { all } else { 0 });
         assert_eq!(stat_offer(&e), None);
-        e.step(idle());
+        e.step(&[idle()]);
         assert!(
             !e.offer_open(),
             "no offer opens for the levels past the limits"

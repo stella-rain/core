@@ -11,7 +11,6 @@ use stella_rain_core::attack::DamageType;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
@@ -151,8 +150,7 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 /// Fires until the next offer opens, and takes `reward` from it.
@@ -471,8 +469,8 @@ fn the_bonus_is_fixed_when_the_attack_starts() {
         weapon(100, Some("pyro"), true),
     ));
     let mut e = with(&stage, vec![pyro(50)]);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     let target = tough_id(&e);
     let mut events = run_until(&mut e, pressing_main(), 1, |_| false);
     events.extend(run_until(&mut e, idle(), 30, Engine::offer_open));

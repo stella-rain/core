@@ -84,7 +84,7 @@ fn the_lifetime_ends_the_orb() {
     let mut e = engine(&st);
     let mut seen = Vec::new();
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
         seen.push(orbs(&e).len());
     }
     // On the map for exactly its 30 ticks, from the tick it was fired.
@@ -101,7 +101,7 @@ fn the_burst_places_its_zone_where_the_orb_ended() {
     let mut last_orb = None;
     let mut placed = None;
     for _ in 0..40 {
-        e.step(idle());
+        e.step(&[idle()]);
         match (orbs(&e).first(), zones(&e).first()) {
             (Some(o), _) => last_orb = Some(o["at"].clone()),
             (None, Some(z)) => {
@@ -127,8 +127,8 @@ fn the_per_owner_cap_drops_the_orbs_over_it_in_node_order() {
         "direction": { "type": "absolute", "angle": { "mul": ["loop_index", 2560] } } }] });
     let st = stage(vec![foe(START_X, 100, vec![turned])]);
     let mut e = engine(&st);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     let kept = orbs(&e);
     assert_eq!(kept.len(), MAX_ORBS_PER_OWNER);
     // 70 degrees of a speed of 64 is 60; 80 degrees is 63.
@@ -149,8 +149,8 @@ fn the_global_cap_drops_the_orbs_over_it_in_node_order() {
             .collect(),
     );
     let mut e = engine(&st);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     let kept = orbs(&e);
     assert_eq!(kept.len(), MAX_ORBS_ALIVE);
     let near = |o: &Value, x: i32| (o["at"]["x"].as_i64().unwrap() - i64::from(x)).abs() < 4 * 256;
@@ -184,7 +184,7 @@ fn swung(breakable: bool) -> (Engine, Vec<(u32, DomainEvent)>, bool) {
     let mut events = Vec::new();
     let mut zoned = false;
     for tick in 0..60 {
-        e.step(firing(idle(), tick));
+        e.step(&[firing(idle(), tick)]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         zoned |= !zones(&e).is_empty();
     }
@@ -274,7 +274,7 @@ fn an_orb_that_hits_the_main_character_names_the_attack_kind_and_its_owner() {
     let mut e = engine(&st);
     let mut sources = Vec::new();
     for _ in 0..400 {
-        e.step(idle());
+        e.step(&[idle()]);
         for ev in e.events() {
             if let DomainEvent::PlayerHit { source, .. } = ev {
                 sources.push(serde_json::to_value(source).unwrap());

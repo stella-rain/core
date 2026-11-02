@@ -53,7 +53,7 @@ fn orb_ticks(stage: &Stage, ticks: u32) -> Vec<u32> {
     let mut out = Vec::new();
     let mut before = 0;
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         let now = e.snapshot().orbs.len();
         out.extend(std::iter::repeat_n(e.tick(), now.saturating_sub(before)));
         before = now;
@@ -118,8 +118,8 @@ fn a_spawned_pattern_runs_past_the_end_of_its_phase() {
     let repeat = json!({ "type": "repeat", "count": 3, "interval_ticks": 4, "body": [down()] });
     let stage = stage_of(attacker(vec![phase("active", 1, vec![repeat])], true));
     let mut e = engine(&stage);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     let enemy = e
         .snapshot()
         .entities
@@ -146,7 +146,7 @@ fn move_pct_scales_the_attackers_movement() {
         let mut e = engine(&stage_of(walker(move_pct)));
         (0..12)
             .map(|_| {
-                e.step(idle());
+                e.step(&[idle()]);
                 e.snapshot()
                     .entities
                     .into_iter()
@@ -186,7 +186,7 @@ fn the_snapshot_shows_the_phase() {
     let mut e = engine(&stage);
     let mut seen = Vec::new();
     for _ in 0..7 {
-        e.step(idle());
+        e.step(&[idle()]);
         let enemy = e
             .snapshot()
             .entities
@@ -209,7 +209,7 @@ fn the_snapshot_shows_the_phase() {
     );
     // An inline attack has no preset ID; the facing points at the main character, below.
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     let view = e
         .snapshot()
         .entities

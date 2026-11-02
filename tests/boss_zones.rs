@@ -88,7 +88,7 @@ fn peak(id: &str, phase: usize) -> usize {
     let mut e = Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap();
     let mut most = 0;
     for _ in 0..BOSS_AT + RUN_TICKS {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         most = most.max(e.snapshot().zones.len());
     }
     assert_eq!(

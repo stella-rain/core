@@ -122,7 +122,7 @@ fn play(stage: &Stage, effects: Vec<Value>, ticks: u32) -> Vec<(u32, Value)> {
     take(&mut e, taken);
     let mut seen = Vec::new();
     for _ in 0..ticks {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         seen.extend(
             e.events()
                 .iter()

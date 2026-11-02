@@ -441,7 +441,7 @@ fn boss_at(e: &Engine) -> (i32, i32) {
 
 /// One tick, and the events it gave.
 fn advance(e: &mut Engine, input: Input) -> Vec<(u32, DomainEvent)> {
-    e.step(input);
+    e.step(&[input]);
     e.events().iter().map(|ev| (e.tick(), ev.clone())).collect()
 }
 
@@ -515,7 +515,7 @@ fn horn_charger_phase_two_throws_two_orbs_with_its_ring() {
     let mut e = bundled_engine(&st);
     let mut orbs_at_ring = None;
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
         let snap = e.snapshot();
         if orbs_at_ring.is_none() && snap.zones.iter().filter(|z| !z.warn_only).count() == 10 {
             orbs_at_ring = Some(snap.orbs.len());
@@ -549,7 +549,7 @@ fn elite_mid_lobs_and_charges_within_420_ticks() {
         .find(|v| v.kind == EntityKind::Enemy)
         .map(|v| v.at.x.0);
     for _ in 0..420 {
-        e.step(idle());
+        e.step(&[idle()]);
         let snap = e.snapshot();
         let tick = e.tick();
         if lobbed.is_none() && snap.zones.iter().any(|z| !z.warn_only) {

@@ -108,7 +108,7 @@ fn walk_corpus() -> Seen {
         let inputs = replay.unpack_inputs(stage.length_ticks).unwrap();
         let mut engine = Engine::new(&stage).unwrap();
         for input in inputs {
-            engine.step(input);
+            engine.step(&[input]);
             note(&mut seen, &engine, &mut places);
         }
     }
@@ -130,7 +130,7 @@ fn walk_corpus() -> Seen {
             while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
                 apply(&mut engine, c).unwrap();
             }
-            engine.step(input);
+            engine.step(&[input]);
             note(&mut seen, &engine, &mut places);
         }
     }
@@ -187,7 +187,7 @@ fn a_dirty_buffer_is_cleared() {
     let stage = common::stage_full(18_000, Some(common::far_boss()), vec![], vec![]);
     let mut crowded = common::engine(&stage);
     for _ in 0..30 {
-        crowded.step(common::moving(1, 0));
+        crowded.step(&[common::moving(1, 0)]);
     }
     let mut places = Places::default();
     crowded.places(&mut places);
@@ -215,7 +215,7 @@ fn places_changes_nothing() {
     let stage = common::stage_full(18_000, Some(common::far_boss()), vec![], vec![]);
     let mut engine = common::engine(&stage);
     for _ in 0..10 {
-        engine.step(common::idle());
+        engine.step(&[common::idle()]);
     }
     let (hash, tick, events) = (engine.state_hash(), engine.tick(), engine.events().to_vec());
     let (mut a, mut b) = (Places::default(), Places::default());

@@ -897,7 +897,7 @@ fn zones_appear(e: &mut Engine, input: Input, ticks: u32) -> Vec<u32> {
     let mut seen = Vec::new();
     for _ in 0..ticks {
         let before = alive(e);
-        e.step(input);
+        e.step(&[input]);
         if !before && alive(e) {
             seen.push(e.tick());
         }
@@ -946,7 +946,7 @@ fn a_cleared_shrine_pulses_no_more() {
         } else {
             idle()
         };
-        e.step(firing(input, e.tick()));
+        e.step(&[firing(input, e.tick())]);
         let now = !e.snapshot().zones.is_empty();
         if now && !alive {
             seen.push(e.tick());

@@ -477,8 +477,8 @@ fn a_run_moves_at_the_speed_of_its_own_rules() {
     let mut fast = engine_on(rules_with(&[("player_speed", 1536)]), &stage);
     let mut first = None;
     for t in 0..20 {
-        slow.step(common::moving(127, 0));
-        fast.step(common::moving(127, 0));
+        slow.step(&[common::moving(127, 0)]);
+        fast.step(&[common::moving(127, 0)]);
         if t == 0 {
             first = Some((slow.state_hash(), fast.state_hash()));
         }
@@ -518,7 +518,7 @@ fn a_run_is_hurt_for_as_long_as_its_own_rules_say() {
         let mut e = engine_on(rules, &stage);
         let mut hits = 0;
         for _ in 0..45 {
-            e.step(common::idle());
+            e.step(&[common::idle()]);
             hits += e
                 .events()
                 .iter()

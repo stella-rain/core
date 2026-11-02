@@ -111,7 +111,7 @@ pub fn fire_until(
 ) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for _ in 0..max_ticks {
-        e.step(firing(input, e.tick()));
+        e.step(&[firing(input, e.tick())]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         if stop(e) {
             break;
@@ -324,7 +324,7 @@ pub fn run_until(
 ) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for _ in 0..max_ticks {
-        e.step(input);
+        e.step(&[input]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         if stop(e) {
             break;
@@ -444,4 +444,12 @@ fn near_start_is_the_start_moved_by_whole_pixels() {
     assert_eq!(near_start(0, 0), (START_X, START_Y));
     assert_eq!(near_start(-24, -185), (START_X - 6_144, START_Y - 47_360));
     assert_eq!(near_start(5, 3), (START_X + 1_280, START_Y + 768));
+}
+
+/// Takes option `index` of the open offer by a step (ADR-REPL-3), refused as `check_pick`
+/// refuses it.
+pub fn pick(e: &mut Engine, index: u32) -> Result<(), stella_rain_core::engine::ChoiceError> {
+    e.check_pick(stella_rain_core::id::PlayerIdx::SOLO, index)?;
+    e.step(&[Input::picking(index)]);
+    Ok(())
 }

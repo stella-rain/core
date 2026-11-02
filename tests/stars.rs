@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -169,7 +168,7 @@ fn dropping_kills(e: &mut Engine, ticks: u32, input: stella_rain_core::input::In
     let mut kills = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
-        e.step(firing(input, e.tick()));
+        e.step(&[firing(input, e.tick())]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -205,8 +204,8 @@ fn a_full_map_drops_no_star_and_the_pity_does_not_count_the_kill() {
     assert_eq!(dropping_kills(&mut e, 300, idle()), [2]);
     assert_eq!(e.snapshot().stars.len(), 1);
     until_offer(&mut e, moving(0, -127));
-    e.choose(PlayerIdx::SOLO, index_of(&e, OfferOption::Skip))
-        .unwrap();
+    let index = index_of(&e, OfferOption::Skip);
+    common::pick(&mut e, index).unwrap();
     assert!(e.snapshot().stars.is_empty());
     assert_eq!(dropping_kills(&mut e, 600, idle()), [2]);
 }
@@ -275,7 +274,7 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
     assert!(e.snapshot().stars.is_empty(), "the star was taken");
     let hash = e.state_hash();
     for _ in 0..10 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         assert_eq!(
             (e.tick(), e.state_hash()),
             (tick, hash),
@@ -333,7 +332,7 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
     until_offer(&mut e, idle());
     let (tick, hp) = (e.tick(), e.snapshot().players[0].hp);
     let first = candidates(&e)[0].clone();
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Ok(()));
+    assert_eq!(common::pick(&mut e, 0), Ok(()));
     assert_eq!(
         e.events(),
         [DomainEvent::RewardTaken {
@@ -346,7 +345,7 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
     assert_eq!(e.snapshot().players[0].hp, hp + 5);
     assert!(!e.offer_open());
     assert_eq!(e.tick(), tick, "a choice is between ticks");
-    e.step(firing(idle(), e.tick()));
+    e.step(&[firing(idle(), e.tick())]);
     assert_eq!(e.tick(), tick + 1);
 }
 
@@ -358,8 +357,8 @@ fn skip_closes_the_offer_and_takes_nothing() {
     );
     until_offer(&mut e, idle());
     let hp = e.snapshot().players[0].hp;
-    e.choose(PlayerIdx::SOLO, index_of(&e, OfferOption::Skip))
-        .unwrap();
+    let index = index_of(&e, OfferOption::Skip);
+    common::pick(&mut e, index).unwrap();
     assert_eq!(e.events(), [DomainEvent::OfferSkipped]);
     assert!(!e.offer_open());
     assert_eq!(e.snapshot().players[0].hp, hp);
@@ -378,11 +377,8 @@ fn a_reroll_draws_that_candidate_again_and_spends_a_reroll() {
         .map(|i| format!("c{i}"))
         .find(|id| !before.contains(id))
         .unwrap();
-    e.choose(
-        PlayerIdx::SOLO,
-        index_of(&e, OfferOption::Reroll { candidate: 1 }),
-    )
-    .unwrap();
+    let index = index_of(&e, OfferOption::Reroll { candidate: 1 });
+    common::pick(&mut e, index).unwrap();
     assert_eq!(
         e.events(),
         [DomainEvent::CandidateReplaced {
@@ -427,11 +423,8 @@ fn a_banished_reward_leaves_the_pool_for_the_rest_of_the_run() {
     );
     until_offer(&mut e, idle());
     let banished = candidates(&e)[0].clone();
-    e.choose(
-        PlayerIdx::SOLO,
-        index_of(&e, OfferOption::Banish { candidate: 0 }),
-    )
-    .unwrap();
+    let index = index_of(&e, OfferOption::Banish { candidate: 0 });
+    common::pick(&mut e, index).unwrap();
     assert!(
         matches!(
             e.events(),
@@ -445,7 +438,7 @@ fn a_banished_reward_leaves_the_pool_for_the_rest_of_the_run() {
     let mut seen = Vec::new();
     for _ in 0..8 {
         seen.extend(candidates(&e));
-        e.choose(PlayerIdx::SOLO, 0).unwrap();
+        common::pick(&mut e, 0).unwrap();
         if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() || !e.offer_open() {
             break;
         }
@@ -463,11 +456,8 @@ fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
     );
     until_offer(&mut e, idle());
     assert_eq!(candidates(&e), ["c0"]);
-    e.choose(
-        PlayerIdx::SOLO,
-        index_of(&e, OfferOption::Banish { candidate: 0 }),
-    )
-    .unwrap();
+    let index = index_of(&e, OfferOption::Banish { candidate: 0 });
+    common::pick(&mut e, index).unwrap();
     assert_eq!(
         e.events(),
         [DomainEvent::RewardBanished {
@@ -507,8 +497,7 @@ fn a_reward_at_its_stack_limit_is_offered_no_more() {
         }
         let pick = c.iter().position(|id| id == "once").unwrap_or(0);
         times += usize::from(c[pick] == "once");
-        e.choose(PlayerIdx::SOLO, u32::try_from(pick).unwrap())
-            .unwrap();
+        common::pick(&mut e, u32::try_from(pick).unwrap()).unwrap();
     }
     assert!(times == 2 && after.len() >= 9, "{after:?}");
     assert!(!after.iter().any(|id| id == "once"), "{after:?}");
@@ -552,8 +541,8 @@ fn two_stars_taken_on_one_tick_open_two_offers_one_after_another() {
         .filter(|(t, ev)| *t == tick && matches!(ev, DomainEvent::StarTaken { .. }))
         .count();
     assert_eq!(taken, 2);
-    e.choose(PlayerIdx::SOLO, index_of(&e, OfferOption::Skip))
-        .unwrap();
+    let index = index_of(&e, OfferOption::Skip);
+    common::pick(&mut e, index).unwrap();
     assert!(
         matches!(
             e.events(),
@@ -563,8 +552,8 @@ fn two_stars_taken_on_one_tick_open_two_offers_one_after_another() {
         e.events()
     );
     assert!(e.offer_open(), "the second offer opens at once");
-    e.choose(PlayerIdx::SOLO, index_of(&e, OfferOption::Skip))
-        .unwrap();
+    let index = index_of(&e, OfferOption::Skip);
+    common::pick(&mut e, index).unwrap();
     assert!(!e.offer_open());
     assert_eq!(e.tick(), tick);
 }
@@ -588,8 +577,7 @@ fn experience_rewards_raise_the_experience_of_every_kill() {
         .iter()
         .position(|id| id == "insight")
         .unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(pick).unwrap())
-        .unwrap();
+    common::pick(&mut e, u32::try_from(pick).unwrap()).unwrap();
     let xp = e.snapshot().progress.unwrap().xp;
     assert_eq!(xp, 2);
     fire_until(&mut e, idle(), 900, |e| {
@@ -658,7 +646,7 @@ fn a_boss_kill_opens_the_boss_offer_at_the_tier_s_highest_rarity_and_without_a_s
     assert_eq!(rarities, [Rarity::Rare; 3]);
     assert!(!o.options.contains(&OfferOption::Skip), "{:?}", o.options);
     assert_eq!(
-        e.choose(PlayerIdx::SOLO, u32::try_from(o.options.len()).unwrap()),
+        common::pick(&mut e, u32::try_from(o.options.len()).unwrap()),
         Err(ChoiceError::OutOfRange {
             index: u32::try_from(o.options.len()).unwrap(),
             options: u32::try_from(o.options.len()).unwrap()
@@ -671,11 +659,11 @@ fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
     let mut e = with(&boss_stage(10), mixed());
     until_offer(&mut e, idle());
     let (tick, hp) = (e.tick(), e.snapshot().players[0].hp);
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Ok(()));
+    assert_eq!(common::pick(&mut e, 0), Ok(()));
     assert!(matches!(e.events(), [DomainEvent::RewardTaken { .. }]));
     assert!(!e.offer_open());
     assert_eq!(e.snapshot().players[0].hp, hp + 1);
-    e.step(firing(idle(), e.tick()));
+    e.step(&[firing(idle(), e.tick())]);
     assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
 }
 
@@ -727,7 +715,7 @@ fn a_star_taken_on_the_tick_of_the_clear_opens_its_offer() {
         ),
         "{this_tick:?}"
     );
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Ok(()));
+    assert_eq!(common::pick(&mut e, 0), Ok(()));
     assert!(!e.offer_open());
     assert_eq!(e.outcome(), Outcome::Cleared);
 }
@@ -771,7 +759,7 @@ fn a_choice_outside_the_offer_is_refused_and_changes_nothing() {
     let options = u32::try_from(options).unwrap();
     for index in [options, u32::MAX] {
         assert_eq!(
-            e.choose(PlayerIdx::SOLO, index),
+            common::pick(&mut e, index),
             Err(ChoiceError::OutOfRange { index, options })
         );
     }
@@ -788,11 +776,11 @@ fn a_stat_offer_opens_before_the_stars_offer() {
     until_offer(&mut e, idle());
     let progress = e.snapshot().progress.unwrap();
     assert!(progress.stat_offer.is_some() && progress.offer.is_none());
-    e.choose(PlayerIdx::SOLO, 0).unwrap();
+    common::pick(&mut e, 0).unwrap();
     // The star's offer opens as the stat offer closes.
     assert!(offer(&e).options.contains(&OfferOption::Skip));
-    e.choose(PlayerIdx::SOLO, index_of(&e, OfferOption::Skip))
-        .unwrap();
+    let index = index_of(&e, OfferOption::Skip);
+    common::pick(&mut e, index).unwrap();
     assert!(!e.offer_open());
 }
 
@@ -802,8 +790,8 @@ fn the_stars_and_the_offer_are_in_the_state_hash() {
     let mut a = with(&stage, commons(4));
     until_offer(&mut a, idle());
     let mut b = a.clone();
-    a.choose(PlayerIdx::SOLO, 0).unwrap();
-    b.choose(PlayerIdx::SOLO, 1).unwrap();
+    common::pick(&mut a, 0).unwrap();
+    common::pick(&mut b, 1).unwrap();
     assert_ne!(a.state_hash(), b.state_hash(), "a different reward taken");
 }
 

@@ -46,7 +46,7 @@ fn cap(engine: &Engine) -> usize {
 }
 
 fn measured(mut engine: Engine) -> Engine {
-    engine.step(hit_case::input(hit_case::WARMUP_TICKS + 1));
+    engine.step(&[hit_case::input(hit_case::WARMUP_TICKS + 1)]);
     engine
 }
 
@@ -221,7 +221,7 @@ fn the_spread_tick_has_its_load() {
 fn hashes_after_warmup(mut engine: Engine) -> Vec<u64> {
     (1..=3)
         .map(|k| {
-            engine.step(hit_case::input(hit_case::WARMUP_TICKS + k));
+            engine.step(&[hit_case::input(hit_case::WARMUP_TICKS + k)]);
             engine.state_hash()
         })
         .collect()

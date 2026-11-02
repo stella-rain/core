@@ -56,18 +56,21 @@ fn offering_at(v: u32) -> Engine {
 #[test]
 fn version_1_runs_the_rules() {
     let mut e = at_version(1);
-    e.step(Input::default());
+    e.step(&[Input::default()]);
     assert_eq!(e.tick(), 1);
     assert_eq!(e.outcome(), Outcome::Running);
     let mut e = offering_at(1);
-    assert_eq!(e.choose(crate::id::PlayerIdx::SOLO, 0), Ok(()));
+    assert_eq!(
+        crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0),
+        Ok(())
+    );
 }
 
 #[test]
 fn another_version_fails_closed_without_running_the_rules() {
     for v in [0, SIM_VERSION + 1] {
         let mut e = at_version(v);
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         assert_eq!(e.tick(), 0, "{v}");
         assert_eq!(e.outcome(), Outcome::Failed, "{v}");
     }
@@ -79,7 +82,7 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
         let mut e = offering_at(v);
         let before = e.state_hash();
         assert_eq!(
-            e.choose(crate::id::PlayerIdx::SOLO, 0),
+            crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0),
             Err(ChoiceError::Unsupported { sim_version: v }),
             "{v}"
         );

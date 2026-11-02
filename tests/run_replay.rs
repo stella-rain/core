@@ -6,7 +6,6 @@ use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
@@ -72,8 +71,8 @@ fn commands_of(replay: &RunReplay) -> Vec<TickCommand> {
 
 fn apply(engine: &mut Engine, c: Command) {
     match c {
-        Command::Step(input) => engine.step(input),
-        Command::Choose(index) => engine.choose(PlayerIdx::SOLO, index).unwrap(),
+        Command::Step(input) => engine.step(&[input]),
+        Command::Choose(index) => common::pick(engine, index).unwrap(),
     }
 }
 
@@ -141,18 +140,18 @@ fn a_choice_after_the_run_ended_is_refused() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     while engine.outcome() == Outcome::Running {
         if engine.offer_open() {
-            engine.choose(PlayerIdx::SOLO, 0).unwrap();
+            common::pick(&mut engine, 0).unwrap();
             commands.push(Command::Choose(0));
             continue;
         }
         let input = run_input(&engine, engine.tick());
-        engine.step(input);
+        engine.step(&[input]);
         commands.push(Command::Step(input));
     }
     let replay = record_run(&trial_setup(), &commands).unwrap();
     assert_ne!(engine.outcome(), Outcome::Running);
     let hash = engine.state_hash();
-    assert_eq!(engine.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+    assert_eq!(common::pick(&mut engine, 0), Err(ChoiceError::NoOffer));
     assert_eq!(engine.state_hash(), hash);
     let mut late = commands_of(&replay);
     late.push(choose(replay.ticks, 0));
@@ -458,7 +457,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     let mut hashes: Vec<u64> = (0..100)
         .map(|t| {
-            engine.step(run_input(&engine, t));
+            engine.step(&[run_input(&engine, t)]);
             engine.state_hash()
         })
         .collect();
@@ -705,7 +704,7 @@ fn smash_depths(setup: &RunSetup) -> Vec<u8> {
         let Command::Step(input) = command else {
             continue;
         };
-        engine.step(input);
+        engine.step(&[input]);
         for event in engine.events() {
             if let DomainEvent::ComboStep { press, depth } = event {
                 if *press == Press::Smash {
