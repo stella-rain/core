@@ -416,7 +416,31 @@ mod tests {
     // --- The corpus ------------------------------------------------------------------------
 
     /// Every run case of the corpus, current and frozen, as (name, bytes).
+    /// The schema 1 file of a run, whichever schema it is at: the corpus' `current/` runs are
+    /// written at the schema writers write, and these tests take the old form to hand-damage.
+    fn schema_1_form(replay: &RunReplay) -> RunReplay {
+        if replay.setup.schema_version < 2 {
+            return replay.clone();
+        }
+        let (inputs, commands) = replay.step_log(u32::MAX).unwrap().to_solo().unwrap();
+        let mut one = replay.clone();
+        one.setup.schema_version = 1;
+        one.inputs = crate::replay::pack_inputs(&inputs);
+        one.commands = crate::run_replay::pack_commands(&commands);
+        one
+    }
+
     fn corpus_runs() -> Vec<(String, Vec<u8>)> {
+        corpus_files()
+            .into_iter()
+            .map(|(name, bytes)| {
+                let one = schema_1_form(&RunReplay::from_bytes(&bytes).unwrap());
+                (name, one.to_bytes())
+            })
+            .collect()
+    }
+
+    fn corpus_files() -> Vec<(String, Vec<u8>)> {
         let mut runs: Vec<(String, Vec<u8>)> = Vec::new();
         macro_rules! case {
             ($tree:literal, $name:literal) => {
@@ -658,28 +682,60 @@ mod tests {
     }
 
     #[test]
-    fn the_recorder_writes_schema_1_whatever_it_started_or_resumed_from() {
+    fn the_recorder_writes_schema_2_whatever_it_started_or_resumed_from() {
         use crate::pack::Pack;
         use crate::run_replay::RunRecorder;
         use crate::run_setup::RunSetup;
-        let setup = RunSetup {
-            schema_version: 2,
-            ..RunSetup::default()
-        };
-        let mut rec = RunRecorder::start(&setup).unwrap();
-        for tick in 0..30u8 {
-            rec.step(Input {
-                move_x: i8::try_from(tick).unwrap(),
-                ..Input::default()
-            })
-            .unwrap();
+        for started_at in [1, 2] {
+            let setup = RunSetup {
+                schema_version: started_at,
+                ..RunSetup::default()
+            };
+            let mut rec = RunRecorder::start(&setup).unwrap();
+            for tick in 0..90u8 {
+                rec.step(Input {
+                    move_x: i8::try_from(tick).unwrap(),
+                    ..Input::default()
+                })
+                .unwrap();
+            }
+            let two = rec.replay();
+            assert_eq!(two.setup.schema_version, 2, "started at {started_at}");
+            assert_eq!(two.commands, "");
+            assert!(verify_run(&two.to_bytes()).is_ok());
+            // A schema 1 prefix of the same run resumes into a schema 2 recorder, whose replay
+            // is the schema 2 form of the same run.
+            let one = schema_1_form(&two);
+            assert_eq!(one.setup.schema_version, 1);
+            assert!(verify_run(&one.to_bytes()).is_ok());
+            let resumed = RunRecorder::resume_with_pack(&one, Pack::bundled())
+                .unwrap()
+                .replay();
+            assert_eq!(resumed, two, "resumed from a schema 1 prefix");
+            let from_two = RunRecorder::resume_with_pack(&two, Pack::bundled())
+                .unwrap()
+                .replay();
+            assert_eq!(from_two, two, "resumed from a schema 2 prefix");
         }
-        let one = rec.replay();
-        assert_eq!(one.setup.schema_version, 1);
-        assert!(verify_run(&one.to_bytes()).is_ok());
-        // A schema 2 prefix of the same run resumes into a schema 1 recorder.
-        let two = schema_2_of(&one);
-        let resumed = RunRecorder::resume_with_pack(&two, Pack::bundled()).unwrap();
-        assert_eq!(resumed.replay(), one);
+    }
+
+    #[test]
+    fn a_recorded_pick_sits_inside_its_step() {
+        use crate::run_replay::{CommandKind, TickCommand};
+        // Main held for 5 ticks, a pick of option 0, main held for 2 more: the worked vector of
+        // the module documentation. The pick is a PICKS record of its own and `commands` is empty.
+        let held = main_held();
+        let log = StepLog::from_schema1(
+            &[held; 7],
+            &[TickCommand {
+                tick: 5,
+                kind: CommandKind::Choose,
+                index: 0,
+            }],
+        );
+        assert_eq!(
+            log.encode(),
+            hex("01 00 05 02 00 00 01 01 00 00 02 02 00 00")
+        );
     }
 }

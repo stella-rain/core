@@ -348,7 +348,8 @@ fn every_byte_of_the_header_region_is_checked() {
             .unwrap()
             .header()
             .schema_version,
-        1
+        // The schema the recorder writes (the header and the prefix agree).
+        2
     );
 }
 

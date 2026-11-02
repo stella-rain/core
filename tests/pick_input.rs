@@ -72,6 +72,12 @@ fn picks_leave_the_replay_bytes_alone() {
             let recorded =
                 run_replay::record_run_with(&run.setup, &content, &commands_of(&run)).unwrap();
             let name = case.display();
+            // The recorder writes schema 2; a frozen schema 1 file is compared in its form.
+            let recorded = if run.setup.schema_version == 1 {
+                crate::common::schema_1_form(&recorded)
+            } else {
+                recorded
+            };
             assert_eq!(recorded.inputs, run.inputs, "{name}: inputs");
             assert_eq!(recorded.commands, run.commands, "{name}: commands");
             assert_eq!(recorded.checkpoints, run.checkpoints, "{name}: checkpoints");

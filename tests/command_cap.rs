@@ -182,7 +182,9 @@ fn a_bot_s_short_run_records_and_verifies_within_the_cap() {
 #[test]
 fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
     let content = short_content();
-    let mut replay = play(&content, &setup(1, "normal", 20), Bot::Takes).replay;
+    // The recorder writes schema 2, which has no command list: the crafted file is schema 1.
+    let mut replay =
+        crate::common::schema_1_form(&play(&content, &setup(1, "normal", 20), Bot::Takes).replay);
     let choices = |n: u32| -> String {
         let commands: Vec<TickCommand> = (0..n)
             .map(|_| TickCommand {

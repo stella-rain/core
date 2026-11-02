@@ -7,7 +7,9 @@ use stella_rain_core::input::Input;
 use stella_rain_core::replay::Replay;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate;
-use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION,
+};
 
 const STAGE: &str = include_str!("fixtures/stage_v0.json");
 
@@ -159,11 +161,12 @@ fn replay_round_trips_and_rejects_unknown_fields() {
 fn versions_are_one_from_the_freeze() {
     // Version 1 is the frozen first version (ADR-REPL-7) and still read beside the open
     // version 2 (ADR-REPL-9); version 0 is refused.
-    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (1, 2));
+    assert_eq!((SCHEMA_VERSION, SIM_VERSION), (2, 2));
+    // The stage file is authored content at the first schema; it is read as it is.
     let stage = parse(STAGE).unwrap();
     assert_eq!(
         (stage.schema_version, stage.sim_version),
-        (SCHEMA_VERSION, FIRST_SIM_VERSION)
+        (FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION)
     );
 }
 
@@ -235,11 +238,11 @@ fn interact_moves_no_hash() {
 }
 
 #[test]
-fn the_version_range_is_one_to_two_and_writers_write_one() {
+fn the_version_range_is_one_to_two_and_writers_write_two() {
     use stella_rain_core::version::{FIRST_SCHEMA_VERSION, NEWEST_READ_SCHEMA_VERSION};
     assert_eq!(FIRST_SCHEMA_VERSION, 1);
     assert_eq!(NEWEST_READ_SCHEMA_VERSION, 2);
-    assert_eq!(SCHEMA_VERSION, 1);
+    assert_eq!(SCHEMA_VERSION, NEWEST_READ_SCHEMA_VERSION);
 }
 
 #[test]

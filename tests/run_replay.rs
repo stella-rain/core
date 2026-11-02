@@ -63,8 +63,12 @@ fn with(replay: &RunReplay, change: impl FnOnce(&mut Value)) -> Vec<u8> {
     v.to_string().into_bytes()
 }
 
+/// The replay with its schema 1 `commands` replaced: the recorder writes schema 2, which has no
+/// command list, so the change is made on the schema 1 form of the run.
 fn with_commands(replay: &RunReplay, commands: &[TickCommand]) -> Vec<u8> {
-    with(replay, |v| v["commands"] = json!(pack_commands(commands)))
+    with(&common::schema_1_form(replay), |v| {
+        v["commands"] = json!(pack_commands(commands));
+    })
 }
 
 fn commands_of(replay: &RunReplay) -> Vec<TickCommand> {
@@ -356,7 +360,7 @@ fn a_command_after_the_last_tick_is_damage() {
 
 #[test]
 fn inputs_after_the_run_ended_are_refused() {
-    let replay = fallen();
+    let replay = common::schema_1_form(&fallen());
     let ended = replay.ticks;
     let mut inputs = replay.unpack_inputs(TRIAL_LENGTH).unwrap();
     inputs.push(Input::default());
@@ -419,7 +423,7 @@ fn a_bad_setup_is_refused_and_a_newer_one_is_newer() {
 fn a_changed_input_or_seed_is_refused() {
     // Short of either seed's first offer (seed 1 opens one at tick 175), so a changed seed is a
     // wrong checkpoint and not an open offer.
-    let replay = recorded(170);
+    let replay = common::schema_1_form(&recorded(170));
     let bytes = with(&replay, |v| v["setup"]["seed"] = json!(1));
     assert_eq!(
         verify_run(&bytes).err(),
@@ -545,7 +549,7 @@ fn only_the_run_replay_format_parses() {
 // --- Packed commands --------------------------------------------------------------------------
 
 fn replay_with(commands: &str, ticks: u32) -> RunReplay {
-    let mut replay = recorded(1);
+    let mut replay = common::schema_1_form(&recorded(1));
     replay.ticks = ticks;
     replay.commands = commands.to_owned();
     replay
@@ -809,7 +813,7 @@ fn a_prefix_with_an_open_offer_resumes_with_it_open() {
 #[test]
 fn a_tampered_prefix_hash_is_refused() {
     let pack = Pack::bundled();
-    let prefix = recorded(300);
+    let prefix = common::schema_1_form(&recorded(300));
     let bad = RunReplay {
         final_hash: "0123456789abcdef".into(),
         ..prefix.clone()
@@ -834,7 +838,7 @@ fn a_tampered_prefix_hash_is_refused() {
         Some(RunReplayError::CheckpointDiffers { second: 5 })
     );
     // A prefix cut at tick 299 has no checkpoint after tick 240: the prefix hash catches it.
-    let prefix = recorded(299);
+    let prefix = common::schema_1_form(&recorded(299));
     let mut inputs = prefix.unpack_inputs(299).unwrap();
     for input in &mut inputs[290..299] {
         *input = Input::default();
@@ -867,7 +871,7 @@ fn a_prefix_over_the_caps_is_refused_on_resume() {
     let pack = Pack::bundled();
     let err = |r: &RunReplay| RunRecorder::resume_with_pack(r, pack).err();
 
-    let mut past = recorded(20);
+    let mut past = common::schema_1_form(&recorded(20));
     past.ticks = TRIAL_LENGTH + 1;
     past.inputs = pack_inputs(&vec![Input::default(); TRIAL_LENGTH as usize + 1]);
     assert_eq!(
@@ -965,7 +969,7 @@ fn checkpoints_are_one_per_60_ticks() {
 
 #[test]
 fn a_tampered_tick_reports_its_second() {
-    let a = recorded(300);
+    let a = common::schema_1_form(&recorded(300));
     let mut inputs = a.unpack_inputs(300).unwrap();
     for input in &mut inputs[125..135] {
         *input = Input::default();

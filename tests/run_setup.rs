@@ -196,7 +196,8 @@ fn a_setup_from_a_newer_game_is_refused() {
     assert_eq!(
         run_setup::parse_and_validate(&bytes(&newer)),
         Err(Error::UnsupportedVersion {
-            schema_version: SCHEMA_VERSION,
+            // The refused setup's own schema (1), not the one writers write.
+            schema_version: setup().schema_version,
             sim_version: SIM_VERSION + 1
         })
     );

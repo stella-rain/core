@@ -453,3 +453,23 @@ pub fn pick(e: &mut Engine, index: u32) -> Result<(), stella_rain_core::engine::
     e.step(&[Input::picking(index)]);
     Ok(())
 }
+
+/// The schema 1 file of a run replay, rebuilt from its solo views: `inputs` and `commands`
+/// packed as schema 1 packs them, `schema_version` 1. A run replay at schema 1 is returned as
+/// it is. The recorder writes schema 2, so a test that damages the schema 1 `commands` string
+/// or needs the old streams starts from this.
+pub fn schema_1_form(
+    replay: &stella_rain_core::run_replay::RunReplay,
+) -> stella_rain_core::run_replay::RunReplay {
+    use stella_rain_core::{replay::pack_inputs, run_replay::pack_commands};
+    if replay.setup.schema_version < 2 {
+        return replay.clone();
+    }
+    let inputs = replay.unpack_inputs(u32::MAX).unwrap();
+    let commands = replay.unpack_commands().unwrap();
+    let mut one = replay.clone();
+    one.setup.schema_version = 1;
+    one.inputs = pack_inputs(&inputs);
+    one.commands = pack_commands(&commands);
+    one
+}

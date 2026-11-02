@@ -262,7 +262,7 @@ pub fn replay_load(data: &[u8]) -> bool {
         assert_eq!(again, run, "a saved run replay loads as another run replay");
         // A prefix that resumes is a replay of itself, whatever the bytes claimed.
         if let Ok(resumed) = RunRecorder::resume_with_pack(&run, Pack::bundled()) {
-            // The recorder writes schema 1: a schema 2 prefix resumes as its schema 1 form.
+            // The recorder writes schema 2: a schema 1 prefix resumes as its schema 2 form.
             if run.setup.schema_version == SCHEMA_VERSION {
                 assert_eq!(resumed.replay(), run, "a resumed prefix replays as another");
             } else {
@@ -270,11 +270,11 @@ pub fn replay_load(data: &[u8]) -> bool {
                 assert_eq!(
                     (&again.final_hash, again.ticks),
                     (&run.final_hash, run.ticks),
-                    "a resumed schema 2 prefix replays as another run"
+                    "a resumed schema 1 prefix replays as another run"
                 );
                 assert!(
                     run_replay::verify_run(&again.to_bytes()).is_ok(),
-                    "a resumed schema 2 prefix does not verify as schema 1"
+                    "a resumed schema 1 prefix does not verify as schema 2"
                 );
             }
         }
@@ -284,8 +284,8 @@ pub fn replay_load(data: &[u8]) -> bool {
     let run_replay = verified.is_ok();
     if run_replay {
         let run = RunReplay::from_bytes(data).expect("a run replay that verified loads");
-        // A schema 2 run's inputs are a step log that `commands` does not read; the recorder
-        // writes schema 1 until the writer moves, so only schema 1 re-records to itself.
+        // The recorder writes schema 2, so only a schema 2 run re-records to itself (a schema 1
+        // run re-records as its schema 2 form).
         if run.setup.schema_version == SCHEMA_VERSION {
             let recorded = run_replay::record_run(&run.setup, &commands(&run))
                 .expect("the commands of a run replay that verified record");

@@ -6,7 +6,9 @@
 
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION, Versions,
+};
 
 use stella_rain_core::attack_presets::{AttackPresets, MAX_ATTACK_PRESETS_BYTES};
 use stella_rain_core::constellations::{Constellations, MAX_CONSTELLATIONS_BYTES};
@@ -164,13 +166,20 @@ fn refuses<E: Debug + PartialEq>(
     } else {
         FIRST_SIM_VERSION
     };
+    // A file keeps its own schema: the pack header is at the schema writers write, a mode's stage
+    // (a member of the pack) at the first.
+    let own_schema = if text.starts_with("{\n  \"schema_version\": 2") {
+        SCHEMA_VERSION
+    } else {
+        FIRST_SCHEMA_VERSION
+    };
     assert_eq!(
         read(&replace_first(
             bytes,
             &format!("\"sim_version\": {own}"),
             &format!("\"sim_version\": {newer}")
         )),
-        Err(unsupported(SCHEMA_VERSION, newer)),
+        Err(unsupported(own_schema, newer)),
         "{name}: sim_version {newer}"
     );
     assert_eq!(
@@ -224,8 +233,9 @@ fn no_content_file_has_its_own_version() {
         let is_stage = matches!(slot.name, "trial" | "tutorial");
         for field in ["schema_version", "sim_version"] {
             if is_stage {
+                // A stage member of the pack is read at the versions it carries: schema 1.
                 let current = if field == "schema_version" {
-                    SCHEMA_VERSION
+                    FIRST_SCHEMA_VERSION
                 } else {
                     FIRST_SIM_VERSION
                 };

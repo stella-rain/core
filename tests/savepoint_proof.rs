@@ -35,6 +35,51 @@ struct Case {
     commands: Vec<TickCommand>,
 }
 
+/// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
+/// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
+/// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
+/// to the frozen file's. A file already at the written schema is returned as it is.
+fn written_form(
+    file: &RunReplay,
+    pack: &Pack,
+    inputs: &[Input],
+    commands: &[TickCommand],
+) -> RunReplay {
+    if file.setup.schema_version >= 2 {
+        return file.clone();
+    }
+    let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
+    let mut at = apply_commands(&mut rec, commands, 0, 0).unwrap();
+    for (i, input) in (0u32..).zip(inputs) {
+        at = apply_commands(&mut rec, commands, at, i).unwrap();
+        rec.step(*input).unwrap();
+    }
+    apply_commands(&mut rec, commands, at, file.ticks).unwrap();
+    let written = rec.replay();
+    assert_eq!(written.setup.schema_version, 2);
+    assert_eq!(written.commands, "");
+    assert_eq!(written.unpack_inputs(file.ticks).unwrap(), inputs);
+    assert_eq!(written.unpack_commands().unwrap(), commands);
+    assert_eq!(
+        (
+            &written.ticks,
+            &written.final_hash,
+            &written.checkpoints,
+            &written.content_sha256
+        ),
+        (
+            &file.ticks,
+            &file.final_hash,
+            &file.checkpoints,
+            &file.content_sha256
+        )
+    );
+    let mut setup = written.setup.clone();
+    setup.schema_version = file.setup.schema_version;
+    assert_eq!(setup, file.setup);
+    written
+}
+
 fn tree_dir(tree: &str) -> PathBuf {
     crate::data_root::data_root()
         .join("tests/corpus")
@@ -44,10 +89,11 @@ fn tree_dir(tree: &str) -> PathBuf {
 fn load_case(tree: &str, name: &str) -> Case {
     let dir = tree_dir(tree).join("runs").join(name);
     let bytes = fs::read(dir.join("run.replay")).unwrap();
-    let recorded = RunReplay::from_bytes(&bytes).unwrap();
+    let file = RunReplay::from_bytes(&bytes).unwrap();
     let pack = run_case_pack(&dir, &bytes).unwrap();
-    let inputs = recorded.unpack_inputs(recorded.ticks).unwrap();
-    let commands = recorded.unpack_commands().unwrap();
+    let inputs = file.unpack_inputs(file.ticks).unwrap();
+    let commands = file.unpack_commands().unwrap();
+    let recorded = written_form(&file, &pack, &inputs, &commands);
     Case {
         label: format!("{tree}/{name}"),
         recorded,
