@@ -495,7 +495,8 @@ impl Engine {
         self.run.state_hash()
     }
 
-    /// The domain events of the last tick, in the order they happened.
+    /// The domain events of the last tick, in the order they happened. A version 1 run's are the
+    /// frozen rules' events adapted to the live type, with the player fields `None`.
     pub fn events(&self) -> &[DomainEvent] {
         &self.events
     }

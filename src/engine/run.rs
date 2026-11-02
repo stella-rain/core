@@ -2,7 +2,8 @@
 //! point 4): each version owns its `World`, its `State` and its snapshot view, `V1` in `sim_v1`
 //! (frozen) and `V2` in `sim` (live). Every call into the rules goes through a `match` here, so
 //! adding a version lists each site as a compile error. No box, no trait object: the enum is the
-//! larger variant's `World` and `State` and a tag.
+//! larger variant's `World` and `State` and a tag. A version's events are its own types too:
+//! version 1 emits `sim_v1::event::DomainEvent`, which `v1_events` adapts into the engine's list.
 
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
