@@ -62,6 +62,8 @@ pub mod text;
 pub mod time_limit;
 pub mod trig;
 pub mod validate;
+
+pub use step_log::{RangeStep, StepRange, read_step_range};
 pub mod version;
 pub mod weapon;
 pub mod weapons;

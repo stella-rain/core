@@ -17,12 +17,12 @@ use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_
 use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, replay_load,
     run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder, savepoint_seeds,
-    share_decode, stage_parse, stage_run,
+    share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
 };
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 9] = [
+const TARGETS: [(&str, Target); 10] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
@@ -32,6 +32,7 @@ const TARGETS: [(&str, Target); 9] = [
     ("packs_load", packs_load),
     ("minisign_verify", minisign_verify),
     ("savepoint_load", savepoint_load),
+    ("step_log_range", step_log_range),
 ];
 
 fn root() -> PathBuf {
@@ -299,6 +300,62 @@ fn pack_with_constellations() -> Vec<u8> {
     serde_json::to_vec(&pack).expect("a pack serialises")
 }
 
+/// The seeds of `step_log_range`, named for what they are: for each run case of the corpus (all
+/// of them, the target takes the step log alone) the ranges `0..0`, `0..ticks`, the middle
+/// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
+/// ticks, a pick before the first tick and an unknown record. Generated, never committed.
+fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
+    let dir = root().join("tests/corpus/current/runs");
+    let mut cases: Vec<_> = fs::read_dir(&dir)
+        .expect("the run corpus directory")
+        .map(|e| e.expect("a run case").path())
+        .collect();
+    cases.sort();
+    assert!(cases.len() >= 9, "the corpus has fewer than 9 run cases");
+    let mut seeds = Vec::new();
+    for case in cases {
+        let name = case.file_name().unwrap().to_string_lossy().into_owned();
+        let run = RunReplay::from_bytes(&fs::read(case.join("run.replay")).expect("run.replay"))
+            .expect("a corpus run replay");
+        assert_eq!(run.setup.schema_version, 2, "{name}");
+        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+        let t = run.ticks;
+        for (label, a, b) in [
+            ("empty", 0, 0),
+            ("whole", 0, t),
+            ("middle", t / 3, 2 * t / 3),
+            ("last", t - 1, t),
+            ("end", t, t),
+        ] {
+            seeds.push((
+                format!("{name}-{label}"),
+                step_log_range_input(t, a, b, &log),
+            ));
+        }
+    }
+    let forged: [(&str, u32, &[u8]); 3] = [
+        (
+            "forged-huge-run",
+            u32::MAX,
+            &[0x01, 0x00, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x02, 0x00, 0x00],
+        ),
+        (
+            "forged-pick-first",
+            5,
+            &[0x01, 0x01, 0x01, 0x00, 0x00, 0x05, 0x02, 0x00, 0x00],
+        ),
+        (
+            "forged-unknown-record",
+            1,
+            &[0x01, 0x07, 0x01, 0x00, 0x00, 0x00],
+        ),
+    ];
+    for (name, ticks, log) in forged {
+        seeds.push((name.to_owned(), step_log_range_input(ticks, 0, ticks, log)));
+    }
+    seeds
+}
+
 /// The files each target is given: stages for the stage targets, and for `stage_parse` also the
 /// bundled rewards (with their stage skills), run stats and expertise, which it reads too; stage
 /// and run replays for the replay target, share codes (of the corpus pairs) for the share target
@@ -315,6 +372,12 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
     }
     if target == "savepoint_load" {
         return savepoint_seeds()
+            .into_iter()
+            .map(|(_, bytes)| bytes)
+            .collect();
+    }
+    if target == "step_log_range" {
+        return step_log_range_seeds()
             .into_iter()
             .map(|(_, bytes)| bytes)
             .collect();
@@ -478,7 +541,7 @@ fn every_target_has_a_file_and_the_other_way_round() {
     files.sort();
     let mut listed: Vec<&str> = TARGETS.iter().map(|t| t.0).collect();
     listed.sort_unstable();
-    assert_eq!(TARGETS.len(), 9);
+    assert_eq!(TARGETS.len(), 10);
     assert_eq!(files, listed);
 }
 
@@ -568,6 +631,53 @@ fn write_savepoint_seeds() {
     let dir = std::env::var("SAVEPOINT_SEEDS_DIR").expect("SAVEPOINT_SEEDS_DIR names the folder");
     fs::create_dir_all(&dir).expect("the seed folder");
     for (name, bytes) in savepoint_seeds() {
+        fs::write(Path::new(&dir).join(name), bytes).expect("a seed file");
+    }
+}
+
+#[test]
+fn a_real_log_range_gets_past_the_scanner() {
+    let seeds = step_log_range_seeds();
+    assert!(seeds.len() >= 9 * 5 + 3);
+    for (name, bytes) in &seeds {
+        let real = !name.starts_with("forged-unknown");
+        assert_eq!(step_log_range(bytes), real, "{name}");
+    }
+}
+
+#[test]
+fn the_forged_huge_log_is_survived() {
+    let huge = step_log_range_input(
+        u32::MAX,
+        4_000_000_000,
+        u32::MAX,
+        &[0x01, 0x00, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x02, 0x00, 0x00],
+    );
+    assert!(step_log_range(&huge));
+}
+
+#[test]
+fn a_step_log_range_seed_framing_round_trips() {
+    let bytes = step_log_range_input(7, 2, 5, &[0x01, 0x00]);
+    assert_eq!(&bytes[0..4], &7u32.to_le_bytes());
+    assert_eq!(&bytes[4..8], &2u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &5u32.to_le_bytes());
+    assert_eq!(&bytes[12..], &[0x01, 0x00]);
+}
+
+/// Writes the seeds of `step_log_range` to the folder `STEP_LOG_RANGE_SEEDS_DIR` names, for a
+/// `cargo fuzz run` (they are generated, never committed).
+#[test]
+#[ignore = "writes files: set STEP_LOG_RANGE_SEEDS_DIR"]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a tool, not simulation code: it reads the folder"
+)]
+fn write_step_log_range_seeds() {
+    let dir = std::env::var("STEP_LOG_RANGE_SEEDS_DIR")
+        .expect("STEP_LOG_RANGE_SEEDS_DIR names the folder");
+    fs::create_dir_all(&dir).expect("the seed folder");
+    for (name, bytes) in step_log_range_seeds() {
         fs::write(Path::new(&dir).join(name), bytes).expect("a seed file");
     }
 }

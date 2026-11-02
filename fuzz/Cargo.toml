@@ -90,6 +90,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "step_log_range"
+path = "fuzz_targets/step_log_range.rs"
+test = false
+doc = false
+bench = false
+
 # Overflow panics in every profile, as in the root crate (ADR-019): a profile of the root
 # `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
 [profile.dev]

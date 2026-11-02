@@ -49,84 +49,14 @@ impl StepLog {
         ticks: u32,
         max_ticks: u32,
     ) -> Result<StepLog, RunReplayError> {
-        let bad = RunReplayError::BadInputs;
-        if ticks > max_ticks {
-            return Err(RunReplayError::TooManyTicks {
-                ticks,
-                limit: max_ticks,
-            });
-        }
-        let cut = bad("ends in the middle of a record");
-        let present = *bytes.first().ok_or(cut.clone())?;
-        if present == 0 {
-            return Err(bad("no player is present"));
-        }
-        if present & !0b111 != 0 {
-            return Err(bad("a player slot beyond the party"));
-        }
-        let players = StepLog::players(present);
-        let mut pos = 1;
-        let mut world = 0u32;
-        let mut picks_seen = 0u32;
-        let mut records: Vec<Record> = Vec::new();
-        while pos < bytes.len() {
-            let opcode = bytes[pos];
-            pos += 1;
-            match opcode {
-                TICKS => {
-                    let run = read_varint(bytes, &mut pos).map_err(bad)?;
-                    if run == 0 {
-                        return Err(bad("a run has length 0"));
-                    }
-                    if run > ticks - world {
-                        return Err(bad("there are more inputs than ticks"));
-                    }
-                    let mut inputs = Vec::with_capacity(players);
-                    for _ in 0..players {
-                        let block = *bytes
-                            .get(pos..pos + 3)
-                            .and_then(|b| <&[u8; 3]>::try_from(b).ok())
-                            .ok_or(cut.clone())?;
-                        pos += 3;
-                        inputs.push(input_of_block(block, true).map_err(bad)?);
-                    }
-                    if matches!(records.last(), Some(Record::Ticks { inputs: before, .. }) if *before == inputs)
-                    {
-                        return Err(bad("a run repeats the input of the run before"));
-                    }
-                    world += run;
-                    records.push(Record::Ticks { run, inputs });
-                }
-                PICKS => {
-                    if picks_seen >= MAX_COMMANDS {
-                        return Err(RunReplayError::TooManyCommands {
-                            limit: MAX_COMMANDS,
-                        });
-                    }
-                    let mut picks = Vec::with_capacity(players);
-                    for _ in 0..players {
-                        let marker = *bytes.get(pos).ok_or(cut.clone())?;
-                        pos += 1;
-                        picks.push(match marker {
-                            0 => None,
-                            1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
-                            _ => return Err(bad("a pick marker is neither 0 nor 1")),
-                        });
-                    }
-                    if picks.iter().all(Option::is_none) {
-                        return Err(bad("a record has no pick"));
-                    }
-                    picks_seen += 1;
-                    records.push(Record::Picks { picks });
-                }
-                JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
-                _ => return Err(bad("an unknown record")),
-            }
-        }
-        if world != ticks {
-            return Err(bad("there are fewer inputs than ticks"));
-        }
-        Ok(StepLog { present, records })
+        let mut sink = Collect {
+            records: Vec::new(),
+        };
+        let present = scan(bytes, ticks, max_ticks, &mut sink)?;
+        Ok(StepLog {
+            present,
+            records: sink.records,
+        })
     }
 
     /// The canonical bytes: `decode(encode(x)) == x` for any log `decode` can return.
@@ -254,9 +184,264 @@ impl StepLog {
     }
 }
 
+/// One step of a tick range (ADR-REPL-10).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RangeStep {
+    /// `run` world ticks, each with these inputs (one per present slot, in slot order).
+    Ticks { run: u32, inputs: Vec<Input> },
+    /// One step that does not advance the world: the pick of each present slot, if any.
+    Picks { picks: Vec<Option<u32>> },
+}
+
+/// The steps of world ticks `first..end` of a step log.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StepRange {
+    /// Bit `i` set when player slot `i` is present at tick 0 (the log's, not the range's).
+    pub present: u8,
+    pub first: u32,
+    pub end: u32,
+    pub steps: Vec<RangeStep>,
+}
+
+/// The steps of world ticks `a..b` of a schema 2 step log of `ticks` world ticks, at most
+/// `max_ticks` (ADR-REPL-10). Ticks are 0-based and the range is half-open: tick `i` takes the
+/// state after `i` ticks to the state after `i + 1`.
+///
+/// - A TICKS run that overlaps the range is returned once, clipped to its overlap: a run is
+///   never split into ticks and never expanded, so the memory is bounded by the records in the
+///   range, not by `ticks`, `a`, `b` or a claimed run.
+/// - A PICKS step after `p` world ticks goes with the tick after it: it is in the range iff
+///   `a <= p < b`; a range with `b == ticks` also holds the picks after the last tick. An empty
+///   range (`a == b`) holds no step. The picks at `p == a` are therefore in the range, which is
+///   what a re-simulation from the state after `a` ticks needs.
+/// - The whole log is validated with the full decoder's checks, so a damaged log is refused
+///   with the same error however small the range. `a > b` and `b > ticks` are `BadInputs`; both
+///   are checked before the bytes are read.
+pub fn read_step_range(
+    bytes: &[u8],
+    ticks: u32,
+    max_ticks: u32,
+    a: u32,
+    b: u32,
+) -> Result<StepRange, RunReplayError> {
+    check_range(ticks, a, b)?;
+    let mut sink = RangeSink::new(ticks, a, b);
+    let present = scan(bytes, ticks, max_ticks, &mut sink)?;
+    Ok(sink.finish(present))
+}
+
+fn check_range(ticks: u32, a: u32, b: u32) -> Result<(), RunReplayError> {
+    if a > b {
+        return Err(RunReplayError::BadInputs("a tick range that is backwards"));
+    }
+    if b > ticks {
+        return Err(RunReplayError::BadInputs("a tick range past the last tick"));
+    }
+    Ok(())
+}
+
+/// The sink of the range reader: keeps what falls in `a..b`.
+struct RangeSink {
+    ticks: u32,
+    a: u32,
+    b: u32,
+    steps: Vec<RangeStep>,
+}
+
+impl RangeSink {
+    fn new(ticks: u32, a: u32, b: u32) -> RangeSink {
+        RangeSink {
+            ticks,
+            a,
+            b,
+            steps: Vec::new(),
+        }
+    }
+
+    fn finish(self, present: u8) -> StepRange {
+        StepRange {
+            present,
+            first: self.a,
+            end: self.b,
+            steps: self.steps,
+        }
+    }
+}
+
+impl Sink for RangeSink {
+    fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]) {
+        let from = start.max(self.a);
+        let to = (start + run).min(self.b);
+        if from < to {
+            self.steps.push(RangeStep::Ticks {
+                run: to - from,
+                inputs: inputs.to_vec(),
+            });
+        }
+    }
+
+    fn picks(&mut self, at: u32, picks: &[Option<u32>]) {
+        let inside = (self.a <= at && at < self.b)
+            || (self.a < self.b && self.b == self.ticks && at == self.ticks);
+        if inside {
+            self.steps.push(RangeStep::Picks {
+                picks: picks.to_vec(),
+            });
+        }
+    }
+}
+
+impl StepLog {
+    /// The steps of world ticks `a..b` of an already decoded log, by the rule of
+    /// `read_step_range`.
+    pub(crate) fn range(&self, a: u32, b: u32) -> Result<StepRange, RunReplayError> {
+        let ticks = self.records.iter().fold(0u32, |t, r| match r {
+            Record::Ticks { run, .. } => t.saturating_add(*run),
+            Record::Picks { .. } => t,
+        });
+        check_range(ticks, a, b)?;
+        let mut sink = RangeSink::new(ticks, a, b);
+        let mut world = 0u32;
+        for record in &self.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    sink.ticks(world, *run, inputs);
+                    world += run;
+                }
+                Record::Picks { picks } => sink.picks(world, picks),
+            }
+        }
+        Ok(sink.finish(self.present))
+    }
+}
+
+/// What the scanner reports for each record, by reference: nothing is allocated for it.
+trait Sink {
+    /// `run` world ticks from world tick `start`, with one input per present slot.
+    fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]);
+    /// One PICKS step after `at` world ticks.
+    fn picks(&mut self, at: u32, picks: &[Option<u32>]);
+}
+
+/// The sink of `decode`: every record, pushed.
+struct Collect {
+    records: Vec<Record>,
+}
+
+impl Sink for Collect {
+    fn ticks(&mut self, _start: u32, run: u32, inputs: &[Input]) {
+        self.records.push(Record::Ticks {
+            run,
+            inputs: inputs.to_vec(),
+        });
+    }
+
+    fn picks(&mut self, _at: u32, picks: &[Option<u32>]) {
+        self.records.push(Record::Picks {
+            picks: picks.to_vec(),
+        });
+    }
+}
+
+/// Walks the schema 2 bytes of a replay of `ticks` world ticks, at most `max_ticks`, with every
+/// check of the format, and reports each record to `sink`. Returns the `present` byte. It is
+/// the only decoder, so every reader refuses the same bytes with the same error. It keeps the
+/// blocks of the run before in one reused buffer and allocates nothing per record.
+fn scan(
+    bytes: &[u8],
+    ticks: u32,
+    max_ticks: u32,
+    sink: &mut impl Sink,
+) -> Result<u8, RunReplayError> {
+    let bad = RunReplayError::BadInputs;
+    if ticks > max_ticks {
+        return Err(RunReplayError::TooManyTicks {
+            ticks,
+            limit: max_ticks,
+        });
+    }
+    let cut = bad("ends in the middle of a record");
+    let present = *bytes.first().ok_or(cut.clone())?;
+    if present == 0 {
+        return Err(bad("no player is present"));
+    }
+    if present & !0b111 != 0 {
+        return Err(bad("a player slot beyond the party"));
+    }
+    let players = StepLog::players(present);
+    let mut pos = 1;
+    let mut world = 0u32;
+    let mut picks_seen = 0u32;
+    // The inputs of the record before, when it was a TICKS record.
+    let mut before: Vec<Input> = Vec::with_capacity(players);
+    let mut after_ticks = false;
+    let mut inputs: Vec<Input> = Vec::with_capacity(players);
+    let mut picks: Vec<Option<u32>> = Vec::with_capacity(players);
+    while pos < bytes.len() {
+        let opcode = bytes[pos];
+        pos += 1;
+        match opcode {
+            TICKS => {
+                let run = read_varint(bytes, &mut pos).map_err(bad)?;
+                if run == 0 {
+                    return Err(bad("a run has length 0"));
+                }
+                if run > ticks - world {
+                    return Err(bad("there are more inputs than ticks"));
+                }
+                inputs.clear();
+                for _ in 0..players {
+                    let block = *bytes
+                        .get(pos..pos + 3)
+                        .and_then(|b| <&[u8; 3]>::try_from(b).ok())
+                        .ok_or(cut.clone())?;
+                    pos += 3;
+                    inputs.push(input_of_block(block, true).map_err(bad)?);
+                }
+                if after_ticks && before == inputs {
+                    return Err(bad("a run repeats the input of the run before"));
+                }
+                sink.ticks(world, run, &inputs);
+                world += run;
+                std::mem::swap(&mut before, &mut inputs);
+                after_ticks = true;
+            }
+            PICKS => {
+                if picks_seen >= MAX_COMMANDS {
+                    return Err(RunReplayError::TooManyCommands {
+                        limit: MAX_COMMANDS,
+                    });
+                }
+                picks.clear();
+                for _ in 0..players {
+                    let marker = *bytes.get(pos).ok_or(cut.clone())?;
+                    pos += 1;
+                    picks.push(match marker {
+                        0 => None,
+                        1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
+                        _ => return Err(bad("a pick marker is neither 0 nor 1")),
+                    });
+                }
+                if picks.iter().all(Option::is_none) {
+                    return Err(bad("a record has no pick"));
+                }
+                picks_seen += 1;
+                sink.picks(world, &picks);
+                after_ticks = false;
+            }
+            JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
+            _ => return Err(bad("an unknown record")),
+        }
+    }
+    if world != ticks {
+        return Err(bad("there are fewer inputs than ticks"));
+    }
+    Ok(present)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Record, StepLog};
+    use super::{RangeStep, Record, StepLog, StepRange, read_step_range};
     use crate::base64;
     use crate::engine::ChoiceError;
     use crate::input::Input;
@@ -794,5 +979,311 @@ mod tests {
             log.encode(),
             hex("01 00 05 02 00 00 01 01 00 00 02 02 00 00")
         );
+    }
+
+    // ---- the range reader (ADR-REPL-10) ----
+
+    const MAX: u32 = u32::MAX;
+
+    fn idle() -> Input {
+        Input::default()
+    }
+
+    fn range(text: &str, ticks: u32, a: u32, b: u32) -> Result<StepRange, RunReplayError> {
+        read_step_range(&hex(text), ticks, MAX, a, b)
+    }
+
+    fn steps(text: &str, ticks: u32, a: u32, b: u32) -> Vec<RangeStep> {
+        range(text, ticks, a, b).unwrap().steps
+    }
+
+    fn run_of(run: u32, input: Input) -> RangeStep {
+        RangeStep::Ticks {
+            run,
+            inputs: vec![input],
+        }
+    }
+
+    fn pick_of(index: u32) -> RangeStep {
+        RangeStep::Picks {
+            picks: vec![Some(index)],
+        }
+    }
+
+    /// One entry per tick, and the picks where they fall: the oracle's expanded form.
+    #[derive(Debug, PartialEq)]
+    enum Entry {
+        Tick(Vec<Input>),
+        Picks(Vec<Option<u32>>),
+    }
+
+    /// The full decode, expanded to one entry per tick and cut to `a..b` by the rule written out
+    /// again from the semantics: a PICKS after `p` ticks is in when `a <= p < b`, and a range
+    /// ending at `ticks` also takes the picks after the last tick; an empty range holds nothing.
+    fn oracle(log: &StepLog, ticks: u32, a: u32, b: u32) -> Vec<Entry> {
+        let mut out = Vec::new();
+        let mut world = 0u32;
+        for record in &log.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    for t in world..world + run {
+                        if a <= t && t < b {
+                            out.push(Entry::Tick(inputs.clone()));
+                        }
+                    }
+                    world += run;
+                }
+                Record::Picks { picks } => {
+                    let inside =
+                        (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                    if inside {
+                        out.push(Entry::Picks(picks.clone()));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn expand(steps: &[RangeStep]) -> Vec<Entry> {
+        let mut out = Vec::new();
+        for step in steps {
+            match step {
+                RangeStep::Ticks { run, inputs } => {
+                    for _ in 0..*run {
+                        out.push(Entry::Tick(inputs.clone()));
+                    }
+                }
+                RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn a_range_that_starts_inside_a_run_is_clipped() {
+        let log = "01 00 05 02 00 00";
+        assert_eq!(steps(log, 5, 2, 4), [run_of(2, main_held())]);
+        assert_eq!(steps(log, 5, 0, 5), [run_of(5, main_held())]);
+        assert_eq!(steps(log, 5, 4, 5), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 5, 0, 1), [run_of(1, main_held())]);
+        let whole = range(log, 5, 0, 5).unwrap();
+        assert_eq!((whole.present, whole.first, whole.end), (1, 0, 5));
+    }
+
+    #[test]
+    fn an_empty_range_is_ok_and_holds_nothing() {
+        let log = "01 00 05 02 00 00";
+        for at in [0, 3, 5] {
+            assert_eq!(steps(log, 5, at, at), []);
+        }
+        // Even trailing picks are not in an empty range, and the log is still validated.
+        let trailing = "01 00 02 02 00 00 01 01 07";
+        assert_eq!(steps(trailing, 2, 2, 2), []);
+        assert_eq!(
+            range("01 00 05 02 00", 5, 0, 0),
+            Err(RunReplayError::BadInputs("ends in the middle of a record"))
+        );
+    }
+
+    #[test]
+    fn a_pick_comes_with_the_tick_after_it() {
+        // Tick 0 held, a pick of index 0 after it (position 1), then two idle ticks.
+        let log = "01 00 01 02 00 00 01 01 00 00 02 00 00 00";
+        assert_eq!(steps(log, 3, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 3, 1, 3), [pick_of(0), run_of(2, idle())]);
+        assert_eq!(
+            steps(log, 3, 0, 3),
+            [run_of(1, main_held()), pick_of(0), run_of(2, idle())]
+        );
+        assert_eq!(steps(log, 3, 1, 2), [pick_of(0), run_of(1, idle())]);
+        assert_eq!(
+            steps(log, 3, 0, 2),
+            [run_of(1, main_held()), pick_of(0), run_of(1, idle())]
+        );
+        assert_eq!(steps(log, 3, 2, 3), [run_of(1, idle())]);
+    }
+
+    #[test]
+    fn a_pick_before_the_first_tick_is_in_a_range_that_starts_at_0() {
+        let log = "01 01 01 00 00 05 02 00 00";
+        assert_eq!(steps(log, 5, 0, 2), [pick_of(0), run_of(2, main_held())]);
+        assert_eq!(steps(log, 5, 1, 2), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 5, 0, 0), []);
+    }
+
+    #[test]
+    fn the_picks_after_the_last_tick_belong_to_a_range_ending_there() {
+        let log = "01 00 02 02 00 00 01 01 07";
+        assert_eq!(steps(log, 2, 0, 2), [run_of(2, main_held()), pick_of(7)]);
+        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(steps(log, 2, 1, 2), [run_of(1, main_held()), pick_of(7)]);
+    }
+
+    #[test]
+    fn several_picks_at_one_position_keep_their_order() {
+        let log = "01 00 01 02 00 00 01 01 03 01 01 04 00 01 00 00 00";
+        assert_eq!(
+            steps(log, 2, 1, 2),
+            [pick_of(3), pick_of(4), run_of(1, idle())]
+        );
+        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
+    }
+
+    #[test]
+    fn a_party_of_three_gets_three_inputs_per_run() {
+        let log = "07 00 02 02 00 00 00 00 00 00 00 00";
+        assert_eq!(
+            steps(log, 2, 0, 1),
+            [RangeStep::Ticks {
+                run: 1,
+                inputs: vec![main_held(), idle(), idle()]
+            }]
+        );
+        assert_eq!(range(log, 2, 0, 1).unwrap().present, 7);
+    }
+
+    #[test]
+    fn a_bad_range_is_refused_without_reading_the_log() {
+        let log = "01 00 05 02 00 00";
+        let backwards = Err(RunReplayError::BadInputs("a tick range that is backwards"));
+        let past = Err(RunReplayError::BadInputs("a tick range past the last tick"));
+        assert_eq!(range(log, 5, 3, 2), backwards);
+        assert_eq!(range(log, 5, 0, 6), past);
+        assert_eq!(range(log, 5, 6, 6), past);
+        // The bytes are not even looked at.
+        assert_eq!(range("", 5, 3, 2), backwards);
+        assert_eq!(range("", 5, 0, 6), past);
+        assert_eq!(
+            read_step_range(&hex(log), 11, 10, 0, 0),
+            Err(RunReplayError::TooManyTicks {
+                ticks: 11,
+                limit: 10
+            })
+        );
+    }
+
+    #[test]
+    fn the_range_reader_refuses_what_the_decoder_refuses() {
+        let cases: [(&str, u32); 15] = [
+            ("00 00 01 00 00 00", 1),
+            ("09 00 01 00 00 00", 1),
+            ("01 00 01 80 00 00", 1),
+            ("01 07 01 00 00 00", 1),
+            ("01 02 00", 0),
+            ("01 03 00", 0),
+            ("01 00 00 00 00 00", 0),
+            ("01 00 01 00 00 00 00 01 00 00 00", 2),
+            ("01 01 00", 0),
+            ("01 00 05 02 00", 5),
+            ("01 00", 0),
+            ("01 00 04 00 00 00", 5),
+            ("01 00 06 00 00 00", 5),
+            ("01 00 85 00 00 00 00", 5),
+            ("01 00 01 00 80 00", 1),
+        ];
+        for (bytes, ticks) in cases {
+            let want = StepLog::decode(&hex(bytes), ticks, MAX).unwrap_err();
+            assert_eq!(range(bytes, ticks, 0, 0).unwrap_err(), want, "{bytes}");
+            assert_eq!(range(bytes, ticks, 0, ticks).unwrap_err(), want, "{bytes}");
+        }
+        // Damage after `b` is still refused.
+        let damaged = "01 00 02 02 00 00 00 03 00 00 00 07";
+        let want = StepLog::decode(&hex(damaged), 5, MAX).unwrap_err();
+        assert_eq!(range(damaged, 5, 0, 1).unwrap_err(), want);
+        // The 1001st PICKS is refused after the range ends.
+        let mut many = String::from("01");
+        for _ in 0..=MAX_COMMANDS {
+            many.push_str(" 01 01 00");
+        }
+        let want = StepLog::decode(&hex(&many), 0, MAX).unwrap_err();
+        assert!(matches!(want, RunReplayError::TooManyCommands { .. }));
+        assert_eq!(range(&many, 0, 0, 0).unwrap_err(), want);
+    }
+
+    #[test]
+    fn a_huge_run_is_clipped_not_expanded() {
+        let log = "01 00 ff ff ff ff 0f 02 00 00";
+        assert_eq!(steps(log, MAX, 0, 10), [run_of(10, main_held())]);
+        assert_eq!(
+            steps(log, MAX, 4_000_000_000, 4_000_000_010),
+            [run_of(10, main_held())]
+        );
+        assert_eq!(steps(log, MAX, 0, MAX), [run_of(MAX, main_held())]);
+    }
+
+    #[test]
+    fn the_range_read_is_the_oracle_on_every_corpus_case() {
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for (name, bytes) in corpus_files()
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("current"))
+        {
+            let replay = RunReplay::from_bytes(&bytes).unwrap();
+            let raw = base64::decode(&replay.inputs).unwrap();
+            let ticks = replay.ticks;
+            let log = StepLog::decode(&raw, ticks, MAX).unwrap();
+            let mut ranges = vec![
+                (0, 0),
+                (0, ticks),
+                (ticks, ticks),
+                (ticks - 1, ticks),
+                (0, 1),
+            ];
+            let mut k = 0;
+            while k < ticks {
+                ranges.push((k, (k + 60).min(ticks)));
+                k += 60;
+            }
+            for _ in 0..200 {
+                let x = u32::try_from(next() % (u64::from(ticks) + 1)).unwrap();
+                let y = u32::try_from(next() % (u64::from(ticks) + 1)).unwrap();
+                ranges.push((x.min(y), x.max(y)));
+            }
+            for (a, b) in ranges {
+                let got = read_step_range(&raw, ticks, MAX, a, b).unwrap();
+                assert_eq!(got.present, log.present, "{name}");
+                assert_eq!((got.first, got.end), (a, b), "{name}");
+                assert!(got.steps.len() <= log.records.len(), "{name} {a}..{b}");
+                assert_eq!(
+                    expand(&got.steps),
+                    oracle(&log, ticks, a, b),
+                    "{name} {a}..{b}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_whole_range_is_the_decoded_log() {
+        for (name, bytes) in corpus_files()
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("current"))
+        {
+            let replay = RunReplay::from_bytes(&bytes).unwrap();
+            let raw = base64::decode(&replay.inputs).unwrap();
+            let log = StepLog::decode(&raw, replay.ticks, MAX).unwrap();
+            let got = read_step_range(&raw, replay.ticks, MAX, 0, replay.ticks).unwrap();
+            let want: Vec<RangeStep> = log
+                .records
+                .iter()
+                .map(|r| match r {
+                    Record::Ticks { run, inputs } => RangeStep::Ticks {
+                        run: *run,
+                        inputs: inputs.clone(),
+                    },
+                    Record::Picks { picks } => RangeStep::Picks {
+                        picks: picks.clone(),
+                    },
+                })
+                .collect();
+            assert_eq!(got.steps, want, "{name}");
+        }
     }
 }

@@ -55,7 +55,7 @@ use crate::replay::{hash_from_hex, hash_to_hex, read_varint, unpack, write_varin
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
-use crate::step_log::{Record, StepLog};
+use crate::step_log::{Record, StepLog, StepRange, read_step_range};
 use crate::validate;
 use crate::version::{
     self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
@@ -548,6 +548,22 @@ impl RunReplay {
             commands.push(TickCommand { tick, kind, index });
         }
         Ok(commands)
+    }
+
+    /// The steps of world ticks `a..b` of the run (ADR-REPL-10), by the rule of
+    /// `read_step_range`, whichever schema the replay is. At schema 2 the log is validated and
+    /// cut without expanding its runs; a schema 1 replay is migrated first, as every schema 1
+    /// read is (the cost of its ticks).
+    pub fn step_range(&self, a: u32, b: u32, max_ticks: u32) -> Result<StepRange, RunReplayError> {
+        if self.setup.schema_version >= 2 {
+            if !self.commands.is_empty() {
+                return Err(RunReplayError::BadCommands("schema 2 has no command list"));
+            }
+            let bytes = base64::decode(&self.inputs)
+                .map_err(|_| RunReplayError::BadInputs("not valid base64"))?;
+            return read_step_range(&bytes, self.ticks, max_ticks, a, b);
+        }
+        self.step_log(max_ticks)?.range(a, b)
     }
 
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
