@@ -40,7 +40,7 @@ pub(super) fn with_offer() -> Engine {
                 return e;
             }
             let next = e.tick() + 1;
-            e.step(input(next));
+            e.step(&[input(next)]);
         }
     }
     panic!("no walk reached an offer");
@@ -65,7 +65,7 @@ fn the_snapshot_has_one_player_per_slot() {
             assert_eq!(places.players[0], snap.players[0].at, "tick {tick}");
             if round == 0 {
                 for _ in 0..60 {
-                    e.step(Input::default());
+                    e.step(&[Input::default()]);
                 }
             }
         }
@@ -90,7 +90,7 @@ fn players_json_is_an_array_of_the_old_player() {
 fn choose_names_the_player() {
     let mut e = with_offer();
     let (hash, events) = (e.state_hash(), e.events().to_vec());
-    let err = e.choose(p1(), 0);
+    let err = crate::engine::pick(&mut e, p1(), 0);
     assert_eq!(err, Err(ChoiceError::NoPlayer { player: p1() }));
     assert_eq!((e.state_hash(), e.events()), (hash, events.as_slice()));
     let options = e
@@ -101,7 +101,7 @@ fn choose_names_the_player() {
     if let Some(n) = options {
         let past = u32::try_from(n).unwrap();
         assert_eq!(
-            e.choose(PlayerIdx::SOLO, past),
+            crate::engine::pick(&mut e, PlayerIdx::SOLO, past),
             Err(ChoiceError::OutOfRange {
                 index: past,
                 options: past
@@ -109,14 +109,17 @@ fn choose_names_the_player() {
         );
     }
     assert_eq!(e.state_hash(), hash);
-    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Ok(()));
+    assert_eq!(crate::engine::pick(&mut e, PlayerIdx::SOLO, 0), Ok(()));
     assert_ne!(e.state_hash(), hash);
 
     let mut idle = worst_case::warmed_up();
     assert!(!idle.offer_open());
     assert_eq!(
-        idle.choose(p1(), 0),
+        crate::engine::pick(&mut idle, p1(), 0),
         Err(ChoiceError::NoPlayer { player: p1() })
     );
-    assert_eq!(idle.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+    assert_eq!(
+        crate::engine::pick(&mut idle, PlayerIdx::SOLO, 0),
+        Err(ChoiceError::NoOffer)
+    );
 }

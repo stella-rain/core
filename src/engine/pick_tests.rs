@@ -9,9 +9,11 @@ use crate::input::Input;
 
 use super::*;
 
+/// How many options the open offer holds: the first index `check_pick` refuses.
 fn options_of(e: &Engine) -> u32 {
-    let offer = e.snapshot().progress.and_then(|p| p.offer);
-    u32::try_from(offer.map_or(0, |o| o.options.len())).unwrap()
+    (0..)
+        .find(|i| e.check_pick(PlayerIdx::SOLO, *i).is_err())
+        .unwrap()
 }
 
 #[test]

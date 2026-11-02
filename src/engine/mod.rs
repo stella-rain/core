@@ -24,6 +24,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
+use crate::snapshot::OfferOption;
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 use crate::version::SIM_VERSION;
@@ -320,20 +321,38 @@ impl Engine {
         Ok(Engine::of(run, content, forced))
     }
 
-    /// Advances one tick with `input`. Once the run is over this does nothing, so a replay that
-    /// is longer than the run cannot change the final hash; nor while an offer is open, when
-    /// the world is stopped (ADR-079 §3).
-    pub fn step(&mut self, input: Input) {
+    /// Advances one tick with `inputs`, one per active player, indexed by `PlayerIdx`. Once the
+    /// run is over this does nothing, so a replay that is longer than the run cannot change the
+    /// final hash.
+    ///
+    /// While an offer is open the world is stopped (ADR-079 §3): the first player, in
+    /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option, the events
+    /// are the pick's and the tick does not advance; other picks are ignored, and with no
+    /// acceptable pick nothing changes. With no offer open `pick` is not read (ADR-REPL-3).
+    ///
+    /// # Panics
+    ///
+    /// If `inputs.len()` is not `players()`: a caller bug, never data from a file.
+    pub fn step(&mut self, inputs: &[Input]) {
+        assert_eq!(inputs.len(), self.players(), "one input per player");
         self.events.clear();
         self.load = Load::default();
         if self.offer_open() {
+            let taken = inputs.iter().enumerate().find_map(|(i, input)| {
+                let index = input.pick?;
+                let player = PlayerIdx::new(u8::try_from(i).ok()?)?;
+                self.pick_option(player, index).ok()
+            });
+            if let Some(option) = taken {
+                self.take(option);
+            }
             return;
         }
         if self.runs_its_version() {
             self.run.step(
                 self.content.rewards(),
                 self.content.expertise(),
-                input,
+                inputs,
                 &mut self.events,
                 &mut self.load,
             );
@@ -349,12 +368,16 @@ impl Engine {
         self.run.party()
     }
 
-    /// Chooses option `index` of the open offer for `player`, between ticks (ADR-079 §3): the
-    /// snapshot's `offer.options` lists them. It applies at once, and the events are then this
-    /// choice's. The open offer belongs to the run for now, so any player in the party takes it.
-    /// Refused, changing nothing, for a player outside the party, with no offer open, a
-    /// `sim_version` this game does not run, or an index outside its options.
-    pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
+    /// Whether `player` could take option `index` of the open offer by a pick in `step`
+    /// (ADR-079 §3): the snapshot's `offer.options` lists them. The open offer belongs to the run
+    /// for now, so any player in the party takes it. Refused for a player outside the party,
+    /// with no offer open, a `sim_version` this game does not run, or an index outside its
+    /// options. Read-only.
+    pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
+        self.pick_option(player, index).map(|_| ())
+    }
+
+    fn pick_option(&self, player: PlayerIdx, index: u32) -> Result<OfferOption, ChoiceError> {
         if player.get() >= self.players() {
             return Err(ChoiceError::NoPlayer { player });
         }
@@ -367,23 +390,28 @@ impl Engine {
             // that stops being true.
             return Err(ChoiceError::Unsupported { sim_version });
         }
-        let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
-        let options = self.run.offer_options(rewards, expertise);
-        let Some(option) = usize::try_from(index)
+        let options = self
+            .run
+            .offer_options(self.content.rewards(), self.content.expertise());
+        usize::try_from(index)
             .ok()
             .and_then(|i| options.get(i))
             .copied()
-        else {
-            return Err(ChoiceError::OutOfRange {
+            .ok_or(ChoiceError::OutOfRange {
                 index,
                 options: u32::try_from(options.len()).unwrap_or(u32::MAX),
-            });
-        };
-        self.events.clear();
-        self.run
-            .choose(rewards, expertise, option, &mut self.events);
+            })
+    }
+
+    /// Takes `option` of the open offer, already accepted by `pick_option`.
+    fn take(&mut self, option: OfferOption) {
+        self.run.choose(
+            self.content.rewards(),
+            self.content.expertise(),
+            option,
+            &mut self.events,
+        );
         self.observe_choice();
-        Ok(())
     }
 
     /// The run's stage names a version this game runs, and it is the version of the rules the
@@ -509,6 +537,17 @@ mod run;
 mod snapshot;
 pub(crate) use run::{Build, Difficulty, Run, Saved};
 pub use snapshot::{Place, Places, Tally};
+
+/// Takes option `index` of the open offer for `player` through a step, as a test plays an offer: refused as `check_pick` refuses it, changing nothing.
+#[cfg(test)]
+pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
+    e.check_pick(player, index)?;
+    let mut inputs = [Input::default(); crate::id::MAX_PLAYERS as usize];
+    inputs[player.get()] = Input::picking(index);
+    let party = e.players();
+    e.step(&inputs[..party]);
+    Ok(())
+}
 
 #[cfg(test)]
 mod codec_tests;

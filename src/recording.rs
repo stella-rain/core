@@ -56,7 +56,7 @@ pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error
         if engine.outcome() != Outcome::Running {
             break;
         }
-        engine.step(*input);
+        engine.step(&[*input]);
         let tick = engine.tick();
         line(
             &mut out,

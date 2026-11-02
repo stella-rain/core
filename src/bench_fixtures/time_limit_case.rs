@@ -145,7 +145,7 @@ fn content() -> RunContent {
 pub fn warmed_up() -> Engine {
     let mut engine = Engine::new_with(&stage(), &content()).expect("the run starts");
     for tick in 1..=WARMUP_TICKS {
-        engine.step(input(tick));
+        engine.step(&[input(tick)]);
     }
     engine
 }

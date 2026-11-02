@@ -663,8 +663,13 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
-        self.engine.step(input);
-        self.inputs.push(input);
+        // N=1: replay schema 2 records every player.
+        self.engine.step(&[input]);
+        // The pick travels in the command stream of schema 1, never in the input stream.
+        self.inputs.push(Input {
+            pick: None,
+            ..input
+        });
         if self.engine.tick() % CHECKPOINT_TICKS == 0 {
             self.checkpoints.push(self.engine.state_hash());
         }
@@ -676,10 +681,11 @@ impl RunRecorder {
     pub fn choose(&mut self, index: u32) -> Result<(), RunReplayError> {
         self.room()?;
         let tick = self.engine.tick();
+        // N=1: replay schema 2 names the player.
         self.engine
-            // N=1: replay schema 2 names the player.
-            .choose(PlayerIdx::SOLO, index)
+            .check_pick(PlayerIdx::SOLO, index)
             .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
+        self.engine.step(&[Input::picking(index)]);
         self.record(tick, CommandKind::Choose, index);
         Ok(())
     }
@@ -962,7 +968,7 @@ fn resimulate(
                 tick: engine.tick(),
             });
         }
-        engine.step(*input);
+        engine.step(&[*input]);
         if let Some(expected) = expected {
             let actual = engine.state_hash();
             if expected[i] != actual {
@@ -1011,9 +1017,12 @@ fn apply_commands(
         let tick = c.tick;
         match c.kind {
             // N=1: replay schema 2 names the player.
-            CommandKind::Choose => engine
-                .choose(PlayerIdx::SOLO, c.index)
-                .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?,
+            CommandKind::Choose => {
+                engine
+                    .check_pick(PlayerIdx::SOLO, c.index)
+                    .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
+                engine.step(&[Input::picking(c.index)]);
+            }
         }
         *next += 1;
     }

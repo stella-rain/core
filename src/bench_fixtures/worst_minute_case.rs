@@ -104,11 +104,9 @@ impl Run {
     pub fn play(&mut self, ticks: u32) {
         for _ in 0..ticks {
             while self.engine.offer_open() {
-                self.engine
-                    .choose(crate::id::PlayerIdx::SOLO, OFFER_CHOICE)
-                    .expect("the first option");
+                crate::bench_fixtures::take_option(&mut self.engine, OFFER_CHOICE);
             }
-            self.engine.step(input_at(self.engine.tick()));
+            self.engine.step(&[input_at(self.engine.tick())]);
         }
     }
 }

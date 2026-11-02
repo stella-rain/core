@@ -588,14 +588,15 @@ pub(crate) fn step(
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
-    input: Input,
+    inputs: &[Input],
     events: &mut Vec<DomainEvent>,
     load: &mut Load,
 ) {
+    debug_assert_eq!(inputs.len(), s.players.len(), "one input per player");
     if s.outcome != Outcome::Running {
         return;
     }
-    let mut ctx = schedule::Ctx::new(stage, rewards, expertise, s, input, events, load);
+    let mut ctx = schedule::Ctx::new(stage, rewards, expertise, s, inputs, events, load);
     for (_, run) in schedule::TICK {
         run(&mut ctx);
     }

@@ -351,7 +351,7 @@ pub fn warmed_up() -> Engine {
         engine.tick()
     );
     for tick in engine.tick() + 1..=WARMUP_TICKS {
-        engine.step(input(tick));
+        engine.step(&[input(tick)]);
     }
     engine
 }

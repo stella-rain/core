@@ -443,7 +443,9 @@ fn cases(tree: &str) -> Vec<Case> {
 fn apply_due(engine: &mut Engine, commands: &[TickCommand], next: &mut usize) {
     while let Some(c) = commands.get(*next).filter(|c| c.tick == engine.tick()) {
         match c.kind {
-            CommandKind::Choose => engine.choose(crate::id::PlayerIdx::SOLO, c.index).unwrap(),
+            CommandKind::Choose => {
+                crate::engine::pick(engine, crate::id::PlayerIdx::SOLO, c.index).unwrap()
+            }
         }
         *next += 1;
     }
@@ -508,8 +510,8 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
         };
         apply_due(&mut original, &case.commands, &mut a);
         apply_due(&mut resumed, &case.commands, &mut b);
-        original.step(input);
-        resumed.step(input);
+        original.step(&[input]);
+        resumed.step(&[input]);
         assert_eq!(
             resumed.state_hash(),
             original.state_hash(),
@@ -536,7 +538,7 @@ fn corpus_round_trip() {
                     break;
                 }
                 apply_due(&mut engine, &case.commands, &mut next);
-                engine.step(case.inputs[tick]);
+                engine.step(&[case.inputs[tick]]);
             }
         }
     }
