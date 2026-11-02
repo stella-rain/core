@@ -107,11 +107,14 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -eu
+          # A seed longer than -max_len is cut to it: pack_load takes a whole pack
+          # (Pack::MAX_BYTES) and one byte more, the others 64 KiB.
+          max_len=65536
           case "$TARGET" in
             stage_*) seeds=seeds/stage ;;
             replay_load) seeds=seeds/replay ;;
             run_setup) seeds=seeds/setup ;;
-            pack_load) seeds=seeds/pack ;;
+            pack_load) seeds=seeds/pack max_len=1048577 ;;
             savepoint_load) seeds=seeds/savepoint ;;
             *) seeds= ;;
           esac
@@ -121,7 +124,7 @@ jobs:
           # The first directory is the one libFuzzer adds new inputs to.
           # shellcheck disable=SC2086
           cargo "+$FUZZ_NIGHTLY" fuzz run "$TARGET" "fuzz/corpus/$TARGET" $seeds -- \
-            -max_total_time="$max_total_time" -max_len=65536
+            -max_total_time="$max_total_time" -max_len="$max_len"
       # Saved even when the run found a crash: the inputs it grew are still worth keeping.
       - uses: actions/cache/save@v6
         if: always()

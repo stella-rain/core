@@ -473,16 +473,19 @@ jobs:
           # a failing script stops the step).
           targets=$(python3 .github/scripts/fuzz_targets.py words)
           for target in $targets; do
+            # A seed longer than -max_len is cut to it: pack_load takes a whole pack
+            # (Pack::MAX_BYTES) and one byte more, the others 64 KiB.
+            max_len=65536
             case "$target" in
               stage_*) seeds=seeds/stage ;;
               replay_load) seeds=seeds/replay ;;
               run_setup) seeds=seeds/setup ;;
-              pack_load) seeds=seeds/pack ;;
+              pack_load) seeds=seeds/pack max_len=1048577 ;;
               savepoint_load) seeds=seeds/savepoint ;;
               *) seeds= ;;
             esac
             # shellcheck disable=SC2086
-            cargo "+$FUZZ_NIGHTLY" fuzz run "$target" $seeds -- -max_total_time=60 -max_len=65536
+            cargo "+$FUZZ_NIGHTLY" fuzz run "$target" $seeds -- -max_total_time=60 -max_len="$max_len"
           done
       # A crash input is a stage, replay, pack or share code, so it can be read here and replayed with
       # `cargo fuzz run <target> <file>`; copy it to fuzz/regressions/<target>/ with the fix.

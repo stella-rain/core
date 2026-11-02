@@ -55,7 +55,7 @@ class PackLoadLength(unittest.TestCase):
             with self.subTest(workflow=workflow):
                 block = job_block(read(f".github/workflows/{workflow}"), job)
                 self.assertIn('-max_len="$max_len"', block)
-                self.assertRegex(block, r"^\s+max_len=65536$", "the other targets keep 64 KiB")
+                self.assertRegex(block, r"(?m)^\s+max_len=65536$", "the other targets keep 64 KiB")
                 self.assertNotIn("-max_len=65536", block)
 
 
