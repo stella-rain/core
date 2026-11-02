@@ -111,3 +111,17 @@ fn a_run_resumed_from_a_savepoint_counts_from_its_tick() {
     assert_eq!(rec.engine().state_hash(), resumed.engine().state_hash());
     let _: &PlayerStats = part;
 }
+
+#[test]
+fn a_run_resumed_from_a_savepoint_has_exact_totals() {
+    let all = play_run(TICKS);
+    let (head, tail) = all.split_at(all.len() / 2);
+    let mut rec = started();
+    play(&mut rec, head);
+    let (prefix, saved) = (rec.replay(), rec.save());
+    let mut resumed = RunRecorder::resume_from_savepoint(&saved, &prefix, Pack::bundled()).unwrap();
+    assert_eq!(resumed.engine().player_stats(), rec.engine().player_stats());
+    play(&mut rec, tail);
+    play(&mut resumed, tail);
+    assert_eq!(resumed.engine().player_stats(), rec.engine().player_stats());
+}
