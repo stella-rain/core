@@ -69,23 +69,23 @@ pub(crate) fn apply(
         perk(s, me, *entry);
     }
     let State {
-        rng,
         stars,
         players,
         regen,
         ..
     } = s;
     let (player, career) = players.both_mut(me);
-    if let Some(f) = stars.as_mut() {
+    if let (Some(f), Some(o)) = (stars.as_ref(), career.offers.as_mut()) {
         for &i in &loadout.carried {
             stars::take(
                 stage,
                 rewards,
-                &mut rng.offer,
+                &mut career.offer,
                 &mut career.progress,
                 player,
                 regen,
                 f,
+                o,
                 i,
             );
         }
@@ -106,13 +106,13 @@ fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
     match entry.effect {
         PerkEffect::Regen => s.regen = s.regen.saturating_add(amount),
         PerkEffect::ExtraRerolls => {
-            if let Some(f) = s.stars.as_mut() {
-                f.rerolls_left = f.rerolls_left.saturating_add(amount);
+            if let Some(o) = s.players.career_mut(me).offers.as_mut() {
+                o.rerolls_left = o.rerolls_left.saturating_add(amount);
             }
         }
         PerkEffect::ExtraBanishes => {
-            if let Some(f) = s.stars.as_mut() {
-                f.banishes_left = f.banishes_left.saturating_add(amount);
+            if let Some(o) = s.players.career_mut(me).offers.as_mut() {
+                o.banishes_left = o.banishes_left.saturating_add(amount);
             }
         }
         effect => {

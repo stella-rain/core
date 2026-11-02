@@ -271,8 +271,14 @@ mod tests {
         let mut s = state();
         s.players[PlayerIdx::SOLO].crit_chance_pct = 50;
         let before = s.rng.states();
+        // The offer generator is each present slot's, in its career.
+        let offer_before = s.players.career(PlayerIdx::SOLO).offer.state();
         assert!(rolls(&mut s, shot(PlayerIdx::SOLO.id())) > 0);
         assert_eq!(s.rng.states(), before);
+        assert_eq!(
+            s.players.career(PlayerIdx::SOLO).offer.state(),
+            offer_before
+        );
     }
 
     #[test]

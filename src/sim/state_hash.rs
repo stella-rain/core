@@ -811,7 +811,16 @@ impl StableHash for PlayerState {
 
 impl StableHash for Career {
     fn stable_hash(&self, h: &mut StateHasher) {
-        let Career { progress } = self;
+        // Slot 0's offer generator and offers are written by `State` at the places the run's
+        // generator and star field were; slots 1 and 2's by its tail. This impl is the progress
+        // alone, the position of slot 0's career.
+        let Career {
+            progress,
+            // not hashed: written by `State`, interleaved with the run's generators.
+            offer: _,
+            // not hashed: written by `State`, interleaved with the star field.
+            offers: _,
+        } = self;
         progress.stable_hash(h);
     }
 }
@@ -871,33 +880,65 @@ impl StableHash for OfferState {
     }
 }
 
-impl StableHash for StarField {
+/// The star field as a whole, as one field was: the `Option` tag, then the run part and slot 0's
+/// offers interleaved at their old positions (ADR-SIM-3). The slots are `Some` together.
+fn hash_star_field(stars: &Option<StarField>, offers: &Option<Offers>, h: &mut StateHasher) {
+    debug_assert_eq!(stars.is_some(), offers.is_some());
+    let (Some(f), Some(o)) = (stars, offers) else {
+        hash_enum!(h, 0);
+        return;
+    };
+    hash_enum!(h, 1);
+    let StarField {
+        misses,
+        on_map,
+        rarity,
+        rune_pool,
+        pool,
+    } = f;
+    let Offers {
+        due,
+        offer,
+        rerolls_left,
+        banishes_left,
+        extra_candidates,
+        taken,
+        banished,
+        set_counts,
+    } = o;
+    misses.stable_hash(h);
+    on_map.stable_hash(h);
+    due.stable_hash(h);
+    offer.stable_hash(h);
+    rerolls_left.stable_hash(h);
+    banishes_left.stable_hash(h);
+    extra_candidates.stable_hash(h);
+    rarity.stable_hash(h);
+    rune_pool.stable_hash(h);
+    pool.stable_hash(h);
+    taken.stable_hash(h);
+    banished.stable_hash(h);
+    set_counts.stable_hash(h);
+}
+
+/// The offers of a slot after slot 0, for the provisional tail: the eight fields in order.
+impl StableHash for Offers {
     fn stable_hash(&self, h: &mut StateHasher) {
-        let StarField {
-            misses,
-            on_map,
+        let Offers {
             due,
             offer,
             rerolls_left,
             banishes_left,
             extra_candidates,
-            rarity,
-            rune_pool,
-            pool,
             taken,
             banished,
             set_counts,
         } = self;
-        misses.stable_hash(h);
-        on_map.stable_hash(h);
         due.stable_hash(h);
         offer.stable_hash(h);
         rerolls_left.stable_hash(h);
         banishes_left.stable_hash(h);
         extra_candidates.stable_hash(h);
-        rarity.stable_hash(h);
-        rune_pool.stable_hash(h);
-        pool.stable_hash(h);
         taken.stable_hash(h);
         banished.stable_hash(h);
         set_counts.stable_hash(h);
@@ -1040,7 +1081,7 @@ impl State {
             echoes,
         } = self;
         tick.stable_hash(h);
-        rng.stable_hash(h);
+        hash_streams(rng, &players.career(PlayerIdx::SOLO).offer, h);
         outcome.stable_hash(h);
         // Player 0 alone, as the one player was: no length, so a run of one hashes as before.
         players[PlayerIdx::SOLO].stable_hash(h);
@@ -1057,7 +1098,7 @@ impl State {
         next_orb_group.stable_hash(h);
         // Slot 0's career, where the one player's progress was.
         players.career(PlayerIdx::SOLO).stable_hash(h);
-        stars.stable_hash(h);
+        hash_star_field(stars, &players.career(PlayerIdx::SOLO).offers, h);
         heal_pickups.stable_hash(h);
         expertise.stable_hash(h);
         max_attack_speed_pct.stable_hash(h);
@@ -1072,7 +1113,8 @@ impl State {
         echoes.stable_hash(h);
         // Players 1 and up, after everything else, only when there are any (provisional
         // layout for a party, the hash-layout work owns the final one: the others' players, then
-        // their careers; ADR-SIM-12).
+        // their careers, each as the progress, the offer generator's state and the offers;
+        // ADR-SIM-12).
         // The map of the entity IDs needs the present slots to be a prefix.
         if players.mask() != 0b001 {
             assert!(
@@ -1085,6 +1127,8 @@ impl State {
             }
             for c in players.other_careers() {
                 c.stable_hash(h);
+                c.offer.state().stable_hash(h);
+                c.offers.stable_hash(h);
             }
         }
     }
@@ -1156,19 +1200,12 @@ impl StableHash for RangedPool {
     }
 }
 
-impl StableHash for Streams {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        let Streams {
-            spawn,
-            attack,
-            loot,
-            offer,
-            horde,
-        } = self;
-        spawn.state().stable_hash(h);
-        attack.state().stable_hash(h);
-        loot.state().stable_hash(h);
-        offer.state().stable_hash(h);
-        horde.state().stable_hash(h);
-    }
+/// The run's generators in the order of format 1: `spawn, attack, loot`, slot 0's offer
+/// generator, `horde`.
+fn hash_streams(rng: &Streams, offer: &crate::rng::SplitMix64, h: &mut StateHasher) {
+    rng.spawn.state().stable_hash(h);
+    rng.attack.state().stable_hash(h);
+    rng.loot.state().stable_hash(h);
+    offer.state().stable_hash(h);
+    rng.horde.state().stable_hash(h);
 }

@@ -6,6 +6,9 @@ pub const TAG_SPAWN: u64 = u64::from_le_bytes(*b"spawn\0\0\0");
 pub const TAG_ATTACK: u64 = u64::from_le_bytes(*b"attack\0\0");
 pub const TAG_LOOT: u64 = u64::from_le_bytes(*b"loot\0\0\0\0");
 pub const TAG_OFFER: u64 = u64::from_le_bytes(*b"offer\0\0\0");
+/// Slots 1 and 2 draw their offers from their own streams; slot 0 uses `TAG_OFFER`.
+pub const TAG_OFFER_1: u64 = u64::from_le_bytes(*b"offer1\0\0");
+pub const TAG_OFFER_2: u64 = u64::from_le_bytes(*b"offer2\0\0");
 pub const TAG_HORDE: u64 = u64::from_le_bytes(*b"horde\0\0\0");
 
 /// The stream of one purpose: one SplitMix64 step of `seed ^ tag` seeds it (ADR-SIM-2), so a

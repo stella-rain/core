@@ -306,6 +306,7 @@ mod tests {
         let one = PlayerIdx::new(1).unwrap();
         *s.players.career_mut(one) = Career {
             progress: Some(progress),
+            ..Career::default()
         };
         (world.clone(), s, one)
     }
