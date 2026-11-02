@@ -47,7 +47,8 @@
 //! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
-//! `collide`, and each level-up raises a stat or opens a stat offer (`levels`).
+//! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
+//! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!

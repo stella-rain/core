@@ -329,6 +329,12 @@ pub(crate) struct Career {
 /// places are held, the absent ones as copies of the first that nothing reads, so that an index
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
 /// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
+///
+/// Each slot also holds its `Career` (the level progress). The state hash and savepoint format 1
+/// write slot 0's career where the run's single progress was, so a run of one is byte for byte
+/// what it was; the careers of slots 1 and 2 are hashed in the tail after their players, a
+/// provisional layout the hash-layout work will settle. Format 1 holds one player, so a party is
+/// not yet a savepoint. A party builder supplies a career for every present slot.
 #[derive(Clone, Debug)]
 pub(crate) struct Players {
     items: [PlayerState; MAX_PLAYERS as usize],
