@@ -1302,7 +1302,7 @@ fn damage(
     if b.combo {
         expertise::credit(stage, s, me, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
-            runes::apply_smash_bleed(s, target, events);
+            runes::apply_smash_bleed(s, me, target, events);
         }
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);

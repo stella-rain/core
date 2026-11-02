@@ -1024,6 +1024,22 @@ mod route {
     }
 
     #[test]
+    fn a_party_is_built_from_a_stage_for_one_to_three_players() {
+        let bytes = include_bytes!("../../tests/corpus/v1/stages/orb_cage/stage.json");
+        let stage = crate::validate::parse_and_validate(bytes).expect("a valid stage");
+        for n in 1..=3u8 {
+            let e = Engine::party(&stage, n);
+            assert_eq!(e.players(), usize::from(n));
+            assert_eq!(live(&e).1.players.len(), usize::from(n));
+        }
+        let s = live(&Engine::party(&stage, 3)).1.clone();
+        assert_ne!(
+            s.players.career(slot(1)).offer,
+            s.players.career(slot(2)).offer
+        );
+    }
+
+    #[test]
     fn owner_of_names_the_present_slot_of_an_entity_number() {
         let e = worst_case::warmed_up();
         let ps = ps(&e);

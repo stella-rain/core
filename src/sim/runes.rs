@@ -77,9 +77,8 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 /// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
 /// a missile's); `None` for every other run.
 pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
-    if r.owner != PlayerIdx::SOLO.id() {
-        // N=1: M-PER-PLAYER
-        // N=1: M-PER-PLAYER
+    // The entity numbers 0 to `MAX_PLAYERS` are the slots, present or not (ADR-SIM-13).
+    if r.owner.0 >= u32::from(crate::id::MAX_PLAYERS) {
         return None;
     }
     match r.slot {
@@ -169,8 +168,13 @@ pub(super) fn apply_dots(s: &mut State, me: PlayerIdx, target: Who, events: &mut
 /// A smash's hit that leaves `target` standing puts the bleed status on it, a stack more, with
 /// the bleed rune's numbers (ADR-084 point 8). It adds its own stack when the rune is held too:
 /// each source adds its stacks to the one bleed (ADR-099 point 3).
-pub(super) fn apply_smash_bleed(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
-    apply_dot(s, PlayerIdx::SOLO, target, Rune::Bleed, events); // N=1: M-PER-PLAYER
+pub(super) fn apply_smash_bleed(
+    s: &mut State,
+    me: PlayerIdx,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
+    apply_dot(s, me, target, Rune::Bleed, events);
 }
 
 /// Puts `rune`'s status on `target`, when `rune` is damage over time and the run's content has
@@ -257,7 +261,10 @@ fn launch(
 pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
-            fly_one(stage, s, PlayerIdx::SOLO, i); // N=1: M-PER-PLAYER
+            // A run whose owner is no present player has nothing to fly to.
+            if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+                fly_one(stage, s, me, i);
+            }
         }
     }
 }
@@ -271,7 +278,9 @@ pub(super) fn steer(stage: &World, s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        fly_one(stage, s, PlayerIdx::SOLO, i); // N=1: M-PER-PLAYER
+        if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+            fly_one(stage, s, me, i);
+        }
     }
 }
 

@@ -215,15 +215,7 @@ fn apply(
             };
             let damage = levels::attack(s, me, stage.player.atk);
             attacks::start_player(
-                stage,
-                s,
-                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
-                SKILL_SLOT,
-                dir,
-                attack,
-                damage,
-                strike,
-                events,
+                stage, s, me, SKILL_SLOT, dir, attack, damage, strike, events,
             );
         }
         SkillEffect::Shield {
