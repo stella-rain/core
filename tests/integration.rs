@@ -62,6 +62,7 @@ mod expertise_gauge;
 mod expertise_offers;
 mod explosion;
 mod extremes;
+mod gameplay_observables;
 mod golden;
 mod hash;
 mod healing;

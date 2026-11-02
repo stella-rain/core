@@ -9,9 +9,37 @@ use crate::pack::Pack;
 use crate::run_replay::RunRecorder;
 use crate::savepoint::{Savepoint, SavepointError, restore};
 
+/// The `Debug` text of `value` with the entity numbers of the engine `e` as version 1 numbers
+/// them. The newest rules reserve the entity numbers 0 to 2 for the player slots (ADR-SIM-13), so
+/// at one player every other entity is 2 higher than in version 1; the text is compared with
+/// that difference taken out. Version 1's text is as it is.
+fn as_v1(e: &Engine, value: &impl std::fmt::Debug) -> String {
+    let text = format!("{value:?}");
+    if e.run.version() == 1 {
+        return text;
+    }
+    const TAG: &str = "EntityId(";
+    let (mut rest, mut out) = (text.as_str(), String::new());
+    while let Some(at) = rest.find(TAG) {
+        let (before, tail) = rest.split_at(at + TAG.len());
+        out.push_str(before);
+        let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
+        let n: u32 = tail[..digits].parse().expect("an EntityId holds a number");
+        out.push_str(&(if n < 3 { n } else { n - 2 }).to_string());
+        rest = &tail[digits..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// What a run shows after a tick, to compare two engines on.
-fn observed(e: &Engine) -> (u64, Vec<DomainEvent>, crate::snapshot::Snapshot, Load) {
-    (e.state_hash(), e.events().to_vec(), e.snapshot(), e.caps())
+fn observed(e: &Engine) -> (u64, String, String, Load) {
+    (
+        e.state_hash(),
+        as_v1(e, &e.events()),
+        as_v1(e, &e.snapshot()),
+        e.caps(),
+    )
 }
 
 fn both<T>(make: impl Fn() -> T) -> (T, T) {
@@ -66,7 +94,7 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
 }
 
 /// A scripted run: the main button held, a dash at tick 100 and 400, every offer taken at 0.
-fn scripted(version: u32) -> (Engine, Vec<(u64, Vec<DomainEvent>)>) {
+fn scripted(version: u32) -> (Engine, Vec<(u64, String)>) {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: 7,
@@ -77,7 +105,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, Vec<DomainEvent>)>) {
     for tick in 1..=600u32 {
         while e.offer_open() {
             crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).unwrap();
-            seen.push((e.state_hash(), e.events().to_vec()));
+            seen.push((e.state_hash(), as_v1(&e, &e.events())));
         }
         e.step(&[Input {
             main: true,
@@ -85,7 +113,7 @@ fn scripted(version: u32) -> (Engine, Vec<(u64, Vec<DomainEvent>)>) {
             evade: tick == 100 || tick == 400,
             ..Input::default()
         }]);
-        seen.push((e.state_hash(), e.events().to_vec()));
+        seen.push((e.state_hash(), as_v1(&e, &e.events())));
     }
     (e, seen)
 }
@@ -95,10 +123,10 @@ fn the_copy_equals_the_original_on_a_scripted_run() {
     let ((a, seen_a), (b, seen_b)) = (scripted(1), scripted(2));
     assert_eq!(seen_a, seen_b);
     assert!(
-        seen_a.iter().any(|(_, events)| !events.is_empty()),
+        seen_a.iter().any(|(_, events)| events != "[]"),
         "the script makes something happen"
     );
-    assert_eq!(a.snapshot(), b.snapshot());
+    assert_eq!(as_v1(&a, &a.snapshot()), as_v1(&b, &b.snapshot()));
 }
 
 #[test]
@@ -287,4 +315,14 @@ fn the_frozen_v1_cases_run_sim_v1() {
         runs += 1;
     }
     assert!(runs > 0);
+}
+
+/// The savepoint bytes of the newest rules are those of version 1 at one player: the entity
+/// numbers are written without the reserved player slots (ADR-SIM-13), `next_id` included.
+#[test]
+fn the_state_bytes_of_both_versions_are_equal() {
+    use crate::savepoint::state::encode_state;
+    let (a, b) = (recorder_at(1), recorder_at(2));
+    assert_eq!(encode_state(a.engine()), encode_state(b.engine()));
+    assert_eq!(a.engine().state_hash(), b.engine().state_hash());
 }

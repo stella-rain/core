@@ -1,5 +1,10 @@
 //! The snapshot and places bytes, pinned over three worst-case walks, so that moving the view
 //! (ADR-REPL-7 point 4) cannot change a byte of either.
+//!
+//! The pins of the walks on the newest rules were set again when the entity numbers 0 to 2 were
+//! reserved for the player slots (ADR-SIM-13): every other entity's number in the bytes is 2
+//! higher at one player. `tests/gameplay_observables.rs` pins the same views with those numbers
+//! mapped back, and did not move. The walks on version 1 engines are as they were.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};
 use crate::fixed::Point;
@@ -159,10 +164,10 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            13_289_178_128_488_374_889,
-            635_422_739_227_353_371,
-            8_334_290_342_550_971_945,
-            16_256_233_327_070_679_368,
+            2_543_461_492_298_780_819,
+            18_094_182_920_463_623_973,
+            5_815_700_538_257_503_491,
+            14_383_444_265_801_437_032,
             6_438_994_331_722_358_287,
             3_396_478_400_011_208_156
         ],
@@ -191,7 +196,7 @@ fn the_player_view_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            17_941_544_039_666_470_376,
+            241_467_518_904_889_724,
             2_698_022_397_726_184_157,
             315_411_175_829_159_291,
             13_759_183_982_994_529_872,

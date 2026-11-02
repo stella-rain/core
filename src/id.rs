@@ -101,6 +101,9 @@ mod tests {
     }
 }
 
+// In the live rules the numbers 0 to 2 are the player slots, present or not (ADR-SIM-13), and
+// the boss, the companions and the enemies are numbered from 3. A plain comment: a doc comment
+// on this type is part of the generated schema.
 /// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
@@ -110,6 +113,35 @@ pub struct EntityId(pub u32);
 
 /// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
 pub const MAX_PLAYERS: u8 = 3;
+
+/// The entity numbers a party of `party` players leaves empty: the slots `party..MAX_PLAYERS`
+/// are reserved (ADR-SIM-13), and the hash and the savepoint write the numbers without them.
+#[inline]
+pub(crate) fn id_gap(party: usize) -> u32 {
+    u32::from(MAX_PLAYERS).saturating_sub(u32::try_from(party).unwrap_or(u32::MAX))
+}
+
+/// The number the hash and the savepoint write for `id` in a party whose `id_gap` is `gap`: a
+/// player's slot as it is, every other entity `gap` lower. One-to-one while the present slots
+/// are a prefix of the slots, as they are in a party of one (ADR-SIM-12, ADR-SIM-13).
+#[inline]
+pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
+    if id.0 < u32::from(MAX_PLAYERS) {
+        id.0
+    } else {
+        id.0 - gap
+    }
+}
+
+/// The inverse of `to_compact`; `None` when `v` plus the gap overflows.
+#[inline]
+pub(crate) fn from_compact(v: u32, gap: u32) -> Option<EntityId> {
+    if v < u32::from(MAX_PLAYERS).saturating_sub(gap) {
+        Some(EntityId(v))
+    } else {
+        v.checked_add(gap).map(EntityId)
+    }
+}
 
 /// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
 /// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
@@ -155,5 +187,57 @@ impl PlayerIdx {
             2 if party > 2 => Some(PlayerIdx::Third),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod gap_tests {
+    //! The map between the live rules' entity numbers (players first, slots 0 to 2 reserved) and
+    //! the compact numbers the hash and the savepoint write (ADR-SIM-12, ADR-SIM-13).
+    use super::*;
+
+    #[test]
+    fn a_party_of_one_maps_its_ids_down_by_two() {
+        assert_eq!(to_compact(EntityId(0), 2), 0);
+        assert_eq!(to_compact(EntityId(3), 2), 1);
+        assert_eq!(to_compact(EntityId(4), 2), 2);
+        assert_eq!(from_compact(0, 2), Some(EntityId(0)));
+        assert_eq!(from_compact(1, 2), Some(EntityId(3)));
+        assert_eq!(from_compact(2, 2), Some(EntityId(4)));
+    }
+
+    #[test]
+    fn a_party_of_two_maps_down_by_one_and_three_not_at_all() {
+        assert_eq!(to_compact(EntityId(1), 1), 1);
+        assert_eq!(to_compact(EntityId(3), 1), 2);
+        for id in 0..50 {
+            assert_eq!(to_compact(EntityId(id), 0), id);
+            assert_eq!(from_compact(id, 0), Some(EntityId(id)));
+        }
+    }
+
+    #[test]
+    fn the_inverse_returns_every_id_a_run_holds() {
+        for (gap, party) in [(0u32, 3u32), (1, 2), (2, 1)] {
+            let ids = (0..party).chain(3..=1000);
+            for id in ids {
+                let compact = to_compact(EntityId(id), gap);
+                assert_eq!(from_compact(compact, gap), Some(EntityId(id)), "gap {gap}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_number_that_does_not_fit_is_refused_not_a_panic() {
+        assert_eq!(from_compact(u32::MAX, 2), None);
+        assert_eq!(from_compact(u32::MAX, 1), None);
+        assert_eq!(from_compact(u32::MAX, 0), Some(EntityId(u32::MAX)));
+    }
+
+    #[test]
+    fn the_gap_is_the_slots_a_party_leaves_empty() {
+        assert_eq!(id_gap(1), 2);
+        assert_eq!(id_gap(2), 1);
+        assert_eq!(id_gap(3), 0);
     }
 }
