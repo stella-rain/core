@@ -426,6 +426,28 @@ impl Players {
         }
     }
 
+    /// The party `mask` from the players and careers of its present slots, in slot order (the
+    /// savepoint's decode). An absent slot is filled as `solo` fills it. `mask` has slot 0 and
+    /// `items` and `careers` have one entry per set bit.
+    pub(crate) fn from_parts(mask: u8, items: Vec<PlayerState>, careers: Vec<Career>) -> Players {
+        assert!(mask & Self::SOLO_MASK != 0 && mask < 1 << MAX_PLAYERS);
+        assert!(items.len() == mask.count_ones() as usize && items.len() == careers.len());
+        let first = items[0].clone();
+        let (mut items, mut careers) = (items.into_iter(), careers.into_iter());
+        let mut out = Players {
+            items: [first.clone(), first.clone(), first],
+            careers: Default::default(),
+            present: mask,
+        };
+        for slot in 0..MAX_PLAYERS as usize {
+            if mask >> slot & 1 == 1 {
+                out.items[slot] = items.next().expect("one player per set bit");
+                out.careers[slot] = careers.next().expect("one career per set bit");
+            }
+        }
+        out
+    }
+
     #[cfg(test)]
     pub(crate) fn of(ps: Vec<PlayerState>) -> Option<Players> {
         if ps.is_empty() || ps.len() > usize::from(MAX_PLAYERS) {

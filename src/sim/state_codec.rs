@@ -11,13 +11,11 @@ use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
     max_path,
 };
-use crate::sim::state::PlayerIdx;
 
 use super::state::*;
 use super::world::RangedPool;
 use crate::engine::Outcome;
 use crate::rewards::Rarity;
-use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
@@ -999,10 +997,9 @@ impl Decode for Echo {
 
 // ---- The generators ----
 
-/// Five `u64`, each generator's state, in the order the hash writes them: `spawn, attack, loot`,
-/// slot 0's offer generator, `horde`. `State` writes them, since the offer generator is the
-/// career's.
-fn encode_streams(rng: &Streams, offer: &SplitMix64, w: &mut Writer) {
+/// Four `u64`, each run generator's state, in the order the hash writes them: `spawn, attack,
+/// loot, horde`. Each player's offer generator is in its block.
+fn encode_streams(rng: &Streams, w: &mut Writer) {
     let Streams {
         spawn,
         attack,
@@ -1012,27 +1009,17 @@ fn encode_streams(rng: &Streams, offer: &SplitMix64, w: &mut Writer) {
     spawn.encode(w);
     attack.encode(w);
     loot.encode(w);
-    offer.encode(w);
     horde.encode(w);
 }
 
-/// The generators, and slot 0's offer generator apart: the five in the order of
-/// `encode_streams`.
-fn decode_streams(r: &mut Reader<'_>) -> Result<(Streams, SplitMix64), DecodeError> {
-    let spawn = Decode::decode(r)?;
-    let attack = Decode::decode(r)?;
-    let loot = Decode::decode(r)?;
-    let offer = Decode::decode(r)?;
-    let horde = Decode::decode(r)?;
-    Ok((
-        Streams {
-            spawn,
-            attack,
-            loot,
-            horde,
-        },
-        offer,
-    ))
+/// The generators in the order of `encode_streams`.
+fn decode_streams(r: &mut Reader<'_>) -> Result<Streams, DecodeError> {
+    Ok(Streams {
+        spawn: Decode::decode(r)?,
+        attack: Decode::decode(r)?,
+        loot: Decode::decode(r)?,
+        horde: Decode::decode(r)?,
+    })
 }
 
 // ---- Enums of the state ----
@@ -1506,16 +1493,10 @@ impl Decode for Progress {
     }
 }
 
-/// The star field as one field was: the `Option` tag, then the run part and slot 0's offers
-/// interleaved in the old order. The two are `Some` together.
-fn encode_star_field(stars: &Option<StarField>, offers: &Option<Offers>, w: &mut Writer) {
-    // Fail closed: a star field without slot 0's offers (or the reverse) is not saved as none.
-    assert_eq!(
-        stars.is_some(),
-        offers.is_some(),
-        "the star field and slot 0's offers go together"
-    );
-    let (Some(f), Some(o)) = (stars, offers) else {
+/// The star field's shared part: the `Option` tag, then the misses, the stars on the map, the
+/// rarity, the rune pool and the reward pool. The offers are each player's, in the blocks.
+fn encode_star_field(stars: &Option<StarField>, w: &mut Writer) {
+    let Some(f) = stars else {
         w.u8(0);
         return;
     };
@@ -1527,72 +1508,27 @@ fn encode_star_field(stars: &Option<StarField>, offers: &Option<Offers>, w: &mut
         rune_pool,
         pool,
     } = f;
-    let Offers {
-        due,
-        offer,
-        rerolls_left,
-        banishes_left,
-        extra_candidates,
-        taken,
-        banished,
-        set_counts,
-    } = o;
     misses.encode(w);
     on_map.encode(w);
-    due.encode(w);
-    offer.encode(w);
-    rerolls_left.encode(w);
-    banishes_left.encode(w);
-    extra_candidates.encode(w);
     rarity.encode(w);
     rune_pool.encode(w);
     pool.encode(w);
-    taken.encode(w);
-    banished.encode(w);
-    set_counts.encode(w);
 }
 
-/// The star field in the order of `encode_star_field`, split into the run part and the offers.
-fn decode_star_field(
-    r: &mut Reader<'_>,
-) -> Result<(Option<StarField>, Option<Offers>), DecodeError> {
+/// The star field in the order of `encode_star_field`.
+fn decode_star_field(r: &mut Reader<'_>) -> Result<Option<StarField>, DecodeError> {
     match r.u8()? {
-        0 => return Ok((None, None)),
+        0 => return Ok(None),
         1 => {}
         _ => return Err(DecodeError::Invalid("option tag")),
     }
-    let misses = Decode::decode(r)?;
-    let on_map = decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?;
-    let due = decode_vec(r, MAX_CONTENT_LEN)?;
-    let offer = Decode::decode(r)?;
-    let rerolls_left = Decode::decode(r)?;
-    let banishes_left = Decode::decode(r)?;
-    let extra_candidates = Decode::decode(r)?;
-    let rarity = Decode::decode(r)?;
-    let rune_pool = Decode::decode(r)?;
-    let pool = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
-    let taken = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
-    let banished = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
-    let set_counts = decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?;
-    Ok((
-        Some(StarField {
-            misses,
-            on_map,
-            rarity,
-            rune_pool,
-            pool,
-        }),
-        Some(Offers {
-            due,
-            offer,
-            rerolls_left,
-            banishes_left,
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        }),
-    ))
+    Ok(Some(StarField {
+        misses: Decode::decode(r)?,
+        on_map: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_STARS_ON_MAP)))?,
+        rarity: Decode::decode(r)?,
+        rune_pool: Decode::decode(r)?,
+        pool: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
+    }))
 }
 
 impl Encode for Offers {
@@ -1852,15 +1788,7 @@ impl Decode for std::sync::Arc<str> {
 
 impl Encode for State {
     fn encode(&self, w: &mut Writer) {
-        // Format 1 holds one player: the entity IDs are written without the empty slots.
-        assert!(
-            self.players.len() == 1,
-            "savepoint format 1 holds one player"
-        );
-        let outer = w.id_gap();
-        w.set_id_gap(self.id_gap());
         self.encode_fields(w);
-        w.set_id_gap(outer);
     }
 }
 
@@ -1906,11 +1834,8 @@ impl State {
             echoes,
         } = self;
         tick.encode(w);
-        encode_streams(rng, &players.career(PlayerIdx::SOLO).offer, w);
+        encode_streams(rng, w);
         outcome.encode(w);
-        // Format 1 holds one player, written where it was a field of its own.
-        assert!(players.len() == 1, "savepoint format 1 holds one player");
-        players[PlayerIdx::SOLO].encode(w);
         boss.encode(w);
         companions.encode(w);
         enemies.encode(w);
@@ -1922,23 +1847,41 @@ impl State {
         spawned.encode(w);
         EntityId(*next_id).encode(w);
         next_orb_group.encode(w);
-        // Format 1 holds one player: slot 0's career, where the one player's progress was.
-        players.career(PlayerIdx::SOLO).encode(w);
-        encode_star_field(stars, &players.career(PlayerIdx::SOLO).offers, w);
+        encode_star_field(stars, w);
         heal_pickups.encode(w);
-        // Slot 0's expertise gauge, Stardust and regeneration, where the run's single ones were.
-        let career = players.career(PlayerIdx::SOLO);
-        career.expertise.encode(w);
         max_attack_speed_pct.encode(w);
         enemy_attack_damage.encode(w);
         max_rune_haste_pct.encode(w);
         horde.encode(w);
-        career.stardust.encode(w);
-        career.regen.encode(w);
         hp_pct.encode(w);
         damage_pct.encode(w);
         crit_seed.encode(w);
         echoes.encode(w);
+        // The presence byte, then the block of each present player in slot order, as the hash.
+        w.u8(players.mask());
+        for me in players.indices() {
+            // Fail closed: the star field and each present player's offers go together.
+            assert_eq!(
+                stars.is_some(),
+                players.career(me).offers.is_some(),
+                "the star field and a present player's offers go together"
+            );
+            players[me].encode(w);
+            let Career {
+                progress,
+                offer,
+                offers,
+                expertise,
+                stardust,
+                regen,
+            } = players.career(me);
+            progress.encode(w);
+            offer.encode(w);
+            offers.encode(w);
+            expertise.encode(w);
+            stardust.encode(w);
+            regen.encode(w);
+        }
     }
 }
 
@@ -1946,42 +1889,28 @@ impl State {
     /// The state in `r`, with the fields it does not save (the content's tables and buffers)
     /// taken from `fresh`, the state of an engine started from the same setup and content. The
     /// lists are only as long as the format allows: `decode_state` checks them against `fresh`,
-    /// and fills the index and the content-sized fields of `progress` and `horde` in.
+    /// and fills the index and the content-sized fields of every present player's `progress` and
+    /// of `horde` in. The party is the one `fresh` has: a savepoint of another one is refused.
     pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
-        // The gap the bytes were written with: format 1 holds the one player `Players::solo` is.
-        let outer = r.id_gap();
-        r.set_id_gap(crate::id::id_gap(1));
-        let state = Self::decode_fields(r, fresh);
-        r.set_id_gap(outer);
+        let state = Self::decode_fields(r, fresh)?;
         // The next entity number is past the player slots, whatever the bytes say.
-        match state {
-            Ok(state) if state.next_id < u32::from(crate::id::MAX_PLAYERS) => {
-                Err(DecodeError::Invalid("next entity id in the player slots"))
-            }
-            other => other,
+        if state.next_id < u32::from(crate::id::MAX_PLAYERS) {
+            return Err(DecodeError::Invalid("next entity id in the player slots"));
         }
+        Ok(state)
     }
 
     fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         let companions_cap = cap_u32(crate::validate::limits::MAX_COMPANIONS);
         let enemies_cap = u32::from(crate::limits::MAX_ENEMY_CAP);
-        // Slot 0's career comes later in the bytes than the player; it is set after the fields,
-        // with the offer generator and the offers, which sit where the run's generator and star
-        // field were.
-        let mut career: Career;
-        let offer: SplitMix64;
-        let offers: Option<Offers>;
         let mut state = State {
             scratch: Default::default(),
             kinds: fresh.kinds.clone(),
             tick: Decode::decode(r)?,
-            rng: {
-                let (rng, slot0) = decode_streams(r)?;
-                offer = slot0;
-                rng
-            },
+            rng: decode_streams(r)?,
             outcome: Decode::decode(r)?,
-            players: Players::solo(Decode::decode(r)?, Career::default()),
+            // The party comes last in the bytes; `fresh`'s stands in until then.
+            players: fresh.players.clone(),
             boss: Decode::decode(r)?,
             companions: decode_vec(r, companions_cap)?,
             enemies: decode_vec(r, enemies_cap)?,
@@ -1994,12 +1923,7 @@ impl State {
             spawned: decode_vec(r, MAX_CONTENT_LEN)?,
             next_id: EntityId::decode(r)?.0,
             next_orb_group: Decode::decode(r)?,
-            stars: {
-                career = Decode::decode(r)?;
-                let (stars, slot0) = decode_star_field(r)?;
-                offers = slot0;
-                stars
-            },
+            stars: decode_star_field(r)?,
             heal_pickups: match r.u8()? {
                 0 => None,
                 1 => Some(decode_vec(
@@ -2011,27 +1935,44 @@ impl State {
             match_ups: fresh.match_ups,
             runes: fresh.runes.clone(),
             stun: fresh.stun,
-            max_attack_speed_pct: {
-                // Slot 0's expertise gauge, where the run's single one was.
-                career.expertise = Decode::decode(r)?;
-                Decode::decode(r)?
-            },
+            max_attack_speed_pct: Decode::decode(r)?,
             enemy_attack_damage: Decode::decode(r)?,
             max_rune_haste_pct: Decode::decode(r)?,
             horde: Decode::decode(r)?,
-            hp_pct: {
-                // Slot 0's Stardust and regeneration, where the run's single ones were.
-                career.stardust = Decode::decode(r)?;
-                career.regen = Decode::decode(r)?;
-                Decode::decode(r)?
-            },
+            hp_pct: Decode::decode(r)?,
             damage_pct: Decode::decode(r)?,
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
         };
-        career.offer = offer;
-        career.offers = offers;
-        *state.players.career_mut(PlayerIdx::SOLO) = career;
+        // The presence byte: slot 0 always, never a slot past the last, and the party the setup
+        // started.
+        let mask = r.u8()?;
+        if mask & 1 == 0 || mask >> crate::id::MAX_PLAYERS != 0 {
+            return Err(DecodeError::Invalid("player mask"));
+        }
+        if mask != fresh.players.mask() {
+            return Err(DecodeError::Invalid("player mask differs from the setup"));
+        }
+        let mut items = Vec::new();
+        let mut careers = Vec::new();
+        for _ in 0..mask.count_ones() {
+            items.push(Decode::decode(r)?);
+            let career = Career {
+                progress: Decode::decode(r)?,
+                offer: Decode::decode(r)?,
+                offers: Decode::decode(r)?,
+                expertise: Decode::decode(r)?,
+                stardust: Decode::decode(r)?,
+                regen: Decode::decode(r)?,
+            };
+            if career.offers.is_some() != state.stars.is_some() {
+                return Err(DecodeError::Invalid(
+                    "offers presence differs from the star field",
+                ));
+            }
+            careers.push(career);
+        }
+        state.players = Players::from_parts(mask, items, careers);
         Ok(state)
     }
 }

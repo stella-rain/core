@@ -345,15 +345,17 @@ macro_rules! state_codec_v2 {
 
             check_shape(&state, &counted, fresh_state, fresh_counted)?;
             // The content-sized fields the bytes do not hold.
-            if let (Some(p), Some(f)) = (
-                state.players.career_mut(PlayerIdx::SOLO).progress.as_mut(),
-                fresh_state
-                    .players
-                    .career(PlayerIdx::SOLO)
-                    .progress
-                    .as_ref(),
-            ) {
-                p.stats = f.stats.clone();
+            for me in state.players.indices().collect::<Vec<_>>() {
+                if let (Some(p), Some(f)) = (
+                    state.players.career_mut(me).progress.as_mut(),
+                    fresh_state
+                        .players
+                        .career(PlayerIdx::SOLO)
+                        .progress
+                        .as_ref(),
+                ) {
+                    p.stats = f.stats.clone();
+                }
             }
             if let (Some(h), Some(f)) = (state.horde.as_mut(), fresh_state.horde.as_ref()) {
                 h.boss_ticks = f.boss_ticks.clone();
@@ -394,73 +396,75 @@ macro_rules! state_codec_v2 {
             if s.spawned.len() != fresh.spawned.len() {
                 return Err(differs("spawned length differs from the content"));
             }
-            same_presence(
-                &s.players.career(PlayerIdx::SOLO).progress,
-                &fresh.players.career(PlayerIdx::SOLO).progress,
-                "progress presence differs from the content",
-            )?;
-            same_presence(
-                &s.stars,
-                &fresh.stars,
-                "stars presence differs from the content",
-            )?;
-            same_presence(
-                &s.heal_pickups,
-                &fresh.heal_pickups,
-                "heal_pickups presence differs from the content",
-            )?;
-            same_presence(
-                &s.players.career(PlayerIdx::SOLO).expertise,
-                &fresh.players.career(PlayerIdx::SOLO).expertise,
-                "expertise presence differs from the content",
-            )?;
-            same_presence(
-                &s.horde,
-                &fresh.horde,
-                "horde presence differs from the content",
-            )?;
-            same_presence(
-                &s.players.career(PlayerIdx::SOLO).stardust,
-                &fresh.players.career(PlayerIdx::SOLO).stardust,
-                "stardust presence differs from the content",
-            )?;
-            if let (Some(p), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).progress,
-                &fresh.players.career(PlayerIdx::SOLO).progress,
-            ) {
-                if p.spent.len() != f.stats.len() {
-                    return Err(differs("spent length differs from the content"));
+            for me in s.players.indices() {
+                same_presence(
+                    &s.players.career(me).progress,
+                    &fresh.players.career(PlayerIdx::SOLO).progress,
+                    "progress presence differs from the content",
+                )?;
+                same_presence(
+                    &s.stars,
+                    &fresh.stars,
+                    "stars presence differs from the content",
+                )?;
+                same_presence(
+                    &s.heal_pickups,
+                    &fresh.heal_pickups,
+                    "heal_pickups presence differs from the content",
+                )?;
+                same_presence(
+                    &s.players.career(me).expertise,
+                    &fresh.players.career(PlayerIdx::SOLO).expertise,
+                    "expertise presence differs from the content",
+                )?;
+                same_presence(
+                    &s.horde,
+                    &fresh.horde,
+                    "horde presence differs from the content",
+                )?;
+                same_presence(
+                    &s.players.career(me).stardust,
+                    &fresh.players.career(PlayerIdx::SOLO).stardust,
+                    "stardust presence differs from the content",
+                )?;
+                if let (Some(p), Some(f)) = (
+                    &s.players.career(me).progress,
+                    &fresh.players.career(PlayerIdx::SOLO).progress,
+                ) {
+                    if p.spent.len() != f.stats.len() {
+                        return Err(differs("spent length differs from the content"));
+                    }
+                    if p.priority.len() != f.stats.len() {
+                        return Err(differs("priority length differs from the content"));
+                    }
                 }
-                if p.priority.len() != f.stats.len() {
-                    return Err(differs("priority length differs from the content"));
+                if let (Some(a), Some(f)) = (&s.stars, &fresh.stars) {
+                    if a.pool.len() != f.pool.len() {
+                        return Err(differs("star pool length differs from the content"));
+                    }
                 }
-            }
-            if let (Some(a), Some(f)) = (&s.stars, &fresh.stars) {
-                if a.pool.len() != f.pool.len() {
-                    return Err(differs("star pool length differs from the content"));
+                // Slot 0's offers: the content-sized lists are the slot's.
+                if let (Some(a), Some(f)) = (
+                    &s.players.career(me).offers,
+                    &fresh.players.career(PlayerIdx::SOLO).offers,
+                ) {
+                    if a.taken.len() != f.taken.len() {
+                        return Err(differs("star taken length differs from the content"));
+                    }
+                    if a.banished.len() != f.banished.len() {
+                        return Err(differs("star banished length differs from the content"));
+                    }
+                    if a.set_counts.len() != f.set_counts.len() {
+                        return Err(differs("star set_counts length differs from the content"));
+                    }
                 }
-            }
-            // Slot 0's offers: the content-sized lists are the slot's.
-            if let (Some(a), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).offers,
-                &fresh.players.career(PlayerIdx::SOLO).offers,
-            ) {
-                if a.taken.len() != f.taken.len() {
-                    return Err(differs("star taken length differs from the content"));
-                }
-                if a.banished.len() != f.banished.len() {
-                    return Err(differs("star banished length differs from the content"));
-                }
-                if a.set_counts.len() != f.set_counts.len() {
-                    return Err(differs("star set_counts length differs from the content"));
-                }
-            }
-            if let (Some(a), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).expertise,
-                &fresh.players.career(PlayerIdx::SOLO).expertise,
-            ) {
-                if a.taken.len() != f.taken.len() {
-                    return Err(differs("expertise taken length differs from the content"));
+                if let (Some(a), Some(f)) = (
+                    &s.players.career(me).expertise,
+                    &fresh.players.career(PlayerIdx::SOLO).expertise,
+                ) {
+                    if a.taken.len() != f.taken.len() {
+                        return Err(differs("expertise taken length differs from the content"));
+                    }
                 }
             }
             if let (Some(a), Some(f)) = (&s.horde, &fresh.horde) {
@@ -569,21 +573,23 @@ macro_rules! state_codec_v2 {
                     below(usize::from(*p), rewards, "star pool entry out of range")?;
                 }
             }
-            if let Some(o) = &s.players.career(PlayerIdx::SOLO).offers {
-                let offer = o.offer.iter().flat_map(|o| &o.candidates);
-                for c in offer {
-                    below(usize::from(*c), rewards, "offer candidate out of range")?;
+            for me in s.players.indices() {
+                if let Some(o) = &s.players.career(me).offers {
+                    let offer = o.offer.iter().flat_map(|o| &o.candidates);
+                    for c in offer {
+                        below(usize::from(*c), rewards, "offer candidate out of range")?;
+                    }
                 }
-            }
-            if let Some(g) = &s.players.career(PlayerIdx::SOLO).expertise {
-                if let Some(o) = &g.offer {
-                    if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
-                        for c in &o.candidates {
-                            below(
-                                usize::from(*c),
-                                g.taken.len(),
-                                "expertise candidate out of range",
-                            )?;
+                if let Some(g) = &s.players.career(me).expertise {
+                    if let Some(o) = &g.offer {
+                        if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
+                            for c in &o.candidates {
+                                below(
+                                    usize::from(*c),
+                                    g.taken.len(),
+                                    "expertise candidate out of range",
+                                )?;
+                            }
                         }
                     }
                 }
