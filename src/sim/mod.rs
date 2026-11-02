@@ -49,6 +49,9 @@
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
 //! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
+//! So are the expertise gauge, the Stardust and the regeneration (`Career`): the hash and format 1
+//! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
+//! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
