@@ -267,3 +267,65 @@ pub(super) fn evade_cooldown(s: &State, ticks: u32) -> u32 {
 pub(super) fn speed(s: &State, cap: i64) -> i64 {
     cap * (100 + i64::from(total(s, StatEffect::SpeedPct))) / 100
 }
+
+#[cfg(test)]
+mod tests {
+    //! The helpers read the career of the player they are given (ADR-SIM-12).
+
+    use super::*;
+    use crate::bench_fixtures::worst_case;
+    use crate::engine::Run;
+    use crate::sim::state::{Career, Players};
+
+    fn party() -> (World, State, PlayerIdx) {
+        let e = worst_case::warmed_up();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules")
+        };
+        let mut s = state.clone();
+        let p = s.players[PlayerIdx::SOLO].clone();
+        let mut progress = s
+            .players
+            .career(PlayerIdx::SOLO)
+            .progress
+            .clone()
+            .expect("levels");
+        progress.totals = [0; StatEffect::ALL.len()];
+        s.players = Players::with_mask(0b011, p);
+        s.players.career_mut(PlayerIdx::SOLO).progress = Some(progress.clone());
+        let one = PlayerIdx::new(1).unwrap();
+        *s.players.career_mut(one) = Career {
+            progress: Some(progress),
+        };
+        (world.clone(), s, one)
+    }
+
+    #[test]
+    fn the_helpers_read_the_player_they_are_given() {
+        let (_, mut s, one) = party();
+        let t = |s: &mut State, e: StatEffect| {
+            s.players.career_mut(one).progress.as_mut().unwrap().totals[e as usize] = 50;
+        };
+        t(&mut s, StatEffect::AttackPct);
+        t(&mut s, StatEffect::EvadePct);
+        t(&mut s, StatEffect::SpeedPct);
+        assert_eq!(attack(&s, one, 100), 150);
+        assert_eq!(attack(&s, PlayerIdx::SOLO, 100), 100);
+        assert_eq!(evade_cooldown(&s, one, 100), 50);
+        assert_eq!(evade_cooldown(&s, PlayerIdx::SOLO, 100), 100);
+        assert_eq!(speed(&s, one, 100), 150);
+        assert_eq!(speed(&s, PlayerIdx::SOLO, 100), 100);
+        t(&mut s, StatEffect::AttackSpeedPct);
+        assert!(attack_speed(&s, one) > attack_speed(&s, PlayerIdx::SOLO));
+    }
+
+    #[test]
+    fn experience_goes_to_the_player_it_is_given() {
+        let (world, mut s, one) = party();
+        let before = s.players.career(PlayerIdx::SOLO).progress.clone();
+        gain(&world, &mut s, one, 1, &mut Vec::new());
+        assert_eq!(s.players.career(PlayerIdx::SOLO).progress, before);
+        let mine = s.players.career(one).progress.as_ref().unwrap();
+        assert!(mine.xp > 0 || mine.level > 1);
+    }
+}

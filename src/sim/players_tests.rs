@@ -269,3 +269,167 @@ fn a_saved_next_id_inside_the_player_slots_is_refused() {
         Some(DecodeError::Invalid("next entity id in the player slots"))
     );
 }
+
+// The level progress is per slot: `Players.careers` (ADR-SIM-12).
+
+mod careers {
+    use super::super::state::{Career, Progress, StatRule};
+    use super::*;
+    use crate::id::ContentId;
+    use crate::run_stats::StatEffect;
+
+    fn progress() -> Progress {
+        Progress {
+            level: 3,
+            xp: 7,
+            stats: vec![StatRule {
+                id: ContentId::from("attack"),
+                effect: StatEffect::AttackPct,
+                step: 5,
+                limit: 4,
+            }],
+            priority: vec![0],
+            pick_stats: true,
+            offers_due: 1,
+            offer_open: false,
+            spent: vec![1],
+            totals: [2; StatEffect::ALL.len()],
+        }
+    }
+
+    fn party(mask: u8) -> State {
+        let e = worst_case::warmed_up();
+        let mut s = live(&e).1.clone();
+        s.players = Players::with_mask(mask, ps(&e));
+        s
+    }
+
+    fn with_career(mut s: State, slot: u8, p: Option<Progress>) -> State {
+        s.players.career_mut(PlayerIdx::new(slot).unwrap()).progress = p;
+        s
+    }
+
+    #[test]
+    fn a_solo_career_starts_empty_and_is_beside_the_player() {
+        let e = worst_case::warmed_up();
+        let p = ps(&e);
+        let mut ps_ = Players::solo(p.clone(), Career::default());
+        assert!(ps_.career(PlayerIdx::SOLO).progress.is_none());
+        ps_.career_mut(PlayerIdx::SOLO).progress = Some(progress());
+        assert_eq!(ps_[PlayerIdx::SOLO], p);
+        let (player, career) = ps_.both_mut(PlayerIdx::SOLO);
+        player.hp = 1;
+        career.progress.as_mut().unwrap().level = 9;
+        assert_eq!(ps_[PlayerIdx::SOLO].hp, 1);
+        assert_eq!(
+            ps_.career(PlayerIdx::SOLO).progress.as_ref().unwrap().level,
+            9
+        );
+    }
+
+    #[test]
+    fn a_career_belongs_to_its_slot() {
+        let mut s = with_career(party(0b111), 1, Some(progress()));
+        assert!(s.players.career(PlayerIdx::SOLO).progress.is_none());
+        assert!(
+            s.players
+                .career(PlayerIdx::new(2).unwrap())
+                .progress
+                .is_none()
+        );
+        assert!(s.players.career(p1()).progress.is_some());
+        assert_eq!(s.players.other_careers().count(), 2);
+        s.players = party(0b101).players;
+        assert_eq!(s.players.other_careers().count(), 1);
+        assert_eq!(party(0b001).players.other_careers().count(), 0);
+    }
+
+    #[test]
+    fn every_hashed_field_of_slot_0s_progress_moves_the_hash() {
+        let base = with_career(party(0b001), 0, Some(progress()));
+        let h0 = hash_of(&base);
+        let Progress {
+            level: _,
+            xp: _,
+            stats: _,
+            priority: _,
+            pick_stats: _,
+            offers_due: _,
+            offer_open: _,
+            spent: _,
+            totals: _,
+        } = progress();
+        let edits: [(&str, fn(&mut Progress)); 8] = [
+            ("level", |p| p.level += 1),
+            ("xp", |p| p.xp += 1),
+            ("priority", |p| p.priority.push(1)),
+            ("pick_stats", |p| p.pick_stats = !p.pick_stats),
+            ("offers_due", |p| p.offers_due += 1),
+            ("offer_open", |p| p.offer_open = !p.offer_open),
+            ("spent", |p| p.spent[0] += 1),
+            ("totals", |p| p.totals[0] += 1),
+        ];
+        for (name, edit) in edits {
+            let mut s = base.clone();
+            edit(
+                s.players
+                    .career_mut(PlayerIdx::SOLO)
+                    .progress
+                    .as_mut()
+                    .unwrap(),
+            );
+            assert_ne!(hash_of(&s), h0, "{name}");
+        }
+        let mut s = base.clone();
+        s.players
+            .career_mut(PlayerIdx::SOLO)
+            .progress
+            .as_mut()
+            .unwrap()
+            .stats[0]
+            .step += 1;
+        assert_eq!(hash_of(&s), h0, "stats are content");
+    }
+
+    #[test]
+    fn slots_1_and_2_are_in_the_hash_tail_in_slot_order() {
+        for mask in [0b011, 0b111] {
+            let none = party(mask);
+            for slot in 1..mask.count_ones() as u8 {
+                let some = with_career(none.clone(), slot, Some(progress()));
+                assert_ne!(hash_of(&some), hash_of(&none), "{mask:b} slot {slot}");
+                let mut moved = progress();
+                moved.xp += 1;
+                let more = with_career(none.clone(), slot, Some(moved));
+                assert_ne!(hash_of(&more), hash_of(&some), "{mask:b} slot {slot}");
+            }
+        }
+        let mut other = progress();
+        other.level = 4;
+        let a = with_career(
+            with_career(party(0b111), 1, Some(progress())),
+            2,
+            Some(other.clone()),
+        );
+        let b = with_career(
+            with_career(party(0b111), 1, Some(other)),
+            2,
+            Some(progress()),
+        );
+        assert_ne!(hash_of(&a), hash_of(&b));
+    }
+
+    #[test]
+    fn an_absent_slot_and_slot_0_keep_their_places() {
+        let solo = party(0b001);
+        let mut s = solo.clone();
+        s.players.careers_mut_for_test()[1].progress = Some(progress());
+        assert_eq!(hash_of(&s), hash_of(&solo), "the tail adds nothing at N=1");
+        let at0 = with_career(solo, 0, Some(progress()));
+        assert_ne!(hash_of(&at0), hash_of(&party(0b001)));
+        assert_ne!(
+            hash_of(&with_career(party(0b011), 0, Some(progress()))),
+            hash_of(&party(0b011))
+        );
+    }
+}

@@ -1952,3 +1952,23 @@ mod enum_tests {
         tags(&[RangedPool::Zone, RangedPool::Line]);
     }
 }
+
+#[cfg(test)]
+mod career_tests {
+    use super::*;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    use crate::sim::state::Career;
+
+    #[test]
+    fn a_career_is_its_progress_and_nothing_else() {
+        let e = crate::bench_fixtures::worst_case::warmed_up();
+        let crate::engine::Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        assert_eq!(to_bytes(&Career::default()), [0]);
+        let career = state.players.career(crate::id::PlayerIdx::SOLO).clone();
+        assert_eq!(to_bytes(&career), to_bytes(&career.progress));
+        let back: Career = from_bytes(&to_bytes(&career)).expect("decodes");
+        assert_eq!(back.progress.is_some(), career.progress.is_some());
+    }
+}
