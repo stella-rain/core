@@ -10,6 +10,7 @@ use stella_rain_core::attack::HitBox;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::expertise::Expertise;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_RANGE_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -115,7 +116,8 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 fn offered(e: &Engine) -> Vec<String> {
@@ -137,8 +139,8 @@ fn next_offer(e: &mut Engine) {
 
 /// The combo step in progress (slot 0).
 fn step_attack(e: &Engine) -> Option<AttackView> {
-    e.snapshot()
-        .player
+    e.snapshot().players[0]
+        .clone()
         .attacks
         .into_iter()
         .find(|a| a.slot == 0)
@@ -191,19 +193,19 @@ fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
     assert_eq!(swing(&mut e), hit_box(circle(1_024, 8_192)));
     next_offer(&mut e);
     take(&mut e, "reach");
-    assert_eq!(e.snapshot().player.range_pct, 40);
+    assert_eq!(e.snapshot().players[0].range_pct, 40);
 
     // 40 percent: radius and offset 1.4 times.
     assert_eq!(swing(&mut e), hit_box(circle(1_433, 11_468)));
     next_offer(&mut e);
     take(&mut e, "reach");
-    assert_eq!(e.snapshot().player.range_pct, 80);
+    assert_eq!(e.snapshot().players[0].range_pct, 80);
 
     // 80 percent.
     assert_eq!(swing(&mut e), hit_box(circle(1_843, 14_745)));
     next_offer(&mut e);
     take(&mut e, "reach");
-    assert_eq!(e.snapshot().player.range_pct, 120, "the sum as taken");
+    assert_eq!(e.snapshot().players[0].range_pct, 120, "the sum as taken");
 
     // 120 percent taken, 100 applied: twice as large.
     assert_eq!(swing(&mut e), hit_box(circle(2_048, 16_384)));
@@ -232,7 +234,7 @@ fn holding_a_range_reward_leaves_another_offered() {
     next_offer(&mut e);
     assert_eq!(offered(&e), ["might", "reach", "reach_more"]);
     take(&mut e, "reach_more");
-    assert_eq!(e.snapshot().player.range_pct, 30);
+    assert_eq!(e.snapshot().players[0].range_pct, 30);
 }
 
 /// The expertise option `id` of `effect` and `amount`, common.
@@ -288,7 +290,7 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
         e.step(idle());
     }
     assert!(e.offer_open(), "the expertise offer");
-    e.choose(0).unwrap();
+    e.choose(PlayerIdx::SOLO, 0).unwrap();
     assert_eq!(
         e.events().first(),
         Some(&DomainEvent::ExpertiseOptionTaken {
@@ -298,7 +300,7 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
     );
     assert!(e.offer_open(), "the star's offer");
     take(&mut e, "reach");
-    assert_eq!(e.snapshot().player.range_pct, 30);
+    assert_eq!(e.snapshot().players[0].range_pct, 30);
 
     // 20 + 30 percent: radius and offset half again.
     assert_eq!(swing(&mut e), arc(3_072, 12_288));

@@ -11,6 +11,7 @@ use stella_rain_core::attack::DamageType;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
@@ -150,7 +151,8 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 /// Fires until the next offer opens, and takes `reward` from it.
@@ -392,7 +394,7 @@ fn the_summed_bonus_saturates_at_the_content_value_under_the_cap() {
         take_next(&mut e, "pyro");
     }
     assert_eq!(
-        e.snapshot().player.type_bonuses,
+        e.snapshot().players[0].type_bonuses,
         [TypeBonusView {
             damage_type: DamageType::Pyro,
             pct: 300
@@ -415,7 +417,7 @@ fn the_snapshot_holds_the_bonuses_taken_before_the_cap() {
     ];
     let mut e = with(&targets(10, None, 13, None), list);
     assert!(
-        e.snapshot().player.type_bonuses.is_empty(),
+        e.snapshot().players[0].type_bonuses.is_empty(),
         "none at the start"
     );
     for id in ["pyro"; 11] {
@@ -443,7 +445,7 @@ fn the_snapshot_holds_the_bonuses_taken_before_the_cap() {
     ] {
         expected.push(view(ty, 10));
     }
-    assert_eq!(e.snapshot().player.type_bonuses, expected);
+    assert_eq!(e.snapshot().players[0].type_bonuses, expected);
 }
 
 #[test]
@@ -524,7 +526,9 @@ fn a_run_with_a_type_bonus_taken_records_and_verifies() {
         }
     }
     assert!(
-        !recorder.engine().snapshot().player.type_bonuses.is_empty(),
+        !recorder.engine().snapshot().players[0]
+            .type_bonuses
+            .is_empty(),
         "a type bonus was taken"
     );
     let bytes = recorder.replay().to_bytes();

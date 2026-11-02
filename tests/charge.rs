@@ -103,7 +103,7 @@ fn holding_raises_the_level_and_the_snapshot_shows_the_perfect_window() {
     let mut seen = Vec::new();
     for _ in 0..40 {
         e.step(held(true));
-        seen.push(e.snapshot().player.charge);
+        seen.push(e.snapshot().players[0].charge);
     }
     let view = |level, held, perfect| {
         Some(ChargeView {
@@ -127,7 +127,7 @@ fn a_release_inside_the_window_is_perfect_and_one_tick_later_is_not() {
     let events = play(&mut e, hold_until(38, 39));
     assert_eq!(releases(&events), [(39, 1, true)]);
     assert_eq!(friendly(&e), [(0, -2048)]);
-    assert_eq!(e.snapshot().player.charge, None);
+    assert_eq!(e.snapshot().players[0].charge, None);
 
     let mut e = engine(&far());
     let events = play(&mut e, hold_until(39, 40));
@@ -191,7 +191,7 @@ fn a_charge_has_no_cooldown() {
     play(&mut e, (1..=3).map(|t| held(t == 1)));
     e.step(held(true));
     assert_eq!(
-        e.snapshot().player.charge.map(|c| (c.level, c.held)),
+        e.snapshot().players[0].charge.map(|c| (c.level, c.held)),
         Some((0, 0))
     );
 }
@@ -215,7 +215,7 @@ fn presses_while_charging_are_not_buffered() {
         .collect();
     assert_eq!(steps, [(1, Press::Main, 1)]);
     assert_eq!(friendly(&e), [(0, -1024)]);
-    assert_eq!(e.snapshot().player.combo.buffered, None);
+    assert_eq!(e.snapshot().players[0].combo.buffered, None);
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn a_step_reached_by_sub_charges_while_sub_is_held() {
     });
     let events = play(&mut e, inputs);
     assert_eq!(releases(&events), [(39, 1, true)]);
-    assert_eq!(e.snapshot().player.combo.presses, [Press::Smash]);
+    assert_eq!(e.snapshot().players[0].combo.presses, [Press::Smash]);
 }
 
 #[test]
@@ -251,16 +251,16 @@ fn a_buffered_step_charges_only_if_its_button_is_held_as_it_starts() {
     let mut e = engine(&stage);
     play(&mut e, (1..=7).map(|t| held(t == 1 || t == 3)));
     assert_eq!(
-        e.snapshot().player.combo.presses,
+        e.snapshot().players[0].combo.presses,
         [Press::Main, Press::Main]
     );
-    assert_eq!(e.snapshot().player.charge, None);
+    assert_eq!(e.snapshot().players[0].charge, None);
     assert_eq!(friendly(&e), [(0, -512), (0, -1024)]);
     // Held through tick 7: it charges from there.
     let mut e = engine(&stage);
     play(&mut e, (1..=7).map(|t| held(t == 1 || t >= 3)));
     assert_eq!(
-        e.snapshot().player.charge.map(|c| (c.level, c.held)),
+        e.snapshot().players[0].charge.map(|c| (c.level, c.held)),
         Some((0, 0))
     );
 }
@@ -296,7 +296,7 @@ fn an_evade_breaks_the_charge_with_no_attack_and_the_combo_starts_again() {
     assert!(releases(&events).is_empty());
     assert!(friendly(&e).is_empty(), "no attack");
     // The button still held does not press again.
-    let p = e.snapshot().player;
+    let p = e.snapshot().players[0].clone();
     assert_eq!((p.charge, p.combo.presses.len()), (None, 0));
 }
 
@@ -333,10 +333,10 @@ fn a_hit_from_a_powerful_attack_breaks_the_charge_and_others_do_not() {
         assert_eq!(hit.len(), 1, "{breaks}");
         if breaks {
             assert_eq!(broken, hit);
-            assert_eq!(e.snapshot().player.charge, None);
+            assert_eq!(e.snapshot().players[0].charge, None);
         } else {
             assert!(broken.is_empty());
-            assert!(e.snapshot().player.charge.is_some());
+            assert!(e.snapshot().players[0].charge.is_some());
         }
     }
 }

@@ -56,7 +56,7 @@ pub fn avoid(engine: &Engine, input: Input) -> Input {
 /// `input` with the evade of a `slash` about to land within reach.
 pub fn evade_swings(engine: &Engine, mut input: Input) -> Input {
     let s = engine.snapshot();
-    let me = s.player.at;
+    let me = s.players[0].at;
     let swing = s.entities.iter().any(|v| {
         v.kind == EntityKind::Enemy
             && v.attack.as_ref().is_some_and(|a| {
@@ -76,7 +76,7 @@ pub fn evade_swings(engine: &Engine, mut input: Input) -> Input {
 /// `ZONE_SEE` ticks.
 pub fn avoid_zones(engine: &Engine, mut input: Input) -> Input {
     let s = engine.snapshot();
-    let me = s.player.at;
+    let me = s.players[0].at;
     let threat = s
         .zones
         .iter()

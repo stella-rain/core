@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -89,7 +90,7 @@ fn a_stage_without_levels_has_no_progress_and_nothing_to_choose() {
         e.step(idle());
     }
     assert!(e.snapshot().progress.is_none());
-    assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
+    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -137,7 +138,7 @@ fn a_level_up_raises_the_first_stat_and_the_run_goes_on() {
     want[0] = 1;
     assert_eq!((progress.level, progress.xp, progress.spent), (2, 0, want));
     // No offer opens: the next step is the next tick, and there is nothing to choose.
-    assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
+    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
     let tick = e.tick();
     e.step(idle());
     assert_eq!(e.tick(), tick + 1);
@@ -175,8 +176,8 @@ fn max_hp_raises_the_most_hp_and_heals_as_much() {
     let without = after_spending(&effect_stage(), StatEffect::SpeedPct);
     // A point of Max HP is 100 shown hit points, stored ×100.
     assert_eq!(
-        with.snapshot().player.hp,
-        without.snapshot().player.hp + 100 * 100
+        with.snapshot().players[0].hp,
+        without.snapshot().players[0].hp + 100 * 100
     );
 }
 
@@ -235,7 +236,7 @@ fn evade_shortens_the_evade_s_cooldown() {
             evade: true,
             ..idle()
         });
-        e.snapshot().player.evade.recovering[0]
+        e.snapshot().players[0].evade.recovering[0]
     };
     let stage = effect_stage();
     assert_eq!(
@@ -262,12 +263,12 @@ fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
     ] });
     let stage = armed(effect_stage(), weapon_ref(step));
     let phases = |mut e: Engine| {
-        while !e.snapshot().player.attacks.is_empty() {
+        while !e.snapshot().players[0].attacks.is_empty() {
             e.step(idle());
         }
         let mut seen: Vec<(u8, u32)> = Vec::new();
         e.step(pressing_main());
-        while let Some(a) = e.snapshot().player.attacks.first().cloned() {
+        while let Some(a) = e.snapshot().players[0].attacks.first().cloned() {
             if seen.last().is_none_or(|p| p.0 != a.phase) {
                 seen.push((a.phase, a.ticks));
             }
@@ -385,7 +386,7 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
     let mut raised = 0;
     while e.outcome() == Outcome::Running && e.tick() < 5400 {
         if e.offer_open() {
-            e.choose(0).unwrap();
+            e.choose(PlayerIdx::SOLO, 0).unwrap();
             continue;
         }
         e.step(common::run::run_input(&e, e.tick()));
@@ -565,11 +566,12 @@ fn pick_stats_opens_one_offer_per_level_in_order() {
         "the world is stopped while the offer is open"
     );
     assert_eq!(
-        e.choose(u32::try_from(ids.len()).unwrap()).map_err(|_| ()),
+        e.choose(PlayerIdx::SOLO, u32::try_from(ids.len()).unwrap())
+            .map_err(|_| ()),
         Err(())
     );
     // Choosing closes it, raises that stat, and opens the second level's offer.
-    e.choose(1).unwrap();
+    e.choose(PlayerIdx::SOLO, 1).unwrap();
     assert!(matches!(
         e.events(),
         [
@@ -578,13 +580,13 @@ fn pick_stats_opens_one_offer_per_level_in_order() {
         ] if *stat == ids[1]
     ));
     assert!(e.offer_open());
-    e.choose(0).unwrap();
+    e.choose(PlayerIdx::SOLO, 0).unwrap();
     assert!(!e.offer_open());
     assert_eq!(stat_offer(&e), None);
     let mut want = vec![0; ids.len()];
     (want[0], want[1]) = (1, 1);
     assert_eq!(spent(&e), want);
-    assert_eq!(e.choose(0), Err(ChoiceError::NoOffer));
+    assert_eq!(e.choose(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -598,7 +600,7 @@ fn every_stat_at_its_limit_gives_nothing() {
         fire_until(&mut e, idle(), 600, |e| level(e) > 1);
         let mut offers = 0;
         while e.offer_open() {
-            e.choose(0).unwrap();
+            e.choose(PlayerIdx::SOLO, 0).unwrap();
             offers += 1;
         }
         assert_eq!(level(&e), all + 6, "pick_stats {pick_stats}");

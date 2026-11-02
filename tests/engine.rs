@@ -34,7 +34,7 @@ fn a_run_starts_at_tick_zero_with_the_character_near_the_bottom() {
     assert_eq!((e.tick(), e.outcome()), (0, Outcome::Running));
     assert_eq!(player_at(&e), (START_X, START_Y));
     let s = e.snapshot();
-    assert_eq!(s.player.hp, 3);
+    assert_eq!(s.players[0].hp, 3);
     assert_eq!(s.entities.len(), 1, "just the boss");
     assert!(e.events().is_empty());
 }
@@ -86,7 +86,7 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
     e.step(idle());
     let s = e.snapshot();
     // The main character's hurt circle is 2 pixels.
-    assert_eq!(s.player.radius.0, 512);
+    assert_eq!(s.players[0].radius.0, 512);
     let radii: Vec<(EntityKind, i32)> = s.entities.iter().map(|v| (v.kind, v.radius.0)).collect();
     assert_eq!(
         radii,
@@ -453,7 +453,7 @@ fn the_snapshot_survives_json() {
     });
     let s = e.snapshot();
     assert_eq!(s.tick, 1);
-    assert_eq!(s.player.evade.dash_left, EVADE_TICKS - 1);
+    assert_eq!(s.players[0].evade.dash_left, EVADE_TICKS - 1);
     let json = serde_json::to_string(&s).unwrap();
     assert_eq!(serde_json::from_str::<Snapshot>(&json).unwrap(), s);
 }
@@ -598,8 +598,8 @@ fn random_inputs_keep_every_invariant() {
             };
             e.step(input);
             let s = e.snapshot();
-            assert!((0..=92_160).contains(&s.player.at.x.0));
-            assert!((0..=163_840).contains(&s.player.at.y.0));
+            assert!((0..=92_160).contains(&s.players[0].at.x.0));
+            assert!((0..=163_840).contains(&s.players[0].at.y.0));
             assert!(s.orbs.len() <= 4000);
             assert!(enemies(&s) <= 260);
             assert!(s.entities.windows(2).all(|w| w[0].id < w[1].id));
@@ -609,8 +609,11 @@ fn random_inputs_keep_every_invariant() {
                 .events()
                 .iter()
                 .any(|ev| matches!(ev, DomainEvent::Healed { target, .. } if target.0 == 0));
-            assert!(s.player.hp <= last_hp || healed, "hp rises only by a heal");
-            last_hp = s.player.hp;
+            assert!(
+                s.players[0].hp <= last_hp || healed,
+                "hp rises only by a heal"
+            );
+            last_hp = s.players[0].hp;
             assert!(e.tick() >= last_tick);
             last_tick = e.tick();
             if e.outcome() != Outcome::Running {

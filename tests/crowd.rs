@@ -7,6 +7,7 @@
 //! 600-tick circle, Main on even ticks, Evade in the first 2 ticks of every 45).
 
 use crate::common;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use common::*;
@@ -106,7 +107,7 @@ fn dense(elite_cap: u64, edit: impl FnOnce(&mut Value)) -> TimeLimit {
 /// Takes the first option of an open offer.
 fn answer(e: &mut Engine) {
     while e.offer_open() {
-        e.choose(0).expect("the first option");
+        e.choose(PlayerIdx::SOLO, 0).expect("the first option");
     }
 }
 

@@ -21,7 +21,7 @@ fn evading(move_x: i8, move_y: i8) -> Input {
 }
 
 fn facing(e: &stella_rain_core::engine::Engine) -> (i32, i32) {
-    let Facing { x, y } = e.snapshot().player.facing;
+    let Facing { x, y } = e.snapshot().players[0].facing;
     (x, y)
 }
 
@@ -176,11 +176,11 @@ fn an_evade_without_movement_goes_along_the_facing() {
 #[test]
 fn an_evade_is_invulnerable_from_its_first_tick() {
     let mut e = running(vec![]);
-    assert_eq!(e.snapshot().player.invulnerable, 0);
+    assert_eq!(e.snapshot().players[0].invulnerable, 0);
     e.step(evading(127, 0));
-    assert_eq!(e.snapshot().player.invulnerable, EVADE_INVULNERABLE);
+    assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE);
     e.step(idle());
-    assert_eq!(e.snapshot().player.invulnerable, EVADE_INVULNERABLE - 1);
+    assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE - 1);
 }
 
 #[test]
@@ -219,13 +219,13 @@ fn a_held_button_presses_once() {
 #[test]
 fn the_snapshot_shows_the_evade() {
     let mut e = running(vec![]);
-    let view = e.snapshot().player.evade;
+    let view = e.snapshot().players[0].evade.clone();
     assert_eq!(
         (view.ready, view.recovering, view.dash_left),
         (1, vec![], 0)
     );
     e.step(evading(127, 0));
-    let view = e.snapshot().player.evade;
+    let view = e.snapshot().players[0].evade.clone();
     assert_eq!(
         (view.ready, view.recovering, view.dash_left),
         (0, vec![EVADE_COOLDOWN], EVADE_TICKS - 1)

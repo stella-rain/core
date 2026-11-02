@@ -70,10 +70,10 @@ fn assert_zones(engine: &Engine) {
 /// poison and burn at the stack cap, with time left to run.
 fn assert_runes_and_statuses(engine: &Engine) {
     let snapshot = engine.snapshot();
-    let mut held: Vec<Rune> = snapshot.player.runes.iter().map(|r| r.rune).collect();
+    let mut held: Vec<Rune> = snapshot.players[0].runes.iter().map(|r| r.rune).collect();
     held.sort();
     assert_eq!(held, Rune::ALL, "every rune held");
-    assert_eq!(snapshot.player.rune_haste_pct, FULL_HASTE);
+    assert_eq!(snapshot.players[0].rune_haste_pct, FULL_HASTE);
     assert!(
         !engine
             .events()
@@ -216,7 +216,7 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
     assert_runes_and_statuses(&engine);
     assert_steps_and_ticks_land(&engine);
     // Aim assist looked through every enemy and found one in range to face.
-    assert!(engine.snapshot().player.target.is_some());
+    assert!(engine.snapshot().players[0].target.is_some());
 }
 
 #[test]
@@ -249,7 +249,7 @@ fn the_caps_are_held_tick_after_tick() {
         assert_fresh_stack(&engine);
         assert_runes_and_statuses(&engine);
         assert_steps_and_ticks_land(&engine);
-        for r in engine.snapshot().player.runes {
+        for r in engine.snapshot().players[0].runes.clone() {
             if r.rune.kind() == RuneKind::OnHit && r.cooldown_left > 0 {
                 fired.insert(r.rune);
             }
@@ -309,7 +309,7 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
     let mut engine = worst_case::warmed_up();
     engine.step(worst_case::input(worst_case::WARMUP_TICKS + 1));
     let snapshot = engine.snapshot();
-    let me = snapshot.player.at;
+    let me = snapshot.players[0].at;
     let mut seen = 0;
     for e in snapshot
         .entities
@@ -334,7 +334,7 @@ fn the_line_shooter_arrives_in_view_of_the_main_character() {
         engine.step(worst_case::input(tick));
     }
     let snapshot = engine.snapshot();
-    let me = snapshot.player.at;
+    let me = snapshot.players[0].at;
     let enemies: Vec<_> = snapshot
         .entities
         .iter()

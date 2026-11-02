@@ -111,7 +111,7 @@ fn run(stage: &Stage, inputs: impl IntoIterator<Item = Input>) -> (Engine, Trace
             trace.spawns.push((tick, now - alive));
         }
         alive = now;
-        trace.holds.push(snap.player.hold);
+        trace.holds.push(snap.players[0].hold);
         trace
             .events
             .extend(e.events().iter().map(|ev| (tick, ev.clone())));
@@ -219,7 +219,7 @@ fn an_evade_breaks_the_hold_with_no_release_and_the_combo_starts_again() {
     );
     assert!(t.releases().is_empty(), "no release");
     assert_eq!(t.spawned_on(), [1, 3], "the loop on 3 is the last attack");
-    assert_eq!(e.snapshot().player.hold, None);
+    assert_eq!(e.snapshot().players[0].hold, None);
 }
 
 /// A stage where an enemy 40 pixels above places a zone on the main character on tick 1,
@@ -258,11 +258,11 @@ fn a_hit_from_a_powerful_attack_breaks_the_hold_and_others_do_not() {
         t.spawned_on().iter().all(|&s| s <= 9),
         "the loop ends with the hold"
     );
-    assert_eq!(e.snapshot().player.hold, None);
+    assert_eq!(e.snapshot().players[0].hold, None);
 
     let (e, t) = run(&shot_stage(false), pressing(|_| true).take(15));
     assert!(t.breaks().is_empty());
-    assert!(e.snapshot().player.hold.is_some());
+    assert!(e.snapshot().players[0].hold.is_some());
 }
 
 #[test]

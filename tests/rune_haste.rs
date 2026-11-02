@@ -201,13 +201,17 @@ fn haste_taken_several_times_sums_up_to_the_cap() {
     // Two of 200 add up to 400, held to 300 where it applies: 120 × 100 / 400 would be 30.
     let rewards = vec![haste("h1", 200, 3), haste("h2", 100, 2)];
     let mut e = holding(runes(120, 30), rewards.clone(), &["h1"]);
-    assert_eq!(e.snapshot().player.rune_haste_pct, 200);
+    assert_eq!(e.snapshot().players[0].rune_haste_pct, 200);
     assert_eq!(cooldowns_after_a_hit(&mut e), [40; 4], "120 × 100 / 300");
     let mut e = holding(runes(120, 30), rewards.clone(), &["h1", "h1"]);
-    assert_eq!(e.snapshot().player.rune_haste_pct, 400, "the sum as taken");
+    assert_eq!(
+        e.snapshot().players[0].rune_haste_pct,
+        400,
+        "the sum as taken"
+    );
     assert_eq!(cooldowns_after_a_hit(&mut e), [30; 4], "held to 300");
     let mut e = holding(runes(120, 30), rewards, &["h1", "h2", "h1"]);
-    assert_eq!(e.snapshot().player.rune_haste_pct, 500);
+    assert_eq!(e.snapshot().players[0].rune_haste_pct, 500);
     assert_eq!(cooldowns_after_a_hit(&mut e), [30; 4]);
 }
 
@@ -242,7 +246,7 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
             evade: true,
             ..idle()
         });
-        let after = e.snapshot().player;
+        let after = e.snapshot().players[0].clone();
         let skill_cooldown = after.skill.map(|s| s.cooldown_left);
         let press = |t: u32| Input {
             main: [0, 7, 14].iter().any(|d| start + 1 + d == t),
@@ -297,7 +301,7 @@ fn a_run_with_haste_records_and_verifies() {
         }
     }
     assert!(taken, "Rune Haste was taken in the run");
-    assert!(recorder.engine().snapshot().player.rune_haste_pct > 0);
+    assert!(recorder.engine().snapshot().players[0].rune_haste_pct > 0);
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());
 }

@@ -5,6 +5,7 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::rewards::{Rarity, Rewards};
@@ -50,11 +51,15 @@ fn names(runes: &[&str]) -> Vec<stella_rain_core::id::ContentId> {
 }
 
 fn hp(e: &Engine) -> u32 {
-    e.snapshot().player.hp
+    e.snapshot().players[0].hp
 }
 
 fn held(e: &Engine) -> Vec<Rune> {
-    e.snapshot().player.runes.iter().map(|r| r.rune).collect()
+    e.snapshot().players[0]
+        .runes
+        .iter()
+        .map(|r| r.rune)
+        .collect()
 }
 
 // --- The file: defaults and bounds --------------------------------------------------------
@@ -524,7 +529,7 @@ fn a_carried_star_counts_toward_its_stack_limit() {
             Command::Step(input) => e.step(input),
             // An expertise offer (VS1: the first one opens before any star offer) is answered as
             // the script does; the first choice with a star offer open is what the test reads.
-            Command::Choose(index) => e.choose(index).unwrap(),
+            Command::Choose(index) => e.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         if e.offer_open() {
             if let Some(o) = e.snapshot().progress.unwrap().offer {
@@ -572,7 +577,7 @@ fn runes_after_the_run(setup: &RunSetup) -> Vec<Rune> {
     for c in crate::run_play::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => e.step(input),
-            Command::Choose(index) => e.choose(index).unwrap(),
+            Command::Choose(index) => e.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
     held(&e)

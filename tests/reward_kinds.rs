@@ -5,6 +5,7 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{
     MAX_PICKUP_RADIUS_PCT, MAX_SKILL_COOLDOWN_PCT, RewardEffect, Rewards,
 };
@@ -194,7 +195,8 @@ pub(crate) fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 pub(crate) fn next_offer(e: &mut Engine) {

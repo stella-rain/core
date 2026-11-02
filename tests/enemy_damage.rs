@@ -74,12 +74,12 @@ fn setup() -> RunSetup {
 fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
     let mode = shooter_mode();
     let mut e = Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap();
-    let start = e.snapshot().player.hp;
+    let start = e.snapshot().players[0].hp;
     assert_eq!(start, 50_000, "the trial's main character");
     let (mut last, mut hits) = (start, 0);
     for _ in 0..20_000 {
         e.step(Input::default());
-        let hp = e.snapshot().player.hp;
+        let hp = e.snapshot().players[0].hp;
         if hp < last {
             assert_eq!(last - hp, if hp == 0 { last } else { 10_000 }, "hit {hits}");
             hits += 1;

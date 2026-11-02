@@ -5,6 +5,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -334,7 +335,7 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
             .collect();
         match c {
             Command::Step(input) => e.step(input),
-            Command::Choose(i) => e.choose(i).unwrap(),
+            Command::Choose(i) => e.choose(PlayerIdx::SOLO, i).unwrap(),
         }
         for ev in e.events() {
             match ev {

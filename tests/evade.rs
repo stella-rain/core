@@ -5,6 +5,7 @@
 //! `common::evade()`.
 
 use crate::common;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use common::*;
@@ -38,7 +39,7 @@ fn charged(charges: u8, max_charges: Option<u8>) -> Stage {
 }
 
 fn view(e: &Engine) -> EvadeView {
-    e.snapshot().player.evade.clone()
+    e.snapshot().players[0].evade.clone()
 }
 
 /// Presses the evade on every odd tick from 1 to `ticks` (let go in between, so each is a
@@ -150,7 +151,7 @@ fn a_chained_dash_is_invulnerable_from_its_press() {
         e.step(moving(127, 0));
     }
     e.step(evading(127, 0));
-    assert_eq!(e.snapshot().player.invulnerable, EVADE_INVULNERABLE);
+    assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE);
 }
 
 #[test]
@@ -245,7 +246,8 @@ fn take(e: &mut Engine) {
     assert_eq!(offer.candidates[0].reward.as_str(), "extra");
     let option = OfferOption::Take { candidate: 0 };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 #[test]

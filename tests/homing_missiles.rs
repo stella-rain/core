@@ -113,8 +113,7 @@ fn at(e: &Engine, dx: i32, dy: i32) -> EntityId {
 /// Where each missile flying is centred, by slot.
 fn missiles(e: &Engine) -> Vec<(u8, Point)> {
     let snapshot = e.snapshot();
-    snapshot
-        .player
+    snapshot.players[0]
         .attacks
         .iter()
         .filter(|a| a.slot >= MISSILE_SLOT)
@@ -501,10 +500,7 @@ fn a_run_holding_homing_missiles_records_and_verifies() {
         if recorder.step(input).is_err() {
             break;
         }
-        fired |= recorder
-            .engine()
-            .snapshot()
-            .player
+        fired |= recorder.engine().snapshot().players[0]
             .runes
             .iter()
             .any(|r| r.rune == Rune::HomingMissiles && r.cooldown_left > 0);

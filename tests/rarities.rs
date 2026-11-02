@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, Rarity, Reward, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -208,7 +209,7 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
             break;
         }
         while e.offer_open() {
-            e.choose(0).unwrap();
+            e.choose(PlayerIdx::SOLO, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
         e.step(input);
@@ -333,7 +334,8 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 /// Kills the enemy in reach: presses main, then steps past the hit.

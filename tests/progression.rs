@@ -6,6 +6,7 @@ use proptest::prelude::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::ContentId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::progression::{
     Bank, RunOutcome, RunResult, Settlement, StartingSave, Unlock, UnlockKind, open_difficulties,
@@ -217,7 +218,7 @@ fn a_result_exists_only_for_an_ended_run() {
     for input in replay.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             match c.kind {
-                CommandKind::Choose => engine.choose(c.index).unwrap(),
+                CommandKind::Choose => engine.choose(PlayerIdx::SOLO, c.index).unwrap(),
             }
         }
         engine.step(input);

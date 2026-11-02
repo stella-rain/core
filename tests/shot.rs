@@ -309,7 +309,7 @@ fn the_main_shot_starts_on_the_tick_of_the_press() {
     );
     e.step(pressing_main());
     assert_eq!(friendly(&e.snapshot()).len(), 1);
-    assert_eq!(e.snapshot().player.at.x, Fx(START_X));
+    assert_eq!(e.snapshot().players[0].at.x, Fx(START_X));
 }
 
 #[test]

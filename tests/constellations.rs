@@ -675,13 +675,13 @@ fn carried_stars_count_at_the_start_and_the_full_tier_replaces_the_small() {
         };
         Engine::start_with(&setup, &content).expect("a valid run")
     };
-    let base = start(&[]).snapshot().player.hp;
+    let base = start(&[]).snapshot().players[0].hp;
     let one = start(&["n1"]);
-    assert_eq!(one.snapshot().player.hp, base + 1_000);
+    assert_eq!(one.snapshot().players[0].hp, base + 1_000);
     assert_eq!(one.snapshot().constellations[0].held, 1);
     let both = start(&["n1", "n2"]);
     // 3,000 in all, not 1,000 and 3,000.
-    assert_eq!(both.snapshot().player.hp, base + 3_000);
+    assert_eq!(both.snapshot().players[0].hp, base + 3_000);
     let view = &both.snapshot().constellations[0];
     assert_eq!((view.held, view.tier), (2, 2));
 }
@@ -740,11 +740,11 @@ fn a_tier_may_give_an_orbit_but_not_a_random_rune() {
 fn reaching_a_tier_with_an_orbit_gives_its_orbs() {
     let mut e = engine(&epic_near(), trio_list(), Some(file(vec![orbit_trio()])));
     for star in ["n1", "n2", "n3"] {
-        assert!(e.snapshot().player.orbits.is_empty(), "before {star}");
+        assert!(e.snapshot().players[0].orbits.is_empty(), "before {star}");
         next_offer(&mut e);
         take(&mut e, star);
     }
-    let orbits = &e.snapshot().player.orbits;
+    let orbits = &e.snapshot().players[0].orbits;
     assert_eq!(orbits.len(), 1);
     assert_eq!((orbits[0].reward.as_str(), orbits[0].orbs), ("trio", 3));
 }
@@ -770,7 +770,7 @@ fn a_tier_that_adds_burst_depth_applies_once() {
         next_offer(&mut e);
         take(&mut e, star);
     }
-    assert_eq!(e.snapshot().player.burst_depth, 5);
+    assert_eq!(e.snapshot().players[0].burst_depth, 5);
 }
 
 #[test]

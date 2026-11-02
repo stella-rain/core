@@ -13,7 +13,7 @@ use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
-use stella_rain_core::id::ContentId;
+use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{Pack, PackFile};
@@ -161,7 +161,7 @@ pub fn run_setup(data: &[u8]) -> bool {
 /// of `pick` inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
     let hash = engine.state_hash();
-    if engine.choose(u32::from(pick)).is_err() {
+    if engine.choose(PlayerIdx::SOLO, u32::from(pick)).is_err() {
         assert_eq!(
             engine.state_hash(),
             hash,
@@ -179,7 +179,7 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
         };
         let options = u32::try_from(options).expect("few options");
         engine
-            .choose(u32::from(pick) % options)
+            .choose(PlayerIdx::SOLO, u32::from(pick) % options)
             .expect("an option of the open offer is taken");
     }
     assert!(

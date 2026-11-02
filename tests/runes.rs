@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -142,7 +143,8 @@ fn pick(e: &mut Engine, option: OfferOption) {
         .iter()
         .position(|o| *o == option)
         .unwrap_or_else(|| panic!("{option:?} is not an option"));
-    e.choose(u32::try_from(index).unwrap()).unwrap();
+    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
+        .unwrap();
 }
 
 fn take(e: &mut Engine, reward: &str) {
@@ -152,7 +154,11 @@ fn take(e: &mut Engine, reward: &str) {
 
 /// The runes held, whatever their cooldowns: they fire on the combo steps that kill.
 fn held(e: &Engine) -> Vec<Rune> {
-    e.snapshot().player.runes.iter().map(|r| r.rune).collect()
+    e.snapshot().players[0]
+        .runes
+        .iter()
+        .map(|r| r.rune)
+        .collect()
 }
 
 #[test]
@@ -237,7 +243,7 @@ fn the_hidden_candidate_names_no_rune() {
             c.reward.as_str()
         );
     }
-    assert!(snapshot.player.runes.is_empty(), "nothing drawn yet");
+    assert!(snapshot.players[0].runes.is_empty(), "nothing drawn yet");
     let text = serde_json::to_string(&snapshot).unwrap();
     assert!(text.contains("\"hidden\":true"));
     for rune in [
@@ -271,7 +277,7 @@ fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
     };
     assert_eq!(reward, &ContentId::from("random_rune"));
     assert_eq!(
-        e.snapshot().player.runes,
+        e.snapshot().players[0].runes,
         [RuneView {
             rune: *rune,
             cooldown_left: 0
@@ -324,7 +330,7 @@ fn a_reward_without_a_rune_carries_none_in_its_event() {
         e.events(),
         [DomainEvent::RewardTaken { rune: None, .. }]
     ));
-    assert!(e.snapshot().player.runes.is_empty());
+    assert!(e.snapshot().players[0].runes.is_empty());
 }
 
 #[test]
@@ -370,7 +376,7 @@ fn a_random_rune_candidate_is_rerolled_like_any_reward() {
     pick(&mut e, OfferOption::Reroll { candidate });
     assert!(e.offer_open());
     assert_eq!(offered(&e), ["a", "b", "c"]);
-    assert!(e.snapshot().player.runes.is_empty(), "no rune drawn");
+    assert!(e.snapshot().players[0].runes.is_empty(), "no rune drawn");
     // It stays in the pool.
     take(&mut e, "a");
     next_offer(&mut e);
@@ -396,7 +402,7 @@ fn banishing_the_random_rune_removes_it_for_the_run() {
         next_offer(&mut e);
         assert_eq!(offered(&e), ["a", "b", "c"], "banished for the run");
     }
-    assert!(e.snapshot().player.runes.is_empty());
+    assert!(e.snapshot().players[0].runes.is_empty());
 }
 
 #[test]

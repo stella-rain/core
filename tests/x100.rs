@@ -62,7 +62,7 @@ fn a_stage_scaled_by_100_ends_as_it_did_at_design_values() {
             engine.step(*input);
             died += kills(&engine);
         }
-        let hp = engine.snapshot().player.hp;
+        let hp = engine.snapshot().players[0].hp;
         let (_, outcome, ticks, deaths, left) = *STAGES.iter().find(|s| s.0 == name).unwrap();
         assert_eq!(
             (engine.outcome(), engine.tick(), died, hp),
