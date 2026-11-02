@@ -101,14 +101,14 @@ fn counted<R>(f: impl FnOnce() -> R) -> (u64, u64) {
 /// What a measured step called in the allocator: `allocs` counts `alloc` and `alloc_zeroed`,
 /// `reallocs` counts `realloc`, `frees` counts `dealloc`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-struct Allocs {
+pub(crate) struct Allocs {
     allocs: u64,
     reallocs: u64,
     frees: u64,
 }
 
 /// The `alloc` calls, the `realloc` calls and the frees `f` makes.
-fn counted3<R>(f: impl FnOnce() -> R) -> Allocs {
+pub(crate) fn counted3<R>(f: impl FnOnce() -> R) -> Allocs {
     let (total, reallocs, freed) = (allocations(), REALLOCS.with(Cell::get), frees());
     let result = f();
     let counts = Allocs {
@@ -195,7 +195,7 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// `worst_minute` (427 allocs, 2 reallocs, 426 frees, the same on three runs) covers the whole
 /// minute, with its wave spawns, death bursts and offers, which `Run::play` chooses.
 /// The cases are built by `bench_fixtures`, outside the count.
-const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
+pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
     ("worst_tick", pin(3, 0, 3)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),

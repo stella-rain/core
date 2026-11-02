@@ -16,9 +16,7 @@ mod support;
 // The warm-up is the setup: it runs before the count starts, so only the one tick is counted.
 #[bench::worst_tick(args = (bench_fixtures::worst_tick()), teardown = support::forget_measured)]
 fn worst_tick(case: Case) -> Engine {
-    let Case { mut engine, input } = case;
-    engine.step(&[input]);
-    engine
+    support::tick(case)
 }
 
 library_benchmark_group!(

@@ -1,6 +1,8 @@
-//! Every bench forgets its measured result (BG7a, DS66-3, ADR-SIM-8): a `#[bench::…]` without
-//! `teardown = support::forget_measured` would count the drop of its result again (core#375).
-//! The bench files are also exactly the keys of `benches/budgets.toml`.
+//! Every bench returns its measured result and ends with `teardown = support::forget_measured`
+//! (ADR-SIM-8, core#375): the count covers the bench function alone, so the function must hand its
+//! fixture back instead of dropping it, and the teardown, which runs outside the count, forgets it.
+//! This file checks the text of every `#[bench::…]`; `.github/scripts/bench_drop_guard.py` checks
+//! the measured profile. The bench files are also exactly the keys of `benches/budgets.toml`.
 
 use std::fs;
 use std::path::PathBuf;
