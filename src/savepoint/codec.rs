@@ -26,16 +26,28 @@ pub enum DecodeError {
 /// Bytes being written. The writer cannot fail.
 pub(crate) struct Writer {
     buf: Vec<u8>,
+    /// The `id_gap` entity IDs are written through (`id::to_compact`); 0 writes them as they are.
+    id_gap: u32,
 }
 
 impl Writer {
     pub(crate) fn new() -> Self {
-        Writer { buf: Vec::new() }
+        Writer {
+            buf: Vec::new(),
+            id_gap: 0,
+        }
     }
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Writer {
             buf: Vec::with_capacity(capacity),
+            id_gap: 0,
         }
+    }
+    pub(crate) fn id_gap(&self) -> u32 {
+        self.id_gap
+    }
+    pub(crate) fn set_id_gap(&mut self, gap: u32) {
+        self.id_gap = gap;
     }
     pub(crate) fn u8(&mut self, v: u8) {
         self.buf.push(v);
@@ -73,11 +85,19 @@ impl Writer {
 /// Bytes being read. Every read is bounds-checked, and a read that fails consumes nothing.
 pub(crate) struct Reader<'a> {
     data: &'a [u8],
+    /// The `id_gap` entity IDs were written through; 0 reads them as they are.
+    id_gap: u32,
 }
 
 impl<'a> Reader<'a> {
     pub(crate) fn new(data: &'a [u8]) -> Self {
-        Reader { data }
+        Reader { data, id_gap: 0 }
+    }
+    pub(crate) fn id_gap(&self) -> u32 {
+        self.id_gap
+    }
+    pub(crate) fn set_id_gap(&mut self, gap: u32) {
+        self.id_gap = gap;
     }
     pub(crate) fn remaining(&self) -> usize {
         self.data.len()
@@ -203,13 +223,24 @@ macro_rules! newtype_codec {
 }
 newtype_codec!(
     Fx(i32),
-    EntityId(u32),
     DefIndex(u16),
     BossIndex(u16),
     AttackIndex(u16),
     ProgramIndex(u32),
     KindIndex(u16),
 );
+
+impl Encode for EntityId {
+    fn encode(&self, w: &mut Writer) {
+        w.u32(crate::id::to_compact(*self, w.id_gap()));
+    }
+}
+impl Decode for EntityId {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let v = r.u32()?;
+        crate::id::from_compact(v, r.id_gap()).ok_or(DecodeError::Invalid("entity id out of range"))
+    }
+}
 
 /// The index types of the frozen rules are their own types (ADR-REPL-9), coded the same way.
 mod frozen_indices {
@@ -765,7 +796,11 @@ mod tests {
 
     #[test]
     fn a_gap_writes_entity_ids_compact_and_reads_them_back() {
-        let ids = (EntityId(3), Some(EntityId(4)), vec![(EntityId(0), 5u32), (EntityId(9), 1)]);
+        let ids = (
+            EntityId(3),
+            Some(EntityId(4)),
+            vec![(EntityId(0), 5u32), (EntityId(9), 1)],
+        );
         let mut w = Writer::new();
         w.set_id_gap(2);
         ids.0.encode(&mut w);
@@ -777,7 +812,7 @@ mod tests {
         r.set_id_gap(2);
         assert_eq!(EntityId::decode(&mut r), Ok(ids.0));
         assert_eq!(<Option<EntityId>>::decode(&mut r), Ok(ids.1));
-        assert_eq!(<Vec<(EntityId, u32)>>::decode(&mut r), Ok(ids.2));
+        assert_eq!(decode_vec::<(EntityId, u32)>(&mut r, 10), Ok(ids.2));
         assert_eq!(written(|w| EntityId(3).encode(w)), [3, 0, 0, 0]);
     }
 

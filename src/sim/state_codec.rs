@@ -6,6 +6,7 @@
 //! The layout is the fields in declaration order, an enum a `u8` tag (the number its
 //! `StableHash` writes), an `Option` a `0`/`1` tag, a list a `u32` length (see `savepoint`).
 
+use crate::id::EntityId;
 use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
     max_path,
@@ -1799,7 +1800,7 @@ impl Encode for State {
         orbs.encode(w);
         zones.encode(w);
         spawned.encode(w);
-        next_id.encode(w);
+        EntityId(*next_id).encode(w);
         next_orb_group.encode(w);
         progress.encode(w);
         stars.encode(w);
@@ -1843,7 +1844,7 @@ impl State {
             orbs: decode_vec(r, crate::limits::MAX_ORBS_ALIVE)?,
             zones: decode_vec(r, crate::limits::MAX_ZONES_ALIVE)?,
             spawned: decode_vec(r, MAX_CONTENT_LEN)?,
-            next_id: Decode::decode(r)?,
+            next_id: EntityId::decode(r)?.0,
             next_orb_group: Decode::decode(r)?,
             progress: Decode::decode(r)?,
             stars: Decode::decode(r)?,

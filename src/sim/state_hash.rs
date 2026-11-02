@@ -9,6 +9,7 @@
 use crate::attack::{DamageType, ZoneShape};
 use crate::engine::Outcome;
 use crate::hash::{StableHash, StateHasher, hash_enum};
+use crate::id::EntityId;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::sim::RangedPool;
@@ -1035,7 +1036,7 @@ impl StableHash for State {
         orbs.stable_hash(h);
         zones.stable_hash(h);
         spawned.stable_hash(h);
-        next_id.stable_hash(h);
+        EntityId(*next_id).stable_hash(h);
         next_orb_group.stable_hash(h);
         progress.stable_hash(h);
         stars.stable_hash(h);
@@ -1053,8 +1054,16 @@ impl StableHash for State {
         echoes.stable_hash(h);
         // Players 1 and up, after everything else, only when there are any (provisional
         // layout for a party; ADR-SIM-12).
-        if !players.others().is_empty() {
-            players.others().stable_hash(h);
+        // The map of the entity IDs needs the present slots to be a prefix.
+        if players.mask() != 0b001 {
+            assert!(
+                players.is_prefix(),
+                "id mapping needs the present players to be a prefix"
+            );
+            h.write_u8(players.mask());
+            for p in players.others() {
+                p.stable_hash(h);
+            }
         }
     }
 }

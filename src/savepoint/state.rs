@@ -263,7 +263,7 @@ macro_rules! state_codec {
                 below(z.program.0 as usize, programs, "zone program out of range")?;
             }
             // The one place the macro reads the players: the accessor each version passes.
-            let players: fn(&State) -> &[crate::$sim::state::PlayerState] = $get;
+            let players: fn(&State) -> Vec<&crate::$sim::state::PlayerState> = $get;
             for p in players(s) {
                 for o in &p.orbits {
                     // The key of an orbit is its reward's place, or `ORBIT_SET_BASE` and a set's place.
@@ -307,11 +307,11 @@ macro_rules! state_codec {
 }
 
 mod v1 {
-    state_codec!(sim_v1, |s| std::slice::from_ref(&s.player));
+    state_codec!(sim_v1, |s| vec![&s.player]);
 }
 
 mod v2 {
-    state_codec!(sim, |s| s.players.as_slice());
+    state_codec!(sim, |s| s.players.iter().collect());
 }
 
 #[cfg(test)]

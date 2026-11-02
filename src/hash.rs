@@ -22,6 +22,8 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
 #[derive(Clone, Debug)]
 pub struct StateHasher {
     state: u64,
+    /// The `id_gap` the entity IDs are written through (`id::to_compact`); 0 writes them as they are.
+    id_gap: u32,
     /// The bytes written, for the tests of the encoding.
     #[cfg(test)]
     written: Vec<u8>,
@@ -37,9 +39,19 @@ impl StateHasher {
     pub fn new() -> Self {
         Self {
             state: OFFSET_BASIS,
+            id_gap: 0,
             #[cfg(test)]
             written: Vec::new(),
         }
+    }
+
+    #[inline]
+    pub(crate) fn id_gap(&self) -> u32 {
+        self.id_gap
+    }
+
+    pub(crate) fn set_id_gap(&mut self, gap: u32) {
+        self.id_gap = gap;
     }
 
     pub fn write_bytes(&mut self, bytes: &[u8]) {
@@ -163,7 +175,7 @@ impl StableHash for crate::fixed::Point {
 
 impl StableHash for crate::id::EntityId {
     fn stable_hash(&self, h: &mut StateHasher) {
-        h.write_u32(self.0);
+        h.write_u32(crate::id::to_compact(*self, h.id_gap()));
     }
 }
 

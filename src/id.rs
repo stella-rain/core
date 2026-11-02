@@ -101,7 +101,9 @@ mod tests {
     }
 }
 
-/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).
+/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036). In
+/// the live rules the numbers 0 to 2 are the player slots, present or not (ADR-SIM-13), and the
+/// boss, the companions and the enemies are numbered from 3.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -110,6 +112,35 @@ pub struct EntityId(pub u32);
 
 /// The most players a run holds (ADR-SIM-12 point 1). A code cap, not a tuning number.
 pub const MAX_PLAYERS: u8 = 3;
+
+/// The entity numbers a party of `party` players leaves empty: the slots `party..MAX_PLAYERS`
+/// are reserved (ADR-SIM-13), and the hash and the savepoint write the numbers without them.
+#[inline]
+pub(crate) fn id_gap(party: usize) -> u32 {
+    u32::from(MAX_PLAYERS).saturating_sub(u32::try_from(party).unwrap_or(u32::MAX))
+}
+
+/// The number the hash and the savepoint write for `id` in a party whose `id_gap` is `gap`: a
+/// player's slot as it is, every other entity `gap` lower. One-to-one while the present slots
+/// are a prefix of the slots, as they are in a party of one (ADR-SIM-12, ADR-SIM-13).
+#[inline]
+pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
+    if id.0 < u32::from(MAX_PLAYERS) {
+        id.0
+    } else {
+        id.0 - gap
+    }
+}
+
+/// The inverse of `to_compact`; `None` when `v` plus the gap overflows.
+#[inline]
+pub(crate) fn from_compact(v: u32, gap: u32) -> Option<EntityId> {
+    if v < u32::from(MAX_PLAYERS).saturating_sub(gap) {
+        Some(EntityId(v))
+    } else {
+        v.checked_add(gap).map(EntityId)
+    }
+}
 
 /// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
 /// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
