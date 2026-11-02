@@ -400,13 +400,35 @@ impl Counted {
         }
     }
 
-    pub(crate) fn observe(&mut self, rewards: &Rewards, events: &[DomainEvent]) {
+    /// Counts `events` into the tallies and folds them into `stats` in the same pass: the
+    /// one loop over a tick's events is part of the measured tick (ADR-SIM-8).
+    pub(crate) fn observe(
+        &mut self,
+        rewards: &Rewards,
+        events: &[DomainEvent],
+        stats: &mut PlayerStats,
+    ) {
         for event in events {
             match event {
                 DomainEvent::Died {
                     class: EntityKind::Enemy,
+                    killer,
                     ..
-                } => self.kills = self.kills.saturating_add(1),
+                } => {
+                    self.kills = self.kills.saturating_add(1);
+                    stats.kill(*killer);
+                }
+                DomainEvent::Hit {
+                    player: Some(player),
+                    buffed_by,
+                    damage,
+                    ..
+                } => stats.hit(*player, *buffed_by, *damage),
+                DomainEvent::Healed {
+                    source: Some(giver),
+                    target,
+                    amount,
+                } => stats.heal(*giver, *target, *amount),
                 DomainEvent::RewardTaken {
                     reward,
                     taken,
@@ -498,37 +520,51 @@ impl PlayerStats {
                     buffed_by,
                     damage,
                     ..
-                } => {
-                    let damage = u64::from(*damage);
-                    if let Some(slot) = self.at(*player) {
-                        slot.damage_dealt = slot.damage_dealt.saturating_add(damage);
-                    }
-                    if let Some(buffer) = buffed_by.filter(|b| b != player) {
-                        if let Some(slot) = self.at(buffer) {
-                            slot.support = slot.support.saturating_add(damage);
-                        }
-                    }
-                }
+                } => self.hit(*player, *buffed_by, *damage),
                 DomainEvent::Healed {
                     source: Some(giver),
                     target,
                     amount,
-                } if giver != target => {
-                    if let Some(slot) = self.at(*giver) {
-                        slot.support = slot.support.saturating_add(u64::from(*amount));
-                    }
-                }
+                } => self.heal(*giver, *target, *amount),
                 DomainEvent::Died {
                     class: EntityKind::Enemy,
-                    killer: Some(killer),
+                    killer,
                     ..
-                } => {
-                    if let Some(slot) = self.at(*killer) {
-                        slot.kills = slot.kills.saturating_add(1);
-                    }
-                }
+                } => self.kill(*killer),
                 _ => {}
             }
+        }
+    }
+
+    /// A hit by `player`, buffed by `buffed_by`.
+    #[inline]
+    fn hit(&mut self, player: EntityId, buffed_by: Option<EntityId>, damage: u32) {
+        let damage = u64::from(damage);
+        if let Some(slot) = self.at(player) {
+            slot.damage_dealt = slot.damage_dealt.saturating_add(damage);
+        }
+        if let Some(buffer) = buffed_by.filter(|b| *b != player) {
+            if let Some(slot) = self.at(buffer) {
+                slot.support = slot.support.saturating_add(damage);
+            }
+        }
+    }
+
+    /// A heal of `amount` that `giver` gave to `target`; a self-heal is not support.
+    #[inline]
+    fn heal(&mut self, giver: EntityId, target: EntityId, amount: u32) {
+        if giver != target {
+            if let Some(slot) = self.at(giver) {
+                slot.support = slot.support.saturating_add(u64::from(amount));
+            }
+        }
+    }
+
+    /// An enemy defeated by `killer`, if a hit did it.
+    #[inline]
+    fn kill(&mut self, killer: Option<EntityId>) {
+        if let Some(slot) = killer.and_then(|k| self.at(k)) {
+            slot.kills = slot.kills.saturating_add(1);
         }
     }
 }

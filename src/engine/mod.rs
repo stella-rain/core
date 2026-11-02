@@ -438,14 +438,14 @@ impl Engine {
 
     fn observe_tick(&mut self) {
         self.run.observe_tick(&mut self.ledger, &self.events);
-        self.counted.observe(self.content.rewards(), &self.events);
-        self.player_stats.fold(&self.events);
+        self.counted
+            .observe(self.content.rewards(), &self.events, &mut self.player_stats);
     }
 
     fn observe_choice(&mut self) {
         self.run.observe_choice(&mut self.ledger, &self.events);
-        self.counted.observe(self.content.rewards(), &self.events);
-        self.player_stats.fold(&self.events);
+        self.counted
+            .observe(self.content.rewards(), &self.events, &mut self.player_stats);
     }
 
     /// Damage dealt, kills and support per player slot, folded from the events of every step
