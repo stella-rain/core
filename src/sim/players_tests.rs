@@ -500,7 +500,11 @@ mod offers {
         for seed in [0, 42, u64::MAX] {
             let tags = [TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2];
             let states: Vec<u64> = (0..MAX_PLAYERS)
-                .map(|i| Career::new(seed, slot(i), None, None).offer.state())
+                .map(|i| {
+                    Career::new(seed, slot(i), None, None, None, None)
+                        .offer
+                        .state()
+                })
                 .collect();
             for (i, tag) in tags.iter().enumerate() {
                 assert_eq!(states[i], derive(seed, *tag).state());
@@ -690,5 +694,260 @@ mod offers {
             banished: Vec::new(),
             set_counts: Vec::new(),
         }
+    }
+}
+
+// The expertise gauge, the run's Stardust and the regeneration are per slot: `Career.expertise`,
+// `Career.stardust`, `Career.regen` (ADR-SIM-12, ADR-SIM-13).
+
+mod career_rest {
+    use super::super::state::{ExpertiseGauge, ExpertiseOffer};
+    use super::super::{expertise, loadout, stardust};
+    use super::*;
+    use crate::perk_sets::{PerkEffect, PerkEntry};
+    use crate::snapshot::ExpertiseOfferKind;
+    use crate::stage::{ExpertisePoints, StardustFactor, StardustTier};
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).unwrap()
+    }
+
+    type Edit = Box<dyn Fn(&mut ExpertiseGauge)>;
+
+    fn gauge(k: u32) -> ExpertiseGauge {
+        ExpertiseGauge {
+            level: 1 + k,
+            points: 2 + k,
+            next: 30 + k,
+            offered: 1 + k,
+            offer: Some(ExpertiseOffer {
+                level: 1 + k,
+                kind: ExpertiseOfferKind::Common,
+                candidates: vec![0, 1],
+            }),
+            taken: vec![1, 2],
+            range_pct: 5 + k,
+            style: Some(1),
+            path: vec![0, 1],
+        }
+    }
+
+    /// A party of `mask` over the worst case, slot 0 holding a full gauge, Stardust and regen.
+    fn party(mask: u8) -> (World, State) {
+        let e = worst_case::warmed_up();
+        let (w, st) = live(&e);
+        let mut s = st.clone();
+        s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&st.players);
+        let c = s.players.career_mut(PlayerIdx::SOLO);
+        c.expertise = Some(gauge(0));
+        c.stardust = Some(7);
+        c.regen = 3;
+        (w.clone(), s)
+    }
+
+    fn career(s: &mut State, i: u8) -> &mut Career {
+        &mut s.players.careers_mut_for_test()[usize::from(i)]
+    }
+
+    #[test]
+    fn every_field_of_slot_0s_gauge_stardust_and_regen_moves_the_hash() {
+        for mask in [0b001u8, 0b011] {
+            let (_, base) = party(mask);
+            let mut edits: Vec<Edit> = vec![
+                Box::new(|g| g.level += 1),
+                Box::new(|g| g.points += 1),
+                Box::new(|g| g.next += 1),
+                Box::new(|g| g.offered += 1),
+                Box::new(|g| g.offer = None),
+                Box::new(|g| g.offer.as_mut().unwrap().level += 1),
+                Box::new(|g| g.offer.as_mut().unwrap().candidates.push(2)),
+                Box::new(|g| g.taken[0] += 1),
+                Box::new(|g| g.range_pct += 1),
+                Box::new(|g| g.style = None),
+                Box::new(|g| g.path.push(1)),
+            ];
+            for (n, f) in edits.drain(..).enumerate() {
+                let mut s = base.clone();
+                f(career(&mut s, 0).expertise.as_mut().unwrap());
+                assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} gauge edit {n}");
+            }
+            let ExpertiseGauge {
+                level: _,
+                points: _,
+                next: _,
+                offered: _,
+                offer: _,
+                taken: _,
+                range_pct: _,
+                style: _,
+                path: _,
+            } = gauge(0);
+            let ExpertiseOffer {
+                level: _,
+                kind: _,
+                candidates: _,
+            } = gauge(0).offer.unwrap();
+            let mut s = base.clone();
+            career(&mut s, 0).expertise = None;
+            assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} gauge none");
+            for v in [None, Some(8)] {
+                let mut s = base.clone();
+                career(&mut s, 0).stardust = v;
+                assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} stardust {v:?}");
+            }
+            let mut s = base.clone();
+            career(&mut s, 0).regen += 1;
+            assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} regen");
+        }
+    }
+
+    #[test]
+    fn slots_1_and_2_gauge_stardust_and_regen_are_in_the_tail_in_slot_order() {
+        for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
+            let (_, none) = party(mask);
+            for i in 1..top {
+                let mut g = none.clone();
+                career(&mut g, i).expertise = Some(gauge(0));
+                assert_ne!(hash_of(&g), hash_of(&none), "{mask:b} slot {i} gauge");
+                let mut g2 = g.clone();
+                career(&mut g2, i).expertise.as_mut().unwrap().points += 1;
+                assert_ne!(hash_of(&g2), hash_of(&g), "{mask:b} slot {i} gauge field");
+                let mut d = none.clone();
+                career(&mut d, i).stardust = Some(4);
+                assert_ne!(hash_of(&d), hash_of(&none), "{mask:b} slot {i} stardust");
+                let mut r = none.clone();
+                career(&mut r, i).regen = 4;
+                assert_ne!(hash_of(&r), hash_of(&none), "{mask:b} slot {i} regen");
+            }
+        }
+        let (_, base) = party(0b111);
+        let (mut x, mut y) = (base.clone(), base.clone());
+        career(&mut x, 1).expertise = Some(gauge(0));
+        career(&mut y, 2).expertise = Some(gauge(0));
+        assert_ne!(hash_of(&x), hash_of(&y), "gauge: slot 2 after slot 1");
+        let (mut x, mut y) = (base.clone(), base.clone());
+        career(&mut x, 1).stardust = Some(4);
+        career(&mut y, 2).stardust = Some(4);
+        assert_ne!(hash_of(&x), hash_of(&y), "stardust: slot 2 after slot 1");
+        let (mut x, mut y) = (base.clone(), base.clone());
+        career(&mut x, 1).regen = 4;
+        career(&mut y, 2).regen = 4;
+        assert_ne!(hash_of(&x), hash_of(&y), "regen: slot 2 after slot 1");
+        // The order inside a slot: Stardust then regen.
+        let (mut x, mut y) = (base.clone(), base.clone());
+        (career(&mut x, 1).stardust, career(&mut x, 1).regen) = (Some(5), 0);
+        (career(&mut y, 1).stardust, career(&mut y, 1).regen) = (None, 5);
+        assert_ne!(
+            hash_of(&x),
+            hash_of(&y),
+            "stardust and regen differ in place"
+        );
+    }
+
+    #[test]
+    fn absent_slots_gauge_stardust_and_regen_are_not_hashed() {
+        let (_, solo) = party(0b001);
+        let mut s = solo.clone();
+        for i in 1..MAX_PLAYERS {
+            let c = career(&mut s, i);
+            c.expertise = Some(gauge(1));
+            c.stardust = Some(9);
+            c.regen = 9;
+        }
+        assert_eq!(hash_of(&s), hash_of(&solo));
+    }
+
+    /// The first enemy of `s` made a wave enemy that gives expertise points and Stardust.
+    fn with_rewarding_enemy(w: &mut World, s: &mut State) {
+        s.enemies[0].key.source = super::super::state::AgentSource::Wave;
+        s.enemies[0].key.index = 0;
+        w.stage.waves[0].expertise = Some(ExpertisePoints { hit: 3, kill: 5 });
+        w.stage.waves[0].stardust = Some(100);
+        w.stage.stardust = Some(StardustFactor {
+            tiers: vec![StardustTier {
+                start_tick: 0,
+                pct: 50,
+            }],
+            summon_base: None,
+        });
+    }
+
+    #[test]
+    fn credit_goes_to_the_slot_it_is_given() {
+        for (me, other) in [(1u8, 0u8), (0, 1)] {
+            let (mut w, mut s) = party(0b011);
+            with_rewarding_enemy(&mut w, &mut s);
+            career(&mut s, 0).expertise = Some(gauge(0));
+            career(&mut s, 1).expertise = Some(gauge(0));
+            let before = career(&mut s, other).expertise.clone();
+            let points = career(&mut s, me).expertise.as_ref().unwrap().points;
+            expertise::credit(&w, &mut s, slot(me), Who::Enemy(0), true);
+            assert_eq!(
+                career(&mut s, me).expertise.as_ref().unwrap().points,
+                points + 8
+            );
+            assert_eq!(career(&mut s, other).expertise, before);
+            expertise::credit(&w, &mut s, slot(me), Who::Enemy(0), false);
+            assert_eq!(
+                career(&mut s, me).expertise.as_ref().unwrap().points,
+                points + 11
+            );
+        }
+        // A slot with no gauge stays without one.
+        let (mut w, mut s) = party(0b011);
+        with_rewarding_enemy(&mut w, &mut s);
+        career(&mut s, 1).expertise = None;
+        expertise::credit(&w, &mut s, slot(1), Who::Enemy(0), true);
+        assert_eq!(career(&mut s, 1).expertise, None);
+    }
+
+    #[test]
+    fn stardust_is_earned_by_the_slot_it_is_given() {
+        let (mut w, mut s) = party(0b011);
+        with_rewarding_enemy(&mut w, &mut s);
+        s.enemies[0].hp = 0;
+        s.enemies[0].burst = false;
+        career(&mut s, 0).stardust = Some(0);
+        career(&mut s, 1).stardust = Some(0);
+        stardust::credit_defeated(&w, &mut s, slot(1));
+        assert_eq!(career(&mut s, 1).stardust, Some(50));
+        assert_eq!(career(&mut s, 0).stardust, Some(0));
+        career(&mut s, 1).stardust = None;
+        stardust::credit_defeated(&w, &mut s, slot(1));
+        assert_eq!(career(&mut s, 1).stardust, None);
+        career(&mut s, 1).stardust = Some(crate::validate::limits::MAX_RUN_STARDUST - 1);
+        stardust::credit_defeated(&w, &mut s, slot(1));
+        assert_eq!(
+            career(&mut s, 1).stardust,
+            Some(crate::validate::limits::MAX_RUN_STARDUST)
+        );
+    }
+
+    #[test]
+    fn regen_and_its_perk_act_on_the_slot_they_are_given() {
+        let (_, mut s) = party(0b011);
+        s.tick = loadout::REGEN_TICKS * 2;
+        career(&mut s, 0).regen = 0;
+        career(&mut s, 1).regen = 5;
+        for i in 0..2 {
+            let max = s.players[slot(i)].max_hp;
+            s.players[slot(i)].hp = max.saturating_sub(100).max(1);
+        }
+        let (h0, h1) = (s.players[slot(0)].hp, s.players[slot(1)].hp);
+        loadout::regen(&mut s, slot(1));
+        assert_eq!(s.players[slot(0)].hp, h0);
+        assert_eq!(
+            s.players[slot(1)].hp,
+            (h1 + 5).min(s.players[slot(1)].max_hp)
+        );
+        loadout::perk(
+            &mut s,
+            slot(1),
+            PerkEntry {
+                effect: PerkEffect::Regen,
+                amount: 2,
+            },
+        );
+        assert_eq!((career(&mut s, 0).regen, career(&mut s, 1).regen), (0, 7));
     }
 }

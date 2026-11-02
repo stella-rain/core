@@ -49,6 +49,9 @@
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
 //! per player slot (`Players.careers`); until commands are routed per player it is slot 0's.
+//! So are the expertise gauge, the Stardust and the regeneration (`Career`): the hash and format 1
+//! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
+//! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
@@ -479,7 +482,14 @@ fn unreserved_state(
                 aggro: 0,
                 statuses: Default::default(),
             },
-            Career::new(seed, PlayerIdx::SOLO, progress, offers), // N=1: M-PER-PLAYER
+            Career::new(
+                seed,
+                PlayerIdx::SOLO, // N=1: M-PER-PLAYER
+                progress,
+                offers,
+                expertise::initial(stage, content.expertise()),
+                stage.stardust.as_ref().map(|_| 0),
+            ),
         ),
         boss,
         companions,
@@ -501,7 +511,6 @@ fn unreserved_state(
             pool: pool.rewards,
         }),
         heal_pickups: stage.heal.as_ref().map(|_| Vec::new()),
-        expertise: expertise::initial(stage, content.expertise()),
         match_ups: *content.match_ups(),
         runes: content.runes().clone(),
         stun: run_stats.stun(),
@@ -509,8 +518,6 @@ fn unreserved_state(
         enemy_attack_damage: run_stats.enemy_attack_damage(),
         max_rune_haste_pct: content.rewards().max_rune_haste_pct(),
         horde: None,
-        stardust: stage.stardust.as_ref().map(|_| 0),
-        regen: 0,
         hp_pct: pool.difficulty.hp_pct,
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
@@ -633,7 +640,11 @@ fn stat_offer_open(s: &State) -> bool {
 /// stopped.
 pub(crate) fn offer_open(s: &State) -> bool {
     s.players.career(PlayerIdx::SOLO).offers.as_ref().is_some_and(|o| o.offer.is_some()) // N=1: M-PER-PLAYER
-        || s.expertise.as_ref().is_some_and(|g| g.offer.is_some())
+        || s.players
+            .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+            .expertise
+            .as_ref()
+            .is_some_and(|g| g.offer.is_some())
         || stat_offer_open(s)
 }
 
@@ -648,7 +659,7 @@ fn open_offers(
     events: &mut Vec<DomainEvent>,
 ) {
     stars::open_due(stage, rewards, s, events, true);
-    expertise::open_due(stage, expertise, s, events);
+    expertise::open_due(stage, expertise, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     levels::open_due(s, events);
     stars::open_due(stage, rewards, s, events, false);
 }
@@ -660,8 +671,13 @@ pub(crate) fn offer_options(
     expertise: &Expertise,
     s: &State,
 ) -> Vec<OfferOption> {
-    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
-        expertise::options(stage, expertise, s)
+    if s.players
+        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .expertise
+        .as_ref()
+        .is_some_and(|g| g.offer.is_some())
+    {
+        expertise::options(stage, expertise, s, PlayerIdx::SOLO) // N=1: M-PER-PLAYER
     } else if stat_offer_open(s) {
         levels::options(s)
     } else {
@@ -680,7 +696,12 @@ pub(crate) fn choose(
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
-    if s.expertise.as_ref().is_some_and(|g| g.offer.is_some()) {
+    if s.players
+        .career(PlayerIdx::SOLO) // N=1: M-PER-PLAYER
+        .expertise
+        .as_ref()
+        .is_some_and(|g| g.offer.is_some())
+    {
         expertise::choose(stage, expertise, s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
     } else if stat_offer_open(s) {
         levels::choose(s, PlayerIdx::SOLO, option, events); // N=1: M-PER-PLAYER
@@ -1147,7 +1168,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.companions.retain(|c| c.hp > 0);
     combat::bursts(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     levels::credit_defeated(stage, s, events);
-    stardust::credit_defeated(stage, s);
+    stardust::credit_defeated(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
     stars::drop_from_defeated(stage, s, events);
     heal::drop_from_defeated(stage, s, events);
     heal::kills_heal(s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
@@ -1155,7 +1176,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
         stars::boss_killed(stage, s);
         heal::boss_killed(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
-        stardust::boss_killed(stage, s);
+        stardust::boss_killed(stage, s, PlayerIdx::SOLO); // N=1: M-PER-PLAYER
     }
     stars::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
     heal::pick_up(stage, s, PlayerIdx::SOLO, events); // N=1: M-PER-PLAYER
@@ -1238,7 +1259,7 @@ fn damage(
     }
     s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
-        expertise::credit(stage, s, target, dead);
+        expertise::credit(stage, s, me, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, target, events);
         }

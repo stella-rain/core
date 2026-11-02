@@ -820,6 +820,12 @@ impl StableHash for Career {
             offer: _,
             // not hashed: written by `State`, interleaved with the star field.
             offers: _,
+            // not hashed/saved here: written by `State`.
+            expertise: _,
+            // not hashed/saved here: written by `State`.
+            stardust: _,
+            // not hashed/saved here: written by `State`.
+            regen: _,
         } = self;
         progress.stable_hash(h);
     }
@@ -1062,7 +1068,6 @@ impl State {
             next_orb_group,
             stars,
             heal_pickups,
-            expertise,
             // not hashed: content, covered by the content hash.
             match_ups: _,
             // not hashed: content, covered by the content hash.
@@ -1073,8 +1078,6 @@ impl State {
             enemy_attack_damage,
             max_rune_haste_pct,
             horde,
-            stardust,
-            regen,
             hp_pct,
             damage_pct,
             crit_seed,
@@ -1100,21 +1103,23 @@ impl State {
         players.career(PlayerIdx::SOLO).stable_hash(h);
         hash_star_field(stars, &players.career(PlayerIdx::SOLO).offers, h);
         heal_pickups.stable_hash(h);
-        expertise.stable_hash(h);
+        // Slot 0's expertise gauge, where the run's single one was.
+        players.career(PlayerIdx::SOLO).expertise.stable_hash(h);
         max_attack_speed_pct.stable_hash(h);
         enemy_attack_damage.stable_hash(h);
         max_rune_haste_pct.stable_hash(h);
         horde.stable_hash(h);
-        stardust.stable_hash(h);
-        regen.stable_hash(h);
+        // Slot 0's Stardust and regeneration, where the run's single ones were.
+        players.career(PlayerIdx::SOLO).stardust.stable_hash(h);
+        players.career(PlayerIdx::SOLO).regen.stable_hash(h);
         hp_pct.stable_hash(h);
         damage_pct.stable_hash(h);
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
         // Players 1 and up, after everything else, only when there are any (provisional
         // layout for a party, the hash-layout work owns the final one: the others' players, then
-        // their careers, each as the progress, the offer generator's state and the offers;
-        // ADR-SIM-12).
+        // their careers, each as the progress, the offer generator's state, the offers, the expertise
+        // gauge, the Stardust and the regeneration; ADR-SIM-12).
         // The map of the entity IDs needs the present slots to be a prefix.
         if players.mask() != 0b001 {
             assert!(
@@ -1129,6 +1134,9 @@ impl State {
                 c.stable_hash(h);
                 c.offer.state().stable_hash(h);
                 c.offers.stable_hash(h);
+                c.expertise.stable_hash(h);
+                c.stardust.stable_hash(h);
+                c.regen.stable_hash(h);
             }
         }
     }

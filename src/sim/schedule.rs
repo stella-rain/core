@@ -200,7 +200,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn level_up(c: &mut Ctx) {
-        expertise::level_up(c.expertise, c.s);
+        expertise::level_up(c.expertise, c.s, c.me);
     }
 
     #[inline(never)]

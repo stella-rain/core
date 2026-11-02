@@ -410,8 +410,8 @@ macro_rules! state_codec_v2 {
                 "heal_pickups presence differs from the content",
             )?;
             same_presence(
-                &s.expertise,
-                &fresh.expertise,
+                &s.players.career(PlayerIdx::SOLO).expertise,
+                &fresh.players.career(PlayerIdx::SOLO).expertise,
                 "expertise presence differs from the content",
             )?;
             same_presence(
@@ -420,8 +420,8 @@ macro_rules! state_codec_v2 {
                 "horde presence differs from the content",
             )?;
             same_presence(
-                &s.stardust,
-                &fresh.stardust,
+                &s.players.career(PlayerIdx::SOLO).stardust,
+                &fresh.players.career(PlayerIdx::SOLO).stardust,
                 "stardust presence differs from the content",
             )?;
             if let (Some(p), Some(f)) = (
@@ -455,7 +455,10 @@ macro_rules! state_codec_v2 {
                     return Err(differs("star set_counts length differs from the content"));
                 }
             }
-            if let (Some(a), Some(f)) = (&s.expertise, &fresh.expertise) {
+            if let (Some(a), Some(f)) = (
+                &s.players.career(PlayerIdx::SOLO).expertise,
+                &fresh.players.career(PlayerIdx::SOLO).expertise,
+            ) {
                 if a.taken.len() != f.taken.len() {
                     return Err(differs("expertise taken length differs from the content"));
                 }
@@ -572,7 +575,7 @@ macro_rules! state_codec_v2 {
                     below(usize::from(*c), rewards, "offer candidate out of range")?;
                 }
             }
-            if let Some(g) = &s.expertise {
+            if let Some(g) = &s.players.career(PlayerIdx::SOLO).expertise {
                 if let Some(o) = &g.offer {
                     if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
                         for c in &o.candidates {
@@ -784,6 +787,109 @@ mod offers_tests {
                 "star taken length differs from the content"
             ))
         );
+    }
+}
+
+#[cfg(test)]
+mod career_rest_tests {
+    //! Slot 0's expertise gauge, Stardust and regeneration sit where the run's single ones were:
+    //! they round-trip through format 1 and the shape check names their presence and lengths.
+
+    use crate::bench_fixtures::{time_limit_case, worst_case};
+    use crate::engine::{Engine, Run};
+    use crate::id::PlayerIdx;
+    use crate::savepoint::DecodeError;
+    use crate::savepoint::state::{decode_state, encode_state};
+
+    use super::v2::check_shape;
+
+    #[test]
+    fn slot_0s_gauge_stardust_and_regen_round_trip() {
+        let mut gauges = 0;
+        for (e, stage) in [
+            (worst_case::warmed_up(), worst_case::stage()),
+            (time_limit_case::warmed_up(), time_limit_case::stage()),
+        ] {
+            let fresh = Engine::new_with(&stage, e.content()).unwrap();
+            // The cases earn nothing in their warm-up, so the values are set on a copy.
+            let (mut saved, ledger, counted) = decode_state(&encode_state(&e), &fresh).unwrap();
+            let crate::engine::Saved::V2(state) = &mut saved else {
+                panic!("the live rules")
+            };
+            let c = state.players.career_mut(PlayerIdx::SOLO);
+            if let Some(g) = c.expertise.as_mut() {
+                gauges += 1;
+                g.points = 4;
+                g.level = 2;
+                g.range_pct = 6;
+            }
+            if c.stardust.is_some() {
+                c.stardust = Some(1_230);
+            }
+            c.regen = 3;
+            let (want_gauge, want_dust) = (c.expertise.clone(), c.stardust);
+            let set = fresh.clone().with_saved(saved, ledger, counted);
+            let bytes = encode_state(&set);
+            let (saved, ledger, counted) = decode_state(&bytes, &fresh).unwrap();
+            let back = fresh.clone().with_saved(saved, ledger, counted);
+            let Run::V2 { state: b, .. } = back.run() else {
+                panic!("the live rules")
+            };
+            let d = b.players.career(PlayerIdx::SOLO);
+            assert_eq!(d.expertise, want_gauge);
+            assert_eq!(d.stardust, want_dust);
+            assert_eq!(d.regen, 3);
+            assert_eq!(encode_state(&back), bytes);
+        }
+        assert!(gauges > 0, "no case has a gauge");
+    }
+
+    #[test]
+    fn the_shape_check_names_the_gauge_and_stardust() {
+        let mut checked = 0;
+        for (e, stage) in [
+            (worst_case::warmed_up(), worst_case::stage()),
+            (time_limit_case::warmed_up(), time_limit_case::stage()),
+        ] {
+            let fresh = Engine::new_with(&stage, e.content()).unwrap();
+            let (Run::V2 { state, .. }, Run::V2 { state: blank, .. }) = (e.run(), fresh.run())
+            else {
+                panic!("the live rules")
+            };
+            let counted = e.saved_parts().1;
+            let mut bad = state.clone();
+            let c = bad.players.career_mut(PlayerIdx::SOLO);
+            if let Some(g) = c.expertise.as_mut() {
+                checked += 1;
+                g.taken.push(0);
+                assert_eq!(
+                    check_shape(&bad, counted, blank, counted),
+                    Err(DecodeError::Invalid(
+                        "expertise taken length differs from the content"
+                    ))
+                );
+                bad.players.career_mut(PlayerIdx::SOLO).expertise = None;
+                assert_eq!(
+                    check_shape(&bad, counted, blank, counted),
+                    Err(DecodeError::Invalid(
+                        "expertise presence differs from the content"
+                    ))
+                );
+            }
+            let mut bad = state.clone();
+            let c = bad.players.career_mut(PlayerIdx::SOLO);
+            c.stardust = match c.stardust {
+                Some(_) => None,
+                None => Some(0),
+            };
+            assert_eq!(
+                check_shape(&bad, counted, blank, counted),
+                Err(DecodeError::Invalid(
+                    "stardust presence differs from the content"
+                ))
+            );
+        }
+        assert!(checked > 0, "no case has a gauge");
     }
 }
 

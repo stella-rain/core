@@ -592,17 +592,14 @@ pub(super) fn choose(
     events: &mut Vec<DomainEvent>,
 ) {
     let rune_weight = random_rune_weight(stage, s);
-    let State {
-        stars,
-        players,
-        regen,
-        ..
-    } = s;
+    let State { stars, players, .. } = s;
     let (player, career) = players.both_mut(PlayerIdx::SOLO); // N=1: M-PER-PLAYER
     let Career {
         progress,
         offer: rng,
         offers,
+        regen,
+        ..
     } = career;
     let (Some(f), Some(offers)) = (stars.as_ref(), offers.as_mut()) else {
         return;
@@ -888,17 +885,14 @@ mod tests {
             1,
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
-        let State {
-            stars,
-            players,
-            regen,
-            ..
-        } = &mut s;
+        let State { stars, players, .. } = &mut s;
         let (player, career) = players.both_mut(PlayerIdx::SOLO);
         let Career {
             progress,
             offer: rng,
             offers,
+            regen,
+            ..
         } = career;
         let f = stars.as_ref().expect("a star field");
         let o = offers.as_mut().expect("star offers");
