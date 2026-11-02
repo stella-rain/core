@@ -323,6 +323,7 @@ fn a_buff_raises_the_main_character_s_attack_for_its_time() {
         status: ContentId::from("atk_up"),
         stacks: 1,
         duration_ticks: DURATION,
+        source: None,
     }));
 }
 

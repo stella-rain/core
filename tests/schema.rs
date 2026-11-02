@@ -264,6 +264,7 @@ fn the_events_that_name_an_id_keep_their_json() {
                 status: ContentId::from("stun"),
                 stacks: 1,
                 duration_ticks: 30,
+                source: None,
             },
             r#"{"type":"StatusApplied","data":{"target":3,"status":"stun","stacks":1,"duration_ticks":30}}"#,
         ),

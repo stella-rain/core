@@ -147,6 +147,8 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 rune: None,
                 crit: false,
                 echo: false,
+                player: None,
+                buffed_by: None,
             }
         )) if e.kinds().id(*bat) == Some(&ContentId::from("bat"))
     ));
@@ -230,12 +232,15 @@ fn beating_the_boss_clears_the_stage() {
                 rune: None,
                 crit: false,
                 echo: false,
+                player: None,
+                buffed_by: None,
             },
             &DomainEvent::Died {
                 entity: EntityId(1),
                 kind: e.kinds().index_of(&ContentId::from("golem")),
                 class: stella_rain_core::snapshot::EntityKind::Boss,
                 elite: false,
+                killer: None,
             },
             &DomainEvent::StageCleared,
         ]

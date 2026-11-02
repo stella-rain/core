@@ -105,6 +105,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
         if s.hp(target) == 0 || !super::damageable(s, target) {
             continue;
         }
+        let me = super::hitter(s, echo.source);
         let hp = s.hp_mut(target);
         let hp_before = *hp;
         *hp = hp.saturating_sub(echo.damage);
@@ -119,14 +120,16 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             rune: None,
             crit: false,
             echo: true,
+            player: Some(me.id()),
+            buffed_by: None,
         });
         if dead {
             if let Who::Enemy(i) = target {
                 if hp_before > 0 {
-                    super::record_kill(s, i, super::hitter(s, echo.source));
+                    super::record_kill(s, i, me);
                 }
             }
-            events.push(super::death_event(s, target, echo.target));
+            events.push(super::death_event(s, target, echo.target, Some(me)));
         }
         s.raise_aggro(
             echo.source,

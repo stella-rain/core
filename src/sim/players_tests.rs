@@ -1443,3 +1443,225 @@ mod route {
         }
     }
 }
+
+/// The events name the player behind a hit, a heal, a buff and a kill (ADR-SIM-12).
+mod stats_events {
+    use super::super::state::{StatusKind, StatusState};
+    use super::*;
+    use crate::event::DomainEvent;
+    use crate::id::EntityId;
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).expect("a slot")
+    }
+
+    fn some(i: u8) -> Option<EntityId> {
+        Some(slot(i).id())
+    }
+
+    /// A party's world and state with the tick's other work taken away.
+    fn bare(n: u8) -> (World, State) {
+        let e = worst_case::warmed_up().into_party(n);
+        let (w, s) = live(&e);
+        let mut s = s.clone();
+        s.runs.clear();
+        s.orbs.clear();
+        s.zones.clear();
+        s.echoes.clear();
+        (w.clone(), s)
+    }
+
+    fn shot(s: &State, owner: EntityId, at: usize, damage: u32) -> Shot {
+        Shot {
+            at: s.enemies[at].at,
+            owner,
+            friendly: true,
+            damage,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        }
+    }
+
+    fn hit_by(
+        w: &World,
+        s: &mut State,
+        by: EntityId,
+        me: u8,
+        at: usize,
+        damage: u32,
+    ) -> Vec<DomainEvent> {
+        let mut ev = Vec::new();
+        let b = shot(s, by, at, damage);
+        super::super::damage(w, s, slot(me), b, Who::Enemy(at), &mut ev);
+        ev
+    }
+
+    fn hits(ev: &[DomainEvent]) -> Vec<(EntityId, Option<EntityId>, Option<EntityId>, bool)> {
+        ev.iter()
+            .filter_map(|e| match e {
+                DomainEvent::Hit {
+                    source,
+                    player,
+                    buffed_by,
+                    echo,
+                    ..
+                } => Some((*source, *player, *buffed_by, *echo)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn killers(ev: &[DomainEvent]) -> Vec<Option<EntityId>> {
+        ev.iter()
+            .filter_map(|e| match e {
+                DomainEvent::Died { killer, .. } => Some(*killer),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn atk_up(s: &mut State, on: u8, source: EntityId, remaining: u32) {
+        s.players[slot(on)].statuses.push(StatusState {
+            kind: StatusKind::AtkUp,
+            source,
+            remaining,
+            total: remaining.max(1),
+            stacks: 1,
+            value_pct: 10,
+            dot: None,
+        });
+    }
+
+    #[test]
+    fn a_hit_names_the_player_that_made_it() {
+        let (w, mut s) = bare(3);
+        s.enemies[0].hp = 1_000_000;
+        for i in 0..3 {
+            let ev = hit_by(&w, &mut s, slot(i).id(), i, 0, 1);
+            assert_eq!(hits(&ev), vec![(slot(i).id(), some(i), None, false)]);
+        }
+        // A companion's (or any non-player's) hit is credited to slot 0, as its kills are.
+        let ev = hit_by(&w, &mut s, EntityId(999), 0, 0, 1);
+        assert_eq!(hits(&ev), vec![(EntityId(999), some(0), None, false)]);
+    }
+
+    #[test]
+    fn an_echo_names_the_player_it_was_queued_by() {
+        let (w, mut s) = bare(3);
+        s.enemies[0].hp = 1_000_000;
+        let id = s.enemies[0].id;
+        s.echoes.push(super::super::state::Echo {
+            source: slot(1).id(),
+            target: id,
+            damage: 5,
+            damage_type: None,
+        });
+        let mut ev = Vec::new();
+        super::super::combat::deal_echoes(&w, &mut s, &mut ev);
+        assert_eq!(hits(&ev), vec![(slot(1).id(), some(1), None, true)]);
+    }
+
+    #[test]
+    fn the_buffer_is_named_only_for_another_present_player_with_time_left() {
+        let (w, mut s) = bare(2);
+        s.enemies[0].hp = 1_000_000;
+        let cases: [(EntityId, u32, Option<EntityId>); 5] = [
+            (slot(0).id(), 10, some(0)),
+            (slot(1).id(), 10, None),
+            (EntityId(999), 10, None),
+            (slot(0).id(), 0, None),
+            (slot(2).id(), 10, None),
+        ];
+        for (source, remaining, want) in cases {
+            while !s.players[slot(1)].statuses.is_empty() {
+                s.players[slot(1)].statuses.pop();
+            }
+            atk_up(&mut s, 1, source, remaining);
+            let ev = hit_by(&w, &mut s, slot(1).id(), 1, 0, 1);
+            assert_eq!(hits(&ev)[0].2, want, "source {source:?}, {remaining} left");
+        }
+    }
+
+    #[test]
+    fn a_solo_hit_never_names_a_buffer() {
+        let (w, mut s) = bare(1);
+        s.enemies[0].hp = 1_000_000;
+        atk_up(&mut s, 0, slot(0).id(), 10);
+        let ev = hit_by(&w, &mut s, slot(0).id(), 0, 0, 1);
+        assert_eq!(hits(&ev), vec![(slot(0).id(), some(0), None, false)]);
+    }
+
+    #[test]
+    fn a_kill_names_the_first_hitter_and_a_repeat_names_nobody() {
+        let (w, mut s) = bare(3);
+        s.enemies[0].hp = 1;
+        let first = hit_by(&w, &mut s, slot(1).id(), 1, 0, 1_000_000);
+        assert_eq!(killers(&first), vec![some(1)]);
+        assert_eq!(
+            super::super::killer_of(&s, 0),
+            slot(1),
+            "the event says what the credit says"
+        );
+        let again = hit_by(&w, &mut s, slot(0).id(), 0, 0, 1_000_000);
+        assert!(killers(&again).iter().all(Option::is_none), "{again:?}");
+    }
+
+    #[test]
+    fn a_shrine_cleared_has_no_killer() {
+        let (_, s) = bare(2);
+        let ev = super::super::died_event(&s, Who::Enemy(0), s.enemies[0].id, None);
+        assert_eq!(killers(&[ev]), vec![None]);
+    }
+
+    #[test]
+    fn a_heal_and_a_status_name_who_gave_them() {
+        let (w, mut s) = bare(2);
+        let mut ev = Vec::new();
+        s.players[slot(1)].hp = 1;
+        s.players[slot(1)].kill_heal = 1;
+        s.players[slot(1)].kill_heal_every = 1;
+        s.players[slot(1)].kills_counted = 0;
+        s.enemies[0].hp = 1;
+        ev.extend(hit_by(&w, &mut s, slot(1).id(), 1, 0, 1_000_000));
+        super::super::collide(&w, &mut s, false, &mut ev);
+        let healed: Vec<_> = ev
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::Healed { target, source, .. } => Some((*target, *source)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(healed, vec![(slot(1).id(), some(1))]);
+
+        let mut ev = Vec::new();
+        s.add_status(
+            Who::Player(slot(0)),
+            StatusKind::AtkUp,
+            slot(1).id(),
+            10,
+            60,
+            &mut ev,
+        );
+        s.add_status(
+            Who::Player(slot(0)),
+            StatusKind::Slow,
+            EntityId(999),
+            10,
+            60,
+            &mut ev,
+        );
+        s.add_stun(Who::Enemy(1), slot(1).id(), 30, &mut ev);
+        let sources: Vec<_> = ev
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::StatusApplied { source, .. } => Some(*source),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(sources, vec![some(1), None, some(1)]);
+    }
+}

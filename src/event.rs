@@ -76,6 +76,15 @@ pub enum DomainEvent {
         /// The hit is an echo of an earlier one, a tick later; left out when not.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         echo: bool,
+        /// The player credited with the hit, by its entity number (0 to 2, as `Healed::target`
+        /// names one): the owner of the shot, or slot 0 for a companion's. Left out for a hit
+        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-12).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        player: Option<EntityId>,
+        /// The other player whose attack-up was on `player` when the hit landed. Left out when
+        /// there is none, when it is `player` itself, and at `sim_version` 1.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        buffed_by: Option<EntityId>,
     },
     /// A kill burst went off where an enemy fell: it damaged the enemies within `radius`
     /// (1/256 pixel) of `at`. `depth` counts the links of the chain, from 1 for the burst of
@@ -95,12 +104,20 @@ pub enum DomainEvent {
     Healed {
         target: EntityId,
         amount: u32,
+        /// The player that gave the heal (its entity number); left out when a companion or an
+        /// enemy gave it, and at `sim_version` 1.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<EntityId>,
     },
     StatusApplied {
         target: EntityId,
         status: ContentId,
         stacks: u16,
         duration_ticks: u32,
+        /// The player that applied it (its entity number); left out when a companion or an
+        /// enemy did, and at `sim_version` 1.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<EntityId>,
     },
     /// `target`'s stun ran out; it is immune to a new one for the immunity ticks (ADR-085).
     StunEnded {
@@ -167,6 +184,11 @@ pub enum DomainEvent {
         /// An elite (`EntityView::elite`). Absent when false.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         elite: bool,
+        /// The player whose hit took it to 0 hit points (its entity number, the first hit of
+        /// the tick's fixed order). Left out when no hit did (a shrine cleared), for an ally,
+        /// and at `sim_version` 1.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        killer: Option<EntityId>,
     },
     StageCleared,
     StageFailed,

@@ -1306,6 +1306,13 @@ fn damage(
             record_kill(s, i, me);
         }
     }
+    let foe = !State::is_ally(target);
+    // The buffer is read only in a party, and for a player's own shot (ADR-SIM-12).
+    let buffed_by = if foe && s.players.len() > 1 && s.players.owner_of(b.owner).is_some() {
+        buffer_of(s, me)
+    } else {
+        None
+    };
     events.push(DomainEvent::Hit {
         source: b.owner,
         target: id,
@@ -1316,9 +1323,12 @@ fn damage(
         rune: b.rune,
         crit,
         echo: false,
+        player: foe.then(|| me.id()),
+        buffed_by,
     });
     if dead {
-        events.push(death_event(s, target, id));
+        let killer = (foe && before > 0).then_some(me);
+        events.push(death_event(s, target, id, killer));
     } else if s.players[me].echo_hit_pct != 0 {
         combat::queue_echo(s, me, &b, id, dealt, !State::is_ally(target));
     }
@@ -1372,24 +1382,43 @@ pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
     s.players.owner_of(owner).unwrap_or(PlayerIdx::SOLO)
 }
 
+/// The other player whose attack-up is on `me` and still running, if any: the one that applied
+/// it last (`StatusState::source`). Read when a hit lands, from the hashed state alone, so a
+/// replay gives the same answer (ADR-SIM-12).
+fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
+    let up = s
+        .statuses(Who::Player(me))
+        .iter()
+        .find(|st| st.kind == state::StatusKind::AtkUp && st.remaining > 0)?;
+    s.players
+        .owner_of(up.source)
+        .filter(|b| *b != me)
+        .map(PlayerIdx::id)
+}
+
 /// Whether anything can damage `target`: a shrine and a mimic in disguise are objects (ADR-090).
 fn damageable(s: &State, target: Who) -> bool {
     !matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden())
 }
 
 /// What a death is reported as: a part breaks, everything else dies.
-fn death_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
+fn death_event(s: &State, target: Who, id: EntityId, killer: Option<PlayerIdx>) -> DomainEvent {
     match (target, s.boss.as_ref()) {
         (Who::BossPart(i), Some(boss)) => DomainEvent::PartBroken {
             part: boss.parts[i].name.clone(),
         },
-        _ => died_event(s, target, id),
+        _ => died_event(s, target, id, killer),
     }
 }
 
 /// A death, with what died: the class `EntityView::kind` gives it (`AgentState::entity_kind`), and
 /// whether it is an elite. The one place a `Died` is built.
-pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
+pub(super) fn died_event(
+    s: &State,
+    target: Who,
+    id: EntityId,
+    killer: Option<PlayerIdx>,
+) -> DomainEvent {
     let (class, agent) = match target {
         Who::Boss => (EntityKind::Boss, None),
         Who::BossPart(_) => (EntityKind::BossPart, None),
@@ -1406,6 +1435,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
+        killer: killer.map(PlayerIdx::id),
     }
 }
 
