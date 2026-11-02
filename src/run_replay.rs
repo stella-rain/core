@@ -52,6 +52,7 @@ use crate::replay::{hash_from_hex, hash_to_hex, pack_inputs, read_varint, unpack
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
+use crate::step_log::{Record, StepLog};
 use crate::validate;
 use crate::version::{self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, Versions};
 
@@ -486,7 +487,7 @@ impl RunReplay {
         }
         let bytes = base64::decode(&self.inputs)
             .map_err(|_| RunReplayError::BadInputs("not valid base64"))?;
-        unpack(&bytes, self.ticks).map_err(RunReplayError::BadInputs)
+        unpack(&bytes, self.ticks, false).map_err(RunReplayError::BadInputs)
     }
 
     /// The commands between ticks, in order: at most `MAX_COMMANDS`, of known kinds, none after
@@ -523,6 +524,23 @@ impl RunReplay {
             commands.push(TickCommand { tick, kind, index });
         }
         Ok(commands)
+    }
+
+    /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
+    /// and commands are migrated in memory, a schema 2 replay's `inputs` are decoded and its
+    /// `commands` must be empty (a pick is a field of the step it was made on).
+    pub(crate) fn step_log(&self, max_ticks: u32) -> Result<StepLog, RunReplayError> {
+        if self.setup.schema_version >= 2 {
+            if !self.commands.is_empty() {
+                return Err(RunReplayError::BadCommands("schema 2 has no command list"));
+            }
+            let bytes = base64::decode(&self.inputs)
+                .map_err(|_| RunReplayError::BadInputs("not valid base64"))?;
+            return StepLog::decode(&bytes, self.ticks, max_ticks);
+        }
+        let inputs = self.unpack_inputs(max_ticks)?;
+        let commands = self.unpack_commands()?;
+        Ok(StepLog::from_schema1(&inputs, &commands))
     }
 }
 
@@ -608,12 +626,13 @@ impl RunRecorder {
                 tick: engine.tick(),
             });
         }
+        let (inputs, commands) = run.log.to_solo()?;
         Ok(RunRecorder {
             setup: prefix.setup.clone(),
             content_sha256: prefix.content_sha256.clone(),
             engine,
-            inputs: run.inputs,
-            commands: run.commands,
+            inputs,
+            commands,
             checkpoints: run.checkpoints,
         })
     }
@@ -636,12 +655,16 @@ impl RunRecorder {
         pack: &Pack,
     ) -> Result<RunRecorder, SavepointError> {
         let (engine, history) = savepoint::restore(bytes, prefix, pack)?;
+        let (inputs, commands) = history
+            .log
+            .to_solo()
+            .map_err(|_| SavepointError::PrefixMismatch)?;
         Ok(RunRecorder {
             setup: prefix.setup.clone(),
             content_sha256: prefix.content_sha256.clone(),
             engine,
-            inputs: history.inputs,
-            commands: history.commands,
+            inputs,
+            commands,
             checkpoints: history.claimed,
         })
     }
@@ -859,19 +882,19 @@ fn verify_inner(
         ticks: engine.tick(),
         final_hash: actual,
         outcome: engine.outcome(),
-        commands: u32::try_from(run.commands.len()).unwrap_or(u32::MAX),
+        commands: run.picks,
         stardust: engine.stardust(),
         ledger: engine.ledger().clone(),
     })
 }
 
-/// What re-simulating a replay leaves: the engine after the last tick and the commands after it,
-/// the hash the replay claims for that point, and the unpacked inputs and commands.
+/// What re-simulating a replay leaves: the engine after the last tick and the picks after it,
+/// the hash the replay claims for that point, the step log and the number of picks in it.
 struct Resimulated {
     engine: Engine,
     final_hash: u64,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
+    log: StepLog,
+    picks: u32,
     /// The state hashes after ticks 60, 120, ..., as this run reached them.
     checkpoints: Vec<u64>,
 }
@@ -898,8 +921,7 @@ fn parse_checkpoints(replay: &RunReplay) -> Result<Vec<u64>, RunReplayError> {
 /// What a replay holds once parsed and checked against its content, before any tick runs.
 pub(crate) struct History {
     pub(crate) final_hash: u64,
-    pub(crate) inputs: Vec<Input>,
-    pub(crate) commands: Vec<TickCommand>,
+    pub(crate) log: StepLog,
     /// The checkpoints the replay claims, as numbers.
     pub(crate) claimed: Vec<u64>,
 }
@@ -917,17 +939,15 @@ pub(crate) fn unpack_history(
         return Err(RunReplayError::ContentChanged);
     }
     let final_hash = hash_from_hex(&replay.final_hash).ok_or(RunReplayError::BadHash)?;
-    let inputs = replay.unpack_inputs(run_setup::max_replay_ticks(
+    let log = replay.step_log(run_setup::max_replay_ticks(
         &replay.setup,
         &stage,
         run_content.time_limit(),
     ))?;
-    let commands = replay.unpack_commands()?;
     let claimed = parse_checkpoints(replay)?;
     Ok(History {
         final_hash,
-        inputs,
-        commands,
+        log,
         claimed,
     })
 }
@@ -940,12 +960,11 @@ fn resimulate(
 ) -> Result<Resimulated, RunReplayError> {
     let History {
         final_hash,
-        inputs,
-        commands,
+        log,
         claimed,
     } = unpack_history(replay, run_content)?;
     if let Some(expected) = expected {
-        if expected.len() != inputs.len() {
+        if expected.len() != replay.ticks as usize {
             return Err(RunReplayError::HashCount {
                 expected: replay.ticks,
                 given: expected.len(),
@@ -955,78 +974,92 @@ fn resimulate(
 
     let mut engine =
         Engine::start_with(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
-    let mut next = 0;
-    let mut reached = Vec::with_capacity(claimed.len());
-    for (i, input) in inputs.iter().enumerate() {
-        apply_commands(&mut engine, &commands, &mut next)?;
-        if engine.outcome() != Outcome::Running {
-            return Err(RunReplayError::InputsAfterEnd {
-                ended_at: engine.tick(),
-            });
-        }
-        if engine.offer_open() {
-            return Err(RunReplayError::OfferOpen {
-                tick: engine.tick(),
-            });
-        }
-        engine.step(&[*input]);
-        if let Some(expected) = expected {
-            let actual = engine.state_hash();
-            if expected[i] != actual {
-                return Err(RunReplayError::Diverged {
-                    tick: engine.tick(),
-                    expected: expected[i],
-                    actual,
-                });
-            }
-        }
-        if engine.tick() % CHECKPOINT_TICKS == 0 {
-            let actual = engine.state_hash();
-            let at = reached.len();
-            if claimed[at] != actual {
-                return Err(RunReplayError::CheckpointDiffers {
-                    second: u32::try_from(at + 1).unwrap_or(u32::MAX),
-                });
-            }
-            reached.push(actual);
-        }
-    }
-    apply_commands(&mut engine, &commands, &mut next)?;
-    // Every tick from 0 to the last took its commands, and none is after the last; this only
-    // keeps the check closed if that ever stops being true.
-    if next < commands.len() {
-        return Err(RunReplayError::BadCommands(
-            "a command is after the last tick",
+    // The slots present must be exactly the engine's party, from slot 0.
+    if usize::from(log.present.count_ones() as u8) != engine.players()
+        || log.present != (1u8 << engine.players()) - 1
+    {
+        return Err(RunReplayError::BadInputs(
+            "the party does not match the run",
         ));
+    }
+    let mut reached = Vec::with_capacity(claimed.len());
+    let mut picks = 0u32;
+    for record in &log.records {
+        match record {
+            Record::Ticks { run, inputs } => {
+                for _ in 0..*run {
+                    if engine.outcome() != Outcome::Running {
+                        return Err(RunReplayError::InputsAfterEnd {
+                            ended_at: engine.tick(),
+                        });
+                    }
+                    if engine.offer_open() {
+                        return Err(RunReplayError::OfferOpen {
+                            tick: engine.tick(),
+                        });
+                    }
+                    engine.step(inputs);
+                    if let Some(expected) = expected {
+                        let actual = engine.state_hash();
+                        let at = engine.tick() as usize - 1;
+                        if expected[at] != actual {
+                            return Err(RunReplayError::Diverged {
+                                tick: engine.tick(),
+                                expected: expected[at],
+                                actual,
+                            });
+                        }
+                    }
+                    if engine.tick() % CHECKPOINT_TICKS == 0 {
+                        let actual = engine.state_hash();
+                        let at = reached.len();
+                        if claimed[at] != actual {
+                            return Err(RunReplayError::CheckpointDiffers {
+                                second: u32::try_from(at + 1).unwrap_or(u32::MAX),
+                            });
+                        }
+                        reached.push(actual);
+                    }
+                }
+            }
+            Record::Picks { picks: chosen } => {
+                apply_picks(&mut engine, chosen)?;
+                picks += u32::try_from(chosen.iter().flatten().count()).unwrap_or(u32::MAX);
+            }
+        }
     }
     Ok(Resimulated {
         engine,
         final_hash,
-        inputs,
-        commands,
+        log,
+        picks,
         checkpoints: reached,
     })
 }
 
-/// Applies the commands that carry the engine's current tick, from `next` on, in order.
-fn apply_commands(
-    engine: &mut Engine,
-    commands: &[TickCommand],
-    next: &mut usize,
-) -> Result<(), RunReplayError> {
-    while let Some(c) = commands.get(*next).filter(|c| c.tick == engine.tick()) {
-        let tick = c.tick;
-        match c.kind {
-            // N=1: replay schema 2 names the player.
-            CommandKind::Choose => {
-                engine
-                    .check_pick(PlayerIdx::SOLO, c.index)
-                    .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
-                engine.step(&[Input::picking(c.index)]);
-            }
-        }
-        *next += 1;
+/// One step that does not advance the world: every pick is checked against the engine first,
+/// then taken together.
+fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunReplayError> {
+    let tick = engine.tick();
+    let mut inputs = Vec::with_capacity(chosen.len());
+    for (slot, pick) in chosen.iter().enumerate() {
+        let Some(index) = *pick else {
+            inputs.push(Input::default());
+            continue;
+        };
+        let player =
+            u8::try_from(slot)
+                .ok()
+                .and_then(PlayerIdx::new)
+                .ok_or(RunReplayError::BadInputs(
+                    "the party does not match the run",
+                ))?;
+        engine
+            .check_pick(player, index)
+            .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
+        inputs.push(Input::picking(index));
     }
+    engine.step(&inputs);
     Ok(())
 }
 

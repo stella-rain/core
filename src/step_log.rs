@@ -1,3 +1,233 @@
+//! The step log: one in-memory model of a run's inputs for both replay schemas (ADR-REPL-7
+//! point 4, ADR-REPL-10). A run holds one input per present player per world tick, and the
+//! picks made on the steps in between; a schema 1 replay (inputs and a command list) is
+//! migrated into it on read, and a schema 2 replay's `inputs` field is its bytes.
+//!
+//! The schema 2 bytes: a `present` byte (bit `i` for player slot `i`, at least one set, bits 3
+//! to 7 zero), then records until the end. `0x00` TICKS: a varint `run` of at least 1, then one
+//! 3-byte block (`flags`, `move_x`, `move_y`) per present slot in slot order, repeated for `run`
+//! world ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: one step that does not
+//! advance the world, one byte per present slot (`0x00` no pick, `0x01` and a varint index), at
+//! least one pick. `0x02` JOIN and `0x03` LEAVE are reserved for the per-player model and
+//! refused. The runs sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
+
+use crate::input::Input;
+use crate::replay::{block_of, input_of_block, read_varint, write_varint};
+use crate::run_replay::{CommandKind, MAX_COMMANDS, RunReplayError, TickCommand};
+
+const TICKS: u8 = 0;
+const PICKS: u8 = 1;
+const JOIN: u8 = 2;
+const LEAVE: u8 = 3;
+
+/// The run's steps, in order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StepLog {
+    /// Bit `i` set when player slot `i` is present at tick 0.
+    pub(crate) present: u8,
+    pub(crate) records: Vec<Record>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Record {
+    /// `run` world ticks, each with these inputs (one per present slot, `pick` is `None`).
+    Ticks { run: u32, inputs: Vec<Input> },
+    /// One step that does not advance the world: the pick of each present slot, if any.
+    Picks { picks: Vec<Option<u32>> },
+}
+
+impl StepLog {
+    fn players(present: u8) -> usize {
+        present.count_ones() as usize
+    }
+
+    /// Decodes the schema 2 bytes of a replay of `ticks` world ticks, at most `max_ticks`. The
+    /// bytes are untrusted: a run is checked against the room left before anything is made of
+    /// it, so no allocation follows a hostile count.
+    pub(crate) fn decode(
+        bytes: &[u8],
+        ticks: u32,
+        max_ticks: u32,
+    ) -> Result<StepLog, RunReplayError> {
+        let bad = RunReplayError::BadInputs;
+        if ticks > max_ticks {
+            return Err(RunReplayError::TooManyTicks {
+                ticks,
+                limit: max_ticks,
+            });
+        }
+        let cut = bad("ends in the middle of a record");
+        let present = *bytes.first().ok_or(cut.clone())?;
+        if present == 0 {
+            return Err(bad("no player is present"));
+        }
+        if present & !0b111 != 0 {
+            return Err(bad("a player slot beyond the party"));
+        }
+        let players = StepLog::players(present);
+        let mut pos = 1;
+        let mut world = 0u32;
+        let mut picks_seen = 0u32;
+        let mut records: Vec<Record> = Vec::new();
+        while pos < bytes.len() {
+            let opcode = bytes[pos];
+            pos += 1;
+            match opcode {
+                TICKS => {
+                    let run = read_varint(bytes, &mut pos).map_err(bad)?;
+                    if run == 0 {
+                        return Err(bad("a run has length 0"));
+                    }
+                    if run > ticks - world {
+                        return Err(bad("there are more inputs than ticks"));
+                    }
+                    let mut inputs = Vec::with_capacity(players);
+                    for _ in 0..players {
+                        let block = *bytes
+                            .get(pos..pos + 3)
+                            .and_then(|b| <&[u8; 3]>::try_from(b).ok())
+                            .ok_or(cut.clone())?;
+                        pos += 3;
+                        inputs.push(input_of_block(block, true).map_err(bad)?);
+                    }
+                    if matches!(records.last(), Some(Record::Ticks { inputs: before, .. }) if *before == inputs)
+                    {
+                        return Err(bad("a run repeats the input of the run before"));
+                    }
+                    world += run;
+                    records.push(Record::Ticks { run, inputs });
+                }
+                PICKS => {
+                    if picks_seen >= MAX_COMMANDS {
+                        return Err(RunReplayError::TooManyCommands {
+                            limit: MAX_COMMANDS,
+                        });
+                    }
+                    let mut picks = Vec::with_capacity(players);
+                    for _ in 0..players {
+                        let marker = *bytes.get(pos).ok_or(cut.clone())?;
+                        pos += 1;
+                        picks.push(match marker {
+                            0 => None,
+                            1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
+                            _ => return Err(bad("a pick marker is neither 0 nor 1")),
+                        });
+                    }
+                    if picks.iter().all(Option::is_none) {
+                        return Err(bad("a record has no pick"));
+                    }
+                    picks_seen += 1;
+                    records.push(Record::Picks { picks });
+                }
+                JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
+                _ => return Err(bad("an unknown record")),
+            }
+        }
+        if world != ticks {
+            return Err(bad("there are fewer inputs than ticks"));
+        }
+        Ok(StepLog { present, records })
+    }
+
+    /// The canonical bytes: `decode(encode(x)) == x` for any log `decode` can return.
+    #[allow(dead_code)] // The writer of the next change calls it; tests call it now.
+    pub(crate) fn encode(&self) -> Vec<u8> {
+        let mut out = vec![self.present];
+        for record in &self.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    out.push(TICKS);
+                    write_varint(&mut out, *run);
+                    for input in inputs {
+                        out.extend(block_of(input));
+                    }
+                }
+                Record::Picks { picks } => {
+                    out.push(PICKS);
+                    for pick in picks {
+                        match pick {
+                            None => out.push(0),
+                            Some(index) => {
+                                out.push(1);
+                                write_varint(&mut out, *index);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// A schema 1 replay's solo inputs (one per tick) and commands, as a log: a command at tick
+    /// `t` is a PICKS record after the `t`-th tick, several at one tick in order; equal
+    /// neighbouring inputs are one run, split where a PICKS falls.
+    pub(crate) fn from_schema1(inputs: &[Input], commands: &[TickCommand]) -> StepLog {
+        let mut records = Vec::new();
+        let mut next = 0;
+        // Takes the commands carrying `tick`, in order, as PICKS records.
+        let picks_at = |tick: usize, next: &mut usize, records: &mut Vec<Record>| {
+            while let Some(c) = commands.get(*next).filter(|c| c.tick as usize == tick) {
+                records.push(Record::Picks {
+                    picks: vec![Some(c.index)],
+                });
+                *next += 1;
+            }
+        };
+        picks_at(0, &mut next, &mut records);
+        let mut i = 0;
+        while i < inputs.len() {
+            // A command at a tick not past this one is already taken; the `max` keeps a
+            // misordered list from stalling the loop.
+            let limit = commands
+                .get(next)
+                .map_or(inputs.len(), |c| inputs.len().min(c.tick as usize))
+                .max(i + 1);
+            let input = inputs[i];
+            let run = inputs[i..limit].iter().take_while(|x| **x == input).count();
+            records.push(Record::Ticks {
+                run: u32::try_from(run).unwrap_or(u32::MAX),
+                inputs: vec![input],
+            });
+            i += run;
+            picks_at(i, &mut next, &mut records);
+        }
+        StepLog {
+            present: 0b1,
+            records,
+        }
+    }
+
+    /// The solo inputs and commands of a log, the inverse of `from_schema1`: only a party of
+    /// one.
+    pub(crate) fn to_solo(&self) -> Result<(Vec<Input>, Vec<TickCommand>), RunReplayError> {
+        if self.present != 0b1 {
+            return Err(RunReplayError::BadInputs(
+                "a party this recorder cannot resume yet",
+            ));
+        }
+        let mut inputs = Vec::new();
+        let mut commands = Vec::new();
+        for record in &self.records {
+            match record {
+                Record::Ticks { run, inputs: held } => {
+                    inputs.extend(std::iter::repeat_n(held[0], *run as usize));
+                }
+                Record::Picks { picks } => {
+                    if let Some(index) = picks[0] {
+                        commands.push(TickCommand {
+                            tick: u32::try_from(inputs.len()).unwrap_or(u32::MAX),
+                            kind: CommandKind::Choose,
+                            index,
+                        });
+                    }
+                }
+            }
+        }
+        Ok((inputs, commands))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Record, StepLog};
@@ -133,7 +363,7 @@ mod tests {
             ),
             ("01 01 00", 0, "a record has no pick"),
             ("01 00 05 02 00", 5, "ends in the middle of a record"),
-            ("01 00", 0, "ends in the middle of a record"),
+            ("01 00", 0, "ends in the middle of a number"),
             ("01 00 04 00 00 00", 5, "there are fewer inputs than ticks"),
             ("01 00 06 00 00 00", 5, "there are more inputs than ticks"),
             (
@@ -316,20 +546,31 @@ mod tests {
         corpus_runs()
             .into_iter()
             .map(|(_, bytes)| RunReplay::from_bytes(&bytes).unwrap())
-            .find(|r| !r.unpack_commands().unwrap().is_empty())
+            .find(|r| !r.unpack_commands().unwrap().is_empty() && verify_run(&r.to_bytes()).is_ok())
             .expect("a run with picks")
     }
 
     #[test]
     fn a_schema_2_replay_verifies_like_the_schema_1_one() {
+        let mut verified = 0;
         for (name, bytes) in corpus_runs() {
             let one = RunReplay::from_bytes(&bytes).unwrap();
             let two = schema_2_of(&one);
             assert_eq!(two.setup.schema_version, 2);
             let expected = verify_run(&bytes);
+            // A case pinned to another pack is checked by the corpus test with its pack.
+            if expected == Err(RunReplayError::ContentChanged) {
+                assert_eq!(verify_run(&two.to_bytes()), expected, "{name}");
+                continue;
+            }
             assert!(expected.is_ok(), "{name}: {expected:?}");
             assert_eq!(verify_run(&two.to_bytes()), expected, "{name}");
+            verified += 1;
         }
+        assert!(
+            verified >= 5,
+            "{verified} cases verified with the bundled pack"
+        );
     }
 
     #[test]

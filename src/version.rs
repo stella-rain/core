@@ -384,7 +384,6 @@ mod tests {
         let old = map.remove("old_value").unwrap();
         map.insert("value".into(), old);
         map.insert("schema_version".into(), json!(2));
-        map.insert("sim_version".into(), json!(2));
         doc
     }
 
@@ -523,7 +522,7 @@ mod tests {
             read(&old, TABLE),
             Ok(Doc {
                 schema_version: 2,
-                sim_version: 2,
+                sim_version: 1,
                 value: 7
             })
         );
@@ -535,7 +534,7 @@ mod tests {
         assert_eq!(read(&old, &[]), Err(ReplayLoadError::Older(v(1, 1))));
         assert_eq!(
             read(&doc(0, 0), TABLE),
-            Err(ReplayLoadError::Older(v(0, SIM_VERSION)))
+            Err(ReplayLoadError::Older(v(0, 0)))
         );
     }
 
@@ -572,9 +571,10 @@ mod tests {
         doc
     }
 
-    fn schema_only(doc: Value) -> Value {
-        let mut doc = value_only(doc);
-        doc["schema_version"] = json!(2);
+    /// Reaches the current schema but moves the rules version, which no migration may do.
+    fn moves_the_sim_version(doc: Value) -> Value {
+        let mut doc = from_one_one(doc);
+        doc["sim_version"] = json!(2);
         doc
     }
 
@@ -599,7 +599,7 @@ mod tests {
             Err(ReplayLoadError::Older(v(1, 1)))
         );
         assert_eq!(
-            read(&old, &migration(schema_only)),
+            read(&old, &migration(moves_the_sim_version)),
             Err(ReplayLoadError::Older(v(1, 1)))
         );
     }

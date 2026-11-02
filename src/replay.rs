@@ -308,7 +308,7 @@ impl Replay {
         }
         let bytes =
             base64::decode(&self.inputs).map_err(|_| ReplayError::BadInputs("not valid base64"))?;
-        unpack(&bytes, self.ticks).map_err(ReplayError::BadInputs)
+        unpack(&bytes, self.ticks, self.schema_version >= 2).map_err(ReplayError::BadInputs)
     }
 }
 
@@ -348,10 +348,13 @@ pub(crate) fn read_varint(bytes: &[u8], pos: &mut usize) -> Result<u32, &'static
 const NO_STICK: u8 = 0x80;
 
 /// The flags byte of a run (ADR-071): `evade` in bit 0, then `main`, `smash`, `skill`, `assist`
-/// and `auto`; bits 6 and 7 are never set.
+/// and `auto`; bit 6 (interact) is allowed at schema 2 only, bit 7 is never set.
 const ALL_FLAGS: u8 = 0b11_1111;
 
-fn flags_of(input: &Input) -> u8 {
+/// Bit 6 of the flags byte at schema 2: the interact button (ADR-SIM-13). Refused at schema 1.
+pub(crate) const INTERACT_FLAG: u8 = 0b100_0000;
+
+pub(crate) fn flags_of(input: &Input) -> u8 {
     u8::from(input.evade)
         | u8::from(input.main) << 1
         | u8::from(input.smash) << 2
@@ -385,8 +388,50 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
     base64::encode(&out)
 }
 
-/// Unpacks exactly `ticks` inputs from the runs in `bytes`.
-pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static str> {
+/// The input of one 3-byte block (`flags`, `move_x`, `move_y`); `interact` says whether bit 6 is
+/// allowed (schema 2). Each input has one encoding, so unknown bits and -128 are refused.
+pub(crate) fn input_of_block(
+    [flags, x, y]: [u8; 3],
+    interact: bool,
+) -> Result<Input, &'static str> {
+    let allowed = if interact {
+        ALL_FLAGS | INTERACT_FLAG
+    } else {
+        ALL_FLAGS
+    };
+    if flags & !allowed != 0 {
+        return Err("a run has unknown flags");
+    }
+    if x == NO_STICK || y == NO_STICK {
+        return Err("a stick axis is out of range");
+    }
+    Ok(Input {
+        move_x: i8::from_le_bytes([x]),
+        move_y: i8::from_le_bytes([y]),
+        evade: flags & 1 != 0,
+        main: flags & 0b10 != 0,
+        smash: flags & 0b100 != 0,
+        skill: flags & 0b1000 != 0,
+        assist: flags & 0b1_0000 != 0,
+        auto: flags & 0b10_0000 != 0,
+        pick: None,
+        interact: flags & INTERACT_FLAG != 0,
+    })
+}
+
+/// The 3-byte block of `input` for a schema 2 stream: the schema 1 flags and bit 6 for
+/// `interact`; a stick axis of -128 is written as -127, which the engine runs the same.
+pub(crate) fn block_of(input: &Input) -> [u8; 3] {
+    [
+        flags_of(input) | u8::from(input.interact) << 6,
+        input.move_x.max(-i8::MAX).to_le_bytes()[0],
+        input.move_y.max(-i8::MAX).to_le_bytes()[0],
+    ]
+}
+
+/// Unpacks exactly `ticks` inputs from the runs in `bytes`; `interact` says whether the
+/// interact flag is allowed (schema 2 stage replays).
+pub(crate) fn unpack(bytes: &[u8], ticks: u32, interact: bool) -> Result<Vec<Input>, &'static str> {
     let mut inputs = Vec::with_capacity(ticks as usize);
     let mut pos = 0;
     while pos < bytes.len() {
@@ -398,29 +443,12 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
         if run > room {
             return Err("there are more inputs than ticks");
         }
-        let [flags, x, y] = *bytes
+        let block = *bytes
             .get(pos..pos + 3)
             .and_then(|b| <&[u8; 3]>::try_from(b).ok())
             .ok_or("ends in the middle of a run")?;
         pos += 3;
-        if flags & !ALL_FLAGS != 0 {
-            return Err("a run has unknown flags");
-        }
-        if x == NO_STICK || y == NO_STICK {
-            return Err("a stick axis is out of range");
-        }
-        let input = Input {
-            move_x: i8::from_le_bytes([x]),
-            move_y: i8::from_le_bytes([y]),
-            evade: flags & 1 != 0,
-            main: flags & 0b10 != 0,
-            smash: flags & 0b100 != 0,
-            skill: flags & 0b1000 != 0,
-            assist: flags & 0b1_0000 != 0,
-            auto: flags & 0b10_0000 != 0,
-            pick: None,
-            interact: false,
-        };
+        let input = input_of_block(block, interact)?;
         // Packing writes equal inputs as one run, so each list of inputs has one encoding.
         if inputs.last() == Some(&input) {
             return Err("a run repeats the input of the run before");
