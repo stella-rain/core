@@ -1,0 +1,63 @@
+"""Tests for the fuzz runs' workflow text (fuzz-short in rust.yml, fuzz-long.yml).
+
+Run: python3 -m unittest discover -s .github/scripts
+
+Text checks, no YAML library: the workflows are read as lines. pack_load's seed is the bundled
+content pack (content/pack.json), larger than the 64 KiB the other targets take; libFuzzer cuts
+a seed to -max_len, so a smaller limit fuzzes a broken pack that fails before the code behind it.
+"""
+
+import os
+import re
+import unittest
+
+ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+WORKFLOWS = os.path.join(ROOT, ".github", "workflows")
+
+
+def read(path):
+    with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+        return f.read()
+
+
+def job_block(text, job_id):
+    m = re.search(rf"^  {re.escape(job_id)}:\n((?:(?:   .*)?\n)*)", text, re.M)
+    assert m, f"no job {job_id}"
+    return m.group(1)
+
+
+def pack_max_bytes():
+    """Pack::MAX_BYTES, from src/pack.rs (a product of integer literals)."""
+    m = re.search(r"pub const MAX_BYTES: usize = ([0-9_ *]+);", read("src/pack.rs"))
+    assert m, "no Pack::MAX_BYTES in src/pack.rs"
+    value = 1
+    for factor in m.group(1).split("*"):
+        value *= int(factor.strip().replace("_", ""))
+    return value
+
+
+FUZZ_JOBS = [("rust.yml", "fuzz-short"), ("fuzz-long.yml", "fuzz")]
+
+
+class PackLoadLength(unittest.TestCase):
+    def test_pack_load_takes_a_whole_pack_and_one_byte_more(self):
+        want = pack_max_bytes() + 1
+        self.assertGreaterEqual(want, os.path.getsize(os.path.join(ROOT, "content", "pack.json")))
+        for workflow, job in FUZZ_JOBS:
+            with self.subTest(workflow=workflow):
+                block = job_block(read(f".github/workflows/{workflow}"), job)
+                m = re.search(r"^\s+pack_load\)[^\n]*\bmax_len=(\d+)", block, re.M)
+                self.assertIsNotNone(m, "pack_load sets no max_len")
+                self.assertEqual(int(m.group(1)), want)
+
+    def test_the_run_uses_the_target_s_length(self):
+        for workflow, job in FUZZ_JOBS:
+            with self.subTest(workflow=workflow):
+                block = job_block(read(f".github/workflows/{workflow}"), job)
+                self.assertIn('-max_len="$max_len"', block)
+                self.assertRegex(block, r"^\s+max_len=65536$", "the other targets keep 64 KiB")
+                self.assertNotIn("-max_len=65536", block)
+
+
+if __name__ == "__main__":
+    unittest.main()
