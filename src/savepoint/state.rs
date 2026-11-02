@@ -687,6 +687,107 @@ mod players_tests {
 }
 
 #[cfg(test)]
+mod offers_tests {
+    //! Slot 0's star offers and offer generator sit where the star field and the run's generator
+    //! were: they round-trip through format 1 and the shape check names the offers' lists.
+
+    use crate::bench_fixtures::{time_limit_case, worst_case};
+    use crate::engine::{Engine, Run};
+    use crate::id::PlayerIdx;
+    use crate::savepoint::DecodeError;
+    use crate::savepoint::state::{decode_state, encode_state};
+
+    use super::v2::check_shape;
+
+    /// `e` stepped until a star offer is open, with one reroll spent when the offer has one.
+    fn with_open_offer(mut e: Engine, input: fn(u32) -> crate::input::Input) -> Option<Engine> {
+        for _ in 0..3_000 {
+            let tick = e.tick() + 1;
+            e.step(&[input(tick)]);
+            let Run::V2 { state, .. } = e.run() else {
+                panic!("the live rules")
+            };
+            let offers = state.players.career(PlayerIdx::SOLO).offers.as_ref()?;
+            if let Some(o) = &offers.offer {
+                let n = u32::try_from(o.candidates.len()).unwrap();
+                if offers.rerolls_left > 0 {
+                    let _ = crate::engine::pick(&mut e, PlayerIdx::SOLO, n);
+                }
+                return Some(e);
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn slot_0s_offers_and_generator_round_trip() {
+        let mut opened = 0;
+        for (e, stage, input) in [
+            (
+                worst_case::warmed_up(),
+                worst_case::stage(),
+                worst_case::input as fn(u32) -> _,
+            ),
+            (
+                time_limit_case::warmed_up(),
+                time_limit_case::stage(),
+                time_limit_case::input,
+            ),
+        ] {
+            let fresh = Engine::new_with(&stage, e.content()).unwrap();
+            let Some(e) = with_open_offer(e, input) else {
+                continue;
+            };
+            opened += 1;
+            let bytes = encode_state(&e);
+            let (saved, ledger, counted) = decode_state(&bytes, &fresh).unwrap();
+            let back = fresh.clone().with_saved(saved, ledger, counted);
+            let (Run::V2 { state: a, .. }, Run::V2 { state: b, .. }) = (e.run(), back.run()) else {
+                panic!("the live rules")
+            };
+            let (ca, cb) = (
+                a.players.career(PlayerIdx::SOLO),
+                b.players.career(PlayerIdx::SOLO),
+            );
+            assert!(ca.offers.as_ref().unwrap().offer.is_some());
+            assert_eq!(ca.offers, cb.offers);
+            assert_eq!(ca.offer, cb.offer);
+            assert_eq!(
+                encode_state(&back),
+                bytes,
+                "re-encoding gives the same bytes"
+            );
+        }
+        assert!(opened > 0, "no case opened a star offer");
+    }
+
+    #[test]
+    fn the_shape_check_refuses_an_offers_list_of_the_wrong_length() {
+        let e = worst_case::warmed_up();
+        let fresh = Engine::new_with(&worst_case::stage(), e.content()).unwrap();
+        let (Run::V2 { state: s, .. }, Run::V2 { state: blank, .. }) = (e.run(), fresh.run())
+        else {
+            panic!("the live rules")
+        };
+        let counted = e.saved_parts().1;
+        let mut bad = s.clone();
+        bad.players
+            .career_mut(PlayerIdx::SOLO)
+            .offers
+            .as_mut()
+            .expect("stars")
+            .taken
+            .push(1);
+        assert_eq!(
+            check_shape(&bad, counted, blank, counted),
+            Err(DecodeError::Invalid(
+                "star taken length differs from the content"
+            ))
+        );
+    }
+}
+
+#[cfg(test)]
 mod frozen_text_tests {
     //! Version 1's coding is the macro's text and its invocation; one moved byte there fails this
     //! (ADR-REPL-9). The markers are built in pieces so this test does not contain them.

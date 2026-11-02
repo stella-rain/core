@@ -20,7 +20,14 @@
 //! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
-//! once (`super::choose`). Every draw is from the run's generator, in this order.
+//! once (`super::choose`). Every draw is from the player's offer generator (`Career::offer`, slot 0's
+//! is `TAG_OFFER`), in this order.
+//!
+//! The star field is two parts: the run's (`StarField`: the stars on the map, the pity, the
+//! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: the
+//! offers due and open, the rerolls and banishes left, and what the offers have used). The
+//! hash and savepoint format 1 write slot 0's where the one star field and generator were.
+//! Every player still routes to slot 0 here (`// N=1: M-PER-PLAYER`).
 
 use super::World;
 use crate::attack::DamageType;
