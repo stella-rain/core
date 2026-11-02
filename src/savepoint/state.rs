@@ -357,3 +357,27 @@ mod players_tests {
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
     }
 }
+
+#[cfg(test)]
+mod frozen_text_tests {
+    //! Version 1's coding is the macro's text and its invocation; one moved byte there fails this
+    //! (ADR-REPL-9). The markers are built in pieces so this test does not contain them.
+
+    use crate::hash::fnv1a64;
+
+    /// FNV-1a 64 of the text from the macro's first line through version 1's invocation.
+    const V1_TEXT_HASH: u64 = 4_389_356_803_138_707_161;
+
+    #[test]
+    fn version_1_text_is_unchanged() {
+        let src = include_str!("state.rs");
+        let start_marker = concat!("macro_rules! state_codec", " {\n");
+        let end_marker = concat!(
+            "mod v1",
+            " {\n    state_codec!(sim_v1, |s| vec![&s.player]);\n}\n"
+        );
+        let start = src.find(start_marker).expect("the macro");
+        let end = src.find(end_marker).expect("version 1") + end_marker.len();
+        assert_eq!(fnv1a64(src[start..end].as_bytes()), V1_TEXT_HASH);
+    }
+}
