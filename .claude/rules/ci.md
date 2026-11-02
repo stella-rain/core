@@ -42,9 +42,9 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 ## `.github/scripts/`
 
 `release.py` (the release's version, checks and notes), `bench_budget.py` (the tick budgets),
-`bench_alarm.py` (the rise alarm), `bench_pins.py` (which cases compare) and `callgrind_diff.py` (the bench
-profile), tested by `test_release.py`, `test_bench_budget.py`, `test_bench_alarm.py`, `test_bench_pins.py` and
-`test_callgrind_diff.py`; `corpus_paths.py` (where the replay corpus is; tested by
+`bench_alarm.py` (the rise alarm), `bench_pins.py` (which cases compare), `bench_drop_guard.py` (the teardown
+guard) and `callgrind_diff.py` (the bench profile), tested by `test_release.py`, `test_bench_budget.py`,
+`test_bench_alarm.py`, `test_bench_pins.py`, `test_bench_drop_guard.py` and `test_callgrind_diff.py`; `corpus_paths.py` (where the replay corpus is; tested by
 `test_corpus_paths.py`); `fuzz_seconds.py` (fuzz-long's minutes to whole seconds; tested by
 `test_fuzz_seconds.py`); `test_candidate_workflow.py`
 checks the release workflows' text. The Android runner is tested by `test_android_emu_runner.py` and its
