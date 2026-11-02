@@ -1570,7 +1570,9 @@ mod stats_events {
             (slot(2).id(), 10, None),
         ];
         for (source, remaining, want) in cases {
-            s.players[slot(1)].statuses.clear();
+            while !s.players[slot(1)].statuses.is_empty() {
+                s.players[slot(1)].statuses.pop();
+            }
             atk_up(&mut s, 1, source, remaining);
             let ev = hit_by(&w, &mut s, slot(1).id(), 1, 0, 1);
             assert_eq!(hits(&ev)[0].2, want, "source {source:?}, {remaining} left");

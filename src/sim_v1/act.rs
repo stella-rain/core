@@ -133,6 +133,7 @@ pub(super) fn cast(
                 events.push(DomainEvent::Healed {
                     target: s.id_of(target),
                     amount: healed,
+                    source: None,
                 });
                 s.raise_aggro(
                     source,

@@ -110,6 +110,8 @@ fn an_unmarked_hit_leaves_the_field_out_of_the_event() {
         rune: None,
         crit: false,
         echo: false,
+        player: None,
+        buffed_by: None,
     };
     assert!(!serde_json::to_string(&hit).unwrap().contains("rune"));
 }

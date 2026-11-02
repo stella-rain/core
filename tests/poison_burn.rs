@@ -99,7 +99,7 @@ fn a_combo_step_hit_applies_the_status() {
         assert!(
             e.events().iter().any(|ev| matches!(
                 ev,
-                DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180 }
+                DomainEvent::StatusApplied { target: t, status, stacks: 1, duration_ticks: 180, .. }
                     if *t == target && status.as_str() == name
             )),
             "{name}"
@@ -178,6 +178,7 @@ fn it_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
                         status,
                         stacks: n,
                         duration_ticks,
+                        ..
                     } if *id == target && status.as_str() == name => {
                         assert_eq!(*duration_ticks, 180);
                         stacks.push(*n);

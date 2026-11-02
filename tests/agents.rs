@@ -755,6 +755,7 @@ fn applying_a_status_again_adds_a_stack_up_to_five_and_refreshes_it() {
                 status,
                 stacks,
                 duration_ticks,
+                ..
             } if *target == id(0) && status.as_str() == "atk_up" && *duration_ticks == 30 => {
                 Some((*t, *stacks))
             }
@@ -908,7 +909,7 @@ fn heals_stop_at_the_maximum_and_say_how_much_they_gave() {
     let healed: Vec<(EntityId, u32)> = events
         .iter()
         .filter_map(|(_, ev)| match ev {
-            DomainEvent::Healed { target, amount } => Some((*target, *amount)),
+            DomainEvent::Healed { target, amount, .. } => Some((*target, *amount)),
             _ => None,
         })
         .collect();

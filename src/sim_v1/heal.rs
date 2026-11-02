@@ -113,6 +113,7 @@ fn heal(player: &mut PlayerState, want: u64, events: &mut Vec<DomainEvent>) {
     events.push(DomainEvent::Healed {
         target: PLAYER_ID,
         amount: player.hp.saturating_sub(before),
+        source: None,
     });
 }
 

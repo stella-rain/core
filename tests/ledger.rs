@@ -42,6 +42,8 @@ fn hit(target: u32, kind: u16, ty: Option<DamageType>) -> DomainEvent {
         rune: None,
         crit: false,
         echo: false,
+        player: None,
+        buffed_by: None,
     }
 }
 
@@ -51,6 +53,7 @@ fn died(entity: u32, kind: u16) -> DomainEvent {
         kind: Some(KindIndex(kind)),
         class: EntityKind::Enemy,
         elite: false,
+        killer: None,
     }
 }
 
@@ -83,6 +86,8 @@ fn a_rune_hit_sets_its_type_bit() {
         rune: Some(Rune::Explosion),
         crit: false,
         echo: false,
+        player: None,
+        buffed_by: None,
     };
     ledger.observe(
         &kind_table(),
@@ -106,6 +111,7 @@ fn a_kill_counts_by_its_event_kind() {
         kind: Some(KindIndex(2)),
         class: EntityKind::Enemy,
         elite: false,
+        killer: None,
     };
     ledger.observe(&kind_table(), "giant_sword", &[], &[died_event]);
     assert_eq!(ledger.stat("slain.golem"), 1);
@@ -148,18 +154,21 @@ fn non_combat_entities_do_not_count_as_kills() {
         kind: Some(KindIndex(0)),
         class: EntityKind::Companion,
         elite: false,
+        killer: None,
     };
     let shrine = DomainEvent::Died {
         entity: EntityId(11),
         kind: Some(KindIndex(1)),
         class: EntityKind::Shrine,
         elite: true,
+        killer: None,
     };
     let part = DomainEvent::Died {
         entity: EntityId(12),
         kind: Some(KindIndex(2)),
         class: EntityKind::BossPart,
         elite: false,
+        killer: None,
     };
     ledger.observe(
         &kind_table(),

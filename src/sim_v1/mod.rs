@@ -1190,6 +1190,8 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
         rune: b.rune,
         crit,
         echo: false,
+        player: None,
+        buffed_by: None,
     });
     if dead {
         events.push(death_event(s, target, id));
@@ -1249,6 +1251,7 @@ pub(super) fn died_event(s: &State, target: Who, id: EntityId) -> DomainEvent {
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
+        killer: None,
     }
 }
 
