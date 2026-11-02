@@ -981,9 +981,10 @@ impl StableHash for State {
     fn stable_hash(&self, h: &mut StateHasher) {
         // The entity IDs are written without the empty player slots (ADR-SIM-13), so a party of
         // one hashes as it did before they were reserved.
+        let outer = h.id_gap();
         h.set_id_gap(self.id_gap());
         self.hash_fields(h);
-        h.set_id_gap(0);
+        h.set_id_gap(outer);
     }
 }
 

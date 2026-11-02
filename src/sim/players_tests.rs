@@ -250,3 +250,22 @@ fn entities_are_numbered_from_three() {
     let spawned = u32::try_from(s.companions.len()).unwrap();
     assert!(s.next_id >= 3 + spawned);
 }
+
+#[test]
+fn a_saved_next_id_inside_the_player_slots_is_refused() {
+    use crate::savepoint::codec::{DecodeError, Reader};
+    let e = worst_case::warmed_up();
+    let mut s = live(&e).1.clone();
+    let mut w = Writer::new();
+    s.encode(&mut w);
+    let ok = w.finish();
+    assert!(State::decode_over(&mut Reader::new(&ok), &s).is_ok());
+    s.next_id = 0;
+    let mut w = Writer::new();
+    s.encode(&mut w);
+    let bad = w.finish();
+    assert_eq!(
+        State::decode_over(&mut Reader::new(&bad), &s).err(),
+        Some(DecodeError::Invalid("next entity id in the player slots"))
+    );
+}

@@ -1747,9 +1747,10 @@ impl Encode for State {
             self.players.len() == 1,
             "savepoint format 1 holds one player"
         );
+        let outer = w.id_gap();
         w.set_id_gap(self.id_gap());
         self.encode_fields(w);
-        w.set_id_gap(0);
+        w.set_id_gap(outer);
     }
 }
 
@@ -1839,10 +1840,17 @@ impl State {
     /// and fills the index and the content-sized fields of `progress` and `horde` in.
     pub(crate) fn decode_over(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
         // The gap the bytes were written with: format 1 holds the one player `Players::solo` is.
+        let outer = r.id_gap();
         r.set_id_gap(crate::id::id_gap(1));
         let state = Self::decode_fields(r, fresh);
-        r.set_id_gap(0);
-        state
+        r.set_id_gap(outer);
+        // The next entity number is past the player slots, whatever the bytes say.
+        match state {
+            Ok(state) if state.next_id < u32::from(crate::id::MAX_PLAYERS) => {
+                Err(DecodeError::Invalid("next entity id in the player slots"))
+            }
+            other => other,
+        }
     }
 
     fn decode_fields(r: &mut Reader<'_>, fresh: &State) -> Result<State, DecodeError> {
