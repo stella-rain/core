@@ -197,6 +197,33 @@ impl StepLog {
         }
     }
 
+    /// The solo commands of a log without expanding its inputs: a run of `run` ticks only moves
+    /// the tick count, so a hostile `run` allocates nothing here.
+    pub(crate) fn solo_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
+        if self.present != 0b1 {
+            return Err(RunReplayError::BadInputs(
+                "a party this recorder cannot resume yet",
+            ));
+        }
+        let mut tick = 0u32;
+        let mut commands = Vec::new();
+        for record in &self.records {
+            match record {
+                Record::Ticks { run, .. } => tick = tick.saturating_add(*run),
+                Record::Picks { picks } => {
+                    if let Some(index) = picks[0] {
+                        commands.push(TickCommand {
+                            tick,
+                            kind: CommandKind::Choose,
+                            index,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(commands)
+    }
+
     /// The solo inputs and commands of a log, the inverse of `from_schema1`: only a party of
     /// one.
     pub(crate) fn to_solo(&self) -> Result<(Vec<Input>, Vec<TickCommand>), RunReplayError> {
@@ -415,7 +442,6 @@ mod tests {
 
     // --- The corpus ------------------------------------------------------------------------
 
-    /// Every run case of the corpus, current and frozen, as (name, bytes).
     /// The schema 1 file of a run, whichever schema it is at: the corpus' `current/` runs are
     /// written at the schema writers write, and these tests take the old form to hand-damage.
     fn schema_1_form(replay: &RunReplay) -> RunReplay {
@@ -440,6 +466,7 @@ mod tests {
             .collect()
     }
 
+    /// Every run case of the corpus, current and frozen, as (name, bytes) as they are filed.
     fn corpus_files() -> Vec<(String, Vec<u8>)> {
         let mut runs: Vec<(String, Vec<u8>)> = Vec::new();
         macro_rules! case {
@@ -717,6 +744,36 @@ mod tests {
                 .replay();
             assert_eq!(from_two, two, "resumed from a schema 2 prefix");
         }
+    }
+
+    #[test]
+    fn the_commands_of_a_huge_run_are_read_without_expanding_its_inputs() {
+        use crate::run_replay::{CommandKind, TickCommand};
+        let mut forged = run_with_picks();
+        forged.setup.schema_version = 2;
+        forged.ticks = 4_000_000_000;
+        forged.commands = String::new();
+        let log = StepLog {
+            present: 1,
+            records: vec![
+                Record::Ticks {
+                    run: 4_000_000_000,
+                    inputs: vec![Input::default()],
+                },
+                Record::Picks {
+                    picks: vec![Some(3)],
+                },
+            ],
+        };
+        forged.inputs = base64::encode(&log.encode());
+        assert_eq!(
+            forged.unpack_commands(),
+            Ok(vec![TickCommand {
+                tick: 4_000_000_000,
+                kind: CommandKind::Choose,
+                index: 3
+            }])
+        );
     }
 
     #[test]

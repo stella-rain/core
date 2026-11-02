@@ -511,7 +511,7 @@ impl RunReplay {
     /// from the picks of the step log (the solo view).
     pub fn unpack_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         if self.setup.schema_version >= 2 {
-            return Ok(self.step_log(u32::MAX)?.to_solo()?.1);
+            return self.step_log(u32::MAX)?.solo_commands();
         }
         self.unpack_commands_v1()
     }
