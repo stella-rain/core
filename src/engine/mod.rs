@@ -538,7 +538,8 @@ mod snapshot;
 pub(crate) use run::{Build, Difficulty, Run, Saved};
 pub use snapshot::{Place, Places, Tally};
 
-/// Takes option `index` of the open offer for `player` through a step, as a test plays an offer: refused as `check_pick` refuses it, changing nothing.
+/// Takes option `index` of the open offer for `player` through a step, as a test plays an
+/// offer: refused as `check_pick` refuses it, changing nothing.
 #[cfg(test)]
 pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
     e.check_pick(player, index)?;
