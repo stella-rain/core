@@ -24,7 +24,7 @@ use crate::input::Input;
 use crate::parsed_stage_hash;
 use crate::stage::Stage;
 use crate::validate;
-use crate::version::{self, FIRST_SIM_VERSION, ReplayLoadError, Versions};
+use crate::version::{self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, Versions};
 
 /// A stage's clear replay file is at most this big (ADR-020). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
@@ -277,8 +277,9 @@ impl Replay {
         version::read_replay(
             bytes,
             MAX_STAGE_REPLAY_BYTES,
+            FIRST_SCHEMA_VERSION,
             FIRST_SIM_VERSION,
-            Versions::CURRENT,
+            Versions::NEWEST_READ,
             &[],
             |bytes| serde_json::from_slice(bytes),
         )

@@ -53,7 +53,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
 use crate::validate;
-use crate::version::{self, FIRST_SIM_VERSION, ReplayLoadError, Versions};
+use crate::version::{self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, Versions};
 
 /// The most commands a run replay holds (a tuning value; ADR-079 decides that a cap exists).
 /// Version 1 gives at most 99 points in a run; the rest is room for the offers' choices, a few
@@ -456,8 +456,9 @@ impl RunReplay {
         version::read_replay(
             bytes,
             MAX_RUN_REPLAY_BYTES,
+            FIRST_SCHEMA_VERSION,
             FIRST_SIM_VERSION,
-            Versions::CURRENT,
+            Versions::NEWEST_READ,
             &[],
             |bytes| serde_json::from_slice::<Header>(bytes).map(|h| h.setup),
         )

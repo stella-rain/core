@@ -84,6 +84,12 @@ impl Versions {
         schema_version: SCHEMA_VERSION,
         sim_version: SIM_VERSION,
     };
+
+    /// The newest versions this game reads: what the replay readers take as `current`.
+    pub(crate) const NEWEST_READ: Versions = Versions {
+        schema_version: NEWEST_READ_SCHEMA_VERSION,
+        sim_version: SIM_VERSION,
+    };
 }
 
 fn parse_error(e: serde_json::Error) -> ReadError {
@@ -175,16 +181,20 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 }
 
 /// Reads a replay file: the size limit first, then the versions alone (`header`), then the
-/// strict parse (ADR-017, ADR-SVC-1). Either version above `current` is `Newer`, whatever else
-/// the file holds; the current schema with a sim version in `oldest..=current.sim_version` is
-/// parsed as it is; below that, a migration for exactly that pair is
-/// applied to the JSON first (positions of a `Damaged` after a migration are in the migrated
-/// bytes), and without one the file is `Older`. A migration's output is checked, not trusted:
-/// over the size limit it is `TooLarge`, and a document that does not reach `current` is
-/// `Older` with the file's own versions; both before the second parse.
+/// strict parse (ADR-017, ADR-SVC-1). `current` is the newest pair this game reads; either number
+/// above it is `Newer`, whatever else the file holds. A schema in `oldest_schema..=current.schema`
+/// with a sim version in `oldest..=current.sim_version` is parsed as it is (this is how a schema 1
+/// and a schema 2 file both load, ADR-REPL-7 point 4); anything below that is migrated by a
+/// migration for exactly that pair, applied to the JSON first (positions of a `Damaged` after a
+/// migration are in the migrated bytes), and without one the file is `Older`. A migration's
+/// output is checked, not trusted: over the size limit it is `TooLarge`, and a document whose
+/// schema is not `current.schema`, or whose sim version is not the file's own (a migration never
+/// changes the rules version), is `Older` with the file's own versions; both before the second
+/// parse.
 pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
+    oldest_schema: u32,
     oldest: u32,
     current: Versions,
     migrations: &[Migration],
@@ -200,7 +210,7 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
     if found.schema_version > current.schema_version || found.sim_version > current.sim_version {
         return Err(ReplayLoadError::Newer(found));
     }
-    if found.schema_version == current.schema_version
+    if (oldest_schema..=current.schema_version).contains(&found.schema_version)
         && (oldest..=current.sim_version).contains(&found.sim_version)
     {
         return serde_json::from_slice(bytes).map_err(damaged);
@@ -216,7 +226,8 @@ pub(crate) fn read_replay<T: serde::de::DeserializeOwned>(
             limit,
         });
     }
-    if header(&migrated).map_err(damaged)? != current {
+    let after = header(&migrated).map_err(damaged)?;
+    if after.schema_version != current.schema_version || after.sim_version != found.sim_version {
         return Err(ReplayLoadError::Older(found));
     }
     serde_json::from_slice(&migrated).map_err(damaged)
