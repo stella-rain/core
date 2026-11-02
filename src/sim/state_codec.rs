@@ -1503,7 +1503,12 @@ impl Decode for Progress {
 /// The star field as one field was: the `Option` tag, then the run part and slot 0's offers
 /// interleaved in the old order. The two are `Some` together.
 fn encode_star_field(stars: &Option<StarField>, offers: &Option<Offers>, w: &mut Writer) {
-    debug_assert_eq!(stars.is_some(), offers.is_some());
+    // Fail closed: a star field without slot 0's offers (or the reverse) is not saved as none.
+    assert_eq!(
+        stars.is_some(),
+        offers.is_some(),
+        "the star field and slot 0's offers go together"
+    );
     let (Some(f), Some(o)) = (stars, offers) else {
         w.u8(0);
         return;

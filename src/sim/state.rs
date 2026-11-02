@@ -343,7 +343,8 @@ fn offer_tag(me: PlayerIdx) -> u64 {
     match me.get() {
         0 => TAG_OFFER,
         1 => TAG_OFFER_1,
-        _ => TAG_OFFER_2,
+        2 => TAG_OFFER_2,
+        _ => unreachable!("{MAX_PLAYERS} slots"),
     }
 }
 

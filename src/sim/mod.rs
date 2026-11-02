@@ -310,10 +310,7 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     if let (Some(cfg), Some(f)) = (&stage.stars, s.stars.as_mut()) {
         let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
         scratch::reserve_to(&mut f.on_map, stars);
-    }
-    // Each present slot reserves its own offers due.
-    if let Some(cfg) = &stage.stars {
-        let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
+        // Each present slot reserves its own offers due.
         for me in (0..MAX_PLAYERS).filter_map(PlayerIdx::new) {
             if s.players.is_present(me) {
                 if let Some(o) = s.players.career_mut(me).offers.as_mut() {
