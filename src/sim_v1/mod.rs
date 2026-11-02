@@ -1,5 +1,7 @@
 //! The rules of `sim_version` 1, frozen (ADR-REPL-9): not edited again except to keep compiling
-//! against shared types. The hash check across CPUs is never relaxed (ADR-019).
+//! against shared types. The hash check across CPUs is never relaxed (ADR-019). The events it
+//! emits are its own (`event`, ADR-REPL-7 point 3); `engine/v1_events.rs` turns them into the
+//! live type.
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
 //! table equal to it):
