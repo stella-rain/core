@@ -1222,6 +1222,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     for me in s.players.indices() {
         heal::kills_heal(s, me, events);
     }
+    // The record is by enemy index, which no step between a hit and this removal changes.
+    debug_assert!(s.scratch.killers.len() <= s.enemies.len());
     s.enemies.retain(|e| e.hp > 0);
     s.scratch.killers.clear();
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
