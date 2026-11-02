@@ -16,7 +16,7 @@ mod support;
 #[bench::hit_tick_spread(args = (bench_fixtures::hit_tick_spread()), teardown = support::forget_measured)]
 fn hit_tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
-    engine.step(input);
+    engine.step(&[input]);
     engine
 }
 

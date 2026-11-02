@@ -83,7 +83,7 @@ fn a_combo_step_hit_throws_it_out_to_the_point_hit_and_back() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(once(start)(start));
+    e.step(&[once(start)(start)]);
     let thrown = e.tick();
     assert_eq!(cooldown(&e), 60, "set as it fires");
     // Out from the main character to the target 32 pixels above, 8 pixels a tick, the tick it
@@ -91,7 +91,7 @@ fn a_combo_step_hit_throws_it_out_to_the_point_hit_and_back() {
     let mut path = vec![centre(&e)];
     let mut seen = Vec::new();
     for _ in 0..2 * LEG {
-        e.step(idle());
+        e.step(&[idle()]);
         path.push(centre(&e));
         for ev in e.events() {
             if let DomainEvent::Hit {
@@ -142,12 +142,12 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
     );
     take_all(&mut e);
     while e.tick() < TARGET_TICK + 1 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let start = e.tick();
     let mut seen: Vec<(u32, EntityId, u32)> = Vec::new();
     for _ in 0..20 {
-        e.step(once(start)(e.tick()));
+        e.step(&[once(start)(e.tick())]);
         for ev in e.events() {
             if let DomainEvent::Hit { target, damage, .. } = ev {
                 seen.push((e.tick(), *target, *damage));
@@ -174,9 +174,9 @@ fn it_comes_back_to_where_the_main_character_has_moved() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
     wait_for_target(&mut e);
     let start = e.tick();
-    e.step(once(start)(start));
+    e.step(&[once(start)(start)]);
     for _ in 0..LEG - 1 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(centre(&e), Some(point(START_X, START_Y - 8_192)), "turned");
     // Moving right through the whole way back.
@@ -185,7 +185,7 @@ fn it_comes_back_to_where_the_main_character_has_moved() {
         ..idle()
     };
     for _ in 0..LEG {
-        e.step(right);
+        e.step(&[right]);
     }
     let at = e.snapshot().players[0].at;
     assert!(at.x.0 > START_X, "it moved");
@@ -233,7 +233,7 @@ fn held_with_explosion_and_thunder_each_fires_on_its_own_cooldown() {
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(once(start)(start));
+    e.step(&[once(start)(start)]);
     assert_eq!(
         (
             cooldown_of(&e, Rune::Explosion),
@@ -314,10 +314,10 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     take(&mut e, "war_cry_r");
     take(&mut e, "bonus");
     let target = wait_for_target(&mut e);
-    e.step(Input {
+    e.step(&[Input {
         skill: true,
         ..idle()
-    });
+    }]);
     let start = e.tick() + 1;
     let seen = hits(&mut e, target, 12, once(start));
     assert_eq!(seen.len(), 3, "{seen:?}");
@@ -349,7 +349,7 @@ fn no_orb_comes_from_it() {
     wait_for_target(&mut e);
     let start = e.tick();
     for _ in 0..2 * LEG + 2 {
-        e.step(once(start)(e.tick()));
+        e.step(&[once(start)(e.tick())]);
         assert!(e.snapshot().orbs.is_empty(), "a hit box, never an orb");
     }
 }
@@ -374,8 +374,8 @@ fn the_state_hash_holds_its_flight() {
     wait_for_target(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
-    a.step(once(start)(start));
-    b.step(once(start)(start));
+    a.step(&[once(start)(start)]);
+    b.step(&[once(start)(start)]);
     assert_ne!(a.state_hash(), b.state_hash());
 }
 

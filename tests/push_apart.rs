@@ -55,7 +55,7 @@ fn enemies_at(e: &Engine) -> Vec<(i32, i32)> {
 fn after(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
     let mut e = engine(stage);
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     enemies_at(&e)
 }
@@ -91,7 +91,7 @@ fn a_radius_counts_as_at_least_eight_pixels_for_pushing() {
     assert_eq!(after(&stage, 1), [(x - 768, y), (x + 3_328, y)]);
     // The hurt radius itself is unchanged.
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     let s = e.snapshot();
     assert!(
         s.entities
@@ -182,7 +182,7 @@ fn an_overlapped_enemy_does_not_walk_back_into_the_crowd_on_the_next_tick() {
     // Touching, they are free to walk again, and are parted again: never nearer than 8 pixels.
     let mut e = engine(&stage);
     for tick in 1..=60 {
-        e.step(idle());
+        e.step(&[idle()]);
         let now = enemies_at(&e);
         assert!(dist(now[0], now[1]) >= 2_040, "tick {tick}: {now:?}");
     }
@@ -239,7 +239,7 @@ fn the_main_character_companions_and_the_boss_neither_push_nor_are_pushed() {
     ];
     let mut e = engine(&quiet(stage_full(18_000, Some(boss), waves, vec![guard])));
     for _ in 0..5 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(enemies_at(&e), [me, guard_at, boss_at]);
     assert_eq!(player_at(&e), me);
@@ -267,7 +267,7 @@ fn a_frozen_enemy_is_pushed_too() {
     ];
     let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     for _ in 0..6 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let now = enemies_at(&e);
     assert!((4_090..=4_100).contains(&dist(now[0], now[1])), "{now:?}");
@@ -314,7 +314,7 @@ fn a_wave_that_holds_one_point_becomes_a_crowd() {
     let waves = vec![wave(1, 100, 1, enemy_of(2_048, hold(x, y)), x, y)];
     let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     for _ in 0..400 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let now = enemies_at(&e);
     assert_eq!(now.len(), 100);
@@ -335,7 +335,7 @@ fn a_horde_that_follows_the_main_character_does_not_close_into_a_point() {
     let waves = vec![wave(1, 100, 1, enemy_of(2_048, follow), 46_080, 60_000)];
     let mut e = engine(&quiet(stage_full(18_000, Some(far_boss()), waves, vec![])));
     for _ in 0..600 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let now = enemies_at(&e);
     assert_eq!(now.len(), 100);
@@ -424,7 +424,7 @@ proptest! {
                     next_id += 1;
                 }
             }
-            e.step(*input);
+            e.step(&[*input]);
             // The reach is mapped by entity ID, assuming every due spawn took the next ID: a spawn
             // the cap refused (DIR1) would shift every later ID, so say so here.
             prop_assert_eq!(e.load().refused_spawns, 0);

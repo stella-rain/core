@@ -87,7 +87,7 @@ fn the_stage_has_every_enemy_kind_of_the_schedule_in_its_ratio_and_the_cap_of_th
 fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
     let mut engine = time_limit_case::warmed_up();
     assert_eq!(engine.tick(), time_limit_case::WARMUP_TICKS);
-    engine.step(time_limit_case::input(time_limit_case::WARMUP_TICKS + 1));
+    engine.step(&[time_limit_case::input(time_limit_case::WARMUP_TICKS + 1)]);
     assert_eq!(engine.outcome(), Outcome::Running);
     assert!(!engine.offer_open());
     let load = engine.load();

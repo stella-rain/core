@@ -90,7 +90,7 @@ fn target(e: &Engine) -> Option<(i32, i32)> {
 
 fn target_after_one_tick(stage: &Stage) -> Option<(i32, i32)> {
     let mut e = engine(stage);
-    e.step(assisted());
+    e.step(&[assisted()]);
     target(&e)
 }
 
@@ -115,7 +115,7 @@ fn facing(e: &Engine) -> (i32, i32) {
 #[test]
 fn with_assist_off_there_is_no_target() {
     let mut e = engine(&plain(vec![bat_at(1, RANGE / 2, 0)]));
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.snapshot().players[0].target, None);
 }
 
@@ -160,7 +160,7 @@ fn the_boss_comes_before_a_nearer_elite() {
         json!({ "attack": shot() }),
     );
     let mut e = engine(&st);
-    e.step(assisted());
+    e.step(&[assisted()]);
     let s = e.snapshot();
     let boss = s
         .entities
@@ -176,12 +176,12 @@ fn the_boss_comes_before_a_nearer_elite() {
 fn a_step_faces_its_target_and_turns_the_facing() {
     let st = plain(vec![bat_at(1, RANGE / 2, 0)]);
     let mut e = engine(&st);
-    e.step(pressed(true));
+    e.step(&[pressed(true)]);
     assert_eq!(shot_velocity(&e), (SHOT, 0));
     assert_eq!(facing(&e), (SCALE, 0));
     // The same press with assist off shoots up the field.
     let mut e = engine(&st);
-    e.step(pressed(false));
+    e.step(&[pressed(false)]);
     assert_eq!(shot_velocity(&e), (0, -SHOT));
     assert_eq!(facing(&e), (0, -SCALE));
 }
@@ -189,7 +189,7 @@ fn a_step_faces_its_target_and_turns_the_facing() {
 #[test]
 fn with_no_target_in_range_a_step_attacks_along_the_facing() {
     let mut e = engine(&plain(vec![bat_at(1, RANGE * 2, 0)]));
-    e.step(pressed(true));
+    e.step(&[pressed(true)]);
     assert_eq!(shot_velocity(&e), (0, -SHOT));
 }
 
@@ -203,10 +203,10 @@ fn a_charged_step_faces_the_target_of_its_release() {
     );
     let mut e = engine(&st);
     for _ in 1..=8 {
-        e.step(pressed(true));
+        e.step(&[pressed(true)]);
     }
     assert_eq!(e.snapshot().players[0].charge.map(|c| c.level), Some(1));
-    e.step(assisted());
+    e.step(&[assisted()]);
     assert_eq!(shot_velocity(&e), (-SHOT, 0));
     assert_eq!(facing(&e), (-SCALE, 0));
 }

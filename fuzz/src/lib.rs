@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::content_hash::sha256;
-use stella_rain_core::engine::{Engine, Outcome};
+use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::Input;
@@ -161,7 +161,7 @@ pub fn run_setup(data: &[u8]) -> bool {
 /// of `pick` inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
     let hash = engine.state_hash();
-    if engine.choose(PlayerIdx::SOLO, u32::from(pick)).is_err() {
+    if take(engine, u32::from(pick)).is_err() {
         assert_eq!(
             engine.state_hash(),
             hash,
@@ -178,15 +178,20 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
             break;
         };
         let options = u32::try_from(options).expect("few options");
-        engine
-            .choose(PlayerIdx::SOLO, u32::from(pick) % options)
-            .expect("an option of the open offer is taken");
+        take(engine, u32::from(pick) % options).expect("an option of the open offer is taken");
     }
     assert!(
         !engine.offer_open(),
         "an offer stayed open after 64 choices"
     );
-    engine.step(input);
+    engine.step(&[input]);
+}
+
+/// Takes option `index` of the open offer through a step, as `check_pick` allows it.
+fn take(engine: &mut Engine, index: u32) -> Result<(), ChoiceError> {
+    engine.check_pick(PlayerIdx::SOLO, index)?;
+    engine.step(&[Input::picking(index)]);
+    Ok(())
 }
 
 /// The option to pick on tick `t`: a byte of `data`, round again at its end.
@@ -214,6 +219,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             skill: byte(t, 2) & 8 != 0,
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
+            pick: None,
         })
         .collect()
 }

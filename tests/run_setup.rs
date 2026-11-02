@@ -57,7 +57,7 @@ fn script(tick: u32) -> Input {
 fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
     (0..ticks)
         .map(|t| {
-            engine.step(script(t));
+            engine.step(&[script(t)]);
             engine.state_hash()
         })
         .collect()
@@ -67,7 +67,7 @@ fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
 fn views(mut engine: Engine, ticks: u32) -> Vec<String> {
     (0..ticks)
         .map(|t| {
-            engine.step(script(t));
+            engine.step(&[script(t)]);
             serde_json::to_string(&engine.snapshot()).unwrap()
         })
         .collect()
@@ -356,7 +356,7 @@ fn to_first_offer(setup: &RunSetup) -> Engine {
     let mut engine = Engine::start(setup).unwrap();
     for c in crate::run_play::play_run(common::run::TRIAL_LENGTH) {
         match c {
-            Command::Step(input) => engine.step(input),
+            Command::Step(input) => engine.step(&[input]),
             Command::Choose(_) => break,
         }
         if engine.offer_open() {
@@ -497,7 +497,7 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
         let mut e = Engine::start(&s).unwrap();
         assert!(!e.kinds().is_empty(), "{mode}");
         for tick in 0..7_200 {
-            e.step(script(tick));
+            e.step(&[script(tick)]);
         }
         let ids = e.kinds().ids();
         assert!(

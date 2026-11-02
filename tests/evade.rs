@@ -5,7 +5,6 @@
 //! `common::evade()`.
 
 use crate::common;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use common::*;
@@ -47,11 +46,11 @@ fn view(e: &Engine) -> EvadeView {
 fn press_every_other_tick(e: &mut Engine, ticks: u32) -> Vec<u32> {
     let mut evaded = Vec::new();
     for tick in 1..=ticks {
-        e.step(if tick % 2 == 1 {
+        e.step(&[if tick % 2 == 1 {
             evading(127, 0)
         } else {
             idle()
-        });
+        }]);
         if e.events().contains(&DomainEvent::Evaded) {
             evaded.push(tick);
         }
@@ -102,7 +101,7 @@ fn each_spent_charge_recovers_on_its_own_timer_from_its_press() {
     let mut ready = Vec::new();
     let mut last = 0;
     for tick in 6..=EVADE_COOLDOWN + 6 {
-        e.step(idle());
+        e.step(&[idle()]);
         let now = view(&e).ready;
         if now != last {
             ready.push((tick, now));
@@ -125,15 +124,15 @@ fn each_spent_charge_recovers_on_its_own_timer_from_its_press() {
 fn a_press_during_a_dash_starts_the_next_dash_from_where_it_is() {
     let mut e = engine(&charged(2, None));
     let step = EVADE_DISTANCE / i32::try_from(EVADE_TICKS).unwrap();
-    e.step(evading(127, 0));
-    e.step(moving(-127, 0));
+    e.step(&[evading(127, 0)]);
+    e.step(&[moving(-127, 0)]);
     assert_eq!(player_at(&e), (START_X + 2 * step, START_Y));
     // The second dash goes up the stick's new direction, from two ticks into the first.
-    e.step(evading(0, -127));
+    e.step(&[evading(0, -127)]);
     assert_eq!(player_at(&e), (START_X + 2 * step, START_Y - step));
     assert_eq!(view(&e).dash_left, EVADE_TICKS - 1);
     for _ in 1..EVADE_TICKS {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(
         player_at(&e),
@@ -146,11 +145,11 @@ fn a_press_during_a_dash_starts_the_next_dash_from_where_it_is() {
 #[test]
 fn a_chained_dash_is_invulnerable_from_its_press() {
     let mut e = engine(&charged(2, None));
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     for _ in 0..5 {
-        e.step(moving(127, 0));
+        e.step(&[moving(127, 0)]);
     }
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE);
 }
 
@@ -162,7 +161,7 @@ fn the_snapshot_counts_the_charges_and_the_dash() {
         (v.charges, v.ready, v.recovering.clone(), v.dash_left),
         (2, 2, vec![], 0)
     );
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     let v = view(&e);
     assert_eq!(
         (v.charges, v.ready, v.recovering.clone(), v.dash_left),
@@ -246,8 +245,7 @@ fn take(e: &mut Engine) {
     assert_eq!(offer.candidates[0].reward.as_str(), "extra");
     let option = OfferOption::Take { candidate: 0 };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 #[test]
@@ -261,7 +259,7 @@ fn the_extra_charge_reward_adds_a_charge_that_is_ready() {
 #[test]
 fn the_new_charge_is_ready_while_a_spent_one_recovers() {
     let mut e = with_extra(&starry(1, Some(2), 1), 1);
-    e.step(evading(0, 0));
+    e.step(&[evading(0, 0)]);
     assert_eq!(view(&e).ready, 0);
     take(&mut e);
     let v = view(&e);
@@ -269,8 +267,8 @@ fn the_new_charge_is_ready_while_a_spent_one_recovers() {
     // The spent charge keeps its own timer, counted from its press on tick 1.
     assert_eq!(v.recovering, [LONG_COOLDOWN + 1 - e.tick()]);
     // And the new charge dashes at once.
-    e.step(idle());
-    e.step(evading(0, 0));
+    e.step(&[idle()]);
+    e.step(&[evading(0, 0)]);
     assert!(e.events().contains(&DomainEvent::Evaded));
 }
 

@@ -137,8 +137,8 @@ fn a_kill_names_the_kind_of_the_victim() {
 #[test]
 fn every_entity_in_the_snapshot_carries_its_kind_id() {
     let mut e = engine(&striker(None, 100));
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     let views = e.snapshot().entities;
     let kind_of = |kind| {
         views
@@ -179,7 +179,7 @@ fn the_table_is_the_sorted_distinct_ids_of_the_stage() {
 #[test]
 fn two_enemies_of_a_kind_share_an_index_and_other_kinds_differ() {
     let mut e = engine(&striker(None, 100));
-    e.step(idle());
+    e.step(&[idle()]);
     let views = e.snapshot().entities;
     let of = |k| {
         views

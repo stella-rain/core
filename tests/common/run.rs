@@ -2,7 +2,6 @@
 use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
@@ -216,7 +215,7 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
             continue;
         };
         let pick = u32::try_from(pick).unwrap();
-        engine.choose(PlayerIdx::SOLO, pick).unwrap();
+        common::pick(engine, pick).unwrap();
         out.push(Command::Choose(pick));
     }
 }
@@ -226,7 +225,7 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
 pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
     while engine.offer_open() {
         if engine.snapshot().expertise.and_then(|g| g.offer).is_some() {
-            engine.choose(PlayerIdx::SOLO, 0).unwrap();
+            common::pick(engine, 0).unwrap();
             out.push(Command::Choose(0));
         } else {
             answer(engine, *offers, out);

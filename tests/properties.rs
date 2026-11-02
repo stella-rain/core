@@ -117,8 +117,8 @@ proptest! {
         let (mut a, mut b) = (engine(stage), engine(stage));
         prop_assert_eq!(a.state_hash(), b.state_hash());
         for input in &inputs {
-            a.step(*input);
-            b.step(*input);
+            a.step(&[*input]);
+            b.step(&[*input]);
             prop_assert_eq!(a.state_hash(), b.state_hash(), "after tick {}", a.tick());
             prop_assert_eq!(a.outcome(), b.outcome(), "after tick {}", a.tick());
             prop_assert_eq!(a.events(), b.events(), "after tick {}", a.tick());
@@ -135,12 +135,12 @@ proptest! {
         let mut original = engine(&corpus_stages()[stage]);
         let (before, after) = inputs.split_at(cut.index(inputs.len()));
         for input in before {
-            original.step(*input);
+            original.step(&[*input]);
         }
         let mut clone = original.clone();
         for input in after {
-            original.step(*input);
-            clone.step(*input);
+            original.step(&[*input]);
+            clone.step(&[*input]);
             prop_assert_eq!(original.state_hash(), clone.state_hash(), "after tick {}", original.tick());
         }
     }
@@ -161,7 +161,7 @@ proptest! {
     fn positions_stay_in_bounds(stage in 0..corpus_stages().len(), inputs in inputs()) {
         let mut e = engine(&corpus_stages()[stage]);
         for input in &inputs {
-            e.step(*input);
+            e.step(&[*input]);
             let s = e.snapshot();
             let player = s.players[0].at;
             prop_assert!(within(s.map, player.x.0, player.y.0, 0), "player {:?} on tick {}", player, s.tick);
@@ -201,7 +201,7 @@ proptest! {
         let mut before = hp_by_id(&e.snapshot());
         let mut start = before.clone();
         for input in &inputs {
-            e.step(*input);
+            e.step(&[*input]);
             let healed: Vec<u32> = e
                 .events()
                 .iter()

@@ -221,7 +221,7 @@ fn a_ring_of_eight_zones_places_eight_zones_at_equal_angles() {
         vec![fighter(spawning(vec![ring]))],
     );
     let mut e = engine(&st);
-    e.step(idle());
+    e.step(&[idle()]);
     let zones = zones_of(&e);
     assert_eq!(zones.len(), 8);
     let spot = (i64::from(CX), i64::from(CY + 40 * PX));
@@ -274,7 +274,7 @@ fn a_zone_warns_then_hurts_then_ends() {
     let mut e = engine(&st);
     let mut seen = Vec::new();
     for _ in 0..8 {
-        e.step(idle());
+        e.step(&[idle()]);
         seen.push(zones_of(&e).first().map(|z| {
             (
                 z["phase"].as_str().unwrap().to_owned(),
@@ -333,11 +333,11 @@ fn zones_over_the_cap_are_dropped() {
                                   "body": [zone(circle(PX), "attacker", 200, 50)] }] });
     let st = stage(vec![], vec![fighter(spawning(vec![many]))]);
     let mut e = engine(&st);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(zones_of(&e).len(), MAX_ZONES_ALIVE);
     // The same again, and the same state hash: a drop is not luck.
     let mut again = engine(&st);
-    again.step(idle());
+    again.step(&[idle()]);
     assert_eq!(e.state_hash(), again.state_hash());
 }
 
@@ -358,11 +358,11 @@ fn clear_zones_removes_the_enemy_zones_when_a_boss_phase_begins() {
     let st = quiet(stage_full(18_000, Some(boss), vec![], vec![]));
     let mut e = engine(&st);
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(zones_of(&e).len(), 1, "the boss has placed a zone");
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(e.tick(), 20);
     assert!(zones_of(&e).is_empty());
@@ -476,9 +476,9 @@ fn a_zone_view_carries_the_length_of_its_current_phase() {
     );
     let mut e = engine(&s);
     // The zone is placed on the first step; 10 more ticks of its 30-tick warning pass.
-    e.step(idle());
+    e.step(&[idle()]);
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let z = e.snapshot().zones.remove(0);
     assert_eq!(z.phase, stella_rain_core::attack::PhaseKind::WindUp);
@@ -487,7 +487,7 @@ fn a_zone_view_carries_the_length_of_its_current_phase() {
     assert!(z.ticks >= z.ticks_left);
     // Once active, `ticks` is the active length.
     for _ in 0..25 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let z = e.snapshot().zones.remove(0);
     assert_eq!(z.phase, stella_rain_core::attack::PhaseKind::Active);

@@ -684,7 +684,7 @@ fn verification_works_with_a_pack_the_caller_supplies() {
             .unwrap()
             .into_iter()
             .map(|input| {
-                engine.step(input);
+                engine.step(&[input]);
                 engine.state_hash()
             })
             .collect()

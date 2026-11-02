@@ -117,7 +117,7 @@ fn shots_of(stage: &Stage, ticks: u32) -> Vec<Seen> {
     let mut seen = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         let orbs = e.snapshot().orbs;
         // Orbs that have left the field are gone from the list; start again from there.
         seen = seen.min(orbs.len());
@@ -202,7 +202,7 @@ fn aimed_follows_the_target_not_the_enemys_line() {
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([fire(json!(768), aimed())])) }),
     ));
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     let orb = e.snapshot().orbs[0];
     assert!(orb.at.x.0 > OX, "{orb:?}");
 }
@@ -344,8 +344,8 @@ fn counts_are_clamped_and_empty_loops_do_nothing() {
     };
     let marks = |nodes: Vec<Value>| {
         let mut e = engine(&attack_stage(json!({ "inline": spawned(json!(nodes)) })));
-        e.step(idle());
-        e.step(idle());
+        e.step(&[idle()]);
+        e.step(&[idle()]);
         e.snapshot().zones.len()
     };
     let n = |count: i32| marks(vec![repeat(calc(count), json!(0), vec![mark()])]);
@@ -586,7 +586,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|t| {
-            e.step(moving(if t % 40 < 20 { 64 } else { -64 }, 0));
+            e.step(&[moving(if t % 40 < 20 { 64 } else { -64 }, 0)]);
             e.state_hash()
         })
         .collect()
@@ -670,7 +670,7 @@ fn preset_zones(id: &str, args: Vec<i32>, ticks: u32) -> Vec<(u32, (i32, i32))> 
     let mut seen = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         let zones = e.snapshot().zones;
         out.extend(zones[seen..].iter().map(|z| {
             let to256 = |c: i32| c * 256 / stella_rain_core::trig::SCALE;
@@ -687,7 +687,7 @@ fn the_aimed_presets_fan_out_round_the_aim() {
     let mut e = engine(&attack_stage(
         json!({ "preset": { "id": "aimed_single", "args": [20] } }),
     ));
-    e.step(idle());
+    e.step(&[idle()]);
     let zones = e.snapshot().zones;
     assert_eq!(zones.len(), 1);
     let player = e.snapshot().players[0].at;
@@ -733,7 +733,7 @@ fn an_orb_names_its_style() {
     let mut e = engine(&attack_stage(
         json!({ "inline": spawned(json!([styled, down(768)])) }),
     ));
-    e.step(idle());
+    e.step(&[idle()]);
     let styles: Vec<u16> = e.snapshot().orbs.iter().map(|b| b.style).collect();
     assert_eq!(styles, [1, 0]);
     assert_eq!(registry::orb_style("orb_small"), 1);
@@ -771,7 +771,7 @@ fn hashes_with(stage: &Stage, content: &stella_rain_core::run_content::RunConten
     let mut e = stella_rain_core::engine::Engine::new_with(stage, content).unwrap();
     (0..300)
         .map(|t| {
-            e.step(moving(if t % 40 < 20 { 64 } else { -64 }, 0));
+            e.step(&[moving(if t % 40 < 20 { 64 } else { -64 }, 0)]);
             e.state_hash()
         })
         .collect()

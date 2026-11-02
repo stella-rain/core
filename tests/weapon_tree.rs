@@ -52,11 +52,11 @@ fn a_setup_names_the_weapon_s_first_tree_and_it_is_the_default() {
             let mut e = Engine::start(&setup(weapon, tree)).unwrap();
             (0..300)
                 .map(|t| {
-                    e.step(Input {
+                    e.step(&[Input {
                         main: t % 7 == 0,
                         smash: t % 11 == 5,
                         ..Input::default()
-                    });
+                    }]);
                     e.state_hash()
                 })
                 .collect::<Vec<_>>()
@@ -153,11 +153,11 @@ fn reach(weapon: &str) -> Vec<(Press, u8)> {
     let mut steps = Vec::new();
     for t in 0..900u32 {
         let pressing_smash = steps.last().is_some_and(|(_, d)| *d >= 5);
-        e.step(Input {
+        e.step(&[Input {
             main: !pressing_smash && t % 7 == 0,
             smash: pressing_smash && t % 7 == 0,
             ..Input::default()
-        });
+        }]);
         for ev in e.events() {
             if let DomainEvent::ComboStep { press, depth } = ev {
                 steps.push((*press, *depth));

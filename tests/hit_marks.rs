@@ -59,7 +59,7 @@ fn rune_hits_carry_their_rune_and_a_combo_step_none() {
     let mut seen: Vec<(u32, Option<Rune>)> = Vec::new();
     for _ in 0..200 {
         let t = e.tick();
-        e.step(once(start)(t));
+        e.step(&[once(start)(t)]);
         for ev in e.events() {
             if let DomainEvent::Hit {
                 target: id,

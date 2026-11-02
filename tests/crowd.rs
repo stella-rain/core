@@ -7,7 +7,6 @@
 //! 600-tick circle, Main on even ticks, Evade in the first 2 ticks of every 45).
 
 use crate::common;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::version::Versions;
 
 use common::*;
@@ -54,7 +53,7 @@ fn stand_in(stage: &Stage, ticks: u32) -> (usize, u32) {
     let mut e = engine(stage);
     let mut refused = 0;
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         refused += e.load().refused_spawns;
     }
     (enemies(&e.snapshot()), refused)
@@ -107,7 +106,7 @@ fn dense(elite_cap: u64, edit: impl FnOnce(&mut Value)) -> TimeLimit {
 /// Takes the first option of an open offer.
 fn answer(e: &mut Engine) {
     while e.offer_open() {
-        e.choose(PlayerIdx::SOLO, 0).expect("the first option");
+        common::pick(e, 0).expect("the first option");
     }
 }
 
@@ -137,7 +136,7 @@ fn peak(e: &mut Engine, ticks: u32, bot: fn(u32) -> Input) -> (u32, u32, u32) {
     let (mut most, mut refused, mut held) = (0, 0, 0);
     for _ in 0..ticks {
         answer(e);
-        e.step(bot(e.tick()));
+        e.step(&[bot(e.tick())]);
         most = most.max(e.load().enemies);
         refused += e.load().refused_spawns;
         held += e.load().held_spawns;
@@ -160,7 +159,7 @@ fn a_stage_has_no_director_so_its_waves_keep_their_timing() {
     let mut e = engine(&crowd_stage(3, Some(100)));
     let (mut refused, mut held) = (0, 0);
     for _ in 0..101 {
-        e.step(idle());
+        e.step(&[idle()]);
         refused += e.load().refused_spawns;
         held += e.load().held_spawns;
     }
@@ -223,7 +222,7 @@ fn held_at(mode: TimeLimit, target: usize) -> Vec<usize> {
     let mut alive = Vec::new();
     for _ in 0..6_000 {
         answer(&mut e);
-        e.step(idle());
+        e.step(&[idle()]);
         let now = enemies(&e.snapshot());
         if !alive.is_empty() || now >= target {
             alive.push(now);
@@ -281,7 +280,7 @@ fn under_the_target_a_run_is_what_it_was() {
     let mut t200 = None;
     for _ in 0..90_000 {
         answer(&mut e);
-        e.step(stand(e.tick()));
+        e.step(&[stand(e.tick())]);
         let load = e.load();
         if load.enemies >= 200 {
             t200 = Some(e.tick());

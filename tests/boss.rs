@@ -299,7 +299,7 @@ fn clear_orbs_removes_the_orbs_in_the_air() {
     play(&mut e, 29, idle());
     assert!(hostile_orbs(&e) > 0, "the boss has been shooting");
     // Tick 30 begins phase 1.
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.tick(), 30);
     assert_eq!(hostile_orbs(&e), 0);
 }
@@ -458,9 +458,9 @@ fn a_loop_of_attack_steps_makes_one_attack_a_tick() {
         )],
     ));
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(hostile_zones(&e), 1);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(hostile_zones(&e), 2);
 }
 
@@ -479,7 +479,7 @@ fn a_timeline_attack_is_aimed_at_the_main_character() {
         )],
     ));
     let mut e = engine(&quiet(stage));
-    e.step(idle());
+    e.step(&[idle()]);
     let zone = e.snapshot().zones[0].at;
     assert_eq!((zone.x.0, zone.y.0), (BOSS_X, START_Y));
 }
@@ -509,8 +509,8 @@ fn the_end_of_a_phase_ends_the_attacks_the_boss_was_making() {
     )));
     let mut counts = Vec::new();
     for _ in 0..60 {
-        cut.step(idle());
-        open.step(idle());
+        cut.step(&[idle()]);
+        open.step(&[idle()]);
         counts.push((hostile_zones(&cut), hostile_zones(&open)));
     }
     // Phase 0 ran for ticks 1 to 20: a line on ticks 1, 4, ..., 19, so seven.
@@ -544,7 +544,7 @@ fn parts_have_ids_after_the_companions_and_come_before_the_enemies_in_the_snapsh
         vec![companion(10, hold(30_000, 140_000), json!([]))],
     );
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     let s = e.snapshot();
     let layout: Vec<(u32, EntityKind, u32)> =
         s.entities.iter().map(|v| (v.id.0, v.kind, v.hp)).collect();
@@ -668,7 +668,7 @@ fn parts_move_with_the_boss() {
     ));
     let mut e = engine(&stage);
     for _ in 0..4 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let s = e.snapshot();
     let b = s
@@ -816,7 +816,7 @@ fn the_boss_acts_before_the_companions_and_the_enemies() {
     );
     let mut e = engine(&stage);
     play(&mut e, 2, idle());
-    e.step(idle());
+    e.step(&[idle()]);
     let order: Vec<u32> = e
         .events()
         .iter()
@@ -886,7 +886,7 @@ fn a_boss_run_is_the_same_every_time() {
         let mut e = engine(&stage);
         (0..400)
             .map(|t| {
-                e.step(if t % 7 < 5 { idle() } else { moving(0, -64) });
+                e.step(&[if t % 7 < 5 { idle() } else { moving(0, -64) }]);
                 e.state_hash()
             })
             .collect::<Vec<_>>()
@@ -913,7 +913,7 @@ fn the_end_of_a_phase_ends_a_move_that_was_under_way() {
     ));
     let mut e = engine(&stage);
     for _ in 0..30 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     // Moves on ticks 2 to 10: nine steps of 500.
     assert_eq!(boss_at(&e), (BOSS_X + 4_500, BOSS_Y));
@@ -939,11 +939,11 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
     ));
     let mut e = engine(&quiet(stage));
     for _ in 0..16 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(hostile_orbs(&e), 1);
     let before = e.snapshot().orbs[0].at.y.0;
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.snapshot().orbs[0].at.y.0 - before, 150);
 }
 

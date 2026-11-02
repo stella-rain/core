@@ -154,7 +154,7 @@ fn first_attacks_with(
     let mut e = engine(stage);
     let mut first = vec![None; count];
     for _ in 0..ticks {
-        e.step(input(e.tick()));
+        e.step(&[input(e.tick())]);
         for (i, f) in first.iter_mut().enumerate() {
             if f.is_none() && kind_of(&e, FIRST_SHOOTER + u32::try_from(i).unwrap()).is_some() {
                 *f = Some(e.tick());
@@ -269,7 +269,7 @@ fn a_run_killed_in_its_wind_up_cools_its_token_too() {
         } else {
             idle()
         };
-        e.step(input);
+        e.step(&[input]);
         if died.is_none() && input.main {
             died = Some(e.tick());
         }
@@ -301,7 +301,7 @@ fn a_shooter_still_in_its_attack_does_not_hold_a_grant_it_cannot_use() {
     st.waves = serde_json::from_value(json!([long(100, 0), long(150, 5), long(200, 5)])).unwrap();
     let mut e = engine(&st);
     for _ in 0..20 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let holding = (FIRST_SHOOTER..FIRST_SHOOTER + 3)
         .filter(|id| kind_of(&e, *id).is_some())
@@ -405,8 +405,8 @@ fn the_boss_is_not_limited_by_the_tokens() {
     let mut st = stage(&shooters);
     st.boss = Some(serde_json::from_value(boss).expect("the boss parses"));
     let mut e = engine(&st);
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     assert!(kind_of(&e, 1).is_some(), "the boss attacks");
 }
 
@@ -418,7 +418,7 @@ fn the_same_seed_and_inputs_give_the_same_hash_every_tick() {
         let mut e = engine(&st);
         (0..120)
             .map(|_| {
-                e.step(idle());
+                e.step(&[idle()]);
                 e.state_hash()
             })
             .collect::<Vec<_>>()

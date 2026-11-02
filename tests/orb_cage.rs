@@ -95,7 +95,7 @@ fn hits(events: &[(u32, DomainEvent)]) -> Vec<u32> {
 /// Steps idle until `n` orbs are out; returns the tick they appeared on.
 fn until_orbs(e: &mut Engine, n: usize) -> u32 {
     for _ in 0..20 {
-        e.step(idle());
+        e.step(&[idle()]);
         if orbs(e).len() == n {
             return e.tick();
         }
@@ -122,19 +122,19 @@ fn orbs_halt_after_stop_after_ticks_and_keep_their_lifetime() {
             .any(|o| o["vx"] != json!(0) || o["vy"] != json!(0))
     };
     for _ in 1..STOP_AFTER - 1 {
-        e.step(idle());
+        e.step(&[idle()]);
         assert!(moving(&e), "flying at tick {}", e.tick());
     }
     // The orb moves on the tick it is fired, so it has moved `STOP_AFTER` times, and halted,
     // on the 30th tick of its life.
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.tick(), t0 + STOP_AFTER - 1);
     for o in orbs(&e) {
         assert_eq!((o["vx"].as_i64(), o["vy"].as_i64()), (Some(0), Some(0)));
     }
     let halted = orbs(&e);
     for _ in 0..100 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(
         orbs(&e).iter().map(|o| &o["at"]).collect::<Vec<_>>(),
@@ -142,10 +142,10 @@ fn orbs_halt_after_stop_after_ticks_and_keep_their_lifetime() {
     );
     // Its remaining life runs on: it is on the map for its 600 ticks all the same.
     while e.tick() < t0 + LIFE - 1 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(orbs(&e).len(), 4, "tick {}", e.tick());
-    e.step(idle());
+    e.step(&[idle()]);
     assert!(orbs(&e).is_empty(), "tick {}", e.tick());
 }
 
@@ -155,10 +155,10 @@ fn a_ring_of_four_has_four_beams_once_halted() {
     let mut e = engine(&st);
     let t0 = until_orbs(&mut e, 4);
     while e.tick() < t0 + STOP_AFTER - 2 {
-        e.step(idle());
+        e.step(&[idle()]);
         assert_eq!(beams(&e), 0, "no beam while they fly (tick {})", e.tick());
     }
-    e.step(idle());
+    e.step(&[idle()]);
     let list = orbs(&e);
     assert_eq!(beams(&e), 4);
     // Slot j is joined to slot j + 1, and the last to the first.
@@ -174,7 +174,7 @@ fn the_beam_hurts_the_main_character_once_per_rehit_interval() {
     let t0 = until_orbs(&mut e, 4);
     let mut events = Vec::new();
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
     }
     let landed = hits(&events);
@@ -192,7 +192,7 @@ fn breaking_the_orb_at_slot_0_cuts_its_two_beams() {
     let mut e = engine(&st);
     let mut events = Vec::new();
     for tick in 0..200 {
-        e.step(firing(idle(), tick));
+        e.step(&[firing(idle(), tick)]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
     }
     let broke = events
@@ -219,7 +219,7 @@ fn two_cages_make_two_groups_and_no_beam_joins_them() {
     let mut e = engine(&st);
     let t0 = until_orbs(&mut e, 8);
     while e.tick() < t0 + STOP_AFTER {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let list = orbs(&e);
     assert_eq!(beams(&e), 8);
@@ -237,7 +237,7 @@ fn a_ring_of_two_has_one_beam() {
     let mut e = engine(&st);
     let t0 = until_orbs(&mut e, 2);
     while e.tick() < t0 + STOP_AFTER {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(beams(&e), 1);
 }
@@ -249,7 +249,7 @@ fn a_ring_cut_short_by_the_cap_links_the_orbs_that_were_made() {
     let mut e = engine(&st);
     let t0 = until_orbs(&mut e, 8);
     while e.tick() < t0 + STOP_AFTER {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(beams(&e), 8);
     let list = orbs(&e);
@@ -320,7 +320,7 @@ fn a_beam_deals_the_links_own_damage_when_it_has_one() {
     let mut e = engine(&st);
     let mut left = Vec::new();
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
         for ev in e.events() {
             if let DomainEvent::PlayerHit { hp_left, .. } = ev {
                 left.push(*hp_left);
@@ -350,7 +350,7 @@ fn a_beam_hit_names_the_link_kind_and_its_owner() {
     let mut e = engine(&st);
     let mut sources = Vec::new();
     for _ in 0..80 {
-        e.step(idle());
+        e.step(&[idle()]);
         for ev in e.events() {
             if let DomainEvent::PlayerHit { source, .. } = ev {
                 sources.push(serde_json::to_value(source).unwrap());
@@ -367,7 +367,7 @@ fn halted_cage(link: Value) -> Engine {
     let mut e = engine(&stage(vec![foe_near(0, 200, vec![node])]));
     let t0 = until_orbs(&mut e, 4);
     while e.tick() < t0 + STOP_AFTER {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     e
 }

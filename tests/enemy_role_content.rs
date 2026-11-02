@@ -172,7 +172,7 @@ fn an_exploder_bursts_once_when_near_and_removes_itself() {
     let mut e = alone("exploder", PLAYER_X, PLAYER_Y - 20_000, |_| {});
     let mut bursts = 0;
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
         bursts += firings(&e);
     }
     assert_eq!(bursts, 1);
@@ -189,7 +189,7 @@ fn a_splitter_splits_once_when_it_is_below_half() {
     });
     let mut splits = 0;
     for _ in 0..900 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         splits += firings(&e);
     }
     assert_eq!(splits, 1);
@@ -239,7 +239,7 @@ fn an_exploders_burst_zone_outlives_it_and_warns_where_it_died() {
     let mut e = alone("exploder", PLAYER_X, PLAYER_Y - 20_000, |_| {});
     let mut zones_after_death = 0;
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
         if enemies_alive(&e) == 0 {
             let snapshot = serde_json::to_value(e.snapshot()).unwrap();
             zones_after_death = snapshot["zones"].as_array().map_or(0, Vec::len);

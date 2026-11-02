@@ -9,7 +9,6 @@ use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, Rarity, Reward, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -209,10 +208,10 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
             break;
         }
         while e.offer_open() {
-            e.choose(PlayerIdx::SOLO, 0).unwrap();
+            common::pick(&mut e, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
-        e.step(input);
+        e.step(&[input]);
         for ev in e.events() {
             if let DomainEvent::StarDropped { rarity, .. } = ev {
                 out.push(*rarity);
@@ -334,18 +333,17 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 /// Kills the enemy in reach: presses main, then steps past the hit.
 fn kill(e: &mut Engine) {
-    e.step(Input {
+    e.step(&[Input {
         main: true,
         ..Input::default()
-    });
+    }]);
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
 }
 
@@ -357,8 +355,8 @@ fn an_offer_at_supernova_falls_to_legendary_once_the_supernova_reward_is_taken()
         &targets("supernova"),
         vec![once("sup", "supernova", 40), once("leg", "legendary", 25)],
     );
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     kill(&mut e);
     next_offer(&mut e);
     assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));

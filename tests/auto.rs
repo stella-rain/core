@@ -96,7 +96,7 @@ fn auto(presses: &[(u32, &str)], ticks: u32) -> Vec<Input> {
 fn play(e: &mut Engine, inputs: &[Input]) -> Vec<(u32, DomainEvent)> {
     let mut events = Vec::new();
     for input in inputs {
-        e.step(*input);
+        e.step(&[*input]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
     }
     events
@@ -290,7 +290,7 @@ fn auto_run(
 ) -> (Vec<(u32, DomainEvent)>, Vec<(Option<u8>, Option<u64>)>) {
     let (mut events, mut views) = (Vec::new(), Vec::new());
     for input in inputs {
-        e.step(*input);
+        e.step(&[*input]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         views.push((
             e.snapshot().players[0].charge.map(|c| c.level),

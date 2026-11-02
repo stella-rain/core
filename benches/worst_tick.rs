@@ -17,7 +17,7 @@ mod support;
 #[bench::worst_tick(args = (bench_fixtures::worst_tick()), teardown = support::forget_measured)]
 fn worst_tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
-    engine.step(input);
+    engine.step(&[input]);
     engine
 }
 

@@ -9,7 +9,6 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::registry::{self, Kind};
 use stella_rain_core::run_content::RunContent;
@@ -149,14 +148,14 @@ fn the_tutorial_earns_no_stardust() {
     for command in &commands {
         match *command {
             Command::Step(input) => {
-                engine.step(input);
+                engine.step(&[input]);
                 kills += engine
                     .events()
                     .iter()
                     .filter(|e| matches!(e, DomainEvent::Died { .. }))
                     .count();
             }
-            Command::Choose(index) => engine.choose(PlayerIdx::SOLO, index).unwrap(),
+            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
         }
     }
     assert!(

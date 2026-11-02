@@ -470,8 +470,8 @@ fn target_x(e: &Engine) -> Option<i32> {
 fn aim_assist_never_picks_a_disguised_mimic() {
     // The mimic is nearer and an elite; it is passed over for the ordinary enemy.
     let mut e = engine(&assisted_stage(1));
-    e.step(assisted());
-    e.step(assisted());
+    e.step(&[assisted()]);
+    e.step(&[assisted()]);
     assert_eq!(target_x(&e), Some(-RANGE / 2));
 }
 
@@ -479,13 +479,13 @@ fn aim_assist_never_picks_a_disguised_mimic() {
 fn aim_assist_picks_a_revealed_mimic_before_an_ordinary_enemy() {
     // Within reach of the mimic at once: it reveals on tick 1, and is picked from tick 2.
     let mut e = engine(&assisted_stage(RANGE));
-    e.step(assisted());
+    e.step(&[assisted()]);
     assert_eq!(
         target_x(&e),
         Some(-RANGE / 2),
         "tick 1: still disguised when it picks"
     );
-    e.step(assisted());
+    e.step(&[assisted()]);
     assert_eq!(target_x(&e), Some(RANGE / 4));
 }
 
@@ -818,7 +818,7 @@ fn a_disguised_mimic_carries_no_kind_and_a_revealed_one_its_own() {
         AHEAD.0,
         AHEAD.1,
     )]));
-    e.step(idle());
+    e.step(&[idle()]);
     let v = mimic_view(&e);
     assert!(disguised(&v));
     assert_eq!(v.kind_index, None, "nothing leaks while it is disguised");

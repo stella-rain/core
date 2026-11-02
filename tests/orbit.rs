@@ -10,7 +10,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{MAX_ORBS, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -118,8 +117,7 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 /// The orbit's attacks, not the combo's: slot, tick in its phase and facing.
@@ -168,7 +166,7 @@ fn an_orbit_arrives_ready_its_orbs_spaced_evenly_round_the_turn() {
     let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 2, 60, 120)]);
     take(&mut e, "ring");
     assert_eq!(orbits(&e), [("ring".to_string(), 2, 0)]);
-    e.step(idle());
+    e.step(&[idle()]);
     // Orb 0 starts straight down the screen, orb 1 half a turn on.
     assert_eq!(
         attacks(&e),
@@ -181,10 +179,10 @@ fn an_orbit_arrives_ready_its_orbs_spaced_evenly_round_the_turn() {
 fn the_orbs_turn_every_tick() {
     let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 1, 60, 120)]);
     take(&mut e, "ring");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(attacks(&e)[0].2, DOWN);
     for _ in 0..6 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     // A quarter turn in 6 ticks, toward the screen's right.
     assert_eq!(attacks(&e), [(FIRST_SLOT, 6, RIGHT)]);
@@ -201,7 +199,7 @@ fn an_orb_hits_what_it_passes_once_a_round_and_rounds_start_every_cooldown() {
     let first = e.tick() + 1;
     let mut hits = Vec::new();
     for _ in 0..130 {
-        e.step(idle());
+        e.step(&[idle()]);
         for ev in e.events() {
             if let DomainEvent::Hit { target, damage, .. } = ev {
                 if *target == enemy {
@@ -224,11 +222,11 @@ fn a_round_longer_than_the_cooldown_makes_the_next_wait_for_its_end() {
     let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 1, 150, 120)]);
     take(&mut e, "ring");
     for _ in 0..150 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(attacks(&e)[0].1, 149, "the first round is still going");
     assert_eq!(orbits(&e)[0].2, 0, "though its cooldown has run out");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(attacks(&e)[0].1, 0, "the next round starts as it ends");
     assert_eq!(orbits(&e)[0].2, 120);
 }
@@ -237,15 +235,15 @@ fn a_round_longer_than_the_cooldown_makes_the_next_wait_for_its_end() {
 fn taking_the_orbit_again_adds_orbs_from_the_next_round_up_to_the_most() {
     let mut e = with(&starry(vec![targets(2)]), vec![orbit("ring", 5, 600, 600)]);
     take(&mut e, "ring");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(slots(&e), [2, 3, 4, 5, 6]);
     take(&mut e, "ring");
     assert_eq!(orbits(&e)[0].1, MAX_ORBS, "5 and 5, held to the most");
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(slots(&e).len(), 5, "the round going on keeps its orbs");
     let mut ticks = 0;
     while slots(&e).len() < usize::from(MAX_ORBS) {
-        e.step(idle());
+        e.step(&[idle()]);
         ticks += 1;
         assert!(ticks <= 600, "no round of 8 orbs");
     }
@@ -262,7 +260,7 @@ fn another_orbit_turns_beside_the_first_in_slots_of_its_own() {
     );
     take(&mut e, "ring_a");
     take(&mut e, "ring_b");
-    e.step(idle());
+    e.step(&[idle()]);
     let held: Vec<(String, u8)> = orbits(&e).into_iter().map(|o| (o.0, o.1)).collect();
     assert_eq!(held, [("ring_a".to_string(), 1), ("ring_b".to_string(), 1)]);
     // The second orbit's orbs start after the most a first one holds.

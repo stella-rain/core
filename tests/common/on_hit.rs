@@ -6,7 +6,6 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
@@ -129,8 +128,7 @@ pub fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    super::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 /// Takes the random rune from the next seven offers: the Main holds every rune, in the order
@@ -233,7 +231,7 @@ pub fn runes_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Runes {
 /// Steps idle until the tough target is on the map, and returns its ID.
 pub fn wait_for_target(e: &mut Engine) -> EntityId {
     while e.tick() < TARGET_TICK {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let s = e.snapshot();
     s.entities
@@ -252,7 +250,7 @@ pub fn hits(
 ) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..n {
-        e.step(input(e.tick()));
+        e.step(&[input(e.tick())]);
         for ev in e.events() {
             if let DomainEvent::Hit {
                 target: t, damage, ..

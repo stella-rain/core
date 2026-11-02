@@ -49,12 +49,12 @@ fn hit(e: &stella_rain_core::engine::Engine) -> Vec<u32> {
 #[test]
 fn a_full_stick_moves_at_the_speed_cap_and_less_moves_in_proportion() {
     let mut e = running(vec![]);
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(player_at(&e), (START_X + SPEED, START_Y));
     // 64 / 127 of the cap: 64 × 768 / 127 = 387.02, truncated.
-    e.step(moving(64, 0));
+    e.step(&[moving(64, 0)]);
     assert_eq!(player_at(&e), (START_X + SPEED + 387, START_Y));
-    e.step(moving(0, -1));
+    e.step(&[moving(0, -1)]);
     assert_eq!(player_at(&e), (START_X + SPEED + 387, START_Y - 6));
 }
 
@@ -62,7 +62,7 @@ fn a_full_stick_moves_at_the_speed_cap_and_less_moves_in_proportion() {
 fn a_diagonal_is_no_faster_than_a_straight_line() {
     let mut e = running(vec![]);
     // Length √(127² + 127²) = 179.6, rounded up to 180: 127 × 768 / 180 = 541.9 on each axis.
-    e.step(moving(127, 127));
+    e.step(&[moving(127, 127)]);
     let (x, y) = player_at(&e);
     assert_eq!((x, y), (START_X + 541, START_Y + 541));
     let (dx, dy) = (x - START_X, y - START_Y);
@@ -73,11 +73,11 @@ fn a_diagonal_is_no_faster_than_a_straight_line() {
 fn minus_128_moves_like_minus_127() {
     let mut a = running(vec![]);
     let mut b = running(vec![]);
-    a.step(moving(-128, -128));
-    b.step(moving(-127, -127));
+    a.step(&[moving(-128, -128)]);
+    b.step(&[moving(-127, -127)]);
     assert_eq!(player_at(&a), player_at(&b));
-    a.step(moving(-128, 0));
-    b.step(moving(-127, 0));
+    a.step(&[moving(-128, 0)]);
+    b.step(&[moving(-127, 0)]);
     assert_eq!(player_at(&a), player_at(&b));
 }
 
@@ -87,17 +87,17 @@ fn minus_128_moves_like_minus_127() {
 fn the_facing_starts_up_the_field_and_follows_the_last_movement() {
     let mut e = running(vec![]);
     assert_eq!(facing(&e), (0, -SCALE));
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(facing(&e), (SCALE, 0));
     // Standing still keeps it.
-    e.step(idle());
-    e.step(idle());
+    e.step(&[idle()]);
+    e.step(&[idle()]);
     assert_eq!(facing(&e), (SCALE, 0));
     // (-3, 4) has length 5: (-0.6, 0.8) × 65,536, truncated.
-    e.step(moving(-3, 4));
+    e.step(&[moving(-3, 4)]);
     assert_eq!(facing(&e), (-39_321, 52_428));
     // A tiny stick still turns it fully: 65,536² / ⌊√2 × 65,536⌋ = 46,341.03.
-    e.step(moving(1, 1));
+    e.step(&[moving(1, 1)]);
     assert_eq!(facing(&e), (46_341, 46_341));
 }
 
@@ -108,16 +108,16 @@ fn the_main_shot_attacks_on_each_press_of_main() {
     // The test stage's Main weapon: a ray along the facing, a two-tick step. Held, it attacks
     // once; let go and pressed again, it attacks again.
     let mut e = running(vec![]);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(steps(&e), 0, "nothing without a press");
-    e.step(pressing_main());
+    e.step(&[pressing_main()]);
     assert_eq!(steps(&e), 1);
     for _ in 0..5 {
-        e.step(pressing_main());
+        e.step(&[pressing_main()]);
         assert_eq!(steps(&e), 0, "held, it presses once");
     }
-    e.step(idle());
-    e.step(pressing_main());
+    e.step(&[idle()]);
+    e.step(&[pressing_main()]);
     assert_eq!(steps(&e), 1);
 }
 
@@ -133,10 +133,10 @@ fn the_main_shot_goes_along_the_facing() {
     let mut e = running(waves);
     let mut hits = Vec::new();
     for _ in 0..3 {
-        e.step(Input {
+        e.step(&[Input {
             main: hits.is_empty(),
             ..moving(-127, 0)
-        });
+        }]);
         hits.extend(hit(&e));
     }
     // The ids: the boss is 1, then the left bat 2 and the upper bat 3.
@@ -149,26 +149,26 @@ fn the_main_shot_goes_along_the_facing() {
 fn an_evade_dashes_its_distance_over_its_ticks_and_ignores_the_stick_meanwhile() {
     let mut e = running(vec![]);
     let step = EVADE_DISTANCE / i32::try_from(EVADE_TICKS).unwrap();
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     assert_eq!(player_at(&e), (START_X + step, START_Y));
     for k in 2..=i32::try_from(EVADE_TICKS).unwrap() {
-        e.step(moving(-127, 0));
+        e.step(&[moving(-127, 0)]);
         assert_eq!(
             player_at(&e),
             (START_X + k * step, START_Y),
             "dash tick {k}"
         );
     }
-    e.step(moving(-127, 0));
+    e.step(&[moving(-127, 0)]);
     assert_eq!(player_at(&e), (START_X + EVADE_DISTANCE - SPEED, START_Y));
 }
 
 #[test]
 fn an_evade_without_movement_goes_along_the_facing() {
     let mut e = running(vec![]);
-    e.step(evading(0, 0));
+    e.step(&[evading(0, 0)]);
     for _ in 1..EVADE_TICKS {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(player_at(&e), (START_X, START_Y - EVADE_DISTANCE));
 }
@@ -177,9 +177,9 @@ fn an_evade_without_movement_goes_along_the_facing() {
 fn an_evade_is_invulnerable_from_its_first_tick() {
     let mut e = running(vec![]);
     assert_eq!(e.snapshot().players[0].invulnerable, 0);
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(e.snapshot().players[0].invulnerable, EVADE_INVULNERABLE - 1);
 }
 
@@ -189,11 +189,11 @@ fn the_evade_cooldown_counts_from_its_start() {
     let mut evaded = Vec::new();
     // Pressed on tick 1, then on every other tick: the press on tick 41 is the first ready one.
     for tick in 1..=EVADE_COOLDOWN + 3 {
-        e.step(if tick % 2 == 1 {
+        e.step(&[if tick % 2 == 1 {
             evading(127, 0)
         } else {
             idle()
-        });
+        }]);
         if e.events().contains(&DomainEvent::Evaded) {
             evaded.push(tick);
         }
@@ -208,7 +208,7 @@ fn a_held_button_presses_once() {
     let mut e = running(vec![]);
     let seen = run_until(&mut e, evading(127, 0), EVADE_COOLDOWN * 3, |_| false);
     assert_eq!(ticks_of(&seen, |ev| matches!(ev, DomainEvent::Evaded)), [1]);
-    e.step(idle());
+    e.step(&[idle()]);
     let seen = run_until(&mut e, evading(127, 0), 1, |_| false);
     assert_eq!(
         ticks_of(&seen, |ev| matches!(ev, DomainEvent::Evaded)).len(),
@@ -224,7 +224,7 @@ fn the_snapshot_shows_the_evade() {
         (view.ready, view.recovering, view.dash_left),
         (1, vec![], 0)
     );
-    e.step(evading(127, 0));
+    e.step(&[evading(127, 0)]);
     let view = e.snapshot().players[0].evade.clone();
     assert_eq!(
         (view.ready, view.recovering, view.dash_left),

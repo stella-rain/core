@@ -22,7 +22,7 @@ fn id(n: u32) -> EntityId {
 fn play(e: &mut Engine, ticks: u32, input: impl Fn(u32) -> Input) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for _ in 0..ticks {
-        e.step(input(e.tick() + 1));
+        e.step(&[input(e.tick() + 1)]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
     }
     seen
@@ -356,7 +356,7 @@ fn rules_run_companions_first_then_enemies_in_entity_id_order() {
         ],
     );
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     let order: Vec<EntityId> = e
         .events()
         .iter()
@@ -501,13 +501,13 @@ fn an_orbiting_companion_circles_the_main_character() {
             "{x},{y} is not near {dx},{dy}"
         );
     };
-    e.step(idle());
+    e.step(&[idle()]);
     // 1.5 degrees on tick 1: 10240 * sin = 268.05, 10240 * cos = 10236.49. The second
     // companion starts a quarter turn on, at 91.5 degrees.
     near(companion_at(&e, 2), 10_236, 268);
     near(companion_at(&e, 3), -268, 10_236);
     for _ in 0..3 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     // 6 degrees on tick 4: 10240 * sin = 1070.37, 10240 * cos = 10183.90.
     near(companion_at(&e, 2), 10_184, 1_070);
@@ -526,7 +526,7 @@ fn an_orbit_stays_on_its_circle_and_follows_the_main_character() {
     let mut e = engine(&stage);
     for t in 0..400 {
         // 30 ticks of 768 units keep the player, and the circle round it, inside the field.
-        e.step(if t < 30 { moving(-127, 0) } else { idle() });
+        e.step(&[if t < 30 { moving(-127, 0) } else { idle() }]);
         let (px, py) = player_at(&e);
         let (cx, cy) = companion_at(&e, 2);
         let d2 = i64::from(cx - px).pow(2) + i64::from(cy - py).pow(2);
@@ -557,11 +557,11 @@ fn a_hold_enemy_walks_to_its_point_four_pixels_a_tick() {
     // 40 pixels straight below its spawn: ten ticks of 4 pixels (1,024 units), then it stays.
     let mut e = one_enemy(hold(46_080, 60_240), 46_080, 50_000);
     for tick in 1..=10 {
-        e.step(idle());
+        e.step(&[idle()]);
         assert_eq!(enemy_at(&e), (46_080, 50_000 + 1_024 * tick), "tick {tick}");
     }
     for _ in 0..5 {
-        e.step(idle());
+        e.step(&[idle()]);
         assert_eq!(enemy_at(&e), (46_080, 60_240));
     }
 }
@@ -570,11 +570,11 @@ fn a_hold_enemy_walks_to_its_point_four_pixels_a_tick() {
 fn a_hold_enemy_lands_exactly_on_its_point() {
     // 3,000 and 4,000 units away: 5,000 along the line, so four steps of 1,024 and one of 904.
     let mut e = one_enemy(hold(43_000, 54_000), 40_000, 50_000);
-    e.step(idle());
+    e.step(&[idle()]);
     // 1,024 * 3 / 5 = 614.4 and 1,024 * 4 / 5 = 819.2, rounded toward zero.
     assert_eq!(enemy_at(&e), (40_614, 50_819));
     for _ in 0..4 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(enemy_at(&e), (43_000, 54_000));
 }
@@ -586,7 +586,7 @@ fn a_hold_companion_is_still_set_on_its_point() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(companion_at(&e, 2), (20_000, 100_000));
 }
 
@@ -604,7 +604,7 @@ fn an_orbiting_enemy_moves_to_its_circle_and_then_keeps_it() {
     let mut was = (START_X, START_Y - 51_200);
     let mut arrived = None;
     for tick in 1..=120 {
-        e.step(idle());
+        e.step(&[idle()]);
         let at = enemy_at(&e);
         let moved = i64::from(at.0 - was.0).pow(2) + i64::from(at.1 - was.1).pow(2);
         assert!(
@@ -639,10 +639,10 @@ fn a_following_companion_closes_to_its_distance_and_stops() {
     );
     let mut e = engine(&stage);
     for _ in 0..30 {
-        e.step(moving(-127, 0));
+        e.step(&[moving(-127, 0)]);
     }
     for _ in 0..200 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let (px, py) = player_at(&e);
     let (cx, cy) = companion_at(&e, 2);
@@ -661,7 +661,7 @@ fn a_holding_companion_stands_at_its_point() {
         vec![],
     );
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(companion_at(&e, 2), (30_000, 100_000));
 }
 
@@ -677,7 +677,7 @@ fn a_companion_cannot_leave_the_playfield() {
     );
     let mut e = engine(&stage);
     for _ in 0..100 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(companion_at(&e, 2).0, 92_160);
 }
@@ -691,11 +691,11 @@ fn move_to_walks_in_equal_steps_and_lands_exactly() {
     // The rule fires on tick 1 (the order starts), ticks 2 to 11 carry it out. Hold would pull
     // it back, so the order replaces the movement while it lasts.
     let mut e = engine(&stage);
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(companion_at(&e, 2), (1, 1));
     let mut positions = Vec::new();
     for _ in 0..10 {
-        e.step(idle());
+        e.step(&[idle()]);
         positions.push(companion_at(&e, 2));
     }
     assert_eq!(*positions.last().unwrap(), (50_000, 140_000));
@@ -705,7 +705,7 @@ fn move_to_walks_in_equal_steps_and_lands_exactly() {
         "closing in on x: {positions:?}"
     );
     // Back to holding afterwards.
-    e.step(idle());
+    e.step(&[idle()]);
     assert_eq!(companion_at(&e, 2), (1, 1));
 }
 
@@ -803,9 +803,9 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         vec![],
         vec![companion(50, hold(0, 0), rules)],
     ));
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(player_at(&e).0, START_X + SPEED);
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     // Half speed from the tick after the cast.
     assert_eq!(player_at(&e).0, START_X + SPEED + SPEED / 2);
 
@@ -818,10 +818,10 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         vec![companion(50, hold(0, 0), rules)],
     ));
     for _ in 0..20 {
-        e.step(moving(127, 0));
+        e.step(&[moving(127, 0)]);
     }
     let before = player_at(&e).0;
-    e.step(moving(127, 0));
+    e.step(&[moving(127, 0)]);
     assert_eq!(
         player_at(&e).0 - before,
         76,
@@ -844,7 +844,7 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         vec![wave(1, 1, 0, runner, from.0, from.1)],
         vec![companion(50, hold(46_080, 90_000), rules)],
     ));
-    e.step(idle());
+    e.step(&[idle()]);
     let y1 = e
         .snapshot()
         .entities
@@ -854,7 +854,7 @@ fn slow_cuts_the_speed_of_the_main_character_and_of_enemies() {
         .at
         .y
         .0;
-    e.step(idle());
+    e.step(&[idle()]);
     let y2 = e
         .snapshot()
         .entities
@@ -1024,7 +1024,7 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
         vec![wave(1, 1, 0, summoner, 46_080, 50_000)],
         vec![],
     )));
-    e.step(idle());
+    e.step(&[idle()]);
     let s = e.snapshot();
     let ids: Vec<u32> = s.entities.iter().map(|x| x.id.0).collect();
     assert_eq!(
@@ -1043,7 +1043,7 @@ fn an_enemy_summons_more_enemies_where_it_stands() {
     // The summoned start acting next tick: they walk to their point at (1000, 1000), 66,582
     // units away, at 4 pixels a tick, and keep to it side by side.
     for _ in 0..150 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let s = e.snapshot();
     for v in &s.entities[2..] {
@@ -1081,7 +1081,7 @@ fn summons_respect_the_enemy_cap() {
         50_000,
     );
     let mut e = engine(&stage_full(18_000, Some(far_boss()), waves, vec![]));
-    e.step(idle());
+    e.step(&[idle()]);
     let alive = |e: &Engine| {
         e.snapshot()
             .entities
@@ -1091,7 +1091,7 @@ fn summons_respect_the_enemy_cap() {
     };
     assert_eq!(alive(&e), 208);
     for _ in 0..5 {
-        e.step(idle());
+        e.step(&[idle()]);
         assert!(alive(&e) <= 260);
     }
     assert_eq!(alive(&e), 260);
@@ -1169,7 +1169,7 @@ fn places_agree_with_the_snapshot_while_companions_play() {
     let mut places = stella_rain_core::engine::Places::default();
     let mut companions = 0;
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
         let kinds = crate::places::assert_places_match(&e, &mut places);
         companions += kinds
             .iter()

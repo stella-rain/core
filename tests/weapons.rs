@@ -105,7 +105,7 @@ fn play(e: &mut Engine, inputs: &[Input]) -> Played {
     };
     let mut seen = 0;
     for input in inputs {
-        e.step(*input);
+        e.step(&[*input]);
         played
             .events
             .extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
@@ -172,7 +172,7 @@ fn with_nothing_buffered_the_recovery_plays_and_a_press_during_it_is_taken_at_on
         1,
         "A recovers to tick 10"
     );
-    e.step(idle());
+    e.step(&[idle()]);
     assert!(e.snapshot().players[0].attacks.is_empty());
 
     let p = played(&combo_stage(WINDOW), &presses(&[(1, "a"), (8, "a")], 20));
@@ -476,7 +476,7 @@ fn a_preset_is_the_one_weapon_both_buttons_play() {
     // The giant_sword's A slashes; the giant_hammer's A is its own spin, no preset.
     let first = |weapon: &str| {
         let mut e = engine(&armed(far(), preset(weapon)));
-        e.step(pressing_main());
+        e.step(&[pressing_main()]);
         e.snapshot().players[0].attacks[0]
             .preset
             .clone()
@@ -508,8 +508,8 @@ fn a_preset_and_its_inline_copy_run_the_same() {
             evade: t == 118,
             ..if t < 130 { idle() } else { moving(40, -20) }
         };
-        a.step(input);
-        b.step(input);
+        a.step(&[input]);
+        b.step(&[input]);
         assert_eq!(a.state_hash(), b.state_hash(), "tick {}", a.tick());
     }
 }

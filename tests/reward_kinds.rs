@@ -3,9 +3,9 @@
 //! and `banishes`. A kind is bounded like the others (ADR-020): its amount, and for
 //! `heal_per_kills` its `kills`, and no other effect takes `kills`.
 
+use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{
     MAX_PICKUP_RADIUS_PCT, MAX_SKILL_COOLDOWN_PCT, RewardEffect, Rewards,
 };
@@ -195,8 +195,7 @@ pub(crate) fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 pub(crate) fn next_offer(e: &mut Engine) {

@@ -98,10 +98,10 @@ fn play(e: &mut Engine, id: EntityId, presses: &[u32], ticks: u32) -> Played {
     let mut p = Played::default();
     for _ in 0..ticks {
         let t = e.tick();
-        e.step(Input {
+        e.step(&[Input {
             smash: presses.contains(&t),
             ..idle()
-        });
+        }]);
         let now = e.tick();
         let mut hit = false;
         for ev in e.events() {
@@ -167,10 +167,10 @@ fn a_boss_takes_no_stun_from_a_smash() {
     let mut hit = None;
     for _ in 0..10 {
         let t = e.tick();
-        e.step(Input {
+        e.step(&[Input {
             smash: t == 0,
             ..idle()
-        });
+        }]);
         for ev in e.events() {
             if let DomainEvent::Hit { target, damage, .. } = ev {
                 assert!(*damage > 0, "the smash hits the boss");

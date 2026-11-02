@@ -319,7 +319,7 @@ fn each_boss_phase_played_alone_places_zones_within_the_count() {
             let mut e = engine(&stage);
             let (mut zones, mut orbs) = (0, 0);
             for _ in 0..900 {
-                e.step(idle());
+                e.step(&[idle()]);
                 let snapshot = serde_json::to_value(e.snapshot()).unwrap();
                 zones = zones.max(snapshot["zones"].as_array().map_or(0, Vec::len));
                 let alive = snapshot["orbs"].as_array().cloned().unwrap_or_default();

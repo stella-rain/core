@@ -64,7 +64,7 @@ fn follower_ys(speed: Option<i32>, ticks: u32) -> Vec<i32> {
     let mut e = engine(&chase(speed));
     (0..=ticks)
         .map(|_| {
-            e.step(idle());
+            e.step(&[idle()]);
             only_enemy(&e).1
         })
         .collect()
@@ -134,7 +134,7 @@ fn fired(stage: &Stage, ticks: u32) -> usize {
     let mut e = engine(stage);
     let mut count = 0;
     for _ in 0..ticks {
-        e.step(idle());
+        e.step(&[idle()]);
         count += e
             .events()
             .iter()
@@ -189,7 +189,7 @@ fn an_exploder_that_self_destructs_fires_once_and_is_gone() {
     let mut e = engine(&exploder(5_000, true));
     let mut firings = 0;
     for _ in 0..5 {
-        e.step(idle());
+        e.step(&[idle()]);
         firings += e
             .events()
             .iter()
@@ -236,7 +236,7 @@ fn credit_after(stage: &Stage, shoot: bool) -> (u32, u32) {
         } else {
             idle()
         };
-        e.step(input);
+        e.step(&[input]);
     }
     assert!(enemies_of(&e).is_empty(), "the exploder is gone");
     let snap = e.snapshot();
@@ -276,12 +276,12 @@ fn a_near_target_distance_is_bounded_to_one_to_the_map_length() {
 fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {
     // 100 hit points; a hit is an orb of the main character's weapon, fired up the field.
     let mut e = engine(&splitter_with(100, hp_below_half(), 2, vec![]));
-    e.step(idle());
+    e.step(&[idle()]);
     let parent = enemies_of(&e)[0].0;
     let mut crossed = None;
     let mut split = None;
     for _ in 0..600 {
-        e.step(firing(idle(), e.tick()));
+        e.step(&[firing(idle(), e.tick())]);
         let all = enemies_of(&e);
         let hp = all.iter().find(|v| v.0 == parent).map_or(0, |v| v.3);
         if crossed.is_none() && hp * 2 < 100 {
@@ -302,7 +302,7 @@ fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {
     assert_eq!(split, Some((crossed + 1, 2)));
     // Once only: the split never comes again, even while the splitter stays below half.
     for _ in 0..30 {
-        e.step(idle());
+        e.step(&[idle()]);
         let children = enemies_of(&e).iter().filter(|v| v.0 > parent).count();
         assert!(children <= 2, "{children} children");
     }
@@ -331,7 +331,7 @@ fn a_split_spawns_only_what_the_enemy_cap_has_room_for() {
     let when = json!({ "type": "time_above", "ticks": 150 });
     let mut e = engine(&splitter_with(100, when, 2, bats));
     for _ in 0..160 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let all = enemies_of(&e);
     assert_eq!(all.len(), 260, "the cap holds");
@@ -342,7 +342,7 @@ fn a_split_spawns_only_what_the_enemy_cap_has_room_for() {
 fn a_split_with_room_spawns_all_its_children() {
     let mut e = engine(&splitter_with(100, always(), 2, vec![]));
     for _ in 0..5 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(enemies_of(&e).len(), 3, "the splitter and its two children");
 }

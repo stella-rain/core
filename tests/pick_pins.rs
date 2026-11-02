@@ -6,8 +6,10 @@ use crate::corpus::{apply, case_content, runs_dir};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::run_replay::RunReplay;
 
+type Pin = (u64, usize, u32);
+
 /// The (hash, events, tick) after each of the first `take` commands of run case `name`.
-fn after_commands(name: &str, take: usize) -> Vec<(u64, usize, u32)> {
+fn after_commands(name: &str, take: usize) -> Vec<Pin> {
     let case = runs_dir().join(name);
     let content = case_content(&case).unwrap();
     let replay = RunReplay::from_bytes(&std::fs::read(case.join("run.replay")).unwrap()).unwrap();
@@ -23,7 +25,7 @@ fn after_commands(name: &str, take: usize) -> Vec<(u64, usize, u32)> {
         if seen.len() >= take {
             break;
         }
-        engine.step(input);
+        engine.step(&[input]);
     }
     seen
 }
@@ -31,7 +33,7 @@ fn after_commands(name: &str, take: usize) -> Vec<(u64, usize, u32)> {
 /// The first six commands of three run cases, which between them take star, level and
 /// expertise offers: the state hash, the events and the tick after each, taken on the code
 /// where `choose` is its own method.
-const PINS: [(&str, [(u64, usize, u32); 6]); 3] = [
+const PINS: [(&str, [Pin; 6]); 3] = [
     (
         "easy",
         [

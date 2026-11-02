@@ -8,7 +8,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::rewards::{MAX_HP_AMOUNT, Rarity, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -363,8 +362,8 @@ fn the_pickup_draw_is_one_in_150_and_the_same_per_seed() {
     let mut kills = 0_usize;
     let mut drops = 0_usize;
     for _ in 0..1_500 {
-        a.step(firing(idle(), a.tick()));
-        b.step(firing(idle(), b.tick()));
+        a.step(&[firing(idle(), a.tick())]);
+        b.step(&[firing(idle(), b.tick())]);
         assert_eq!(a.state_hash(), b.state_hash(), "the same hash every tick");
         kills += a
             .events()
@@ -429,8 +428,7 @@ fn take(e: &mut Engine, reward: &str) {
         candidate: u8::try_from(candidate).unwrap(),
     };
     let index = offer.options.iter().position(|o| *o == option).unwrap();
-    e.choose(PlayerIdx::SOLO, u32::try_from(index).unwrap())
-        .unwrap();
+    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 #[test]

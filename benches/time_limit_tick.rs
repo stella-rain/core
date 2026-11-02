@@ -14,7 +14,7 @@ mod support;
 #[bench::time_limit_tick(args = (bench_fixtures::time_limit_tick()), teardown = support::forget_measured)]
 fn time_limit_tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
-    engine.step(input);
+    engine.step(&[input]);
     engine
 }
 

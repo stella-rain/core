@@ -88,7 +88,7 @@ fn a_warn_only_zone_warns_for_its_wind_up_and_hurts_nothing() {
     let hp = e.snapshot().players[0].hp;
     let mut events = Vec::new();
     for tick in 1..=120u32 {
-        e.step(idle());
+        e.step(&[idle()]);
         events.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         let z = zones(&e);
         if tick <= 30 {
@@ -148,13 +148,13 @@ fn a_warn_only_zone_is_counted_in_the_cap() {
     };
     let full = stage(spawning(5, vec![ring(64), ring(64), warn(200)]));
     let mut e = engine(&full);
-    e.step(idle());
+    e.step(&[idle()]);
     let z = zones(&e);
     assert_eq!(z.len(), MAX_ZONES_ALIVE);
     assert!(z.iter().all(|z| z.get("warn_only").is_none()), "dropped");
     let room = stage(spawning(5, vec![ring(64), ring(63), warn(200), warn(200)]));
     let mut e = engine(&room);
-    e.step(idle());
+    e.step(&[idle()]);
     let z = zones(&e);
     assert_eq!(z.len(), MAX_ZONES_ALIVE);
     assert_eq!(z.iter().filter(|z| z.get("warn_only").is_some()).count(), 1);
@@ -167,7 +167,7 @@ fn a_wind_up_of_zero_is_clamped_and_never_a_hit() {
         "wind_up_ticks": { "sub": [1, 1] }, "warn_only": true });
     let st = stage(spawning(5, vec![node]));
     let mut e = engine(&st);
-    e.step(idle());
+    e.step(&[idle()]);
     let z = zones(&e);
     assert_eq!(
         (z.len(), &z[0]["ticks"], &z[0]["ticks_left"]),
@@ -180,7 +180,7 @@ fn a_wind_up_of_zero_is_clamped_and_never_a_hit() {
 fn a_normal_zone_has_no_warn_only_key() {
     let st = stage(spawning(5, vec![normal(10, 5)]));
     let mut e = engine(&st);
-    e.step(idle());
+    e.step(&[idle()]);
     assert!(zones(&e)[0].get("warn_only").is_none());
 }
 
@@ -208,7 +208,7 @@ fn firing_late(nodes: Vec<Value>) -> Stage {
 
 fn first_orb_tick(e: &mut Engine, input: stella_rain_core::input::Input) -> u32 {
     for _ in 0..60 {
-        e.step(input);
+        e.step(&[input]);
         if !orbs(e).is_empty() {
             return e.tick();
         }
@@ -263,7 +263,7 @@ fn an_orb_samples_the_target_once_when_it_fires() {
     let (vx, vy) = (o["vx"].clone(), o["vy"].clone());
     let mut at = px(&o["at"]);
     for _ in 0..20 {
-        e.step(left);
+        e.step(&[left]);
         let o = &orbs(&e)[0];
         assert_eq!((&o["vx"], &o["vy"]), (&vx, &vy));
         at = (at.0 + vx.as_i64().unwrap(), at.1 + vy.as_i64().unwrap());
@@ -279,7 +279,7 @@ fn rounds_of_a_repeat_sample_again_when_they_fire() {
     let left = moving(-127, 0);
     let mut seen = Vec::new();
     for _ in 0..70 {
-        e.step(left);
+        e.step(&[left]);
         let list = orbs(&e);
         if seen.len() < list.len() {
             let spawned = list.last().unwrap();
@@ -322,7 +322,7 @@ fn a_cage_forms_round_the_target_where_it_stood_when_the_node_fired() {
     let t0 = first_orb_tick(&mut e, idle());
     let me = e.snapshot().players[0].at;
     while e.tick() < t0 + 60 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     let list = orbs(&e);
     assert_eq!(list.len(), 4);

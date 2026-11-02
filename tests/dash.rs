@@ -70,7 +70,7 @@ fn track(stage: &Stage, ticks: u32) -> Vec<(i32, i32)> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|_| {
-            e.step(idle());
+            e.step(&[idle()]);
             enemy_positions(&e)[0]
         })
         .collect()
@@ -138,7 +138,7 @@ fn the_hit_box_travels_with_the_attacker() {
     let mut first_overlap = None;
     let mut hit_at = None;
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
         let (ex, ey) = enemy_positions(&e)[0];
         let d = i64::from(ex - px).pow(2) + i64::from(ey - py).pow(2);
         let reach = i64::from(10 * PX + radius);
@@ -167,7 +167,7 @@ fn a_dasher_is_not_moved_by_the_push_apart() {
     ]);
     let mut e = engine(&st);
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
         let at = enemy_positions(&e);
         assert_eq!(at[0].0, x0, "{at:?}");
     }
@@ -195,7 +195,7 @@ fn a_boss_dash_moves_its_parts_by_the_same_offset() {
         (v.at.x.0, v.at.y.0)
     };
     for _ in 0..60 {
-        e.step(idle());
+        e.step(&[idle()]);
     }
     assert_eq!(at(&e, EntityKind::Boss), (180 * PX, 300 * PX));
     assert_eq!(at(&e, EntityKind::BossPart), (180 * PX, 316 * PX));

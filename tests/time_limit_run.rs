@@ -68,7 +68,7 @@ fn start(mode: &TimeLimit, seed: u64) -> Engine {
 
 fn step_to(e: &mut Engine, tick: u32) -> Snapshot {
     while e.tick() < tick {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     e.snapshot()
 }
@@ -91,7 +91,7 @@ fn a_time_limit_setup_starts_on_the_open_field() {
         (524_288, 524_288)
     );
     for _ in 0..120 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
     }
     assert_eq!(e.tick(), 120);
     assert_eq!(e.outcome(), Outcome::Running);
@@ -103,7 +103,7 @@ fn a_run_of_the_bundled_mode_is_the_same_every_time() {
         let mut e = Engine::start(&setup(7)).unwrap();
         (0..300)
             .map(|_| {
-                e.step(Input::default());
+                e.step(&[Input::default()]);
                 e.state_hash()
             })
             .collect::<Vec<_>>()
@@ -169,7 +169,7 @@ fn the_enemies_alive_never_pass_the_cap_and_the_waves_stop_at_the_target() {
     let mut e = start(&m, 5);
     let mut most = 0;
     for _ in 0..600 {
-        e.step(Input::default());
+        e.step(&[Input::default()]);
         most = most.max(e.load().enemies);
         assert!(e.load().enemies <= 260);
     }
@@ -242,7 +242,7 @@ fn the_draws_are_recorded_in_the_run_s_hash() {
         );
         (0..400)
             .map(|_| {
-                e.step(Input::default());
+                e.step(&[Input::default()]);
                 e.state_hash()
             })
             .collect::<Vec<_>>()
