@@ -102,6 +102,15 @@ jobs:
           SAVEPOINT_SEEDS_DIR="$PWD/seeds/savepoint" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_savepoint_seeds -- --ignored
           test -n "$(find seeds/savepoint -type f)"
           find seeds/savepoint -type f | wc -l
+      - name: Seeds for step_log_range
+        if: matrix.target == 'step_log_range'
+        run: |
+          set -eu
+          # Generated, not committed: the bytes move with the step log format and SIM_VERSION. The test
+          # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/step_log_range of the root.
+          STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_step_log_range_seeds -- --ignored
+          test -n "$(find seeds/step_log_range -type f)"
+          find seeds/step_log_range -type f | wc -l
       - name: Fuzz ${{ matrix.target }}
         env:
           TARGET: ${{ matrix.target }}
@@ -113,6 +122,7 @@ jobs:
             run_setup) seeds=seeds/setup ;;
             pack_load) seeds=seeds/pack ;;
             savepoint_load) seeds=seeds/savepoint ;;
+            step_log_range) seeds=seeds/step_log_range ;;
             *) seeds= ;;
           esac
           mkdir -p "fuzz/corpus/$TARGET"
