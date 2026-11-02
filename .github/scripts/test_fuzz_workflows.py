@@ -91,5 +91,31 @@ class ShortRunInParallel(unittest.TestCase):
         self.assertTrue(self.step.rstrip().endswith('exit "$status"'))
 
 
+def rust_cache(block):
+    """The `with:` lines of the job's Swatinem/rust-cache step, as a dict."""
+    m = re.search(r"uses: Swatinem/rust-cache@v2\n        with:\n((?:          .*\n)+)", block)
+    assert m, "no rust-cache step"
+    return dict(l.strip().split(": ", 1) for l in m.group(1).splitlines())
+
+
+class ShortRunCache(unittest.TestCase):
+    """rust-cache keys a cache by job unless shared-key is set, and saves only on main; the short
+    run runs only on PRs, so its own cache was never saved and every run built from nothing."""
+
+    def test_the_short_run_reads_the_build_job_s_cache(self):
+        text = read(".github/workflows/rust.yml")
+        build = rust_cache(job_block(text, "fuzz-build"))
+        short = rust_cache(job_block(text, "fuzz-short"))
+        self.assertIn("shared-key", build)
+        self.assertEqual(short.get("shared-key"), build["shared-key"])
+        self.assertEqual(short.get("key"), build.get("key"))
+        self.assertEqual(build["save-if"], "${{ github.ref == 'refs/heads/main' }}")
+        self.assertEqual(short["save-if"], build["save-if"])
+
+    def test_the_build_job_runs_on_main(self):
+        header = job_block(read(".github/workflows/rust.yml"), "fuzz-build").split("    steps:")[0]
+        self.assertNotIn("pull_request", header)
+
+
 if __name__ == "__main__":
     unittest.main()
