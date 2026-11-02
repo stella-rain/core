@@ -484,7 +484,7 @@ jobs:
           # still for 60 seconds. Each run writes its own log, shown below in order, so the outputs
           # do not interleave; a failed run leaves a .failed mark.
           mkdir -p fuzz-logs
-          # shellcheck disable=SC2329 # called by xargs, through bash -c
+          # shellcheck disable=SC2317,SC2329 # called by xargs, through bash -c
           fuzz_one() {
             target=$1
             # A seed longer than -max_len is cut to it: pack_load takes a whole pack
