@@ -5,8 +5,17 @@
 //! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
 //! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
 
-/// Structure of stage, event and replay files.
+/// Structure of stage, event and replay files, as writers write it. The next change sets it
+/// to 2 (replay schema 2).
 pub const SCHEMA_VERSION: u32 = 1;
+
+/// The oldest `schema_version` still read (ADR-REPL-7 point 4): schema 1 files keep loading.
+pub const FIRST_SCHEMA_VERSION: u32 = 1;
+
+/// The newest `schema_version` this build reads; the writer's `SCHEMA_VERSION` rises to it in
+/// the next change. Schema 2 changes the run replay's input stream and adds `Input.interact`;
+/// stage, pack and setup files have the same structure at 1 and 2 (ADR-REPL-7 point 4).
+pub const NEWEST_READ_SCHEMA_VERSION: u32 = 2;
 
 /// Simulation rules: the open live version (ADR-REPL-9); version 1 is frozen in `sim_v1`.
 pub const SIM_VERSION: u32 = 2;
@@ -35,20 +44,23 @@ pub(crate) enum ReadError {
     },
 }
 
-/// Checks both versions against this game's: the schema exactly, the sim version within
+/// Checks both versions against this game's: the schema within
+/// `FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION`, the sim version within
 /// `FIRST_SIM_VERSION..=SIM_VERSION`.
 pub(crate) fn check(schema_version: u32, sim_version: u32) -> Result<(), ReadError> {
     check_in(schema_version, sim_version, FIRST_SIM_VERSION, SIM_VERSION)
 }
 
-/// `check` for the sim versions `oldest..=current`.
+/// `check` for the sim versions `oldest..=current` (the schema range is the same).
 pub(crate) fn check_in(
     schema_version: u32,
     sim_version: u32,
     oldest: u32,
     current: u32,
 ) -> Result<(), ReadError> {
-    if schema_version == SCHEMA_VERSION && (oldest..=current).contains(&sim_version) {
+    if (FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION).contains(&schema_version)
+        && (oldest..=current).contains(&sim_version)
+    {
         Ok(())
     } else {
         Err(ReadError::UnsupportedVersion {
@@ -299,7 +311,10 @@ mod tests {
             })
         );
         assert_eq!(load(moves_sim), Err(ReplayLoadError::Older(v(1, 1))));
-        assert_eq!(load(stays_at_schema_1), Err(ReplayLoadError::Older(v(1, 1))));
+        assert_eq!(
+            load(stays_at_schema_1),
+            Err(ReplayLoadError::Older(v(1, 1)))
+        );
     }
 
     #[test]

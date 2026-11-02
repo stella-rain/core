@@ -15,7 +15,9 @@ use stella_rain_core::replay::{
 };
 use stella_rain_core::rng::SplitMix64;
 use stella_rain_core::validate;
-use stella_rain_core::version::{FIRST_SIM_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{
+    FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION,
+};
 
 fn recorded() -> (Vec<u8>, Replay, Vec<u8>) {
     let stage = stage_bytes();
@@ -374,8 +376,8 @@ fn a_replay_only_verifies_against_its_own_stage() {
         ),
         (
             "schema_version",
-            SCHEMA_VERSION + 1,
-            (SCHEMA_VERSION + 1, FIRST_SIM_VERSION),
+            NEWEST_READ_SCHEMA_VERSION + 1,
+            (NEWEST_READ_SCHEMA_VERSION + 1, FIRST_SIM_VERSION),
         ),
     ] {
         let tampered = with(&replay, |v| v[field] = json!(newer));
@@ -628,10 +630,12 @@ fn newer(schema_version: u32, sim_version: u32) -> Result<Replay, ReplayError> {
 #[test]
 fn a_replay_for_a_newer_version_is_newer() {
     let (_, replay, _) = recorded();
-    let schema = with(&replay, |v| v["schema_version"] = json!(SCHEMA_VERSION + 1));
+    let schema = with(&replay, |v| {
+        v["schema_version"] = json!(NEWEST_READ_SCHEMA_VERSION + 1)
+    });
     assert_eq!(
         Replay::from_bytes(&schema),
-        newer(SCHEMA_VERSION + 1, FIRST_SIM_VERSION)
+        newer(NEWEST_READ_SCHEMA_VERSION + 1, FIRST_SIM_VERSION)
     );
     // A newer file may hold fields this version rejects; it is still "newer", not damaged.
     let future = with(&replay, |v| {
@@ -723,9 +727,12 @@ fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
         (SCHEMA_VERSION, SIM_VERSION)
     );
     assert_eq!(
-        Replay::from_bytes(&corpus_replay_at(SCHEMA_VERSION + 1, SIM_VERSION + 1)),
+        Replay::from_bytes(&corpus_replay_at(
+            NEWEST_READ_SCHEMA_VERSION + 1,
+            SIM_VERSION + 1
+        )),
         Err(ReplayError::Newer {
-            schema_version: SCHEMA_VERSION + 1,
+            schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
             sim_version: SIM_VERSION + 1
         })
     );

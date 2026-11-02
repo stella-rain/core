@@ -16,7 +16,7 @@ use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::{
     HEADER_LEN, MAX_SAVEPOINT_BYTES, SAVEPOINT_FORMAT, Savepoint, SavepointError,
 };
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
 
 // The offsets of the header's fields (the layout table of the format).
 const SIM_VERSION_AT: usize = 8;
@@ -357,10 +357,7 @@ fn schema_version_another_value_is_refused() {
     let rec = run(120);
     let good = rec.replay();
     let bytes = rec.save();
-    for v in [0, 2, 7, u32::MAX]
-        .into_iter()
-        .filter(|&v| v != SCHEMA_VERSION)
-    {
+    for v in [0, NEWEST_READ_SCHEMA_VERSION + 1, 7, u32::MAX] {
         let mut changed = bytes.clone();
         put_u32(&mut changed, SCHEMA_VERSION_AT, v);
         assert_eq!(

@@ -136,7 +136,11 @@ mod tests {
             ("01 00", 0, "ends in the middle of a record"),
             ("01 00 04 00 00 00", 5, "there are fewer inputs than ticks"),
             ("01 00 06 00 00 00", 5, "there are more inputs than ticks"),
-            ("01 00 85 00 00 00 00", 5, "a number is not in its shortest form"),
+            (
+                "01 00 85 00 00 00 00",
+                5,
+                "a number is not in its shortest form",
+            ),
             ("01 00 01 00 80 00", 1, "a stick axis is out of range"),
         ];
         for (bytes, ticks, why) in cases {
@@ -174,7 +178,9 @@ mod tests {
         bytes.extend([1, 1, 0]);
         assert_eq!(
             StepLog::decode(&bytes, 0, 10),
-            Err(RunReplayError::TooManyCommands { limit: MAX_COMMANDS })
+            Err(RunReplayError::TooManyCommands {
+                limit: MAX_COMMANDS
+            })
         );
     }
 
@@ -182,16 +188,40 @@ mod tests {
 
     /// Every run case of the corpus, current and frozen, as (name, bytes).
     fn corpus_runs() -> Vec<(String, Vec<u8>)> {
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/corpus");
-        let mut runs = Vec::new();
-        for tree in ["current", "v1"] {
-            for entry in std::fs::read_dir(format!("{root}/{tree}/runs")).unwrap() {
-                let path = entry.unwrap().path();
-                let bytes = std::fs::read(path.join("run.replay")).unwrap();
-                runs.push((format!("{tree}/{}", path.file_name().unwrap().to_string_lossy()), bytes));
-            }
+        let mut runs: Vec<(String, Vec<u8>)> = Vec::new();
+        macro_rules! case {
+            ($tree:literal, $name:literal) => {
+                runs.push((
+                    concat!($tree, "/", $name).to_owned(),
+                    include_bytes!(concat!(
+                        "../tests/corpus/",
+                        $tree,
+                        "/runs/",
+                        $name,
+                        "/run.replay"
+                    ))
+                    .to_vec(),
+                ));
+            };
         }
-        assert!(runs.len() >= 10);
+        case!("current", "easy");
+        case!("current", "elites");
+        case!("current", "rainy");
+        case!("current", "stage_skill");
+        case!("current", "time_limit");
+        case!("current", "time_limit_kill");
+        case!("current", "time_limit_overtime");
+        case!("current", "trial");
+        case!("current", "tutorial");
+        case!("v1", "easy");
+        case!("v1", "elites");
+        case!("v1", "rainy");
+        case!("v1", "stage_skill");
+        case!("v1", "time_limit");
+        case!("v1", "time_limit_kill");
+        case!("v1", "time_limit_overtime");
+        case!("v1", "trial");
+        case!("v1", "tutorial");
         runs
     }
 
@@ -205,7 +235,11 @@ mod tests {
             let log = replay.step_log(u32::MAX).unwrap();
             assert_eq!(log, StepLog::from_schema1(&inputs, &commands), "{name}");
             assert_eq!(log.to_solo(), Ok((inputs, commands.clone())), "{name}");
-            assert_eq!(StepLog::decode(&log.encode(), replay.ticks, u32::MAX), Ok(log), "{name}");
+            assert_eq!(
+                StepLog::decode(&log.encode(), replay.ticks, u32::MAX),
+                Ok(log),
+                "{name}"
+            );
             with_picks += usize::from(!commands.is_empty());
         }
         assert!(with_picks >= 2, "the corpus has runs with picks");
@@ -222,14 +256,22 @@ mod tests {
         let a = Input::default();
         let b = main_held();
         let log = StepLog::from_schema1(&[a, a, b, b], &[choose(2, 1), choose(2, 0), choose(4, 3)]);
-        let picks = |i| Record::Picks { picks: vec![Some(i)] };
+        let picks = |i| Record::Picks {
+            picks: vec![Some(i)],
+        };
         assert_eq!(
             log.records,
             vec![
-                Record::Ticks { run: 2, inputs: vec![a] },
+                Record::Ticks {
+                    run: 2,
+                    inputs: vec![a]
+                },
                 picks(1),
                 picks(0),
-                Record::Ticks { run: 2, inputs: vec![b] },
+                Record::Ticks {
+                    run: 2,
+                    inputs: vec![b]
+                },
                 picks(3),
             ]
         );
@@ -248,7 +290,9 @@ mod tests {
         replay.commands = base64::encode(&late);
         assert_eq!(
             replay.step_log(u32::MAX),
-            Err(RunReplayError::BadCommands("a command is after the last tick"))
+            Err(RunReplayError::BadCommands(
+                "a command is after the last tick"
+            ))
         );
     }
 
@@ -351,7 +395,9 @@ mod tests {
             };
             assert_eq!(
                 verify_run(&schema_2_with(&one, &log).to_bytes()),
-                Err(RunReplayError::BadInputs("the party does not match the run"))
+                Err(RunReplayError::BadInputs(
+                    "the party does not match the run"
+                ))
             );
         }
     }

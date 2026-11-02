@@ -13,7 +13,7 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, limits};
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
 /// The bundled file with the crowd's two numbers set.
 fn file(crowd_target: u64, cap_headroom_pct: u64) -> Vec<u8> {
@@ -129,7 +129,7 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
         Rules::parse(
             v.to_string().as_bytes(),
             Versions {
-                schema_version: SCHEMA_VERSION + 1,
+                schema_version: NEWEST_READ_SCHEMA_VERSION + 1,
                 sim_version: SIM_VERSION + 1
             }
         ),

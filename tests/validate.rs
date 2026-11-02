@@ -8,7 +8,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{
     Error, Issue, limits::*, parse_and_validate, validate, validate_with,
 };
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION};
 
 const STAGE: &str = include_str!("fixtures/stage_v0.json");
 
@@ -171,7 +171,7 @@ fn the_byte_limit_applies_before_parsing() {
 #[test]
 fn newer_versions_are_reported_before_the_strict_parse() {
     for (field, name, newer) in [
-        ("schema_version", "schema", SCHEMA_VERSION + 1),
+        ("schema_version", "schema", NEWEST_READ_SCHEMA_VERSION + 1),
         ("sim_version", "sim", SIM_VERSION + 1),
     ] {
         let mut v = base();

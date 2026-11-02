@@ -4,7 +4,9 @@
 
 use std::fs;
 use std::path::Path;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use stella_rain_core::version::{
+    NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION, Versions,
+};
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -241,7 +243,7 @@ fn a_missing_file_is_refused() {
 #[test]
 fn an_unknown_pack_version_is_refused() {
     for (field, n) in [
-        ("schema_version", SCHEMA_VERSION + 1),
+        ("schema_version", NEWEST_READ_SCHEMA_VERSION + 1),
         ("sim_version", SIM_VERSION + 1),
         ("sim_version", 7),
     ] {

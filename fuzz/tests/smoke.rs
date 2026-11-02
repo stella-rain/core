@@ -13,7 +13,7 @@ use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayError};
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, replay_load,
     run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder, savepoint_seeds,
@@ -174,7 +174,7 @@ fn a_replay_with_a_raised_version_is_newer_and_not_a_load() {
     assert!(!replay_load(&raised), "a newer replay verifies");
     let run = run_replays().remove(0);
     let mut v: serde_json::Value = serde_json::from_slice(&run).unwrap();
-    v["setup"]["schema_version"] = serde_json::json!(SCHEMA_VERSION + 1);
+    v["setup"]["schema_version"] = serde_json::json!(NEWEST_READ_SCHEMA_VERSION + 1);
     let raised = v.to_string().into_bytes();
     assert!(matches!(
         RunReplay::from_bytes(&raised),
