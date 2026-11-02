@@ -439,3 +439,256 @@ mod careers {
         );
     }
 }
+
+// The star offers and the offer generator are per slot: `Career.offers`, `Career.offer`
+// (ADR-SIM-12, ADR-SIM-2).
+
+mod offers {
+    use super::super::state::{Due, OfferState, Offers, StarField, StarState};
+    use super::*;
+    use crate::rewards::Rarity;
+    use crate::rng::{TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2, derive};
+    use crate::snapshot::OfferKind;
+
+    fn slot(i: u8) -> PlayerIdx {
+        PlayerIdx::new(i).unwrap()
+    }
+
+    /// A party of `mask` over the worst case, whose slot 0 holds offers with every field set.
+    fn party(mask: u8) -> State {
+        let e = worst_case::warmed_up();
+        let mut s = live(&e).1.clone();
+        s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
+        let c = s.players.career_mut(PlayerIdx::SOLO);
+        let o = c.offers.as_mut().expect("the worst case has stars");
+        o.due.push(Due {
+            kind: OfferKind::Star,
+            rarity: Rarity::Rare,
+        });
+        o.offer = Some(OfferState {
+            kind: OfferKind::Boss,
+            rarity: Rarity::Epic,
+            candidates: vec![0, 1],
+        });
+        o.rerolls_left = 3;
+        o.banishes_left = 2;
+        o.extra_candidates = 1;
+        o.taken.push(1);
+        o.banished.push(true);
+        o.set_counts.push(2);
+        s
+    }
+
+    /// Slot `i` of `s` given a copy of slot 0's offers, and its own generator.
+    fn with_offers(mut s: State, i: u8) -> State {
+        let c0 = s.players.career(PlayerIdx::SOLO).clone();
+        let c = s.players.careers_mut_for_test();
+        c[usize::from(i)].offers = c0.offers;
+        c[usize::from(i)].offer = derive(u64::from(i), TAG_OFFER);
+        s
+    }
+
+    fn offers_of(s: &mut State, i: u8) -> &mut Offers {
+        s.players.careers_mut_for_test()[usize::from(i)]
+            .offers
+            .as_mut()
+            .expect("offers")
+    }
+
+    #[test]
+    fn a_career_draws_its_offers_from_its_slots_stream() {
+        for seed in [0, 42, u64::MAX] {
+            let tags = [TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2];
+            let states: Vec<u64> = (0..MAX_PLAYERS)
+                .map(|i| Career::new(seed, slot(i), None, None).offer.state())
+                .collect();
+            for (i, tag) in tags.iter().enumerate() {
+                assert_eq!(states[i], derive(seed, *tag).state());
+            }
+            assert_ne!(states[0], states[1]);
+            assert_ne!(states[0], states[2]);
+            assert_ne!(states[1], states[2]);
+        }
+    }
+
+    #[test]
+    fn a_slot_0_offer_stream_is_the_one_the_run_started_with() {
+        let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+        let (_, s) = live(&e);
+        assert!(s.players.career(PlayerIdx::SOLO).offers.is_some());
+        let again = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+        assert_eq!(
+            s.players.career(PlayerIdx::SOLO).offer,
+            live(&again).1.players.career(PlayerIdx::SOLO).offer
+        );
+    }
+
+    #[test]
+    fn every_field_of_slot_0s_offers_and_stream_moves_the_hash() {
+        let base = party(0b001);
+        let h0 = hash_of(&base);
+        let Offers {
+            due: _,
+            offer: _,
+            rerolls_left: _,
+            banishes_left: _,
+            extra_candidates: _,
+            taken: _,
+            banished: _,
+            set_counts: _,
+        } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
+        type Edit = fn(&mut Offers);
+        let edits: [(&str, Edit); 8] = [
+            ("due", |o| {
+                o.due.push(Due {
+                    kind: OfferKind::Boss,
+                    rarity: Rarity::Common,
+                })
+            }),
+            ("offer", |o| o.offer.as_mut().unwrap().candidates.push(2)),
+            ("rerolls_left", |o| o.rerolls_left += 1),
+            ("banishes_left", |o| o.banishes_left += 1),
+            ("extra_candidates", |o| o.extra_candidates += 1),
+            ("taken", |o| o.taken[0] += 1),
+            ("banished", |o| o.banished[0] = !o.banished[0]),
+            ("set_counts", |o| o.set_counts[0] += 1),
+        ];
+        for (name, edit) in edits {
+            let mut s = base.clone();
+            edit(offers_of(&mut s, 0));
+            assert_ne!(hash_of(&s), h0, "{name}");
+        }
+        let mut s = base.clone();
+        s.players.career_mut(PlayerIdx::SOLO).offer.next_u64();
+        assert_ne!(hash_of(&s), h0, "the offer stream");
+    }
+
+    #[test]
+    fn every_field_of_the_run_part_moves_the_hash() {
+        let mut base = party(0b001);
+        base.stars.as_mut().unwrap().on_map.push(StarState {
+            id: EntityId(9),
+            at: crate::fixed::Point::default(),
+            rarity: Rarity::Common,
+        });
+        let h0 = hash_of(&base);
+        let StarField {
+            misses: _,
+            on_map: _,
+            rarity: _,
+            rune_pool: _,
+            pool: _,
+        } = base.stars.clone().unwrap();
+        type Edit = fn(&mut StarField);
+        let edits: [(&str, Edit); 5] = [
+            ("misses", |f| f.misses += 1),
+            ("on_map", |f| f.on_map[0].rarity = Rarity::Legendary),
+            ("rarity", |f| f.rarity.1 = Rarity::Common),
+            ("rune_pool", |f| f.rune_pool ^= 1),
+            ("pool", |f| f.pool.push(0)),
+        ];
+        for (name, edit) in edits {
+            let mut s = base.clone();
+            edit(s.stars.as_mut().unwrap());
+            assert_ne!(hash_of(&s), h0, "{name}");
+        }
+    }
+
+    #[test]
+    fn slots_1_and_2_offers_and_streams_are_in_the_tail_in_slot_order() {
+        for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
+            let none = party(mask);
+            for i in 1..top {
+                let some = with_offers(none.clone(), i);
+                assert_ne!(hash_of(&some), hash_of(&none), "{mask:b} slot {i}");
+                let mut moved = some.clone();
+                offers_of(&mut moved, i).rerolls_left += 1;
+                assert_ne!(hash_of(&moved), hash_of(&some), "{mask:b} slot {i} offers");
+                let mut drawn = some.clone();
+                drawn.players.careers_mut_for_test()[usize::from(i)]
+                    .offer
+                    .next_u64();
+                assert_ne!(hash_of(&drawn), hash_of(&some), "{mask:b} slot {i} stream");
+            }
+        }
+        let both = with_offers(with_offers(party(0b111), 1), 2);
+        let mut a = both.clone();
+        offers_of(&mut a, 1).rerolls_left += 1;
+        let mut b = both.clone();
+        offers_of(&mut b, 2).rerolls_left += 1;
+        assert_ne!(hash_of(&a), hash_of(&b), "slot 2 is written after slot 1");
+        let mut swapped = both.clone();
+        let c = swapped.players.careers_mut_for_test();
+        c.swap(1, 2);
+        assert_ne!(hash_of(&swapped), hash_of(&both), "the careers swapped");
+        let mut streams = both.clone();
+        let c = streams.players.careers_mut_for_test();
+        let (x, y) = (c[1].offer.clone(), c[2].offer.clone());
+        (c[1].offer, c[2].offer) = (y, x);
+        assert_ne!(hash_of(&streams), hash_of(&both), "the streams swapped");
+    }
+
+    #[test]
+    fn absent_slots_offers_are_not_hashed_and_slot_0s_sit_at_the_same_place() {
+        let solo = party(0b001);
+        let touched = with_offers(solo.clone(), 1);
+        assert_eq!(hash_of(&touched), hash_of(&solo));
+        let mut stream = solo.clone();
+        stream.players.careers_mut_for_test()[2].offer.next_u64();
+        assert_eq!(hash_of(&stream), hash_of(&solo));
+        // Slot 0's offers move the hash alike at one player and at two.
+        for mask in [0b001u8, 0b011] {
+            let base = party(mask);
+            let mut s = base.clone();
+            offers_of(&mut s, 0).banishes_left += 1;
+            assert_ne!(hash_of(&s), hash_of(&base), "{mask:b}");
+            let mut s = base.clone();
+            s.players.career_mut(PlayerIdx::SOLO).offer.next_u64();
+            assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} stream");
+        }
+    }
+
+    #[test]
+    fn reserve_makes_room_in_each_present_slots_due() {
+        let e = worst_case::warmed_up();
+        let (world, s) = live(&e);
+        let cap = usize::from(
+            world
+                .stars
+                .as_ref()
+                .expect("stars")
+                .cap
+                .min(crate::validate::limits::MAX_STARS_ON_MAP),
+        );
+        for (mask, present) in [(0b111u8, [true, true, true]), (0b001, [true, false, false])] {
+            let mut s = s.clone();
+            s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&s.players);
+            for i in 0..MAX_PLAYERS {
+                let c = &mut s.players.careers_mut_for_test()[usize::from(i)];
+                c.offers = Some(offers_of_empty());
+            }
+            super::super::reserve(world, &mut s);
+            for i in 0..MAX_PLAYERS {
+                let c = &s.players.careers_mut_for_test()[usize::from(i)];
+                let have = c.offers.as_ref().unwrap().due.capacity();
+                match present[usize::from(i)] {
+                    true => assert!(have > cap, "{mask:b} slot {i}: {have} <= {cap}"),
+                    false => assert_eq!(have, 0, "{mask:b} slot {i}"),
+                }
+            }
+        }
+    }
+
+    fn offers_of_empty() -> Offers {
+        Offers {
+            due: Vec::new(),
+            offer: None,
+            rerolls_left: 0,
+            banishes_left: 0,
+            extra_candidates: 0,
+            taken: Vec::new(),
+            banished: Vec::new(),
+            set_counts: Vec::new(),
+        }
+    }
+}
