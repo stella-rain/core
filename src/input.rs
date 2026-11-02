@@ -34,6 +34,11 @@ pub struct Input {
     /// (ADR-REPL-3). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pick: Option<u32>,
+    /// The interact button is held on this tick: the revive hold (ADR-SIM-13). Read by the down
+    /// and revive rules only; the simulation ignores it until they exist. Schema 2 only: the
+    /// schema 1 stream cannot carry it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interact: bool,
 }
 
 impl Input {
@@ -49,6 +54,7 @@ impl Input {
             assist: false,
             auto: false,
             pick: Some(index),
+            interact: false,
         }
     }
 }

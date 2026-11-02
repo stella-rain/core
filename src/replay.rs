@@ -364,8 +364,9 @@ pub fn pack_inputs(inputs: &[Input]) -> String {
     let canonical = |i: &Input| Input {
         move_x: i.move_x.max(-i8::MAX),
         move_y: i.move_y.max(-i8::MAX),
-        // The pick is not part of the schema 1 stream.
+        // The pick and interact are not part of the schema 1 stream.
         pick: None,
+        interact: false,
         ..*i
     };
     let inputs: Vec<Input> = inputs.iter().map(canonical).collect();
@@ -417,6 +418,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32) -> Result<Vec<Input>, &'static st
             assist: flags & 0b1_0000 != 0,
             auto: flags & 0b10_0000 != 0,
             pick: None,
+            interact: false,
         };
         // Packing writes equal inputs as one run, so each list of inputs has one encoding.
         if inputs.last() == Some(&input) {
