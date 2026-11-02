@@ -16,6 +16,7 @@ mod attacks;
 mod auto;
 mod base64;
 mod bench_fixture_pins;
+mod bench_region;
 mod bench_teardown;
 mod big_patterns;
 mod bleed;
