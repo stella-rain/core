@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 use serde_json::json;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rng::{
-    SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_SPAWN, derive,
+    SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2, TAG_SPAWN,
+    derive,
 };
 use stella_rain_core::snapshot::EntityKind;
 
@@ -99,6 +100,25 @@ fn each_stream_is_pinned() {
             0x27f2_0b45_ee4c_9f71
         ]
     );
+}
+
+#[test]
+fn each_slot_has_its_own_offer_stream() {
+    // Slot 0 keeps `TAG_OFFER`; slots 1 and 2 add the slot digit to the name.
+    assert_eq!(TAG_OFFER_1, u64::from_le_bytes(*b"offer1\0\0"));
+    assert_eq!(TAG_OFFER_2, u64::from_le_bytes(*b"offer2\0\0"));
+    let tags = [TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2];
+    for seed in [0, 1, 42, u64::MAX] {
+        let firsts: Vec<u64> = tags.iter().map(|&t| derive(seed, t).next_u64()).collect();
+        let others: Vec<u64> = [TAG_SPAWN, TAG_ATTACK, TAG_LOOT, TAG_HORDE]
+            .iter()
+            .map(|&t| derive(seed, t).next_u64())
+            .collect();
+        for (i, a) in firsts.iter().enumerate() {
+            assert!(!firsts[i + 1..].contains(a), "seed {seed}: offer streams collide");
+            assert!(!others.contains(a), "seed {seed}: an offer stream equals another purpose");
+        }
+    }
 }
 
 /// Where each enemy of a ring wave first stands, in spawn order, over 600 ticks of a run in which
