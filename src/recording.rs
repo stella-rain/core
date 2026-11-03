@@ -1,4 +1,4 @@
-//! The JSON Lines recording of a run (ADR-BRDG-12), behind the `record` feature: for every tick the
+//! The JSON Lines recording of a run (ADR-BRDG-3), behind the `record` feature: for every tick the
 //! input the frontend sent, the domain events the backend answered with, and the state hash.
 //! Golden-file tests and the debug overlay read it; a replay stores only the commands.
 //!

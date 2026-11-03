@@ -1,4 +1,4 @@
-//! Domain events, backend to frontend over the event bus (ADR-BRDG-12). They drive the frontend's
+//! Domain events, backend to frontend over the event bus (ADR-BRDG-3). They drive the frontend's
 //! effects and sounds, the debug overlay and golden tests; the simulation never reads them.
 //! In a recording each is `{"type": ..., "data": {...}}`.
 

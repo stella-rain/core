@@ -121,7 +121,7 @@ pub struct Engine {
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
-    /// The ledger of counts and bestiary encounters (ADR-BRDG-15).
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
     ledger: RunLedger,
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
@@ -555,7 +555,7 @@ impl Engine {
     /// categories, the expected gain in the Main weapon's damage in basis points, the set tier
     /// the pick reaches and the stats it moves, before and after. Empty for a player outside
     /// the party, without such an offer open, with an expertise or stat offer open, or in a
-    /// `sim_version` 1 run. Read-only, and a separate query from the snapshot (ADR-BRDG-13):
+    /// `sim_version` 1 run. Read-only, and a separate query from the snapshot (ADR-BRDG-4):
     /// call it when an offer opens, not every frame. The model and its limits are in
     /// `sim::offer_rating`.
     pub fn offer_ratings(&self, player: PlayerIdx) -> Vec<OfferRating> {
@@ -690,7 +690,7 @@ impl Engine {
         &self.events
     }
 
-    /// The ledger of counts and bestiary encounters (ADR-BRDG-15).
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
     pub fn ledger(&self) -> &RunLedger {
         &self.ledger
     }

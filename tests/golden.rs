@@ -1,4 +1,4 @@
-//! Golden recordings (ADR-BRDG-12): the JSON Lines recording of a short run for a companion, an
+//! Golden recordings (ADR-BRDG-3): the JSON Lines recording of a short run for a companion, an
 //! enemy, a boss and the main shot, kept as `insta` snapshots in `tests/golden/` (ADR-SIM-3).
 //! They read like a story of what each agent did and why the hash moved, and any change to the
 //! rules shows up as a diff in review. After an intended change, run

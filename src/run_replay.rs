@@ -145,7 +145,7 @@ pub struct TickCommand {
     pub index: u32,
 }
 
-/// A command of the run's stream (ADR-BRDG-12, ADR-REPL-5): one input for the next tick, or a command
+/// A command of the run's stream (ADR-BRDG-3, ADR-REPL-5): one input for the next tick, or a command
 /// between ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -378,7 +378,7 @@ pub struct RunVerified {
     /// The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the
     /// app pays it after the run (ADR-REPL-5).
     pub stardust: u32,
-    /// The ledger of counts, bestiary encounters and build picks (ADR-BRDG-15).
+    /// The ledger of counts, bestiary encounters and build picks (ADR-BRDG-6).
     pub ledger: RunLedger,
 }
 

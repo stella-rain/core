@@ -28,7 +28,7 @@ pub fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
-/// SHA-256 of `bytes`: the stage hash a replay carries (ADR-BRDG-12).
+/// SHA-256 of `bytes`: the stage hash a replay carries (ADR-BRDG-3).
 pub fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }

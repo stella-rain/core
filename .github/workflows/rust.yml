@@ -239,7 +239,7 @@ jobs:
         with:
           tool: nextest
           fallback: none
-      # `record` (ADR-BRDG-12 point 3) only adds code, so --all-features is a superset of the default build's
+      # `record` (ADR-BRDG-3 point 3) only adds code, so --all-features is a superset of the default build's
       # tests, and it also runs the recording tests that the default build skips. The debug build
       # (overflow checks on) runs on the two Linux runners; the slower Windows and macOS runners
       # run the release build only. Both runs write target/nextest/ci/junit.xml: the debug one is

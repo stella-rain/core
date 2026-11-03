@@ -688,7 +688,7 @@ pub(crate) fn auto_charge_view(s: &State, me: PlayerIdx) -> Option<u8> {
 }
 
 /// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
-/// the player saw, ADR-BRDG-13), or at `max_ticks` without the bonus, it releases.
+/// the player saw, ADR-BRDG-4), or at `max_ticks` without the bonus, it releases.
 #[allow(clippy::too_many_arguments)]
 fn charging(
     stage: &World,

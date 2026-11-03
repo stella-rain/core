@@ -13,7 +13,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 
 ## Hard rules
 
-- No dependency on Godot or gdext; `core` builds and tests with plain `cargo` (ADR-BRDG-10).
+- No dependency on Godot or gdext; `core` builds and tests with plain `cargo` (ADR-BRDG-1).
 - Deterministic: the same stage, seed and inputs give the same state hash every tick, on x86_64
   and arm64 (ADR-SIM-1, ADR-SIM-3). Details in `.claude/rules/determinism.md`, `simulation.md`.
 - Stage files are untrusted: size limit before parsing, strict parsing, budgets, runtime

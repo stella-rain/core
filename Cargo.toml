@@ -26,7 +26,7 @@ name = "content-pack"
 path = "src/bin/content_pack.rs"
 
 [features]
-# The JSON Lines recorder of ADR-BRDG-12: commands, domain events and state hashes, for tests and
+# The JSON Lines recorder of ADR-BRDG-3: commands, domain events and state hashes, for tests and
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
 record = []
 # The cases the tick benches count (ADR-SIM-5), built in `bench_fixtures` so that a change to the

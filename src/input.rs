@@ -1,4 +1,4 @@
-//! The per-tick input record (ADR-BRDG-12): the only external influence on a run, and all
+//! The per-tick input record (ADR-BRDG-3): the only external influence on a run, and all
 //! a replay stores. Touch, keyboard and later a gamepad produce the same record; it never says
 //! which device made it, and its fields are named for what they do, not for buttons or keys.
 //!

@@ -1,4 +1,4 @@
-//! Run ledger (ADR-BRDG-15): counts kills, bestiary bits, picks and skill uses
+//! Run ledger (ADR-BRDG-6): counts kills, bestiary bits, picks and skill uses
 //! inside the simulation from domain events and state observations. `PlayerStats` folds the
 //! events' source players into per-slot totals beside `Counted`, outside the hashed state.
 
@@ -30,7 +30,7 @@ pub struct StarPick {
     pub name: Option<Arc<str>>,
 }
 
-/// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-15).
+/// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunLedger {
@@ -378,7 +378,7 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
 }
 
 /// The run's HUD tallies, counted from the events the way the app counts them and kept outside
-/// the hashed state (ADR-BRDG-15): a carried star, which emits no event, is not in them.
+/// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Counted {
     pub(crate) kills: u32,

@@ -1,4 +1,4 @@
-//! Replays (ADR-REPL-6, ADR-BRDG-12): the recorded inputs of a run, which anyone can re-simulate to
+//! Replays (ADR-REPL-6, ADR-BRDG-3): the recorded inputs of a run, which anyone can re-simulate to
 //! check that the stage can be cleared and reaches the same final hash.
 //!
 //! A `.replay` file is one JSON object: the versions, the seed, the SHA-256 of the exact stage
@@ -469,7 +469,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32, interact: bool) -> Result<Vec<Inp
 
 /// Runs `inputs` through the stage and writes the replay. Recording stops on the tick the run
 /// ends, so inputs after a clear or a fail are left out; a run that is still going when the
-/// inputs end is recorded as it stands (a bug report, ADR-BRDG-12). `stage_bytes` are the exact
+/// inputs end is recorded as it stands (a bug report, ADR-BRDG-3). `stage_bytes` are the exact
 /// bytes of the stage file.
 pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayError> {
     let stage = validate::parse_and_validate(stage_bytes).map_err(ReplayError::Stage)?;

@@ -1,4 +1,4 @@
-//! Replays (ADR-REPL-6, ADR-BRDG-12): the packed input encoding, recording, verification and the
+//! Replays (ADR-REPL-6, ADR-BRDG-3): the packed input encoding, recording, verification and the
 //! checks on untrusted replay files (ADR-SVC-7).
 
 use crate::common;
@@ -325,7 +325,7 @@ fn a_replay_that_does_not_clear_is_recorded_but_does_not_verify() {
         verify(&stage, &failed.to_bytes()),
         Err(ReplayError::NotCleared { tick: 600 })
     );
-    // Still running when the inputs end: a bug report (ADR-BRDG-12).
+    // Still running when the inputs end: a bug report (ADR-BRDG-3).
     let running = record(&stage, &[idle(); 10]).unwrap();
     assert_eq!(running.ticks, 10);
     assert_eq!(

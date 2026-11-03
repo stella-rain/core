@@ -1,4 +1,4 @@
-//! The JSON Lines recording (ADR-BRDG-12), behind the `record` feature.
+//! The JSON Lines recording (ADR-BRDG-3), behind the `record` feature.
 #![cfg(feature = "record")]
 
 use crate::common;

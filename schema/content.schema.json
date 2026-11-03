@@ -7052,7 +7052,7 @@
     },
     "RunLedger": {
       "additionalProperties": false,
-      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-15).",
+      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).",
       "properties": {
         "bestiary": {
           "description": "Bestiary bits per enemy kind ID: bit 0 encountered, bits 1..=10 for `DamageType::ALL`.",
@@ -7392,7 +7392,7 @@
         },
         "ledger": {
           "$ref": "#/$defs/RunLedger",
-          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-15)."
+          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-6)."
         },
         "outcome": {
           "$ref": "#/$defs/Outcome",

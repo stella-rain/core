@@ -17,11 +17,11 @@ globs:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-12, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
+Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
 
 ## What is where
 
-- `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-6, ADR-BRDG-12).
+- `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-6, ADR-BRDG-3).
   A run's replay holds the setup, the content SHA-256 and the inputs (picks, `choose` and
   `spend`, are steps of the step log); it is verified from the file and its run stats (ADR-REPL-5).
 - The step log, the range reader and the recorder (`step_log.rs`, `RunRecorder`):

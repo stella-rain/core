@@ -1,4 +1,4 @@
-//! The render snapshot: what the frontend draws and interpolates between ticks (ADR-BRDG-13). It is
+//! The render snapshot: what the frontend draws and interpolates between ticks (ADR-BRDG-4). It is
 //! a view of the state, not the state; the state hash does not read it.
 
 use schemars::JsonSchema;
