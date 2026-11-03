@@ -5,8 +5,8 @@
 //! the invulnerable ticks after a hit, aggro, the leash and the spawn margin, the ranged tokens,
 //! the orbiting agents' turn, where a horde boss arrives, the default experience, the size of an
 //! offer and the damage curve, and the table of how much of a player's damage applies for each
-//! party size (`party_damage_pct`, ADR-SIM-22). `World` reads them once when a run is built. Caps, the grid, the
-//! push-apart, the view and the units stay in Rust. The cap is
+//! party size (`party_damage_pct`, ADR-SIM-22). `World` reads them once when a run is built.
+//! Caps, the grid, the push-apart, the view and the units stay in Rust. The cap is
 //! `target * (100 + headroom) / 100`, rounded down, derived when a run is built and never stored
 //! (260 for the bundled file); the headroom is the room the specials (elites, escorts, a
 //! splitter's children, guardians, the boss's summons) spawn in while the waves are held at the
