@@ -82,7 +82,7 @@ fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen, hashed: Hashed)
             crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).expect("option 0 exists");
         }
         let next = e.tick() + 1;
-        e.step(&[input(next)]);
+        e.step(&[input(next), Default::default(), Default::default()]);
         observe(&e, &mut places, &mut h, seen, hashed);
     }
     h.finish()
@@ -123,7 +123,7 @@ fn corpus_runs(seen: &mut Seen, hashed: Hashed) -> u64 {
                 crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, c.index)
                     .expect("a recorded choice");
             }
-            e.step(&[input]);
+            e.step(&[input, Default::default(), Default::default()]);
             observe(&e, &mut places, &mut h, seen, hashed);
         }
     }
@@ -218,6 +218,10 @@ fn run_snapshot_is_the_engines() {
             e.places(&mut q);
             assert_eq!(p, q, "tick {tick}");
         }
-        e.step(&[worst_case::input(e.tick() + 1)]);
+        e.step(&[
+            worst_case::input(e.tick() + 1),
+            Default::default(),
+            Default::default(),
+        ]);
     }
 }

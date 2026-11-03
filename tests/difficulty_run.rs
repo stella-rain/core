@@ -59,7 +59,7 @@ fn start(difficulty: &str, m: &TimeLimit) -> Engine {
 
 fn step_to(e: &mut Engine, tick: u32) -> Snapshot {
     while e.tick() < tick {
-        e.step(&[Input::default()]);
+        e.step(&[Input::default(), Default::default(), Default::default()]);
     }
     e.snapshot()
 }
@@ -246,7 +246,7 @@ fn the_difficulty_is_part_of_the_run() {
     let hash = |id: &str| {
         let mut e = start(id, &dummy_run(3_000));
         for _ in 0..30 {
-            e.step(&[Input::default()]);
+            e.step(&[Input::default(), Default::default(), Default::default()]);
         }
         e.state_hash()
     };
@@ -268,7 +268,7 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
             common::pick(&mut e, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         for ev in e.events() {
             if let DomainEvent::StarDropped { rarity, .. } = ev {
                 out.push(*rarity);

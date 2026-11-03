@@ -79,7 +79,7 @@ fn a_combo_step_hit_calls_thunder_down_on_the_point_hit_after_its_wind_up() {
     let mut e = holding(runes(60, STRIKE, Some("electro")), tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     let step_hit = e.tick();
     assert_eq!(cooldown(&e), 60, "set as it fires");
     let snapshot = e.snapshot();
@@ -140,7 +140,7 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
     let mut e = holding(runes, tough(0, None, None));
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     let step_hit = e.tick();
     assert_eq!(
         (cooldown_of(&e, Rune::Explosion), cooldown(&e)),
@@ -207,10 +207,14 @@ fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
     take(&mut e, "war_cry_r");
     take(&mut e, "electro");
     let target = wait_for_target(&mut e);
-    e.step(&[Input {
-        skill: true,
-        ..idle()
-    }]);
+    e.step(&[
+        Input {
+            skill: true,
+            ..idle()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     let start = e.tick() + 1;
     let seen = hits(&mut e, target, 10, once(start));
     assert_eq!(seen.len(), 2, "{seen:?}");
@@ -242,8 +246,8 @@ fn the_state_hash_holds_its_cooldown() {
     wait_for_target(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
-    a.step(&[once(start)(start)]);
-    b.step(&[once(start)(start)]);
+    a.step(&[once(start)(start), Default::default(), Default::default()]);
+    b.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_ne!(a.state_hash(), b.state_hash());
 }
 
@@ -281,7 +285,10 @@ fn a_run_holding_thunder_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
         fired |= recorder.engine().snapshot().players[0]
@@ -301,7 +308,11 @@ fn a_thunder_strike_names_its_own_damage_type_and_the_kind_it_struck() {
     let start = e.tick();
     let mut strikes = Vec::new();
     for _ in 0..20 {
-        e.step(&[once(start)(e.tick())]);
+        e.step(&[
+            once(start)(e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         for ev in e.events() {
             if let DomainEvent::Hit {
                 target: t,

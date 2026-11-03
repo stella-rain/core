@@ -96,7 +96,7 @@ fn a_combo_step_hit_applies_the_status() {
         let target = wait_for_target(&mut e);
         assert!(statuses(&e, target, name).is_empty());
         let start = e.tick();
-        e.step(&[once(start)(start)]);
+        e.step(&[once(start)(start), Default::default(), Default::default()]);
         assert!(
             e.events().iter().any(|ev| matches!(
                 ev,
@@ -171,7 +171,11 @@ fn it_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
         let mut damage = Vec::new();
         for _ in 0..=240 {
             let t = e.tick();
-            e.step(&[presses(start, &[0, 10, 20, 40])(t)]);
+            e.step(&[
+                presses(start, &[0, 10, 20, 40])(t),
+                Default::default(),
+                Default::default(),
+            ]);
             for ev in e.events() {
                 match ev {
                     DomainEvent::StatusApplied {
@@ -264,8 +268,8 @@ fn the_state_hash_holds_poison_and_burn() {
         wait_for_target(&mut b);
         assert_eq!(a.state_hash(), b.state_hash(), "{name}");
         let start = a.tick();
-        a.step(&[once(start)(start)]);
-        b.step(&[once(start)(start)]);
+        a.step(&[once(start)(start), Default::default(), Default::default()]);
+        b.step(&[once(start)(start), Default::default(), Default::default()]);
         assert_ne!(a.state_hash(), b.state_hash(), "{name}");
     }
 }
@@ -301,7 +305,10 @@ fn a_run_holding_poison_and_burn_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
         for ev in recorder.engine().events() {

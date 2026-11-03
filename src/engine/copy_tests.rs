@@ -81,8 +81,8 @@ fn same_for(case: (Case, Case), ticks: u32, what: &str) {
     assert_eq!((a.run.version(), b.run.version()), (1, 2), "{what}");
     assert_same_tick(&a, &b, what, 0);
     for tick in 1..=ticks {
-        a.step(&[input]);
-        b.step(&[input]);
+        a.step(&[input, Default::default(), Default::default()]);
+        b.step(&[input, Default::default(), Default::default()]);
         assert_same_tick(&a, &b, what, tick);
     }
 }
@@ -105,7 +105,11 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
             while run.engine.offer_open() {
                 crate::engine::pick(&mut run.engine, crate::id::PlayerIdx::SOLO, 0).unwrap();
             }
-            run.engine.step(&[input_at(run.engine.tick())]);
+            run.engine.step(&[
+                input_at(run.engine.tick()),
+                Default::default(),
+                Default::default(),
+            ]);
         }
         assert_same_tick(&a.engine, &b.engine, "worst_minute", tick);
     }
@@ -125,12 +129,16 @@ fn scripted(version: u32) -> (Engine, Vec<String>) {
             crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).unwrap();
             seen.push(as_v1(&e, &plain(e.events())));
         }
-        e.step(&[Input {
-            main: true,
-            move_x: if tick % 90 < 45 { 100 } else { -100 },
-            evade: tick == 100 || tick == 400,
-            ..Input::default()
-        }]);
+        e.step(&[
+            Input {
+                main: true,
+                move_x: if tick % 90 < 45 { 100 } else { -100 },
+                evade: tick == 100 || tick == 400,
+                ..Input::default()
+            },
+            Default::default(),
+            Default::default(),
+        ]);
         seen.push(as_v1(&e, &plain(e.events())));
     }
     (e, seen)
@@ -213,10 +221,14 @@ fn recorder_at(version: u32) -> RunRecorder {
     };
     let mut r = Engine::forced(version, || RunRecorder::start(&setup).unwrap());
     for _ in 0..120 {
-        r.step(&[Input {
-            main: true,
-            ..Input::default()
-        }])
+        r.step(&[
+            Input {
+                main: true,
+                ..Input::default()
+            },
+            Default::default(),
+            Default::default(),
+        ])
         .unwrap();
     }
     r
@@ -279,8 +291,8 @@ fn a_stage_runs_the_same_under_either_version() {
             move_x: 50,
             ..Input::default()
         };
-        a.step(&[input]);
-        b.step(&[input]);
+        a.step(&[input, Default::default(), Default::default()]);
+        b.step(&[input, Default::default(), Default::default()]);
         assert_same_tick(&a, &b, "trial", tick);
     }
 }

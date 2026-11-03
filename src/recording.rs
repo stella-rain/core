@@ -57,7 +57,7 @@ pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error
         if engine.outcome() != Outcome::Running {
             break;
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         let tick = engine.tick();
         line(
             &mut out,
@@ -93,7 +93,7 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunR
         }
         let body = match *command {
             Command::Step(input) => {
-                recorder.step(&[input])?;
+                recorder.step(&[input, Default::default(), Default::default()])?;
                 json!({ "type": "Input", "data": input })
             }
             Command::Choose(index) => {

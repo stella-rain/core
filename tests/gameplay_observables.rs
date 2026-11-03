@@ -107,7 +107,7 @@ fn bench_tick_case(case: fn() -> Case, input_of: fn(u32) -> Input) -> String {
     let mut sha = Sha256::new();
     for i in 0..BENCH_TICKS {
         let input = input_of(engine.tick() + 1);
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         observe_tick(
             &mut sha,
             &engine,
@@ -127,7 +127,8 @@ fn minute_case() -> String {
             crate::common::pick(&mut run.engine, choice).expect("the first option is taken");
         }
         let input = input_at(run.engine.tick());
-        run.engine.step(&[input]);
+        run.engine
+            .step(&[input, Default::default(), Default::default()]);
         observe_tick(
             &mut sha,
             &run.engine,
@@ -189,7 +190,7 @@ fn stage_digest(case: &Path) -> String {
     let mut engine = Engine::new_with(&stage, pack.content()).expect("the stage starts");
     let mut sha = Sha256::new();
     for input in &inputs {
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         observe_tick(&mut sha, &engine, true);
     }
     observe_end(&mut sha, &engine);
@@ -211,7 +212,7 @@ fn run_digest(case: &Path) -> String {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             apply(&mut engine, c).expect("a recorded command applies");
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         observe_tick(&mut sha, &engine, sampled(engine.tick(), i + 1 == played));
     }
     observe_end(&mut sha, &engine);

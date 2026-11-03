@@ -60,7 +60,11 @@ fn gains(e: &mut Engine, input: Input, ticks: u32) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..ticks {
         let before = e.stardust();
-        e.step(&[firing(input, e.tick())]);
+        e.step(&[
+            firing(input, e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         if e.stardust() > before {
             out.push((e.tick(), e.stardust() - before));
         }
@@ -145,7 +149,7 @@ fn a_goblin_that_leaves_on_its_timer_pays_nothing() {
     let mut e = engine(&stage(vec![w], Some(10)));
     let mut left = false;
     for _ in 0..200 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
         left |= e
             .events()
             .iter()
@@ -217,7 +221,7 @@ fn a_shrine_won_after_the_factor_changes_pays_the_new_factor() {
     let w = with_base(wave(70, 1, 0, shrine(600, 5), SIDE.0, SIDE.1), 200);
     let mut e = engine(&stage(vec![w], Some(10)));
     for _ in 0..80 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let got = fight(&mut e);
     assert_eq!(got.len(), 1, "{got:?}");
@@ -230,7 +234,11 @@ fn a_lost_shrine_pays_nothing() {
     let mut e = engine(&shrine_stage(shrine(30, 1_000_000)));
     let mut left = false;
     for _ in 0..300 {
-        e.step(&[firing(moving(127, 0), e.tick())]);
+        e.step(&[
+            firing(moving(127, 0), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         left |= e
             .events()
             .iter()
@@ -310,7 +318,11 @@ fn a_broken_boss_part_pays_nothing() {
     let mut e = engine(&boss_stage(json!([part]), json!([]), Some(10)));
     let mut broken = false;
     for _ in 0..300 {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         broken |= e
             .events()
             .iter()
@@ -333,7 +345,11 @@ fn an_escort_pays_nothing() {
     ));
     let mut died = 0;
     for _ in 0..300 {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         died += e
             .events()
             .iter()
@@ -394,7 +410,7 @@ fn a_full_time_limit_run_verifies_and_pays_the_new_earners() {
     let mut e = Engine::start(&setup).unwrap();
     for c in &commands {
         match c {
-            Command::Step(input) => e.step(&[*input]),
+            Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
             Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
         }
     }

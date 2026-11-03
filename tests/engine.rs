@@ -46,11 +46,11 @@ fn the_character_stays_inside_the_playfield() {
     let mut e = running(vec![]);
     // A full diagonal covers 541 units an axis per tick: the corner is under 310 ticks away.
     for _ in 0..400 {
-        e.step(&[moving(-127, -127)]);
+        e.step(&[moving(-127, -127), Default::default(), Default::default()]);
     }
     assert_eq!(player_at(&e), (0, 0));
     for _ in 0..400 {
-        e.step(&[moving(127, 127)]);
+        e.step(&[moving(127, 127), Default::default(), Default::default()]);
     }
     assert_eq!(player_at(&e), (92_160, 163_840));
 }
@@ -59,12 +59,16 @@ fn the_character_stays_inside_the_playfield() {
 fn extreme_input_values_do_not_overflow() {
     let mut e = running(vec![]);
     for (move_x, move_y) in [(i8::MIN, i8::MIN), (i8::MAX, i8::MAX), (i8::MIN, i8::MAX)] {
-        e.step(&[Input {
-            move_x,
-            move_y,
-            evade: true,
-            ..Input::default()
-        }]);
+        e.step(&[
+            Input {
+                move_x,
+                move_y,
+                evade: true,
+                ..Input::default()
+            },
+            Default::default(),
+            Default::default(),
+        ]);
     }
     assert_eq!(e.tick(), 3);
 }
@@ -83,7 +87,7 @@ fn the_snapshot_gives_each_circle_the_radius_hits_use() {
         vec![wave(1, 1, 0, bat, 20_000, 60_000)],
         vec![companion(10, hold(30_000, 140_000), json!([]))],
     ));
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     let s = e.snapshot();
     // The main character's hurt circle is 2 pixels.
     assert_eq!(s.players[0].radius.0, 512);
@@ -199,7 +203,7 @@ fn a_finished_run_ignores_further_ticks() {
     assert_eq!(ticks_of(&events, |ev| *ev == DomainEvent::StageFailed), [5]);
     let hash = e.state_hash();
     for _ in 0..50 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
         assert!(e.events().is_empty());
     }
     assert_eq!((e.tick(), e.state_hash()), (5, hash));
@@ -284,7 +288,7 @@ fn without_a_boss_the_stage_clears_when_every_enemy_is_gone() {
 #[test]
 fn a_stage_with_nothing_to_beat_clears_at_once() {
     let mut e = engine(&stage_with(600, None, vec![]));
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!((e.tick(), e.outcome()), (1, Outcome::Cleared));
 }
 
@@ -299,7 +303,7 @@ fn waves_spawn_on_schedule_in_entity_id_order() {
     ]);
     let mut counts = Vec::new();
     for _ in 0..8 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
         counts.push(enemies(&e.snapshot()));
     }
     // Wave 0 spawns on ticks 3 and 7, wave 1 on tick 5.
@@ -325,7 +329,7 @@ fn at_most_the_cap_of_enemies_are_alive_and_dropped_spawns_still_count() {
     let mut e = running(waves);
     let mut alive = Vec::new();
     for _ in 0..5 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
         alive.push(enemies(&e.snapshot()));
     }
     assert_eq!(alive, [200, 260, 260, 260, 260]);
@@ -418,7 +422,7 @@ fn an_attack_places_one_zone_where_the_character_stands() {
         START_X,
         25_600,
     )]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     let s = e.snapshot();
     assert_eq!(s.zones.len(), 1);
     assert!(!s.zones[0].friendly);
@@ -441,21 +445,25 @@ fn events_are_those_of_the_last_tick_only() {
         START_X,
         25_600,
     )]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(e.events().len(), 1);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert!(e.events().is_empty());
 }
 
 #[test]
 fn the_snapshot_survives_json() {
     let mut e = running(vec![]);
-    e.step(&[Input {
-        move_x: 5,
-        move_y: -5,
-        evade: true,
-        ..Input::default()
-    }]);
+    e.step(&[
+        Input {
+            move_x: 5,
+            move_y: -5,
+            evade: true,
+            ..Input::default()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     let s = e.snapshot();
     assert_eq!(s.tick, 1);
     assert_eq!(s.players[0].evade.dash_left, EVADE_TICKS - 1);
@@ -504,7 +512,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
     let mut e = engine(stage);
     (0..ticks)
         .map(|t| {
-            e.step(&[script(t)]);
+            e.step(&[script(t), Default::default(), Default::default()]);
             e.state_hash()
         })
         .collect()
@@ -531,8 +539,8 @@ fn the_seed_and_the_input_change_the_hash() {
     assert_ne!(hashes(&stage, 30), hashes(&other, 30));
     let mut e = engine(&stage);
     let mut f = engine(&stage);
-    e.step(&[idle()]);
-    f.step(&[moving(1, 0)]);
+    e.step(&[idle(), Default::default(), Default::default()]);
+    f.step(&[moving(1, 0), Default::default(), Default::default()]);
     assert_ne!(e.state_hash(), f.state_hash());
 }
 
@@ -541,12 +549,12 @@ fn a_cloned_run_continues_identically() {
     let stage = fixture();
     let mut a = engine(&stage);
     for t in 0..200 {
-        a.step(&[script(t)]);
+        a.step(&[script(t), Default::default(), Default::default()]);
     }
     let mut b = a.clone();
     for t in 200..400 {
-        a.step(&[script(t)]);
-        b.step(&[script(t)]);
+        a.step(&[script(t), Default::default(), Default::default()]);
+        b.step(&[script(t), Default::default(), Default::default()]);
         assert_eq!(a.state_hash(), b.state_hash(), "tick {t}");
     }
 }
@@ -601,7 +609,7 @@ fn random_inputs_keep_every_invariant() {
                 smash: rng.below(16) == 0,
                 ..Input::default()
             };
-            e.step(&[input]);
+            e.step(&[input, Default::default(), Default::default()]);
             let s = e.snapshot();
             assert!((0..=92_160).contains(&s.players[0].at.x.0));
             assert!((0..=163_840).contains(&s.players[0].at.y.0));

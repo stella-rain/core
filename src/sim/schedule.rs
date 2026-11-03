@@ -12,11 +12,11 @@ use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
 use crate::rewards::Rewards;
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
+use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
 
-/// What the steps of a tick read and write: the run's content, its state, the tick's inputs (one per player),
-/// and what the steps pass on to each other within the tick.
+/// What the steps of a tick read and write: the run's content, its state, the tick's inputs (one
+/// per slot), and what the steps pass on to each other within the tick.
 pub(super) struct Ctx<'a> {
     pub(super) world: &'a World,
     pub(super) rewards: &'a Rewards,
@@ -24,8 +24,8 @@ pub(super) struct Ctx<'a> {
     pub(super) s: &'a mut State,
     /// The player the tick's per-player steps act for: the only one, until a run holds a party.
     pub(super) me: PlayerIdx,
-    /// One input per player, indexed by `PlayerIdx`.
-    pub(super) inputs: &'a [Input],
+    /// One input per slot, present or not, indexed by `PlayerIdx`.
+    pub(super) inputs: &'a [Input; MAX_PLAYERS as usize],
     pub(super) events: &'a mut Vec<DomainEvent>,
     pub(super) load: &'a mut Load,
     /// A status that deals damage over time is on someone: set by `statuses_and_aggro`, read by
@@ -39,7 +39,7 @@ impl<'a> Ctx<'a> {
         rewards: &'a Rewards,
         expertise: &'a Expertise,
         s: &'a mut State,
-        inputs: &'a [Input],
+        inputs: &'a [Input; MAX_PLAYERS as usize],
         events: &'a mut Vec<DomainEvent>,
         load: &'a mut Load,
     ) -> Ctx<'a> {
@@ -56,7 +56,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// The input of the player the per-player steps act for.
+    /// The input of slot `me`, the player the per-player steps act for.
     pub(super) fn input(&self) -> Input {
         self.inputs[self.me.get()]
     }

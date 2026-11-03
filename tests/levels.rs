@@ -56,7 +56,11 @@ fn spent(e: &Engine) -> Vec<u8> {
 /// Steps idle, firing, until the second level, returning the events of that tick.
 fn until_level_up(e: &mut Engine, max_ticks: u32) -> Vec<DomainEvent> {
     for _ in 0..max_ticks {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         if level(e) > 1 {
             return e.events().to_vec();
         }
@@ -86,7 +90,7 @@ fn a_stage_without_levels_has_no_progress_and_nothing_to_choose() {
         vec![],
     ));
     for _ in 0..300 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     assert!(e.snapshot().progress.is_none());
     assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
@@ -139,7 +143,7 @@ fn a_level_up_raises_the_first_stat_and_the_run_goes_on() {
     // No offer opens: the next step is the next tick, and there is nothing to choose.
     assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
     let tick = e.tick();
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(e.tick(), tick + 1);
 }
 
@@ -186,7 +190,11 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
     let hit_after = |mut e: Engine| {
         let mut damages = Vec::new();
         for _ in 0..120 {
-            e.step(&[firing(idle(), e.tick())]);
+            e.step(&[
+                firing(idle(), e.tick()),
+                Default::default(),
+                Default::default(),
+            ]);
             damages.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -217,7 +225,7 @@ fn attack_raises_the_damage_of_the_main_character_s_attacks() {
 fn speed_raises_the_movement_speed() {
     let moved = |mut e: Engine| {
         let before = player_at(&e).0;
-        e.step(&[moving(127, 0)]);
+        e.step(&[moving(127, 0), Default::default(), Default::default()]);
         player_at(&e).0 - before
     };
     let stage = effect_stage();
@@ -231,10 +239,14 @@ fn speed_raises_the_movement_speed() {
 #[test]
 fn evade_shortens_the_evade_s_cooldown() {
     let cooldown = |mut e: Engine| {
-        e.step(&[Input {
-            evade: true,
-            ..idle()
-        }]);
+        e.step(&[
+            Input {
+                evade: true,
+                ..idle()
+            },
+            Default::default(),
+            Default::default(),
+        ]);
         e.snapshot().players[0].evade.recovering[0]
     };
     let stage = effect_stage();
@@ -263,15 +275,15 @@ fn attack_speed_shortens_a_combo_step_spread_over_its_phases() {
     let stage = armed(effect_stage(), weapon_ref(step));
     let phases = |mut e: Engine| {
         while !e.snapshot().players[0].attacks.is_empty() {
-            e.step(&[idle()]);
+            e.step(&[idle(), Default::default(), Default::default()]);
         }
         let mut seen: Vec<(u8, u32)> = Vec::new();
-        e.step(&[pressing_main()]);
+        e.step(&[pressing_main(), Default::default(), Default::default()]);
         while let Some(a) = e.snapshot().players[0].attacks.first().cloned() {
             if seen.last().is_none_or(|p| p.0 != a.phase) {
                 seen.push((a.phase, a.ticks));
             }
-            e.step(&[idle()]);
+            e.step(&[idle(), Default::default(), Default::default()]);
         }
         seen
     };
@@ -344,7 +356,11 @@ fn stats_with_the_same_effect_add_up() {
         fire_until(&mut e, idle(), 199, |e| level(e) >= 4);
         let mut seen = Vec::new();
         for _ in 0..200 {
-            e.step(&[firing(idle(), e.tick())]);
+            e.step(&[
+                firing(idle(), e.tick()),
+                Default::default(),
+                Default::default(),
+            ]);
             seen.extend(e.events().iter().filter_map(|ev| match ev {
                 DomainEvent::Hit { damage, .. } => Some(*damage),
                 _ => None,
@@ -388,7 +404,11 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
             common::pick(&mut e, 0).unwrap();
             continue;
         }
-        e.step(&[common::run::run_input(&e, e.tick())]);
+        e.step(&[
+            common::run::run_input(&e, e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         raised += e
             .events()
             .iter()
@@ -558,7 +578,7 @@ fn pick_stats_opens_one_offer_per_level_in_order() {
             .any(|ev| matches!(ev, DomainEvent::StatOfferOpened { options } if *options == ids))
     );
     let tick = e.tick();
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(
         e.tick(),
         tick,
@@ -608,7 +628,7 @@ fn every_stat_at_its_limit_gives_nothing() {
         );
         assert_eq!(offers, if pick_stats { all } else { 0 });
         assert_eq!(stat_offer(&e), None);
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
         assert!(
             !e.offer_open(),
             "no offer opens for the levels past the limits"

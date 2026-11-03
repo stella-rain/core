@@ -101,7 +101,9 @@ fn run_prefixes() -> Vec<Vec<u8>> {
                             break;
                         }
                         steps += 1;
-                        recorder.step(&[input]).expect("a corpus run steps");
+                        recorder
+                            .step(&[input, Default::default(), Default::default()])
+                            .expect("a corpus run steps");
                     }
                     Command::Choose(index) => recorder
                         .choose(PlayerIdx::SOLO, index)

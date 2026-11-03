@@ -148,7 +148,7 @@ fn the_tutorial_earns_no_stardust() {
     for command in &commands {
         match *command {
             Command::Step(input) => {
-                engine.step(&[input]);
+                engine.step(&[input, Default::default(), Default::default()]);
                 kills += engine
                     .events()
                     .iter()

@@ -470,8 +470,8 @@ fn the_bonus_is_fixed_when_the_attack_starts() {
         weapon(100, Some("pyro"), true),
     ));
     let mut e = with(&stage, vec![pyro(50)]);
-    e.step(&[idle()]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     let target = tough_id(&e);
     let mut events = run_until(&mut e, pressing_main(), 1, |_| false);
     events.extend(run_until(&mut e, idle(), 30, Engine::offer_open));
@@ -520,7 +520,10 @@ fn a_run_with_a_type_bonus_taken_records_and_verifies() {
             recorder.choose(PlayerIdx::SOLO, 0).unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
     }

@@ -510,8 +510,8 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
         };
         apply_due(&mut original, &case.commands, &mut a);
         apply_due(&mut resumed, &case.commands, &mut b);
-        original.step(&[input]);
-        resumed.step(&[input]);
+        original.step(&[input, Default::default(), Default::default()]);
+        resumed.step(&[input, Default::default(), Default::default()]);
         assert_eq!(
             resumed.state_hash(),
             original.state_hash(),
@@ -538,7 +538,7 @@ fn corpus_round_trip() {
                     break;
                 }
                 apply_due(&mut engine, &case.commands, &mut next);
-                engine.step(&[case.inputs[tick]]);
+                engine.step(&[case.inputs[tick], Default::default(), Default::default()]);
             }
         }
     }

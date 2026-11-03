@@ -165,7 +165,11 @@ fn wave_positions(drop_one_in: Option<u32>) -> Vec<(i32, i32)> {
     let mut seen = BTreeMap::new(); // by entity ID, which keeps the spawn order
     let mut kills = 0;
     for _ in 0..600 {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         kills += e
             .events()
             .iter()

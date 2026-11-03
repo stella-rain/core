@@ -98,7 +98,7 @@ fn a_version_1_run_takes_a_one_entry_slice() {
     let inputs = recorded.unpack_inputs(stage.length_ticks).unwrap();
     assert_eq!(inputs.len(), hashes.len());
     for (input, expected) in inputs.iter().zip(&hashes) {
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         assert_eq!(engine.state_hash(), *expected);
     }
     let diff = std::env::temp_dir();

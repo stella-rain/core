@@ -205,7 +205,11 @@ fn assert_orbs_and_ranged(engine: &Engine) {
 #[test]
 fn the_measured_tick_reaches_every_dynamic_cap() {
     let mut engine = worst_case::warmed_up();
-    engine.step(&[worst_case::input(worst_case::WARMUP_TICKS + 1)]);
+    engine.step(&[
+        worst_case::input(worst_case::WARMUP_TICKS + 1),
+        Default::default(),
+        Default::default(),
+    ]);
     assert_eq!(engine.outcome(), Outcome::Running, "the run ended");
     assert_eq!(engine.load(), worst(&engine));
     assert_hit_boxes(&engine);
@@ -224,7 +228,11 @@ fn the_caps_are_held_tick_after_tick() {
     let mut engine = worst_case::warmed_up();
     let mut fired = std::collections::BTreeSet::new();
     for tick in worst_case::WARMUP_TICKS + 1..=worst_case::WARMUP_TICKS + 60 {
-        engine.step(&[worst_case::input(tick)]);
+        engine.step(&[
+            worst_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
         assert_eq!(
             engine.outcome(),
             Outcome::Running,
@@ -307,7 +315,11 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
     // The view is 840 x 360 pixels, centred on the main character; RA1 bars ranged starts
     // outside it. Every enemy stands on the point of `ENEMIES_AT`, the shooters among them.
     let mut engine = worst_case::warmed_up();
-    engine.step(&[worst_case::input(worst_case::WARMUP_TICKS + 1)]);
+    engine.step(&[
+        worst_case::input(worst_case::WARMUP_TICKS + 1),
+        Default::default(),
+        Default::default(),
+    ]);
     let snapshot = engine.snapshot();
     let me = snapshot.players[0].at;
     let mut seen = 0;
@@ -331,7 +343,11 @@ fn the_line_shooter_arrives_in_view_of_the_main_character() {
     // place first (RA1b, DS82). On tick 2 the only enemies are the first wave and that shooter.
     let mut engine = Engine::new_with(&worst_case::stage(), &worst_case::content()).unwrap();
     for tick in 1..=3 {
-        engine.step(&[worst_case::input(tick)]);
+        engine.step(&[
+            worst_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
     }
     let snapshot = engine.snapshot();
     let me = snapshot.players[0].at;

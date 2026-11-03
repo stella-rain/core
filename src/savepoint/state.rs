@@ -729,7 +729,7 @@ mod offers_tests {
     fn with_open_offer(mut e: Engine, input: fn(u32) -> crate::input::Input) -> Option<Engine> {
         for _ in 0..3_000 {
             let tick = e.tick() + 1;
-            e.step(&[input(tick)]);
+            e.step(&[input(tick), Default::default(), Default::default()]);
             let Run::V2 { state, .. } = e.run() else {
                 panic!("the live rules")
             };

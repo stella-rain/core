@@ -427,8 +427,8 @@ fn nothing_is_drawn_before_the_pick() {
     pick(&mut a, OfferOption::Skip);
     pick(&mut b, OfferOption::Skip);
     for _ in 0..30 {
-        a.step(&[idle()]);
-        b.step(&[idle()]);
+        a.step(&[idle(), Default::default(), Default::default()]);
+        b.step(&[idle(), Default::default(), Default::default()]);
     }
     assert_eq!(a.state_hash(), b.state_hash());
 }
@@ -474,7 +474,10 @@ fn a_run_with_a_random_rune_picked_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
     }

@@ -111,7 +111,7 @@ fn stage_row(case: &Path) -> (u32, String, String, u32) {
     let pack = case_pack(case).unwrap_or_else(|e| panic!("{name}: {e}"));
     let mut engine = Engine::new_with(&stage, pack.content()).expect("the stage starts");
     for input in &inputs {
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
     }
     observed(&engine, inputs.len())
 }
@@ -129,7 +129,7 @@ fn run_row(case: &Path) -> (u32, String, String, u32) {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             apply(&mut engine, c).expect("a recorded command applies");
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
     }
     observed(&engine, inputs.len())
 }

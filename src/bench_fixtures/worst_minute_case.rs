@@ -106,7 +106,11 @@ impl Run {
             while self.engine.offer_open() {
                 crate::bench_fixtures::take_option(&mut self.engine, OFFER_CHOICE);
             }
-            self.engine.step(&[input_at(self.engine.tick())]);
+            self.engine.step(&[
+                input_at(self.engine.tick()),
+                Default::default(),
+                Default::default(),
+            ]);
         }
     }
 }

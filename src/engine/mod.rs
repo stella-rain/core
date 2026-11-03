@@ -367,25 +367,21 @@ impl Engine {
         Ok(Engine::of(run, content, forced))
     }
 
-    /// Advances one tick with `inputs`, one per active player, indexed by `PlayerIdx`. Once the
-    /// run is over this does nothing, so a replay that is longer than the run cannot change the
-    /// final hash.
+    /// Advances one tick with `inputs`, one entry per slot, present or not, indexed by
+    /// `PlayerIdx`. The slots read are the present ones; an absent slot's entry, its `pick`
+    /// included, is ignored. Once the run is over this does nothing, so a replay that is longer
+    /// than the run cannot change the final hash.
     ///
     /// While an offer is open for any player the world is stopped (ADR-079 §3): each player, in
     /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
     /// offer, the events are the picks' and the tick does not advance; a player with no offer
     /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
     /// offer open `pick` is not read (ADR-REPL-3).
-    ///
-    /// # Panics
-    ///
-    /// If `inputs.len()` is not `players()`: a caller bug, never data from a file.
-    pub fn step(&mut self, inputs: &[Input]) {
-        assert_eq!(inputs.len(), self.players(), "one input per player");
+    pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
         if self.offer_open() {
-            for (i, input) in inputs.iter().enumerate() {
+            for (i, input) in inputs.iter().take(self.players()).enumerate() {
                 let Some(player) = u8::try_from(i).ok().and_then(PlayerIdx::new) else {
                     continue;
                 };
@@ -604,8 +600,7 @@ pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), 
     e.check_pick(player, index)?;
     let mut inputs = [Input::default(); crate::id::MAX_PLAYERS as usize];
     inputs[player.get()] = Input::picking(index);
-    let party = e.players();
-    e.step(&inputs[..party]);
+    e.step(&inputs);
     Ok(())
 }
 

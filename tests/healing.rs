@@ -362,8 +362,16 @@ fn the_pickup_draw_is_one_in_150_and_the_same_per_seed() {
     let mut kills = 0_usize;
     let mut drops = 0_usize;
     for _ in 0..1_500 {
-        a.step(&[firing(idle(), a.tick())]);
-        b.step(&[firing(idle(), b.tick())]);
+        a.step(&[
+            firing(idle(), a.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
+        b.step(&[
+            firing(idle(), b.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         assert_eq!(a.state_hash(), b.state_hash(), "the same hash every tick");
         kills += a
             .events()

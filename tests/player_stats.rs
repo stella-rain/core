@@ -23,7 +23,9 @@ fn play(rec: &mut RunRecorder, commands: &[Command]) -> (u64, u32) {
     let (mut damage, mut kills) = (0u64, 0u32);
     for c in commands {
         match *c {
-            Command::Step(input) => rec.step(&[input]).unwrap(),
+            Command::Step(input) => rec
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         for e in rec.engine().events() {

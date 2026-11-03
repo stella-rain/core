@@ -99,7 +99,7 @@ pub(crate) fn check_case(case: &Path, diff_dir: &Path) -> Result<(), String> {
         .map_err(|e| format!("corpus case `{name}`: {e:?}"))?;
     let mut previous = engine.snapshot();
     for (input, expected) in inputs.iter().zip(&hashes) {
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         if engine.state_hash() != *expected {
             return Err(divergence(&name, *expected, &engine, &previous, diff_dir));
         }
@@ -216,7 +216,7 @@ fn dump_second(
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             apply(&mut engine, c).unwrap();
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         if engine.tick() >= from {
             dump(&engine);
         }
@@ -329,7 +329,7 @@ fn write_case(dir: &Path, stage_bytes: &[u8], inputs: &[Input]) {
     let mut engine = Engine::new(&stage).unwrap();
     let mut hashes = Vec::new();
     for input in &ran {
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         hashes.push(engine.state_hash());
     }
     ensure_writable(dir).unwrap();
@@ -1761,7 +1761,7 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
                 common::pick(&mut engine, c.index).unwrap();
             }
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         for e in engine.events() {
             match e {
                 DomainEvent::StageSkillUsed { skill, level } => {
@@ -1833,7 +1833,7 @@ fn the_run_cases_are_what_their_names_say() {
             while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
                 apply(&mut engine, c).unwrap();
             }
-            engine.step(&[input]);
+            engine.step(&[input, Default::default(), Default::default()]);
         }
         let boss = engine
             .snapshot()
@@ -1934,7 +1934,7 @@ fn elite_reach(name: &str) -> EliteReach {
         while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
             apply(&mut engine, c).unwrap();
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let (tick, s) = (engine.tick(), engine.snapshot());
         let alive: Vec<_> = s
             .entities
@@ -2082,7 +2082,7 @@ fn what_happens(name: &str) -> (Outcome, u32, usize) {
     let mut engine = Engine::new(&stage).unwrap();
     let mut peak = 0;
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         peak = peak.max(engine.snapshot().orbs.len());
     }
     (engine.outcome(), engine.snapshot().players[0].hp, peak)
@@ -2097,7 +2097,7 @@ fn zone_peaks(name: &str) -> (usize, bool) {
     let mut engine = Engine::new(&stage).unwrap();
     let (mut peak, mut cleared, mut before) = (0, false, 0);
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let alive = engine
             .snapshot()
             .zones
@@ -2125,7 +2125,7 @@ fn orb_and_token_reach(name: &str) -> (usize, usize, usize, bool) {
     let mut engine = Engine::new(&stage).unwrap();
     let (mut held, mut orbs, mut broken, mut zoned) = (0, 0, 0, false);
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let snapshot = engine.snapshot();
         let tokens = snapshot
             .entities
@@ -2179,7 +2179,7 @@ fn the_dash_case_is_what_its_name_says() {
     };
     let boss_start = from(&e, EntityKind::Boss);
     for input in inputs {
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         hit |= e
             .events()
             .iter()
@@ -2268,7 +2268,7 @@ fn evade_reach() -> EvadeReach {
     let (mut was_held, mut spent_all) = (false, false);
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
         let before = engine.snapshot().players[0].evade.clone();
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let evaded = engine.events().contains(&DomainEvent::Evaded);
         let pressed = input.evade && !was_held;
         was_held = input.evade;
@@ -2309,7 +2309,7 @@ fn assist_reach() -> AssistReach {
     };
     let mut seen_elite = false;
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let s = engine.snapshot();
         let target = s.players[0]
             .target
@@ -2343,7 +2343,7 @@ fn landscape_reach() -> (bool, i32) {
     let mut engine = Engine::new(&stage).unwrap();
     let (mut corner, mut farthest) = (false, 0);
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let s = engine.snapshot();
         corner |= (s.players[0].at.x.0, s.players[0].at.y.0) == (s.map.width.0, 0);
         let xs = s.zones.iter().map(|z| z.at.x.0);
@@ -2362,7 +2362,7 @@ fn deaths(name: &str) -> usize {
     let mut engine = Engine::new(&stage).unwrap();
     let mut died = 0;
     for input in recorded.unpack_inputs(stage.length_ticks).unwrap() {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         died += engine
             .events()
             .iter()
@@ -2454,7 +2454,7 @@ fn the_orb_cage_case_is_what_its_name_says() {
     let mut e = engine(&stage);
     let (mut beams, mut hits, mut broken) = (0, Vec::new(), 0);
     for input in inputs {
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         let snapshot = serde_json::to_value(e.snapshot()).unwrap();
         let orbs = snapshot["orbs"].as_array().cloned().unwrap_or_default();
         let live = orbs.iter().filter(|o| o.get("link_to").is_some()).count();
@@ -2485,7 +2485,7 @@ fn the_warn_anchor_case_is_what_its_name_says() {
     let mut e = engine(&stage);
     let (mut warnings, mut beams, mut hits) = (0, 0, 0);
     for input in inputs {
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         let snapshot = serde_json::to_value(e.snapshot()).unwrap();
         let zones = snapshot["zones"].as_array().cloned().unwrap_or_default();
         for z in zones.iter().filter(|z| z["warn_only"] == json!(true)) {
@@ -2538,7 +2538,7 @@ fn the_leash_edge_case_is_what_its_name_says() {
     assert_eq!(inputs.len(), 300);
 
     for input in inputs {
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         let tick = engine.snapshot().tick;
 
         let events = engine.events();

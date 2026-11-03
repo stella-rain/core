@@ -621,11 +621,10 @@ pub(crate) fn step(
     rewards: &Rewards,
     expertise: &Expertise,
     s: &mut State,
-    inputs: &[Input],
+    inputs: &[Input; MAX_PLAYERS as usize],
     events: &mut Vec<DomainEvent>,
     load: &mut Load,
 ) {
-    debug_assert_eq!(inputs.len(), s.players.len(), "one input per player");
     if s.outcome != Outcome::Running {
         return;
     }

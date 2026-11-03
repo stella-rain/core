@@ -24,7 +24,7 @@ pub fn forget_measured<T>(value: T) {
 #[inline]
 pub fn tick(case: Case) -> Engine {
     let Case { mut engine, input } = case;
-    engine.step(&[input]);
+    engine.step(&[input, Default::default(), Default::default()]);
     engine
 }
 

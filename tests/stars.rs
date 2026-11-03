@@ -168,7 +168,11 @@ fn dropping_kills(e: &mut Engine, ticks: u32, input: stella_rain_core::input::In
     let mut kills = 0;
     let mut out = Vec::new();
     for _ in 0..ticks {
-        e.step(&[firing(input, e.tick())]);
+        e.step(&[
+            firing(input, e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -274,7 +278,11 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
     assert!(e.snapshot().stars.is_empty(), "the star was taken");
     let hash = e.state_hash();
     for _ in 0..10 {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         assert_eq!(
             (e.tick(), e.state_hash()),
             (tick, hash),
@@ -345,7 +353,11 @@ fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
     assert_eq!(e.snapshot().players[0].hp, hp + 5);
     assert!(!e.offer_open());
     assert_eq!(e.tick(), tick, "a choice is between ticks");
-    e.step(&[firing(idle(), e.tick())]);
+    e.step(&[
+        firing(idle(), e.tick()),
+        Default::default(),
+        Default::default(),
+    ]);
     assert_eq!(e.tick(), tick + 1);
 }
 
@@ -663,7 +675,11 @@ fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
     assert!(matches!(e.events(), [DomainEvent::RewardTaken { .. }]));
     assert!(!e.offer_open());
     assert_eq!(e.snapshot().players[0].hp, hp + 1);
-    e.step(&[firing(idle(), e.tick())]);
+    e.step(&[
+        firing(idle(), e.tick()),
+        Default::default(),
+        Default::default(),
+    ]);
     assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
 }
 

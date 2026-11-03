@@ -91,7 +91,8 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
     while run.engine().outcome() == Outcome::Running {
         answer_offers(&mut run, bot);
         let input = run_input_for(run.engine(), tick, &[EntityKind::Enemy], u32::MAX);
-        run.step(&[input]).unwrap();
+        run.step(&[input, Default::default(), Default::default()])
+            .unwrap();
         tick += 1;
     }
     answer_offers(&mut run, bot);

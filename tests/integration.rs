@@ -141,6 +141,7 @@ mod stardust_tiers;
 mod stars;
 mod starting_unlocks;
 mod statuses;
+mod step_three;
 mod stun;
 mod tally;
 mod text_table;
