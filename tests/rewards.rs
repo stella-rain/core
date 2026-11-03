@@ -1,5 +1,5 @@
-//! Rewards (ADR-079 §3, ADR-067): what an offer holds is content, read from JSON as untrusted
-//! bytes (ADR-020): a size limit before parsing, strict parsing, the current versions only and
+//! Rewards (ADR-REPL-16, ADR-CONT-11): what an offer holds is content, read from JSON as untrusted
+//! bytes (ADR-SVC-7): a size limit before parsing, strict parsing, the current versions only and
 //! every field bounded. The bundled file is the default; other bytes run the same way and
 //! change the run's content hash.
 
@@ -132,7 +132,7 @@ fn the_bundled_rewards_offer_every_bundled_stage_skill() {
     }
 }
 
-// --- Stage skills (ADR-075, ADR-098) ---------------------------------------------------------
+// --- Stage skills ---------------------------------------------------------
 
 /// A stage skills file of `aura` and `ward`.
 fn skills() -> StageSkills {
@@ -314,7 +314,7 @@ fn amounts_limits_and_texts_are_bounded() {
 
 #[test]
 fn a_hit_point_amount_has_the_scaled_bound_and_the_others_keep_theirs() {
-    // ADR-103: hit points are scaled by 100, a percentage is not.
+    // Hit points are scaled by 100, a percentage is not.
     assert_eq!(MAX_HP_AMOUNT, 5_000 * 100);
     let hp = |amount: u32| {
         let mut v = one_with("effect", json!("max_hp"));

@@ -1,4 +1,4 @@
-//! The Main weapon's attack along the facing (ADR-069, ADR-070): a one-step combo, pressed every
+//! The Main weapon's attack along the facing: a one-step combo, pressed every
 //! 6 ticks. Its `aimed` directions point along the facing, up the screen until the main
 //! character moves, and `relative` ones start from there; `absolute` ones stay fixed on the
 //! field (0 is down). The weapon places friendly zones (BR1c: nothing flies free any more), each
@@ -218,7 +218,7 @@ fn aimed_and_relative_follow_the_facing_and_absolute_does_not() {
 #[test]
 fn a_shot_that_has_started_carries_on_along_its_first_facing() {
     // One zone now and one 10 ticks later, both up the field, though the main character faces
-    // down from tick 2 on. The pattern runs past its one-tick phase (ADR-055), so the next shot
+    // down from tick 2 on. The pattern runs past its one-tick phase, so the next shot
     // starts on tick 7, down the field.
     let stage = shooting(
         inline(vec![fire(256, aimed(0)), wait(10), fire(256, aimed(0))]),

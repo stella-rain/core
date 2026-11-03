@@ -1,4 +1,4 @@
-//! Big boss patterns (ADR-103): a boss's attack step marked `big` is announced in the snapshot
+//! Big boss patterns: a boss's attack step marked `big` is announced in the snapshot
 //! while the timed steps before it run, and the boss's call of its elites is a big pattern
 //! counted from the boss's arrival, not from the run's first tick.
 

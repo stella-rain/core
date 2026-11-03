@@ -16,7 +16,7 @@ use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::version::Versions;
 
-// The evade of every test stage (ADR-050): 48 pixels over 8 ticks, 10 ticks of invulnerability
+// The evade of every test stage: 48 pixels over 8 ticks, 10 ticks of invulnerability
 // and a 40-tick cooldown.
 pub const EVADE_DISTANCE: i32 = 12_288;
 pub const EVADE_TICKS: u32 = 8;
@@ -47,7 +47,7 @@ pub fn step(attack: Value) -> Value {
     json!({ "attack": attack })
 }
 
-/// An inline weapon (ADR-084) with `combo` as its root branches and no window.
+/// An inline weapon with `combo` as its root branches and no window.
 pub fn weapon_combo(combo: Value) -> Value {
     json!({ "inline": { "combo": combo, "window_ticks": 0, "assist_range": 0 } })
 }
@@ -94,7 +94,7 @@ pub fn armed(mut stage: Stage, weapon: Value) -> Stage {
 /// `input` with `main` pressed on the tick after a step at `tick` (the engine's tick before the
 /// step) when `tick` is a multiple of 6, and let go on the others: the test stage's Main weapon
 /// fires every 6 ticks from the first, as its attack did on its own before attacks came by hand
-/// (ADR-070).
+///.
 pub fn firing(input: Input, tick: u32) -> Input {
     Input {
         main: tick % 6 == 0,
@@ -133,7 +133,7 @@ pub fn pressing_main() -> Input {
 }
 
 /// The phases of an attack that spawns `nodes` on the tick it starts: one active phase of one
-/// tick (ADR-055).
+/// tick.
 pub fn spawned(nodes: Value) -> Value {
     json!([{ "kind": "active", "ticks": 1, "spawn": nodes }])
 }
@@ -372,10 +372,10 @@ pub fn summon(count: u8) -> Value {
             "agent": { "base": "bat", "hp": 10, "radius": 2048, "movement": hold(1000, 1000) } })
 }
 
-/// ADR-103 decision 6: the factor default damage and hit points are scaled by.
+/// The factor default damage and hit points are scaled by.
 pub const SCALE: u64 = 100;
 
-/// The fields of a stage that hold a damage or hit-point value (ADR-103 decision 6): a stage
+/// The fields of a stage that hold a damage or hit-point value: a stage
 /// written at design values becomes the stage of the scaled rules by multiplying these.
 const SCALED_FIELDS: [&str; 5] = ["hp", "atk", "defence", "damage", "amount"];
 
@@ -450,7 +450,7 @@ fn near_start_is_the_start_moved_by_whole_pixels() {
     assert_eq!(near_start(5, 3), (START_X + 1_280, START_Y + 768));
 }
 
-/// Takes option `index` of the open offer by a step (ADR-REPL-3), refused as `check_pick`
+/// Takes option `index` of the open offer by a step (ADR-REPL-16), refused as `check_pick`
 /// refuses it.
 pub fn pick(e: &mut Engine, index: u32) -> Result<(), stella_rain_core::engine::ChoiceError> {
     e.check_pick(stella_rain_core::id::PlayerIdx::SOLO, index)?;

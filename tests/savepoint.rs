@@ -1,4 +1,4 @@
-//! The savepoint file (ADR-SAVE-3): a run saved at a tick and restored from its bytes and the
+//! The savepoint file (ADR-SAVE-14): a run saved at a tick and restored from its bytes and the
 //! replay prefix, without re-simulating the prefix, and refused with one typed error per cause.
 
 use crate::common::idle;

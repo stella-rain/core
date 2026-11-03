@@ -1,4 +1,4 @@
-//! The offer pick inside `Input` (ADR-REPL-3, ADR-SIM-12): the pick is not part of the schema 1
+//! The offer pick inside `Input` (ADR-REPL-16, ADR-SIM-21): the pick is not part of the schema 1
 //! wire, replays are recorded and verified byte for byte as before, and a version 1 run takes a
 //! one-entry slice.
 

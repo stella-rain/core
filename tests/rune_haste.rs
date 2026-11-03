@@ -1,4 +1,4 @@
-//! Rune Haste (ADR-099 point 5): a star reward, `rune_haste`, with an amount `h` in percent, a
+//! Rune Haste: a star reward, `rune_haste`, with an amount `h` in percent, a
 //! stack limit and a rarity like the others. The amounts taken add up, held to a hard cap, and
 //! shorten each on-hit rune's cooldown, as it is set, and each damage-over-time status's tick
 //! interval, as it is applied, to `ticks × 100 / (100 + h)` rounded up, at least 1 tick. No

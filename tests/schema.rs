@@ -1,4 +1,4 @@
-//! The checked-in JSON Schema matches the types (ADR-018). After changing a type, regenerate:
+//! The checked-in JSON Schema matches the types (ADR-CONT-11). After changing a type, regenerate:
 //! `UPDATE_SCHEMA=1 cargo test --test integration schema::`, and commit the diff with the change.
 
 use std::collections::BTreeSet;

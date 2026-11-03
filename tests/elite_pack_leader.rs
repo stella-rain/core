@@ -1,4 +1,4 @@
-//! The pack leader (ADR-090 point 5, app#259): an elite that comes with an escort on a ring
+//! The pack leader (app#259): an elite that comes with an escort on a ring
 //! around it and carries an aura. While it is alive, every non-elite enemy within the aura's
 //! radius of its centre deals more damage; the leader and the other elites are not helped, and
 //! auras do not stack, the highest bonus in range counts.
@@ -206,7 +206,7 @@ fn an_enemy_within_the_radius_deals_a_quarter_more_rounded_down() {
 
 #[test]
 fn the_aura_of_25_percent_raises_a_default_hit_of_100_to_125_whole() {
-    // ADR-103: default damage is scaled by 100, so the quarter is no longer rounded away. A shot
+    // Default damage is scaled by 100, so the quarter is no longer rounded away. A shot
     // of the default 100 (an enemy's attack that names no damage, 1 before the scale) hurts for
     // 100 without a leader and for 125 within the bundled aura of 25%.
     let shot = |others: Vec<Value>| {

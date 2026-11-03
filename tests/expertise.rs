@@ -1,6 +1,6 @@
-//! Expertise content (ADR-078 §7, ADR-067): the thresholds of levels 1 to 10, the growth factor
+//! Expertise content (ADR-CONT-11): the thresholds of levels 1 to 10, the growth factor
 //! and its maximum, each weapon's three styles and common pool, read from
-//! JSON as untrusted bytes (ADR-020). Nothing reads it yet; these tests hold its bounds: the
+//! JSON as untrusted bytes (ADR-SVC-7). Nothing reads it yet; these tests hold its bounds: the
 //! thresholds rise strictly, the factor is above 1, no pool is empty, every weapon has three
 //! complete styles, and every number is capped.
 
@@ -118,7 +118,7 @@ fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
             assert!(!s.upgrade_1.is_empty() && !s.upgrade_2.is_empty() && !s.capstone.is_empty());
         }
         assert!(!w.common.is_empty(), "{}", w.weapon.as_str());
-        // No option has a stack limit, attack speed included (ADR-099).
+        // No option has a stack limit, attack speed included.
         assert!(
             w.common
                 .iter()
@@ -340,7 +340,7 @@ fn amounts_are_one_to_their_effect_s_most() {
         &with("/weapons/0/common/0/amount", json!(MAX_AMOUNT + 1)),
         at,
     );
-    // Hit points are scaled by 100 (ADR-103); the bound is too.
+    // Hit points are scaled by 100; the bound is too.
     let hp = |amount: u32| option("x", "max_hp", amount);
     valid(&with("/weapons/0/common/0", hp(MAX_HP_AMOUNT)));
     invalid_at(&with("/weapons/0/common/0", hp(MAX_HP_AMOUNT + 1)), at);

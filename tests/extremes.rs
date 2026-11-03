@@ -1,4 +1,4 @@
-//! Expressions never panic (ADR-036, ADR-019): every expression slot of an attack is given the
+//! Expressions never panic (ADR-SIM-18, ADR-SIM-17): every expression slot of an attack is given the
 //! most extreme values the validator lets a creator write, and the engine runs on. A replay
 //! proves only the creator's path, so a challenger who survives longer or meets other values
 //! must not be able to crash a verified stage. The constants stay within the validator's
@@ -12,7 +12,7 @@ use stella_rain_core::stage::Stage;
 
 const OX: i32 = 46_080;
 const OY: i32 = 50_000;
-/// The length of a stage: five minutes of ticks (ADR-020).
+/// The length of a stage: five minutes of ticks (ADR-SVC-7).
 const FULL_LENGTH: u32 = 18_000;
 /// Long enough for several rounds of every attack and the orbs and zones they start.
 const SHORT_RUN: u32 = 600;
@@ -159,7 +159,7 @@ fn stage(value: &dyn Fn(&str) -> Value) -> Stage {
     ];
     // The weapons are quiet, so that the enemies live to fill the field.
     let mut stage = quiet(stage_full(FULL_LENGTH, Some(far_boss()), waves, vec![]));
-    // 99 hit points at the design values, scaled (ADR-103): the enemies' default hit is 100.
+    // 99 hit points at the design values, scaled: the enemies' default hit is 100.
     stage.player.hp = 9_900;
     stage
 }
@@ -199,7 +199,7 @@ fn every_slot_at_once_survives_the_whole_stage() {
 }
 
 /// Everything extreme except the orbs' speed and aim, so that orbs do stay in the field
-/// and the caps (ADR-020) and the emitter budget are what holds the load.
+/// and the caps (ADR-SVC-7) and the emitter budget are what holds the load.
 fn busy(extreme: &Value) -> Stage {
     let mut stage = stage(&|k| {
         if k == "speed" || k == "aimed_offset" {
@@ -227,9 +227,9 @@ fn busy_stages_survive_the_whole_stage() {
 }
 
 /// The hash of one mixed run: slot `i` takes extreme `i`, speed and aim stay ordinary. Every
-/// platform must produce exactly this (ADR-019): a difference in how overflow, saturation or
+/// platform must produce exactly this (ADR-SIM-17): a difference in how overflow, saturation or
 /// division behaves on another architecture would show here. Version 1 is frozen: a change to
-/// the rules that moves it goes into a new `sim_version` (ADR-REPL-7), never a re-pin.
+/// the rules that moves it goes into a new `sim_version` (ADR-REPL-13), never a re-pin.
 const MIXED_HASH: u64 = 0xaf35_4b74_321c_ff45;
 
 #[test]

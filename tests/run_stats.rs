@@ -1,5 +1,5 @@
-//! Run stats (ADR-079 §4, ADR-067): the stats a stat point raises are content, read from JSON
-//! as untrusted bytes (ADR-020): a size limit before parsing, strict parsing, the current
+//! Run stats (ADR-REPL-16, ADR-CONT-11): the stats a stat point raises are content, read from JSON
+//! as untrusted bytes (ADR-SVC-7): a size limit before parsing, strict parsing, the current
 //! versions only and every field bounded. The bundled file is the default; other bytes (a
 //! server's, later) run the same way and change the run's content hash.
 
@@ -185,7 +185,7 @@ fn ids_are_well_formed_and_unique() {
 
 #[test]
 fn a_hit_point_step_has_the_scaled_bound_and_the_others_keep_theirs() {
-    // ADR-103: a point of Max HP is up to 100 times a percentage's step.
+    // A point of Max HP is up to 100 times a percentage's step.
     assert_eq!(MAX_HP_STEP, MAX_STEP * 100);
     let hp = |step: u32| {
         let mut v = one_with("effect", json!("max_hp"));
@@ -328,8 +328,8 @@ fn the_attack_speed_cap_is_the_files_and_the_code_ceiling_bounds_it() {
 
 #[test]
 fn the_stun_rules_are_bounded_and_the_bundled_ones_are_the_placeholders() {
-    // ADR-085 points 4 and 6: the immunity after a stun and the elite's share of it, run rules
-    // in the run stats file (ADR-067), both bounded (ADR-020).
+    // The immunity after a stun and the elite's share of it, run rules
+    // in the run stats file (ADR-CONT-11), both bounded (ADR-SVC-7).
     let bundled = RunStats::bundled().stun();
     assert_eq!((bundled.immune_ticks, bundled.elite_pct), (60, 50));
     assert!(parse(&with_stun(json!({ "immune_ticks": 0, "elite_pct": 0 }))).is_ok());

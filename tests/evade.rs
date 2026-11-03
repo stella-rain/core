@@ -1,4 +1,4 @@
-//! The evade's charges (ADR-074): a stage gives up to three, each spent charge recovers on its
+//! The evade's charges: a stage gives up to three, each spent charge recovers on its
 //! own timer of the cooldown counted from its press, and a press during a dash with a charge
 //! ready starts the next dash at once; a reward adds a ready charge, up to the stage's
 //! `max_charges`. Every number here is worked out by hand from the rules' constants and
@@ -185,7 +185,7 @@ fn a_charge_with_no_cooldown_is_ready_again_at_once() {
 
 #[test]
 fn charges_absent_from_a_stage_write_nothing_back() {
-    // A stage that never named charges keeps its JSON, and so its parsed-stage hash (ADR-046).
+    // A stage that never named charges keeps its JSON, and so its parsed-stage hash (ADR-SVC-13).
     let v = serde_json::to_value(stage_with(18_000, Some(far_boss()), vec![])).unwrap();
     let evade = v["player"]["evade"].as_object().unwrap();
     assert!(!evade.contains_key("charges") && !evade.contains_key("max_charges"));
@@ -194,7 +194,7 @@ fn charges_absent_from_a_stage_write_nothing_back() {
     assert_eq!(v["player"]["evade"]["max_charges"], json!(3));
 }
 
-// --- The extra-charge reward (ADR-074 §5) ----------------------------------------------------
+// --- The extra-charge reward ----------------------------------------------------
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
 /// taken at once.

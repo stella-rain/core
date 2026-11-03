@@ -1,4 +1,4 @@
-//! The `Hit` event says which rune dealt it (ADR-099): the on-hit rune that fired the attack,
+//! The `Hit` event says which rune dealt it: the on-hit rune that fired the attack,
 //! or the damage-over-time rune whose status ticked. A combo step's hit, and every other, says
 //! nothing. Every rune here hits the tough target for a damage of its own, so the hit tells
 //! which attack it came from: the step 10, explosion 3, thunder 4, boomerang 5, homing missiles

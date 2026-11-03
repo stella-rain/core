@@ -1,4 +1,4 @@
-//! The registry's own rules (ADR-026): well-formed IDs, no duplicates, a stable order.
+//! The registry's own rules (ADR-CONT-12): well-formed IDs, no duplicates, a stable order.
 
 use stella_rain_core::registry::{ENTRIES, Kind, find, is_well_formed};
 use stella_rain_core::version::SIM_VERSION;
@@ -70,7 +70,7 @@ fn id_format_rules() {
 
 #[test]
 fn the_combo_upgrades_are_registered_in_version_1() {
-    // ADR-084 point 7, ADR-026: the permanent upgrades that open the AAB and AAAB steps.
+    // ADR-CONT-12: the permanent upgrades that open the AAB and AAAB steps.
     for id in [
         "giant_hammer_aaab",
         "giant_hammer_aab",
@@ -91,7 +91,7 @@ fn the_upgrade_list_has_room_for_every_upgrade() {
 
 #[test]
 fn every_registry_id_is_introduced_in_version_1() {
-    // ADR-REPL-7 point 8: version 1 is the first version, so every ID is introduced in it.
+    // Version 1 is the first version, so every ID is introduced in it.
     assert!(!ENTRIES.is_empty());
     for e in ENTRIES {
         assert_eq!(e.introduced, 1, "{}", e.id);

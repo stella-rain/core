@@ -1,6 +1,6 @@
-//! The Stardust file (ADR-101 point 4, ADR-080, DS6 Q10): per mode, whether a failed run's bank
+//! The Stardust file (ADR-CONT-15, DS6 Q10): per mode, whether a failed run's bank
 //! is on, the share a fail pays, the share it banks and the bank's cap, read from JSON as
-//! untrusted bytes (ADR-020). The simulation never reads it; the app pays and banks.
+//! untrusted bytes (ADR-SVC-7). The simulation never reads it; the app pays and banks.
 
 use crate::common;
 use serde_json::{Value, json};

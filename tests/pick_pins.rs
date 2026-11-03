@@ -1,7 +1,7 @@
-//! Pins what a choice does before it moves into the input (ADR-REPL-3): for corpus run cases
+//! Pins what a choice does before it moves into the input (ADR-REPL-16): for corpus run cases
 //! that hold commands, the state hash, the number of events and the tick after each of the first
 //! commands. The constants were taken once and stayed unchanged through the move of picks into
-//! `Input`; the hashes were re-pinned once, for the per-player hash layout (ADR-SIM-3), and the
+//! `Input`; the hashes were re-pinned once, for the per-player hash layout (ADR-SIM-17), and the
 //! event counts and ticks, which say what the choices did, did not move.
 use crate::corpus::{apply, case_content, runs_dir};
 use stella_rain_core::engine::Engine;

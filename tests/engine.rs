@@ -1,6 +1,6 @@
-//! The simulation engine (ADR-004, ADR-015) at version 1. Small stages are built here so that
+//! The simulation engine (ADR-SIM-15, ADR-SVC-13) at version 1. Small stages are built here so that
 //! every expected tick can be worked out by hand from the rules in `sim`; the fixture
-//! stage pins the hash every platform must reproduce (ADR-019).
+//! stage pins the hash every platform must reproduce (ADR-SIM-17).
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -39,7 +39,7 @@ fn a_run_starts_at_tick_zero_with_the_character_near_the_bottom() {
     assert!(e.events().is_empty());
 }
 
-// --- Movement (ADR-050; the speed cap and the facing are in `tests/controls.rs`) -------------
+// --- Movement (the speed cap and the facing are in `tests/controls.rs`) -------------
 
 #[test]
 fn the_character_stays_inside_the_playfield() {
@@ -292,7 +292,7 @@ fn a_stage_with_nothing_to_beat_clears_at_once() {
     assert_eq!((e.tick(), e.outcome()), (1, Outcome::Cleared));
 }
 
-// --- Waves and the runtime caps (ADR-020) ----------------------------------------------------
+// --- Waves and the runtime caps (ADR-SVC-7) ----------------------------------------------------
 
 #[test]
 fn waves_spawn_on_schedule_in_entity_id_order() {
@@ -338,7 +338,7 @@ fn at_most_the_cap_of_enemies_are_alive_and_dropped_spawns_still_count() {
     assert_eq!(ids, (1..=261).collect::<Vec<u32>>());
 }
 
-// --- Rules (ADR-036) -------------------------------------------------------------------------
+// --- Rules (ADR-SIM-18) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
 /// A running stage whose weapons are quiet, so that the enemies the tests set up live.
@@ -471,10 +471,10 @@ fn the_snapshot_survives_json() {
     assert_eq!(serde_json::from_str::<Snapshot>(&json).unwrap(), s);
 }
 
-// --- Determinism (ADR-004, ADR-019) ----------------------------------------------------------
+// --- Determinism (ADR-SIM-15, ADR-SIM-17) ----------------------------------------------------------
 
 fn fixture() -> Stage {
-    // The fixture is written at design values and scaled like the corpus stages (ADR-103).
+    // The fixture is written at design values and scaled like the corpus stages.
     let value = serde_json::from_str(FIXTURE).expect("the fixture is JSON");
     let mut stage: Stage =
         serde_json::from_value(common::scaled(value, common::SCALE)).expect("the fixture parses");
@@ -520,7 +520,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 
 /// The hash after `GOLDEN_TICKS` ticks of `script` on the fixture stage. Every platform must
 /// produce exactly this (CI runs it on x86_64 and arm64); a change to it is a change to the
-/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-7, the
+/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-13, the
 /// `schema-change` skill), never a re-pin of this value.
 const GOLDEN_TICKS: u32 = 900;
 const GOLDEN_HASH: u64 = 0x7728_e264_08b8_adf9;

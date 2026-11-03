@@ -1,7 +1,7 @@
-//! Version 2 is the open live version (ADR-REPL-9): a run of `sim_version` 2 runs the live
+//! Version 2 is the open live version (ADR-REPL-13): a run of `sim_version` 2 runs the live
 //! rules, saves and restores as any run does, never crosses versions through a savepoint, and
 //! the frozen version 1 cases replay with the same events, outcomes and kills when their files say 2
-//! (ADR-REPL-7); the state hashes differ, the layouts do.
+//! (ADR-REPL-13); the state hashes differ, the layouts do.
 
 use crate::common::run::{time_limit_setup, trial_setup};
 use crate::corpus::{apply as apply_command, current_dir};

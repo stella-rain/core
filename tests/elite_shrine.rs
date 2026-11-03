@@ -1,4 +1,4 @@
-//! The shrine (ADR-090 points 4 and 5, app#259): an elite object that cannot be damaged and does
+//! The shrine (app#259): an elite object that cannot be damaged and does
 //! nothing until the main character touches it. Touched, it activates once, rings itself with
 //! guardians and starts a timer; the guardians dead in time give the elite's usual reward, the
 //! timer out leaves the shrine (unkilled, no reward) and the guardians as ordinary enemies. The

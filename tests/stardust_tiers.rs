@@ -1,8 +1,8 @@
-//! The Stardust time factor as a table of tiers (ADR-109 decision 2): each tier the tick it
+//! The Stardust time factor as a table of tiers: each tier the tick it
 //! starts at and a percent, the first at tick 0, the ticks rising strictly. A kill earns its base
 //! times the percent of the last tier that started at or before the kill tick, truncated toward
 //! zero; past the last tier's start (overtime included) the last tier holds. The `time_limit`
-//! mode file gives the default table and a difficulty may give its own (ADR-110 decision 2).
+//! mode file gives the default table and a difficulty may give its own.
 
 use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;

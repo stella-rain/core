@@ -1,17 +1,17 @@
-//! The replay corpus (ADR-019): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
+//! The replay corpus (ADR-SIM-17): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
 //! and `hashes.bin` (the state hash after every tick, 8 bytes little-endian,
 //! `replay::hashes_from_bytes`). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first
 //! tick it moved, on x86_64 and on the arm64 runner alike. The device run reads them with the same
-//! code (ADR-054).
+//! code (ADR-REL-12).
 //!
 //! On a mismatch the failure names the first diverging tick and writes the snapshots of that
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
 //! architecture. After an intended change, run
 //! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
-//! in the PR (ADR-035).
+//! in the PR (ADR-REPL-12).
 //!
-//! Runs of the launch game (ADR-079) are kept apart, in `tests/corpus/current/runs/<name>/`: a
+//! Runs of the launch game (ADR-REPL-16) are kept apart, in `tests/corpus/current/runs/<name>/`: a
 //! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
 //! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
 //! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
@@ -148,7 +148,7 @@ pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> 
     }
 }
 
-/// Verifies one run case (ADR-079): its `run.replay` carries the expected hashes as checkpoints,
+/// Verifies one run case (ADR-REPL-16): its `run.replay` carries the expected hashes as checkpoints,
 /// one every 60 ticks, so it is the one file of the case. A `hashes.bin` or `hashes.txt` beside
 /// it would be a second source of truth and fails the case. When a checkpoint differs, the
 /// snapshots of the ticks of that second are written to `<diff_dir>/<name>/`.
@@ -476,7 +476,7 @@ fn a_replay_that_is_not_the_stages_fails() {
     assert!(message.contains("stage file has changed"), "{message}");
 }
 
-// --- Run cases (ADR-079) -----------------------------------------------------------------------
+// --- Run cases (ADR-REPL-16) -----------------------------------------------------------------------
 
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));
@@ -720,7 +720,7 @@ fn fail() -> Definition {
     )
 }
 
-/// Melee (ADR-055): three enemies trail the main character and swing at it, a wind-up, an arc
+/// Melee: three enemies trail the main character and swing at it, a wind-up, an arc
 /// and a recovery, rooted while they wind up and swing; a companion orbiting it cleaves them
 /// with a wide arc that hits again every 2 ticks, through their defence. The main character
 /// stands still, then walks from side to side, playing the `giant_sword`'s combos, whose smashes
@@ -749,7 +749,7 @@ fn melee() -> Definition {
             0
         )]),
     );
-    // Defence 50 (ADR-056): each cleave of 3 lands as 3 × 100 / 150 = 2.
+    // Defence 50: each cleave of 3 lands as 3 × 100 / 150 = 2.
     swordsman["defence"] = json!(50);
     let mut cleave = phase("active", 4, arc(10_240, 90), 3, 100);
     cleave["rehit_ticks"] = json!(2);
@@ -1129,7 +1129,7 @@ fn warn_anchor() -> Definition {
     ("warn_anchor", bytes(&stage), inputs)
 }
 
-/// Aim assist and auto mode (ADR-072, ADR-073) with the giant_sword, whose assist range is 160
+/// Aim assist and auto mode with the giant_sword, whose assist range is 160
 /// pixels: three bats to the left and an elite to the right, all within it, and a boss far up
 /// the field. Auto mode alone for 100 ticks (the elite first, then the bats as they fall);
 /// combos by hand with assist for 80 ticks; then assist on while the main character walks up to the
@@ -1177,7 +1177,7 @@ fn assist() -> Definition {
     ("assist", bytes(&stage), inputs)
 }
 
-/// The evade on three charges (ADR-074): a shooter fires at the main character, who walks from
+/// The evade on three charges: a shooter fires at the main character, who walks from
 /// side to side and presses the evade four times in a row, each during the dash before it. The
 /// first three dash, the fourth finds no charge ready; the charges come back one by one before
 /// the next cycle, which does it again.
@@ -1418,7 +1418,7 @@ fn run_definitions() -> Vec<RunDefinition> {
         ..time_limit_setup()
     };
     let time_limit_commands = play_run_from(&time_limit, MAX_TICKS);
-    // The time_limit mode on easy and on rainy (ADR-110): the enemies' hit points and damage
+    // The time_limit mode on easy and on rainy: the enemies' hit points and damage
     // scaled, the stars inside the rarity range; easy with its own boss times and level table.
     let easy = RunSetup {
         difficulty: "easy".into(),
@@ -1453,7 +1453,7 @@ fn run_definitions() -> Vec<RunDefinition> {
     let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
         elites_script.input(e, t)
     });
-    // The tutorial mode (ADR-086): three minutes of bats and one weak golem, which the bot kills.
+    // The tutorial mode: three minutes of bats and one weak golem, which the bot kills.
     let tutorial = RunSetup {
         mode: "tutorial".into(),
         ..trial_setup()
@@ -1727,7 +1727,7 @@ struct RunCase {
     kinds: Vec<std::mem::Discriminant<OfferOption>>,
     /// Each stage skill used, with the level it is used at.
     used: Vec<(String, u8)>,
-    /// How many hits got each match-up: weak, strong, resisted, none (ADR-100).
+    /// How many hits got each match-up: weak, strong, resisted, none.
     match_ups: [u32; 4],
 }
 
@@ -2046,7 +2046,7 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
     );
     // The boss calls the elites that join, and skips a shrine, a disguised mimic and a goblin
     // that is still on the map.
-    // (The call counts the boss's 1800 ticks from its arrival, ADR-103, or comes at the share
+    // (The call counts the boss's 1800 ticks from its arrival, or comes at the share
     // of its hit points that the main character takes, whichever is first.)
     let (tick, elites, called, skipped) = r.calls.first().cloned().expect("a boss calls");
     assert!(
@@ -2065,7 +2065,7 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
 
 #[test]
 fn the_trial_run_case_hits_every_match_up() {
-    // The trial's weapons have damage types and its enemies placeholder profiles (ADR-100), so
+    // The trial's weapons have damage types and its enemies placeholder profiles, so
     // the recorded run lands weak, strong, resisted and neutral hits.
     let [weak, strong, resisted, none] = replay_run_case("trial").match_ups;
     assert!(
@@ -2376,7 +2376,7 @@ fn deaths(name: &str) -> usize {
 fn the_corpus_matches() {
     #[expect(clippy::disallowed_methods, reason = "test knob")]
     if std::env::var_os("UPDATE_CORPUS").is_some() {
-        // The stages are written at design values and scaled here (ADR-103).
+        // The stages are written at design values and scaled here.
         for (name, stage_bytes, inputs) in definitions() {
             let scaled = common::scaled_bytes(&stage_bytes, common::SCALE);
             let scaled = common::at_open_version(&scaled);

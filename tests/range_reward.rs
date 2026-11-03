@@ -1,4 +1,4 @@
-//! The range reward (ADR-099 point 6): a stat-like star reward, `range_pct`, with an amount, a
+//! The range reward: a stat-like star reward, `range_pct`, with an amount, a
 //! stack limit and a rarity like the others. Each take adds its amount to how much wider every
 //! combo step's hit box is, its radius and offset (angle as written), and the expertise range
 //! options add into the same widening; all of it together is held to `MAX_RANGE_PCT`. It stays

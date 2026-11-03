@@ -1,7 +1,7 @@
-//! The parsed-stage hash (ADR-046): SHA-256 of a domain tag followed by `core`'s compact JSON
+//! The parsed-stage hash (ADR-SVC-13): SHA-256 of a domain tag followed by `core`'s compact JSON
 //! of the validated stage, fields in declared order, the stage `id` left out. The moderation
 //! blocklist stores it, so the bytes and the vectors below are frozen from the freeze of
-//! ADR-035: a test that fails here after the freeze means every stored hash has changed.
+//! ADR-REPL-12: a test that fails here after the freeze means every stored hash has changed.
 
 use serde_json::{Value, json};
 use stella_rain_core::content_hash::to_hex;

@@ -1,4 +1,4 @@
-//! The Treasure Goblin (ADR-090 points 4 and 5, app#259): an elite with no attack that holds its
+//! The Treasure Goblin (app#259): an elite with no attack that holds its
 //! place until it is disturbed, then flees from the main character and leaves the map unkilled
 //! after `leave_after_ticks`, or when a boss comes. The boss's call skips it: `boss_call` is
 //! `leave` for it and `join` (the default) for every other elite.

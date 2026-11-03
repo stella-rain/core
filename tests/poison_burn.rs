@@ -1,4 +1,4 @@
-//! The poison and burn runes (ADR-099 points 2, 3, 7 and 8; ADR-100 point 1; ADR-084 point 8):
+//! The poison and burn runes:
 //! damage-over-time runes as bleed is one, on the same status. A combo step's hit puts the
 //! rune's status on the enemy hit, `poison` Dendro or `burn` Pyro, or a stack more of it up to
 //! the stack maximum; each kind is a status of its own, with its own stacks. Every interval it

@@ -1,4 +1,4 @@
-//! The six bench cases (`bench_fixtures`, ADR-SIM-6) build the engine the benches count. Their
+//! The six bench cases (`bench_fixtures`, ADR-SIM-19) build the engine the benches count. Their
 //! pins live in `tests/bench_pins.toml`: the state hash before and after the measured tick(s),
 //! and a digest of the case's stage and of its measured input, so that BS2d's bench job can tell
 //! a case it may compare (the same `before`, `stage` and `input`) from one that changed. A pin

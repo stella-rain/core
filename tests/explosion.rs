@@ -1,4 +1,4 @@
-//! The explosion rune (ADR-099 points 2, 3, 7 and 8): when a combo step of the Main weapon hits
+//! The explosion rune: when a combo step of the Main weapon hits
 //! and the main character holds explosion with its cooldown at 0, explosion fires its own
 //! attack around the point hit, then waits out its cooldown, which counts down each tick. Its
 //! damage is the main character's without a combo step: its base damage through atk-up and the

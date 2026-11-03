@@ -1,4 +1,4 @@
-//! The content pack (ADR-080, core#148): one JSON file holding the content files, read as
+//! The content pack (ADR-CONT-15, core#148): one JSON file holding the content files, read as
 //! untrusted bytes. A pack exported from the bundled files gives the bundled content and the
 //! same runs; every other pack is refused before it reaches a run unless each check passes.
 
@@ -480,7 +480,7 @@ fn the_bundled_pack_keeps_each_constellation_at_the_version_that_introduced_it()
 #[test]
 fn a_pack_released_without_a_constellation_list_still_loads() {
     // Packs released with the file (core#NS3) have no `introduced.constellations`: they stay
-    // valid, their sets simply have no recorded version (ADR-026).
+    // valid, their sets simply have no recorded version (ADR-CONT-12).
     let mut v = value();
     v["introduced"]
         .as_object_mut()
@@ -782,7 +782,7 @@ fn the_bundled_pack_introduces_every_id_in_version_1() {
 
 #[test]
 fn a_pack_at_version_0_is_refused() {
-    // ADR-REPL-7 point 8: no migration from version 0.
+    // No migration from version 0.
     for (schema_version, sim_version) in [(0, 0), (1, 0), (0, 1)] {
         let mut v = value();
         v["schema_version"] = json!(schema_version);

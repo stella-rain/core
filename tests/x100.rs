@@ -1,4 +1,4 @@
-//! Default damage and hit points scale by 100 (ADR-103 decision 6): where no percentage
+//! Default damage and hit points scale by 100: where no percentage
 //! applies, a run's outcome does not change. The outcomes below were recorded under the rules
 //! before the scale (core v0.0.13): the corpus stages, written at design values and scaled with
 //! `common::scaled`, must end the same tick, with the same kills and the main character's hit

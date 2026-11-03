@@ -1,4 +1,4 @@
-//! The region a bench counts calls the allocator exactly as the bench's own code does (ADR-SIM-8).
+//! The region a bench counts calls the allocator exactly as the bench's own code does (ADR-SIM-20).
 //! The bodies of the benches live in `benches/support/mod.rs`; this file counts those same
 //! helpers with the global counting allocator, so an allocation added to a bench body fails here.
 

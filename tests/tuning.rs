@@ -1,4 +1,4 @@
-//! Checks that core's `docs/tuning.md` matches `content-pack catalogue` output (ADR-126).
+//! Checks that core's `docs/tuning.md` matches `content-pack catalogue` output.
 
 #![cfg(not(target_os = "ios"))]
 

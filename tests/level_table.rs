@@ -1,7 +1,7 @@
-//! The mode's level table (ADR-106 §4): the level of the style choice, of the two style
+//! The mode's level table: the level of the style choice, of the two style
 //! upgrades and of the capstone; every other level is a common offer. A `time_limit` mode file
 //! names one and a stage may; the validator checks the style comes first, the levels rise
-//! strictly, there are exactly two upgrades, and every level is within bounds (ADR-020).
+//! strictly, there are exactly two upgrades, and every level is within bounds (ADR-SVC-7).
 
 use crate::common;
 use serde_json::{Value, json};

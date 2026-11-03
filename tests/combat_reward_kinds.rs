@@ -1,5 +1,5 @@
 //! The named stars' combat reward kinds (core#NS2b, app#336): `crit_chance_pct`,
-//! `crit_damage_pct`, `echo_hit_pct` and `kill_burst`. Bounded like every kind (ADR-020), and
+//! `crit_damage_pct`, `echo_hit_pct` and `kill_burst`. Bounded like every kind (ADR-SVC-7), and
 //! each acts in the rules: a crit is a roll that spends none of the run's random draws, an echo
 //! is a second, weaker hit one tick later, a kill burst damages the enemies around a kill.
 //! Events are read as their JSON, the form a recording writes.

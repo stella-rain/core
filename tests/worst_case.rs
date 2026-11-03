@@ -1,9 +1,9 @@
-//! The worst-case tick (ADR-020, ADR-021): the stage of `bench_fixtures::worst_case` holds every dynamic
+//! The worst-case tick (ADR-SVC-7, ADR-SIM-17): the stage of `bench_fixtures::worst_case` holds every dynamic
 //! cap at once, on the tick the benchmark counts and on the ticks after it. A benchmark of a
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
-//! active hit box (ADR-055). The main character holds every rune at full Rune Haste, its combo
+//! active hit box. The main character holds every rune at full Rune Haste, its combo
 //! steps hit every enemy of the cap (260) each tick, and each enemy carries all three damage-over-time
-//! statuses at their stack cap (ADR-099). 128 zones are alive and active (core Z1).
+//! statuses at their stack cap. 128 zones are alive and active (core Z1).
 
 use stella_rain_core::bench_fixtures::worst_case;
 
@@ -21,7 +21,7 @@ fn crowd(engine: &Engine) -> usize {
     engine.caps().enemies as usize
 }
 
-/// The most Rune Haste there is (`DEFAULT_MAX_RUNE_HASTE_PCT`, ADR-099 point 5).
+/// The most Rune Haste there is (`DEFAULT_MAX_RUNE_HASTE_PCT`).
 const FULL_HASTE: u32 = 300;
 
 /// Every enemy and every companion is in an active phase with a hit box, every companion's
@@ -133,7 +133,7 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
     );
 }
 
-/// The push-apart has a fresh stack to part (ADR-058): the pass moves an enemy at most 4 pixels
+/// The push-apart has a fresh stack to part (ADR-SIM-19): the pass moves an enemy at most 4 pixels
 /// (1,024 units) from the point the stack stood on, so after the tick at least 479 enemies are
 /// that near it (all but 14: the line shooter's earlier arrival shifts the entity IDs, which
 /// moves the push-apart's order; the most that were not, over the 60 measured ticks, was 14 of 260,

@@ -1,4 +1,4 @@
-//! The statuses in the snapshot (ADR-103 decision 3): each buff and debuff on the main character
+//! The statuses in the snapshot: each buff and debuff on the main character
 //! with its ID, its remaining ticks and the ticks it was applied for, sorted by ID; and a pack
 //! leader's aura, a status of each non-elite enemy it reaches, with no timer: it lasts while
 //! the enemy is in reach. The damage-over-time statuses are in `bleed.rs`.

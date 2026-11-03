@@ -1,4 +1,4 @@
-//! The orbit reward (ADR-069): a falling star's reward whose orbs turn around the main
+//! The orbit reward: a falling star's reward whose orbs turn around the main
 //! character. Each orb runs the orbit's phased attack in a slot of its own, its hit box turned
 //! `turn_per_tick` further every tick, the orbs spaced evenly around the turn. A round of attacks
 //! starts when the orbit arrives and again every `cooldown_ticks`, counted from a round's start;
@@ -29,7 +29,7 @@ const DISTANCE: i32 = 10_240;
 /// 15 degrees a tick: a quarter turn in 6 ticks.
 const TURN: i32 = 15 * 256;
 const DAMAGE: u32 = 7;
-/// The first orbit slot: 0 is the combo and 1 the stage skill (ADR-069).
+/// The first orbit slot: 0 is the combo and 1 the stage skill.
 const FIRST_SLOT: u8 = 2;
 
 /// A stage with one level and stars, where every kill drops a common star, and `waves`.

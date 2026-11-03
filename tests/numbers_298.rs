@@ -1,7 +1,7 @@
 //! The numbers of the game design pass of app#298 (Kade's picks of 2026-10-21, "C spiky"), as
 //! the bundled content holds them: the runes, the star rewards and their caps, and the first
 //! match-up profiles. Each is data in `content/` or `modes/`; none is a constant in code beyond
-//! the ceiling the content may not pass (ADR-020, ADR-110).
+//! the ceiling the content may not pass (ADR-SVC-7).
 
 use std::collections::BTreeSet;
 use stella_rain_core::version::Versions;
@@ -165,7 +165,7 @@ fn a_rewards_file_may_hold_the_most_rewards_and_not_one_more() {
     assert!(parse(MAX_REWARDS + 1).is_err());
 }
 
-/// The trial's and the Time Limit's first profiles (ADR-100): the enemies of the decided hit
+/// The trial's and the Time Limit's first profiles: the enemies of the decided hit
 /// points that held the old profile now hold the decided one.
 #[test]
 fn the_first_match_up_profiles_are_the_decided_ones() {

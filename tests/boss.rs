@@ -1,4 +1,4 @@
-//! Bosses (ADR-036 tier 2): phases that only move forward, transitions, timelines, breakable
+//! Bosses (ADR-SIM-18 tier 2): phases that only move forward, transitions, timelines, breakable
 //! parts and the boss's rules. Small stages whose every tick can be worked out by hand; the
 //! boss stands at (46080, 60000), straight above the main character, with a hurt circle of
 //! radius 8192, and the main character is at (46080, 147456).
@@ -445,7 +445,7 @@ fn a_timeline_that_ends_stops_and_the_boss_waits_for_its_rules() {
 
 #[test]
 fn a_loop_of_attack_steps_makes_one_attack_a_tick() {
-    // An `attack` step lasts as long as its attack (ADR-055), one tick for this preset, so
+    // An `attack` step lasts as long as its attack, one tick for this preset, so
     // `[attack, loop]` attacks once a tick; before, it took 16 steps, 8 attacks, a tick.
     let stage = stage_of(boss(
         1_000_000,
@@ -953,7 +953,7 @@ fn an_attack_started_by_a_rule_runs_on_the_phase_clock() {
 
 #[test]
 fn a_timeline_attack_that_names_no_damage_does_the_default_100() {
-    // ADR-103: the damage of an enemy's or the boss's attack that names none is 100 (1 before
+    // The damage of an enemy's or the boss's attack that names none is 100 (1 before
     // the scale), the same for a rule's attack and for the boss's timeline.
     let mut stage = stage_of(boss(
         1_000_000,

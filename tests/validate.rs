@@ -1,4 +1,4 @@
-//! The validator (ADR-020): every budget is tested at its limit and one past it, registry IDs
+//! The validator (ADR-SVC-7): every budget is tested at its limit and one past it, registry IDs
 //! must exist for the stage's `sim_version`, and errors say where without repeating the file.
 
 use serde_json::{Value, json};
@@ -432,7 +432,7 @@ fn ranges_keep_numbers_inside_the_loadout() {
         bad("/companions/0/radius", json!(MAX_RADIUS + 1)),
         "$.companions[0].radius"
     );
-    // Defence (ADR-056): 0 to MAX_DEFENCE on everything that can be hurt. The fixture has
+    // Defence: 0 to MAX_DEFENCE on everything that can be hurt. The fixture has
     // none, so it is added to each owner.
     for (owner, path) in [
         ("/player", "$.player.defence"),
@@ -760,7 +760,7 @@ fn with_phases(phases: Value) -> Value {
 fn an_inline_attack_is_a_list_of_phases() {
     assert_valid(&with_phases(json!([phase(json!({}))])));
     assert_valid(&with_phases(json!([phase(json!({ "move_pct": 100 }))])));
-    // A list of emitter nodes is no longer an attack (ADR-055).
+    // A list of emitter nodes is no longer an attack.
     let mut nodes = base();
     *enemy_attack(&mut nodes) = json!({ "inline": [fire(json!(256))] });
     assert!(serde_json::from_value::<Stage>(nodes).is_err());
@@ -801,7 +801,7 @@ fn a_phase_lasts_1_to_max_phase_ticks_and_moves_0_to_100_percent() {
     }
 }
 
-/// Hit boxes, their damage and re-hits are bounded (ADR-055), at the limit and one past it.
+/// Hit boxes, their damage and re-hits are bounded, at the limit and one past it.
 #[test]
 fn hit_boxes_damage_and_rehits_are_bounded() {
     let at = |key: &str| format!("$.waves[0].enemy.rules[0].do.attack.inline[0].{key}");
@@ -1081,7 +1081,7 @@ fn number_pointers(v: &Value, here: String, out: &mut Vec<String>) {
 
 #[test]
 fn extreme_numbers_never_panic() {
-    // Overflow checks are on in every profile (ADR-019), so an unchecked `abs()` or `+` on
+    // Overflow checks are on in every profile (ADR-SIM-17), so an unchecked `abs()` or `+` on
     // `i32::MIN` in the validator would panic here.
     let b = base();
     let mut pointers = Vec::new();
@@ -1152,7 +1152,7 @@ fn damaged_files_never_panic() {
     }
 }
 
-// --- Weapons (ADR-070) ----------------------------------------------------------------------
+// --- Weapons ----------------------------------------------------------------------
 
 /// A combo step making `attack`.
 fn step(attack: Value) -> Value {
@@ -1263,7 +1263,7 @@ fn a_smash_is_the_weapon_s_field_not_a_step_s() {
 
 #[test]
 fn a_step_has_no_unlock_any_more() {
-    // Every smash is open (ADR-117): the field the steps once took is refused like any other
+    // Every smash is open (ADR-REPL-16): the field the steps once took is refused like any other
     // unknown field, in the combo and in the dash branch.
     let unlocked = with_combo(chain(1), |w| {
         w["combo"]["main"]["next"]["smash"] =
@@ -1332,7 +1332,7 @@ fn combo_limits_hold_at_the_limit_and_fail_one_past() {
 
 #[test]
 fn a_combo_is_at_most_six_steps_deep_through_the_dash_branch_too() {
-    // ADR-084 point 2: six attacks is the most in a combo, the dash branch included.
+    // Six attacks is the most in a combo, the dash branch included.
     assert_eq!(MAX_COMBO_DEPTH, 6);
     let depth = MAX_COMBO_DEPTH as usize;
     assert_valid(&with_combo(chain(1), |w| w["dash"] = chain(depth)));
@@ -1367,7 +1367,7 @@ fn with_stun(ticks: u32) -> Value {
 
 #[test]
 fn a_stun_is_1_to_its_max_ticks() {
-    // ADR-085 point 5: a stun lasts at least a tick and at most the bound (2 seconds).
+    // A stun lasts at least a tick and at most the bound (2 seconds).
     assert_valid(&with_stun(1));
     assert_valid(&with_stun(MAX_STUN_TICKS));
     let at = "$.player.weapon.inline.smash.ticks";
@@ -1467,7 +1467,7 @@ fn charge_limits_hold_at_the_limit_and_fail_one_past() {
         first_issue(&with_charge(|c| c["move_pct"] = json!(101))).path,
         at("move_pct")
     );
-    // A charge has no cooldown (ADR-070).
+    // A charge has no cooldown.
     let cooldown = with_charge(|c| c["cooldown_ticks"] = json!(1));
     assert!(serde_json::from_value::<Stage>(cooldown).is_err());
     let perfect_attack = with_charge(|c| {
@@ -1542,7 +1542,7 @@ fn a_bleed_smash_takes_no_numbers() {
 
 const HOLD: &str = "$.player.weapon.inline.combo.main.hold";
 
-/// A hold on a slash (ADR-084 point 6): a spin of one active phase, released by a thrust, at
+/// A hold on a slash: a spin of one active phase, released by a thrust, at
 /// most 180 ticks and at half speed, with `edit` applied.
 fn hold(edit: impl FnOnce(&mut Value)) -> Value {
     let mut h = json!({

@@ -1,8 +1,8 @@
-//! The homing missiles rune (ADR-099 points 2, 3, 7 and 8; ADR-100): an on-hit rune of its own,
+//! The homing missiles rune: an on-hit rune of its own,
 //! neutral, on its own cooldown. When a combo step of the Main weapon hits and its cooldown is
 //! 0, it launches its missiles from the main character, each a hit box in its own slot that
 //! steers each tick toward its target where the target is now, so that it is on it by its
-//! phase's last tick. The targets are aim assist's order (ADR-072) within the rune's range of
+//! phase's last tick. The targets are aim assist's order within the rune's range of
 //! the main character: the boss and its parts first, then elites, then the nearest, then the
 //! lower entity ID; missile k takes the k-th, starting over when there are fewer targets than
 //! missiles, and with none in range every missile takes the enemy the step hit. Nothing is
