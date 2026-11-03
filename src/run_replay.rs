@@ -568,6 +568,19 @@ impl RunReplay {
         self.step_log(max_ticks)?.range(a, b)
     }
 
+    /// The party the replay starts with, read from the first byte of its step log alone (the
+    /// `present` byte, ADR-REPL-10): 1 for a schema 1 replay. `None` for a byte that is not a
+    /// party from slot 0 (a hole, a bit past slot 2, no byte, bad base64).
+    pub(crate) fn party_size(&self) -> Option<u8> {
+        if self.setup.schema_version < 2 {
+            return Some(1);
+        }
+        let head: String = self.inputs.chars().take(4).collect();
+        let present = *base64::decode(&head).ok()?.first()?;
+        let party = u8::try_from(present.count_ones()).ok()?;
+        (present != 0 && present == (1u8 << party) - 1).then_some(party)
+    }
+
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
     /// and commands are migrated in memory, a schema 2 replay's `inputs` are decoded and its
     /// `commands` must be empty (a pick is a field of the step it was made on).
@@ -1457,5 +1470,56 @@ mod tests {
         let verified = verify_run(&replay.to_bytes()).unwrap();
         assert_eq!(verified.ticks, 130);
         assert_eq!(verified.final_hash, hash);
+    }
+}
+
+#[cfg(test)]
+mod party_size_tests {
+    use super::RunRecorder;
+    use crate::base64;
+    use crate::input::Input;
+    use crate::run_setup::RunSetup;
+
+    fn setup() -> RunSetup {
+        RunSetup {
+            seed: 20_261_010,
+            ..RunSetup::default()
+        }
+    }
+
+    #[test]
+    fn the_size_is_the_present_byte() {
+        for n in 1..=3u8 {
+            let mut rec = RunRecorder::start_party(&setup(), n).unwrap();
+            rec.step(&vec![Input::default(); usize::from(n)]).unwrap();
+            assert_eq!(rec.replay().party_size(), Some(n));
+        }
+    }
+
+    #[test]
+    fn a_byte_that_is_not_a_party_has_no_size() {
+        let mut rec = RunRecorder::start_party(&setup(), 2).unwrap();
+        rec.step(&[Input::default(); 2]).unwrap();
+        let mut replay = rec.replay();
+        let bytes = base64::decode(&replay.inputs).unwrap();
+        for bad in [0u8, 0b010, 0b101, 0b1000] {
+            let mut edited = bytes.clone();
+            edited[0] = bad;
+            replay.inputs = base64::encode(&edited);
+            assert_eq!(replay.party_size(), None, "{bad:#b}");
+        }
+        replay.inputs = String::new();
+        assert_eq!(replay.party_size(), None);
+        replay.inputs = "!!!!".into();
+        assert_eq!(replay.party_size(), None);
+    }
+
+    #[test]
+    fn a_schema_1_replay_is_one_player() {
+        let mut rec = RunRecorder::start(&setup()).unwrap();
+        rec.step(&[Input::default()]).unwrap();
+        let mut replay = rec.replay();
+        replay.setup.schema_version = 1;
+        assert_eq!(replay.party_size(), Some(1));
     }
 }
