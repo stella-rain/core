@@ -58,7 +58,7 @@ fn swing(ticks: u32) -> Value {
 }
 
 fn epic(id: &str, effects: Vec<Value>) -> Value {
-    let mut r = kind(id, effects, 1_000, 1);
+    let mut r = kind(id, effects, 1_000, 2);
     r["rarity"] = json!("epic");
     r
 }
@@ -66,6 +66,7 @@ fn epic(id: &str, effects: Vec<Value>) -> Value {
 fn named(id: &str, effects: Vec<Value>) -> Value {
     let mut r = epic(id, effects);
     r["named"] = json!(true);
+    r["limit"] = json!(1);
     r["star"] = json!(id);
     r
 }
@@ -215,7 +216,6 @@ fn a_star_that_is_not_damage_has_no_gain_but_shows_its_category_and_change() {
         epic("hp", vec![entry("max_hp", 20)]),
         epic("xp", vec![entry("xp_pct", 10)]),
         epic("speed", vec![entry("speed_pct", 10)]),
-        epic("mixed", vec![attack(20), entry("max_hp", 10)]),
     ];
     let e = scene(swing(10), list, None, &[]);
     let hp = rating(&e, "hp");
@@ -224,8 +224,14 @@ fn a_star_that_is_not_damage_has_no_gain_but_shows_its_category_and_change() {
     assert_eq!(hp.changes, vec![change(StatKind::MaxHp, 100, 120)]);
     assert_eq!(rating(&e, "xp").categories, vec![Category::Growth]);
     assert_eq!(rating(&e, "speed").categories, vec![Category::Mobility]);
+    let list = vec![
+        epic("mixed", vec![attack(20), entry("max_hp", 10)]),
+        epic("plain", vec![attack(20)]),
+    ];
+    let e = scene(swing(10), list, None, &[]);
     let mixed = rating(&e, "mixed");
     assert_eq!(mixed.categories, vec![Category::Attack, Category::Defence]);
+    assert_eq!(mixed.dps_bp, rating(&e, "plain").dps_bp);
     assert_eq!(mixed.dps_bp, Some(2000));
 }
 
@@ -241,8 +247,8 @@ fn a_term_already_at_its_cap_gains_nothing() {
     let e = scene(swing(10), list, None, &["p1", "p2"]);
     let r = rating(&e, "more");
     assert_eq!(r.dps_bp, Some(0));
-    // The held 80 is shown as the sim holds it, 75.
-    assert_eq!(r.changes, vec![change(StatKind::CritChancePct, 75, 75)]);
+    // The held 80 is held to 75, so the pick moves nothing.
+    assert_eq!(r.changes, vec![]);
 }
 
 // --- F: the weapon's mix and attack speed ----------------------------------------------------
@@ -256,7 +262,7 @@ fn a_type_bonus_is_rated_on_the_weapons_own_mix() {
         )
     };
     let mixed = json!([
-        { "kind": "active", "ticks": 5, "damage_type": "pyro",
+        { "kind": "active", "ticks": 5, "type": "pyro",
           "hit_box": { "type": "circle", "offset": { "forward": 1_024 }, "radius": 16_384 } },
         { "kind": "active", "ticks": 5,
           "hit_box": { "type": "circle", "offset": { "forward": 1_024 }, "radius": 16_384 } }

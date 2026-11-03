@@ -24,7 +24,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, OfferMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
-use crate::snapshot::OfferOption;
+use crate::snapshot::{OfferOption, OfferRating};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 use crate::version::SIM_VERSION;
@@ -544,6 +544,20 @@ impl Engine {
     /// `sim_version` this game does not run, or an index outside its options. Read-only.
     pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
         self.pick_option(player, index).map(|_| ())
+    }
+
+    /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
+    /// categories, the expected gain in the Main weapon's damage in basis points, the set tier
+    /// the pick reaches and the stats it moves, before and after. Empty for a player outside
+    /// the party, without such an offer open, with an expertise or stat offer open, or in a
+    /// `sim_version` 1 run. Read-only, and a separate query from the snapshot (ADR-BRDG-13):
+    /// call it when an offer opens, not every frame. The model and its limits are in
+    /// `sim::offer_rating`.
+    pub fn offer_ratings(&self, player: PlayerIdx) -> Vec<OfferRating> {
+        if self.present() >> player.get() & 1 == 0 {
+            return Vec::new();
+        }
+        self.run.offer_ratings(self.content.rewards(), player)
     }
 
     fn pick_option(&self, player: PlayerIdx, index: u32) -> Result<OfferOption, ChoiceError> {
