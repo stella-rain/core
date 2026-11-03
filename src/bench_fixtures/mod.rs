@@ -23,7 +23,8 @@ pub fn enemy_cap() -> u16 {
 }
 
 /// A case ready to measure: an engine warmed up to the tick before the measured one, and the
-/// input of the measured tick. The bench runs `engine.step(&[input, Default::default(), Default::default()])` and counts it.
+/// input of the measured tick. The bench steps the engine with it in slot 0 and the default in
+/// the other two slots, and counts that.
 pub struct Case {
     pub engine: Engine,
     pub input: Input,

@@ -652,7 +652,7 @@ impl RunRecorder {
         RunRecorder::start_party_with(setup, content, 1)
     }
 
-    /// As `start`, for a party of `party` players (1 to 3): `step` takes one input per player
+    /// As `start`, for a party of `party` players (1 to 3): `step` takes one input per slot
     /// and `choose` names the player. Slots 1 and 2 take the run's loadout until the per-player
     /// setup.
     pub fn start_party(setup: &RunSetup, party: u8) -> Result<RunRecorder, RunReplayError> {

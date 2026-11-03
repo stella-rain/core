@@ -15,8 +15,8 @@ use crate::rewards::Rewards;
 use crate::sim::state::State;
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
 
-/// What the steps of a tick read and write: the run's content, its state, the tick's inputs (one per player),
-/// and what the steps pass on to each other within the tick.
+/// What the steps of a tick read and write: the run's content, its state, the tick's inputs (one
+/// per slot), and what the steps pass on to each other within the tick.
 pub(super) struct Ctx<'a> {
     pub(super) world: &'a World,
     pub(super) rewards: &'a Rewards,

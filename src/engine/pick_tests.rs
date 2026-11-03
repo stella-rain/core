@@ -1,5 +1,5 @@
 //! An offer pick travels inside the step's input (ADR-SIM-12, ADR-REPL-3): `step` takes one
-//! input per player, `check_pick` says why a pick is refused, and a pick changes nothing it
+//! input per slot, `check_pick` says why a pick is refused, and a pick changes nothing it
 //! should not.
 
 use super::players_api_tests::{p1, with_offer};
