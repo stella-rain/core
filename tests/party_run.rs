@@ -297,8 +297,7 @@ fn a_savepoint_of_one_party_size_against_another_prefix_is_refused() {
     let solo = play(1, 200);
     for (saved, other) in [(&two, &three), (&two, &solo), (&three, &two), (&solo, &two)] {
         let err = RunRecorder::resume_from_savepoint(&saved.save(), &other.replay(), pack())
-            .err()
-            .expect("refused");
+            .expect_err("refused");
         assert!(matches!(
             err,
             SavepointError::Damaged | SavepointError::PrefixMismatch | SavepointError::HashMismatch
@@ -345,7 +344,7 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
 
 #[test]
 fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
+    let root = crate::data_root::data_root().join("tests/corpus");
     let mut seen = 0;
     for tree in ["current", "v1"] {
         let mut cases: Vec<_> = std::fs::read_dir(root.join(tree).join("runs"))
@@ -392,7 +391,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 3] = [
 ];
 
 fn parties_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/parties")
+    crate::data_root::data_root().join("tests/corpus/current/parties")
 }
 
 fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
@@ -471,22 +470,29 @@ fn drive(rec: &mut RunRecorder, range: &StepRange) {
     }
 }
 
-/// Three cuts: early, with an offer open for slot 1 or 2, and one tick before the end.
+/// Three cuts: early, with an offer open, and one tick before the end. The open one is where
+/// slot 1 or 2 holds an offer when that is before the last tick, else the first offer.
 fn cuts(recorded: &RunReplay) -> [u32; 3] {
     let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
     let mut world = 0;
-    let mut open = None;
+    let (mut other, mut any) = (None, None);
     for step in &range.steps {
         match step {
             RangeStep::Ticks { run, .. } => world += run,
-            RangeStep::Picks { picks } => {
-                if open.is_none() && picks[1..].iter().any(Option::is_some) {
-                    open = Some(world);
+            RangeStep::Picks { picks } if world + 1 < recorded.ticks => {
+                any.get_or_insert(world);
+                if picks[1..].iter().any(Option::is_some) {
+                    other.get_or_insert(world);
                 }
             }
+            RangeStep::Picks { .. } => {}
         }
     }
-    [60, open.expect("a pick by slot 1 or 2"), recorded.ticks - 1]
+    [
+        60,
+        other.or(any).expect("an offer before the end"),
+        recorded.ticks - 1,
+    ]
 }
 
 #[test]
