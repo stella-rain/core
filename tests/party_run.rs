@@ -4,6 +4,7 @@
 //! what their movement does to the hash.
 
 use crate::common::run::trial_setup;
+use crate::run_play::{party_cases, play_party};
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
@@ -378,4 +379,143 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
         seen >= 18,
         "the 9 current and the 9 v1 run cases, saw {seen}"
     );
+}
+
+// F. The party cases of the corpus.
+
+/// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
+/// per slot, Stardust.
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 2] = [
+    ("two_time_limit", 3000, Outcome::Running, [69, 5, 0], 1200),
+    ("three_tutorial", 862, Outcome::Cleared, [11, 1, 1], 0),
+];
+
+fn parties_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/current/parties")
+}
+
+fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
+    let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+    let mut per = [0u32; 3];
+    for step in &range.steps {
+        if let RangeStep::Picks { picks } = step {
+            for (i, p) in picks.iter().enumerate() {
+                per[i] += u32::from(p.is_some());
+            }
+        }
+    }
+    per
+}
+
+#[test]
+fn the_party_cases_are_what_the_table_says() {
+    for case in party_cases() {
+        let rec = play_party(&case.setup, case.party, case.ticks);
+        let replay = rec.replay();
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        let got = (
+            case.name,
+            verified.ticks,
+            verified.outcome,
+            picks_per_slot(&replay),
+            verified.stardust,
+        );
+        let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
+        assert_eq!(got, *want);
+        let per = picks_per_slot(&replay);
+        assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
+        assert!(replay.ticks <= 3000);
+        assert!(replay.to_bytes().len() < 64 * 1024);
+    }
+    assert_eq!(party_cases().len(), TABLE.len());
+}
+
+#[test]
+fn the_party_case_files_are_the_recording_and_verify() {
+    for case in party_cases() {
+        let dir = parties_dir().join(case.name);
+        let bytes = std::fs::read(dir.join("run.replay")).unwrap();
+        let fresh = play_party(&case.setup, case.party, case.ticks).replay();
+        assert_eq!(
+            bytes,
+            fresh.to_bytes(),
+            "{}: bless is the only fix",
+            case.name
+        );
+        let pin = crate::corpus_pins::case_pack(&dir).unwrap();
+        assert_eq!(pin.sha256(), pack().sha256(), "{}", case.name);
+        let ok = stella_rain_core::run_replay::verify_run_with_pack(&bytes, pack()).unwrap();
+        assert_eq!(ok.ticks, fresh.ticks);
+    }
+}
+
+/// The recorder at world tick `cut` of `recorded`, driven from its own steps, without the picks
+/// made at `cut` (so an offer may be open).
+fn recorder_at(recorded: &RunReplay, party: u8, cut: u32) -> RunRecorder {
+    let mut rec = RunRecorder::start_party_with_pack(&recorded.setup, pack(), party).unwrap();
+    drive(&mut rec, &recorded.step_range(0, cut, u32::MAX).unwrap());
+    rec
+}
+
+fn drive(rec: &mut RunRecorder, range: &StepRange) {
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                for _ in 0..*run {
+                    rec.step(inputs).unwrap();
+                }
+            }
+            RangeStep::Picks { picks } => rec.picks(picks).unwrap(),
+        }
+    }
+}
+
+/// Three cuts: early, with an offer open for slot 1 or 2, and one tick before the end.
+fn cuts(recorded: &RunReplay) -> [u32; 3] {
+    let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
+    let mut world = 0;
+    let mut open = None;
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, .. } => world += run,
+            RangeStep::Picks { picks } => {
+                if open.is_none() && picks[1..].iter().any(Option::is_some) {
+                    open = Some(world);
+                }
+            }
+        }
+    }
+    [60, open.expect("a pick by slot 1 or 2"), recorded.ticks - 1]
+}
+
+#[test]
+fn the_party_cases_resume_and_save_at_three_cuts() {
+    for case in party_cases() {
+        let bytes = std::fs::read(parties_dir().join(case.name).join("run.replay")).unwrap();
+        let recorded = RunReplay::from_bytes(&bytes).unwrap();
+        for cut in cuts(&recorded) {
+            let live = recorder_at(&recorded, case.party, cut);
+            let prefix = live.replay();
+            let rest = recorded.step_range(cut, recorded.ticks, u32::MAX).unwrap();
+            let mut by_replay = RunRecorder::resume_with_pack(&prefix, pack()).unwrap();
+            let mut by_save =
+                RunRecorder::resume_from_savepoint(&live.save(), &prefix, pack()).unwrap();
+            drive(&mut by_replay, &rest);
+            drive(&mut by_save, &rest);
+            for done in [&by_replay, &by_save] {
+                let replay = done.replay();
+                assert_eq!(
+                    replay.final_hash, recorded.final_hash,
+                    "{} @{cut}",
+                    case.name
+                );
+                assert_eq!(
+                    replay.checkpoints, recorded.checkpoints,
+                    "{} @{cut}",
+                    case.name
+                );
+                assert_eq!(replay.to_bytes(), bytes, "{} @{cut}", case.name);
+            }
+        }
+    }
 }
