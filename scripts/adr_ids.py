@@ -27,11 +27,6 @@ FIRST_NUMBER = {"SIM": 15, "CONT": 11, "REPL": 12, "BRDG": 10, "SAVE": 11, "REL"
 EXCLUDED = ("tests/corpus/", "tests/fixtures/", "scripts/adr_ids.txt", "scripts/adr_ids.py",
                      "scripts/test_adr_ids.py")
 
-# Paths the scan does not read yet: the files that only Kade merges. Emptied by the follow-up
-# change that moves their citations.
-PENDING = (".claude/", ".agents/", ".github/", "AGENTS.md", "CLAUDE.md", "benches/accepted.toml",
-           "benches/budgets.toml")
-
 # `ADR-SIM-19`, `ADR-SIM-19 point 4`, `ADR-SIM-19 points 4 and 5`; the same grammar as the app's
 # own checker. A legacy number is `ADR-020` or `ADR 020`.
 ID_RE = re.compile(r"ADR-([A-Z]+-[0-9]+)\b")
@@ -126,7 +121,7 @@ def listed(path, entries):
 
 
 def skipped(path):
-    return listed(path, EXCLUDED) or listed(path, PENDING)
+    return listed(path, EXCLUDED)
 
 
 def scan_text(path, text, ids):

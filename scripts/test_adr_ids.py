@@ -54,10 +54,10 @@ class TestScan(unittest.TestCase):
         self.assertEqual(kinds(scan("// docs/architecture/process.md#gates\n")),
                          [(1, "document", "docs/architecture/process.md")])
 
-    def test_excluded_and_pending_paths_are_not_read(self):
+    def test_excluded_paths_are_not_read(self):
         with tempfile.TemporaryDirectory() as root:
             names = ["tests/corpus/a.txt", "tests/fixtures/b.json", "scripts/adr_ids.txt",
-                     ".claude/rules/c.md", "src/d.rs"]
+                     "src/d.rs"]
             for name in names:
                 os.makedirs(os.path.join(root, os.path.dirname(name)), exist_ok=True)
                 with open(os.path.join(root, name), "w") as f:
@@ -67,10 +67,11 @@ class TestScan(unittest.TestCase):
 
 
     def test_a_file_entry_names_one_file_not_a_prefix(self):
-        self.assertTrue(adr_ids.skipped("AGENTS.md"))
-        self.assertFalse(adr_ids.skipped("AGENTS.md.bak"))
-        self.assertFalse(adr_ids.skipped("benches/accepted.toml.orig"))
-        self.assertTrue(adr_ids.skipped(".github/scripts/release.py"))
+        self.assertTrue(adr_ids.skipped("scripts/adr_ids.txt"))
+        self.assertFalse(adr_ids.skipped("scripts/adr_ids.txt.bak"))
+        for path in ("AGENTS.md", ".claude/rules/ci.md", ".agents/rules/replay.md",
+                     ".github/scripts/release.py", "benches/accepted.toml"):
+            self.assertFalse(adr_ids.skipped(path), path)
 
 
 def write(path, text):
