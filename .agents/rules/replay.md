@@ -38,8 +38,10 @@ Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
   holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-16) and `case.json`;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
-  `stage.json`): `two_time_limit` (2 players), `three_time_limit`, `three_tutorial` (3); bless
-  writes them, `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
+  `stage.json`): `two_time_limit` (2 players), `three_time_limit`, `three_tutorial` (3), `join_two` (a solo
+  run that takes slot 1 at tick 600), `leave_hole` (3 players; slot 1 leaves at tick 900, slot 2
+  leaves, then rejoins); bless writes them, `tests/party_run.rs` pins the table, and the solo
+  guards (`runs/` only) skip them.
   `packs/<sha256>.json` the pinned packs besides the bundled one. `tests/corpus/v<N>/`
   (N >= 1) is a frozen version of the same shape (no `parties/`: `sim_version` 1 has one player)
   plus `manifest.sha256`: never edited (CI `frozen
@@ -61,10 +63,10 @@ A pinned format or hash is never re-pinned: a change is a new version.
   `savepoint/file.rs`); `UPDATE_SAVEPOINT_PIN=1` refuses to overwrite an existing file. A
   format 1 file is refused as `Format`. The format 2 payload starts with a fixed 60-byte
   `PlayerStats` record (per slot `damage_dealt` u64, `kills` u32, `support` u64;
-  `STATS_RECORD_LEN`, `ledger.rs`), unhashed and trusted like the replay prefix, but a nonzero
-  record for a slot outside the party is refused (`decode_for`). Then the state bytes. `restore`
-  builds its fresh engine as the party the prefix log names; a size mismatch is `Damaged` or
-  `PrefixMismatch`.
+  `STATS_RECORD_LEN`, `ledger.rs`), unhashed and trusted like the replay prefix, and a slot
+  outside the party may hold a leaver's totals (`decode_for` ignores the mask). Then the state
+  bytes. `restore` builds its fresh engine as the party the prefix log ends on, after its last
+  join or leave (`presence_at_end`); a size mismatch is `Damaged` or `PrefixMismatch`.
 - `GOLDEN_HASH` (`tests/engine.rs`) and the extremes pin (`tests/extremes.rs`): a rules change is
   a new `sim_version`. Counts that may only fall: `tests/alloc.rs`, `MEASURED_MOST`
   (`tests/command_cap.rs`), `tests/bench_pins.toml`. `tests/pick_pins.rs` was re-pinned once.
