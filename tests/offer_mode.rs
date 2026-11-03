@@ -1,11 +1,11 @@
 //! The offer mode of a run: `stop` and `timed` (ADR-SIM-21 point 4, ADR-REPL-16).
 use crate::common;
 use stella_rain_core::engine::Engine;
+use stella_rain_core::engine::Outcome;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
 use stella_rain_core::run_setup::{OfferMode, RunSetup};
-use stella_rain_core::snapshot::Outcome;
 
 fn d() -> Input {
     Input::default()
@@ -95,11 +95,10 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
     use stella_rain_core::rules::{MAX_OFFER_TIMER_TICKS, Rules};
     assert_eq!(Rules::bundled().offer_timer_ticks(), 300);
     assert_eq!(MAX_OFFER_TIMER_TICKS, 3600);
-    let bundled = String::from_utf8(
-        stella_rain_core::pack::ContentFiles::bundled_file("rules.json").to_vec(),
-    )
-    .unwrap();
-    let versions = stella_rain_core::pack::Pack::bundled().versions();
+    let bundled =
+        String::from_utf8(stella_rain_core::pack::ContentFiles::bundled_file("rules").to_vec())
+            .unwrap();
+    let versions = stella_rain_core::version::Versions::CURRENT;
     let with = |n: u32| {
         let text = if bundled.contains("offer_timer_ticks") {
             let at = bundled.find("\"offer_timer_ticks\"").unwrap();
@@ -183,14 +182,14 @@ fn a_timed_world_keeps_going_with_an_offer_open() {
     let mut e = Engine::start(&timed()).unwrap();
     assert_eq!(e.offer_mode(), OfferMode::Timed);
     let t = until_offer(&mut e);
-    let offer = serde_json::to_string(&e.snapshot().stat_offer).unwrap();
+    let offer = serde_json::to_string(&e.snapshot().progress.as_ref().unwrap().stat_offer).unwrap();
     let mut seen = vec![e.state_hash()];
     for k in 1..=10 {
         e.step(&[d(), d(), d()]);
         assert_eq!(e.tick(), t + k);
         assert!(e.offer_open());
         assert_eq!(
-            serde_json::to_string(&e.snapshot().stat_offer).unwrap(),
+            serde_json::to_string(&e.snapshot().progress.as_ref().unwrap().stat_offer).unwrap(),
             offer
         );
         assert!(!seen.contains(&e.state_hash()));

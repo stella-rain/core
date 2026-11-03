@@ -64,6 +64,7 @@ pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
         // Every level-up opens a stat offer: the most commands a run can cost.
         pick_stats: true,
         difficulty: difficulty.into(),
+        ..RunSetup::default()
     }
 }
 

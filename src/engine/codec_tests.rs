@@ -393,6 +393,7 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     };
     let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
     // agents, parts and bosses, tasks, runs, orbs, zones, echoes

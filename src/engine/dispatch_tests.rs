@@ -27,6 +27,7 @@ fn setup() -> RunSetup {
         stat_priority: Vec::new(),
         pick_stats: true,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     }
 }
 

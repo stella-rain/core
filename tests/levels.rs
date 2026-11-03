@@ -394,6 +394,7 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     };
     // The trial run's script plays it, taking candidate 0 of every offer.
     let mut e = Engine::start(&setup).unwrap();

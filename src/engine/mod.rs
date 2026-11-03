@@ -620,6 +620,11 @@ impl Engine {
         self.run.offer_open()
     }
 
+    /// Whether an open offer stops the world (ADR-SIM-21 point 4).
+    pub fn offer_mode(&self) -> crate::run_setup::OfferMode {
+        crate::run_setup::OfferMode::Stop
+    }
+
     /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-17).
     pub fn state_hash(&self) -> u64 {
         self.run.state_hash()
