@@ -134,6 +134,7 @@ mod leash;
 mod leash_tests;
 mod levels;
 mod loadout;
+mod offer_rating;
 mod orbit;
 mod player;
 #[cfg(test)]

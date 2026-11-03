@@ -334,6 +334,126 @@ pub enum OfferOption {
     Banish { candidate: u8 },
 }
 
+/// What a reward is for, to show it by (ADR-REPL-16). Derived from the effect kinds of the
+/// reward in one exhaustive table, never stored in the content (ADR-CONT-13).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Category {
+    /// Damage dealt by the main character's attacks.
+    Attack,
+    /// Effects that follow a hit: echoes, kill bursts, orbits.
+    OnHit,
+    /// Hit points, regeneration and evading.
+    Defence,
+    /// Movement, reach and pickup.
+    Mobility,
+    /// Runes.
+    Rune,
+    /// Experience and the offers themselves: rerolls, banishes, candidates.
+    Growth,
+}
+
+/// A stat a pick can move; the unit is the field's own (percent points, hit points, counts).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StatKind {
+    MaxHp,
+    Regen,
+    EvadePct,
+    SpeedPct,
+    XpPct,
+    AttackPct,
+    /// As held to the run's attack speed cap.
+    AttackSpeedPct,
+    /// As held to the crit chance cap.
+    CritChancePct,
+    /// As held to the crit damage cap.
+    CritDamagePct,
+    /// As held to the echo cap.
+    EchoHitPct,
+    /// The bonus for one damage type, as held at an attack's start.
+    TypeBonus(DamageType),
+    RangePct,
+    PickupRadiusPct,
+    SkillCooldownPct,
+    RuneHastePct,
+    EvadeCharges,
+    KillHeal,
+    BurstPct,
+    /// The orbs of every orbit held.
+    Orbs,
+    Rerolls,
+    Banishes,
+    OfferCandidates,
+}
+
+impl StatKind {
+    /// The order the stats are listed in: the declaration order, the types by `ALL`.
+    fn rank(self) -> (u8, usize) {
+        match self {
+            StatKind::MaxHp => (0, 0),
+            StatKind::Regen => (1, 0),
+            StatKind::EvadePct => (2, 0),
+            StatKind::SpeedPct => (3, 0),
+            StatKind::XpPct => (4, 0),
+            StatKind::AttackPct => (5, 0),
+            StatKind::AttackSpeedPct => (6, 0),
+            StatKind::CritChancePct => (7, 0),
+            StatKind::CritDamagePct => (8, 0),
+            StatKind::EchoHitPct => (9, 0),
+            StatKind::TypeBonus(ty) => (10, ty.index()),
+            StatKind::RangePct => (11, 0),
+            StatKind::PickupRadiusPct => (12, 0),
+            StatKind::SkillCooldownPct => (13, 0),
+            StatKind::RuneHastePct => (14, 0),
+            StatKind::EvadeCharges => (15, 0),
+            StatKind::KillHeal => (16, 0),
+            StatKind::BurstPct => (17, 0),
+            StatKind::Orbs => (18, 0),
+            StatKind::Rerolls => (19, 0),
+            StatKind::Banishes => (20, 0),
+            StatKind::OfferCandidates => (21, 0),
+        }
+    }
+}
+
+impl PartialOrd for StatKind {
+    fn partial_cmp(&self, other: &StatKind) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for StatKind {
+    fn cmp(&self, other: &StatKind) -> std::cmp::Ordering {
+        self.rank().cmp(&other.rank())
+    }
+}
+
+/// One stat a pick moves, before and after.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StatChange {
+    pub stat: StatKind,
+    pub before: u32,
+    pub after: u32,
+}
+
+/// What `Engine::offer_ratings` says of one candidate of an open star or boss offer. The model
+/// and its limits are in `sim::offer_rating`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OfferRating {
+    /// The distinct categories of the reward's effects, then those of a set tier the pick
+    /// reaches, in that order: the first is the main one.
+    pub categories: Vec<Category>,
+    /// The expected gain in the main weapon's damage per tick, in basis points (1538 is +15.38%),
+    /// when the pick (or a set tier it reaches) changes a damage term; `Some(0)` when every term
+    /// it raises is already at its cap; `None` for a pick that changes none, or a build with no
+    /// weapon damage to rate.
+    pub dps_bp: Option<u32>,
+    /// The highest set tier, counted from 1, the pick newly reaches; its bonus is in `dps_bp`
+    /// and `changes`.
+    pub set_tier: Option<u8>,
+    /// The stats the pick moves, in `StatKind` order.
+    pub changes: Vec<StatChange>,
+}
+
 /// The map's width and height, from its top-left corner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
