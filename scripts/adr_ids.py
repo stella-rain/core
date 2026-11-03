@@ -24,7 +24,7 @@ FIRST_NUMBER = {"SIM": 15, "CONT": 11, "REPL": 12, "BRDG": 10, "SAVE": 11, "REL"
 
 # Not read by the scan: test inputs and recordings that carry old text on purpose, the list, and
 # the scan's own source and test, which quote the forms they look for.
-EXCLUDED_PREFIXES = ("tests/corpus/", "tests/fixtures/", "scripts/adr_ids.txt", "scripts/adr_ids.py",
+EXCLUDED = ("tests/corpus/", "tests/fixtures/", "scripts/adr_ids.txt", "scripts/adr_ids.py",
                      "scripts/test_adr_ids.py")
 
 # Paths the scan does not read yet: the files that only Kade merges. Emptied by the follow-up
@@ -120,8 +120,13 @@ def render(ids):
     return "\n".join(lines) + "\n"
 
 
+def listed(path, entries):
+    """An entry ending in `/` names a folder; any other entry names exactly one file."""
+    return any(path.startswith(e) if e.endswith("/") else path == e for e in entries)
+
+
 def skipped(path):
-    return path.startswith(EXCLUDED_PREFIXES) or path.startswith(PENDING)
+    return listed(path, EXCLUDED) or listed(path, PENDING)
 
 
 def scan_text(path, text, ids):

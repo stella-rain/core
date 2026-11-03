@@ -66,6 +66,13 @@ class TestScan(unittest.TestCase):
             self.assertEqual([f[0] for f in found], ["src/d.rs"])
 
 
+    def test_a_file_entry_names_one_file_not_a_prefix(self):
+        self.assertTrue(adr_ids.skipped("AGENTS.md"))
+        self.assertFalse(adr_ids.skipped("AGENTS.md.bak"))
+        self.assertFalse(adr_ids.skipped("benches/accepted.toml.orig"))
+        self.assertTrue(adr_ids.skipped(".github/scripts/release.py"))
+
+
 def write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
