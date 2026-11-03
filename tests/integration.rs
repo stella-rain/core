@@ -91,6 +91,7 @@ mod overflow;
 mod pack;
 mod packs;
 mod parsed_stage_hash;
+mod party_run;
 mod perk_sets;
 mod phases;
 mod pick_input;

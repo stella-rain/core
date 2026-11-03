@@ -265,7 +265,10 @@ pub(crate) fn restore(
         return Err(SavepointError::Pack);
     }
     let prefix_bytes = prefix.to_bytes();
-    let fresh = Engine::start_with(&prefix.setup, pack.content());
+    // The party the prefix log names; a size it cannot name builds the solo engine, and the
+    // later checks refuse as before.
+    let party = prefix.party_size().unwrap_or(1);
+    let fresh = Engine::start_party_with(&prefix.setup, pack.content(), party);
     let fresh = match fresh {
         Ok(fresh)
             if prefix.content_sha256 == to_hex(&head.content_sha256)
@@ -436,7 +439,7 @@ mod tests {
         use crate::run_setup::RunSetup;
         let mut rec = RunRecorder::start(&RunSetup::default()).unwrap();
         for _ in 0..30 {
-            rec.step(Input::default()).unwrap();
+            rec.step(&[Input::default()]).unwrap();
         }
         let prefix = rec.replay();
         let bytes = rec.save();

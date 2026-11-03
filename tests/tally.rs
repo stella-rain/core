@@ -5,6 +5,7 @@
 use crate::common::{self, *};
 use crate::corpus::runs_dir;
 use crate::corpus_pins::case_pack;
+use stella_rain_core::id::PlayerIdx;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -115,7 +116,7 @@ fn walk(
     'run: for input in recorded.unpack_inputs(u32::MAX).unwrap() {
         while let Some(c) = next.next_if(|c| c.tick == rec.engine().tick()) {
             match c.kind {
-                CommandKind::Choose => rec.choose(c.index).unwrap(),
+                CommandKind::Choose => rec.choose(PlayerIdx::SOLO, c.index).unwrap(),
             }
             ordinal += 1;
             let counted = fold.add(rec.engine().events());
@@ -127,7 +128,7 @@ fn walk(
         if rec.engine().outcome() != Outcome::Running || rec.engine().offer_open() {
             break;
         }
-        rec.step(input).unwrap();
+        rec.step(&[input]).unwrap();
         ordinal += 1;
         let counted = fold.add(rec.engine().events());
         f(&rec, ordinal, counted, &fold);

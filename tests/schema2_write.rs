@@ -8,6 +8,7 @@ use crate::corpus_pins::case_pack;
 use crate::data_root::data_root;
 use std::fs;
 use std::path::{Path, PathBuf};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
@@ -91,8 +92,8 @@ fn recorded_replays_have_no_command_list() {
         let mut rec = RunRecorder::start_with(&old.setup, &content).unwrap();
         for command in commands_of(&old) {
             match command {
-                Command::Step(input) => rec.step(input).unwrap(),
-                Command::Choose(i) => rec.choose(i).unwrap(),
+                Command::Step(input) => rec.step(&[input]).unwrap(),
+                Command::Choose(i) => rec.choose(PlayerIdx::SOLO, i).unwrap(),
             }
         }
         let whole = rec.replay();
@@ -194,13 +195,13 @@ fn resume_from_a_schema_2_replay_works() {
     for command in commands_of(&old) {
         match command {
             Command::Step(input) => {
-                whole.step(input).unwrap();
+                whole.step(&[input]).unwrap();
                 ticks += 1;
                 if ticks == old.ticks / 2 {
                     cut = Some(whole.clone());
                 }
             }
-            Command::Choose(i) => whole.choose(i).unwrap(),
+            Command::Choose(i) => whole.choose(PlayerIdx::SOLO, i).unwrap(),
         }
     }
     let prefix = cut.unwrap().replay();
@@ -212,12 +213,12 @@ fn resume_from_a_schema_2_replay_works() {
             Command::Step(input) => {
                 seen += 1;
                 if seen > prefix.ticks {
-                    resumed.step(input).unwrap();
+                    resumed.step(&[input]).unwrap();
                 }
             }
             Command::Choose(i) => {
                 if seen >= prefix.ticks {
-                    resumed.choose(i).unwrap();
+                    resumed.choose(PlayerIdx::SOLO, i).unwrap();
                 }
             }
         }

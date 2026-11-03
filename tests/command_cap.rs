@@ -7,6 +7,7 @@ use crate::common;
 use crate::common::run::run_input_for;
 use serde_json::json;
 use stella_rain_core::engine::Outcome;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -90,7 +91,7 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
     while run.engine().outcome() == Outcome::Running {
         answer_offers(&mut run, bot);
         let input = run_input_for(run.engine(), tick, &[EntityKind::Enemy], u32::MAX);
-        run.step(input).unwrap();
+        run.step(&[input]).unwrap();
         tick += 1;
     }
     answer_offers(&mut run, bot);
@@ -112,7 +113,7 @@ fn answer_offers(run: &mut RunRecorder, bot: Bot) {
                 .as_ref()
                 .is_some_and(|p| p.stat_offer.is_some())
         {
-            run.choose(0).unwrap();
+            run.choose(PlayerIdx::SOLO, 0).unwrap();
             continue;
         }
         let options = snapshot.progress.and_then(|p| p.offer).unwrap().options;
@@ -125,7 +126,8 @@ fn answer_offers(run: &mut RunRecorder, bot: Bot) {
         let pick = pick
             .or_else(|| find(|o| *o == OfferOption::Take { candidate: 0 }))
             .unwrap_or(0);
-        run.choose(u32::try_from(pick).unwrap()).unwrap();
+        run.choose(PlayerIdx::SOLO, u32::try_from(pick).unwrap())
+            .unwrap();
     }
 }
 

@@ -7,6 +7,7 @@ use crate::run_play::{play_run, play_run_with};
 use serde_json::Value;
 use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::Outcome;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::pack_inputs;
 use stella_rain_core::run_replay::{
@@ -28,8 +29,8 @@ const CHECKSUM_AT: usize = 96;
 
 fn apply(rec: &mut RunRecorder, c: &Command) {
     match *c {
-        Command::Step(input) => rec.step(input).unwrap(),
-        Command::Choose(index) => rec.choose(index).unwrap(),
+        Command::Step(input) => rec.step(&[input]).unwrap(),
+        Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
     }
 }
 
@@ -119,7 +120,7 @@ fn a_savepoint_taken_with_an_offer_open_resumes_with_it_open() {
     let mut r = restore(&rec.save(), &rec.replay()).unwrap();
     assert!(r.engine().offer_open());
     assert!(matches!(
-        r.step(idle()),
+        r.step(&[idle()]),
         Err(RunReplayError::OfferOpen { .. })
     ));
     for c in &all[at..] {
@@ -435,13 +436,13 @@ mod golden {
                 .get(*next)
                 .filter(|c| c.tick == rec.engine().tick())
             {
-                rec.choose(c.index).unwrap();
+                rec.choose(PlayerIdx::SOLO, c.index).unwrap();
                 *next += 1;
             }
         };
         while rec.engine().tick() < ticks {
             take(&mut rec, &mut next);
-            rec.step(inputs[usize::try_from(rec.engine().tick()).unwrap()])
+            rec.step(&[inputs[usize::try_from(rec.engine().tick()).unwrap()]])
                 .unwrap();
         }
         take(&mut rec, &mut next);
@@ -511,7 +512,7 @@ mod golden {
         // To the end of tick 360: the checkpoint is taken before the commands that follow it.
         let mut r = drive(&replay, &pack, 359, Some(r));
         let input = replay.unpack_inputs(replay.ticks).unwrap()[359];
-        r.step(input).unwrap();
+        r.step(&[input]).unwrap();
         let checkpoints = replay.checkpoints.as_bytes();
         let want = hash_from_hex(std::str::from_utf8(&checkpoints[5 * 16..6 * 16]).unwrap());
         assert_eq!(Some(r.engine().state_hash()), want);

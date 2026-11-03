@@ -27,7 +27,7 @@ use crate::corpus_pins::{
     case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
     run_case_pack, write_case_json, write_pack_file,
 };
-use crate::run_play::play_run_with;
+use crate::run_play::{PartyCase, party_cases, play_party, play_run_with};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -52,6 +52,12 @@ pub(crate) fn corpus_dir() -> PathBuf {
 
 pub(crate) fn runs_dir() -> PathBuf {
     crate::data_root::data_root().join("tests/corpus/current/runs")
+}
+
+/// The party cases: a run played by 2 or 3 players, apart from `runs/` because the solo readers
+/// and the exact-list guards iterate that folder.
+pub(crate) fn parties_dir() -> PathBuf {
+    crate::data_root::data_root().join("tests/corpus/current/parties")
 }
 
 pub(crate) fn current_dir() -> PathBuf {
@@ -255,6 +261,15 @@ fn write_run_case(dir: &Path, setup: &RunSetup, pack_bytes: Option<&[u8]>, comma
             Err(e) => panic!("cannot remove {stale}: {e}"),
         }
     }
+}
+
+/// Writes a party case: its `case.json` (the bundled pack) and the replay of `play_party`.
+fn write_party_case(dir: &Path, case: &PartyCase) {
+    ensure_writable(dir).unwrap();
+    fs::create_dir_all(dir).unwrap();
+    write_case_json(dir, &to_hex(&Pack::bundled().sha256())).unwrap();
+    let recorded = play_party(&case.setup, case.party, case.ticks).replay();
+    write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
 }
 
 /// Writes the snapshots of the first diverging tick (`engine`'s) and of the one before to
@@ -2370,6 +2385,9 @@ fn the_corpus_matches() {
         for (name, setup, pack, commands) in run_definitions() {
             write_run_case(&runs_dir().join(name), &setup, pack.as_deref(), &commands);
         }
+        for case in party_cases() {
+            write_party_case(&parties_dir().join(case.name), &case);
+        }
         prune_packs(&current_dir()).unwrap();
     }
     let mut cases: Vec<PathBuf> = fs::read_dir(corpus_dir())
@@ -2390,6 +2408,14 @@ fn the_corpus_matches() {
         .collect();
     runs.sort();
     assert!(!runs.is_empty(), "the corpus has no run case");
+    // The party cases are checked as run cases are (the folder may be absent in an older tree).
+    runs.extend(
+        fs::read_dir(parties_dir())
+            .into_iter()
+            .flatten()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.is_dir()),
+    );
     let failures: Vec<String> = cases
         .iter()
         .filter_map(|c| check_case(c, &diff_dir()).err())

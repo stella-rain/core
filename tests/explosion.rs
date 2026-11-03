@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::rune::Rune;
@@ -383,11 +384,11 @@ fn a_run_holding_explosion_records_and_verifies() {
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
             let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
             recorder
-                .choose(u32::try_from(rune.unwrap_or(0)).unwrap())
+                .choose(PlayerIdx::SOLO, u32::try_from(rune.unwrap_or(0)).unwrap())
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(input).is_err() {
+        if recorder.step(&[input]).is_err() {
             break;
         }
         fired |= recorder.engine().snapshot().players[0]

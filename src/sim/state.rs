@@ -414,6 +414,34 @@ impl PartialEq for Players {
 }
 
 impl Players {
+    /// The party of `n` slots (1 to `MAX_PLAYERS`) that grows from `old`'s first player: every
+    /// slot a copy of that player, slot 0 keeping its career and each other slot a career of its
+    /// own (its offer stream by `offer_tag`) from slot 0's progress, offers, expertise and
+    /// Stardust. Slots 1 and 2 take the run's loadout until the per-player setup.
+    pub(crate) fn party(n: u8, old: &Players, crit_seed: u64) -> Players {
+        assert!((1..=MAX_PLAYERS).contains(&n), "1 to {MAX_PLAYERS} players");
+        let first = old.items[0].clone();
+        let c0 = old.careers[0].clone();
+        let mut out = Players {
+            items: [first.clone(), first.clone(), first],
+            careers: Default::default(),
+            present: (1u8 << n) - 1,
+        };
+        out.careers[0] = c0.clone();
+        for i in 1..n {
+            let me = PlayerIdx::new(i).expect("a slot");
+            out.careers[me.get()] = Career::new(
+                crit_seed,
+                me,
+                c0.progress.clone(),
+                c0.offers.clone(),
+                c0.expertise.clone(),
+                c0.stardust,
+            );
+        }
+        out
+    }
+
     /// The mask of a party of one.
     const SOLO_MASK: u8 = 0b001;
 

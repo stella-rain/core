@@ -51,7 +51,9 @@ use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
-use crate::replay::{hash_from_hex, hash_to_hex, read_varint, unpack, write_varint};
+use crate::replay::{
+    block_of, hash_from_hex, hash_to_hex, input_of_block, read_varint, unpack, write_varint,
+};
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
@@ -566,6 +568,18 @@ impl RunReplay {
         self.step_log(max_ticks)?.range(a, b)
     }
 
+    /// The party the replay starts with, read from the first byte of its step log alone (the
+    /// `present` byte, ADR-REPL-10): 1 for a schema 1 replay. `None` for a byte that is not a
+    /// party from slot 0 (a hole, a bit past slot 2, no byte, bad base64).
+    pub(crate) fn party_size(&self) -> Option<u8> {
+        if self.setup.schema_version < 2 {
+            return Some(1);
+        }
+        let head: String = self.inputs.chars().take(4).collect();
+        let present = *base64::decode(&head).ok()?.first()?;
+        StepLog::party_of(present)
+    }
+
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
     /// and commands are migrated in memory, a schema 2 replay's `inputs` are decoded and its
     /// `commands` must be empty (a pick is a field of the step it was made on).
@@ -614,8 +628,13 @@ pub struct RunRecorder {
     setup: RunSetup,
     content_sha256: String,
     engine: Engine,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
+    /// Bit `i` set for player slot `i`: the party, from slot 0 (the log's `present` byte).
+    present: u8,
+    /// The run as a step log (ADR-REPL-10): runs of ticks with one input per player, and the
+    /// steps of picks between them.
+    records: Vec<Record>,
+    /// The number of `Record::Picks` in `records`: what `MAX_COMMANDS` counts.
+    picks_made: u32,
     checkpoints: Vec<u64>,
 }
 
@@ -630,17 +649,45 @@ impl RunRecorder {
         setup: &RunSetup,
         content: &RunContent,
     ) -> Result<RunRecorder, RunReplayError> {
-        let engine = Engine::start_with(setup, content).map_err(RunReplayError::Setup)?;
+        RunRecorder::start_party_with(setup, content, 1)
+    }
+
+    /// As `start`, for a party of `party` players (1 to 3): `step` takes one input per player
+    /// and `choose` names the player. Slots 1 and 2 take the run's loadout until the per-player
+    /// setup.
+    pub fn start_party(setup: &RunSetup, party: u8) -> Result<RunRecorder, RunReplayError> {
+        RunRecorder::start_party_with(setup, RunContent::bundled(), party)
+    }
+
+    /// As `start_party`, with `content` in place of the bundled files. A party outside 1 to 3
+    /// is `Setup`.
+    pub fn start_party_with(
+        setup: &RunSetup,
+        content: &RunContent,
+        party: u8,
+    ) -> Result<RunRecorder, RunReplayError> {
+        let engine =
+            Engine::start_party_with(setup, content, party).map_err(RunReplayError::Setup)?;
         let content = content_sha256_with(setup.mode.as_str(), content)
             .expect("a mode that starts has content");
         Ok(RunRecorder {
             setup: written(setup),
             content_sha256: to_hex(&content),
             engine,
-            inputs: Vec::new(),
-            commands: Vec::new(),
+            present: (1u8 << party) - 1,
+            records: Vec::new(),
+            picks_made: 0,
             checkpoints: Vec::new(),
         })
+    }
+
+    /// As `start_party`, with the content of `pack` in place of the bundled pack.
+    pub fn start_party_with_pack(
+        setup: &RunSetup,
+        pack: &Pack,
+        party: u8,
+    ) -> Result<RunRecorder, RunReplayError> {
+        RunRecorder::start_party_with(setup, pack.content(), party)
     }
 
     /// As `start`, with the content of `pack` in place of the bundled pack: the replay records
@@ -675,13 +722,13 @@ impl RunRecorder {
                 tick: engine.tick(),
             });
         }
-        let (inputs, commands) = run.log.to_solo()?;
         Ok(RunRecorder {
             setup: written(&prefix.setup),
             content_sha256: prefix.content_sha256.clone(),
             engine,
-            inputs,
-            commands,
+            present: run.log.present,
+            picks_made: run.log.picks_made(),
+            records: run.log.records,
             checkpoints: run.checkpoints,
         })
     }
@@ -704,16 +751,13 @@ impl RunRecorder {
         pack: &Pack,
     ) -> Result<RunRecorder, SavepointError> {
         let (engine, history) = savepoint::restore(bytes, prefix, pack)?;
-        let (inputs, commands) = history
-            .log
-            .to_solo()
-            .map_err(|_| SavepointError::PrefixMismatch)?;
         Ok(RunRecorder {
             setup: written(&prefix.setup),
             content_sha256: prefix.content_sha256.clone(),
             engine,
-            inputs,
-            commands,
+            present: history.log.present,
+            picks_made: history.log.picks_made(),
+            records: history.log.records,
             checkpoints: history.claimed,
         })
     }
@@ -723,9 +767,13 @@ impl RunRecorder {
         &self.engine
     }
 
-    /// Runs the next tick with `input`. Refused, recording nothing, after the run ended or
-    /// while an offer is open (ADR-079 §3: a choice answers it first).
-    pub fn step(&mut self, input: Input) -> Result<(), RunReplayError> {
+    /// Runs the next tick with `inputs`, one per player in slot order. Refused, recording
+    /// nothing, when the length is not the party, after the run ended or while an offer is open
+    /// (ADR-079 §3: a choice answers it first).
+    pub fn step(&mut self, inputs: &[Input]) -> Result<(), RunReplayError> {
+        if inputs.len() != self.engine.players() {
+            return Err(RunReplayError::BadInputs("one input per player"));
+        }
         if self.engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
                 ended_at: self.engine.tick(),
@@ -736,35 +784,60 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
-        // N=1: replay schema 2 records every player.
-        self.engine.step(&[input]);
-        // The pick travels in the command stream of schema 1, never in the input stream.
-        self.inputs.push(Input {
-            pick: None,
-            ..input
-        });
+        self.engine.step(inputs);
+        // The log holds each input as its block bytes read it back (a stick axis of -128 is
+        // -127, a pick is never in the stream), so equal blocks are one run.
+        let held = |input: &Input| {
+            input_of_block(block_of(input), true).expect("a block of an input reads back")
+        };
+        match self.records.last_mut() {
+            Some(Record::Ticks { run, inputs: last })
+                if last.iter().zip(inputs).all(|(a, b)| *a == held(b)) =>
+            {
+                *run += 1;
+            }
+            _ => self.records.push(Record::Ticks {
+                run: 1,
+                inputs: inputs.iter().map(held).collect(),
+            }),
+        }
         if self.engine.tick() % CHECKPOINT_TICKS == 0 {
             self.checkpoints.push(self.engine.state_hash());
         }
         Ok(())
     }
 
-    /// Chooses option `index` of the open offer. Refused, recording nothing, when the engine
-    /// refuses it or the replay already holds `MAX_COMMANDS` commands.
-    pub fn choose(&mut self, index: u32) -> Result<(), RunReplayError> {
+    /// `player` chooses option `index` of its open offer: `picks` with that one pick. A player
+    /// outside the party is `BadInputs`.
+    pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), RunReplayError> {
+        let mut picks = vec![None; self.engine.players()];
+        *picks
+            .get_mut(player.get())
+            .ok_or(RunReplayError::BadInputs("a player outside the party"))? = Some(index);
+        self.picks(&picks)
+    }
+
+    /// One step that does not advance the world: the pick of each player (`None` for no pick),
+    /// at least one, taken together. Refused, recording nothing, when a pick is refused by the
+    /// engine or the replay already holds `MAX_COMMANDS` steps of picks.
+    pub fn picks(&mut self, picks: &[Option<u32>]) -> Result<(), RunReplayError> {
+        if picks.len() != self.engine.players() {
+            return Err(RunReplayError::BadInputs("one input per player"));
+        }
+        if picks.iter().all(Option::is_none) {
+            return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
+        }
         self.room()?;
-        let tick = self.engine.tick();
-        // N=1: replay schema 2 names the player.
-        self.engine
-            .check_pick(PlayerIdx::SOLO, index)
-            .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
-        self.engine.step(&[Input::picking(index)]);
-        self.record(tick, CommandKind::Choose, index);
+        apply_picks(&mut self.engine, picks)?;
+        self.records.push(Record::Picks {
+            picks: picks.to_vec(),
+        });
+        self.picks_made += 1;
         Ok(())
     }
 
     fn room(&self) -> Result<(), RunReplayError> {
-        if self.commands.len() >= MAX_COMMANDS as usize {
+        if self.picks_made >= MAX_COMMANDS {
             return Err(RunReplayError::TooManyCommands {
                 limit: MAX_COMMANDS,
             });
@@ -772,50 +845,47 @@ impl RunRecorder {
         Ok(())
     }
 
-    fn record(&mut self, tick: u32, kind: CommandKind, index: u32) {
-        self.commands.push(TickCommand { tick, kind, index });
-    }
-
-    /// The schema 2 `inputs` field for `inputs` and `commands`: the step log, then base64. The
-    /// recorder keeps the solo lists of schema 1 and builds the file at its two output points.
-    fn step_log(&self, inputs: &[Input], commands: &[TickCommand]) -> String {
-        base64::encode(&StepLog::from_schema1(inputs, commands).encode())
+    /// The schema 2 `inputs` field for `log`: the step log, then base64.
+    fn encoded(log: &StepLog) -> String {
+        base64::encode(&log.encode())
     }
 
     /// The replay of the run so far: complete once the run has ended, a bug report before.
     pub fn replay(&self) -> RunReplay {
+        let log = StepLog {
+            present: self.present,
+            records: self.records.clone(),
+        };
         RunReplay {
             setup: self.setup.clone(),
             content_sha256: self.content_sha256.clone(),
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
             checkpoints: self.checkpoints.iter().map(|h| hash_to_hex(*h)).collect(),
-            inputs: self.step_log(&self.inputs, &self.commands),
+            inputs: RunRecorder::encoded(&log),
             commands: String::new(),
         }
     }
 
     /// The replay of the first `ticks` ticks of the run so far, built from what the recorder has
     /// recorded alone: it reads nothing from the engine, so it is safe to call after the engine
-    /// panicked. `final_hash` is the state hash after tick `ticks` and the commands that carry it
+    /// panicked. `final_hash` is the state hash after tick `ticks` and the picks that carry it
     /// (what `Engine::state_hash` gave at that point; the caller keeps it, because this method
-    /// cannot ask the engine). The replay holds the first `ticks` inputs, the first
-    /// `ticks / CHECKPOINT_TICKS` checkpoints and the commands up to and including those that apply
-    /// after tick `ticks`, so it verifies when `ticks` and `final_hash` are the run's at one point
-    /// the run reached. Inputs, checkpoints and commands recorded past `ticks` are left out. A
-    /// `ticks` above the number of inputs recorded does not panic; the replay then holds all the
-    /// inputs it has and does not verify. After the run ended and with the engine's own tick and
-    /// hash, this is exactly `replay()`.
+    /// cannot ask the engine). The replay holds the first `ticks` ticks of inputs, the first
+    /// `ticks / CHECKPOINT_TICKS` checkpoints and the steps of picks up to and including those
+    /// that apply after tick `ticks`, so it verifies when `ticks` and `final_hash` are the run's
+    /// at one point the run reached. What was recorded past `ticks` is left out. A `ticks` above
+    /// the number of ticks recorded does not panic; the replay then holds everything it has and
+    /// does not verify. After the run ended and with the engine's own tick and hash, this is
+    /// exactly `replay()`.
     pub fn replay_at(&self, ticks: u32, final_hash: u64) -> RunReplay {
-        let inputs = usize::try_from(ticks).map_or(self.inputs.len(), |t| t.min(self.inputs.len()));
         let checkpoints = usize::try_from(ticks / CHECKPOINT_TICKS)
             .map_or(self.checkpoints.len(), |c| c.min(self.checkpoints.len()));
-        let commands: Vec<TickCommand> = self
-            .commands
-            .iter()
-            .copied()
-            .filter(|c| c.tick <= ticks)
-            .collect();
+        let log = StepLog {
+            present: self.present,
+            records: self.records.clone(),
+        }
+        .prefix(ticks);
         RunReplay {
             setup: self.setup.clone(),
             content_sha256: self.content_sha256.clone(),
@@ -825,7 +895,7 @@ impl RunRecorder {
                 .iter()
                 .map(|h| hash_to_hex(*h))
                 .collect(),
-            inputs: self.step_log(&self.inputs[..inputs], &commands),
+            inputs: RunRecorder::encoded(&log),
             commands: String::new(),
         }
     }
@@ -850,8 +920,8 @@ pub fn record_run_with(
             break;
         }
         match *command {
-            Command::Step(input) => recorder.step(input)?,
-            Command::Choose(index) => recorder.choose(index)?,
+            Command::Step(input) => recorder.step(&[input])?,
+            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index)?,
         }
     }
     Ok(recorder.replay())
@@ -1027,14 +1097,12 @@ fn resimulate(
         }
     }
 
-    let mut engine =
-        Engine::start_with(&replay.setup, run_content).map_err(RunReplayError::Setup)?;
-    // The slots present must be exactly the engine's party, from slot 0.
-    if usize::from(log.present) != (1usize << engine.players()) - 1 {
-        return Err(RunReplayError::BadInputs(
-            "the party does not match the run",
-        ));
-    }
+    // The slots present must be a party from slot 0 (a hole is for joining and leaving).
+    let party = StepLog::party_of(log.present).ok_or(RunReplayError::BadInputs(
+        "the party does not match the run",
+    ))?;
+    let mut engine = Engine::start_party_with(&replay.setup, run_content, party)
+        .map_err(RunReplayError::Setup)?;
     let mut reached = Vec::with_capacity(claimed.len());
     let mut picks = 0u32;
     for record in &log.records {
@@ -1381,7 +1449,7 @@ mod tests {
         };
         let mut r = RunRecorder::start(&setup).unwrap();
         for _ in 0..130 {
-            r.step(Input::default()).unwrap();
+            r.step(&[Input::default()]).unwrap();
         }
         let hash = r.engine().state_hash();
         let bytes_before = r.replay().to_bytes();
@@ -1399,5 +1467,56 @@ mod tests {
         let verified = verify_run(&replay.to_bytes()).unwrap();
         assert_eq!(verified.ticks, 130);
         assert_eq!(verified.final_hash, hash);
+    }
+}
+
+#[cfg(test)]
+mod party_size_tests {
+    use super::RunRecorder;
+    use crate::base64;
+    use crate::input::Input;
+    use crate::run_setup::RunSetup;
+
+    fn setup() -> RunSetup {
+        RunSetup {
+            seed: 20_261_010,
+            ..RunSetup::default()
+        }
+    }
+
+    #[test]
+    fn the_size_is_the_present_byte() {
+        for n in 1..=3u8 {
+            let mut rec = RunRecorder::start_party(&setup(), n).unwrap();
+            rec.step(&vec![Input::default(); usize::from(n)]).unwrap();
+            assert_eq!(rec.replay().party_size(), Some(n));
+        }
+    }
+
+    #[test]
+    fn a_byte_that_is_not_a_party_has_no_size() {
+        let mut rec = RunRecorder::start_party(&setup(), 2).unwrap();
+        rec.step(&[Input::default(); 2]).unwrap();
+        let mut replay = rec.replay();
+        let bytes = base64::decode(&replay.inputs).unwrap();
+        for bad in [0u8, 0b010, 0b101, 0b1000, 0b1111, 0xFF] {
+            let mut edited = bytes.clone();
+            edited[0] = bad;
+            replay.inputs = base64::encode(&edited);
+            assert_eq!(replay.party_size(), None, "{bad:#b}");
+        }
+        replay.inputs = String::new();
+        assert_eq!(replay.party_size(), None);
+        replay.inputs = "!!!!".into();
+        assert_eq!(replay.party_size(), None);
+    }
+
+    #[test]
+    fn a_schema_1_replay_is_one_player() {
+        let mut rec = RunRecorder::start(&setup()).unwrap();
+        rec.step(&[Input::default()]).unwrap();
+        let mut replay = rec.replay();
+        replay.setup.schema_version = 1;
+        assert_eq!(replay.party_size(), Some(1));
     }
 }

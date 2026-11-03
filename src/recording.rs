@@ -25,6 +25,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::engine::{Engine, Outcome};
+use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::replay::{hash_from_hex, hash_to_hex};
 use crate::run_replay::{Command, RunRecorder, RunReplayError};
@@ -92,11 +93,11 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunR
         }
         let body = match *command {
             Command::Step(input) => {
-                recorder.step(input)?;
+                recorder.step(&[input])?;
                 json!({ "type": "Input", "data": input })
             }
             Command::Choose(index) => {
-                recorder.choose(index)?;
+                recorder.choose(PlayerIdx::SOLO, index)?;
                 json!({ "type": "Choose", "data": { "index": index } })
             }
         };

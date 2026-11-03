@@ -287,8 +287,7 @@ pub fn replay_load(data: &[u8]) -> bool {
         // The recorder writes schema 2, so only a schema 2 run re-records to itself (a schema 1
         // run re-records as its schema 2 form).
         if run.setup.schema_version == SCHEMA_VERSION {
-            let recorded = run_replay::record_run(&run.setup, &commands(&run))
-                .expect("the commands of a run replay that verified record");
+            let recorded = recorder_until(&run, None).replay();
             assert_eq!(recorded, run, "a verified run replay records as another");
         }
         assert_eq!(
@@ -316,32 +315,77 @@ const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
 /// Ticks the target steps a loaded run on.
 const SAVEPOINT_EXTRA_STEPS: usize = 20;
 
-/// The fixed run of the savepoint target, played by its own commands up to `cut` ticks (before
-/// the commands that follow that tick), or to its end for `None`.
-pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
-    let run = RunReplay::from_bytes(SAVEPOINT_RUN).expect("the savepoint run is a run replay");
-    let mut recorder = RunRecorder::start_with_pack(&run.setup, Pack::bundled())
-        .expect("the savepoint run starts");
-    let mut steps = 0;
-    for command in commands(&run) {
-        if cut == Some(steps) {
-            break;
-        }
-        match command {
-            Command::Step(input) => {
-                steps += 1;
-                recorder.step(input).expect("the savepoint run steps");
+/// The recorder of `run` (a verified run of any party size, from slot 0) driven by the run's own
+/// step log up to world tick `cut`, before the picks made at that tick, or to its end for `None`:
+/// the party is read from the log's `present` byte, so a party replay re-records as it is.
+///
+/// # Panics
+///
+/// If `run` does not start, or its log does not replay (callers pass a verified run).
+pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
+    let end = cut.unwrap_or(run.ticks);
+    let range = run
+        .step_range(0, end, MAX_TICKS)
+        .expect("a verified run's step log reads");
+    let party = u8::try_from(range.present.count_ones()).expect("a party of at most 3");
+    let mut recorder = RunRecorder::start_party_with_pack(&run.setup, Pack::bundled(), party)
+        .expect("a verified run starts");
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                for _ in 0..*run {
+                    recorder.step(inputs).expect("a verified run steps");
+                }
             }
-            Command::Choose(index) => recorder
-                .choose(index)
-                .expect("the savepoint run's choice is accepted"),
+            RangeStep::Picks { picks } => recorder
+                .picks(picks)
+                .expect("a verified run's picks are accepted"),
         }
     }
     recorder
 }
 
-/// The replays a savepoint is loaded against: the run at each of `SAVEPOINT_CUTS` and the run
-/// whole (a finished run).
+/// The fixed run of the savepoint target, played by its own steps up to `cut` ticks (before the
+/// picks that follow that tick), or to its end for `None`.
+pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(SAVEPOINT_RUN).expect("the savepoint run is a run replay");
+    recorder_until(&run, cut)
+}
+
+/// The party run of the savepoint target: a corpus party case (3 players, the time_limit mode),
+/// in which slots 1 and 2 answer an offer of their own in the middle of the run.
+const PARTY_RUN: &[u8] =
+    include_bytes!("../../tests/corpus/current/parties/three_time_limit/run.replay");
+
+/// The ticks the party target's prefixes are cut at: running, and with the first offer of
+/// slot 1 or 2 open (found in the run's step log).
+fn party_cuts() -> [u32; 2] {
+    let run = RunReplay::from_bytes(PARTY_RUN).expect("the party run is a run replay");
+    let range = run
+        .step_range(0, run.ticks, MAX_TICKS)
+        .expect("the party run's step log reads");
+    let mut world = 0;
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, .. } => world += run,
+            RangeStep::Picks { picks } if picks[1..].iter().any(Option::is_some) => {
+                return [150, world];
+            }
+            RangeStep::Picks { .. } => {}
+        }
+    }
+    panic!("a pick by slot 1 or 2");
+}
+
+/// The party run of the savepoint target played to `cut` ticks (before the picks that follow
+/// that tick), or to its end for `None`.
+pub fn party_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(PARTY_RUN).expect("the party run is a run replay");
+    recorder_until(&run, cut)
+}
+
+/// The replays a savepoint is loaded against: the solo run at each of `SAVEPOINT_CUTS` and whole
+/// (a finished run), then the party run at its two cuts and whole.
 pub fn savepoint_prefixes() -> &'static [RunReplay] {
     static PREFIXES: OnceLock<Vec<RunReplay>> = OnceLock::new();
     PREFIXES.get_or_init(|| {
@@ -350,6 +394,13 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
             .map(|cut| Some(*cut))
             .chain([None])
             .map(|cut| savepoint_recorder(cut).replay())
+            .chain(
+                party_cuts()
+                    .iter()
+                    .map(|cut| Some(*cut))
+                    .chain([None])
+                    .map(|cut| party_recorder(cut).replay()),
+            )
             .collect()
     })
 }
@@ -382,10 +433,16 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                     if recorder.engine().outcome() != Outcome::Running {
                         break;
                     }
+                    let party = recorder.engine().players();
                     let moved = if recorder.engine().offer_open() {
-                        recorder.choose(0)
+                        // The slot that holds the offer answers it with choice 0.
+                        let holder = (0..party)
+                            .filter_map(|i| PlayerIdx::new(u8::try_from(i).ok()?))
+                            .find(|p| recorder.engine().check_pick(*p, 0).is_ok())
+                            .unwrap_or(PlayerIdx::SOLO);
+                        recorder.choose(holder, 0)
                     } else {
-                        recorder.step(Input::default())
+                        recorder.step(&vec![Input::default(); party])
                     };
                     if moved.is_err() {
                         break;
@@ -436,6 +493,14 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
             savepoint_recorder(Some(230)).save(),
         ),
         ("valid-end".to_owned(), savepoint_recorder(None).save()),
+        (
+            "valid-party-tick150".to_owned(),
+            party_recorder(Some(150)).save(),
+        ),
+        (
+            "valid-party-open".to_owned(),
+            party_recorder(Some(party_cuts()[1])).save(),
+        ),
         ("format".to_owned(), edited(4, &|b| b.wrapping_add(1))),
         ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
         (
@@ -468,8 +533,9 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
     seeds
 }
 
-/// A run replay's commands in the order they were made: before each tick the commands that
-/// carry the tick before it, then its input; at the end the commands of the last tick.
+/// A solo run replay's commands in the order they were made (a party has no solo view and
+/// panics here): before each tick the commands that carry the tick before it, then its input;
+/// at the end the commands of the last tick.
 pub fn commands(run: &RunReplay) -> Vec<Command> {
     let inputs = run
         .unpack_inputs(MAX_TICKS)

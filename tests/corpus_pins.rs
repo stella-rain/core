@@ -158,7 +158,7 @@ pub(crate) fn write_pack_file(tree: &Path, bytes: &[u8]) -> Result<String, Strin
 pub(crate) fn prune_packs(tree: &Path) -> Result<(), String> {
     ensure_writable(tree)?;
     let mut named = Vec::new();
-    for sub in ["stages", "runs"] {
+    for sub in ["stages", "runs", "parties"] {
         for case in case_dirs(&tree.join(sub)) {
             named.push(read_case_json(&case)?.pack_sha256);
         }
@@ -318,8 +318,10 @@ pub(crate) fn check_frozen_tree(tree: &Path) -> Result<(), String> {
     for case in case_dirs(&tree.join("stages")) {
         failures.extend(check_case(&case, &diff_dir()).err());
     }
-    for case in case_dirs(&tree.join("runs")) {
-        failures.extend(check_run_case(&case, &diff_dir()).err());
+    for sub in ["runs", "parties"] {
+        for case in case_dirs(&tree.join(sub)) {
+            failures.extend(check_run_case(&case, &diff_dir()).err());
+        }
     }
     if failures.is_empty() {
         Ok(())
@@ -371,7 +373,7 @@ fn write_record(from: &Path, to: &Path) -> Result<(), String> {
     copy(from, to)?;
     let bundled = to_hex(&Pack::bundled().sha256());
     let mut pins = Vec::new();
-    for sub in ["stages", "runs"] {
+    for sub in ["stages", "runs", "parties"] {
         for case in case_dirs(&to.join(sub)) {
             pins.push(read_case_json(&case)?.pack_sha256);
         }
