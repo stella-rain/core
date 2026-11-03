@@ -30,10 +30,10 @@ published stages fail to verify.
   and stream of draws are frozen per `sim_version`.
   No other randomness: no thread RNG, time, pointer addresses or thread scheduling.
 - The crit roll takes no draw: it hashes `crit_seed`, the tick, `roll_key(id)`, hp and the hit
-  point (`src/sim/combat.rs`). `roll_key` is `to_compact(id, id_gap)` (`src/id.rs`): a player's
-  slot as it is, every other entity `id_gap = MAX_PLAYERS - party` lower; the crit roll and
-  the push-apart angle (`src/sim/push.rs`) read it. It is a rule of the simulation, not an encoding: the hash and
-  the savepoint write entity numbers as they are, and re-keying it moves outcomes.
+  point (`src/sim/combat.rs`). `State::roll_key` (`src/sim/entity.rs`) is `to_compact(id, id_gap)`
+  (`src/id.rs`): a player's slot as it is, every other entity `id_gap = MAX_PLAYERS - party`
+  lower; the crit roll and the push-apart angle (`src/sim/push.rs`) read it. It is a rule of the
+  simulation, not an encoding: the hash and the savepoint write entity numbers as they are.
 - Collision is our own code (circle vs point, circle vs circle); no engine physics. Entities
   live in `Vec`s with stable IDs; never iterate a `HashMap` or `HashSet` in simulation code.
 - `overflow-checks = true` in every Cargo profile, release included. Where overflow is possible,

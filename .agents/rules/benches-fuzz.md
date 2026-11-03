@@ -15,6 +15,7 @@ globs:
 Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-10, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
 
 ## Benches (`benches/`)
+
 All count instructions with `iai-callgrind`, read their cases from `src/bench_fixtures/`; each target
 is a key of `benches/budgets.toml`, which CI reads for the list. They build stages at the live
 `sim_version` (`bench_fixtures/common/mod.rs`), as `tests/alloc.rs` does: `sim_v1` and the v1
@@ -33,17 +34,16 @@ event adapter are not benched.
   bursts a one-tick bench misses; `worst_minute_peak.rs` is its heaviest tick, with its own
   budget (`bench_fixtures/worst_minute_case.rs`; `tests/worst_minute.rs` pins it).
 - Pins (`tests/bench_pins.toml`, written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`):
-  per case the state hash `before` and `after` the measured tick(s), and the `stage` and `input` digests.
-  A PR that moves a pin updates it and says so; an unmeant move is a bug.
+  per case the state hash `before`/`after` the measured tick(s) and the `stage` and `input`
+  digests. A PR that moves a pin updates it and says so; an unmeant move is a bug.
 
 ## Tick cost gate
 
 - `cargo bench` runs the five targets (needs `valgrind`, `iai-callgrind-runner` 0.16.1). CI
   (`rust.yml`, ADR-SIM-7, ADR-SIM-10) runs both architectures: the budgets of `benches/budgets.toml`
   block on every run (`bench_budget.py`); a case that rose over +2% against the base commit
-  (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a new entry of `benches/accepted.toml` covers
-  it (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges). An
-  unexplained rise is fixed, not accepted.
+  (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a new `benches/accepted.toml` entry covers it
+  (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges).
 - A case is compared with the base commit when its `before`, `stage` and `input` pins are equal
   there and here and its bench file and `benches/support/` are unchanged (`bench_pins.py`,
   ADR-SIM-10); `after` is pinned only. A moved case prints "case moved: not compared", is not

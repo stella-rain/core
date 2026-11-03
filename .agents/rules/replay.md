@@ -17,7 +17,7 @@ globs:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3.
+Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3, ADR-SAVE-3.
 
 ## What is where
 
