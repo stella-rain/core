@@ -80,6 +80,7 @@ pub const MAX_PCT: u32 = 1_000;
 
 // Run replay and setup (ADR-REPL-16, ADR-SVC-7)
 pub const MAX_COMMANDS: u32 = 1_000;
+pub const MAX_PRESENCE_CHANGES: u32 = 64;
 pub const MAX_RUN_REPLAY_BYTES: usize = 1_048_576;
 pub const MAX_SETUP_BYTES: usize = 4_096;
 pub const MAX_EXTRA_REROLLS: u8 = 20;
@@ -176,6 +177,7 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_DIFFICULTIES", "8", "difficulties", "ADR-CONT-11"),
     LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-CONT-11"),
     LimitEntry::new("MAX_COMMANDS", "1000", "commands", "ADR-REPL-16"),
+    LimitEntry::new("MAX_PRESENCE_CHANGES", "64", "changes", "ADR-REPL-16"),
     LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-SVC-7"),
     LimitEntry::new("MAX_SETUP_BYTES", "4096", "bytes", "ADR-SVC-7"),
     LimitEntry::new("MAX_EXTRA_REROLLS", "20", "rerolls", "ADR-REPL-16"),
@@ -225,6 +227,13 @@ mod tests {
         assert_eq!(row.value, crate::step_log::MAX_PRESENCE_CHANGES.to_string());
         assert_eq!(row.unit, "changes");
         assert_eq!(row.adr, "ADR-REPL-16");
+    }
+
+    #[test]
+    fn the_presence_changes_fit_the_replay_budget_with_room() {
+        // A JOIN or LEAVE record is 2 bytes: at most 128 bytes of the 1 MiB budget, and no
+        // PICK (`MEASURED_MOST` counts those only).
+        assert!((2 * MAX_PRESENCE_CHANGES as usize) < MAX_RUN_REPLAY_BYTES / 1000);
     }
 
     #[test]
@@ -286,6 +295,7 @@ mod tests {
         assert_eq!(MAX_DIFFICULTIES, crate::difficulties::MAX_DIFFICULTIES);
         assert_eq!(MAX_PCT, crate::difficulties::MAX_PCT);
         assert_eq!(MAX_COMMANDS, crate::run_replay::MAX_COMMANDS);
+        assert_eq!(MAX_PRESENCE_CHANGES, crate::step_log::MAX_PRESENCE_CHANGES);
         assert_eq!(
             MAX_RUN_REPLAY_BYTES,
             crate::run_replay::MAX_RUN_REPLAY_BYTES
