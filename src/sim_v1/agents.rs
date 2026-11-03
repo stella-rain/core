@@ -1,4 +1,4 @@
-//! Agents (ADR-036 tier 1): a movement and an ordered rule list. Each tick the first rule whose
+//! Agents (ADR-SIM-18 tier 1): a movement and an ordered rule list. Each tick the first rule whose
 //! condition holds, whose cooldown and charges allow it, and whose selector finds a target,
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
@@ -111,7 +111,7 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     leave(stage, s, events);
 }
 
-/// The shrines' fights (ADR-090). An untouched shrine waits for the main character's body to
+/// The shrines' fights. An untouched shrine waits for the main character's body to
 /// overlap its own, then activates: its guardians are placed on the ring, in order, through the
 /// usual spawn path, so the cap on enemies refuses the ones that do not fit (the ring is then
 /// short of them, and the first refusal ends it), and its timer starts. Each later tick the
@@ -217,7 +217,7 @@ fn ring_point(stage: &World, at: Point, radius: Fx, k: u32, count: u32) -> Point
 }
 
 /// Elites that leave go, unkilled: a boss came or called, or they were disturbed long enough
-/// ago (ADR-090). They are gone before any hit of this tick lands, so a leaving elite gives no
+/// ago. They are gone before any hit of this tick lands, so a leaving elite gives no
 /// kill reward.
 fn leave(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let mut gone = Vec::new();
@@ -255,12 +255,12 @@ fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
         }
     }
     // A disguised mimic does nothing but wait to be revealed; the tick it reveals it does not
-    // act either, so it acts from the next tick (ADR-090).
+    // act either, so it acts from the next tick.
     if agent(s, me).hidden() {
         reveal(s, me, def, events);
         return;
     }
-    // A stunned enemy does nothing while the stun lasts (ADR-085 point 2): no movement and no
+    // A stunned enemy does nothing while the stun lasts: no movement and no
     // rule. Its cooldowns counted above, so they run on through the stun.
     if super::stun::stunned(&agent(s, me).statuses) {
         return;
@@ -315,7 +315,7 @@ fn rule_states(s: &mut State, me: Who) -> &mut Rules {
     }
 }
 
-/// Fires the first rule of `rules` that can (ADR-036): its condition holds, its cooldown and
+/// Fires the first rule of `rules` that can (ADR-SIM-18): its condition holds, its cooldown and
 /// charges allow it, its selector finds a target and its action can be done. Agents and the
 /// boss's phases use the same rule lists, so they share this.
 pub(super) fn fire_first_rule(
@@ -447,11 +447,11 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 }
 
 /// An attack phase's `move_pct` slows the agent like a slow status does; at 0 it holds still,
-/// a `move_to` order included (ADR-055).
+/// a `move_to` order included.
 ///
 /// A companion with `Hold` or `Orbit` is set on its place. An enemy moves to it, at most 4
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
-/// next tick (ADR-058). An enemy that the last push-apart found crowded does not take that step;
+/// next tick (ADR-SIM-19). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
 fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();

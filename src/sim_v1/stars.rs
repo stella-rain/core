@@ -1,11 +1,11 @@
-//! Falling stars and their offers (ADR-079 §2, §3, ADR-068), in a stage with `stars`.
+//! Falling stars and their offers (ADR-REPL-16), in a stage with `stars`.
 //!
 //! In the collisions, after the defeated enemies' experience, each defeated enemy in entity-ID
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
 //! does not count it. Otherwise it drops one for sure once `pity` kills in a row have dropped
 //! none, and on a draw of the drop chance before that. A dropped star's rarity is drawn from the
 //! weights of the drop table's tier for the player's level, after this tick's experience. An
-//! elite (ADR-068) drops one for sure, without a draw and leaving the pity as it was, from the
+//! elite drops one for sure, without a draw and leaving the pity as it was, from the
 //! next tier up, or from the last tier. Then the main character takes every star inside its
 //! pickup circle, in the order they dropped.
 //!
@@ -16,7 +16,7 @@
 //! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
 //! the expertise levels' (`expertise`). It draws `offer_size` candidates (`rules.json`, one more for each
 //! offer-candidates reward taken, at most 4) from the run's pool at the star's rarity, then from the rarities below while too few are left. It leaves out banished rewards, rewards at their limit and rewards it already
-//! holds, and the random rune once the Main weapon holds every rune (ADR-099), whose rune is
+//! holds, and the random rune once the Main weapon holds every rune, whose rune is
 //! drawn only when it is taken. An offer with no candidate does not open, and the next one due is tried. While an
 //! offer is open the world stops. A choice (`choose`) takes a candidate, rerolls one, skips (a
 //! star's offer only), or banishes one; when it closes the offer, the next one due opens at
@@ -132,14 +132,14 @@ pub(super) fn boss_killed(stage: &World, s: &mut State) {
         return;
     };
     if let Some(f) = s.stars.as_mut() {
-        // Inside the difficulty's range (ADR-110).
+        // Inside the difficulty's range.
         let rarity = rarity.clamp(f.rarity.0, f.rarity.1);
         let kind = OfferKind::Boss;
         f.due.insert(0, Due { kind, rarity });
     }
 }
 
-/// A rarity drawn by `weights`, leaving out those outside `range`, the difficulty's (ADR-110):
+/// A rarity drawn by `weights`, leaving out those outside `range`, the difficulty's:
 /// the lowest of the range when it leaves no weight. The generator is drawn once either way.
 fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Rarity)) -> Rarity {
     let weight = |rarity: Rarity| match (range.0..=range.1).contains(&rarity) {
@@ -382,7 +382,7 @@ pub(super) struct Taken {
 /// then, for a member of a set, counts the set's members held and applies each tier newly
 /// reached once: the difference from the tier before (`constellations::tier_delta`), so the full
 /// tier replaces the small one. A pick from an open offer and a star the run starts with
-/// (ADR-107 point 3, ADR-117) go through here alike.
+/// (ADR-REPL-16) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &World,

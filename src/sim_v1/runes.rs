@@ -1,4 +1,4 @@
-//! Runes (ADR-099): the Main weapon's set, each rune at most once, the random rune's draw, and
+//! Runes: the Main weapon's set, each rune at most once, the random rune's draw, and
 //! the on-hit runes' fire.
 //!
 //! When a combo step's hit lands (by hit box or orb, as the expertise gauge counts it), each
@@ -16,11 +16,11 @@
 //! maximum, starting its duration again (`State::add_dot`). Its damage is the main
 //! character's without a combo step (point 3): the runes file's damage a stack, raised by the
 //! main character's atk-up and its type bonus for the rune's type as they are when it is
-//! applied, as an attack's are when it starts (ADR-056), and by the target's multipliers at
+//! applied, as an attack's are when it starts, and by the target's multipliers at
 //! each tick (`entity::tick_dots`). The step's own bonuses (a perfect release's) are not its.
 //! A smash's hit that leaves its target standing adds one stack of bleed the same way, with the
-//! same numbers, whether the rune is held or not (`apply_smash_bleed`, ADR-084 point 8): each
-//! source adds its stack to the one bleed (ADR-099 point 3).
+//! same numbers, whether the rune is held or not (`apply_smash_bleed`): each
+//! source adds its stack to the one bleed.
 //!
 //! Boomerang is thrown (`fly`): its attack starts on the main character, and its hit boxes fly
 //! out over its first phase to the point hit and back over its second toward where the main
@@ -31,7 +31,7 @@
 //! out and once back. The path is a placeholder.
 //!
 //! Homing missiles launch `missiles` hit boxes from the main character, missile k in slot
-//! `MISSILE_SLOT + k`. Missile k's target is the k-th of aim assist's order (ADR-072) within the
+//! `MISSILE_SLOT + k`. Missile k's target is the k-th of aim assist's order within the
 //! rune's range of the main character, starting over when there are fewer, or the enemy the
 //! step hit when there are none: nothing drawn from the generator. Each tick, after everyone
 //! has moved (`steer`), its goal is where its target is now, or was last once it is gone, and
@@ -39,7 +39,7 @@
 //! that it is on its target on the flight's last tick. It hits the first enemy it covers, once,
 //! and is gone (`hit_boxes`). The flight is a placeholder.
 //!
-//! Bounds (ADR-099 point 7): one attack at a time per rune, in its slot, the file holding each
+//! Bounds: one attack at a time per rune, in its slot, the file holding each
 //! attack to its cooldown; a rune whose slot is still busy does not fire and keeps its cooldown
 //! at 0. A cooldown is held to `MAX_RUNE_COOLDOWN_TICKS`. No rune fires an orb, a thrown one
 //! included: the orbs alive from runes stay at 0. Homing missiles launch at most
@@ -161,8 +161,8 @@ pub(super) fn apply_dots(s: &mut State, target: Who, events: &mut Vec<DomainEven
 }
 
 /// A smash's hit that leaves `target` standing puts the bleed status on it, a stack more, with
-/// the bleed rune's numbers (ADR-084 point 8). It adds its own stack when the rune is held too:
-/// each source adds its stacks to the one bleed (ADR-099 point 3).
+/// the bleed rune's numbers. It adds its own stack when the rune is held too:
+/// each source adds its stacks to the one bleed.
 pub(super) fn apply_smash_bleed(s: &mut State, target: Who, events: &mut Vec<DomainEvent>) {
     apply_dot(s, target, Rune::Bleed, events);
 }
@@ -301,12 +301,12 @@ pub(super) fn all_held(runes: &[HeldRune], pool: u8) -> bool {
         .all(|r| runes.iter().any(|h| h.rune == *r))
 }
 
-/// Whether `rune` is in the run's rune pool, a mask by `Rune::index` (ADR-107).
+/// Whether `rune` is in the run's rune pool, a mask by `Rune::index`.
 pub(crate) fn in_pool(pool: u8, rune: Rune) -> bool {
     pool >> rune.index() & 1 == 1
 }
 
-/// The mask of the runes `ids` name; the whole list when it is empty (ADR-107).
+/// The mask of the runes `ids` name; the whole list when it is empty.
 pub(crate) fn pool_mask(ids: &[crate::id::ContentId]) -> u8 {
     if ids.is_empty() {
         return FULL_POOL;

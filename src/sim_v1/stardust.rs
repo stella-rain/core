@@ -1,8 +1,8 @@
-//! Stardust (ADR-109): every kill by the player earns its base Stardust (times 10, from the
+//! Stardust: every kill by the player earns its base Stardust (times 10, from the
 //! wave, elite type or boss that made the enemy) times the time factor at the kill tick, in
 //! integer percent truncated toward zero, added to the run's counter, which saturates at
 //! `MAX_RUN_STARDUST`. The factor is the percent of the last tier of the stage's table that
-//! started at or before the kill tick (ADR-109 decision 2); past the last tier's start, overtime
+//! started at or before the kill tick; past the last tier's start, overtime
 //! included, the last tier holds. Nothing random is drawn. A wave's enemies (elite types are waves
 //! here: the Treasure Goblin's kill, a shrine's win, which sets its hit points to 0) and the boss
 //! earn their own base; an enemy summoned by a boss or a splitter earns the factor's

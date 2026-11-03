@@ -1,6 +1,6 @@
 //! The snapshot view of this version's state: what the frontend draws after the last tick
-//! (ADR-005), and where the drawn things are (`places`). It reads this version's `World` and
-//! `State` only, so a copy of the rules brings its own view (ADR-REPL-7 point 4).
+//! (ADR-BRDG-13), and where the drawn things are (`places`). It reads this version's `World` and
+//! `State` only, so a copy of the rules brings its own view (ADR-REPL-13 point 4).
 
 use std::sync::LazyLock;
 
@@ -71,7 +71,7 @@ pub(crate) fn places(s: &State, out: &mut Places) {
     }
 }
 
-/// What the frontend draws after the last tick (ADR-005). `places` repeats its rules for
+/// What the frontend draws after the last tick (ADR-BRDG-13). `places` repeats its rules for
 /// the ids, kinds and positions, and the player's position: change them together.
 pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot {
     let view = |r: &AttackRun| {
@@ -125,7 +125,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         for a in agents {
             let def = world.defs.agent(a.def);
             let hidden = a.hidden();
-            // Only a non-elite enemy is strengthened by an aura (ADR-090).
+            // Only a non-elite enemy is strengthened by an aura.
             let reached = kind == EntityKind::Enemy
                 && a.elite.is_none()
                 && aura_percent(auras.iter().copied(), a.at) > 0;
@@ -411,7 +411,7 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
 /// The ID of a pack leader's aura, shared like the statuses' (`StatusKind::id`).
 static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
 
-/// The statuses of `statuses` for the snapshot (ADR-103 decision 3), sorted by ID: each with
+/// The statuses of `statuses` for the snapshot, sorted by ID: each with
 /// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
 /// which has no timer: it lasts while its entity is in reach.
 fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
