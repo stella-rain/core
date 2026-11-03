@@ -11,8 +11,9 @@ use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
 use stella_rain_core::{RangeStep, StepRange};
 
 /// The state hash after 600 ticks of the scripted solo run in `a_solo_run_is_the_same_run`,
-/// read from the engine before the step took one entry per slot.
-const H600: u64 = 0x7602_5154_4321_8878;
+/// read from the engine before the step took one entry per slot, and re-pinned for the slot
+/// generations.
+const H600: u64 = 0x56a0_02f0_dbab_94ea;
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).unwrap()
