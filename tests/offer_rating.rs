@@ -194,6 +194,29 @@ fn the_full_tier_adds_only_the_difference() {
     assert_eq!(r.changes, vec![change(StatKind::AttackPct, 10, 20)]);
 }
 
+#[test]
+fn a_tier_counts_only_what_it_adds_to_the_tier_below() {
+    let regen = || entry("regen", 5);
+    let pair = set(
+        "pair",
+        &["m1", "m2"],
+        vec![
+            tier(1, vec![attack(10)]),
+            tier(2, vec![attack(10), regen()]),
+        ],
+    );
+    let list = vec![
+        named("m1", vec![entry("max_hp", 1)]),
+        named("m2", vec![entry("max_hp", 1)]),
+    ];
+    let e = scene(swing(10), list, sets(pair), &["m1"]);
+    let r = rating(&e, "m2");
+    // Tier 2 adds only the regeneration to the attack tier 1 already gave.
+    assert_eq!(r.set_tier, Some(2));
+    assert_eq!(r.categories, vec![Category::Defence]);
+    assert_eq!(r.dps_bp, None);
+}
+
 // --- C: first in its category --------------------------------------------------------------
 
 #[test]

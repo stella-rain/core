@@ -26,6 +26,7 @@
 
 use crate::attack::DamageType;
 use crate::attack::{AttackPhase, PhaseKind};
+use crate::constellations;
 use crate::id::PlayerIdx;
 use crate::rewards::{EffectEntry, RewardEffect, Rewards};
 use crate::rewards::{MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT};
@@ -210,11 +211,14 @@ pub(crate) fn offer_ratings(
             );
             let reward = &rewards.rewards()[usize::from(i)];
             let sets = rewards.constellations().sets();
-            let tier_effects = taken
-                .tiers
-                .iter()
-                .flat_map(|&(set, tier)| &sets[set].tiers[usize::from(tier) - 1].effects);
-            let effects: Vec<&EffectEntry> = reward.effects.iter().chain(tier_effects).collect();
+            // What the rules apply for a tier: its difference from the tier below.
+            let tier_effects = taken.tiers.iter().flat_map(|&(set, tier)| {
+                let tiers = &sets[set].tiers;
+                let at = usize::from(tier) - 1;
+                constellations::tier_delta(at.checked_sub(1).map(|lower| &tiers[lower]), &tiers[at])
+            });
+            let effects: Vec<EffectEntry> =
+                reward.effects.iter().cloned().chain(tier_effects).collect();
             let mut categories: Vec<Category> = Vec::new();
             for e in &effects {
                 let category = category_of(e.effect);
