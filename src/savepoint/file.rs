@@ -265,10 +265,15 @@ pub(crate) fn restore(
         return Err(SavepointError::Pack);
     }
     let prefix_bytes = prefix.to_bytes();
-    // The party the prefix log names; a size it cannot name builds the solo engine, and the
-    // later checks refuse as before.
-    let party = prefix.party_size().unwrap_or(1);
-    let fresh = Engine::start_party_with(&prefix.setup, pack.content(), party);
+    // The party the prefix log ends on, after its last join or leave; a log the scanner
+    // refuses builds the solo engine, and the later checks refuse as before. The size check
+    // comes first, so a hostile prefix is not read before the size limit.
+    let mask = if prefix_bytes.len() <= MAX_RUN_REPLAY_BYTES {
+        prefix.presence_at_end().unwrap_or(0b001)
+    } else {
+        0b001
+    };
+    let fresh = Engine::start_party_mask(&prefix.setup, pack.content(), mask);
     let fresh = match fresh {
         Ok(fresh)
             if prefix.content_sha256 == to_hex(&head.content_sha256)

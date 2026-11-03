@@ -25,13 +25,6 @@ fn state(e: &Engine) -> &crate::sim::state::State {
     }
 }
 
-fn state_mut(e: &mut Engine) -> &mut crate::sim::state::State {
-    match e.run_mut() {
-        Run::V2 { state, .. } => state,
-        Run::V1 { .. } => panic!("the live rules"),
-    }
-}
-
 #[test]
 fn a_version_one_run_refuses_a_change() {
     let mut e = Engine::forced(1, || Engine::start(&setup())).unwrap();

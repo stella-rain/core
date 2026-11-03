@@ -493,9 +493,15 @@ impl Engine {
         content: &RunContent,
         mask: u8,
     ) -> Result<Engine, Error> {
-        let mut engine = Engine::start_party_with(setup, content, crate::id::MAX_PLAYERS)?;
+        // A version 1 run has no other party than one; it starts as one.
+        let party = if mask == 0b001 {
+            1
+        } else {
+            crate::id::MAX_PLAYERS
+        };
+        let mut engine = Engine::start_party_with(setup, content, party)?;
         for i in 1..crate::id::MAX_PLAYERS {
-            if mask >> i & 1 == 0 {
+            if mask >> i & 1 == 0 && party > 1 {
                 if let Some(slot) = PlayerIdx::new(i) {
                     engine.run.leave(slot);
                 }

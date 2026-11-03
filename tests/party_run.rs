@@ -146,7 +146,7 @@ fn a_recorded_party_verifies() {
             .iter()
             .find_map(|s| match s {
                 RangeStep::Ticks { inputs, .. } => Some(inputs.clone()),
-                RangeStep::Picks { .. } => None,
+                _ => None,
             })
             .unwrap();
         assert_eq!(first.len(), usize::from(n));
@@ -344,6 +344,9 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
                 }
             }
             RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                unreachable!("these cases hold no join or leave")
+            }
         }
     }
     (recorded, rec.replay())
@@ -473,6 +476,9 @@ fn drive(rec: &mut RunRecorder, range: &StepRange) {
                 }
             }
             RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                unreachable!("these cases hold no join or leave")
+            }
         }
     }
 }
@@ -492,7 +498,7 @@ fn cuts(recorded: &RunReplay) -> [u32; 3] {
                     other.get_or_insert(world);
                 }
             }
-            RangeStep::Picks { .. } => {}
+            RangeStep::Picks { .. } | RangeStep::Join { .. } | RangeStep::Leave { .. } => {}
         }
     }
     [

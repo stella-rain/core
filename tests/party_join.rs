@@ -168,3 +168,139 @@ fn a_joiner_is_a_fresh_player_at_the_first_players_place() {
     assert_eq!(snap.players[1].at, snap.players[0].at);
     assert!(!e.offer_open() || e.check_pick(slot(1), 0).is_err());
 }
+
+// C. The recorder and the verifier.
+
+use stella_rain_core::RangeStep;
+use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
+
+fn rec_steps(rec: &mut RunRecorder, from: u32, to: u32, inputs: impl Fn(u32) -> [Input; 3]) {
+    for t in from..to {
+        while rec.engine().offer_open() {
+            let holder = (0..3u8)
+                .find(|i| rec.engine().check_pick(slot(*i), 0).is_ok())
+                .unwrap();
+            rec.choose(slot(holder), 0).unwrap();
+        }
+        rec.step(&inputs(t)).unwrap();
+    }
+}
+
+fn scripted(t: u32) -> [Input; 3] {
+    [
+        Input {
+            move_x: if t / 40 % 2 == 0 { 100 } else { -100 },
+            ..d()
+        },
+        Input { move_y: 50, ..d() },
+        Input { move_x: -30, ..d() },
+    ]
+}
+
+#[test]
+fn a_solo_run_that_joins_and_leaves_verifies() {
+    let mut rec = RunRecorder::start(&trial_setup()).unwrap();
+    rec_steps(&mut rec, 0, 60, scripted);
+    rec.join(slot(1)).unwrap();
+    rec_steps(&mut rec, 60, 120, scripted);
+    rec.leave(slot(1)).unwrap();
+    rec_steps(&mut rec, 120, 180, scripted);
+    let replay = rec.replay();
+    let verified = verify_run(&replay.to_bytes()).unwrap();
+    assert_eq!(verified.ticks, 180);
+    let range = replay.step_range(0, 180, u32::MAX).unwrap();
+    assert_eq!(range.present, 0b1);
+    let kinds: Vec<&str> = range
+        .steps
+        .iter()
+        .map(|s| match s {
+            RangeStep::Ticks { .. } => "t",
+            RangeStep::Picks { .. } => "p",
+            RangeStep::Join { .. } => "j",
+            RangeStep::Leave { .. } => "l",
+        })
+        .collect();
+    let changes: Vec<&&str> = kinds.iter().filter(|k| **k == "j" || **k == "l").collect();
+    assert_eq!(changes, [&"j", &"l"]);
+    assert_eq!(rec.engine().tick(), 180);
+}
+
+#[test]
+fn a_party_that_loses_slot_one_logs_two_entries_and_verifies() {
+    let mut rec = RunRecorder::start_party(&trial_setup(), 3).unwrap();
+    rec_steps(&mut rec, 0, 50, scripted);
+    rec.leave(slot(1)).unwrap();
+    assert_eq!(rec.engine().present(), 0b101);
+    rec_steps(&mut rec, 50, 150, scripted);
+    rec.join(slot(1)).unwrap();
+    rec_steps(&mut rec, 150, 200, scripted);
+    let replay = rec.replay();
+    verify_run(&replay.to_bytes()).unwrap();
+    let range = replay.step_range(0, 200, u32::MAX).unwrap();
+    let lens: Vec<usize> = range
+        .steps
+        .iter()
+        .filter_map(|s| match s {
+            RangeStep::Ticks { inputs, .. } => Some(inputs.len()),
+            _ => None,
+        })
+        .collect();
+    assert!(lens.contains(&2), "a hole holds two entries: {lens:?}");
+    assert_eq!(
+        replay.unpack_inputs(u32::MAX).unwrap_err(),
+        RunReplayError::BadInputs("a party has no solo view")
+    );
+}
+
+#[test]
+fn the_recorder_refuses_a_bad_change_and_records_nothing() {
+    let mut rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
+    let before = rec.replay().to_bytes();
+    for r in [rec.join(slot(1)), rec.join(PlayerIdx::SOLO)] {
+        assert!(matches!(
+            r,
+            Err(RunReplayError::PresenceRefused {
+                error: PresenceError::Occupied { .. },
+                ..
+            })
+        ));
+    }
+    assert!(matches!(
+        rec.leave(slot(2)),
+        Err(RunReplayError::PresenceRefused {
+            error: PresenceError::Absent { .. },
+            ..
+        })
+    ));
+    assert!(matches!(
+        rec.leave(PlayerIdx::SOLO),
+        Err(RunReplayError::PresenceRefused {
+            error: PresenceError::FirstSlot,
+            ..
+        })
+    ));
+    assert_eq!(rec.replay().to_bytes(), before);
+    rec.leave(slot(1)).unwrap();
+    rec.join(slot(2)).unwrap();
+    assert_eq!(
+        rec.choose(slot(1), 0).unwrap_err(),
+        RunReplayError::BadInputs("a player outside the party")
+    );
+    assert_eq!(
+        rec.picks(&[None, Some(0), None]).unwrap_err(),
+        RunReplayError::BadInputs("a step of picks holds a pick")
+    );
+}
+
+#[test]
+fn the_recorder_stops_at_sixty_four_changes() {
+    let mut rec = RunRecorder::start(&trial_setup()).unwrap();
+    for _ in 0..32 {
+        rec.join(slot(1)).unwrap();
+        rec.leave(slot(1)).unwrap();
+    }
+    assert_eq!(
+        rec.join(slot(1)).unwrap_err(),
+        RunReplayError::BadInputs("more joins and leaves than the cap")
+    );
+}

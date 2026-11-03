@@ -8,8 +8,10 @@
 //! 3-byte block (`flags`, `move_x`, `move_y`) per present slot in slot order, repeated for `run`
 //! world ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: one step that does not
 //! advance the world, one byte per present slot (`0x00` no pick, `0x01` and a varint index), at
-//! least one pick. `0x02` JOIN and `0x03` LEAVE are reserved for the per-player model and
-//! refused. The runs sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
+//! least one pick. `0x02 <slot>` JOIN and `0x03 <slot>` LEAVE change the presence mask between
+//! two records (before the first, after the last): the records after one hold a block per slot
+//! of the mask in force; slot 0 never leaves; at most `MAX_PRESENCE_CHANGES` of them. The runs
+//! sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
 
 use crate::input::Input;
 use crate::replay::{block_of, input_of_block, read_varint, write_varint};
@@ -19,6 +21,10 @@ const TICKS: u8 = 0;
 const PICKS: u8 = 1;
 const JOIN: u8 = 2;
 const LEAVE: u8 = 3;
+
+/// The most JOIN and LEAVE records a log holds: a guard against a crafted file, as
+/// `MAX_COMMANDS` is for PICKS. No measure of real use exists yet.
+pub(crate) const MAX_PRESENCE_CHANGES: u32 = 64;
 
 /// The run's steps, in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +40,10 @@ pub(crate) enum Record {
     Ticks { run: u32, inputs: Vec<Input> },
     /// One step that does not advance the world: the pick of each present slot, if any.
     Picks { picks: Vec<Option<u32>> },
+    /// Slot `slot` (1 or 2) joins before the next record.
+    Join { slot: u8 },
+    /// Slot `slot` (1 or 2) leaves before the next record.
+    Leave { slot: u8 },
 }
 
 impl StepLog {
@@ -71,6 +81,8 @@ impl StepLog {
                         out.extend(block_of(input));
                     }
                 }
+                Record::Join { slot } => out.extend([JOIN, *slot]),
+                Record::Leave { slot } => out.extend([LEAVE, *slot]),
                 Record::Picks { picks } => {
                     out.push(PICKS);
                     for pick in picks {
@@ -134,6 +146,22 @@ impl StepLog {
             .then(|| u8::try_from(present.count_ones()).unwrap_or(u8::MAX))
     }
 
+    /// Whether the log holds a JOIN or a LEAVE.
+    pub(crate) fn has_changes(&self) -> bool {
+        self.records
+            .iter()
+            .any(|r| matches!(r, Record::Join { .. } | Record::Leave { .. }))
+    }
+
+    /// The presence mask after the last JOIN or LEAVE of the schema 2 `bytes` of a replay of
+    /// `ticks` world ticks, or the `present` byte when there is none; `None` for bytes the
+    /// scanner refuses. The savepoint's light read of a prefix: the scanner is the one decoder.
+    pub(crate) fn presence_at_end(bytes: &[u8], ticks: u32) -> Option<u8> {
+        let mut sink = LastMask { mask: 0 };
+        scan(bytes, ticks, ticks, &mut sink).ok()?;
+        Some(sink.mask)
+    }
+
     /// The number of PICKS records, the unit `MAX_COMMANDS` counts.
     pub(crate) fn picks_made(&self) -> u32 {
         let n = self
@@ -159,9 +187,9 @@ impl StepLog {
                         records.push(Record::Ticks { run: take, inputs });
                     }
                 }
-                Record::Picks { picks } => {
+                Record::Picks { .. } | Record::Join { .. } | Record::Leave { .. } => {
                     if world <= ticks {
-                        records.push(Record::Picks { picks });
+                        records.push(record);
                     }
                 }
             }
@@ -175,7 +203,7 @@ impl StepLog {
     /// The solo commands of a log without expanding its inputs: a run of `run` ticks only moves
     /// the tick count, so a hostile `run` allocates nothing here.
     pub(crate) fn solo_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
-        if self.present != 0b1 {
+        if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
         let mut tick = 0u32;
@@ -183,6 +211,7 @@ impl StepLog {
         for record in &self.records {
             match record {
                 Record::Ticks { run, .. } => tick = tick.saturating_add(*run),
+                Record::Join { .. } | Record::Leave { .. } => {}
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -200,7 +229,7 @@ impl StepLog {
     /// The solo inputs and commands of a log, the inverse of `from_schema1`: only a party of
     /// one.
     pub(crate) fn to_solo(&self) -> Result<(Vec<Input>, Vec<TickCommand>), RunReplayError> {
-        if self.present != 0b1 {
+        if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
         let mut inputs = Vec::new();
@@ -210,6 +239,7 @@ impl StepLog {
                 Record::Ticks { run, inputs: held } => {
                     inputs.extend(std::iter::repeat_n(held[0], *run as usize));
                 }
+                Record::Join { .. } | Record::Leave { .. } => {}
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -232,6 +262,10 @@ pub enum RangeStep {
     Ticks { run: u32, inputs: Vec<Input> },
     /// One step that does not advance the world: the pick of each present slot, if any.
     Picks { picks: Vec<Option<u32>> },
+    /// Slot `slot` joins before the next step.
+    Join { slot: u8 },
+    /// Slot `slot` leaves before the next step.
+    Leave { slot: u8 },
 }
 
 /// The steps of world ticks `first..end` of a step log.
@@ -239,6 +273,10 @@ pub enum RangeStep {
 pub struct StepRange {
     /// Bit `i` set when player slot `i` is present at tick 0 (the log's, not the range's).
     pub present: u8,
+    /// The mask after every join and leave before world tick `first`: the party a re-simulation
+    /// from the state after `first` ticks holds. A TICKS or PICKS step in `steps` is dense for
+    /// the mask in force at that point, this one changed by each Join and Leave before it.
+    pub present_at_first: u8,
     pub first: u32,
     pub end: u32,
     pub steps: Vec<RangeStep>,
@@ -251,8 +289,9 @@ pub struct StepRange {
 /// - A TICKS run that overlaps the range is returned once, clipped to its overlap: a run is
 ///   never split into ticks and never expanded, so the memory is bounded by the records in the
 ///   range, not by `ticks`, `a`, `b` or a claimed run.
-/// - A PICKS step after `p` world ticks goes with the tick after it: it is in the range iff
-///   `a <= p < b`; a range with `b == ticks` also holds the picks after the last tick. An empty
+/// - A PICKS step, a JOIN or a LEAVE after `p` world ticks goes with the tick after it: it is in
+///   the range iff `a <= p < b`; a range with `b == ticks` also holds those after the last
+///   tick. An empty
 ///   range (`a == b`) holds no step. The picks at `p == a` are therefore in the range, which is
 ///   what a re-simulation from the state after `a` ticks needs.
 /// - The whole log is validated with the full decoder's checks, so a damaged log is refused
@@ -287,6 +326,7 @@ struct RangeSink {
     a: u32,
     b: u32,
     steps: Vec<RangeStep>,
+    mask_at_first: u8,
 }
 
 impl RangeSink {
@@ -296,12 +336,28 @@ impl RangeSink {
             a,
             b,
             steps: Vec::new(),
+            mask_at_first: 0,
+        }
+    }
+
+    fn inside(&self, at: u32) -> bool {
+        (self.a <= at && at < self.b)
+            || (self.a < self.b && self.b == self.ticks && at == self.ticks)
+    }
+
+    fn change(&mut self, at: u32, mask: u8, step: RangeStep) {
+        if at < self.a {
+            self.mask_at_first = mask;
+        }
+        if self.inside(at) {
+            self.steps.push(step);
         }
     }
 
     fn finish(self, present: u8) -> StepRange {
         StepRange {
             present,
+            present_at_first: self.mask_at_first,
             first: self.a,
             end: self.b,
             steps: self.steps,
@@ -310,6 +366,18 @@ impl RangeSink {
 }
 
 impl Sink for RangeSink {
+    fn start(&mut self, present: u8) {
+        self.mask_at_first = present;
+    }
+
+    fn join(&mut self, at: u32, slot: u8, mask: u8) {
+        self.change(at, mask, RangeStep::Join { slot });
+    }
+
+    fn leave(&mut self, at: u32, slot: u8, mask: u8) {
+        self.change(at, mask, RangeStep::Leave { slot });
+    }
+
     fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]) {
         let from = start.max(self.a);
         let to = (start + run).min(self.b);
@@ -322,9 +390,7 @@ impl Sink for RangeSink {
     }
 
     fn picks(&mut self, at: u32, picks: &[Option<u32>]) {
-        let inside = (self.a <= at && at < self.b)
-            || (self.a < self.b && self.b == self.ticks && at == self.ticks);
-        if inside {
+        if self.inside(at) {
             self.steps.push(RangeStep::Picks {
                 picks: picks.to_vec(),
             });
@@ -338,13 +404,23 @@ impl StepLog {
     pub(crate) fn range(&self, a: u32, b: u32) -> Result<StepRange, RunReplayError> {
         let ticks = self.records.iter().fold(0u32, |t, r| match r {
             Record::Ticks { run, .. } => t.saturating_add(*run),
-            Record::Picks { .. } => t,
+            _ => t,
         });
         check_range(ticks, a, b)?;
         let mut sink = RangeSink::new(ticks, a, b);
+        sink.start(self.present);
+        let mut mask = self.present;
         let mut world = 0u32;
         for record in &self.records {
             match record {
+                Record::Join { slot } => {
+                    mask |= 1 << slot;
+                    sink.join(world, *slot, mask);
+                }
+                Record::Leave { slot } => {
+                    mask &= !(1 << slot);
+                    sink.leave(world, *slot, mask);
+                }
                 Record::Ticks { run, inputs } => {
                     sink.ticks(world, *run, inputs);
                     world += run;
@@ -358,6 +434,12 @@ impl StepLog {
 
 /// What the scanner reports for each record, by reference: nothing is allocated for it.
 trait Sink {
+    /// The `present` byte, before any record.
+    fn start(&mut self, _present: u8) {}
+    /// Slot `slot` joined after `at` world ticks; `mask` is the party after it.
+    fn join(&mut self, _at: u32, _slot: u8, _mask: u8) {}
+    /// Slot `slot` left after `at` world ticks; `mask` is the party after it.
+    fn leave(&mut self, _at: u32, _slot: u8, _mask: u8) {}
     /// `run` world ticks from world tick `start`, with one input per present slot.
     fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]);
     /// One PICKS step after `at` world ticks.
@@ -369,7 +451,34 @@ struct Collect {
     records: Vec<Record>,
 }
 
+/// The sink of `presence_at_end`: the mask after the last change.
+struct LastMask {
+    mask: u8,
+}
+
+impl Sink for LastMask {
+    fn start(&mut self, present: u8) {
+        self.mask = present;
+    }
+    fn join(&mut self, _at: u32, _slot: u8, mask: u8) {
+        self.mask = mask;
+    }
+    fn leave(&mut self, _at: u32, _slot: u8, mask: u8) {
+        self.mask = mask;
+    }
+    fn ticks(&mut self, _start: u32, _run: u32, _inputs: &[Input]) {}
+    fn picks(&mut self, _at: u32, _picks: &[Option<u32>]) {}
+}
+
 impl Sink for Collect {
+    fn join(&mut self, _at: u32, slot: u8, _mask: u8) {
+        self.records.push(Record::Join { slot });
+    }
+
+    fn leave(&mut self, _at: u32, slot: u8, _mask: u8) {
+        self.records.push(Record::Leave { slot });
+    }
+
     fn ticks(&mut self, _start: u32, run: u32, inputs: &[Input]) {
         self.records.push(Record::Ticks {
             run,
@@ -409,7 +518,10 @@ fn scan(
     if present & !0b111 != 0 {
         return Err(bad("a player slot beyond the party"));
     }
-    let players = StepLog::players(present);
+    sink.start(present);
+    let mut mask = present;
+    let mut changes = 0u32;
+    let mut players = StepLog::players(mask);
     let mut pos = 1;
     let mut world = 0u32;
     let mut picks_seen = 0u32;
@@ -470,7 +582,36 @@ fn scan(
                 sink.picks(world, &picks);
                 after_ticks = false;
             }
-            JOIN | LEAVE => return Err(bad("a join or leave this build cannot run")),
+            JOIN | LEAVE => {
+                let slot = *bytes.get(pos).ok_or(cut.clone())?;
+                pos += 1;
+                if slot >= crate::id::MAX_PLAYERS {
+                    return Err(bad("a slot beyond the party"));
+                }
+                let bit = 1u8 << slot;
+                if opcode == JOIN && mask & bit != 0 {
+                    return Err(bad("a join of a slot that is present"));
+                }
+                if opcode == LEAVE && slot == 0 {
+                    return Err(bad("slot 0 never leaves"));
+                }
+                if opcode == LEAVE && mask & bit == 0 {
+                    return Err(bad("a leave of a slot that is not present"));
+                }
+                if changes >= MAX_PRESENCE_CHANGES {
+                    return Err(bad("more joins and leaves than the cap"));
+                }
+                changes += 1;
+                if opcode == JOIN {
+                    mask |= bit;
+                    sink.join(world, slot, mask);
+                } else {
+                    mask &= !bit;
+                    sink.leave(world, slot, mask);
+                }
+                players = StepLog::players(mask);
+                after_ticks = false;
+            }
             _ => return Err(bad("an unknown record")),
         }
     }
@@ -605,8 +746,8 @@ mod tests {
             ("09 00 01 00 00 00", 1, "a player slot beyond the party"),
             ("01 00 01 80 00 00", 1, "a run has unknown flags"),
             ("01 07 01 00 00 00", 1, "an unknown record"),
-            ("01 02 00", 0, "a join or leave this build cannot run"),
-            ("01 03 00", 0, "a join or leave this build cannot run"),
+            ("01 02 00", 0, "a join of a slot that is present"),
+            ("01 03 00", 0, "slot 0 never leaves"),
             ("01 00 00 00 00 00", 0, "a run has length 0"),
             (
                 "01 00 01 00 00 00 00 01 00 00 00",
@@ -869,7 +1010,7 @@ mod tests {
             .iter_mut()
             .find_map(|r| match r {
                 Record::Picks { picks } => Some(picks),
-                Record::Ticks { .. } => None,
+                _ => None,
             })
             .unwrap();
         first[0] = Some(999);
@@ -1086,6 +1227,9 @@ mod tests {
                         out.push(Entry::Picks(picks.clone()));
                     }
                 }
+                Record::Join { .. } | Record::Leave { .. } => {
+                    unreachable!("these logs hold no join or leave")
+                }
             }
         }
         out
@@ -1101,6 +1245,9 @@ mod tests {
                     }
                 }
                 RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
+                RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                    unreachable!("these logs hold no join or leave")
+                }
             }
         }
         out
@@ -1327,9 +1474,204 @@ mod tests {
                     Record::Picks { picks } => RangeStep::Picks {
                         picks: picks.clone(),
                     },
+                    Record::Join { slot } => RangeStep::Join { slot: *slot },
+                    Record::Leave { slot } => RangeStep::Leave { slot: *slot },
                 })
                 .collect();
             assert_eq!(got.steps, want, "{name}");
         }
+    }
+
+    // --- Join and leave --------------------------------------------------------------------
+
+    fn rec_ticks(run: u32, inputs: Vec<Input>) -> Record {
+        Record::Ticks { run, inputs }
+    }
+
+    #[test]
+    fn a_join_and_a_leave_decode_and_encode_back() {
+        let d = Input::default();
+        let bytes = "01 00 01 02 00 00 02 01 00 02 02 00 00 00 00 00";
+        let log = decode(bytes, 3).unwrap();
+        assert_eq!(
+            log.records,
+            vec![
+                rec_ticks(1, vec![main_held()]),
+                Record::Join { slot: 1 },
+                rec_ticks(2, vec![main_held(), d]),
+            ]
+        );
+        assert_eq!(log.encode(), hex(bytes));
+        let bytes = "03 00 03 02 00 00 00 00 00 03 01";
+        let log = decode(bytes, 3).unwrap();
+        assert_eq!(
+            log.records,
+            vec![
+                rec_ticks(3, vec![main_held(), d]),
+                Record::Leave { slot: 1 }
+            ]
+        );
+        assert_eq!(log.encode(), hex(bytes));
+        let bytes = "07 03 01 00 01 02 00 00 00 00 00";
+        let log = decode(bytes, 1).unwrap();
+        assert_eq!(
+            log.records,
+            vec![
+                Record::Leave { slot: 1 },
+                rec_ticks(1, vec![main_held(), d])
+            ]
+        );
+        assert_eq!(log.encode(), hex(bytes));
+    }
+
+    #[test]
+    fn a_change_is_refused_with_its_message() {
+        let cases: [(&str, u32, &str); 11] = [
+            ("01 02 01 02 01", 0, "a join of a slot that is present"),
+            ("01 02 03", 0, "a slot beyond the party"),
+            ("01 03 01", 0, "a leave of a slot that is not present"),
+            ("03 03 00", 0, "slot 0 never leaves"),
+            ("07 03 01 03 01", 0, "a leave of a slot that is not present"),
+            ("01 02", 0, "ends in the middle of a record"),
+            ("01 03", 0, "ends in the middle of a record"),
+            (
+                "01 02 01 00 01 00 00 00",
+                1,
+                "ends in the middle of a record",
+            ),
+            ("01 04 00", 0, "an unknown record"),
+            ("01 02 00", 0, "a join of a slot that is present"),
+            (
+                "03 00 01 02 00 00 00 00 00 00 01 02 00 00 00 00 00",
+                2,
+                "a run repeats the input of the run before",
+            ),
+        ];
+        for (bytes, ticks, why) in cases {
+            assert_eq!(bad_inputs(bytes, ticks), why, "{bytes}");
+        }
+    }
+
+    #[test]
+    fn the_cap_on_changes_is_sixty_four() {
+        let pairs = |n: usize| {
+            let mut text = String::from("01");
+            for _ in 0..n {
+                text.push_str(" 02 01 03 01");
+            }
+            text
+        };
+        assert!(decode(&pairs(32), 0).is_ok());
+        let over = format!("{} 02 01", pairs(32));
+        assert_eq!(bad_inputs(&over, 0), "more joins and leaves than the cap");
+    }
+
+    #[test]
+    fn a_change_resets_the_run_repeat_check() {
+        let same = "03 00 01 02 00 00 00 00 00 03 01 02 01 00 01 02 00 00 00 00 00";
+        assert!(decode(same, 2).is_ok());
+    }
+
+    #[test]
+    fn a_log_with_a_change_has_no_solo_view() {
+        let log = decode("01 00 01 02 00 00 02 01", 1).unwrap();
+        assert_eq!(
+            log.to_solo().unwrap_err(),
+            RunReplayError::BadInputs("a party has no solo view")
+        );
+        assert_eq!(
+            log.solo_commands().unwrap_err(),
+            RunReplayError::BadInputs("a party has no solo view")
+        );
+    }
+
+    #[test]
+    fn a_prefix_keeps_a_change_while_the_world_has_not_passed_it() {
+        let m = main_held();
+        let log = StepLog {
+            present: 1,
+            records: vec![
+                rec_ticks(3, vec![m]),
+                Record::Join { slot: 1 },
+                rec_ticks(3, vec![m, Input::default()]),
+            ],
+        };
+        let p3 = log.clone().prefix(3);
+        assert_eq!(p3.records, log.records[..2].to_vec());
+        let p4 = log.clone().prefix(4);
+        assert_eq!(p4.records.len(), 3);
+        assert_eq!(p4.records[2], rec_ticks(1, vec![m, Input::default()]));
+        assert_eq!(log.prefix(2).records, vec![rec_ticks(2, vec![m])]);
+    }
+
+    fn range_of(bytes: &str, ticks: u32, a: u32, b: u32) -> StepRange {
+        let got = read_step_range(&hex(bytes), ticks, 1_000_000, a, b).unwrap();
+        let log = decode(bytes, ticks).unwrap();
+        assert_eq!(log.range(a, b).unwrap(), got, "{bytes} {a}..{b}");
+        got
+    }
+
+    #[test]
+    fn the_range_reader_carries_the_changes() {
+        let m = main_held();
+        let d = Input::default();
+        // Three solo ticks, a join, three ticks of two.
+        let bytes = "01 00 03 02 00 00 02 01 00 03 02 00 00 00 00 00";
+        let r = range_of(bytes, 6, 0, 6);
+        assert_eq!(
+            r.steps,
+            vec![
+                RangeStep::Ticks {
+                    run: 3,
+                    inputs: vec![m]
+                },
+                RangeStep::Join { slot: 1 },
+                RangeStep::Ticks {
+                    run: 3,
+                    inputs: vec![m, d]
+                },
+            ]
+        );
+        assert_eq!(r.present_at_first, 0b1);
+        let r = range_of(bytes, 6, 3, 6);
+        assert_eq!(r.steps[0], RangeStep::Join { slot: 1 });
+        assert_eq!(r.steps.len(), 2);
+        assert_eq!(r.present_at_first, 0b1);
+        let r = range_of(bytes, 6, 4, 6);
+        assert_eq!(
+            r.steps,
+            vec![RangeStep::Ticks {
+                run: 2,
+                inputs: vec![m, d]
+            }]
+        );
+        assert_eq!(r.present_at_first, 0b11);
+        let r = range_of(bytes, 6, 0, 3);
+        assert_eq!(
+            r.steps,
+            vec![RangeStep::Ticks {
+                run: 3,
+                inputs: vec![m]
+            }]
+        );
+        assert!(range_of(bytes, 6, 3, 3).steps.is_empty());
+        let r = range_of(bytes, 6, 6, 6);
+        assert!(r.steps.is_empty());
+        assert_eq!(r.present_at_first, 0b11);
+        let leave = "03 00 03 02 00 00 00 00 00 03 01";
+        let r = range_of(leave, 3, 0, 3);
+        assert_eq!(r.steps.len(), 2);
+        assert_eq!(r.steps[1], RangeStep::Leave { slot: 1 });
+        assert!(range_of(leave, 3, 3, 3).steps.is_empty());
+    }
+
+    #[test]
+    fn the_mask_at_the_end_of_a_prefix() {
+        let at = |text: &str, ticks| StepLog::presence_at_end(&hex(text), ticks);
+        assert_eq!(at("07 03 01", 0), Some(0b101));
+        assert_eq!(at("07 03 01 00 01 02 00 00 00 00 00", 1), Some(0b101));
+        assert_eq!(at("01 02 01", 0), Some(0b011));
+        assert_eq!(at("01 02 00", 0), None);
+        assert_eq!(at("", 0), None);
     }
 }
