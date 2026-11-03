@@ -138,7 +138,7 @@ fn the_event_scan_finds_a_live_import() {
     assert_eq!(live_event_lines("a\nuse crate::{\n  event,\n};"), [2]);
 }
 
-/// The frozen rules own the events they emit (ADR-REPL-13 point 3, ADR-REPL-13 points 1 to 3): a change
+/// The frozen rules own the events they emit (ADR-REPL-13 points 1 to 3): a change
 /// to the live event edits `engine/v1_events.rs`, never `sim_v1`.
 #[test]
 fn sim_v1_imports_nothing_from_the_live_event() {

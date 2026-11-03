@@ -1,5 +1,5 @@
 //! Turns the events of the frozen rules of `sim_version` 1 into the live `DomainEvent`
-//! (ADR-REPL-13 point 3, ADR-REPL-13 points 1 to 4). A change to the live event edits this file
+//! (ADR-REPL-13 points 1 to 4). A change to the live event edits this file
 //! and never `sim_v1`. The match is exhaustive and moves every field by name; the fields the
 //! live type gained for players are `None`, since version 1 names no player.
 
