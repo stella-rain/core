@@ -4,7 +4,7 @@ Deterministic simulation core for **Stella Rain**, an action shooter for phones 
 Pure Rust with no Godot dependency: fixed-tick simulation, stage and replay schemas,
 and the `stage-verify` CLI that proves a stage can be cleared.
 
-Architecture decisions are recorded in the app repository (ADR-003, ADR-004, ADR-009, ADR-029).
+Architecture decisions are recorded in the app repository (ADR-BRDG-10, ADR-SIM-15, ADR-REPL-17, ADR-REL-10).
 
 ## How a release reaches the content repository
 
