@@ -75,7 +75,7 @@ pub(super) fn act(
             continue;
         };
         o.cooldown_left = o.cooldown_left.saturating_sub(1);
-        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, me.id(), slot(k, j)));
+        let attacking = (0..MAX_ORBS).any(|j| attacks::busy(s, s.players.id(me), slot(k, j)));
         if o.cooldown_left == 0 && !attacking {
             let damage = levels::attack(s, me, stage.player.atk);
             let strike = attacks::Strike {
@@ -102,8 +102,9 @@ pub(super) fn act(
             o.cooldown_left = def.cooldown_ticks;
         }
         let first = slot(k, 0);
+        let mine = s.players.id(me);
         for r in s.runs.iter_mut() {
-            if r.owner == me.id() && (first..first + MAX_ORBS).contains(&r.slot) {
+            if r.owner == mine && (first..first + MAX_ORBS).contains(&r.slot) {
                 r.facing = facing(o.angle, r.slot - first, o.round);
             }
         }

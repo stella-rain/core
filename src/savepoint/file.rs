@@ -53,9 +53,10 @@ use crate::version::{
 use super::{decode_state, encode_state};
 
 /// The version of the savepoint file layout. A change to the encoding bumps it, and the golden
-/// test refuses a change that does not. Format 2 holds the party (a presence byte and a block per
-/// player, no entity-number gap) and the player stats record; format 1 files are refused.
-pub const SAVEPOINT_FORMAT: u32 = 2;
+/// test refuses a change that does not. Format 3 holds the party (a presence byte, the three
+/// slot generations and a block per player, no entity-number gap) and the player stats record;
+/// format 2 and format 1 files are refused.
+pub const SAVEPOINT_FORMAT: u32 = 3;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.
@@ -405,7 +406,7 @@ mod tests {
         let bytes = sample().to_bytes();
         assert_eq!(bytes.len(), HEADER_LEN + 3);
         assert_eq!(&bytes[0..4], b"SRSV");
-        assert_eq!(&bytes[4..8], &2u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &3u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &SIM_VERSION.to_le_bytes());
         assert_eq!(&bytes[12..16], &SCHEMA_VERSION.to_le_bytes());
         assert_eq!(&bytes[16..48], &[0xA1; 32]);

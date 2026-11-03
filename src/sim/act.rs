@@ -133,7 +133,7 @@ pub(super) fn cast(
                 events.push(DomainEvent::Healed {
                     target: s.id_of(target),
                     amount: healed,
-                    source: s.players.owner_of(source).map(crate::id::PlayerIdx::id),
+                    source: s.players.of_id(source).map(|i| s.players.id(i)),
                 });
                 s.raise_aggro(
                     source,

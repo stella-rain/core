@@ -316,6 +316,9 @@ impl fmt::Display for RunReplayError {
                     f,
                     "tick {tick}: a run of sim_version 1 has one player for good"
                 ),
+                PresenceError::Exhausted { slot } => {
+                    write!(f, "tick {tick}: slot {} has left 255 times", slot.get())
+                }
             },
             RunReplayError::InputsAfterEnd { ended_at } => {
                 write!(

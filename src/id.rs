@@ -101,15 +101,26 @@ mod tests {
     }
 }
 
-// In the live rules the numbers 0 to 2 are the player slots, present or not (ADR-SIM-21), and
-// the boss, the companions and the enemies are numbered from 3. A plain comment: a doc comment
-// on this type is part of the generated schema.
+// In the live rules a player's number is `generation << GENERATION_SHIFT | slot` (ADR-SIM-21):
+// the slots are 0 to 2, present or not, and a slot's generation grows each time it leaves, so a
+// new occupant never matches what the leaver owned. The boss, the companions and the enemies
+// are numbered from 3, below `1 << GENERATION_SHIFT`. A plain comment: a doc comment on this
+// type is part of the generated schema.
 /// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-18).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(transparent)]
 pub struct EntityId(pub u32);
+
+/// Where a player number holds its generation: `generation << GENERATION_SHIFT | slot`. Every
+/// other entity is numbered below `1 << GENERATION_SHIFT` (`MAX_ENTITY_NUMBER`).
+pub(crate) const GENERATION_SHIFT: u32 = 24;
+
+/// The first number only a rejoined player has. Enemies and heal drops stop short of it, a
+/// savepoint with a `next_id` at or past it is refused, and a run's other spawns (stars, boss
+/// parts, companions) are far fewer than the caps allow, so `player_of` never reads one as a player.
+pub(crate) const MAX_ENTITY_NUMBER: u32 = 1 << GENERATION_SHIFT;
 
 /// The most players a run holds (ADR-SIM-21 point 1). A code cap, not a tuning number.
 pub const MAX_PLAYERS: u8 = 3;
@@ -126,10 +137,9 @@ pub(crate) fn id_gap(party: usize) -> u32 {
 /// the simulation, not an encoding: the hash and the savepoint write entity numbers as they are.
 #[inline]
 pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
-    if id.0 < u32::from(MAX_PLAYERS) {
-        id.0
-    } else {
-        id.0 - gap
+    match player_of(id) {
+        Some((slot, _)) => slot as u32,
+        None => id.0 - gap,
     }
 }
 
@@ -162,10 +172,17 @@ impl PlayerIdx {
         self as usize
     }
 
-    /// The entity ID of this player.
+    /// The entity ID of this slot's first occupant (generation 0). The rules read the number of
+    /// the occupant now through `Players::id`.
     #[inline]
     pub fn id(self) -> EntityId {
-        EntityId(self as u32)
+        self.id_at(0)
+    }
+
+    /// The entity ID of this slot's occupant of `generation`.
+    #[inline]
+    pub(crate) fn id_at(self, generation: u8) -> EntityId {
+        EntityId(u32::from(generation) << GENERATION_SHIFT | self as u32)
     }
 
     /// The player that entity `id` is, in a party of `party` players.
@@ -178,17 +195,15 @@ impl PlayerIdx {
             _ => None,
         }
     }
+}
 
-    /// The player that entity `id` is, in the party whose slots are the bits of `mask`: a
-    /// bit test, not a count, so a hole (`0b101`) finds slot 2 and misses slot 1.
-    #[inline]
-    pub(crate) fn of_mask(id: EntityId, mask: u8) -> Option<PlayerIdx> {
-        if id.0 < u32::from(MAX_PLAYERS) && mask >> id.0 & 1 == 1 {
-            u8::try_from(id.0).ok().and_then(PlayerIdx::new)
-        } else {
-            None
-        }
-    }
+/// The slot and the generation a player's entity number names, or `None` for any other entity.
+#[inline]
+pub(crate) fn player_of(id: EntityId) -> Option<(PlayerIdx, u8)> {
+    let slot = u8::try_from(id.0 & (MAX_ENTITY_NUMBER - 1))
+        .ok()
+        .and_then(PlayerIdx::new)?;
+    Some((slot, (id.0 >> GENERATION_SHIFT) as u8))
 }
 
 #[cfg(test)]
@@ -198,17 +213,10 @@ mod gap_tests {
     use super::*;
 
     #[test]
-    fn of_mask_follows_the_slots_present() {
-        assert_eq!(
-            PlayerIdx::of_mask(EntityId(2), 0b101),
-            Some(PlayerIdx::Third)
-        );
-        assert_eq!(PlayerIdx::of_mask(EntityId(1), 0b101), None);
-        assert_eq!(PlayerIdx::of_mask(EntityId(3), 0b111), None);
-        assert_eq!(
-            PlayerIdx::of_mask(EntityId(0), 0b001),
-            Some(PlayerIdx::First)
-        );
+    fn a_player_number_names_its_slot() {
+        assert_eq!(player_of(EntityId(2)), Some((PlayerIdx::Third, 0)));
+        assert_eq!(player_of(EntityId(0)), Some((PlayerIdx::First, 0)));
+        assert_eq!(player_of(EntityId(3)), None);
     }
 
     #[test]
@@ -232,5 +240,41 @@ mod gap_tests {
         assert_eq!(id_gap(1), 2);
         assert_eq!(id_gap(2), 1);
         assert_eq!(id_gap(3), 0);
+    }
+}
+
+#[cfg(test)]
+mod generation_tests {
+    use super::*;
+
+    #[test]
+    fn the_first_occupant_keeps_the_slots_number() {
+        for i in 0..MAX_PLAYERS {
+            let me = PlayerIdx::new(i).unwrap();
+            assert_eq!(me.id_at(0), me.id());
+            assert_eq!(me.id(), EntityId(u32::from(i)));
+        }
+    }
+
+    #[test]
+    fn a_number_names_its_slot_and_generation() {
+        for g in [0, 1, 255] {
+            let me = PlayerIdx::Second;
+            assert_eq!(player_of(me.id_at(g)), Some((me, g)));
+        }
+        assert_eq!(player_of(EntityId(3)), None);
+        assert_eq!(player_of(EntityId(MAX_ENTITY_NUMBER - 1)), None);
+        assert_eq!(player_of(EntityId(1 << GENERATION_SHIFT | 3)), None);
+    }
+
+    #[test]
+    fn a_player_of_any_generation_maps_to_its_slot_and_the_rest_down_by_the_gap() {
+        for gap in 0..=2 {
+            for g in [0, 1, 255] {
+                assert_eq!(to_compact(PlayerIdx::Third.id_at(g), gap), 2);
+            }
+        }
+        assert_eq!(to_compact(EntityId(3), 2), 1);
+        assert_eq!(to_compact(EntityId(4), 2), 2);
     }
 }

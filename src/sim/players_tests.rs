@@ -1040,18 +1040,18 @@ mod route {
     }
 
     #[test]
-    fn owner_of_names_the_present_slot_of_an_entity_number() {
+    fn of_id_names_the_present_slot_of_an_entity_number() {
         let e = worst_case::warmed_up();
         let ps = ps(&e);
         let p = Players::with_mask(0b011, ps.clone());
-        assert_eq!(p.owner_of(EntityId(0)), Some(PlayerIdx::SOLO));
-        assert_eq!(p.owner_of(EntityId(1)), Some(slot(1)));
-        assert_eq!(p.owner_of(EntityId(2)), None);
+        assert_eq!(p.of_id(EntityId(0)), Some(PlayerIdx::SOLO));
+        assert_eq!(p.of_id(EntityId(1)), Some(slot(1)));
+        assert_eq!(p.of_id(EntityId(2)), None);
         let hole = Players::with_mask(0b101, ps);
-        assert_eq!(hole.owner_of(EntityId(1)), None);
-        assert_eq!(hole.owner_of(EntityId(2)), Some(slot(2)));
-        assert_eq!(hole.owner_of(EntityId(3)), None);
-        assert_eq!(hole.owner_of(EntityId(900)), None);
+        assert_eq!(hole.of_id(EntityId(1)), None);
+        assert_eq!(hole.of_id(EntityId(2)), Some(slot(2)));
+        assert_eq!(hole.of_id(EntityId(3)), None);
+        assert_eq!(hole.of_id(EntityId(900)), None);
     }
 
     #[test]

@@ -1075,6 +1075,11 @@ impl State {
         // The presence byte (bit `i` is slot `i`, as in the step log's byte 0), then the block of
         // each present player, ascending. Absent slots write nothing.
         h.write_u8(players.mask());
+        // The generation of every slot, present or not: an absent slot's next occupant depends
+        // on it.
+        for g in players.generations() {
+            h.write_u8(g);
+        }
         for me in players.indices() {
             debug_assert_eq!(stars.is_some(), players.career(me).offers.is_some());
             hash_player(players, me, h);

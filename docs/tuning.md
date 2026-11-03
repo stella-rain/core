@@ -39,6 +39,7 @@
 | `MAX_DIFFICULTIES` | 8 | difficulties | ADR-CONT-11 |
 | `MAX_PCT` | 1000 | percent | ADR-CONT-11 |
 | `MAX_COMMANDS` | 1000 | commands | ADR-REPL-16 |
+| `MAX_PRESENCE_CHANGES` | 64 | changes | ADR-REPL-16 |
 | `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-7 |
 | `MAX_SETUP_BYTES` | 4096 | bytes | ADR-SVC-7 |
 | `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-REPL-16 |

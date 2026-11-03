@@ -647,3 +647,47 @@ fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
         assert_eq!(rec.replay().to_bytes(), replay.to_bytes(), "{}", case.name);
     }
 }
+
+// D. A slot that leaves and joins with no step between.
+
+#[test]
+fn a_leave_and_a_join_of_one_slot_with_no_step_between_record_and_verify() {
+    let mut rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
+    for t in 0..3 {
+        step_party(&mut rec, 2, t);
+    }
+    rec.leave(PlayerIdx::new(1).unwrap()).unwrap();
+    rec.join(PlayerIdx::new(1).unwrap()).unwrap();
+    for t in 3..6 {
+        step_party(&mut rec, 2, t);
+    }
+    let verified = verify_run(&rec.replay().to_bytes()).unwrap();
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+}
+
+#[test]
+fn a_savepoint_after_a_rejoin_resumes_to_the_same_hashes() {
+    let slot1 = PlayerIdx::new(1).unwrap();
+    let mut live = RunRecorder::start_party(&trial_setup(), 2).unwrap();
+    for t in 0..120 {
+        step_party(&mut live, 2, t);
+    }
+    live.leave(slot1).unwrap();
+    live.join(slot1).unwrap();
+    for t in 120..150 {
+        step_party(&mut live, 2, t);
+    }
+    let prefix = live.replay();
+    let mut resumed = RunRecorder::resume_from_savepoint(&live.save(), &prefix, pack()).unwrap();
+    assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
+    for t in 150..300 {
+        step_party(&mut live, 2, t);
+        step_party(&mut resumed, 2, t);
+        assert_eq!(
+            resumed.engine().state_hash(),
+            live.engine().state_hash(),
+            "tick {t}"
+        );
+    }
+    assert_eq!(resumed.replay().to_bytes(), live.replay().to_bytes());
+}

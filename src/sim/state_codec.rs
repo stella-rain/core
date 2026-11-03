@@ -1860,6 +1860,9 @@ impl State {
         echoes.encode(w);
         // The presence byte, then the block of each present player in slot order, as the hash.
         w.u8(players.mask());
+        for g in players.generations() {
+            w.u8(g);
+        }
         for me in players.indices() {
             // Fail closed: the star field and each present player's offers go together.
             assert_eq!(
@@ -1904,6 +1907,12 @@ impl State {
         // The next entity number is past the player slots, whatever the bytes say.
         if state.next_id < u32::from(crate::id::MAX_PLAYERS) {
             return Err(DecodeError::Invalid("next entity id in the player slots"));
+        }
+        // ... and short of the numbers a rejoined player has (`id::MAX_ENTITY_NUMBER`).
+        if state.next_id >= crate::id::MAX_ENTITY_NUMBER {
+            return Err(DecodeError::Invalid(
+                "next entity id past the entity numbers",
+            ));
         }
         Ok(state)
     }
@@ -1963,6 +1972,11 @@ impl State {
         if mask != fresh.players.mask() {
             return Err(DecodeError::Invalid("player mask differs from the setup"));
         }
+        // A generation is state, not a check: any byte restores.
+        let mut generations = [0u8; crate::id::MAX_PLAYERS as usize];
+        for g in &mut generations {
+            *g = Decode::decode(r)?;
+        }
         let mut items = Vec::new();
         let mut careers = Vec::new();
         for _ in 0..mask.count_ones() {
@@ -1982,7 +1996,7 @@ impl State {
             }
             careers.push(career);
         }
-        state.players = Players::from_parts(mask, items, careers);
+        state.players = Players::from_parts(mask, generations, items, careers);
         if let Some(timer) = state.offer_timer.as_mut() {
             for me in state.players.indices() {
                 timer.due[me.get()] = Decode::decode(r)?;

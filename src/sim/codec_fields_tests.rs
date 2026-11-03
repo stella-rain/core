@@ -63,6 +63,8 @@ fn block(s: &State, i: PlayerIdx) -> Vec<u8> {
 
 fn tail(s: &State) -> Vec<u8> {
     let mut out = vec![s.players.mask()];
+    // The generation of every slot follows the mask, present or not.
+    out.extend(s.players.generations());
     for i in s.players.indices() {
         out.extend(block(s, i));
     }
@@ -195,6 +197,18 @@ fn a_next_id_inside_the_player_slots_is_refused_at_every_mask() {
     assert_eq!(
         decoded(&to_bytes(&s), &s).err(),
         Some(DecodeError::Invalid("next entity id in the player slots"))
+    );
+}
+
+#[test]
+fn a_next_id_among_the_players_generations_is_refused() {
+    let mut s = party(&warm(), 0b011);
+    s.next_id = crate::id::MAX_ENTITY_NUMBER;
+    assert_eq!(
+        decoded(&to_bytes(&s), &s).err(),
+        Some(DecodeError::Invalid(
+            "next entity id past the entity numbers"
+        ))
     );
 }
 

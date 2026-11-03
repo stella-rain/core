@@ -143,6 +143,8 @@ mod players_pin_tests;
 #[cfg(test)]
 mod players_tests;
 mod push;
+#[cfg(test)]
+mod rejoin_tests;
 mod runes;
 mod schedule;
 mod scratch;
@@ -1113,7 +1115,10 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     };
     let d = stage.defs.get(index);
     let def = &d.agent;
+    // Every number below `MAX_ENTITY_NUMBER` is an enemy's or a companion's; from there on a
+    // number reads as a rejoined player's, so the spawns stop (a run spawns far fewer).
     let room = count(&s.enemies) < stage.enemy_cap
+        && s.next_id < crate::id::MAX_ENTITY_NUMBER
         && (def.elite.is_none()
             || s.enemies.iter().filter(|e| e.elite.is_some()).count()
                 < usize::from(stage.elite_cap()));
@@ -1372,7 +1377,7 @@ fn damage(
     }
     let foe = !State::is_ally(target);
     // The buffer is read only in a party, and for a player's own shot (ADR-SIM-21).
-    let buffed_by = if foe && s.players.len() > 1 && s.players.owner_of(b.owner).is_some() {
+    let buffed_by = if foe && s.players.len() > 1 && s.players.of_id(b.owner).is_some() {
         buffer_of(s, me)
     } else {
         None
@@ -1387,7 +1392,7 @@ fn damage(
         rune: b.rune,
         crit,
         echo: false,
-        player: foe.then(|| me.id()),
+        player: foe.then(|| s.players.id(me)),
         buffed_by,
     });
     if dead {
@@ -1443,7 +1448,7 @@ pub(super) fn killer_of(s: &State, i: usize) -> PlayerIdx {
 /// The player that made a hit by `owner`: a companion's, or any other id, is the run's first
 /// player (the stage's companions belong to no player).
 pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
-    s.players.owner_of(owner).unwrap_or(PlayerIdx::SOLO)
+    s.players.of_id(owner).unwrap_or(PlayerIdx::SOLO)
 }
 
 /// The other player whose attack-up is on `me` and still running, if any: the one that applied
@@ -1455,9 +1460,9 @@ fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
         .iter()
         .find(|st| st.kind == state::StatusKind::AtkUp && st.remaining > 0)?;
     s.players
-        .owner_of(up.source)
+        .of_id(up.source)
         .filter(|b| *b != me)
-        .map(PlayerIdx::id)
+        .map(|b| s.players.id(b))
 }
 
 /// Whether anything can damage `target`: a shrine and a mimic in disguise are objects.
@@ -1499,7 +1504,7 @@ pub(super) fn died_event(
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
-        killer: killer.map(PlayerIdx::id),
+        killer: killer.map(|k| s.players.id(k)),
     }
 }
 

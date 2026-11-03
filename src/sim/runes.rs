@@ -77,10 +77,8 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 /// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
 /// a missile's); `None` for every other run.
 pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
-    // The entity numbers 0 to `MAX_PLAYERS` are the slots, present or not (ADR-SIM-21).
-    if r.owner.0 >= u32::from(crate::id::MAX_PLAYERS) {
-        return None;
-    }
+    // A player's number names a slot, present or not (ADR-SIM-21).
+    crate::id::player_of(r.owner)?;
     match r.slot {
         s if s >= MISSILE_SLOT => Some(Rune::HomingMissiles),
         s => Rune::ALL
@@ -262,7 +260,7 @@ pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
             // A run whose owner is no present player has nothing to fly to.
-            if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+            if let Some(me) = s.players.of_id(s.runs[i].owner) {
                 fly_one(stage, s, me, i);
             }
         }
@@ -278,7 +276,7 @@ pub(super) fn steer(stage: &World, s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+        if let Some(me) = s.players.of_id(s.runs[i].owner) {
             fly_one(stage, s, me, i);
         }
     }

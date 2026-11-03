@@ -83,7 +83,7 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-21).
+    /// The players, by slot (`Players::id` is a slot's entity number now): one now (ADR-SIM-21).
     pub players: Players,
     /// The deadlines of a timed run's open offers (ADR-SIM-21 point 4); `None` in a `stop` run.
     pub offer_timer: Option<OfferTimer>,
@@ -412,12 +412,17 @@ pub(crate) struct Players {
     careers: [Career; MAX_PLAYERS as usize],
     /// Bit `i` is set when slot `i` is in the party.
     present: u8,
+    /// The generation of each slot's current or last occupant: `leave` adds one, so the next
+    /// occupant's entity number matches nothing the leaver owned (ADR-SIM-21). Hashed and saved
+    /// for every slot, present or not.
+    generations: [u8; MAX_PLAYERS as usize],
 }
 
 #[cfg(test)]
 impl PartialEq for Players {
     fn eq(&self, other: &Players) -> bool {
         self.present == other.present
+            && self.generations == other.generations
             && self.iter().eq(other.iter())
             && self.indices().all(|i| self.career(i) == other.career(i))
     }
@@ -436,6 +441,7 @@ impl Players {
             items: [first.clone(), first.clone(), first],
             careers: Default::default(),
             present: (1u8 << n) - 1,
+            generations: [0; MAX_PLAYERS as usize],
         };
         out.careers[0] = c0.clone();
         for i in 1..n {
@@ -491,6 +497,9 @@ impl Players {
         );
         self.items[me.get()] = self.items[0].clone();
         self.careers[me.get()] = Career::default();
+        self.generations[me.get()] = self.generations[me.get()]
+            .checked_add(1)
+            .expect("a slot below generation 255");
         self.present &= !(1 << me.get());
     }
 
@@ -499,13 +508,19 @@ impl Players {
             items: [p.clone(), p.clone(), p],
             careers: [career, Career::default(), Career::default()],
             present: Self::SOLO_MASK,
+            generations: [0; MAX_PLAYERS as usize],
         }
     }
 
     /// The party `mask` from the players and careers of its present slots, in slot order (the
     /// savepoint's decode). An absent slot is filled as `solo` fills it. `mask` has slot 0 and
     /// `items` and `careers` have one entry per set bit.
-    pub(crate) fn from_parts(mask: u8, items: Vec<PlayerState>, careers: Vec<Career>) -> Players {
+    pub(crate) fn from_parts(
+        mask: u8,
+        generations: [u8; MAX_PLAYERS as usize],
+        items: Vec<PlayerState>,
+        careers: Vec<Career>,
+    ) -> Players {
         assert!(mask & Self::SOLO_MASK != 0 && mask < 1 << MAX_PLAYERS);
         assert!(items.len() == mask.count_ones() as usize && items.len() == careers.len());
         let first = items[0].clone();
@@ -514,6 +529,7 @@ impl Players {
             items: [first.clone(), first.clone(), first],
             careers: Default::default(),
             present: mask,
+            generations,
         };
         for slot in 0..MAX_PLAYERS as usize {
             if mask >> slot & 1 == 1 {
@@ -536,6 +552,7 @@ impl Players {
             items: std::array::from_fn(|_| it.next().unwrap_or_else(|| first.clone())),
             careers: Default::default(),
             present,
+            generations: [0; MAX_PLAYERS as usize],
         })
     }
 
@@ -548,6 +565,7 @@ impl Players {
             items: [p.clone(), p.clone(), p],
             careers: Default::default(),
             present: mask,
+            generations: [0; MAX_PLAYERS as usize],
         }
     }
 
@@ -598,12 +616,36 @@ impl Players {
             .filter_map(PlayerIdx::new)
     }
 
+    /// The entity number of slot `me` (ADR-SIM-21): the number its shots, hits and dots carry.
+    #[inline]
+    pub(crate) fn id(&self, me: PlayerIdx) -> EntityId {
+        me.id_at(self.generations[me.get()])
+    }
+
+    /// The generation of slot `me`'s current or last occupant.
+    #[inline]
+    pub(crate) fn generation(&self, me: PlayerIdx) -> u8 {
+        self.generations[me.get()]
+    }
+
+    /// Sets a slot's generation (tests).
+    #[cfg(test)]
+    pub(crate) fn set_generation_for_test(&mut self, me: PlayerIdx, generation: u8) {
+        self.generations[me.get()] = generation;
+    }
+
+    /// The generation of every slot, in slot order (the hash and the savepoint write them).
+    #[inline]
+    pub(crate) fn generations(&self) -> [u8; MAX_PLAYERS as usize] {
+        self.generations
+    }
+
     /// The present slot whose entity number is `id` (ADR-SIM-21): the owner of a shot, a hit or a
     /// dot a player made. `None` for a companion, an enemy or a slot not in the party.
     #[inline]
-    pub(crate) fn owner_of(&self, id: EntityId) -> Option<PlayerIdx> {
-        let me = u8::try_from(id.0).ok().and_then(PlayerIdx::new)?;
-        self.is_present(me).then_some(me)
+    pub(crate) fn of_id(&self, id: EntityId) -> Option<PlayerIdx> {
+        let (me, generation) = crate::id::player_of(id)?;
+        (self.is_present(me) && self.generations[me.get()] == generation).then_some(me)
     }
 
     /// Players 1 and up that are present, in slot order.

@@ -808,8 +808,8 @@ pub(super) fn capped_type_bonus(
 }
 
 /// Whether run `r` is the main character's combo step, A or B.
-pub(super) fn is_combo(r: &AttackRun) -> bool {
-    r.owner == PlayerIdx::SOLO.id() && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
+pub(super) fn is_combo(s: &State, r: &AttackRun) -> bool {
+    r.owner == s.players.id(PlayerIdx::SOLO) && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
@@ -847,7 +847,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
         damage_type: p.damage_type,
         breaks_charge: p.breaks_charge,
         smash: r.smash,
-        combo: is_combo(r),
+        combo: is_combo(s, r),
         age: r.age.saturating_add(elapsed),
         wait_left: 0,
         frames: Frames::from_iter([Frame::default()]),

@@ -298,7 +298,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             })
             .collect(),
         attacks: {
-            let mut runs: Vec<&AttackRun> = s.runs.iter().filter(|r| r.owner == me.id()).collect();
+            let mut runs: Vec<&AttackRun> = s
+                .runs
+                .iter()
+                .filter(|r| r.owner == s.players.id(me))
+                .collect();
             runs.sort_by_key(|r| r.slot);
             runs.into_iter().map(view).collect()
         },

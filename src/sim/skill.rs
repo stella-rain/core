@@ -185,7 +185,7 @@ fn apply(
                 s.add_status(
                     Who::Player(me),
                     kind,
-                    me.id(),
+                    s.players.id(me),
                     *value_pct,
                     *duration_ticks,
                     events,
@@ -202,11 +202,12 @@ fn apply(
                 return;
             };
             for who in within(stage, s, point, radius.0) {
-                s.add_status(who, kind, me.id(), *value_pct, *duration_ticks, events);
+                let source = s.players.id(me);
+                s.add_status(who, kind, source, *value_pct, *duration_ticks, events);
             }
         }
         SkillEffect::Attack { attack } => {
-            attacks::end_run(stage, s, me.id(), SKILL_SLOT);
+            attacks::end_run(stage, s, s.players.id(me), SKILL_SLOT);
             let strike = attacks::Strike {
                 bonus_pct: 0,
                 speed_pct: 0,
