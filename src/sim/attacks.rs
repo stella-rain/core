@@ -42,12 +42,13 @@ use crate::sim::state::PlayerIdx;
 use std::ops::Deref;
 
 use crate::attack::{
-    Anchor, AttackPhase, AttackRef, Dash, Direction, Emitter, Expr, HitBox, PhaseKind,
+    Anchor, AttackPhase, AttackRef, DamageType, Dash, Direction, Emitter, Expr, HitBox, PhaseKind,
 };
 use crate::difficulties::scale_pct;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::match_ups::MatchUps;
 use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
@@ -495,16 +496,23 @@ pub(crate) fn phase<'a>(world: &'a World, r: &AttackRun, i: usize) -> PhaseView<
     let base = &phases[i];
     PhaseView {
         base,
-        ticks: if r.speed_pct == 0 {
-            base.ticks
-        } else {
-            faster_ticks(phases, r.speed_pct, i)
-        },
+        ticks: phase_ticks(phases, r.speed_pct, i),
         widened: if r.width_pct == 0 {
             None
         } else {
             base.hit_box.as_ref().map(|h| wider_box(h, r.width_pct))
         },
+    }
+}
+
+/// The length of phase `i` of `phases` at `speed_pct` percent attack speed: its own length at
+/// 0, else `faster_ticks`.
+#[inline]
+pub(super) fn phase_ticks(phases: &[AttackPhase], speed_pct: u32, i: usize) -> u32 {
+    if speed_pct == 0 {
+        phases[i].ticks
+    } else {
+        faster_ticks(phases, speed_pct, i)
     }
 }
 
@@ -598,12 +606,10 @@ fn launch(
     let id = s.id_of(owner);
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
-    // The main character's type bonuses, each held to the content's limit, which the validator
-    // holds to the hard cap; the clamp keeps an unvalidated table there.
-    let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+    // The main character's type bonuses, held to the content's limit.
     let held = &s.players[me].type_bonus_pct;
     let type_bonus_pct = (owner == Who::Player(me) && held.iter().any(|pct| *pct > 0))
-        .then(|| Box::new(held.map(|pct| pct.min(limit))));
+        .then(|| Box::new(capped_type_bonus(&s.match_ups, held)));
     let facing = self::aim(s, s.at(owner), aim);
     let spot = uses_spot(&world.attacks[usize::from(attack.0)].phases).then(|| match aim {
         Aim::Entity(target) => s.find(target).map_or_else(|| s.at(owner), |w| s.at(w)),
@@ -753,20 +759,52 @@ pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
 /// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
 /// phase's damage type (none for a neutral phase), both fixed at the attack's start.
 pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
-    let p = &compiled(world, r)[r.phase as usize];
-    let type_bonus = match (p.damage_type, &r.type_bonus_pct) {
+    swing_damage(
+        &compiled(world, r)[r.phase as usize],
+        r.base,
+        r.damage_pct,
+        r.atk_up_pct,
+        r.type_bonus_pct.as_deref(),
+        world.tuning.defence_k,
+    )
+}
+
+/// The damage of one hit of `phase` for an attack of `base` damage: the phase's own damage or
+/// else `base`, at `damage_pct` percent, raised by `atk_up_pct` and by the bonus held for the
+/// phase's damage type (none for a neutral phase, or with no bonus held).
+#[inline]
+pub(super) fn swing_damage(
+    phase: &AttackPhase,
+    base: u32,
+    damage_pct: u32,
+    atk_up_pct: u32,
+    type_bonus_pct: Option<&[u32; DamageType::ALL.len()]>,
+    defence_k: u64,
+) -> u32 {
+    let type_bonus = match (phase.damage_type, type_bonus_pct) {
         (Some(ty), Some(pct)) => pct[ty.index()],
         _ => 0,
     };
     scale_damage(
-        scale_pct(p.damage.unwrap_or(r.base), r.damage_pct),
-        r.atk_up_pct,
+        scale_pct(phase.damage.unwrap_or(base), damage_pct),
+        atk_up_pct,
         type_bonus,
         0,
         0,
         0,
-        world.tuning.defence_k,
+        defence_k,
     )
+}
+
+/// The main character's type bonuses, each held to the content's limit, which the validator
+/// holds to the hard cap; the clamp keeps an unvalidated table there.
+#[inline]
+pub(super) fn capped_type_bonus(
+    match_ups: &MatchUps,
+    held: &[u32; DamageType::ALL.len()],
+) -> [u32; DamageType::ALL.len()] {
+    let limit = match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+    held.map(|pct| pct.min(limit))
 }
 
 /// Whether run `r` is the main character's combo step, A or B.
