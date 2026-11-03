@@ -12,7 +12,7 @@ globs:
 
 # Benches and fuzz targets
 
-Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-10, ADR-SVC-1, ADR-REPL-3, ADR-CONT-3.
+Sources: ADR-SIM-17, ADR-SIM-19, ADR-SIM-20, ADR-SVC-7, ADR-REPL-16, ADR-CONT-15.
 
 ## Benches (`benches/`)
 
@@ -21,7 +21,7 @@ is a key of `benches/budgets.toml`, which CI reads for the list. They build stag
 `sim_version` (`bench_fixtures/common/mod.rs`), as `tests/alloc.rs` does: `sim_v1` and the v1
 event adapter are not benched.
 
-- `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-7 (260 enemies, 32 orbs, 128 zones,
+- `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-19 (260 enemies, 32 orbs, 128 zones,
   DIR1), every rune, Rune Haste and each damage-over-time status on every enemy, a fresh
   stack to push apart and aim assist over all 260. `bench_fixtures/worst_case.rs`; `tests/worst_case.rs`.
 - `hit_tick.rs`: worst melee tick: 260 enemies under the main character's hit box, four
@@ -40,13 +40,13 @@ event adapter are not benched.
 ## Tick cost gate
 
 - `cargo bench` runs the five targets (needs `valgrind`, `iai-callgrind-runner` 0.16.1). CI
-  (`rust.yml`, ADR-SIM-7, ADR-SIM-10) runs both architectures: the budgets of `benches/budgets.toml`
+  (`rust.yml`, ADR-SIM-19, ADR-SIM-20) runs both architectures: the budgets of `benches/budgets.toml`
   block on every run (`bench_budget.py`); a case that rose over +2% against the base commit
   (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a new `benches/accepted.toml` entry covers it
   (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges).
 - A case is compared with the base commit when its `before`, `stage` and `input` pins are equal
   there and here and its bench file and `benches/support/` are unchanged (`bench_pins.py`,
-  ADR-SIM-10); `after` is pinned only. A moved case prints "case moved: not compared", is not
+  ADR-SIM-20 point 5); `after` is pinned only. A moved case prints "case moved: not compared", is not
   gated (`bench_alarm.py --cases`); budgets still block it.
 - Teardown guard (`bench_drop_guard.py`, after the budget check): `callgrind_annotate --tree=caller`
   fails a `drop_glue`/`drop_in_place` of an Engine, Run or Case called from
@@ -61,7 +61,7 @@ event adapter are not benched.
 ## Fuzz (`fuzz/`)
 
 - `cargo-fuzz` targets for the parsers and loaders (stage, run, replays, share code, run setup,
-  content packs, minisign, savepoints, step log ranges; ADR-SVC-1, ADR-REPL-3, ADR-CONT-3): every
+  content packs, minisign, savepoints, step log ranges; ADR-SVC-7, ADR-REPL-16, ADR-CONT-15): every
   file in `fuzz_targets/`, in its own workspace, on nightly.
 - `fuzz/tests/smoke.rs` runs them on stable; `regressions/<target>/` keeps the inputs of fixed
   crashes. `savepoint_load` and `step_log_range` are seeded from generated files
