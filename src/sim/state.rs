@@ -598,12 +598,21 @@ impl Players {
             .filter_map(PlayerIdx::new)
     }
 
+    /// The entity number of slot `me` (ADR-SIM-21): the number its shots, hits and dots carry.
+    #[inline]
+    pub(crate) fn id(&self, me: PlayerIdx) -> EntityId {
+        me.id()
+    }
+
     /// The present slot whose entity number is `id` (ADR-SIM-21): the owner of a shot, a hit or a
     /// dot a player made. `None` for a companion, an enemy or a slot not in the party.
     #[inline]
-    pub(crate) fn owner_of(&self, id: EntityId) -> Option<PlayerIdx> {
-        let me = u8::try_from(id.0).ok().and_then(PlayerIdx::new)?;
-        self.is_present(me).then_some(me)
+    pub(crate) fn of_id(&self, id: EntityId) -> Option<PlayerIdx> {
+        if id.0 < u32::from(MAX_PLAYERS) && self.present >> id.0 & 1 == 1 {
+            u8::try_from(id.0).ok().and_then(PlayerIdx::new)
+        } else {
+            None
+        }
     }
 
     /// Players 1 and up that are present, in slot order.

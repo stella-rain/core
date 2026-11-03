@@ -511,7 +511,8 @@ impl PlayerStats {
 
     /// The slot an entity number names, if it is a player's.
     fn at(&mut self, id: EntityId) -> Option<&mut SlotStats> {
-        self.slots.get_mut(usize::try_from(id.0).ok()?)
+        let (player, _) = crate::id::player_of(id)?;
+        self.slots.get_mut(player.get())
     }
 
     /// Adds the events of one step.

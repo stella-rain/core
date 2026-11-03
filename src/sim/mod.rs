@@ -1374,7 +1374,7 @@ fn damage(
     }
     let foe = !State::is_ally(target);
     // The buffer is read only in a party, and for a player's own shot (ADR-SIM-21).
-    let buffed_by = if foe && s.players.len() > 1 && s.players.owner_of(b.owner).is_some() {
+    let buffed_by = if foe && s.players.len() > 1 && s.players.of_id(b.owner).is_some() {
         buffer_of(s, me)
     } else {
         None
@@ -1389,7 +1389,7 @@ fn damage(
         rune: b.rune,
         crit,
         echo: false,
-        player: foe.then(|| me.id()),
+        player: foe.then(|| s.players.id(me)),
         buffed_by,
     });
     if dead {
@@ -1445,7 +1445,7 @@ pub(super) fn killer_of(s: &State, i: usize) -> PlayerIdx {
 /// The player that made a hit by `owner`: a companion's, or any other id, is the run's first
 /// player (the stage's companions belong to no player).
 pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
-    s.players.owner_of(owner).unwrap_or(PlayerIdx::SOLO)
+    s.players.of_id(owner).unwrap_or(PlayerIdx::SOLO)
 }
 
 /// The other player whose attack-up is on `me` and still running, if any: the one that applied
@@ -1457,7 +1457,7 @@ fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
         .iter()
         .find(|st| st.kind == state::StatusKind::AtkUp && st.remaining > 0)?;
     s.players
-        .owner_of(up.source)
+        .of_id(up.source)
         .filter(|b| *b != me)
         .map(PlayerIdx::id)
 }

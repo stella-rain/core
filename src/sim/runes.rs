@@ -262,7 +262,7 @@ pub(super) fn fly(stage: &World, s: &mut State) {
     for i in 0..s.runs.len() {
         if s.runs[i].throw.is_some() && s.runs[i].homing.is_none() {
             // A run whose owner is no present player has nothing to fly to.
-            if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+            if let Some(me) = s.players.of_id(s.runs[i].owner) {
                 fly_one(stage, s, me, i);
             }
         }
@@ -278,7 +278,7 @@ pub(super) fn steer(stage: &World, s: &mut State) {
         if let Some(w) = s.find(target).filter(|w| s.is_alive(*w)) {
             s.runs[i].throw = Some(s.at(w));
         }
-        if let Some(me) = s.players.owner_of(s.runs[i].owner) {
+        if let Some(me) = s.players.of_id(s.runs[i].owner) {
             fly_one(stage, s, me, i);
         }
     }

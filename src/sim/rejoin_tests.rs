@@ -33,9 +33,9 @@ fn state(e: &Engine) -> &State {
 }
 const LIFE: u32 = 100_000;
 
-/// The number the run gives slot `i` now. Today the slot's own; Step 2 reads `Players::id`.
-fn number(_s: &State, i: u8) -> EntityId {
-    slot(i).id()
+/// The number the run gives slot `i` now.
+fn number(s: &State, i: u8) -> EntityId {
+    s.players.id(slot(i))
 }
 
 fn input() -> [Input; 3] {
@@ -150,7 +150,7 @@ fn assert_unbound(e: &mut Engine, old: EntityId) {
     assert_ne!(new, old, "the slot's new occupant has a number of its own");
     let s = state(e);
     assert_eq!(s.find(old), None);
-    assert_eq!(s.players.owner_of(old), None);
+    assert_eq!(s.players.of_id(old), None);
     assert_eq!(s.find(new), Some(Who::Player(slot(1))));
     e.step(&input());
     let s = state(e);
@@ -160,7 +160,7 @@ fn assert_unbound(e: &mut Engine, old: EntityId) {
     assert_eq!(s.move_index.get(new), 100);
     assert!(s.orbs.iter().any(|o| o.owner == old));
     assert!(s.zones.iter().any(|z| z.owner == old));
-    assert_eq!(s.players.owner_of(old), None);
+    assert_eq!(s.players.of_id(old), None);
     assert!(s.orbs.iter().any(|o| o.owner == slot(0).id()));
     assert!(s.zones.iter().any(|z| z.owner == slot(0).id()));
     assert!(s.tasks.iter().any(|t| t.owner == slot(0).id()));

@@ -34,7 +34,8 @@ pub(super) fn boss_killed(
     }
     let most = u64::from(s.players[me].max_hp);
     let want = most * u64::from(cfg.boss_pct) / 100;
-    heal(&mut s.players[me], me, want, events);
+    let who = s.players.id(me);
+    heal(&mut s.players[me], who, want, events);
 }
 
 /// Stars and pickups for the regular enemies at 0 hp, before they are removed (see the module
@@ -87,7 +88,8 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
         before - pickups.len()
     };
     for _ in 0..taken {
-        heal(&mut s.players[me], me, u64::from(cfg.amount), events);
+        let who = s.players.id(me);
+        heal(&mut s.players[me], who, u64::from(cfg.amount), events);
     }
 }
 
@@ -110,18 +112,19 @@ pub(super) fn kills_heal(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
         return;
     }
     let each = u64::from(s.players[me].kill_heal.min(MAX_HEAL_AMOUNT));
-    heal(&mut s.players[me], me, each * heals, events);
+    let who = s.players.id(me);
+    heal(&mut s.players[me], who, each * heals, events);
 }
 
-/// Heals `player`, the slot `me`, by `want` hit points, as far as its most allows, and reports what it healed.
-fn heal(player: &mut PlayerState, me: PlayerIdx, want: u64, events: &mut Vec<DomainEvent>) {
+/// Heals `player`, the entity `who`, by `want` hit points, as far as its most allows, and reports what it healed.
+fn heal(player: &mut PlayerState, who: EntityId, want: u64, events: &mut Vec<DomainEvent>) {
     let before = player.hp;
     let healed = (u64::from(before) + want).min(u64::from(player.max_hp));
     player.hp = u32::try_from(healed).unwrap_or(player.max_hp);
     events.push(DomainEvent::Healed {
-        target: me.id(),
+        target: who,
         amount: player.hp.saturating_sub(before),
-        source: Some(me.id()),
+        source: Some(who),
     });
 }
 

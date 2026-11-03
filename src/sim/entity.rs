@@ -71,7 +71,7 @@ impl State {
 
     pub(super) fn id_of(&self, who: Who) -> EntityId {
         match who {
-            Who::Player(i) => i.id(),
+            Who::Player(i) => self.players.id(i),
             Who::Boss => self.boss_state().id,
             Who::BossPart(i) => self.boss_state().parts[i].id,
             Who::Companion(i) => self.companions[i].id,
@@ -180,7 +180,7 @@ impl State {
 
     /// The entity with this ID, if it is still around.
     pub(super) fn find(&self, id: EntityId) -> Option<Who> {
-        if let Some(i) = PlayerIdx::of_mask(id, self.players.mask()) {
+        if let Some(i) = self.players.of_id(id) {
             return Some(Who::Player(i));
         }
         if self.boss.as_ref().is_some_and(|b| b.id == id) {
@@ -207,7 +207,7 @@ impl State {
 
     /// The ally with this entity ID, if it is still around.
     pub(super) fn find_ally(&self, id: EntityId) -> Option<Who> {
-        if let Some(i) = PlayerIdx::of_mask(id, self.players.mask()) {
+        if let Some(i) = self.players.of_id(id) {
             return Some(Who::Player(i));
         }
         self.companions
@@ -266,7 +266,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
-            source: self.players.owner_of(source).map(PlayerIdx::id),
+            source: self.players.of_id(source).map(|i| self.players.id(i)),
         });
     }
 }
@@ -305,7 +305,7 @@ impl State {
             status: StatusKind::Stun.id(),
             stacks: 1,
             duration_ticks: ticks,
-            source: self.players.owner_of(source).map(PlayerIdx::id),
+            source: self.players.of_id(source).map(|i| self.players.id(i)),
         });
     }
 }
@@ -357,7 +357,7 @@ impl State {
             status: kind.id(),
             stacks,
             duration_ticks: duration,
-            source: self.players.owner_of(source).map(PlayerIdx::id),
+            source: self.players.of_id(source).map(|i| self.players.id(i)),
         });
     }
 }

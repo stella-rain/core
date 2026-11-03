@@ -29,7 +29,13 @@ use super::{Shot, State, overlaps};
 /// taken from the run's generator.
 pub(super) fn crits(s: &State, me: PlayerIdx, b: &Shot, id: EntityId, hp: u32, foe: bool) -> bool {
     let chance = s.players[me].crit_chance_pct.min(MAX_CRIT_CHANCE_TOTAL_PCT);
-    if chance == 0 || b.chain || b.rune.is_some() || !b.friendly || b.owner != me.id() || !foe {
+    if chance == 0
+        || b.chain
+        || b.rune.is_some()
+        || !b.friendly
+        || b.owner != s.players.id(me)
+        || !foe
+    {
         return false;
     }
     let parts = [
@@ -73,7 +79,7 @@ pub(super) fn queue_echo(
         || b.chain
         || b.rune.is_some()
         || !b.friendly
-        || b.owner != me.id()
+        || b.owner != s.players.id(me)
         || !foe
         || s.echoes.len() >= MAX_ECHOES_PER_TICK
     {
@@ -120,7 +126,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             rune: None,
             crit: false,
             echo: true,
-            player: Some(me.id()),
+            player: Some(s.players.id(me)),
             buffed_by: None,
         });
         if dead {
@@ -192,7 +198,7 @@ pub(super) fn bursts(
                 .max(1);
             let shot = Shot {
                 at,
-                owner: me.id(),
+                owner: s.players.id(me),
                 friendly: true,
                 damage: amount,
                 damage_type: None,

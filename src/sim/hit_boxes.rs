@@ -194,7 +194,8 @@ fn break_orbs(
     swings: &[Swing],
     events: &mut Vec<DomainEvent>,
 ) {
-    let mine = |w: &&Swing| w.friendly && w.owner == me.id();
+    let owner = s.players.id(me);
+    let mine = |w: &&Swing| w.friendly && w.owner == owner;
     s.orbs.retain(|b| {
         if !b.breakable {
             return true;
@@ -315,7 +316,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
             rehit_ticks: p.rehit_ticks,
             breaks_charge: p.breaks_charge,
             smash: r.smash,
-            combo: super::attacks::is_combo(r),
+            combo: super::attacks::is_combo(s, r),
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
@@ -577,11 +578,12 @@ fn hit_enemy_side(
 /// each is hurt once.
 fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<DomainEvent>) {
     for me in s.players.indices() {
+        let id = s.players.id(me);
         let p = &s.players[me];
         if p.hp > 0
             && p.invulnerable == 0
             && covers(w, p.at, stage.tuning.player_radius)
-            && take_hit(s, w, me.id())
+            && take_hit(s, w, id)
         {
             let by = match w.source {
                 Source::Run(i) => Blame {
