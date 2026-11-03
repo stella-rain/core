@@ -143,6 +143,8 @@ mod players_pin_tests;
 #[cfg(test)]
 mod players_tests;
 mod push;
+#[cfg(test)]
+mod rejoin_tests;
 mod runes;
 mod schedule;
 mod scratch;

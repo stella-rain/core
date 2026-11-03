@@ -217,6 +217,17 @@ mod tests {
     }
 
     #[test]
+    fn the_presence_cap_has_a_row() {
+        let row = LIMITS
+            .iter()
+            .find(|e| e.name == "MAX_PRESENCE_CHANGES")
+            .expect("a row for MAX_PRESENCE_CHANGES");
+        assert_eq!(row.value, crate::step_log::MAX_PRESENCE_CHANGES.to_string());
+        assert_eq!(row.unit, "changes");
+        assert_eq!(row.adr, "ADR-REPL-16");
+    }
+
+    #[test]
     fn no_row_cites_a_bare_number() {
         for e in LIMITS {
             let id = e
