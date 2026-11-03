@@ -113,6 +113,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
         }
         let me = super::hitter(s, echo.source);
         let how = super::damage::Landing {
+            id: echo.target,
             source: echo.source,
             damage_type: echo.damage_type,
             match_up: MatchUp::None,

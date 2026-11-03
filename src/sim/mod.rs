@@ -1379,6 +1379,7 @@ fn damage(
             None
         };
     let how = damage::Landing {
+        id,
         source: b.owner,
         damage_type: b.damage_type,
         match_up,

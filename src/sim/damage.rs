@@ -13,6 +13,8 @@ use crate::rune::Rune;
 /// What a landed hit reports besides its target and damage.
 #[derive(Clone, Copy)]
 pub(super) struct Landing {
+    /// The target's entity ID (`s.id_of(target)`), which the caller has already.
+    pub id: EntityId,
     /// `Hit.source`, and whose aggro rises.
     pub source: EntityId,
     pub damage_type: Option<DamageType>,
@@ -35,7 +37,7 @@ pub(super) struct Landed {
 /// `shown` is what the `Hit` event, the aggro and the echo carry. `applied` is the only number
 /// that reaches the hit points: ADR-SIM-21's party factor goes on that one line, and is not
 /// applied yet, so the two are equal.
-#[inline]
+#[inline(always)]
 pub(super) fn land(
     stage: &World,
     s: &mut State,
@@ -56,10 +58,9 @@ pub(super) fn land(
         }
     }
     let foe = !State::is_ally(target);
-    let id = s.id_of(target);
     events.push(DomainEvent::Hit {
         source: how.source,
-        target: id,
+        target: how.id,
         target_kind: kind_of(s, target),
         damage: shown,
         damage_type: how.damage_type,
@@ -72,7 +73,7 @@ pub(super) fn land(
     });
     if dead {
         let killer = (foe && before > 0).then_some(me);
-        events.push(death_event(s, target, id, killer));
+        events.push(death_event(s, target, how.id, killer));
     }
     s.raise_aggro(
         how.source,
