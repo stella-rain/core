@@ -7530,7 +7530,7 @@
       "type": "string"
     },
     "Skill": {
-      "description": "A skill block (ADR-SIM-18, ADR-SIM-18). Percentages are whole percent.",
+      "description": "A skill block (ADR-SIM-18). Percentages are whole percent.",
       "oneOf": [
         {
           "additionalProperties": false,
