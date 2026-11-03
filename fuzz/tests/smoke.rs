@@ -16,9 +16,9 @@ use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
-    MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, replay_load,
-    run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder, savepoint_seeds,
-    share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
+    MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, party_recorder,
+    replay_load, run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder,
+    savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -760,4 +760,37 @@ fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
         sum <= RUN_SEED_TICK_BUDGET,
         "the run seeds hold {sum} ticks, over the budget {RUN_SEED_TICK_BUDGET}"
     );
+}
+
+#[test]
+fn the_party_cases_pass_the_replay_oracle() {
+    let dir = root().join("tests/corpus/current/parties");
+    let mut seen = 0;
+    for case in fs::read_dir(&dir).expect("the party corpus directory") {
+        let bytes = fs::read(case.unwrap().path().join("run.replay")).expect("run.replay");
+        // Verified, and re-recorded through the step-range walk to the same replay.
+        assert!(
+            replay_load(&bytes),
+            "a party case does not pass replay_load"
+        );
+        seen += 1;
+    }
+    assert!(seen >= 2, "the corpus holds an N=2 and an N=3 case");
+}
+
+#[test]
+fn a_party_savepoint_gets_past_the_loader() {
+    let running = party_recorder(Some(150));
+    assert_eq!(running.engine().players(), 3);
+    assert!(savepoint_load(&running.save()), "party, tick 150");
+    // The cut where slot 1 or 2 holds an open offer.
+    let (_, open_seed) = savepoint_seeds()
+        .into_iter()
+        .find(|(name, _)| name == "valid-party-open")
+        .expect("the party open seed");
+    assert!(savepoint_load(&open_seed), "party, offer open");
+    // The party run whole is cut by its tick limit while still running, so it loads too; a
+    // savepoint of a tick no prefix holds does not.
+    assert!(savepoint_load(&party_recorder(None).save()), "party, whole");
+    assert!(!savepoint_load(&party_recorder(Some(100)).save()));
 }
