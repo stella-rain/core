@@ -817,9 +817,18 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
-        let present: Vec<Input> = dense(self.engine.present(), inputs);
+        // The inputs of the present slots, in slot order, in a fixed array: no allocation per tick.
+        let mask = self.engine.present();
+        let mut kept = [Input::default(); MAX_PLAYERS as usize];
+        let mut count = 0;
+        for (slot, input) in inputs.iter().enumerate() {
+            if mask >> slot & 1 == 1 {
+                kept[count] = *input;
+                count += 1;
+            }
+        }
         self.engine.step(inputs);
-        let present = &present[..];
+        let present = &kept[..count];
         // The log holds each input as its block bytes read it back (a stick axis of -128 is
         // -127, a pick is never in the stream), so equal blocks are one run.
         let held = |input: &Input| {
