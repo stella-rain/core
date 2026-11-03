@@ -66,6 +66,17 @@ class TestScan(unittest.TestCase):
             self.assertEqual([f[0] for f in found], ["src/d.rs"])
 
 
+    def test_the_reason_lines_of_the_bench_ledger_are_records(self):
+        text = ('# The ledger (ADR-SIM-20 point 3).\n'
+                '[[accepted]]\n'
+                'reason = "player index threaded through every system (ADR-SIM-12)"\n'
+                'note = "ADR-SIM-12"\n')
+        found = adr_ids.scan_text("benches/accepted.toml", text, IDS)
+        self.assertEqual(kinds(found), [(1, "missing", "ADR-SIM-20"), (4, "missing", "ADR-SIM-12")])
+        # the same `reason` line in any other file is scanned
+        other = adr_ids.scan_text("benches/other.toml", text.split("\n")[2] + "\n", IDS)
+        self.assertEqual(kinds(other), [(1, "missing", "ADR-SIM-12")])
+
     def test_a_file_entry_names_one_file_not_a_prefix(self):
         self.assertTrue(adr_ids.skipped("scripts/adr_ids.txt"))
         self.assertFalse(adr_ids.skipped("scripts/adr_ids.txt.bak"))
