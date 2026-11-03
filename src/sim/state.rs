@@ -65,7 +65,7 @@ impl Streams {
 
 /// The world tick on which each slot's open offer is picked for it, in a timed run: `None` for a
 /// slot with no offer open and for an absent slot. The countdown is state, so it is in the hash
-/// and the savepoint (ADR-SIM-3 point 2, ADR-SAVE-14 point 1).
+/// and the savepoint (ADR-SIM-3 point 2, ADR-SAVE-4 point 1).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct OfferTimer {
     pub due: [Option<u32>; MAX_PLAYERS as usize],
@@ -402,7 +402,7 @@ impl Default for Career {
 /// Each slot also holds its `Career` (the level progress, the offer generator, the star offers,
 /// the expertise gauge, the Stardust and the regeneration). The state hash and the savepoint write
 /// the shared fields, then one presence byte (bit `i` is slot `i`) and, for each present slot in
-/// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-14); an absent slot writes
+/// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-4); an absent slot writes
 /// nothing, and a hole in the mask hashes and saves. A party builder supplies a career for every
 /// present slot.
 #[derive(Clone, Debug)]

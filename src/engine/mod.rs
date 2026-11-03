@@ -126,7 +126,7 @@ pub struct Engine {
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
     /// Damage, kills and support per player slot, folded from the events (outside the hashed
-    /// state; a savepoint holds them, ADR-SIM-7, ADR-SAVE-14).
+    /// state; a savepoint holds them, ADR-SIM-7, ADR-SAVE-4).
     player_stats: PlayerStats,
     /// Slot 0's player as the run started (the loadout, level 1), what a joiner is built from.
     /// Outside the hashed state; none under `sim_version` 1.
@@ -634,7 +634,7 @@ impl Engine {
     }
 
     /// Damage dealt, kills and support per player slot, folded from the events of every step
-    /// (ADR-SIM-7). Not hashed, but in a savepoint (ADR-SAVE-14), so a resumed run's totals are
+    /// (ADR-SIM-7). Not hashed, but in a savepoint (ADR-SAVE-4), so a resumed run's totals are
     /// those of the whole run, as a replay rebuilds them. A run of `sim_version` 1 stays zero.
     pub fn player_stats(&self) -> &PlayerStats {
         &self.player_stats

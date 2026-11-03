@@ -1621,7 +1621,7 @@
           "description": "The lowest rarity its drops and offers may have, over all six."
         },
         "rune_shards": {
-          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-13).",
+          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-3).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"

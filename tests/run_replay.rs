@@ -759,7 +759,7 @@ fn a_run_whose_setup_names_upgrades_records_and_verifies_and_runs_as_without_the
     assert_eq!(without.final_hash, replay.final_hash);
 }
 
-// --- Resuming from a prefix (ADR-SAVE-14) ---------------------------------------------------------
+// --- Resuming from a prefix (ADR-SAVE-4) ---------------------------------------------------------
 
 /// The index just after the `n`th `Step` from `from` on and after every `Choose` that follows it.
 fn after_steps(commands: &[Command], from: usize, n: usize) -> usize {

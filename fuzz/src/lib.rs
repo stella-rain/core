@@ -474,7 +474,7 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
     })
 }
 
-/// The savepoint loader (ADR-SAVE-14, ADR-SVC-7). The bytes are a savepoint file, tried against
+/// The savepoint loader (ADR-SAVE-4, ADR-SVC-7). The bytes are a savepoint file, tried against
 /// each prefix of `savepoint_prefixes()` with the bundled pack. The refusal is one of the seven
 /// typed errors (the `match` is exhaustive); a savepoint that loads is the canonical bytes of
 /// the run it holds: its replay is the prefix, saving it again gives the same bytes, its state

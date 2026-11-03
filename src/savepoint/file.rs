@@ -1,4 +1,4 @@
-//! The savepoint file (ADR-SAVE-14): a fixed header, then the engine-state payload
+//! The savepoint file (ADR-SAVE-4): a fixed header, then the engine-state payload
 //! (`encode_state`). `RunRecorder::save` writes one at a tick; `RunRecorder::resume_from_savepoint`
 //! reads it with the run's replay prefix and the pack, and returns a live recorder without
 //! re-simulating the prefix. A savepoint is valid only when `SAVEPOINT_FORMAT`, a `sim_version`
@@ -22,8 +22,8 @@
 //! | 96 | 32 | `checksum`: SHA-256 of bytes `0..96`, then the payload |
 //!
 //! The payload (format 2) is the player stats record, 60 bytes (per slot 0 to 2 `damage_dealt`
-//! u64, `kills` u32, `support` u64), then the state, the ledger and the tallies (ADR-SAVE-14). The
-//! state holds the party: a presence byte and one block per present player (ADR-SAVE-16); a
+//! u64, `kills` u32, `support` u64), then the state, the ledger and the tallies (ADR-SAVE-4). The
+//! state holds the party: a presence byte and one block per present player (ADR-SAVE-6); a
 //! format 1 file is refused as `Format`.
 //!
 //! The checksum guards against damage, not against a forger: a file whose state, hash, checksum

@@ -67,7 +67,7 @@ pub struct Difficulty {
     /// The highest rarity its drops and offers may have; not below `rarity_min`.
     pub rarity_max: Rarity,
     /// The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to
-    /// `MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-13).
+    /// `MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-3).
     pub rune_shards: u32,
     /// Absent: open with no clear. Otherwise the ID of an earlier difficulty of this file: this
     /// one opens, in a mode, once that one is cleared there.

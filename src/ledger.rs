@@ -473,7 +473,7 @@ pub struct SlotStats {
 
 /// Per-slot damage dealt, kills and support, folded from the events of every step by the
 /// `Engine` and kept outside the hashed state (ADR-SIM-7). A replay steps an engine and so
-/// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-14), so
+/// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-4), so
 /// a run resumed from one has the totals of the whole run. Runs of `sim_version` 1 name no player
 /// in their events, so theirs stay zero.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

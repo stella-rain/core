@@ -36,7 +36,7 @@ pub(crate) fn encode_state(engine: &Engine) -> Vec<u8> {
 /// by the rules module of `fresh`'s version. `fresh` is an engine started from the same setup
 /// and content, untouched: everything the content and the setup decide comes from it, and every
 /// length and index in the bytes is checked against it. The stats record is trusted like the
-/// replay prefix (ADR-SAVE-14), but a slot outside the party must be zero.
+/// replay prefix (ADR-SAVE-4), but a slot outside the party must be zero.
 pub(crate) fn decode_state(
     bytes: &[u8],
     fresh: &Engine,

@@ -734,7 +734,7 @@ impl RunRecorder {
         RunRecorder::start_with(setup, pack.content())
     }
 
-    /// Resumes the run a replay prefix records (ADR-SAVE-14): re-simulates it from tick 0 with
+    /// Resumes the run a replay prefix records (ADR-SAVE-4): re-simulates it from tick 0 with
     /// `verify_run_with_pack`'s checks, and returns a live recorder at the cut, whose `replay()`
     /// after more steps is one replay from tick 0. The prefix may end on an open offer.
     pub fn resume_with_pack(
@@ -771,7 +771,7 @@ impl RunRecorder {
         })
     }
 
-    /// The run as a savepoint file (ADR-SAVE-14): the engine's state with a header that binds it
+    /// The run as a savepoint file (ADR-SAVE-4): the engine's state with a header that binds it
     /// to this run's replay so far. Infallible; a run that has ended saves too, and is refused
     /// on restore.
     pub fn save(&self) -> Vec<u8> {
@@ -779,7 +779,7 @@ impl RunRecorder {
     }
 
     /// Resumes the run a savepoint holds, without re-simulating `prefix`, the replay up to the
-    /// savepoint (ADR-SAVE-14). The savepoint must match `SAVEPOINT_FORMAT`, `SIM_VERSION` and
+    /// savepoint (ADR-SAVE-4). The savepoint must match `SAVEPOINT_FORMAT`, `SIM_VERSION` and
     /// `pack`, and `prefix` must be the very run it was taken from; a later `replay()` is one
     /// replay from tick 0. Any refusal leaves nothing behind: the caller runs
     /// `resume_with_pack(prefix, pack)`.

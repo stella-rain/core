@@ -17,7 +17,7 @@ globs:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
+Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-4.
 
 ## What is where
 
@@ -55,7 +55,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, 
   change: `cargo xtask bless` (it also regenerates `tests/golden/` and `tests/bench_pins.toml`);
   CI runs `cargo xtask bless --check`. `cargo insta test --features record --review` reviews one.
 - `tests/savepoint_proof.rs`: for every solo run case (current and frozen `v1/`) a savepoint
-  restored mid-run gives the uninterrupted run's hashes (ADR-SAVE-14); the party round trips are
+  restored mid-run gives the uninterrupted run's hashes (ADR-SAVE-4); the party round trips are
   in `tests/party_run.rs`. `savepoint_load` in `fuzz/` fuzzes it, with a party run among its seeds.
 
 ## Pins

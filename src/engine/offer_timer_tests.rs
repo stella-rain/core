@@ -1,5 +1,5 @@
 //! The deadlines of a timed run (ADR-SIM-7 point 4): where the state holds them, what the hash
-//! and the savepoint do with them (ADR-SIM-3 point 2, ADR-SAVE-14 point 1).
+//! and the savepoint do with them (ADR-SIM-3 point 2, ADR-SAVE-4 point 1).
 
 use crate::run_setup::{OfferMode, RunSetup};
 use crate::savepoint::{
