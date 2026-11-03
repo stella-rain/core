@@ -22,7 +22,7 @@ This file is identical in `app` and `core`; change both copies in the same task.
 Not sure whether outcomes change? Run the replay corpus: any hash difference in the frozen `v1/`
 corpus means a new `sim_version`, gated inside `sim` (ADR-REPL-13); only `current/` is regenerated.
 Determinism is never relaxed: the corpus must still match on x86_64 and arm64, and SplitMix64,
-FNV-1a 64 and the content hash stay fixed (ADR-SIM-17, ADR-SIM-16, ADR-CONT-16).
+FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-CONT-16).
 
 ## 2. Test first
 

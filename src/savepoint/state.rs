@@ -622,7 +622,7 @@ mod v2 {
 
 #[cfg(test)]
 mod players_tests {
-    //! The index check reads every player, not the first only (ADR-SIM-21).
+    //! The index check reads every player, not the first only (ADR-SIM-7).
 
     use crate::bench_fixtures::worst_case;
     use crate::engine::{Engine, Run};

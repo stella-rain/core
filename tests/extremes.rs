@@ -1,4 +1,4 @@
-//! Expressions never panic (ADR-SIM-18, ADR-SIM-17): every expression slot of an attack is given the
+//! Expressions never panic (ADR-SIM-4, ADR-SIM-3): every expression slot of an attack is given the
 //! most extreme values the validator lets a creator write, and the engine runs on. A replay
 //! proves only the creator's path, so a challenger who survives longer or meets other values
 //! must not be able to crash a verified stage. The constants stay within the validator's
@@ -227,7 +227,7 @@ fn busy_stages_survive_the_whole_stage() {
 }
 
 /// The hash of one mixed run: slot `i` takes extreme `i`, speed and aim stay ordinary. Every
-/// platform must produce exactly this (ADR-SIM-17): a difference in how overflow, saturation or
+/// platform must produce exactly this (ADR-SIM-3): a difference in how overflow, saturation or
 /// division behaves on another architecture would show here. Version 1 is frozen: a change to
 /// the rules that moves it goes into a new `sim_version` (ADR-REPL-13), never a re-pin.
 const MIXED_HASH: u64 = 0xaf35_4b74_321c_ff45;

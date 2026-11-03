@@ -1,4 +1,4 @@
-//! Bosses (ADR-SIM-18 tier 2): phases that only move forward, transitions, timelines, breakable
+//! Bosses (ADR-SIM-4 tier 2): phases that only move forward, transitions, timelines, breakable
 //! parts and the boss's rules. Small stages whose every tick can be worked out by hand; the
 //! boss stands at (46080, 60000), straight above the main character, with a hurt circle of
 //! radius 8192, and the main character is at (46080, 147456).

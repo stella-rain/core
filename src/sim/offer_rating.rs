@@ -1,12 +1,12 @@
 //! Rating the candidates of an open offer (ADR-REPL-16): the categories of a reward, the
 //! expected gain in the main weapon's damage and the stats a pick moves. A read-only query on
-//! the state as it is; nothing here is hashed, saved or recorded (ADR-SIM-17), and it is not part
+//! the state as it is; nothing here is hashed, saved or recorded (ADR-SIM-3), and it is not part
 //! of the snapshot (ADR-BRDG-13): call it once when an offer opens, not every frame.
 //!
 //! **The pick is run, not described.** Each candidate is taken with `stars::take` on a clone of
 //! the player, so the set tier it completes is applied by the rules that apply it, and the stats
 //! before and after are read from the two clones. A random rune is drawn from a generator seeded
-//! 0 and dropped: it moves no stat shown and its draw leaks nothing (ADR-SIM-16).
+//! 0 and dropped: it moves no stat shown and its draw leaks nothing (ADR-SIM-2).
 //!
 //! **The damage model** (`Rate`) has no tunable number (ADR-CONT-13), so no content key. It
 //! rates the Main weapon's reference swing: the `main` chain of its combo (each step's `main`

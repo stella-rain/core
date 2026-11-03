@@ -1,6 +1,6 @@
 //! Pins for where a player's damage meets a foe's hit points: the numbers, the events and the
 //! credit of a hit, a damage over time tick, a kill burst and an echo, which all land through
-//! `damage::land` (ADR-SIM-21); and a scan that keeps the write in that one place.
+//! `damage::land` (ADR-SIM-7); and a scan that keeps the write in that one place.
 
 use super::entity::Who;
 use super::state::{PlayerIdx, State};
@@ -286,7 +286,7 @@ fn a_kill_burst_lands_a_plain_hit_without_an_echo() {
     assert!(s.echoes.is_empty());
 }
 
-// --- the party factor (ADR-SIM-22) ------------------------------------------------------------
+// --- the party factor (ADR-SIM-8) ------------------------------------------------------------
 
 /// A party of `n` with the table `[100, 50, 25]` and a plain enemy 0 of `hp` hit points.
 fn scaled(n: u8, hp: u32) -> (World, State) {

@@ -1,6 +1,6 @@
-//! The simulation engine (ADR-SIM-15, ADR-SVC-13) at version 1. Small stages are built here so that
+//! The simulation engine (ADR-SIM-1, ADR-SVC-13) at version 1. Small stages are built here so that
 //! every expected tick can be worked out by hand from the rules in `sim`; the fixture
-//! stage pins the hash every platform must reproduce (ADR-SIM-17).
+//! stage pins the hash every platform must reproduce (ADR-SIM-3).
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -338,7 +338,7 @@ fn at_most_the_cap_of_enemies_are_alive_and_dropped_spawns_still_count() {
     assert_eq!(ids, (1..=261).collect::<Vec<u32>>());
 }
 
-// --- Rules (ADR-SIM-18) -------------------------------------------------------------------------
+// --- Rules (ADR-SIM-4) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
 /// A running stage whose weapons are quiet, so that the enemies the tests set up live.
@@ -471,7 +471,7 @@ fn the_snapshot_survives_json() {
     assert_eq!(serde_json::from_str::<Snapshot>(&json).unwrap(), s);
 }
 
-// --- Determinism (ADR-SIM-15, ADR-SIM-17) ----------------------------------------------------------
+// --- Determinism (ADR-SIM-1, ADR-SIM-3) ----------------------------------------------------------
 
 fn fixture() -> Stage {
     // The fixture is written at design values and scaled like the corpus stages.

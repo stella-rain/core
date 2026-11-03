@@ -401,7 +401,7 @@ impl Counted {
     }
 
     /// Counts `events` into the tallies and folds them into `stats` in the same pass: the
-    /// one loop over a tick's events is part of the measured tick (ADR-SIM-20).
+    /// one loop over a tick's events is part of the measured tick (ADR-SIM-6).
     pub(crate) fn observe(
         &mut self,
         rewards: &Rewards,
@@ -459,7 +459,7 @@ impl Counted {
     }
 }
 
-/// What one player slot did in the run, folded from the events (ADR-SIM-21).
+/// What one player slot did in the run, folded from the events (ADR-SIM-7).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SlotStats {
     /// Damage the slot's hits dealt, overkill included (a `Hit`'s `damage`); echoes count.
@@ -472,7 +472,7 @@ pub struct SlotStats {
 }
 
 /// Per-slot damage dealt, kills and support, folded from the events of every step by the
-/// `Engine` and kept outside the hashed state (ADR-SIM-21). A replay steps an engine and so
+/// `Engine` and kept outside the hashed state (ADR-SIM-7). A replay steps an engine and so
 /// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-14), so
 /// a run resumed from one has the totals of the whole run. Runs of `sim_version` 1 name no player
 /// in their events, so theirs stay zero.

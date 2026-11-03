@@ -1,6 +1,6 @@
 //! The run setup (ADR-REPL-16): what a run of the launch game starts from, and all it starts
 //! from. The mode, the weapon (a content ID, ADR-CONT-12) and its tree (ADR-REPL-16), and the seed of the
-//! run's SplitMix64 (ADR-SIM-16). No expertise level: every run starts at level 0 (ADR-REPL-16).
+//! run's SplitMix64 (ADR-SIM-2). No expertise level: every run starts at level 0 (ADR-REPL-16).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
 //!
@@ -53,7 +53,7 @@ pub struct CarriedStar {
     pub reward: ContentId,
 }
 
-/// Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a
+/// Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a
 /// replay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's
 /// `offer_timer_ticks`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -91,7 +91,7 @@ pub struct RunSetup {
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
     /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
@@ -141,7 +141,7 @@ pub struct RunSetup {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup
+    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup
     /// written before the mode existed reads as it always did.
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,
@@ -193,7 +193,7 @@ struct RunSetupFile {
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
     /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
@@ -243,7 +243,7 @@ struct RunSetupFile {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`.
+    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`.
     #[serde(default)]
     offer_mode: OfferMode,
     #[serde(default)]

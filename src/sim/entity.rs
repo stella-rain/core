@@ -39,12 +39,12 @@ impl State {
 
     /// The number a roll or an angle reads for the entity `id`: its number without the empty
     /// player slots, so a party of one rolls as it did before the slots were reserved
-    /// (ADR-SIM-21).
+    /// (ADR-SIM-7).
     ///
     /// The gap is the count in force: when a join or leave changes the party, every live
     /// enemy's key moves by one per slot gained or lost, and its next crit roll and push angle
     /// read the new key; enemies spawned later are keyed by the count then. A pure function of
-    /// the presence mask, so a replay and every peer agree (ADR-SIM-22).
+    /// the presence mask, so a replay and every peer agree (ADR-SIM-8).
     #[inline]
     pub(crate) fn roll_key(&self, id: EntityId) -> u32 {
         crate::id::to_compact(id, self.id_gap())
@@ -216,7 +216,7 @@ impl State {
             .map(Who::Companion)
     }
 
-    /// Adds to an ally's aggro (ADR-SIM-18), up to a cap. Others have none to raise.
+    /// Adds to an ally's aggro (ADR-SIM-4), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
             Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro, // N=1: M-DOWN-PARTY

@@ -35,13 +35,13 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 
 - The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-13) are
   `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
-  `snapshot.rs` (ADR-REPL-12, ADR-SIM-18, ADR-REPL-16). `serde`, `serde_json` and `schemars` parse and
+  `snapshot.rs` (ADR-REPL-12, ADR-SIM-4, ADR-REPL-16). `serde`, `serde_json` and `schemars` parse and
   describe them, outside the simulation path.
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-7).
   `registry.rs`: the content-ID registry (ADR-CONT-12).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-16); each mode's content is bundled
   in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
-  `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-21 point 4).
+  `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-7 point 4).
 - `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
   holds): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
   `content/run_stats.json` and `content/rewards.json` (ADR-CONT-11). `match_ups.rs` reads

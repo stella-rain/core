@@ -1,7 +1,7 @@
 //! The live rules (ADR-REPL-13): the module that runs the newest `sim_version`, with the
-//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-SIM-17).
+//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-SIM-3).
 //!
-//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-21); a
+//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-7); a
 //! system that acts on or for a player takes `me` right after the state. A place that names no
 //! player yet reads `PlayerIdx::SOLO` and says which later change settles it (`// N=1: ...`).
 //!
@@ -25,9 +25,9 @@
 //! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (`orbit`) |
 //! | `boss_act` | the boss: phases, timeline, rules (`boss`) |
 //! | `call_elites` | a boss that calls elites does so when its time comes (`boss`) |
-//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-SIM-18); an elite holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
+//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-SIM-4); an elite holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
 //! | `dash_attackers` | an enemy or the boss in an active phase with a dash moves its share of the distance along its attack's locked facing, held to the map; a boss's parts follow (`dash`) |
-//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-SIM-19, `push`) |
+//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-SIM-5, `push`) |
 //! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
 //! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
 //! | `zones_advance` | the zones age and run out (`zones`) |
@@ -205,12 +205,12 @@ pub(crate) use stars::{constellation_views, offer_view};
 
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
-/// Zones alive at once (core Z1, a placeholder cap pending ADR-SIM-19); a zone placed over it is
+/// Zones alive at once (core Z1, a placeholder cap pending ADR-SIM-5); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
 /// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
-/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-19's cap); they go to the nearest ready enemies in view (RA1).
+/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-5's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle (RA1, DS82): the widest supported aspect, 21:9, of the 360 px design
 /// height, 840 by 360 px, never the device's screen. It is the camera's rectangle: centred on the
@@ -245,7 +245,7 @@ pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
 pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
-/// Attacks being carried out at once (ADR-SIM-18 tier 3), and the node steps they may take in a
+/// Attacks being carried out at once (ADR-SIM-4 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
@@ -254,7 +254,7 @@ pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 
-/// The most aggro anyone holds (ADR-SIM-18; an overflow bound, also the validator's bound of
+/// The most aggro anyone holds (ADR-SIM-4; an overflow bound, also the validator's bound of
 /// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
@@ -308,7 +308,7 @@ pub(crate) fn initial_state(
     state
 }
 
-/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-19 point 4): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
+/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-5 point 4): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
 /// Called when the run is built and again for a clone of its state, because a cloned `Vec` has
 /// only its length. The scratch buffers are `Scratch::reserve`'s.
 pub(crate) fn reserve(stage: &World, s: &mut State) {
@@ -368,7 +368,7 @@ fn unreserved_state(
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
     // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
-    // (ADR-SIM-21); the boss and the companions come after them.
+    // (ADR-SIM-7); the boss and the companions come after them.
     let mut next_id = u32::from(MAX_PLAYERS);
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
@@ -397,7 +397,7 @@ fn unreserved_state(
         .collect();
     // The boss's parts come after the companions in the order of entity IDs. Of these, the crit roll
     // and the push-apart angle read a number: they read `State::roll_key`, the number without
-    // the empty player slots (ADR-SIM-21).
+    // the empty player slots (ADR-SIM-7).
     let boss = boss_id.map(|id| {
         let arrival = Arrival {
             at: stage.boss(BossIndex(0)).boss.spawn,
@@ -710,7 +710,7 @@ fn open_offers_for(
     sync_deadline(stage, s, me);
 }
 
-/// In a timed run, keeps `me`'s deadline in step with its offers (ADR-SIM-21 point 4): no offer
+/// In a timed run, keeps `me`'s deadline in step with its offers (ADR-SIM-7 point 4): no offer
 /// open clears it, an offer open without one starts it, `offer_timer_ticks` after the tick the
 /// offer opened on, and an offer that stays open (a reroll) keeps the one it has. An offer opened
 /// by a pick, before the world's tick, counts from the tick the pick was taken on.
@@ -729,7 +729,7 @@ fn sync_deadline(stage: &World, s: &mut State, me: PlayerIdx) {
 }
 
 /// In a timed run, closes every offer whose deadline has come by a pick of its first option
-/// (ADR-SIM-21 point 4): the events are those of a manual pick, nothing is recorded for it
+/// (ADR-SIM-7 point 4): the events are those of a manual pick, nothing is recorded for it
 /// (ADR-REPL-16 point 5). A slot in slot order; the next offer due to it opens at once, as after
 /// a manual pick.
 pub(super) fn pick_due(
@@ -1350,7 +1350,7 @@ fn damage(
     );
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
-    // The common case, with no combat reward held, pays for one comparison (ADR-SIM-19).
+    // The common case, with no combat reward held, pays for one comparison (ADR-SIM-5).
     let crit = s.players[me].crit_chance_pct != 0
         && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
@@ -1371,7 +1371,7 @@ fn damage(
         s.defence(target),
         stage.tuning.defence_k,
     );
-    // The buffer is read only in a party, and for a player's own shot (ADR-SIM-21).
+    // The buffer is read only in a party, and for a player's own shot (ADR-SIM-7).
     let buffed_by =
         if !State::is_ally(target) && s.players.len() > 1 && s.players.of_id(b.owner).is_some() {
             buffer_of(s, me)
@@ -1443,7 +1443,7 @@ pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
 
 /// The other player whose attack-up is on `me` and still running, if any: the one that applied
 /// it last (`StatusState::source`). Read when a hit lands, from the hashed state alone, so a
-/// replay gives the same answer (ADR-SIM-21).
+/// replay gives the same answer (ADR-SIM-7).
 fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
     let up = s
         .statuses(Who::Player(me))
@@ -1803,7 +1803,7 @@ fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<
     }
 }
 
-/// The state hash (ADR-SIM-17 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
+/// The state hash (ADR-SIM-3 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
 /// state, which `state_hash.rs` writes.
 pub(crate) fn state_hash(s: &State) -> u64 {
     let mut h = StateHasher::new();

@@ -96,7 +96,7 @@ pub struct RunReplay {
     pub content_sha256: String,
     /// Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.
     pub ticks: u32,
-    /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-17), 16
+    /// The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-3), 16
     /// lowercase hex digits.
     pub final_hash: String,
     /// The FNV-1a 64 state hash after every 60th tick (60, 120, 180, ...), each taken right
@@ -1088,7 +1088,7 @@ pub fn verify_run_against_with_pack(
 
 /// As `verify_run`, and also compares the hash after every tick (before the commands that
 /// follow it) with `expected`, naming the first tick that differs: what a corpus check reports
-/// (ADR-SIM-17).
+/// (ADR-SIM-3).
 pub fn verify_run_against(
     replay_bytes: &[u8],
     expected: &[u64],

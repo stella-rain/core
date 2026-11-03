@@ -29,7 +29,7 @@ path = "src/bin/content_pack.rs"
 # The JSON Lines recorder of ADR-BRDG-12: commands, domain events and state hashes, for tests and
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
 record = []
-# The cases the tick benches count (ADR-SIM-19), built in `bench_fixtures` so that a change to the
+# The cases the tick benches count (ADR-SIM-5), built in `bench_fixtures` so that a change to the
 # simulation's API edits `src/` alone. Benches and their tests only; no dependency.
 bench = []
 
@@ -53,17 +53,17 @@ sha2 = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 # The crate itself with its `bench` feature, so that tests and benches build the cases of
-# `bench_fixtures` (ADR-SIM-19) without a flag on the command line or in a workflow; a build of
+# `bench_fixtures` (ADR-SIM-5) without a flag on the command line or in a workflow; a build of
 # the library alone does not carry the module. Adds no crate: the package is this one.
 stella-rain-core = { path = ".", features = ["bench"] }
-# Snapshot tests of the JSON Lines recordings (ADR-SIM-17), with `cargo insta review` to accept
+# Snapshot tests of the JSON Lines recordings (ADR-SIM-3), with `cargo insta review` to accept
 # an intended change. Tests only; never in the library or the simulation path.
 insta = "1.49"
-# Property tests (ADR-SIM-17): random input sequences with shrinking, so a failing run
+# Property tests (ADR-SIM-3): random input sequences with shrinking, so a failing run
 # is reported as the shortest inputs that still fail. Tests only; never in the library or the
 # simulation path. Without `fork` and `timeout`, which tests do not need.
 proptest = { version = "1.11", default-features = false, features = ["std"] }
-# Instruction counts of a worst-case tick under Valgrind (ADR-SIM-17): the same count on every run
+# Instruction counts of a worst-case tick under Valgrind (ADR-SIM-3): the same count on every run
 # of a build, so a CI runner's load does not move it. Tests only; never in the library or the
 # simulation path. Needs the `iai-callgrind-runner` binary of the same version and `valgrind`.
 iai-callgrind = "0.16.1"
@@ -71,14 +71,14 @@ iai-callgrind = "0.16.1"
 # simulation path.
 toml = { version = "1.1.8", default-features = false, features = ["parse", "serde"] }
 
-# No `unsafe` in core (ADR-SIM-15): `deny`, not `forbid`, because `forbid` cannot be lifted and
+# No `unsafe` in core (ADR-SIM-1): `deny`, not `forbid`, because `forbid` cannot be lifted and
 # `tests/alloc.rs` needs `unsafe` for its counting allocator, which has the one `expect`. Clocks,
 # threads and environment reads are banned in `clippy.toml`.
 [lints.rust]
 unsafe_code = "deny"
 
 # Narrowing and sign-changing casts are checked conversions, an `Fx` helper or an audited
-# `#[expect(.., reason = "..")]` stating the bound (ADR-SIM-17).
+# `#[expect(.., reason = "..")]` stating the bound (ADR-SIM-3).
 [lints.clippy]
 cast_possible_truncation = "deny"
 cast_sign_loss = "deny"
@@ -109,7 +109,7 @@ harness = false
 name = "worst_minute_peak"
 harness = false
 
-# Overflow behaves the same in every profile (ADR-SIM-17): it panics unless the code says
+# Overflow behaves the same in every profile (ADR-SIM-3): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
 # Debug builds (and the test profile, which inherits from dev) optimise a little: a whole
 # time_limit run is about 7 times faster at opt-level 1 than at 0, and the debug tests' run drops
@@ -127,7 +127,7 @@ overflow-checks = true
 
 [profile.bench]
 overflow-checks = true
-# One codegen unit, so that the tick benches count the tick's code (ADR-SIM-19). With the default 16,
+# One codegen unit, so that the tick benches count the tick's code (ADR-SIM-5). With the default 16,
 # rustc's split of the crate into units moves with any change to the crate, a new module or a
 # dependency's feature, and with it what is inlined in the tick: core#148's pack, which no tick
 # calls, moved the worst-case tick by +2.01% on arm64 that way, and by nothing at one unit.

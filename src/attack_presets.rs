@@ -1,5 +1,5 @@
 //! The attack presets file (CS1b-1, DS20 item 2): the developer's attacks as content data, so
-//! that a preset is balanced by a content release and not by a code change (ADR-SIM-18: "Presets
+//! that a preset is balanced by a content release and not by a code change (ADR-SIM-4: "Presets
 //! are content"). A preset is a registered preset ID (ADR-CONT-12) with its arguments and its
 //! phases, written in the stage's own attack format (`AttackPhase`, with `{"arg": n}` for an
 //! argument). A stage names one by ID and arguments (`AttackRef::Preset`), or holds an inline

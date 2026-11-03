@@ -1,4 +1,4 @@
-//! The heaviest tick of a `time_limit` run (core#212 step d, ADR-SIM-17, ADR-SIM-19). Shared by
+//! The heaviest tick of a `time_limit` run (core#212 step d, ADR-SIM-3, ADR-SIM-5). Shared by
 //! `benches/time_limit_tick.rs`, which counts its instructions, and `tests/time_limit_case.rs`,
 //! which checks that the measured tick has the load it claims.
 

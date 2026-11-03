@@ -1,4 +1,4 @@
-//! The state hash of every `State` type (ADR-SIM-17 point 2): each impl destructures its type
+//! The state hash of every `State` type (ADR-SIM-3 point 2): each impl destructures its type
 //! without `..`, so a field added without a decision does not compile. A field that is left out
 //! is `field: _` with `// not hashed: <why>`; `engine::hash_coverage_tests` lists them again and
 //! checks both halves.
@@ -1000,7 +1000,7 @@ impl StableHash for Horde {
 
 impl StableHash for State {
     /// The shared fields, then the presence byte and the block of each present player in slot
-    /// order (ADR-SIM-17). Entity numbers are written as they are.
+    /// order (ADR-SIM-3). Entity numbers are written as they are.
     fn stable_hash(&self, h: &mut StateHasher) {
         self.hash_fields(h);
     }
@@ -1085,7 +1085,7 @@ impl State {
             hash_player(players, me, h);
         }
         // A timed run's deadlines, after the players: a `stop` run writes nothing here, so its
-        // hash is what it always was (ADR-SIM-21 point 4). The encoding is prefix-free within a
+        // hash is what it always was (ADR-SIM-7 point 4). The encoding is prefix-free within a
         // mode; the mode is fixed for a run and states of the two are never compared.
         if let Some(timer) = offer_timer {
             for me in players.indices() {

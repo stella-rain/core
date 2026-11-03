@@ -92,7 +92,7 @@ pub enum SkillEffect {
         strength: Fx,
         duration_ticks: u32,
     },
-    /// `status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`
+    /// `status` (a status ID of the registry, ADR-SIM-4) on the main character, `value_pct`
     /// percent, for `duration_ticks`.
     SelfStatus {
         status: ContentId,

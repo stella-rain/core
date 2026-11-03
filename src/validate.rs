@@ -1,5 +1,5 @@
 //! The stage validator (ADR-SVC-7): a byte-size limit before parsing, strict parsing, registry
-//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-7 and ADR-SIM-18.
+//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-7 and ADR-SIM-4.
 //! The app and `stage-verify` call the same code, and an invalid stage is not playable (fail
 //! closed).
 //!
@@ -32,8 +32,8 @@ use crate::trig;
 use crate::version::{self, ReadError};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
-/// Limits a stage must keep. The first block is ADR-SVC-7, the second ADR-SIM-18, the rest the
-/// loadout and numeric ranges that ADR-SIM-17 ask for.
+/// Limits a stage must keep. The first block is ADR-SVC-7, the second ADR-SIM-4, the rest the
+/// loadout and numeric ranges that ADR-SIM-3 ask for.
 pub mod limits {
     pub const MAX_STAGE_BYTES: usize = 256 * 1024;
     /// Five minutes at 60 ticks per second.
@@ -137,7 +137,7 @@ pub mod limits {
     pub const MAX_SUMMON_COUNT: u8 = 8;
     /// Elites alive at once, among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
-    /// The engine ceiling on the enemy cap (ADR-SIM-19, DS103): a pack whose derived cap is over it
+    /// The engine ceiling on the enemy cap (ADR-SIM-5, DS103): a pack whose derived cap is over it
     /// is refused, as `MAX_ELITES_ALIVE` bounds `elite_cap`. The cap of a run is derived from the
     /// pack's rules and is 260 for the bundled pack; this is the most any pack may ask for.
     pub const MAX_ENEMY_CAP: u16 = 500;
@@ -262,7 +262,7 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
 }
 
 /// Checks the phases of one attack against the same budgets as a stage's inline attacks, for an
-/// attack that takes `arity` arguments (the developer's presets, ADR-SIM-18). The problems are
+/// attack that takes `arity` arguments (the developer's presets, ADR-SIM-4). The problems are
 /// reported at paths from the attack: `$[0].spawn[0].body[1]`.
 pub fn validate_attack(
     phases: &[AttackPhase],

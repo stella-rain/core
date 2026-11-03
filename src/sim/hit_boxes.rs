@@ -139,7 +139,7 @@ impl Sector {
 /// Every active hit box hurts what it covers. `grid` is the enemy grid, built here if a
 /// friendly hit box needs it and left for the orbs after.
 // Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
-// (ADR-SIM-19).
+// (ADR-SIM-5).
 #[inline(never)]
 pub(super) fn resolve(
     stage: &World,
@@ -619,7 +619,7 @@ fn hit_companions_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec
 
 #[cfg(test)]
 mod party_tests {
-    //! Hits on each player of a party (ADR-SIM-21): an enemy's swing or orb reaches every player
+    //! Hits on each player of a party (ADR-SIM-7): an enemy's swing or orb reaches every player
     //! it covers, once each and in slot order, and the companions once.
 
     use super::*;

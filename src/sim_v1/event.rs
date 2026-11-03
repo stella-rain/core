@@ -115,7 +115,7 @@ pub enum DomainEvent {
     },
     /// A hold ended without a release: an evade, or a hit from an attack that breaks charges.
     HoldBroken,
-    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).
+    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-4).
     RuleFired {
         agent: EntityId,
         rule: u8,

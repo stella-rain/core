@@ -53,7 +53,7 @@ pub struct Replay {
     /// Ticks recorded, at most the stage's length. A replay that proves a clear ends on the
     /// tick of the clear.
     pub ticks: u32,
-    /// The FNV-1a 64 state hash after the last tick (ADR-SIM-17), 16 lowercase hex digits. Hex,
+    /// The FNV-1a 64 state hash after the last tick (ADR-SIM-3), 16 lowercase hex digits. Hex,
     /// because JSON readers that use doubles cannot hold every 64-bit integer.
     pub final_hash: String,
     /// The per-tick inputs, packed as described in the module documentation, then base64.
@@ -239,7 +239,7 @@ impl std::fmt::Display for HashesError {
 impl std::error::Error for HashesError {}
 
 /// The per-tick hashes file: the state hash after every tick, each as 8 bytes little-endian
-/// (ADR-SIM-17), no header. The corpus's `hashes.bin` and `stage-verify --hashes` (CH1).
+/// (ADR-SIM-3), no header. The corpus's `hashes.bin` and `stage-verify --hashes` (CH1).
 pub fn hashes_to_bytes(hashes: &[u64]) -> Vec<u8> {
     hashes.iter().flat_map(|h| h.to_le_bytes()).collect()
 }
@@ -354,7 +354,7 @@ const NO_STICK: u8 = 0x80;
 /// and `auto`; bit 6 (interact) is allowed at schema 2 only, bit 7 is never set.
 const ALL_FLAGS: u8 = 0b11_1111;
 
-/// Bit 6 of the flags byte at schema 2: the interact button (ADR-SIM-21). Refused at schema 1.
+/// Bit 6 of the flags byte at schema 2: the interact button (ADR-SIM-7). Refused at schema 1.
 pub(crate) const INTERACT_FLAG: u8 = 0b100_0000;
 
 pub(crate) fn flags_of(input: &Input) -> u8 {
@@ -500,7 +500,7 @@ pub fn verify(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<Verified, Repla
 }
 
 /// As `verify`, and also compares the hash after every tick with `expected` (one per tick),
-/// naming the first tick that differs: what a corpus check reports (ADR-SIM-17).
+/// naming the first tick that differs: what a corpus check reports (ADR-SIM-3).
 pub fn verify_against(
     stage_bytes: &[u8],
     replay_bytes: &[u8],

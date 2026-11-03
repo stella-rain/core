@@ -144,7 +144,7 @@ fn fired(stage: &Stage, ticks: u32) -> usize {
     count
 }
 
-// --- Tank: a follow at its own speed (ADR-SIM-18) -----------------------------------------------
+// --- Tank: a follow at its own speed (ADR-SIM-4) -----------------------------------------------
 
 #[test]
 fn a_tank_follows_at_its_own_speed() {
@@ -174,7 +174,7 @@ fn a_follow_speed_is_bounded_to_one_to_the_map_length() {
     assert!(Engine::new(&chase(Some(MAX_LEN))).is_ok());
 }
 
-// --- Exploder: a burst near its target (ADR-SIM-18) ---------------------------------------------
+// --- Exploder: a burst near its target (ADR-SIM-4) ---------------------------------------------
 
 #[test]
 fn an_exploder_fires_within_its_distance_and_not_beyond_it() {
@@ -270,7 +270,7 @@ fn a_near_target_distance_is_bounded_to_one_to_the_map_length() {
     assert!(Engine::new(&exploder(MAX_LEN, false)).is_ok());
 }
 
-// --- Splitter: a split at half HP, under the cap (ADR-SVC-7, ADR-SIM-18) --------------------------
+// --- Splitter: a split at half HP, under the cap (ADR-SVC-7, ADR-SIM-4) --------------------------
 
 #[test]
 fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {

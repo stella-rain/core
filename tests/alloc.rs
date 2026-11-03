@@ -270,7 +270,7 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 }
 
 /// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
-/// ADR-SIM-19 point 4): every per-enemy buffer is reserved to the run's cap when the engine
+/// ADR-SIM-5 point 4): every per-enemy buffer is reserved to the run's cap when the engine
 /// is built, so no tick of the climb grows one.
 #[test]
 fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {

@@ -15,7 +15,7 @@
 //! - **shield:** kept in the state for its time; damage to the main character takes from it
 //!   first.
 //!
-//! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-SIM-18).
+//! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-SIM-4).
 
 use super::World;
 use crate::event::DomainEvent;

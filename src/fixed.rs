@@ -1,4 +1,4 @@
-//! Fixed-point positions and velocities: `i32` in 1/256 pixel units (ADR-SIM-15).
+//! Fixed-point positions and velocities: `i32` in 1/256 pixel units (ADR-SIM-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

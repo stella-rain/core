@@ -1,4 +1,4 @@
-//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-17).
+//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-3).
 
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
@@ -22,7 +22,7 @@ use std::sync::LazyLock;
 pub(crate) const UNLIMITED: u32 = u32::MAX;
 
 /// The run's generators, one per purpose, so a change to one kind of draw leaves the others
-/// where they were (ADR-SIM-16). Each is `rng::derive(seed, tag)`; the hash writes them in this
+/// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
 /// order.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -81,7 +81,7 @@ pub(crate) struct State {
     pub companions: Vec<AgentState>,
     /// In spawn order, which is entity-ID order.
     pub enemies: Vec<AgentState>,
-    /// Attacks that are being carried out, oldest first (ADR-SIM-18 tier 3).
+    /// Attacks that are being carried out, oldest first (ADR-SIM-4 tier 3).
     pub tasks: Vec<AttackTask>,
     /// Phased attacks in progress, in the order they started.
     pub runs: Vec<AttackRun>,
@@ -546,7 +546,7 @@ pub(crate) struct BossState {
     /// Copied from the stage when it appears.
     pub defence: u32,
     pub statuses: Statuses,
-    /// The phase being carried out, 0-based (ADR-SIM-18 tier 2).
+    /// The phase being carried out, 0-based (ADR-SIM-4 tier 2).
     pub phase: u32,
     /// Ticks since the phase began.
     pub phase_age: u32,
@@ -610,7 +610,7 @@ pub(crate) enum AgentSource {
     Escort,
 }
 
-/// A companion or an enemy: a movement and a rule list (ADR-SIM-18 tier 1).
+/// A companion or an enemy: a movement and a rule list (ADR-SIM-4 tier 1).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AgentState {
@@ -637,7 +637,7 @@ pub(crate) struct AgentState {
     /// For `orbit`, in 1/256 degree.
     pub orbit_angle: i32,
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
-    /// pixel, so it does not take its own step to its place this tick (ADR-SIM-19).
+    /// pixel, so it does not take its own step to its place this tick (ADR-SIM-5).
     pub crowded: bool,
     /// Enemies only: it removed itself with a `self_destruct` rule. It is at 0 hit points for
     /// the removal, but it was not defeated, so nothing credits it. It only lives until the end
@@ -738,7 +738,7 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses of this version (ADR-SIM-18): the three a skill can apply, and bleed, poison and
+/// The statuses of this version (ADR-SIM-4): the three a skill can apply, and bleed, poison and
 /// burn, which only their runes apply. The IDs in the registry are the names of the
 /// first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1145,7 +1145,7 @@ impl MoveIndex {
     }
 }
 
-/// An attack being carried out (ADR-SIM-18 tier 3): a program, where it has got to, and what it
+/// An attack being carried out (ADR-SIM-4 tier 3): a program, where it has got to, and what it
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
 #[derive(Clone, Debug)]

@@ -2,7 +2,7 @@
 //! most hit points, and a regular enemy's kill may drop a heal pickup, which the main character
 //! takes on touch for `amount` hit points. Both heal as far as the most allows (`Healed`).
 //!
-//! The drop draws from the run's one generator (ADR-SIM-16, the same stream as the falling stars):
+//! The drop draws from the run's one generator (ADR-SIM-2, the same stream as the falling stars):
 //! in the collisions, after the stars' drops of the tick, each regular kill in entity-ID order
 //! draws once, `drop_one_in` being the range, and drops a pickup where the enemy fell when the
 //! draw is 0 and the map holds fewer than `cap`. The draw happens whether or not the map has

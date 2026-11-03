@@ -1,4 +1,4 @@
-//! The canonical binary encoding of a run's state, the savepoint's bytes (ADR-SIM-17): a hand
+//! The canonical binary encoding of a run's state, the savepoint's bytes (ADR-SIM-3): a hand
 //! codec that mirrors `StableHash`, with no dependency. `Encode` writes a value, `Decode` reads
 //! it back and fails closed with a `DecodeError` on any bytes it does not accept. The codec is
 //! crate-private; `Savepoint` (`file`) is the public file around it.

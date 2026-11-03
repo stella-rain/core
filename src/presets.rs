@@ -1,5 +1,5 @@
 //! Attack presets are content (CS1b-1): `content/attack_presets.json`, read through
-//! `attack_presets::AttackPresets` (ADR-SIM-18: "Presets are content"). A preset is the
+//! `attack_presets::AttackPresets` (ADR-SIM-4: "Presets are content"). A preset is the
 //! developer's attack, written in the same format as the attacks creators write inline, and
 //! registered as a content ID (ADR-CONT-12). A stage uses one by ID with arguments, or holds an
 //! inline copy. This module **takes a preset apart**: copies its definition inline with each

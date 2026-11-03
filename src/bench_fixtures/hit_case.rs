@@ -105,7 +105,7 @@ fn wave_sizes() -> Vec<u16> {
 }
 
 /// The crowd in a clump: the enemies of the run's cap (260) in waves of at most 100 that spawn
-/// one a tick each at one point, and push apart (ADR-SIM-19) into a clump round it.
+/// one a tick each at one point, and push apart (ADR-SIM-5) into a clump round it.
 pub fn stage() -> Stage {
     let (x, y) = CROWD_AT;
     built(

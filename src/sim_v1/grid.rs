@@ -1,7 +1,7 @@
 //! A uniform grid over the enemies, so that a friendly hit box is checked only against the
 //! enemies near it rather than all of them (core#62). It is rebuilt in each tick's `collide`,
 //! where the enemies do not move. Hit boxes ask it for every enemy within their reach
-//! (`within`), and the push-apart (ADR-SIM-19) walks the enemies around one (`each_neighbour`).
+//! (`within`), and the push-apart (ADR-SIM-5) walks the enemies around one (`each_neighbour`).
 
 use crate::fixed::Point;
 
@@ -147,7 +147,7 @@ impl Grid {
                 continue;
             }
             // The range check above puts `r * cols + c` in `0..cols * rows`, the length of
-            // `start` less one: it is the hottest conversion in the tick (ADR-SIM-20).
+            // `start` less one: it is the hottest conversion in the tick (ADR-SIM-6).
             #[expect(
                 clippy::cast_possible_truncation,
                 clippy::cast_sign_loss,

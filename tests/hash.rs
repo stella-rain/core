@@ -1,4 +1,4 @@
-//! FNV-1a 64 and the explicit byte encoding behind the state hash (ADR-SIM-17).
+//! FNV-1a 64 and the explicit byte encoding behind the state hash (ADR-SIM-3).
 
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::hash::{StableHash, StateHasher, fnv1a64};

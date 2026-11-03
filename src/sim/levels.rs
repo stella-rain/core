@@ -299,7 +299,7 @@ pub(super) fn speed(s: &State, me: PlayerIdx, cap: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    //! The helpers read the career of the player they are given (ADR-SIM-21).
+    //! The helpers read the career of the player they are given (ADR-SIM-7).
 
     use super::*;
     use crate::bench_fixtures::worst_case;

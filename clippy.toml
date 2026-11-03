@@ -1,14 +1,14 @@
-# ADR-SIM-17: no floats and no hash-ordered collections in simulation code.
+# ADR-SIM-3: no floats and no hash-ordered collections in simulation code.
 disallowed-types = [
-    { path = "f32", reason = "simulation state is fixed-point (ADR-SIM-15)" },
-    { path = "f64", reason = "simulation state is fixed-point (ADR-SIM-15)" },
-    { path = "std::collections::HashMap", reason = "iteration order is not deterministic (ADR-SIM-17)" },
-    { path = "std::collections::HashSet", reason = "iteration order is not deterministic (ADR-SIM-17)" },
+    { path = "f32", reason = "simulation state is fixed-point (ADR-SIM-1)" },
+    { path = "f64", reason = "simulation state is fixed-point (ADR-SIM-1)" },
+    { path = "std::collections::HashMap", reason = "iteration order is not deterministic (ADR-SIM-3)" },
+    { path = "std::collections::HashSet", reason = "iteration order is not deterministic (ADR-SIM-3)" },
 ]
 disallowed-methods = [
-    { path = "std::time::Instant::now", reason = "no clocks in simulation code (ADR-SIM-15)" },
-    { path = "std::time::SystemTime::now", reason = "no clocks in simulation code (ADR-SIM-15)" },
-    { path = "std::thread::spawn", reason = "no threads in simulation code (ADR-SIM-15)" },
-    { path = "std::env::var", reason = "no environment reads in simulation code (ADR-SIM-15)" },
-    { path = "std::env::var_os", reason = "no environment reads in simulation code (ADR-SIM-15)" },
+    { path = "std::time::Instant::now", reason = "no clocks in simulation code (ADR-SIM-1)" },
+    { path = "std::time::SystemTime::now", reason = "no clocks in simulation code (ADR-SIM-1)" },
+    { path = "std::thread::spawn", reason = "no threads in simulation code (ADR-SIM-1)" },
+    { path = "std::env::var", reason = "no environment reads in simulation code (ADR-SIM-1)" },
+    { path = "std::env::var_os", reason = "no environment reads in simulation code (ADR-SIM-1)" },
 ]

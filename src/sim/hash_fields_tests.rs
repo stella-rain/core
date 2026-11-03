@@ -1,4 +1,4 @@
-//! The layout of the live rules' state hash (ADR-SIM-17): the shared fields, then one presence
+//! The layout of the live rules' state hash (ADR-SIM-3): the shared fields, then one presence
 //! byte and the block of each present player in slot order. The tests read the bytes the hasher
 //! was fed (`StateHasher::trace`), not only the digest.
 

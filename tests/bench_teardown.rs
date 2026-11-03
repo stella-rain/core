@@ -1,5 +1,5 @@
 //! Every bench returns its measured result and ends with `teardown = support::forget_measured`
-//! (ADR-SIM-20, core#375): the count covers the bench function alone, so the function must hand its
+//! (ADR-SIM-6, core#375): the count covers the bench function alone, so the function must hand its
 //! fixture back instead of dropping it, and the teardown, which runs outside the count, forgets it.
 //! This file checks the text of every `#[bench::…]`; `.github/scripts/bench_drop_guard.py` checks
 //! the measured profile. The bench files are also exactly the keys of `benches/budgets.toml`.

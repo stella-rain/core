@@ -17,7 +17,7 @@ globs:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM-17, ADR-SAVE-14.
+Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
 
 ## What is where
 
@@ -49,7 +49,7 @@ Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM
   (N >= 1) is a frozen version of the same shape (no `parties/`: `sim_version` 1 has one player)
   plus `manifest.sha256`: never edited (CI `frozen
   corpus unchanged`, `corpus::the_frozen_corpus_is_unchanged`); `v1/` is recorded by `cargo xtask
-  bless --freeze v1`. `corpus.rs` checks it all (ADR-SIM-17). The `app` repo reads one file,
+  bless --freeze v1`. `corpus.rs` checks it all (ADR-SIM-3). The `app` repo reads one file,
   `tests/corpus/current/runs/stage_skill/run.replay`; it is not renamed without the app's bump
   (`tests/corpus_contract.rs`). CI readers use `.github/scripts/corpus_paths.py`. An intended
   change: `cargo xtask bless` (it also regenerates `tests/golden/` and `tests/bench_pins.toml`);

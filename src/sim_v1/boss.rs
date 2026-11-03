@@ -1,4 +1,4 @@
-//! The boss (ADR-SIM-18 tier 2): body parts and an ordered list of phases. A phase ends when its
+//! The boss (ADR-SIM-4 tier 2): body parts and an ordered list of phases. A phase ends when its
 //! `until` condition holds, and phases only move forward; the last lasts until the boss dies.
 //! The boss acts before the companions and the enemies (its entity ID is the lowest).
 //!

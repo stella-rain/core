@@ -1081,7 +1081,7 @@ fn number_pointers(v: &Value, here: String, out: &mut Vec<String>) {
 
 #[test]
 fn extreme_numbers_never_panic() {
-    // Overflow checks are on in every profile (ADR-SIM-17), so an unchecked `abs()` or `+` on
+    // Overflow checks are on in every profile (ADR-SIM-3), so an unchecked `abs()` or `+` on
     // `i32::MIN` in the validator would panic here.
     let b = base();
     let mut pointers = Vec::new();

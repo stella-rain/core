@@ -1,7 +1,7 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
 //! content pack and the bench pins); `--check` reports any set that
 //! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
-//! new frozen `tests/corpus/v<N>/` (ADR-SIM-17): it refuses an existing `v<N>/` and a `current/`
+//! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
 //! that is not what bless writes, then runs the record test of core, which writes the folder and
 //! its manifest. Std only: it shells out to `cargo` and `git`.
 

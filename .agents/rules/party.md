@@ -11,7 +11,7 @@ globs:
 
 # Parties, joining and leaving
 
-Sources: ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-16. The log bytes and the recorder:
+Sources: ADR-SIM-7, ADR-SIM-8, ADR-REPL-16, ADR-SAVE-16. The log bytes and the recorder:
 `step-log.md`; the hash and `id_gap`: `simulation.md`, `determinism.md`.
 
 ## Parties

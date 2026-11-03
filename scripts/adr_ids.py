@@ -24,7 +24,7 @@ AREAS = ("SIM", "CONT", "REPL", "BRDG", "SAVE", "PLAT", "REL", "SVC", "PROC")
 EXCLUDED = ("tests/corpus/", "tests/fixtures/", "scripts/adr_ids.txt", "scripts/adr_ids.py",
                      "scripts/test_adr_ids.py")
 
-# `ADR-SIM-19`, `ADR-SIM-19 point 4`, `ADR-SIM-19 points 4 and 5`; the same grammar as the app's
+# `ADR-SIM-5`, `ADR-SIM-5 point 4`, `ADR-SIM-5 points 4 and 5`; the same grammar as the app's
 # own checker. A legacy number is `ADR-020` or `ADR 020`.
 ID_RE = re.compile(r"ADR-([A-Z]+-[0-9]+)\b")
 LEGACY_RE = re.compile(r"\bADR[- ][0-9]{3}\b")
@@ -54,7 +54,7 @@ def point_numbers(text):
 
 
 def parse_list(text):
-    """`ADR-SIM-19 7` lines -> {"SIM-19": 7}."""
+    """`ADR-SIM-5 7` lines -> {"SIM-19": 7}."""
     ids = {}
     for line in text.splitlines():
         if not line.strip() or line.startswith("#"):

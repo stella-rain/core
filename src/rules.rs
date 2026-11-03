@@ -5,7 +5,7 @@
 //! the invulnerable ticks after a hit, aggro, the leash and the spawn margin, the ranged tokens,
 //! the orbiting agents' turn, where a horde boss arrives, the default experience, the size of an
 //! offer and the damage curve, and the table of how much of a player's damage applies for each
-//! party size (`party_damage_pct`, ADR-SIM-22). `World` reads them once when a run is built.
+//! party size (`party_damage_pct`, ADR-SIM-8). `World` reads them once when a run is built.
 //! Caps, the grid, the push-apart, the view and the units stay in Rust. The cap is
 //! `target * (100 + headroom) / 100`, rounded down, derived when a run is built and never stored
 //! (260 for the bundled file); the headroom is the room the specials (elites, escorts, a
@@ -17,7 +17,7 @@
 //!
 //! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing, strict
 //! parsing, the current versions only, and every number bounded. The pack's own target must keep
-//! its derived cap within `limits::MAX_ENEMY_CAP` (ADR-SIM-19): a pack over the ceiling is
+//! its derived cap within `limits::MAX_ENEMY_CAP` (ADR-SIM-5): a pack over the ceiling is
 //! refused. An override is bounded by its own file (1 to `limits::MAX_CROWD_TARGET`) and clamped
 //! when the run is built (`Rules::enemy_cap_for`), so the cap never passes the ceiling.
 
@@ -40,7 +40,7 @@ pub const MAX_RULES_BYTES: usize = 4 * 1024;
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
 pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
 /// The most ticks a timed offer waits for a pick before the first option is taken: 60 s at 60
-/// ticks (ADR-SIM-21 point 4). A number in code, the bound of the pack's `offer_timer_ticks`
+/// ticks (ADR-SIM-7 point 4). A number in code, the bound of the pack's `offer_timer_ticks`
 /// (ADR-CONT-13 point 4).
 pub const MAX_OFFER_TIMER_TICKS: u32 = 3600;
 /// The countdown of a pack written before the key existed: 5 s at 60 ticks.
@@ -51,7 +51,7 @@ fn default_offer_timer_ticks() -> u32 {
 }
 
 /// The most a party-size entry of `party_damage_pct` can be, in percent: a bigger party only
-/// scales a player's damage down, never up (ADR-SIM-22, ADR-CONT-13 point 4).
+/// scales a player's damage down, never up (ADR-SIM-8, ADR-CONT-13 point 4).
 pub const MAX_PARTY_DAMAGE_PCT: u32 = 100;
 /// The players a `party_damage_pct` list has an entry for.
 const PARTY_SIZES: usize = crate::id::MAX_PLAYERS as usize;
@@ -77,13 +77,13 @@ pub struct RulesFile {
     pub orb_radius: Fx,
     /// Ticks of invulnerability after the main character is hit: 0 to 600.
     pub hit_invulnerable_ticks: u32,
-    /// Aggro raised per point of damage dealt (ADR-SIM-18), in stored units: 0 to 100.
+    /// Aggro raised per point of damage dealt (ADR-SIM-4), in stored units: 0 to 100.
     pub aggro_per_damage: u32,
-    /// Aggro raised by a buff (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.
+    /// Aggro raised by a buff (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.
     pub aggro_per_buff: u32,
-    /// Aggro raised per point healed (ADR-SIM-18), in stored units: 0 to 100.
+    /// Aggro raised per point healed (ADR-SIM-4), in stored units: 0 to 100.
     pub aggro_per_heal_point: u32,
-    /// Aggro lost every tick (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.
+    /// Aggro lost every tick (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.
     pub aggro_decay: u32,
     /// How far to the side of the view's centre a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.
     pub leash_reach_x: Fx,
@@ -114,12 +114,12 @@ pub struct RulesFile {
     /// What a critical hit deals before any bonus, in percent: 100 to 1,000.
     pub crit_damage_base_pct: u32,
     /// Ticks a timed run's open offer waits for a pick before its first option is taken
-    /// (ADR-SIM-21 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.
+    /// (ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.
     /// Absent: 300, so a pack published before the key existed still reads.
     #[serde(default = "default_offer_timer_ticks")]
     pub offer_timer_ticks: u32,
     /// The percent of a player's damage that applies when 1, 2 or 3 players are present
-    /// (ADR-SIM-22): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.
+    /// (ADR-SIM-8): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.
     /// Absent: `[100, 100, 100]`, so a pack published before the key existed still reads.
     #[serde(default = "default_party_damage_pct")]
     pub party_damage_pct: Vec<u32>,
@@ -184,22 +184,22 @@ impl Rules {
         self.file.hit_invulnerable_ticks
     }
 
-    /// Aggro raised per point of damage dealt (ADR-SIM-18), in stored units.
+    /// Aggro raised per point of damage dealt (ADR-SIM-4), in stored units.
     pub fn aggro_per_damage(&self) -> u32 {
         self.file.aggro_per_damage
     }
 
-    /// Aggro raised by a buff (ADR-SIM-18), in stored units.
+    /// Aggro raised by a buff (ADR-SIM-4), in stored units.
     pub fn aggro_per_buff(&self) -> u32 {
         self.file.aggro_per_buff
     }
 
-    /// Aggro raised per point healed (ADR-SIM-18), in stored units.
+    /// Aggro raised per point healed (ADR-SIM-4), in stored units.
     pub fn aggro_per_heal_point(&self) -> u32 {
         self.file.aggro_per_heal_point
     }
 
-    /// Aggro lost every tick (ADR-SIM-18), in stored units.
+    /// Aggro lost every tick (ADR-SIM-4), in stored units.
     pub fn aggro_decay(&self) -> u32 {
         self.file.aggro_decay
     }
@@ -264,13 +264,13 @@ impl Rules {
         self.file.offer_size
     }
 
-    /// Ticks a timed offer waits for a pick (ADR-SIM-21 point 4).
+    /// Ticks a timed offer waits for a pick (ADR-SIM-7 point 4).
     pub fn offer_timer_ticks(&self) -> u32 {
         self.file.offer_timer_ticks
     }
 
     /// The percent of a player's damage that applies for 1, 2 and 3 players present
-    /// (ADR-SIM-22). The list has three entries once validated.
+    /// (ADR-SIM-8). The list has three entries once validated.
     pub fn party_damage_pct(&self) -> [u32; PARTY_SIZES] {
         let mut table = [MAX_PARTY_DAMAGE_PCT; PARTY_SIZES];
         for (to, from) in table.iter_mut().zip(&self.file.party_damage_pct) {

@@ -1,4 +1,4 @@
-//! The offer mode of a run: `stop` and `timed` (ADR-SIM-21 point 4, ADR-REPL-16).
+//! The offer mode of a run: `stop` and `timed` (ADR-SIM-7 point 4, ADR-REPL-16).
 use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::engine::Outcome;

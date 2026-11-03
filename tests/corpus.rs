@@ -1,4 +1,4 @@
-//! The replay corpus (ADR-SIM-17): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
+//! The replay corpus (ADR-SIM-3): `tests/corpus/current/stages/<name>/` holds a `stage.json`, a `run.replay`
 //! and `hashes.bin` (the state hash after every tick, 8 bytes little-endian,
 //! `replay::hashes_from_bytes`). Each case
 //! is re-simulated and every tick compared, so a change that moves any hash fails on the first

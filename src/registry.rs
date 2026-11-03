@@ -17,9 +17,9 @@ pub enum Kind {
     Palette,
     /// An orb sprite.
     Orb,
-    /// An attack preset (ADR-SIM-18); `args` is how many arguments it takes.
+    /// An attack preset (ADR-SIM-4); `args` is how many arguments it takes.
     Preset,
-    /// A buff or debuff (ADR-SIM-18).
+    /// A buff or debuff (ADR-SIM-4).
     Status,
     /// A weapon preset, with its Main and Sub roles.
     Weapon,

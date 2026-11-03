@@ -97,11 +97,11 @@ test = false
 doc = false
 bench = false
 
-# Overflow panics in every profile, as in the root crate (ADR-SIM-17): a profile of the root
+# Overflow panics in every profile, as in the root crate (ADR-SIM-3): a profile of the root
 # `Cargo.toml` does not reach this workspace. `cargo fuzz` builds with the release profile.
 # The smoke tests simulate whole replays: about 13 minutes at opt-level 0, about 1.5 at 1.
 # Overflow checks and debug assertions stay on, and an outcome cannot depend on the level
-# (ADR-SIM-17).
+# (ADR-SIM-3).
 [profile.dev]
 overflow-checks = true
 opt-level = 1

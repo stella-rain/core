@@ -173,7 +173,7 @@
         },
         "rules": {
           "default": [],
-          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-18).",
+          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-4).",
           "items": {
             "$ref": "#/$defs/Rule"
           },
@@ -613,7 +613,7 @@
     },
     "Boss": {
       "additionalProperties": false,
-      "description": "Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.",
+      "description": "Tier 2 (ADR-SIM-4): body parts and an ordered list of phases that only move forward.",
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId"
@@ -742,7 +742,7 @@
     },
     "BossPart": {
       "additionalProperties": false,
-      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).",
+      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-4).",
       "properties": {
         "asset": {
           "$ref": "#/$defs/ContentId",
@@ -1215,7 +1215,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-SIM-18).",
+          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-SIM-4).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -1780,7 +1780,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21)."
+                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7)."
                 },
                 "rune": {
                   "anyOf": [
@@ -2216,7 +2216,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).",
+          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-4).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3620,7 +3620,7 @@
       ]
     },
     "EntityId": {
-      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-18).",
+      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-4).",
       "format": "uint32",
       "minimum": 0,
       "type": "integer"
@@ -4140,7 +4140,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A draw from the run's SplitMix64 (ADR-SIM-16), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
+          "description": "A draw from the run's SplitMix64 (ADR-SIM-2), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
           "properties": {
             "rand": {
               "maxItems": 2,
@@ -4327,7 +4327,7 @@
           "type": "integer"
         }
       ],
-      "description": "A fixed-point expression (ADR-SIM-18): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
+      "description": "A fixed-point expression (ADR-SIM-4): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
     },
     "Facing": {
       "additionalProperties": false,
@@ -4679,7 +4679,7 @@
           "type": "boolean"
         },
         "interact": {
-          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-21). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
           "type": "boolean"
         },
         "main": {
@@ -5094,7 +5094,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-19).",
+          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-5).",
           "properties": {
             "radius": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5116,7 +5116,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-SIM-19).",
+          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-SIM-5).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5148,7 +5148,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-19).",
+          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-5).",
           "properties": {
             "at": {
               "$ref": "#/$defs/Point"
@@ -5264,7 +5264,7 @@
       ]
     },
     "OfferMode": {
-      "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
+      "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
       "oneOf": [
         {
           "const": "stop",
@@ -6472,7 +6472,7 @@
       "additionalProperties": false,
       "properties": {
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick (ADR-SIM-17), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
+          "description": "The FNV-1a 64 state hash after the last tick (ADR-SIM-3), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
           "type": "string"
         },
         "inputs": {
@@ -6813,7 +6813,7 @@
     },
     "Rule": {
       "additionalProperties": false,
-      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-18).",
+      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-4).",
       "properties": {
         "charges": {
           "description": "Times the rule may fire; absent means unlimited.",
@@ -6863,25 +6863,25 @@
       "description": "The rules file.",
       "properties": {
         "aggro_decay": {
-          "description": "Aggro lost every tick (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro lost every tick (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_buff": {
-          "description": "Aggro raised by a buff (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro raised by a buff (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_damage": {
-          "description": "Aggro raised per point of damage dealt (ADR-SIM-18), in stored units: 0 to 100.",
+          "description": "Aggro raised per point of damage dealt (ADR-SIM-4), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_heal_point": {
-          "description": "Aggro raised per point healed (ADR-SIM-18), in stored units: 0 to 100.",
+          "description": "Aggro raised per point healed (ADR-SIM-4), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6958,7 +6958,7 @@
         },
         "offer_timer_ticks": {
           "default": 300,
-          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-21 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
+          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6980,7 +6980,7 @@
             100,
             100
           ],
-          "description": "The percent of a player's damage that applies when 1, 2 or 3 players are present\n(ADR-SIM-22): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.\nAbsent: `[100, 100, 100]`, so a pack published before the key existed still reads.",
+          "description": "The percent of a player's damage that applies when 1, 2 or 3 players are present\n(ADR-SIM-8): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.\nAbsent: `[100, 100, 100]`, so a pack published before the key existed still reads.",
           "items": {
             "format": "uint32",
             "minimum": 0,
@@ -7144,7 +7144,7 @@
           "type": "string"
         },
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-17), 16\nlowercase hex digits.",
+          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-3), 16\nlowercase hex digits.",
           "type": "string"
         },
         "inputs": {
@@ -7209,7 +7209,7 @@
         },
         "offer_mode": {
           "$ref": "#/$defs/OfferMode",
-          "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
+          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",
@@ -7233,7 +7233,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -7506,7 +7506,7 @@
       "type": "object"
     },
     "Selector": {
-      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-SIM-18).",
+      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-SIM-4).",
       "oneOf": [
         {
           "enum": [
@@ -7570,7 +7570,7 @@
       "type": "string"
     },
     "Skill": {
-      "description": "A skill block (ADR-SIM-18). Percentages are whole percent.",
+      "description": "A skill block (ADR-SIM-4). Percentages are whole percent.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -7733,7 +7733,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`\npercent, for `duration_ticks`.",
+          "description": "`status` (a status ID of the registry, ADR-SIM-4) on the main character, `value_pct`\npercent, for `duration_ticks`.",
           "properties": {
             "duration_ticks": {
               "format": "uint32",
@@ -8227,7 +8227,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-2). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"

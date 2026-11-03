@@ -1,6 +1,6 @@
 //! The live state's hash and savepoint bytes, pinned. They were pinned before the state held its
-//! players as a list (ADR-SIM-21) and re-pinned once, when the hash and the savepoint moved to a
-//! presence byte and one block per player (ADR-SIM-17, ADR-SAVE-14), and again when three
+//! players as a list (ADR-SIM-7) and re-pinned once, when the hash and the savepoint moved to a
+//! presence byte and one block per player (ADR-SIM-3, ADR-SAVE-14), and again when three
 //! generation bytes followed the presence byte: a refactor of the state moves neither at one
 //! player.
 

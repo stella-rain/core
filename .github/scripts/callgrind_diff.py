@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-function profile of every bench case, base against head (ADR-SIM-20 point 4).
+"""Per-function profile of every bench case, base against head (ADR-SIM-6 point 4).
 
 Reads the callgrind files iai-callgrind leaves under its home, runs `callgrind_annotate` on the
 head and, when there is one, the base (`.out.base@main`) of each case, and writes the annotate

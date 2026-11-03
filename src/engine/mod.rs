@@ -1,8 +1,8 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
-//! (ADR-SIM-15, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
+//! (ADR-SIM-1, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
 //! between ticks (ADR-REPL-16: `choose`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-CONT-11), so the state hash after each
-//! tick is the same on every platform (ADR-SIM-17).
+//! tick is the same on every platform (ADR-SIM-3).
 //!
 //! Rules are dispatched by the stage's `sim_version` (ADR-REPL-12, ADR-REPL-13 points 1 to 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
@@ -126,7 +126,7 @@ pub struct Engine {
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
     /// Damage, kills and support per player slot, folded from the events (outside the hashed
-    /// state; a savepoint holds them, ADR-SIM-21, ADR-SAVE-14).
+    /// state; a savepoint holds them, ADR-SIM-7, ADR-SAVE-14).
     player_stats: PlayerStats,
     /// Slot 0's player as the run started (the loadout, level 1), what a joiner is built from.
     /// Outside the hashed state; none under `sim_version` 1.
@@ -458,7 +458,7 @@ impl Engine {
         self.take_picks(inputs);
     }
 
-    /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-21).
+    /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-7).
     pub fn players(&self) -> usize {
         self.run.party()
     }
@@ -469,7 +469,7 @@ impl Engine {
         self.run.present()
     }
 
-    /// Slot `slot` joins the party at the tick the engine is on (ADR-SIM-21, ADR-SIM-22). The
+    /// Slot `slot` joins the party at the tick the engine is on (ADR-SIM-7, ADR-SIM-8). The
     /// joiner is the run's starting player at slot 0's current place, facing as it faces, at
     /// level 1 with no offer open; its totals start at zero. No event is emitted. Called between
     /// steps, like `choose`; an open offer does not block it. A join at tick 0 equals the party
@@ -634,7 +634,7 @@ impl Engine {
     }
 
     /// Damage dealt, kills and support per player slot, folded from the events of every step
-    /// (ADR-SIM-21). Not hashed, but in a savepoint (ADR-SAVE-14), so a resumed run's totals are
+    /// (ADR-SIM-7). Not hashed, but in a savepoint (ADR-SAVE-14), so a resumed run's totals are
     /// those of the whole run, as a replay rebuilds them. A run of `sim_version` 1 stays zero.
     pub fn player_stats(&self) -> &PlayerStats {
         &self.player_stats
@@ -674,12 +674,12 @@ impl Engine {
         self.run.offer_open()
     }
 
-    /// Whether an open offer stops the world (ADR-SIM-21 point 4).
+    /// Whether an open offer stops the world (ADR-SIM-7 point 4).
     pub fn offer_mode(&self) -> OfferMode {
         self.run.offer_mode()
     }
 
-    /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-17).
+    /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-3).
     pub fn state_hash(&self) -> u64 {
         self.run.state_hash()
     }

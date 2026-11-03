@@ -77,7 +77,7 @@ pub(super) const MISSILE_SLOT: u8 = 64;
 /// The on-hit rune whose attack run `r` is, by its slot (`FIRST_SLOT` plus the rune's place, or
 /// a missile's); `None` for every other run.
 pub(super) fn of_run(r: &crate::sim::state::AttackRun) -> Option<Rune> {
-    // A player's number names a slot, present or not (ADR-SIM-21).
+    // A player's number names a slot, present or not (ADR-SIM-7).
     crate::id::player_of(r.owner)?;
     match r.slot {
         s if s >= MISSILE_SLOT => Some(Rune::HomingMissiles),

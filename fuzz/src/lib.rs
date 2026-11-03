@@ -112,7 +112,7 @@ pub fn stage_parse(data: &[u8]) -> bool {
 }
 
 /// The validator, then the simulation: a stage that validates must start a run and survive
-/// `RUN_TICKS` ticks of any input without a panic (ADR-SIM-17, ADR-SVC-7). The bytes are the stage
+/// `RUN_TICKS` ticks of any input without a panic (ADR-SIM-3, ADR-SVC-7). The bytes are the stage
 /// file and, read over and over, the inputs.
 pub fn stage_run(data: &[u8]) -> bool {
     // Deserialised without the validator's own parse, so the validator sees what the strict
@@ -134,7 +134,7 @@ pub fn stage_run(data: &[u8]) -> bool {
 
 /// The run setup (ADR-REPL-16) and the run it starts: a setup that validates must save and load as
 /// the same setup, start a run, and survive `RUN_TICKS` ticks of any input without a panic
-/// (ADR-SIM-17, ADR-SVC-7). The bytes are the setup file and, read over and over, the inputs.
+/// (ADR-SIM-3, ADR-SVC-7). The bytes are the setup file and, read over and over, the inputs.
 pub fn run_setup(data: &[u8]) -> bool {
     let Ok(setup) = run_setup::parse_and_validate(data) else {
         return false;
@@ -671,7 +671,7 @@ fn check_code(code: &str) -> bool {
 /// The content pack loader (ADR-SVC-7, ADR-CONT-15): a pack that loads loads again as the same pack,
 /// its hash is the SHA-256 of its bytes, it saves (compactly) to a pack of the same content,
 /// and its content starts a run of each mode that survives `RUN_TICKS` ticks of any input
-/// without a panic (ADR-SIM-17). The bytes are the pack and, read over and over, the inputs.
+/// without a panic (ADR-SIM-3). The bytes are the pack and, read over and over, the inputs.
 pub fn pack_load(data: &[u8]) -> bool {
     let Ok(pack) = Pack::from_bytes(data) else {
         return false;

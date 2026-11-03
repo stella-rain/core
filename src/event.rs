@@ -78,7 +78,7 @@ pub enum DomainEvent {
         echo: bool,
         /// The player credited with the hit, by its entity number (0 to 2, as `Healed::target`
         /// names one): the owner of the shot, or slot 0 for a companion's. Left out for a hit
-        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21).
+        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         player: Option<EntityId>,
         /// The other player whose attack-up was on `player` when the hit landed. Left out when
@@ -154,7 +154,7 @@ pub enum DomainEvent {
     },
     /// A hold ended without a release: an evade, or a hit from an attack that breaks charges.
     HoldBroken,
-    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).
+    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-4).
     RuleFired {
         agent: EntityId,
         rule: u8,

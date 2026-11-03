@@ -10,7 +10,7 @@ globs:
 
 # The step log and the recorder
 
-Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16, ADR-SIM-21, ADR-SIM-22. File formats,
+Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16, ADR-SIM-7, ADR-SIM-8. File formats,
 hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
 
 ## What is where

@@ -1,4 +1,4 @@
-//! The cases the tick benches count (`benches/`, ADR-SIM-19): the worst-case tick, the collision
+//! The cases the tick benches count (`benches/`, ADR-SIM-5): the worst-case tick, the collision
 //! tick (crowd in a band and spread over the largest map) and the heaviest tick of a `time_limit`
 //! run. The benches build their engines here, through the crate, so that a change to the
 //! simulation's API edits `src/` alone and the bench job can still compare it with its base

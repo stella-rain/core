@@ -1,4 +1,4 @@
-//! What a leaver owned must not bind to the next occupant of its slot (ADR-SIM-21, ADR-SIM-22).
+//! What a leaver owned must not bind to the next occupant of its slot (ADR-SIM-7, ADR-SIM-8).
 //! Every per-player rule acts for slot 0 today, so slots 1 and 2 own nothing in a real run and
 //! these tests plant the state.
 

@@ -52,7 +52,7 @@ fn role(id: &str) -> Value {
 }
 
 /// The speed of a follower in 1/256 pixel a tick: its `speed`, or 4 pixels a tick without one
-/// (ADR-SIM-19).
+/// (ADR-SIM-5).
 fn follow_speed(id: &str) -> i64 {
     role(id)["enemy"]["movement"]["speed"]
         .as_i64()
@@ -199,7 +199,7 @@ fn a_splitter_splits_once_when_it_is_below_half() {
     assert_eq!(splits, 1);
 }
 
-// --- A whole run with a bot (ADR-SIM-17, ADR-SVC-7, ADR-REPL-16) --------------------------------------
+// --- A whole run with a bot (ADR-SIM-3, ADR-SVC-7, ADR-REPL-16) --------------------------------------
 
 #[test]
 fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {

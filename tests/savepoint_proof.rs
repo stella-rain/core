@@ -1,4 +1,4 @@
-//! The savepoint determinism proof (ADR-SAVE-14, ADR-SIM-17): for every run case of the replay
+//! The savepoint determinism proof (ADR-SAVE-14, ADR-SIM-3): for every run case of the replay
 //! corpus, in the current tree and in the frozen `v1/`, a savepoint taken at a cut, restored and
 //! run to the end gives the hashes, the ledger, the tallies, the snapshot and the replay of the
 //! uninterrupted run. `check_run` is generic over the restore, so the meta-tests can hand it

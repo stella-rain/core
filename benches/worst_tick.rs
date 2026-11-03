@@ -1,4 +1,4 @@
-//! The instruction count of a worst-case tick (ADR-SIM-17): every dynamic cap of ADR-SVC-7 reached
+//! The instruction count of a worst-case tick (ADR-SIM-3): every dynamic cap of ADR-SVC-7 reached
 //! at once (`tests/worst_case.rs` checks that). Counted under Valgrind, so the number is the
 //! same on every run of a build and does not depend on the CI runner's load; CI compares it with
 //! the one of the base commit and fails on a rise (`.github/workflows/rust.yml`).

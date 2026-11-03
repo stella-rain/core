@@ -22,7 +22,7 @@ use super::{Load, Outcome, Places};
 
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
 /// of that version's types. The engine reaches them, and the snapshot view, only through here.
-// The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-21). One run
+// The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-7). One run
 // is held per engine, so the size difference costs nothing.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]

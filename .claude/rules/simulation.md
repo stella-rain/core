@@ -12,7 +12,7 @@ paths:
 
 # Simulation code
 
-Sources: ADR-SIM-15, ADR-SIM-17, ADR-SIM-18, ADR-SIM-19, ADR-SIM-21, ADR-REPL-13, ADR-REPL-16, ADR-CONT-13. See `determinism.md`;
+Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-SIM-7, ADR-REPL-13, ADR-REPL-16, ADR-CONT-13. See `determinism.md`;
 outcome changes follow the `schema-change` skill.
 
 ## What is where
@@ -32,7 +32,7 @@ outcome changes follow the `schema-change` skill.
   `schedule.rs` holds `TICK`, the one tick order (`tick_doc_lists_the_schedule` keeps the `sim`
   module doc's table equal to it): a step is added or moved there. `sim/` holds agents and the
   enemies' push-apart, attacks and hit boxes, skills, the main character's movement, facing and
-  evade, the weapon's combos (ADR-SIM-18), aim assist, boss phases and parts, experience and
+  evade, the weapon's combos (ADR-SIM-4), aim assist, boss phases and parts, experience and
   levels, the runes (`runes.rs`), the falling stars and their offers (`stars.rs`, ADR-REPL-16)
   and the expertise offers (`expertise.rs`). A `timed` run keeps a deadline per slot
   (`sync_deadline`, `pick_due`). `offer_rating.rs` rates the candidates of an open star or boss
@@ -65,7 +65,7 @@ outcome changes follow the `schema-change` skill.
   from tick to tick, are not hashed or cloned, and hold nothing the rules read between ticks.
   `tests/alloc.rs` asserts 0 allocations and frees for a steady tick and the bench tick; a new
   per-tick `Vec` goes into `Scratch`, a bounded per-entity list into `InlineVec`.
-- The caps (enemies, zones, orbs), push-apart and collision cost are set by ADR-SIM-19; see `benches-fuzz.md`.
+- The caps (enemies, zones, orbs), push-apart and collision cost are set by ADR-SIM-5; see `benches-fuzz.md`.
 - A new constant in `sim/` is code only when changing it needs code review: a cap, the grid, the
   push-apart, the view or a unit (ADR-CONT-13). A designer-facing number is a `rules.json` key
   read from `Tuning`. Code to content is a pack-hash change alone; content to code is a rules

@@ -1,4 +1,4 @@
-//! Agents (ADR-SIM-18 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
+//! Agents (ADR-SIM-4 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
 //! summons and the skills they cast. Small stages whose every tick can be
 //! worked out by hand; the expected numbers come from the constants in `sim`.
 
@@ -62,7 +62,7 @@ fn probe(selector: Value) -> Value {
     rule(always(), selector, telegraph(), 0)
 }
 
-// --- Selectors (ADR-SIM-18) ---------------------------------------------------------------------
+// --- Selectors (ADR-SIM-4) ---------------------------------------------------------------------
 
 /// Companions A (2), B (3), C (4) and the probe P (5) stand at fixed points; the player is at
 /// (46080, 147456). From P at (46080, 120000): A is 20000 away, the player 27456, B about

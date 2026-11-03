@@ -107,7 +107,7 @@ pub const MAX_CRIT_DAMAGE_TOTAL_PCT: u32 = 300;
 /// The most one reward lets an echo repeat of a hit's damage, in percent, and the most the
 /// picks add up to.
 pub const MAX_ECHO_HIT_PCT: u32 = 100;
-/// The most echoes one tick resolves; the rest are dropped, first-come first-served (ADR-SIM-19).
+/// The most echoes one tick resolves; the rest are dropped, first-come first-served (ADR-SIM-5).
 pub const MAX_ECHOES_PER_TICK: usize = 64;
 /// The most of a killed enemy's maximum hit points a kill burst deals, in percent (a reward's
 /// `amount`), and the most the picks add up to.
@@ -117,7 +117,7 @@ pub const MAX_BURST_PCT: u32 = 100;
 pub const MAX_BURST_RADIUS_PX: u32 = 240;
 /// The most links of a chain of bursts (a reward's `depth`): the first burst is the first link.
 pub const MAX_BURST_DEPTH: u32 = 5;
-/// The most bursts one tick resolves, as ADR-SIM-19's contagion cap; the rest are dropped.
+/// The most bursts one tick resolves, as ADR-SIM-5's contagion cap; the rest are dropped.
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 
 /// `ticks` shortened by `haste_pct` percent of Rune Haste: `ticks × 100 /

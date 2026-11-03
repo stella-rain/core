@@ -1,5 +1,5 @@
 //! The stage file (ADR-CONT-11): data only, parsed strictly (ADR-CONT-11, ADR-SVC-7). Unknown fields are
-//! rejected everywhere. Field names follow ADR-SIM-18's shape and are placeholders until the
+//! rejected everywhere. Field names follow ADR-SIM-4's shape and are placeholders until the
 //! freeze (ADR-REPL-12); the validator (budgets, registry, text) is separate.
 
 use schemars::JsonSchema;
@@ -28,7 +28,7 @@ pub struct Stage {
     #[serde(default)]
     #[schemars(length(max = crate::validate::limits::MAX_DESCRIPTION_CHARS))]
     pub description: String,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as
+    /// Seeds the run's SplitMix64 (ADR-SIM-2). 32 bits so that every tool reading the file as
     /// JSON, GDScript included, keeps it exact; the simulation widens it.
     pub seed: u32,
     /// Ticks until the stage ends if the boss is still alive.
@@ -542,7 +542,7 @@ pub struct ExpertisePoints {
     pub kill: u32,
 }
 
-/// Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.
+/// Tier 2 (ADR-SIM-4): body parts and an ordered list of phases that only move forward.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Boss {
@@ -591,7 +591,7 @@ pub struct CallElites {
     pub below_pct: Option<u8>,
 }
 
-/// A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).
+/// A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BossPart {

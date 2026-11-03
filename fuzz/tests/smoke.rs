@@ -741,7 +741,7 @@ const ORACLE_TICK_LIMIT: u32 = 65_536;
 #[test]
 fn the_fuzz_crate_tests_are_built_optimised() {
     // The sweep simulates whole runs; at opt-level 0 it takes about 13 minutes, at 1 about 1.5
-    // (ADR-SIM-17). Overflow checks must stay on beside it.
+    // (ADR-SIM-3). Overflow checks must stay on beside it.
     let text = fs::read_to_string(root().join("fuzz/Cargo.toml")).expect("fuzz/Cargo.toml");
     let section: Vec<String> = text
         .lines()

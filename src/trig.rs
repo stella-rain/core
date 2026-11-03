@@ -1,4 +1,4 @@
-//! Sine and cosine from a table (ADR-SIM-15: no floating point in the simulation, trigonometry
+//! Sine and cosine from a table (ADR-SIM-1: no floating point in the simulation, trigonometry
 //! through lookup tables). Angles are in 1/256 degree, like the angles in attack patterns.
 //! The table has one entry per whole degree; angles in between are interpolated linearly, so
 //! slow turns, such as a spiral, move smoothly rather than in one-degree steps.
