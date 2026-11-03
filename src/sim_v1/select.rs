@@ -1,4 +1,4 @@
-//! Selectors (ADR-SIM-18): who a rule, a condition or a skill acts on. Ties break by squared
+//! Selectors (ADR-SIM-4): who a rule, a condition or a skill acts on. Ties break by squared
 //! distance from the acting entity, then entity ID, so the choice never depends on storage
 //! order.
 //!
@@ -68,7 +68,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// Aim assist's target: among the boss, its unbroken parts and the live enemies whose
 /// circle reaches within `range` of the main character, the boss or a part first, then an
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
-/// over the enemies, at most the enemy cap (ADR-SVC-7).
+/// over the enemies, at most the enemy cap (ADR-SVC-1).
 pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
     let from = s.player.at;
     let mut best: Option<(u8, u64, EntityId)> = None;
@@ -102,7 +102,7 @@ pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<Enti
 
 /// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
 ///. One pass over the enemies, each set against at most `n` kept. Its own walk, so
-/// that aim assist's stays as the tick-cost gate measures it (ADR-SIM-19).
+/// that aim assist's stays as the tick-cost gate measures it (ADR-SIM-5).
 pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> Vec<EntityId> {
     let from = s.player.at;
     let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));

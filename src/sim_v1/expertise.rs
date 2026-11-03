@@ -1,6 +1,6 @@
 //! The expertise gauge, in a stage whose enemies or boss give expertise
 //! points: one gauge for the one weapon, from level 0 with no highest level; and its offers
-//! (ADR-REPL-16).
+//! (ADR-REPL-5).
 //!
 //! A hit by an attack of an A or a B step of the combo adds its target's points per hit, and a
 //! kill its points per kill too: an enemy's from its wave, the boss's and its parts' from the

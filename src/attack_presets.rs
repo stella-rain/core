@@ -1,16 +1,16 @@
 //! The attack presets file (CS1b-1, DS20 item 2): the developer's attacks as content data, so
-//! that a preset is balanced by a content release and not by a code change (ADR-SIM-18: "Presets
-//! are content"). A preset is a registered preset ID (ADR-CONT-12) with its arguments and its
+//! that a preset is balanced by a content release and not by a code change (ADR-SIM-4: "Presets
+//! are content"). A preset is a registered preset ID (ADR-CONT-2) with its arguments and its
 //! phases, written in the stage's own attack format (`AttackPhase`, with `{"arg": n}` for an
 //! argument). A stage names one by ID and arguments (`AttackRef::Preset`), or holds an inline
 //! copy; `presets.rs` takes one apart.
 //!
-//! The IDs stay in the registry (ADR-CONT-12): the file gives each registered preset its
+//! The IDs stay in the registry (ADR-CONT-2): the file gives each registered preset its
 //! definition and may not add an ID. Letting the pack introduce preset IDs is a later change, as
-//! ADR-CONT-12 point 7 says for weapons. `args` names each argument and must be as long as the
+//! ADR-CONT-2 point 7 says for weapons. `args` names each argument and must be as long as the
 //! registry's arity, which the phases must read exactly.
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most
 //! `MAX_ATTACK_PRESETS` presets, each phase list checked as a stage's inline attack is
 //! (`validate::validate_attack`). The SHA-256 of the file's bytes is part of a run's content
@@ -29,7 +29,7 @@ use crate::registry::{self, Kind};
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest attack presets file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest attack presets file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_ATTACK_PRESETS_BYTES: usize = 128 * 1024;
 /// The most presets the file lists (9 today; a tuning value).
 pub const MAX_ATTACK_PRESETS: usize = 64;

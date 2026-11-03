@@ -1,7 +1,7 @@
-//! Experience, levels and stat points (ADR-REPL-16; DS18), in a stage with `levels`.
+//! Experience, levels and stat points (ADR-REPL-5; DS18), in a stage with `levels`.
 //!
 //! Defeated enemies give their wave's experience as they are removed in the collisions. Each
-//! level reached raises a run stat (ADR-CONT-11) by its step, and adds the step to its effect's
+//! level reached raises a run stat (ADR-CONT-1) by its step, and adds the step to its effect's
 //! total, in one of two ways. By default the first stat of the run's priority below its limit
 //! rises at once, with no pause (`StatRaised`). With `pick_stats` the level queues a stat offer
 //! instead: it opens in `open_offers` after the boss and expertise offers, and `Engine::choose`
@@ -23,7 +23,7 @@ use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, PlayerState, Progress, State};
 use crate::snapshot::{OfferOption, StatOfferView};
 
-/// The highest level; past it experience is no longer counted (ADR-SVC-7: it bounds the points).
+/// The highest level; past it experience is no longer counted (ADR-SVC-1: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
 
 /// The experience level `level` needs to reach the next; 0 at `MAX_LEVEL` or without levels.
@@ -299,7 +299,7 @@ pub(super) fn speed(s: &State, me: PlayerIdx, cap: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    //! The helpers read the career of the player they are given (ADR-SIM-21).
+    //! The helpers read the career of the player they are given (ADR-SIM-7).
 
     use super::*;
     use crate::bench_fixtures::worst_case;

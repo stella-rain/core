@@ -1,4 +1,4 @@
-# The tests and the replay corpus in an Android emulator (ADR-REL-12, CORE-ANDROID-EMU): the golden
+# The tests and the replay corpus in an Android emulator (ADR-REL-3, CORE-ANDROID-EMU): the golden
 # hash of `tests/engine.rs` and the replay corpus must match on bionic and the Android loader as on
 # every other platform. A x86_64 image on a standard Linux runner with KVM (core is public); it
 # proves the Android runtime, not arm64 code generation (the arm64 Linux job covers that). It is

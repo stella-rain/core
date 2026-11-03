@@ -211,7 +211,7 @@ class WorkflowStep(unittest.TestCase):
         self.assertNotIn("continue-on-error", self.step)
         before = self.job[: self.job.index(self.step)]
         comment = before.rsplit("      - name:", 1)[-1]
-        self.assertIn("ADR-SIM-20", comment)
+        self.assertIn("ADR-SIM-6", comment)
         self.assertIn("tests/bench_teardown.rs", comment)
 
 

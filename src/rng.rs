@@ -1,5 +1,5 @@
-//! The simulation PRNG: SplitMix64 (ADR-SIM-16). The algorithm, `below(n)` and the order of draws
-//! are frozen rules (ADR-REPL-12); `tests/rng.rs` pins the outputs.
+//! The simulation PRNG: SplitMix64 (ADR-SIM-2). The algorithm, `below(n)` and the order of draws
+//! are frozen rules (ADR-REPL-1); `tests/rng.rs` pins the outputs.
 
 /// The stream tags: each name padded with zeros to 8 bytes, read as a little-endian `u64`.
 pub const TAG_SPAWN: u64 = u64::from_le_bytes(*b"spawn\0\0\0");
@@ -11,7 +11,7 @@ pub const TAG_OFFER_1: u64 = u64::from_le_bytes(*b"offer1\0\0");
 pub const TAG_OFFER_2: u64 = u64::from_le_bytes(*b"offer2\0\0");
 pub const TAG_HORDE: u64 = u64::from_le_bytes(*b"horde\0\0\0");
 
-/// The stream of one purpose: one SplitMix64 step of `seed ^ tag` seeds it (ADR-SIM-16), so a
+/// The stream of one purpose: one SplitMix64 step of `seed ^ tag` seeds it (ADR-SIM-2), so a
 /// draw of one purpose never moves another's.
 pub fn derive(seed: u64, tag: u64) -> SplitMix64 {
     SplitMix64::new(SplitMix64::new(seed ^ tag).next_u64())

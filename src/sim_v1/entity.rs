@@ -196,7 +196,7 @@ impl State {
             .map(Who::Companion)
     }
 
-    /// Adds to an ally's aggro (ADR-SIM-18), up to a cap. Others have none to raise.
+    /// Adds to an ally's aggro (ADR-SIM-4), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
             Some(Who::Player) => &mut self.player.aggro,

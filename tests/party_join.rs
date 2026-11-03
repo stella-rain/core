@@ -1,4 +1,4 @@
-//! A party changes at a tick (ADR-SIM-21 point 1, ADR-SIM-22 point 5, ADR-REPL-16): the engine
+//! A party changes at a tick (ADR-SIM-7 point 1, ADR-SIM-8 point 5, ADR-REPL-5): the engine
 //! joins and leaves a slot between steps, the step log carries the change, and record, resume,
 //! `replay_at`, save and verify agree on a run whose presence mask moves.
 

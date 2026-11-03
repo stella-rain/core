@@ -1,4 +1,4 @@
-//! Domain events, backend to frontend over the event bus (ADR-BRDG-12). They drive the frontend's
+//! Domain events, backend to frontend over the event bus (ADR-BRDG-3). They drive the frontend's
 //! effects and sounds, the debug overlay and golden tests; the simulation never reads them.
 //! In a recording each is `{"type": ..., "data": {...}}`.
 
@@ -78,7 +78,7 @@ pub enum DomainEvent {
         echo: bool,
         /// The player credited with the hit, by its entity number (0 to 2, as `Healed::target`
         /// names one): the owner of the shot, or slot 0 for a companion's. Left out for a hit
-        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21).
+        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         player: Option<EntityId>,
         /// The other player whose attack-up was on `player` when the hit landed. Left out when
@@ -154,7 +154,7 @@ pub enum DomainEvent {
     },
     /// A hold ended without a release: an evade, or a hit from an attack that breaks charges.
     HoldBroken,
-    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).
+    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-4).
     RuleFired {
         agent: EntityId,
         rule: u8,
@@ -192,13 +192,13 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,
+    /// The main character reached `level` (ADR-REPL-5): a stat is raised by the run's priority,
     /// or a stat offer is due (DS18).
     LeveledUp {
         level: u32,
     },
     /// A level-up raised the run stat `stat`, by the priority or by a choice: it now has
-    /// `spent` points (ADR-REPL-16, DS18).
+    /// `spent` points (ADR-REPL-5, DS18).
     StatRaised {
         stat: ContentId,
         spent: u8,
@@ -209,7 +209,7 @@ pub enum DomainEvent {
     StatOfferOpened {
         options: Vec<ContentId>,
     },
-    /// A kill dropped the falling star `star` (ADR-REPL-16).
+    /// A kill dropped the falling star `star` (ADR-REPL-5).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -264,7 +264,7 @@ pub enum DomainEvent {
         owner: EntityId,
         at: Point,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,
@@ -299,7 +299,7 @@ pub enum DomainEvent {
         reward: ContentId,
     },
     /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
-    /// choice closes it (ADR-REPL-16).
+    /// choice closes it (ADR-REPL-5).
     ExpertiseOfferOpened {
         level: u32,
         kind: ExpertiseOfferKind,

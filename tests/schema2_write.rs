@@ -1,7 +1,7 @@
-//! Every writer writes replay schema 2 (ADR-REPL-13 point 4, ADR-REPL-16): the run recorder
+//! Every writer writes replay schema 2 (ADR-REPL-2 point 4, ADR-REPL-5): the run recorder
 //! writes the step log with each pick inside its step and an empty `commands`, the stage replay
 //! writer keeps `interact`, and a schema 1 file of each type still loads and verifies
-//! (ADR-REPL-13).
+//! (ADR-REPL-2).
 
 use crate::corpus::case_content;
 use crate::corpus_pins::case_pack;

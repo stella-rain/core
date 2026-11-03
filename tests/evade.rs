@@ -185,7 +185,7 @@ fn a_charge_with_no_cooldown_is_ready_again_at_once() {
 
 #[test]
 fn charges_absent_from_a_stage_write_nothing_back() {
-    // A stage that never named charges keeps its JSON, and so its parsed-stage hash (ADR-SVC-13).
+    // A stage that never named charges keeps its JSON, and so its parsed-stage hash (ADR-SVC-7).
     let v = serde_json::to_value(stage_with(18_000, Some(far_boss()), vec![])).unwrap();
     let evade = v["player"]["evade"].as_object().unwrap();
     assert!(!evade.contains_key("charges") && !evade.contains_key("max_charges"));

@@ -1,6 +1,6 @@
 //! The snapshot view of this version's state: what the frontend draws after the last tick
-//! (ADR-BRDG-13), and where the drawn things are (`places`). It reads this version's `World` and
-//! `State` only, so a copy of the rules brings its own view (ADR-REPL-13 point 4).
+//! (ADR-BRDG-4), and where the drawn things are (`places`). It reads this version's `World` and
+//! `State` only, so a copy of the rules brings its own view (ADR-REPL-2 point 4).
 
 use std::sync::LazyLock;
 
@@ -71,7 +71,7 @@ pub(crate) fn places(s: &State, out: &mut Places) {
     }
 }
 
-/// What the frontend draws after the last tick (ADR-BRDG-13). `places` repeats its rules for
+/// What the frontend draws after the last tick (ADR-BRDG-4). `places` repeats its rules for
 /// the ids, kinds and positions, and the player's position: change them together.
 pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot {
     let view = |r: &AttackRun| {

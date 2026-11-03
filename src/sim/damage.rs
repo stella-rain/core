@@ -1,4 +1,4 @@
-//! Where a player's damage meets a foe's hit points (ADR-SIM-21). `damage` (a hit, a damage over
+//! Where a player's damage meets a foe's hit points (ADR-SIM-7). `damage` (a hit, a damage over
 //! time tick, a kill burst) and `combat::deal_echoes` work out their number and call `land`, which is the one place that
 //! lowers a foe's, the boss's or a boss part's hit points, credits the kill, reports `Hit` and `Died` and raises the shooter's aggro.
 
@@ -31,7 +31,7 @@ pub(super) struct Landed {
 }
 
 /// `shown` at `pct` percent, truncated toward zero once, and at least 1 for a hit above 0
-/// (ADR-SIM-22 point 3).
+/// (ADR-SIM-8 point 3).
 pub(super) fn party_scaled(pct: u32, shown: u32) -> u32 {
     let scaled = u32::try_from(u64::from(shown) * u64::from(pct) / 100).unwrap_or(u32::MAX);
     if shown > 0 { scaled.max(1) } else { 0 }
@@ -43,7 +43,7 @@ pub(super) fn party_scaled(pct: u32, shown: u32) -> u32 {
 ///
 /// `shown` is what the `Hit` event, the aggro and the echo's size carry. `applied` is the only
 /// number that reaches the hit points: a foe's is `shown` times the percent of the present party
-/// (ADR-SIM-22), read at this hit from `s.players`, once per hit; an ally's is `shown`.
+/// (ADR-SIM-8), read at this hit from `s.players`, once per hit; an ally's is `shown`.
 #[inline(always)]
 pub(super) fn land(
     stage: &World,

@@ -1,5 +1,5 @@
-//! Replays (ADR-REPL-17, ADR-BRDG-12): the packed input encoding, recording, verification and the
-//! checks on untrusted replay files (ADR-SVC-7).
+//! Replays (ADR-REPL-6, ADR-BRDG-3): the packed input encoding, recording, verification and the
+//! checks on untrusted replay files (ADR-SVC-1).
 
 use crate::common;
 
@@ -325,7 +325,7 @@ fn a_replay_that_does_not_clear_is_recorded_but_does_not_verify() {
         verify(&stage, &failed.to_bytes()),
         Err(ReplayError::NotCleared { tick: 600 })
     );
-    // Still running when the inputs end: a bug report (ADR-BRDG-12).
+    // Still running when the inputs end: a bug report (ADR-BRDG-3).
     let running = record(&stage, &[idle(); 10]).unwrap();
     assert_eq!(running.ticks, 10);
     assert_eq!(
@@ -481,7 +481,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
 fn the_encoding_is_pinned() {
     // The replay file and its hashes for a fixed stage and inputs. Every platform must write
     // and verify exactly this; a change is a change to the format or to a frozen version's
-    // rules, which is a new version (ADR-REPL-13). The stage's two versions are in the stage
+    // rules, which is a new version (ADR-REPL-2). The stage's two versions are in the stage
     // file, so `stage_sha256` and the content hash moved once, at the freeze of version 1.
     let (stage, replay, bytes) = recorded();
     assert_eq!(
@@ -742,7 +742,7 @@ fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
     );
 }
 
-// --- Schema 2 (ADR-REPL-13 point 4) -------------------------------------------------------------
+// --- Schema 2 (ADR-REPL-2 point 4) -------------------------------------------------------------
 
 /// The clearing stage with its schema version set.
 fn stage_at_schema(schema_version: u32) -> Vec<u8> {

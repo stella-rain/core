@@ -1,4 +1,4 @@
-//! The per-tick input record (ADR-BRDG-12): the only external influence on a run, and all
+//! The per-tick input record (ADR-BRDG-3): the only external influence on a run, and all
 //! a replay stores. Touch, keyboard and later a gamepad produce the same record; it never says
 //! which device made it, and its fields are named for what they do, not for buttons or keys.
 //!
@@ -31,10 +31,10 @@ pub struct Input {
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
     /// On a tick where an offer is open: the option to take, an index into the offer's `options`
-    /// (ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
+    /// (ADR-REPL-5). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pick: Option<u32>,
-    /// The interact button is held on this tick: the revive hold (ADR-SIM-21). Read by the down
+    /// The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down
     /// and revive rules only; the simulation ignores it until they exist. Schema 2 only: the
     /// schema 1 stream cannot carry it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

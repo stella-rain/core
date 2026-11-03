@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a bench case rose by more than the limit, unless a new ledger entry covers it (ADR-SIM-20 point 3).
+"""Fail when a bench case rose by more than the limit, unless a new ledger entry covers it (ADR-SIM-6 point 3).
 
 Reads the iai-callgrind output the bench job tees to a file (`Instructions: <head>|<base>`) and
 benches/accepted.toml. A case rose when (head - base) * 100 > base * limit, exactly (the rule of
@@ -9,7 +9,7 @@ prefix of the head's. An entry added by this PR covers a rise of its bench, case
 not accepted; the profile (bench-profile-<arch>) says where it comes from.
 
 With --cases only the listed cases are gated (the bench job lists those whose pre-tick digest in
-tests/bench_pins.toml is unchanged, ADR-SIM-20 point 5); any other case is reported as moved, never failed.
+tests/bench_pins.toml is unchanged, ADR-SIM-6 point 5); any other case is reported as moved, never failed.
 """
 
 import argparse
@@ -114,7 +114,7 @@ def check(arch, found, limit_pct, ledger, base_ledger, pr, compared=None):
         errors.append(
             f"{bench} {case} on {arch}: {base:,} -> {head:,} instructions ({change}), over the limit of "
             f"+{limit_pct}%{why}. profile: artifact bench-profile-{arch}; "
-            "an unexplained rise is fixed, not accepted (ADR-SIM-20 point 4)"
+            "an unexplained rise is fixed, not accepted (ADR-SIM-6 point 4)"
         )
     for e in new:
         key = (e["bench"], e["case"])

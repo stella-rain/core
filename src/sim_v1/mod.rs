@@ -1,6 +1,6 @@
-//! The rules of `sim_version` 1, frozen (ADR-REPL-13): not edited again except to keep compiling
-//! against shared types. The hash check across CPUs is never relaxed (ADR-SIM-17). The events it
-//! emits are its own (`event`, ADR-REPL-13 points 1 to 3); `engine/v1_events.rs` turns them into the
+//! The rules of `sim_version` 1, frozen (ADR-REPL-2): not edited again except to keep compiling
+//! against shared types. The hash check across CPUs is never relaxed (ADR-SIM-3). The events it
+//! emits are its own (`event`, ADR-REPL-2 points 1 to 3); `engine/v1_events.rs` turns them into the
 //! live type.
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
@@ -23,9 +23,9 @@
 //! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (`orbit`) |
 //! | `boss_act` | the boss: phases, timeline, rules (`boss`) |
 //! | `call_elites` | a boss that calls elites does so when its time comes (`boss`) |
-//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-SIM-18); an elite holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
+//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-SIM-4); an elite holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
 //! | `dash_attackers` | an enemy or the boss in an active phase with a dash moves its share of the distance along its attack's locked facing, held to the map; a boss's parts follow (`dash`) |
-//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-SIM-19, `push`) |
+//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-SIM-5, `push`) |
 //! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
 //! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
 //! | `zones_advance` | the zones age and run out (`zones`) |
@@ -83,7 +83,7 @@
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-SVC-7): at most `World::enemy_cap` enemies (the crowd target and the
+//! Dynamic budgets (ADR-SVC-1): at most `World::enemy_cap` enemies (the crowd target and the
 //! pack's headroom, 260 for the bundled pack, derived when the run is built and at most
 //! `limits::MAX_ENEMY_CAP`, DS103), the stage's elite cap of
 //! them elites (at most `MAX_ELITES_ALIVE`), `MAX_ZONES_ALIVE` zones, `MAX_ORBS_ALIVE` orbs,
@@ -176,12 +176,12 @@ pub(crate) use stars::{constellation_views, offer_view};
 
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
-/// Zones alive at once (core Z1, a placeholder cap pending ADR-SIM-19); a zone placed over it is
+/// Zones alive at once (core Z1, a placeholder cap pending ADR-SIM-5); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
 /// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
-/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-19's cap); they go to the nearest ready enemies in view (RA1).
+/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-5's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle (RA1, DS82): the widest supported aspect, 21:9, of the 360 px design
 /// height, 840 by 360 px, never the device's screen. It is the camera's rectangle: centred on the
@@ -216,7 +216,7 @@ pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
 pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
-/// Attacks being carried out at once (ADR-SIM-18 tier 3), and the node steps they may take in a
+/// Attacks being carried out at once (ADR-SIM-4 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
@@ -227,12 +227,12 @@ pub(crate) const PLAYER_ID: EntityId = EntityId(0);
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 
-/// The most aggro anyone holds (ADR-SIM-18; an overflow bound, also the validator's bound of
+/// The most aggro anyone holds (ADR-SIM-4; an overflow bound, also the validator's bound of
 /// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-REPL-16).
+/// and the rerolls its setup adds to the stage's (ADR-REPL-5).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
@@ -268,7 +268,7 @@ impl RunDifficulty {
 }
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
-/// stage, the setup's for a run (ADR-REPL-16).
+/// stage, the setup's for a run (ADR-REPL-5).
 pub(crate) fn initial_state(
     stage: &World,
     content: &RunContent,
@@ -281,7 +281,7 @@ pub(crate) fn initial_state(
     state
 }
 
-/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-19 point 4): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
+/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-5 point 4): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
 /// Called when the run is built and again for a clone of its state, because a cloned `Vec` has
 /// only its length. The scratch buffers are `Scratch::reserve`'s.
 pub(crate) fn reserve(stage: &World, s: &mut State) {
@@ -608,7 +608,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
 /// in level order, then the stat offers in level order, then the stars' in the order taken
-/// (ADR-REPL-16, DS18).
+/// (ADR-REPL-5, DS18).
 fn open_offers(
     stage: &World,
     rewards: &Rewards,
@@ -1158,7 +1158,7 @@ fn damage(stage: &World, s: &mut State, b: Shot, target: Who, events: &mut Vec<D
     );
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
-    // The common case, with no combat reward held, pays for one comparison (ADR-SIM-19).
+    // The common case, with no combat reward held, pays for one comparison (ADR-SIM-5).
     let crit = s.player.crit_chance_pct != 0
         && combat::crits(s, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
@@ -1532,7 +1532,7 @@ fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     }
 }
 
-/// The state hash (ADR-SIM-17 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
+/// The state hash (ADR-SIM-3 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
 /// state, which `state_hash.rs` writes.
 pub(crate) fn state_hash(s: &State) -> u64 {
     let mut h = StateHasher::new();

@@ -7,7 +7,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// A content ID from the registry (ADR-CONT-12): asset, palette, part, preset, status or pattern.
+/// A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.
 /// Lowercase `snake_case`, at most 32 characters; the validator checks the format and that the
 /// ID exists.
 //
@@ -101,12 +101,12 @@ mod tests {
     }
 }
 
-// In the live rules a player's number is `generation << GENERATION_SHIFT | slot` (ADR-SIM-21):
+// In the live rules a player's number is `generation << GENERATION_SHIFT | slot` (ADR-SIM-7):
 // the slots are 0 to 2, present or not, and a slot's generation grows each time it leaves, so a
 // new occupant never matches what the leaver owned. The boss, the companions and the enemies
 // are numbered from 3, below `1 << GENERATION_SHIFT`. A plain comment: a doc comment on this
 // type is part of the generated schema.
-/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-18).
+/// An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-4).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -122,18 +122,18 @@ pub(crate) const GENERATION_SHIFT: u32 = 24;
 /// parts, companions) are far fewer than the caps allow, so `player_of` never reads one as a player.
 pub(crate) const MAX_ENTITY_NUMBER: u32 = 1 << GENERATION_SHIFT;
 
-/// The most players a run holds (ADR-SIM-21 point 1). A code cap, not a tuning number.
+/// The most players a run holds (ADR-SIM-7 point 1). A code cap, not a tuning number.
 pub const MAX_PLAYERS: u8 = 3;
 
 /// The entity numbers a party of `party` players leaves empty: the slots `party..MAX_PLAYERS`
-/// are reserved (ADR-SIM-21).
+/// are reserved (ADR-SIM-7).
 #[inline]
 pub(crate) fn id_gap(party: usize) -> u32 {
     u32::from(MAX_PLAYERS).saturating_sub(u32::try_from(party).unwrap_or(u32::MAX))
 }
 
 /// The number the crit roll and the push-apart key `id` by in a party whose `id_gap` is `gap`: a
-/// player's slot as it is, every other entity `gap` lower (ADR-SIM-21). A rule of
+/// player's slot as it is, every other entity `gap` lower (ADR-SIM-7). A rule of
 /// the simulation, not an encoding: the hash and the savepoint write entity numbers as they are.
 #[inline]
 pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
@@ -145,7 +145,7 @@ pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
 
 /// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
 /// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
-/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-20).
+/// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PlayerIdx {
     First,
@@ -209,7 +209,7 @@ pub(crate) fn player_of(id: EntityId) -> Option<(PlayerIdx, u8)> {
 #[cfg(test)]
 mod gap_tests {
     //! The map between the live rules' entity numbers (players first, slots 0 to 2 reserved) and
-    //! the compact numbers the crit roll and the push-apart key by (ADR-SIM-21).
+    //! the compact numbers the crit roll and the push-apart key by (ADR-SIM-7).
     use super::*;
 
     #[test]

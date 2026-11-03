@@ -1,6 +1,6 @@
-//! The stage file (ADR-CONT-11): data only, parsed strictly (ADR-CONT-11, ADR-SVC-7). Unknown fields are
-//! rejected everywhere. Field names follow ADR-SIM-18's shape and are placeholders until the
-//! freeze (ADR-REPL-12); the validator (budgets, registry, text) is separate.
+//! The stage file (ADR-CONT-1): data only, parsed strictly (ADR-CONT-1, ADR-SVC-1). Unknown fields are
+//! rejected everywhere. Field names follow ADR-SIM-4's shape and are placeholders until the
+//! freeze (ADR-REPL-1); the validator (budgets, registry, text) is separate.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub struct Stage {
     #[serde(default)]
     #[schemars(length(max = crate::validate::limits::MAX_DESCRIPTION_CHARS))]
     pub description: String,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as
+    /// Seeds the run's SplitMix64 (ADR-SIM-2). 32 bits so that every tool reading the file as
     /// JSON, GDScript included, keeps it exact; the simulation widens it.
     pub seed: u32,
     /// Ticks until the stage ends if the boss is still alive.
@@ -46,11 +46,11 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages
+    /// Experience and levels, each level-up giving a stat point (ADR-REPL-5); a mode's stages
     /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
-    /// Falling stars and the offers they open (ADR-REPL-16); only with `levels`.
+    /// Falling stars and the offers they open (ADR-REPL-5); only with `levels`.
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
@@ -113,7 +113,7 @@ pub struct StardustTier {
 
 /// Why a Stardust tier table is not valid, if it is not: 1 to `limits::MAX_STARDUST_TIERS`
 /// tiers, the first at tick 0, the ticks rising strictly, each percent from 1 to
-/// `limits::MAX_STARDUST_PCT` (ADR-SVC-7).
+/// `limits::MAX_STARDUST_PCT` (ADR-SVC-1).
 pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
     use crate::validate::limits::{MAX_STARDUST_PCT, MAX_STARDUST_TIERS};
     if tiers.is_empty() || tiers.len() > MAX_STARDUST_TIERS {
@@ -136,7 +136,7 @@ pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
 }
 
 /// The highest level a level table may name: the last level whose threshold the expertise file
-/// lists (ADR-SVC-7).
+/// lists (ADR-SVC-1).
 pub const MAX_STYLE_LEVEL: u32 = 10;
 
 /// The expertise levels of a run's style path: the level of the style choice, of
@@ -409,7 +409,7 @@ pub struct Player {
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// The one weapon, whose combos the main character makes by hand with both buttons
-    ///. It moves to the run's setup when the setup exists (ADR-REPL-16).
+    ///. It moves to the run's setup when the setup exists (ADR-REPL-5).
     pub weapon: WeaponRef<Weapon>,
     /// Skill 1. It moves to the run's setup with the character when the setup exists
     ///.
@@ -542,7 +542,7 @@ pub struct ExpertisePoints {
     pub kill: u32,
 }
 
-/// Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.
+/// Tier 2 (ADR-SIM-4): body parts and an ordered list of phases that only move forward.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Boss {
@@ -591,7 +591,7 @@ pub struct CallElites {
     pub below_pct: Option<u8>,
 }
 
-/// A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).
+/// A breakable part with its own HP and hurt circle (ADR-CONT-7, ADR-SIM-4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BossPart {

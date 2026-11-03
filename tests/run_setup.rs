@@ -1,5 +1,5 @@
-//! The run setup (ADR-REPL-16): a run starts from the setup alone, and the setup is untrusted
-//! (ADR-SVC-7).
+//! The run setup (ADR-REPL-5): a run starts from the setup alone, and the setup is untrusted
+//! (ADR-SVC-1).
 
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
@@ -182,7 +182,7 @@ fn only_the_setup_format_parses() {
 
 #[test]
 fn a_setup_holds_no_expertise_level() {
-    // Every run starts the expertise gauge at level 0 (ADR-REPL-16): the setup carries none.
+    // Every run starts the expertise gauge at level 0 (ADR-REPL-5): the setup carries none.
     let without = r#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
@@ -283,7 +283,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
     assert_eq!(run_setup::mode_file("giant_sword"), None);
 }
 
-// --- The star pool and extra rerolls (ADR-REPL-16) ---------------------------------------------
+// --- The star pool and extra rerolls (ADR-REPL-5) ---------------------------------------------
 
 fn with_pool(ids: &[&str]) -> RunSetup {
     RunSetup {
@@ -410,7 +410,7 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
 }
 
-// --- Permanent upgrades (ADR-REPL-16) -----------------------------------------
+// --- Permanent upgrades (ADR-REPL-5) -----------------------------------------
 
 fn with_upgrades(ids: &[&str]) -> RunSetup {
     RunSetup {

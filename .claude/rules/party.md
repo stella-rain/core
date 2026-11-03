@@ -11,7 +11,7 @@ paths:
 
 # Parties, joining and leaving
 
-Sources: ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-16. The log bytes and the recorder:
+Sources: ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-6. The log bytes and the recorder:
 `step-log.md`; the hash and `id_gap`: `simulation.md`, `determinism.md`.
 
 ## Parties
@@ -27,7 +27,7 @@ Sources: ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-16. The log bytes and the
   run waits for every slot. `timed_two` (slot 1 never answers) is the case that shows it.
 - Only a hole at tick 0 is refused by the recorder and verifier; the step log reaches a hole by
   LEAVE. The app never resumes a party run: `resume_*` for a party serve tests, replay and
-  "continue alone" (ADR-SAVE-16).
+  "continue alone" (ADR-SAVE-6).
 
 ## Tests
 

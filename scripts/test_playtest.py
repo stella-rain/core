@@ -1,4 +1,4 @@
-"""Unit tests for scripts/playtest.py (RP2-1, ADR-CONT-14)."""
+"""Unit tests for scripts/playtest.py (RP2-1, ADR-CONT-4)."""
 
 import os
 import sys

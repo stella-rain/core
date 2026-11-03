@@ -1,9 +1,9 @@
-//! Tier 1 of the behaviour model (ADR-SIM-18): agents with ordered rule lists, and the conditions,
+//! Tier 1 of the behaviour model (ADR-SIM-4): agents with ordered rule lists, and the conditions,
 //! selectors, actions and skills they are built from.
 //!
 //! Every variant here is a content ID (its serialised name) and will be recorded in the
-//! registry with the `sim_version` that introduced it (ADR-CONT-12). Names and fields are
-//! placeholders until the freeze (ADR-REPL-12).
+//! registry with the `sim_version` that introduced it (ADR-CONT-2). Names and fields are
+//! placeholders until the freeze (ADR-REPL-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use crate::id::ContentId;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Agent {
-    /// Asset ID of the sprite (ADR-CONT-17).
+    /// Asset ID of the sprite (ADR-CONT-7).
     pub base: ContentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
@@ -34,7 +34,7 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<Profile>,
     pub movement: Movement,
-    /// Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-18).
+    /// Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-4).
     #[serde(default)]
     #[schemars(length(max = crate::validate::limits::MAX_RULES))]
     pub rules: Vec<Rule>,
@@ -79,7 +79,7 @@ pub struct Elite {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Mimic {
-    /// Asset ID of the sprite it is drawn as while disguised (ADR-CONT-17).
+    /// Asset ID of the sprite it is drawn as while disguised (ADR-CONT-7).
     pub disguise: ContentId,
     /// 1 to `MAX_LEN`.
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
@@ -124,13 +124,13 @@ impl BossCall {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Movement {
     /// Circles the main character. A companion is set on its circle; an enemy moves to its
-    /// place on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-19).
+    /// place on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-5).
     Orbit {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         radius: Fx,
     },
     /// Trails the main character at a distance, at most `speed` a tick (a tank's is slower);
-    /// absent, 4 pixels a tick as it always was (ADR-SIM-19).
+    /// absent, 4 pixels a tick as it always was (ADR-SIM-5).
     Follow {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         distance: Fx,
@@ -139,7 +139,7 @@ pub enum Movement {
         speed: Option<Fx>,
     },
     /// Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at
-    /// most 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-19).
+    /// most 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-5).
     Hold { at: Point },
     /// Moves at a constant velocity per tick.
     Straight { vx: Fx, vy: Fx },
@@ -178,7 +178,7 @@ pub struct Guardians {
     pub radius: Fx,
 }
 
-/// `when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-18).
+/// `when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Rule {
@@ -229,7 +229,7 @@ pub enum Condition {
         ticks: u32,
     },
     /// The main character's centre is within `distance` of the agent's centre (the edge counts):
-    /// an exploder's burst (ADR-SIM-18).
+    /// an exploder's burst (ADR-SIM-4).
     NearTarget {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]
         distance: Fx,
@@ -237,7 +237,7 @@ pub enum Condition {
 }
 
 /// Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then
-/// entity ID (ADR-SIM-18).
+/// entity ID (ADR-SIM-4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Selector {
@@ -282,7 +282,7 @@ pub enum Action {
     },
 }
 
-/// A skill block (ADR-SIM-18). Percentages are whole percent.
+/// A skill block (ADR-SIM-4). Percentages are whole percent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Skill {

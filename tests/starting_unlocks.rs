@@ -1,5 +1,5 @@
-//! The starting unlocks file (ADR-CONT-15, ADR-SAVE-11): the weapons, perk sets,
-//! stage skills and runes a new save begins with, read from JSON as untrusted bytes (ADR-SVC-7).
+//! The starting unlocks file (ADR-CONT-5, ADR-SAVE-1): the weapons, perk sets,
+//! stage skills and runes a new save begins with, read from JSON as untrusted bytes (ADR-SVC-1).
 //! The simulation never reads it; the app seeds a new save from the pack.
 
 use crate::common;

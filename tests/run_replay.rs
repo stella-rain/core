@@ -1,6 +1,6 @@
-//! The run replay (ADR-REPL-16): a run recorded as its setup, the content hash, one input per
+//! The run replay (ADR-REPL-5): a run recorded as its setup, the content hash, one input per
 //! tick and one stream of commands between ticks (`choose` and `spend`), re-simulated from the
-//! file alone and refused, failing closed, whenever the file and the run disagree (ADR-SVC-7).
+//! file alone and refused, failing closed, whenever the file and the run disagree (ADR-SVC-1).
 
 use serde_json::{Value, json};
 use stella_rain_core::base64;
@@ -230,7 +230,7 @@ fn the_recorder_keeps_only_what_the_engine_took() {
     assert_eq!(recorder.replay(), recorded(TRIAL_LENGTH));
 }
 
-// --- Offers (ADR-REPL-16) -------------------------------------------------------------------------
+// --- Offers (ADR-REPL-5) -------------------------------------------------------------------------
 
 /// The commands of the trial run up to its first offer: the input of the tick that opened it
 /// is the last.
@@ -519,7 +519,7 @@ fn a_replay_file_reads_back_as_the_replay() {
 
 #[test]
 fn a_file_over_the_limit_is_not_parsed() {
-    // A run replay is a file, up to 1 MiB (ADR-SVC-7); it never goes in a share code.
+    // A run replay is a file, up to 1 MiB (ADR-SVC-1); it never goes in a share code.
     assert_eq!(MAX_RUN_REPLAY_BYTES, 1024 * 1024);
     let big = vec![b' '; MAX_RUN_REPLAY_BYTES + 1];
     assert_eq!(
@@ -697,7 +697,7 @@ fn the_trial_s_enemies_and_boss_give_expertise_points() {
     );
 }
 
-// --- Permanent upgrades, which open no step now (ADR-REPL-16) -------------------------------------------------
+// --- Permanent upgrades, which open no step now (ADR-REPL-5) -------------------------------------------------
 
 /// The Sword's A, AA, then B: slash (4 + 3 ticks, recovery 10) pressed on ticks 0 and 6 and
 /// the smash on tick 14: AAB, depth 3.
@@ -735,7 +735,7 @@ fn smash_depths(setup: &RunSetup) -> Vec<u8> {
 
 #[test]
 fn the_setup_s_upgrades_open_no_combo_step() {
-    // Every smash is open (ADR-REPL-16): the Sword's AAB is depth 3 whatever the setup holds.
+    // Every smash is open (ADR-REPL-5): the Sword's AAB is depth 3 whatever the setup holds.
     let held = RunSetup {
         upgrades: vec!["giant_sword_aab".into()],
         ..trial_setup()
@@ -759,7 +759,7 @@ fn a_run_whose_setup_names_upgrades_records_and_verifies_and_runs_as_without_the
     assert_eq!(without.final_hash, replay.final_hash);
 }
 
-// --- Resuming from a prefix (ADR-SAVE-14) ---------------------------------------------------------
+// --- Resuming from a prefix (ADR-SAVE-4) ---------------------------------------------------------
 
 /// The index just after the `n`th `Step` from `from` on and after every `Choose` that follows it.
 fn after_steps(commands: &[Command], from: usize, n: usize) -> usize {

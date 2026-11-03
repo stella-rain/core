@@ -1,6 +1,6 @@
-//! The simulation engine (ADR-SIM-15, ADR-SVC-13) at version 1. Small stages are built here so that
+//! The simulation engine (ADR-SIM-1, ADR-SVC-7) at version 1. Small stages are built here so that
 //! every expected tick can be worked out by hand from the rules in `sim`; the fixture
-//! stage pins the hash every platform must reproduce (ADR-SIM-17).
+//! stage pins the hash every platform must reproduce (ADR-SIM-3).
 
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -292,7 +292,7 @@ fn a_stage_with_nothing_to_beat_clears_at_once() {
     assert_eq!((e.tick(), e.outcome()), (1, Outcome::Cleared));
 }
 
-// --- Waves and the runtime caps (ADR-SVC-7) ----------------------------------------------------
+// --- Waves and the runtime caps (ADR-SVC-1) ----------------------------------------------------
 
 #[test]
 fn waves_spawn_on_schedule_in_entity_id_order() {
@@ -338,7 +338,7 @@ fn at_most_the_cap_of_enemies_are_alive_and_dropped_spawns_still_count() {
     assert_eq!(ids, (1..=261).collect::<Vec<u32>>());
 }
 
-// --- Rules (ADR-SIM-18) -------------------------------------------------------------------------
+// --- Rules (ADR-SIM-4) -------------------------------------------------------------------------
 
 /// One enemy standing far from the character, with `rules`; every `RuleFired` as (tick, rule).
 /// A running stage whose weapons are quiet, so that the enemies the tests set up live.
@@ -471,7 +471,7 @@ fn the_snapshot_survives_json() {
     assert_eq!(serde_json::from_str::<Snapshot>(&json).unwrap(), s);
 }
 
-// --- Determinism (ADR-SIM-15, ADR-SIM-17) ----------------------------------------------------------
+// --- Determinism (ADR-SIM-1, ADR-SIM-3) ----------------------------------------------------------
 
 fn fixture() -> Stage {
     // The fixture is written at design values and scaled like the corpus stages.
@@ -520,7 +520,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 
 /// The hash after `GOLDEN_TICKS` ticks of `script` on the fixture stage. Every platform must
 /// produce exactly this (CI runs it on x86_64 and arm64); a change to it is a change to the
-/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-13, the
+/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-2, the
 /// `schema-change` skill), never a re-pin of this value.
 const GOLDEN_TICKS: u32 = 900;
 const GOLDEN_HASH: u64 = 0x7728_e264_08b8_adf9;

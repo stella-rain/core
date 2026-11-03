@@ -1,7 +1,7 @@
 //! `Engine::offer_ratings`: each candidate of an open star offer rated with the rules' own
-//! formulas (ADR-SIM-15, ADR-REPL-16): its categories, the expected final-DPS gain in basis
+//! formulas (ADR-SIM-1, ADR-REPL-5): its categories, the expected final-DPS gain in basis
 //! points, the set tier it reaches and the stats it changes. A read-only query: nothing the
-//! hash covers moves (ADR-SIM-17).
+//! hash covers moves (ADR-SIM-3).
 
 use serde_json::{Value, json};
 use stella_rain_core::constellations::Constellations;

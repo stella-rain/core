@@ -1,4 +1,4 @@
-//! A run of the trial mode (ADR-REPL-16), shared by the run replay, recording and corpus tests.
+//! A run of the trial mode (ADR-REPL-5), shared by the run replay, recording and corpus tests.
 use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};

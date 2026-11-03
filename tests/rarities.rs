@@ -1,4 +1,4 @@
-//! The six rarities (ADR-REPL-16): every effect that scales with rarity has a reward
+//! The six rarities (ADR-REPL-5): every effect that scales with rarity has a reward
 //! at each of them, the new amounts follow the ladder from the common reward (rounded down), the
 //! supernova reward takes a bigger amount and no bigger stack limit than legendary, every
 //! difficulty offers each rarity it allows, the top drop tier weighs them all, and an offer at

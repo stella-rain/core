@@ -1,4 +1,4 @@
-//! The step log: one in-memory model of a run's inputs for both replay schemas (ADR-REPL-13 point 4, ADR-REPL-16). A run holds one input per present player per world tick, and the
+//! The step log: one in-memory model of a run's inputs for both replay schemas (ADR-REPL-2 point 4, ADR-REPL-5). A run holds one input per present player per world tick, and the
 //! picks made on the steps in between; a schema 1 replay (inputs and a command list) is
 //! migrated into it on read, and a schema 2 replay's `inputs` field is its bytes.
 //!
@@ -254,7 +254,7 @@ impl StepLog {
     }
 }
 
-/// One step of a tick range (ADR-REPL-16).
+/// One step of a tick range (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RangeStep {
     /// `run` world ticks, each with these inputs (one per present slot, in slot order).
@@ -282,7 +282,7 @@ pub struct StepRange {
 }
 
 /// The steps of world ticks `a..b` of a schema 2 step log of `ticks` world ticks, at most
-/// `max_ticks` (ADR-REPL-16). Ticks are 0-based and the range is half-open: tick `i` takes the
+/// `max_ticks` (ADR-REPL-5). Ticks are 0-based and the range is half-open: tick `i` takes the
 /// state after `i` ticks to the state after `i + 1`.
 ///
 /// - A TICKS run that overlaps the range is returned once, clipped to its overlap: a run is
@@ -1167,7 +1167,7 @@ mod tests {
         );
     }
 
-    // ---- the range reader (ADR-REPL-16) ----
+    // ---- the range reader (ADR-REPL-5) ----
 
     const MAX: u32 = u32::MAX;
 

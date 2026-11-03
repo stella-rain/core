@@ -1,4 +1,4 @@
-//! The validator (ADR-SVC-7): every budget is tested at its limit and one past it, registry IDs
+//! The validator (ADR-SVC-1): every budget is tested at its limit and one past it, registry IDs
 //! must exist for the stage's `sim_version`, and errors say where without repeating the file.
 
 use serde_json::{Value, json};
@@ -1081,7 +1081,7 @@ fn number_pointers(v: &Value, here: String, out: &mut Vec<String>) {
 
 #[test]
 fn extreme_numbers_never_panic() {
-    // Overflow checks are on in every profile (ADR-SIM-17), so an unchecked `abs()` or `+` on
+    // Overflow checks are on in every profile (ADR-SIM-3), so an unchecked `abs()` or `+` on
     // `i32::MIN` in the validator would panic here.
     let b = base();
     let mut pointers = Vec::new();
@@ -1263,7 +1263,7 @@ fn a_smash_is_the_weapon_s_field_not_a_step_s() {
 
 #[test]
 fn a_step_has_no_unlock_any_more() {
-    // Every smash is open (ADR-REPL-16): the field the steps once took is refused like any other
+    // Every smash is open (ADR-REPL-5): the field the steps once took is refused like any other
     // unknown field, in the combo and in the dash branch.
     let unlocked = with_combo(chain(1), |w| {
         w["combo"]["main"]["next"]["smash"] =

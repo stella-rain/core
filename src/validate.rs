@@ -1,5 +1,5 @@
-//! The stage validator (ADR-SVC-7): a byte-size limit before parsing, strict parsing, registry
-//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-7 and ADR-SIM-18.
+//! The stage validator (ADR-SVC-1): a byte-size limit before parsing, strict parsing, registry
+//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-1 and ADR-SIM-4.
 //! The app and `stage-verify` call the same code, and an invalid stage is not playable (fail
 //! closed).
 //!
@@ -32,8 +32,8 @@ use crate::trig;
 use crate::version::{self, ReadError};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
-/// Limits a stage must keep. The first block is ADR-SVC-7, the second ADR-SIM-18, the rest the
-/// loadout and numeric ranges that ADR-SIM-17 ask for.
+/// Limits a stage must keep. The first block is ADR-SVC-1, the second ADR-SIM-4, the rest the
+/// loadout and numeric ranges that ADR-SIM-3 ask for.
 pub mod limits {
     pub const MAX_STAGE_BYTES: usize = 256 * 1024;
     /// Five minutes at 60 ticks per second.
@@ -43,7 +43,7 @@ pub mod limits {
     pub const MAX_PHASES: usize = 8;
     pub const MAX_TITLE_CHARS: usize = 60;
     pub const MAX_DESCRIPTION_CHARS: usize = 500;
-    /// Stage IDs are slugs (ADR-SVC-13).
+    /// Stage IDs are slugs (ADR-SVC-7).
     pub const MAX_STAGE_ID_CHARS: usize = 40;
 
     pub const MAX_RULES: usize = 8;
@@ -95,7 +95,7 @@ pub mod limits {
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
     pub const MAX_WAVE_COUNT: u16 = 100;
-    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-REPL-16).
+    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-REPL-5).
     pub const MAX_LEVELS: usize = 100;
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
@@ -103,7 +103,7 @@ pub mod limits {
     /// The expertise points an enemy or the boss gives for a hit and for a kill.
     pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
     pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
-    /// Stardust (ADR-SVC-7), held times 10: the base an enemy or the boss earns for a kill
+    /// Stardust (ADR-SVC-1), held times 10: the base an enemy or the boss earns for a kill
     /// (the bundled boss's is 2,000), the percent of a time factor tier (as
     /// `difficulties::MAX_PCT`), the tiers of a time factor table, and the run's total, at which the counter saturates. At the largest base and percent a
     /// kill earns 1,000,000, so the total is reached in ten kills and never wraps a `u32`.
@@ -111,13 +111,13 @@ pub mod limits {
     pub const MAX_STARDUST_PCT: u32 = 1_000;
     pub const MAX_STARDUST_TIERS: usize = 16;
     pub const MAX_RUN_STARDUST: u32 = 10_000_000;
-    /// Falling stars (ADR-REPL-16): the drop chance is in 1000; the pity, the stars on
+    /// Falling stars (ADR-REPL-5): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
     pub const MAX_DROP_PER_MILLE: u16 = 1000;
     pub const MAX_PITY: u16 = 1000;
     pub const MAX_STARS_ON_MAP: u16 = 64;
-    /// The most pickups of healing on the map at once: a hard cap (ADR-SVC-7).
+    /// The most pickups of healing on the map at once: a hard cap (ADR-SVC-1).
     pub const MAX_HEAL_PICKUPS: u16 = 16;
     /// The most a boss kill heals, in percent of the most hit points.
     pub const MAX_HEAL_PCT: u16 = 100;
@@ -137,7 +137,7 @@ pub mod limits {
     pub const MAX_SUMMON_COUNT: u8 = 8;
     /// Elites alive at once, among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
-    /// The engine ceiling on the enemy cap (ADR-SIM-19, DS103): a pack whose derived cap is over it
+    /// The engine ceiling on the enemy cap (ADR-SIM-5, DS103): a pack whose derived cap is over it
     /// is refused, as `MAX_ELITES_ALIVE` bounds `elite_cap`. The cap of a run is derived from the
     /// pack's rules and is 260 for the bundled pack; this is the most any pack may ask for.
     pub const MAX_ENEMY_CAP: u16 = 500;
@@ -214,7 +214,7 @@ pub enum Error {
         line: usize,
         column: usize,
     },
-    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-12).
+    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-1).
     UnsupportedVersion {
         schema_version: u32,
         sim_version: u32,
@@ -262,7 +262,7 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
 }
 
 /// Checks the phases of one attack against the same budgets as a stage's inline attacks, for an
-/// attack that takes `arity` arguments (the developer's presets, ADR-SIM-18). The problems are
+/// attack that takes `arity` arguments (the developer's presets, ADR-SIM-4). The problems are
 /// reported at paths from the attack: `$[0].spawn[0].body[1]`.
 pub fn validate_attack(
     phases: &[AttackPhase],
@@ -1560,7 +1560,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// Validates an attack reference: either a preset with arguments or an inline attack.
-    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-13, ADR-CONT-12).
+    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-3, ADR-CONT-2).
     fn attack_ref(&mut self, a: &AttackRef) {
         match a {
             AttackRef::Preset { id, args } => {

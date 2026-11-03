@@ -1,4 +1,4 @@
-//! The JSON Lines recording (ADR-BRDG-12), behind the `record` feature.
+//! The JSON Lines recording (ADR-BRDG-3), behind the `record` feature.
 #![cfg(feature = "record")]
 
 use crate::common;
@@ -131,7 +131,7 @@ fn a_damaged_recording_is_refused_with_its_line() {
     assert_eq!(inputs_from_jsonl("\n\n").unwrap(), vec![]);
 }
 
-// --- Runs with commands between ticks (ADR-REPL-16) --------------------------------------------
+// --- Runs with commands between ticks (ADR-REPL-5) --------------------------------------------
 
 fn lines_of(text: &str) -> Vec<Value> {
     text.lines()

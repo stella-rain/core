@@ -1,4 +1,4 @@
-//! The instruction count of the worst melee tick within the caps of ADR-SVC-7
+//! The instruction count of the worst melee tick within the caps of ADR-SVC-1
 //! (`bench_fixtures::hit_case`): 500 enemies under the main character's hit box, four companions'
 //! arcs and 128 zones, 112 of them friendly, with no projectile in the air. `hit_tick_spread` is the
 //! same tick with the crowd spread over the largest map (`bench_fixtures::hit_case::spread_stage`).

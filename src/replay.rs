@@ -1,9 +1,9 @@
-//! Replays (ADR-REPL-17, ADR-BRDG-12): the recorded inputs of a run, which anyone can re-simulate to
+//! Replays (ADR-REPL-6, ADR-BRDG-3): the recorded inputs of a run, which anyone can re-simulate to
 //! check that the stage can be cleared and reaches the same final hash.
 //!
 //! A `.replay` file is one JSON object: the versions, the seed, the SHA-256 of the exact stage
 //! file, the number of ticks, the final state hash, and the per-tick inputs packed and
-//! base64-encoded. Replays are untrusted (ADR-SVC-7): a size limit, strict parsing, and no more
+//! base64-encoded. Replays are untrusted (ADR-SVC-1): a size limit, strict parsing, and no more
 //! inputs than the stage has ticks. The checks are in `Replay::from_bytes`, `unpack_inputs`
 //! and `verify`.
 //!
@@ -28,7 +28,7 @@ use crate::version::{
     self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
 };
 
-/// A stage's clear replay file is at most this big (ADR-SVC-7). Even a maximum-length replay
+/// A stage's clear replay file is at most this big (ADR-SVC-1). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
 /// replay has its own, larger cap: `run_replay::MAX_RUN_REPLAY_BYTES`.
 pub const MAX_STAGE_REPLAY_BYTES: usize = 256 * 1024;
@@ -39,11 +39,11 @@ pub struct Replay {
     /// The `schema_version` the file was written at. This game reads the range
     /// `FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below
     /// the range is read only through a migration, else it is `Older`; a newer one is `Newer`
-    /// (ADR-REPL-13).
+    /// (ADR-REPL-2).
     pub schema_version: u32,
     /// The `sim_version` the file was written at. This game reads a file at any version
     /// from `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a
-    /// migration, else it is `Older`; a newer one is `Newer` (ADR-REPL-13).
+    /// migration, else it is `Older`; a newer one is `Newer` (ADR-REPL-2).
     pub sim_version: u32,
     /// Must equal the stage's.
     pub seed: u32,
@@ -53,7 +53,7 @@ pub struct Replay {
     /// Ticks recorded, at most the stage's length. A replay that proves a clear ends on the
     /// tick of the clear.
     pub ticks: u32,
-    /// The FNV-1a 64 state hash after the last tick (ADR-SIM-17), 16 lowercase hex digits. Hex,
+    /// The FNV-1a 64 state hash after the last tick (ADR-SIM-3), 16 lowercase hex digits. Hex,
     /// because JSON readers that use doubles cannot hold every 64-bit integer.
     pub final_hash: String,
     /// The per-tick inputs, packed as described in the module documentation, then base64.
@@ -189,9 +189,9 @@ impl std::error::Error for ReplayError {}
 pub struct Verified {
     pub ticks: u32,
     pub final_hash: u64,
-    /// The stage content hash of ADR-SVC-13, for the catalog and the blocklist.
+    /// The stage content hash of ADR-SVC-7, for the catalog and the blocklist.
     pub content_hash: [u8; 32],
-    /// The parsed-stage hash of ADR-SVC-13, which the blocklist blocks a stage by.
+    /// The parsed-stage hash of ADR-SVC-7, which the blocklist blocks a stage by.
     pub parsed_stage_hash: [u8; 32],
 }
 
@@ -239,13 +239,13 @@ impl std::fmt::Display for HashesError {
 impl std::error::Error for HashesError {}
 
 /// The per-tick hashes file: the state hash after every tick, each as 8 bytes little-endian
-/// (ADR-SIM-17), no header. The corpus's `hashes.bin` and `stage-verify --hashes` (CH1).
+/// (ADR-SIM-3), no header. The corpus's `hashes.bin` and `stage-verify --hashes` (CH1).
 pub fn hashes_to_bytes(hashes: &[u64]) -> Vec<u8> {
     hashes.iter().flat_map(|h| h.to_le_bytes()).collect()
 }
 
 /// The inverse of `hashes_to_bytes`. The size is checked first, then the length, and nothing is
-/// allocated before both pass; the file is untrusted (ADR-SVC-7).
+/// allocated before both pass; the file is untrusted (ADR-SVC-1).
 pub fn hashes_from_bytes(bytes: &[u8]) -> Result<Vec<u64>, HashesError> {
     let size = bytes.len();
     if size > MAX_HASHES_BYTES {
@@ -265,7 +265,7 @@ pub fn hashes_from_bytes(bytes: &[u8]) -> Result<Vec<u64>, HashesError> {
 
 impl Replay {
     /// The file's bytes: compact JSON and a newline. These exact bytes are what the content
-    /// hash covers (ADR-SVC-13).
+    /// hash covers (ADR-SVC-7).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = serde_json::to_vec(self).expect("a replay serialises");
         bytes.push(b'\n');
@@ -273,7 +273,7 @@ impl Replay {
     }
 
     /// Parses a replay file: the size limit first, then the versions alone, then the strict
-    /// parse (ADR-REPL-12, ADR-SVC-7). A file for a newer version is `Newer` even if it has fields
+    /// parse (ADR-REPL-1, ADR-SVC-1). A file for a newer version is `Newer` even if it has fields
     /// this version rejects; a file that is not JSON, has no versions, or fails the strict parse
     /// at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Replay, ReplayError> {
@@ -354,7 +354,7 @@ const NO_STICK: u8 = 0x80;
 /// and `auto`; bit 6 (interact) is allowed at schema 2 only, bit 7 is never set.
 const ALL_FLAGS: u8 = 0b11_1111;
 
-/// Bit 6 of the flags byte at schema 2: the interact button (ADR-SIM-21). Refused at schema 1.
+/// Bit 6 of the flags byte at schema 2: the interact button (ADR-SIM-7). Refused at schema 1.
 pub(crate) const INTERACT_FLAG: u8 = 0b100_0000;
 
 pub(crate) fn flags_of(input: &Input) -> u8 {
@@ -469,7 +469,7 @@ pub(crate) fn unpack(bytes: &[u8], ticks: u32, interact: bool) -> Result<Vec<Inp
 
 /// Runs `inputs` through the stage and writes the replay. Recording stops on the tick the run
 /// ends, so inputs after a clear or a fail are left out; a run that is still going when the
-/// inputs end is recorded as it stands (a bug report, ADR-BRDG-12). `stage_bytes` are the exact
+/// inputs end is recorded as it stands (a bug report, ADR-BRDG-3). `stage_bytes` are the exact
 /// bytes of the stage file.
 pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayError> {
     let stage = validate::parse_and_validate(stage_bytes).map_err(ReplayError::Stage)?;
@@ -494,13 +494,13 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
 }
 
 /// Checks that the replay is for this stage and clears it with the replay's final hash
-/// (ADR-REPL-17, ADR-SVC-13). The whole of both files is untrusted.
+/// (ADR-REPL-6, ADR-SVC-7). The whole of both files is untrusted.
 pub fn verify(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<Verified, ReplayError> {
     verify_inner(stage_bytes, replay_bytes, None)
 }
 
 /// As `verify`, and also compares the hash after every tick with `expected` (one per tick),
-/// naming the first tick that differs: what a corpus check reports (ADR-SIM-17).
+/// naming the first tick that differs: what a corpus check reports (ADR-SIM-3).
 pub fn verify_against(
     stage_bytes: &[u8],
     replay_bytes: &[u8],

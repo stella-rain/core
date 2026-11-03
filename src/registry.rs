@@ -1,12 +1,12 @@
-//! The content-ID registry (ADR-CONT-12): every ID a stage may use, with the `sim_version` that
+//! The content-ID registry (ADR-CONT-2): every ID a stage may use, with the `sim_version` that
 //! introduced it. The validator rejects an ID that is missing, of the wrong kind, or newer than
-//! the stage (ADR-REPL-12, ADR-SVC-7). Every ID here is introduced in version 1, the frozen first
+//! the stage (ADR-REPL-1, ADR-SVC-1). Every ID here is introduced in version 1, the frozen first
 //! version; the entries are placeholders until the registry file replaces
 //! them.
 //!
-//! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-13, ADR-CONT-12).
+//! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-3, ADR-CONT-2).
 //!
-//! Asset sources (ADR-REL-10) join the entries when real assets exist.
+//! Asset sources (ADR-REL-1) join the entries when real assets exist.
 
 /// What an ID names. An ID is only valid where its kind is expected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,15 +17,15 @@ pub enum Kind {
     Palette,
     /// An orb sprite.
     Orb,
-    /// An attack preset (ADR-SIM-18); `args` is how many arguments it takes.
+    /// An attack preset (ADR-SIM-4); `args` is how many arguments it takes.
     Preset,
-    /// A buff or debuff (ADR-SIM-18).
+    /// A buff or debuff (ADR-SIM-4).
     Status,
     /// A weapon preset, with its Main and Sub roles.
     Weapon,
-    /// A game mode: the content a run plays (ADR-REPL-16), bundled in `core` (`modes/`).
+    /// A game mode: the content a run plays (ADR-REPL-5), bundled in `core` (`modes/`).
     Mode,
-    /// A permanent upgrade bought with Stardust (ADR-REPL-16): the run setup lists the ones the
+    /// A permanent upgrade bought with Stardust (ADR-REPL-5): the run setup lists the ones the
     /// player holds, and a combo step names the one that opens it.
     Upgrade,
 }
@@ -33,7 +33,7 @@ pub enum Kind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Availability {
     Active,
-    /// Still loads and plays; the editor stops offering it (ADR-CONT-12).
+    /// Still loads and plays; the editor stops offering it (ADR-CONT-2).
     Deprecated,
 }
 
@@ -52,7 +52,7 @@ pub struct Entry {
     pub introduced: u32,
     pub availability: Availability,
     /// Arguments an attack preset takes; 0 for every other kind. Preset arguments are bounded in
-    /// code (ADR-CONT-13, ADR-CONT-12).
+    /// code (ADR-CONT-3, ADR-CONT-2).
     pub args: u8,
     /// The name, minimum, and maximum of each argument an attack preset takes; empty for every other
     /// kind or arity-0 preset.
@@ -137,7 +137,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("giant_sword_aab", Kind::Upgrade, 0),
 ];
 
-/// Lowercase `snake_case`, 1 to 32 characters (ADR-CONT-12). Stage-defined names, such as boss part
+/// Lowercase `snake_case`, 1 to 32 characters (ADR-CONT-2). Stage-defined names, such as boss part
 /// IDs, follow the same format.
 pub fn is_well_formed(id: &str) -> bool {
     let bytes = id.as_bytes();
@@ -163,5 +163,5 @@ pub fn orb_style(id: &str) -> u16 {
         .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }
 
-/// The most upgrades a setup names (ADR-REPL-16): the registry holds at most this many.
+/// The most upgrades a setup names (ADR-REPL-5): the registry holds at most this many.
 pub const MAX_UPGRADES: usize = 32;

@@ -3,12 +3,12 @@
 //! stage skills file's skills. Taking a skill other than the one held replaces it, and it
 //! arrives ready; taking the same skill again raises its level, up to its highest.
 //!
-//! Data picks, code acts (ADR-CONT-11): each level's effects are building blocks from a closed list
+//! Data picks, code acts (ADR-CONT-1): each level's effects are building blocks from a closed list
 //! built into `core`, with their numbers here, at most one of each block and at most
 //! `MAX_SKILL_EFFECTS`. A new block is a code change and a new `sim_version`. A skill's look is
 //! content too: its icon, title and description.
 //!
-//! The file is untrusted (ADR-SVC-7), as the rewards are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded; the bounds are tuning values.
 //! The bundled file, `content/stage_skills.json`, is the default; the SHA-256 of whatever bytes
 //! a run used is part of its content hash.
@@ -54,7 +54,7 @@ pub const MAX_SHIELD: u32 = 10_000 * crate::validate::limits::DAMAGE_SCALE;
 pub struct StageSkill {
     /// The skill's own ID, unique within the file; a reward names it.
     pub id: ContentId,
-    /// The asset the skill button draws (ADR-CONT-12): an asset ID of the registry.
+    /// The asset the skill button draws (ADR-CONT-2): an asset ID of the registry.
     pub icon: ContentId,
     /// How far ahead of the main character its point is, along the facing, or toward the aim
     /// assist's target while `assist` is on; 0, the default, is at the main
@@ -92,7 +92,7 @@ pub enum SkillEffect {
         strength: Fx,
         duration_ticks: u32,
     },
-    /// `status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`
+    /// `status` (a status ID of the registry, ADR-SIM-4) on the main character, `value_pct`
     /// percent, for `duration_ticks`.
     SelfStatus {
         status: ContentId,

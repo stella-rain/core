@@ -1,4 +1,4 @@
-//! `overflow-checks = true` in every profile (ADR-SIM-17): CI runs this in debug and release.
+//! `overflow-checks = true` in every profile (ADR-SIM-3): CI runs this in debug and release.
 
 use std::hint::black_box;
 

@@ -1,4 +1,4 @@
-//! Run ledger (ADR-BRDG-15): counts kills, bestiary bits, picks and skill uses
+//! Run ledger (ADR-BRDG-6): counts kills, bestiary bits, picks and skill uses
 //! inside the simulation from domain events and state observations. `PlayerStats` folds the
 //! events' source players into per-slot totals beside `Counted`, outside the hashed state.
 
@@ -30,7 +30,7 @@ pub struct StarPick {
     pub name: Option<Arc<str>>,
 }
 
-/// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-15).
+/// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunLedger {
@@ -52,7 +52,7 @@ pub struct RunLedger {
     slain_indices: Vec<usize>,
 }
 
-/// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-13), so
+/// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-2), so
 /// the ledger is not copied per module.
 pub(crate) trait SeenEnemy {
     fn kind(&self) -> KindIndex;
@@ -378,7 +378,7 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
 }
 
 /// The run's HUD tallies, counted from the events the way the app counts them and kept outside
-/// the hashed state (ADR-BRDG-15): a carried star, which emits no event, is not in them.
+/// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Counted {
     pub(crate) kills: u32,
@@ -401,7 +401,7 @@ impl Counted {
     }
 
     /// Counts `events` into the tallies and folds them into `stats` in the same pass: the
-    /// one loop over a tick's events is part of the measured tick (ADR-SIM-20).
+    /// one loop over a tick's events is part of the measured tick (ADR-SIM-6).
     pub(crate) fn observe(
         &mut self,
         rewards: &Rewards,
@@ -459,7 +459,7 @@ impl Counted {
     }
 }
 
-/// What one player slot did in the run, folded from the events (ADR-SIM-21).
+/// What one player slot did in the run, folded from the events (ADR-SIM-7).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SlotStats {
     /// Damage the slot's hits dealt, overkill included (a `Hit`'s `damage`); echoes count.
@@ -472,8 +472,8 @@ pub struct SlotStats {
 }
 
 /// Per-slot damage dealt, kills and support, folded from the events of every step by the
-/// `Engine` and kept outside the hashed state (ADR-SIM-21). A replay steps an engine and so
-/// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-14), so
+/// `Engine` and kept outside the hashed state (ADR-SIM-7). A replay steps an engine and so
+/// rebuilds it exactly; a savepoint holds it as a fixed record before the state (ADR-SAVE-4), so
 /// a run resumed from one has the totals of the whole run. Runs of `sim_version` 1 name no player
 /// in their events, so theirs stay zero.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

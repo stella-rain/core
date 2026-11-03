@@ -1,4 +1,4 @@
-//! Enemies push apart (ADR-SIM-19): one pass a tick after every agent has moved and
+//! Enemies push apart (ADR-SIM-5): one pass a tick after every agent has moved and
 //! acted. Each enemy adds up half of each counted overlap, along the line from the neighbour's
 //! centre to its own; the sum is clamped to 4 pixels (1,024 units) and every enemy moves at once.
 //! Hurt circles overlap, each radius counted as at least 8 pixels (2,048 units).

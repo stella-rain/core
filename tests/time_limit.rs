@@ -1,6 +1,6 @@
 //! The `time_limit` mode file (core#212 step a): a run length, boss times, a mid-boss pool, a
 //! final boss, an overtime limit, the Star-Hunter's extra time and the map, read from JSON as
-//! untrusted bytes (ADR-SVC-7). Every time is in ticks (60 a second).
+//! untrusted bytes (ADR-SVC-1). Every time is in ticks (60 a second).
 
 use crate::common;
 use serde_json::{Value, json};
@@ -74,7 +74,7 @@ fn the_mode_is_registered_and_its_file_is_part_of_the_content_hash() {
     assert!(file.starts_with(common::bundled_file("time_limit")));
     assert!(file.ends_with(run_setup::mode_stage("trial").unwrap()));
     assert_ne!(content_sha256("time_limit"), None);
-    // One pack, one hash for both modes (ADR-CONT-15); a mode that does not exist has none.
+    // One pack, one hash for both modes (ADR-CONT-5); a mode that does not exist has none.
     assert_eq!(content_sha256("time_limit"), content_sha256("trial"));
     assert_eq!(content_sha256("giant_sword"), None);
     // Not a stage file: its run is built from the mode file.

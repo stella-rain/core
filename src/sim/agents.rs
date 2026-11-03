@@ -1,4 +1,4 @@
-//! Agents (ADR-SIM-18 tier 1): a movement and an ordered rule list. Each tick the first rule whose
+//! Agents (ADR-SIM-4 tier 1): a movement and an ordered rule list. Each tick the first rule whose
 //! condition holds, whose cooldown and charges allow it, and whose selector finds a target,
 //! fires; the others wait. Agents are evaluated in entity-ID order (companions, then enemies),
 //! each rule list in order.
@@ -327,7 +327,7 @@ fn rule_states(s: &mut State, me: Who) -> &mut Rules {
     }
 }
 
-/// Fires the first rule of `rules` that can (ADR-SIM-18): its condition holds, its cooldown and
+/// Fires the first rule of `rules` that can (ADR-SIM-4): its condition holds, its cooldown and
 /// charges allow it, its selector finds a target and its action can be done. Agents and the
 /// boss's phases use the same rule lists, so they share this.
 pub(super) fn fire_first_rule(
@@ -465,7 +465,7 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 ///
 /// A companion with `Hold` or `Orbit` is set on its place. An enemy moves to it, at most 4
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
-/// next tick (ADR-SIM-19). An enemy that the last push-apart found crowded does not take that step;
+/// next tick (ADR-SIM-5). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
 fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
     let map = stage.map();

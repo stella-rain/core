@@ -1,6 +1,6 @@
 //! The `time_limit` mode file (core#212 step a): how long a run lasts, when its bosses come,
 //! which bosses they may be, the overtime after the last one, the Star-Hunter's extra time and
-//! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-SVC-7), like the other
+//! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-SVC-1), like the other
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
 //! its end and the elites come in later steps. The elite table and the elite cap are
@@ -165,7 +165,7 @@ pub struct EliteWeight {
     pub weight: u32,
 }
 
-/// An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of
+/// An elite type: a content ID (ADR-CONT-2) and the enemy it spawns, with what a kill of
 /// it gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the
 /// enemy must be an elite. A grade is a type; later kinds of elite add entries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

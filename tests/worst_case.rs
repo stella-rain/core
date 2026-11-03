@@ -1,4 +1,4 @@
-//! The worst-case tick (ADR-SVC-7, ADR-SIM-17): the stage of `bench_fixtures::worst_case` holds every dynamic
+//! The worst-case tick (ADR-SVC-1, ADR-SIM-3): the stage of `bench_fixtures::worst_case` holds every dynamic
 //! cap at once, on the tick the benchmark counts and on the ticks after it. A benchmark of a
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box. The main character holds every rune at full Rune Haste, its combo
@@ -133,7 +133,7 @@ fn assert_steps_and_ticks_land(engine: &Engine) {
     );
 }
 
-/// The push-apart has a fresh stack to part (ADR-SIM-19): the pass moves an enemy at most 4 pixels
+/// The push-apart has a fresh stack to part (ADR-SIM-5): the pass moves an enemy at most 4 pixels
 /// (1,024 units) from the point the stack stood on, so after the tick at least 479 enemies are
 /// that near it (all but 14: the line shooter's earlier arrival shifts the entity IDs, which
 /// moves the push-apart's order; the most that were not, over the 60 measured ticks, was 14 of 260,

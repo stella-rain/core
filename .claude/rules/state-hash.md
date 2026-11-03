@@ -13,7 +13,7 @@ paths:
 
 # The state hash and entity numbers
 
-Sources: ADR-SIM-17, ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-14. Also `replay.md`.
+Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-4. Also `replay.md`.
 
 ## The state hash
 
@@ -28,7 +28,7 @@ Sources: ADR-SIM-17, ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-14. Also `rep
 - each present player's block in slot order (`hash_player`: `PlayerState`, `progress`, offer
   generator, `offers`, `expertise`, `stardust`, `regen`). An absent slot writes no block;
 - in a `timed` run only, the tail: `offer_timer.due` of each present slot. A `stop` run writes
-  nothing there, so its hash is what it was (ADR-SIM-21 point 4). The encoding is prefix-free
+  nothing there, so its hash is what it was (ADR-SIM-7 point 4). The encoding is prefix-free
   within a mode; the mode is fixed for a run and states of the two are never compared.
 
 A hole mask (0b101) hashes and saves; the step log reaches one by LEAVE (only a hole at tick 0 is

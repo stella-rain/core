@@ -12,7 +12,7 @@ import adr_ids
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-IDS = {"SIM-19": 7}
+IDS = {"SIM-2": 7}
 
 
 def kinds(findings):
@@ -25,8 +25,8 @@ def scan(text, path="src/x.rs"):
 
 class TestScan(unittest.TestCase):
     def test_a_real_id_and_point_pass(self):
-        self.assertEqual(scan("// see ADR-SIM-19 point 7\n"), [])
-        self.assertEqual(scan("// see ADR-SIM-19\n"), [])
+        self.assertEqual(scan("// see ADR-SIM-2 point 7\n"), [])
+        self.assertEqual(scan("// see ADR-SIM-2\n"), [])
 
     def test_an_id_the_list_lacks_is_missing(self):
         self.assertEqual(kinds(scan("// ADR-SIM-3\n")), [(1, "missing", "ADR-SIM-3")])
@@ -36,17 +36,17 @@ class TestScan(unittest.TestCase):
                          [(1, "legacy", "ADR-020"), (2, "legacy", "ADR 080")])
 
     def test_a_point_above_the_count_is_found(self):
-        self.assertEqual(kinds(scan("// ADR-SIM-19 point 8\n")),
-                         [(1, "point", "ADR-SIM-19 point 8")])
-        found = kinds(scan("// ADR-SIM-19 points 3, 4 and 9\n"))
-        self.assertEqual(found, [(1, "point", "ADR-SIM-19 point 9")])
-        self.assertEqual(kinds(scan("// points 2 to 9 of ADR-SIM-19\n")),
-                         [(1, "point", f"ADR-SIM-19 point {n}") for n in (8, 9)])
+        self.assertEqual(kinds(scan("// ADR-SIM-2 point 8\n")),
+                         [(1, "point", "ADR-SIM-2 point 8")])
+        found = kinds(scan("// ADR-SIM-2 points 3, 4 and 9\n"))
+        self.assertEqual(found, [(1, "point", "ADR-SIM-2 point 9")])
+        self.assertEqual(kinds(scan("// points 2 to 9 of ADR-SIM-2\n")),
+                         [(1, "point", f"ADR-SIM-2 point {n}") for n in (8, 9)])
 
     def test_a_citation_wrapped_onto_the_next_comment_line(self):
-        text = "//! (ADR-SIM-19 point\n//! 9)\n"
-        self.assertEqual(kinds(scan(text)), [(1, "point", "ADR-SIM-19 point 9")])
-        self.assertEqual(scan("//! (ADR-SIM-19 point\n//! 7)\n"), [])
+        text = "//! (ADR-SIM-2 point\n//! 9)\n"
+        self.assertEqual(kinds(scan(text)), [(1, "point", "ADR-SIM-2 point 9")])
+        self.assertEqual(scan("//! (ADR-SIM-2 point\n//! 7)\n"), [])
 
     def test_a_document_path_is_found(self):
         self.assertEqual(kinds(scan("// see docs/design/combat.md\n")),
@@ -67,12 +67,12 @@ class TestScan(unittest.TestCase):
 
 
     def test_the_reason_lines_of_the_bench_ledger_are_records(self):
-        text = ('# The ledger (ADR-SIM-20 point 3).\n'
+        text = ('# The ledger (ADR-SIM-3 point 3).\n'
                 '[[accepted]]\n'
                 'reason = "player index threaded through every system (ADR-SIM-12)"\n'
                 'note = "ADR-SIM-12"\n')
         found = adr_ids.scan_text("benches/accepted.toml", text, IDS)
-        self.assertEqual(kinds(found), [(1, "missing", "ADR-SIM-20"), (4, "missing", "ADR-SIM-12")])
+        self.assertEqual(kinds(found), [(1, "missing", "ADR-SIM-3"), (4, "missing", "ADR-SIM-12")])
         # the same `reason` line in any other file is scanned
         other = adr_ids.scan_text("benches/other.toml", text.split("\n")[2] + "\n", IDS)
         self.assertEqual(kinds(other), [(1, "missing", "ADR-SIM-12")])
@@ -96,27 +96,37 @@ def decision(points):
     return f"# ADR\n\n## Context\n\n1. not a decision\n\n## Decision\n\n{body}\n\n## Consequences\n"
 
 
-def make_app(root, with_new_sim=True):
+AREAS = ("sim", "cont", "repl", "brdg", "save", "plat", "rel", "svc", "proc")
+
+
+def make_app(root):
+    """App's final layout: every folder of the nine areas, files numbered from 001."""
     adr = os.path.join(root, "docs", "adr")
-    for area in adr_ids.FIRST_NUMBER:
-        os.makedirs(os.path.join(adr, area.lower()), exist_ok=True)
-    write(os.path.join(adr, "sim", "014-old.md"), decision(9))
-    write(os.path.join(adr, "svc", "007-z.md"), decision(2))
-    write(os.path.join(adr, "svc", "006-old.md"), decision(4))
-    if with_new_sim:
-        write(os.path.join(adr, "sim", "015-y.md"), decision(3))
+    for area in AREAS:
+        os.makedirs(os.path.join(adr, area), exist_ok=True)
+    write(os.path.join(adr, "sim", "001-y.md"), decision(3))
+    write(os.path.join(adr, "sim", "002-q.md"), decision(11))
+    write(os.path.join(adr, "sim", "README.md"), "# The area\n")
+    write(os.path.join(adr, "svc", "001-z.md"), decision(2))
 
 
 class TestGenerator(unittest.TestCase):
-    def test_only_the_set_in_force_is_listed_sorted_with_counts(self):
+    def test_every_numbered_file_of_the_nine_areas_is_listed(self):
         with tempfile.TemporaryDirectory() as app:
             make_app(app)
-            write(os.path.join(app, "docs", "adr", "sim", "016-q.md"), decision(11))
             ids = adr_ids.read_app(app)
-            self.assertEqual(ids, {"SIM-15": 3, "SIM-16": 11, "SVC-7": 2})
+            self.assertEqual(ids, {"SIM-1": 3, "SIM-2": 11, "SVC-1": 2})
             lines = adr_ids.render(ids).splitlines()
             self.assertEqual(lines[0], adr_ids.HEADER)
-            self.assertEqual(lines[1:], ["ADR-SIM-15 3", "ADR-SIM-16 11", "ADR-SVC-7 2"])
+            self.assertEqual(lines[1:], ["ADR-SIM-1 3", "ADR-SIM-2 11", "ADR-SVC-1 2"])
+
+    def test_a_missing_area_folder_stops_the_generator(self):
+        with tempfile.TemporaryDirectory() as app:
+            make_app(app)
+            os.rmdir(os.path.join(app, "docs", "adr", "plat"))
+            with self.assertRaises(SystemExit) as stop:
+                adr_ids.read_app(app)
+            self.assertIn("plat", str(stop.exception))
 
     def test_numbers_sort_as_numbers(self):
         text = adr_ids.render({"SIM-9": 1, "SIM-10": 2})
@@ -125,11 +135,11 @@ class TestGenerator(unittest.TestCase):
     def test_a_new_file_without_decision_points_stops_the_generator(self):
         with tempfile.TemporaryDirectory() as app:
             make_app(app)
-            write(os.path.join(app, "docs", "adr", "sim", "017-bad.md"),
+            write(os.path.join(app, "docs", "adr", "sim", "003-bad.md"),
                   "# ADR\n\n## Decision\n\nNo numbered point.\n")
             with self.assertRaises(SystemExit) as stop:
                 adr_ids.read_app(app)
-            self.assertIn("017-bad.md", str(stop.exception))
+            self.assertIn("003-bad.md", str(stop.exception))
 
     def test_write_then_check_agree_and_a_change_fails_check(self):
         with tempfile.TemporaryDirectory() as app:
@@ -140,11 +150,11 @@ class TestGenerator(unittest.TestCase):
                 capture_output=True, text=True)
             self.assertEqual(run("write").returncode, 0)
             self.assertEqual(run("check").returncode, 0)
-            write(os.path.join(app, "docs", "adr", "sim", "015-y.md"), decision(4))
+            write(os.path.join(app, "docs", "adr", "sim", "001-y.md"), decision(4))
             self.assertEqual(run("check").returncode, 1)
 
     def test_parse_list_round_trips(self):
-        ids = {"SIM-19": 7, "SVC-7": 7}
+        ids = {"SIM-2": 7, "SVC-1": 7}
         self.assertEqual(adr_ids.parse_list(adr_ids.render(ids)), ids)
 
 

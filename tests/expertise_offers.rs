@@ -1,4 +1,4 @@
-//! The expertise offers (ADR-REPL-16): each level reached opens one offer
+//! The expertise offers (ADR-REPL-5): each level reached opens one offer
 //! at the end of the tick, for the one weapon, in level order. The mode's level table places the
 //! style path (normal: style 3, upgrades 6 and 9, capstone 10); every other level is a common
 //! offer drawn from the weapon's common pool. The style level shows the weapon's three styles;

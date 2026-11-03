@@ -1,4 +1,4 @@
-//! The weapon tree (ADR-REPL-16): a weapon has trees, the run setup names one, and the Sword's and
+//! The weapon tree (ADR-REPL-5): a weapon has trees, the run setup names one, and the Sword's and
 //! the Hammer's trees have the five-A shape with every smash open. Setups are written as JSON, as
 //! a file holds them.
 

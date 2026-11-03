@@ -1,4 +1,4 @@
-//! The stage content hash (ADR-SVC-13).
+//! The stage content hash (ADR-SVC-7).
 //!
 //! `SHA-256( SHA-256(stage_bytes) ‖ SHA-256(replay_bytes) )` over the exact bytes of the stage
 //! and replay files at the tag. Players' caches, the catalog and the moderation blocklist store
@@ -28,7 +28,7 @@ pub fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
-/// SHA-256 of `bytes`: the stage hash a replay carries (ADR-BRDG-12).
+/// SHA-256 of `bytes`: the stage hash a replay carries (ADR-BRDG-3).
 pub fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }

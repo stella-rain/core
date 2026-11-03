@@ -1,7 +1,7 @@
 //! The kind table of a run (core#271, DS16): the content IDs that name what an entity is, which
 //! the app's Bestiary keys on, interned once into a `u16` index. An event, a snapshot and the
 //! state carry the index, a `Copy` number: no allocation and no reference count on a hit, a
-//! death or a view (ADR-SIM-19). The app maps an index back to its ID through `Engine::kinds`.
+//! death or a view (ADR-SIM-5). The app maps an index back to its ID through `Engine::kinds`.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

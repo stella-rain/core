@@ -1,4 +1,4 @@
-//! The savepoint bytes of the live `State` mirror the hash layout (ADR-SAVE-14, ADR-SIM-17): the
+//! The savepoint bytes of the live `State` mirror the hash layout (ADR-SAVE-4, ADR-SIM-3): the
 //! shared fields, one presence byte, the block of each present player in slot order. A party
 //! round-trips at `State` level here; an engine starts solo until a party can be set up.
 

@@ -1,4 +1,4 @@
-//! Enemies push apart (ADR-SIM-19), so a horde spreads into a crowd and a grid cell
+//! Enemies push apart (ADR-SIM-5), so a horde spreads into a crowd and a grid cell
 //! holds a bounded stack. One pass a tick, after every agent has moved and acted and before
 //! attacks run: each enemy adds up a push of half the overlap with each neighbour it counts,
 //! along the line from the neighbour's centre to its own, and then every enemy moves by its sum
@@ -52,7 +52,7 @@ pub(super) fn push_radius(hurt: Fx) -> i32 {
 
 /// The integer square root of a non-negative `d2`, rounded down. A 32-bit root is cheaper and
 /// `u32::isqrt(v) == u64::isqrt(v)` for every `v <= u32::MAX`; above that the 64-bit root is
-/// taken, so radii from an untrusted stage of any size stay exact (ADR-SVC-7).
+/// taken, so radii from an untrusted stage of any size stay exact (ADR-SVC-1).
 fn root(d2: i64) -> i64 {
     match u32::try_from(d2) {
         Ok(v) => i64::from(v.isqrt()),
@@ -142,7 +142,7 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
             (sx, sy) = (sx * STEP / len, sy * STEP / len);
         }
         // The squared length is at most `STEP²` here, so neither component is over `STEP`; the
-        // checked narrowing counted 29 M instructions in `worst_minute` (ADR-SIM-20).
+        // checked narrowing counted 29 M instructions in `worst_minute` (ADR-SIM-6).
         #[expect(
             clippy::cast_possible_truncation,
             reason = "|sx| and |sy| are at most STEP (1,024), after the clamp above"
@@ -156,7 +156,7 @@ pub(super) fn offsets_into(bodies: &[Body], grid: &mut Grid, out: &mut Vec<(i32,
 /// one already off the map is pushed freely, and is gone once it is past the map's margin, as
 /// an enemy that walks there is.
 // Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
-// (ADR-SIM-19).
+// (ADR-SIM-5).
 #[inline(never)]
 pub(super) fn apply(stage: &World, s: &mut State) {
     if s.enemies.len() < 2 {

@@ -1,4 +1,4 @@
-//! The player index is part of the public API (ADR-SIM-21 point 1).
+//! The player index is part of the public API (ADR-SIM-7 point 1).
 
 use stella_rain_core::id::{EntityId, MAX_PLAYERS, PlayerIdx};
 

@@ -1,8 +1,8 @@
 //! The snapshot and places bytes, pinned over three worst-case walks, so that moving the view
-//! (ADR-REPL-13 point 4) cannot change a byte of either.
+//! (ADR-REPL-2 point 4) cannot change a byte of either.
 //!
 //! The pins of the walks on the newest rules were set again when the entity numbers 0 to 2 were
-//! reserved for the player slots (ADR-SIM-21): every other entity's number in the bytes is 2
+//! reserved for the player slots (ADR-SIM-7): every other entity's number in the bytes is 2
 //! higher at one player. `tests/gameplay_observables.rs` pins the same views with those numbers
 //! mapped back, and did not move. The walks on version 1 engines are as they were.
 

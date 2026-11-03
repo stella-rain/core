@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# playtest: plays this checkout's content pack in a debug build of the side-by-side app (ADR-CONT-14).
+# playtest: plays this checkout's content pack in a debug build of the side-by-side app (ADR-CONT-4).
 #
 #   python scripts/playtest.py [--app ../app] [--profile test-env] [--build]
 #
 # It refuses on a version mismatch between core and app; runs `content-pack verify pack.json`
 # when content-pack is on PATH (else says how to install it at that ref); with --build runs the
 # app's debug build (cargo build --features record in godot-ext); then launches Godot on the app
-# with --content-path and --profile (debug builds only, ADR-BRDG-18). The Godot binary is $GODOT,
+# with --content-path and --profile (debug builds only, ADR-BRDG-9). The Godot binary is $GODOT,
 # else `godot` on PATH. It changes nothing in either checkout; the profile keeps the pack, save
 # and replays apart.
 

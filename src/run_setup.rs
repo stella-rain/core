@@ -1,10 +1,10 @@
-//! The run setup (ADR-REPL-16): what a run of the launch game starts from, and all it starts
-//! from. The mode, the weapon (a content ID, ADR-CONT-12) and its tree (ADR-REPL-16), and the seed of the
-//! run's SplitMix64 (ADR-SIM-16). No expertise level: every run starts at level 0 (ADR-REPL-16).
+//! The run setup (ADR-REPL-5): what a run of the launch game starts from, and all it starts
+//! from. The mode, the weapon (a content ID, ADR-CONT-2) and its tree (ADR-REPL-5), and the seed of the
+//! run's SplitMix64 (ADR-SIM-2). No expertise level: every run starts at level 0 (ADR-REPL-5).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
 //!
-//! A setup is untrusted (ADR-SVC-7): a size limit before parsing, strict parsing, the current
+//! A setup is untrusted (ADR-SVC-1): a size limit before parsing, strict parsing, the current
 //! versions only, and IDs that exist with the right kind and no newer than the setup's
 //! `sim_version`. Anything else fails closed, with one message per problem and its path, never
 //! text from the file.
@@ -53,8 +53,8 @@ pub struct CarriedStar {
     pub reward: ContentId,
 }
 
-/// Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a
-/// replay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's
+/// Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a
+/// replay names its own mode (ADR-REPL-5 point 2); the countdown's length is the pack's
 /// `offer_timer_ticks`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -64,7 +64,7 @@ pub enum OfferMode {
     Stop,
     /// The world keeps running while an offer is open, a pick travels in the input of any
     /// step, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a
-    /// pick of its first option, derived and not recorded (ADR-REPL-16 point 5). Needs
+    /// pick of its first option, derived and not recorded (ADR-REPL-5 point 5). Needs
     /// `sim_version` 2.
     Timed,
 }
@@ -76,7 +76,7 @@ impl OfferMode {
 }
 
 /// What a run starts from: built by the app from local storage when a run starts, and stored
-/// in the run's replay (ADR-REPL-16).
+/// in the run's replay (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunSetup {
@@ -86,23 +86,23 @@ pub struct RunSetup {
     pub mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries.
     pub weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo
+    /// Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo
     /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
+    /// in the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each
+    /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each
     /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
-    /// open, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// open, ADR-REPL-5): an old setup that names `giant_sword_aab` and the others still reads, and
     /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub upgrades: Vec<ContentId>,
@@ -141,7 +141,7 @@ pub struct RunSetup {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup
+    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup
     /// written before the mode existed reads as it always did.
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,
@@ -178,7 +178,7 @@ impl Default for RunSetup {
 /// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
 /// auto mode is only the player's switch, recorded as input. A setup or replay written before
 /// that carries `"auto_combo": false`, which is ignored; `true` asked for a run that no longer
-/// exists, so it is refused (ADR-SVC-7).
+/// exists, so it is refused (ADR-SVC-1).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RunSetupFile {
@@ -188,23 +188,23 @@ struct RunSetupFile {
     mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries.
     weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo
+    /// Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo
     /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
+    /// in the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each
+    /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each
     /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
-    /// open, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// open, ADR-REPL-5): an old setup that names `giant_sword_aab` and the others still reads, and
     /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     upgrades: Vec<ContentId>,
@@ -243,7 +243,7 @@ struct RunSetupFile {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`.
+    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`.
     #[serde(default)]
     offer_mode: OfferMode,
     #[serde(default)]
@@ -697,7 +697,7 @@ fn stage_on(
         }
     };
     let mut stage = base.clone();
-    // The run's rules are its setup's (ADR-REPL-13); the mode file's own version is not the run's.
+    // The run's rules are its setup's (ADR-REPL-2); the mode file's own version is not the run's.
     stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
@@ -853,7 +853,7 @@ pub(crate) fn time_limit_run(
 }
 
 /// The most ticks a replay of `stage` may hold. A `time_limit` run's stage ends at the length
-/// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-REPL-16).
+/// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-REPL-5).
 pub fn max_replay_ticks(setup: &RunSetup, stage: &Stage, time_limit: &TimeLimit) -> u32 {
     if setup.mode.as_str() == "time_limit" {
         stage

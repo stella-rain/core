@@ -1,5 +1,5 @@
-//! Experience, levels and stat points (ADR-REPL-16; DS18): defeated enemies give experience,
-//! and a level-up raises a run stat (ADR-CONT-11) by its step: the first of the stat priority below
+//! Experience, levels and stat points (ADR-REPL-5; DS18): defeated enemies give experience,
+//! and a level-up raises a run stat (ADR-CONT-1) by its step: the first of the stat priority below
 //! its limit at once, or with `pick_stats` the one a stat offer's choice names. Only a stage with
 //! `levels` (a mode's) has them.
 

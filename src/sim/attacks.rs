@@ -5,7 +5,7 @@
 //! wind-up announces itself with a `Telegraph` event. Each phase spawns its nodes on its first
 //! tick as a task of their own, which runs to its end whatever the run does next.
 //!
-//! The nodes (ADR-SIM-18 tier 3) are a tree carried out over time. A task keeps a stack
+//! The nodes (ADR-SIM-4 tier 3) are a tree carried out over time. A task keeps a stack
 //! of frames, one for each list of nodes it is inside, so that it can stop at a `wait` or between
 //! the rounds of a `repeat` and go on in a later tick. Presets are expanded to inline nodes
 //! before a task starts (see `presets`), so a preset and its inline copy are the same task.
@@ -34,7 +34,7 @@
 //! `rand` drawing from the run's SplitMix64 in that order. Arithmetic saturates, and dividing by
 //! zero gives 0. Counts, ticks and speeds that an expression computes are clamped.
 //!
-//! Dynamic budgets (ADR-SVC-7): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
+//! Dynamic budgets (ADR-SVC-1): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Orbs and zones are capped as everywhere else.
 
@@ -274,7 +274,7 @@ pub(super) fn start(
 }
 
 /// As `start`, for an attack whose clock does not start at 0: the boss's attacks count the time
-/// since its phase began, so that `phase_time` is the phase's time (ADR-SIM-18).
+/// since its phase began, so that `phase_time` is the phase's time (ADR-SIM-4).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start_aged(
     world: &World,
@@ -860,7 +860,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
 
 /// Orbs whose lifetime is over start their bursts, to be carried out this tick.
 // Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
-// (ADR-SIM-19).
+// (ADR-SIM-5).
 #[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
     let mut starts = Vec::new();

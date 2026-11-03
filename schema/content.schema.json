@@ -114,7 +114,7 @@
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite (ADR-CONT-17)."
+          "description": "Asset ID of the sprite (ADR-CONT-7)."
         },
         "defence": {
           "description": "Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.",
@@ -173,7 +173,7 @@
         },
         "rules": {
           "default": [],
-          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-18).",
+          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-4).",
           "items": {
             "$ref": "#/$defs/Rule"
           },
@@ -613,7 +613,7 @@
     },
     "Boss": {
       "additionalProperties": false,
-      "description": "Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.",
+      "description": "Tier 2 (ADR-SIM-4): body parts and an ordered list of phases that only move forward.",
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId"
@@ -742,7 +742,7 @@
     },
     "BossPart": {
       "additionalProperties": false,
-      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).",
+      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-7, ADR-SIM-4).",
       "properties": {
         "asset": {
           "$ref": "#/$defs/ContentId",
@@ -1215,7 +1215,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-SIM-18).",
+          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-SIM-4).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -1386,7 +1386,7 @@
       "type": "object"
     },
     "ContentId": {
-      "description": "A content ID from the registry (ADR-CONT-12): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "description": "A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
     "Countdown": {
@@ -1621,7 +1621,7 @@
           "description": "The lowest rarity its drops and offers may have, over all six."
         },
         "rune_shards": {
-          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-13).",
+          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-3).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -1780,7 +1780,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21)."
+                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7)."
                 },
                 "rune": {
                   "anyOf": [
@@ -2216,7 +2216,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).",
+          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-4).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2432,7 +2432,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
+          "description": "The main character reached `level` (ADR-REPL-5): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2461,7 +2461,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-REPL-16, DS18).",
+          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-REPL-5, DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2525,7 +2525,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A kill dropped the falling star `star` (ADR-REPL-16).",
+          "description": "A kill dropped the falling star `star` (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2824,7 +2824,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).",
+          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3022,7 +3022,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-16).",
+          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3292,7 +3292,7 @@
     },
     "EliteType": {
       "additionalProperties": false,
-      "description": "An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite. A grade is a type; later kinds of elite add entries.",
+      "description": "An elite type: a content ID (ADR-CONT-2) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite. A grade is a type; later kinds of elite add entries.",
       "properties": {
         "enemy": {
           "$ref": "#/$defs/Agent",
@@ -3620,7 +3620,7 @@
       ]
     },
     "EntityId": {
-      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-18).",
+      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-4).",
       "format": "uint32",
       "minimum": 0,
       "type": "integer"
@@ -3951,7 +3951,7 @@
     },
     "ExpertiseOfferView": {
       "additionalProperties": false,
-      "description": "An expertise offer (ADR-REPL-16). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
+      "description": "An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
       "properties": {
         "candidates": {
           "items": {
@@ -4043,7 +4043,7 @@
     },
     "ExpertiseView": {
       "additionalProperties": false,
-      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-16).",
+      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-5).",
       "properties": {
         "level": {
           "description": "From 0, with no highest level.",
@@ -4140,7 +4140,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A draw from the run's SplitMix64 (ADR-SIM-16), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
+          "description": "A draw from the run's SplitMix64 (ADR-SIM-2), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
           "properties": {
             "rand": {
               "maxItems": 2,
@@ -4327,7 +4327,7 @@
           "type": "integer"
         }
       ],
-      "description": "A fixed-point expression (ADR-SIM-18): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
+      "description": "A fixed-point expression (ADR-SIM-4): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
     },
     "Facing": {
       "additionalProperties": false,
@@ -4679,7 +4679,7 @@
           "type": "boolean"
         },
         "interact": {
-          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-21). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
           "type": "boolean"
         },
         "main": {
@@ -4700,7 +4700,7 @@
           "type": "integer"
         },
         "pick": {
-          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
+          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-5). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -5034,7 +5034,7 @@
       "properties": {
         "disguise": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-CONT-17)."
+          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-CONT-7)."
         },
         "reveal_radius": {
           "description": "1 to `MAX_LEN`.",
@@ -5094,7 +5094,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-19).",
+          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-5).",
           "properties": {
             "radius": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5116,7 +5116,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-SIM-19).",
+          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-SIM-5).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5148,7 +5148,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-19).",
+          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-5).",
           "properties": {
             "at": {
               "$ref": "#/$defs/Point"
@@ -5249,7 +5249,7 @@
       ]
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-REPL-16).",
+      "description": "What opened an offer (ADR-REPL-5).",
       "oneOf": [
         {
           "const": "star",
@@ -5264,7 +5264,7 @@
       ]
     },
     "OfferMode": {
-      "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
+      "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-5 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
       "oneOf": [
         {
           "const": "stop",
@@ -5273,7 +5273,7 @@
         },
         {
           "const": "timed",
-          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-16 point 5). Needs\n`sim_version` 2.",
+          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-5 point 5). Needs\n`sim_version` 2.",
           "type": "string"
         }
       ]
@@ -5362,7 +5362,7 @@
     },
     "OfferView": {
       "additionalProperties": false,
-      "description": "An offer from a falling star (ADR-REPL-16).",
+      "description": "An offer from a falling star (ADR-REPL-5).",
       "properties": {
         "banishes_left": {
           "format": "uint32",
@@ -5603,7 +5603,7 @@
         },
         {
           "const": "cleared",
-          "description": "The stage was cleared: this is what a replay has to prove (ADR-REPL-17).",
+          "description": "The stage was cleared: this is what a replay has to prove (ADR-REPL-6).",
           "type": "string"
         },
         {
@@ -6003,7 +6003,7 @@
         },
         "weapon": {
           "$ref": "#/$defs/WeaponRef",
-          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n. It moves to the run's setup when the setup exists (ADR-REPL-16)."
+          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n. It moves to the run's setup when the setup exists (ADR-REPL-5)."
         }
       },
       "required": [
@@ -6298,7 +6298,7 @@
     },
     "ProgressView": {
       "additionalProperties": false,
-      "description": "Where the run stands in experience, levels and stat points (ADR-REPL-16).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-REPL-5).",
       "properties": {
         "level": {
           "description": "From 1.",
@@ -6315,10 +6315,10 @@
               "type": "null"
             }
           ],
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-16)."
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-5)."
         },
         "spent": {
-          "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-11).",
+          "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-1).",
           "items": {
             "format": "uint8",
             "maximum": 255,
@@ -6386,7 +6386,7 @@
       "type": "object"
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-REPL-16).",
+      "description": "A reward's rarity, from the most common up (ADR-REPL-5).",
       "enum": [
         "common",
         "uncommon",
@@ -6472,7 +6472,7 @@
       "additionalProperties": false,
       "properties": {
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick (ADR-SIM-17), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
+          "description": "The FNV-1a 64 state hash after the last tick (ADR-SIM-3), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
           "type": "string"
         },
         "inputs": {
@@ -6480,7 +6480,7 @@
           "type": "string"
         },
         "schema_version": {
-          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-13).",
+          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-2).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6492,7 +6492,7 @@
           "type": "integer"
         },
         "sim_version": {
-          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-13).",
+          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-2).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6521,7 +6521,7 @@
     },
     "Reward": {
       "additionalProperties": false,
-      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-CONT-12).",
+      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-CONT-2).",
       "properties": {
         "amount": {
           "default": null,
@@ -6813,7 +6813,7 @@
     },
     "Rule": {
       "additionalProperties": false,
-      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-18).",
+      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-4).",
       "properties": {
         "charges": {
           "description": "Times the rule may fire; absent means unlimited.",
@@ -6863,25 +6863,25 @@
       "description": "The rules file.",
       "properties": {
         "aggro_decay": {
-          "description": "Aggro lost every tick (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro lost every tick (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_buff": {
-          "description": "Aggro raised by a buff (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro raised by a buff (ADR-SIM-4), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_damage": {
-          "description": "Aggro raised per point of damage dealt (ADR-SIM-18), in stored units: 0 to 100.",
+          "description": "Aggro raised per point of damage dealt (ADR-SIM-4), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_heal_point": {
-          "description": "Aggro raised per point healed (ADR-SIM-18), in stored units: 0 to 100.",
+          "description": "Aggro raised per point healed (ADR-SIM-4), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6950,7 +6950,7 @@
           "type": "integer"
         },
         "offer_size": {
-          "description": "The base candidates of an offer (ADR-REPL-16): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -6958,7 +6958,7 @@
         },
         "offer_timer_ticks": {
           "default": 300,
-          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-21 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
+          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6980,7 +6980,7 @@
             100,
             100
           ],
-          "description": "The percent of a player's damage that applies when 1, 2 or 3 players are present\n(ADR-SIM-22): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.\nAbsent: `[100, 100, 100]`, so a pack published before the key existed still reads.",
+          "description": "The percent of a player's damage that applies when 1, 2 or 3 players are present\n(ADR-SIM-8): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.\nAbsent: `[100, 100, 100]`, so a pack published before the key existed still reads.",
           "items": {
             "format": "uint32",
             "minimum": 0,
@@ -7052,7 +7052,7 @@
     },
     "RunLedger": {
       "additionalProperties": false,
-      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-15).",
+      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).",
       "properties": {
         "bestiary": {
           "description": "Bestiary bits per enemy kind ID: bit 0 encountered, bits 1..=10 for `DamageType::ALL`.",
@@ -7140,11 +7140,11 @@
           "type": "string"
         },
         "content_sha256": {
-          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-CONT-15). Any other pack invalidates the replay.",
+          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-CONT-5). Any other pack invalidates the replay.",
           "type": "string"
         },
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-17), 16\nlowercase hex digits.",
+          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-3), 16\nlowercase hex digits.",
           "type": "string"
         },
         "inputs": {
@@ -7153,7 +7153,7 @@
         },
         "setup": {
           "$ref": "#/$defs/RunSetup",
-          "description": "What the run started from (ADR-REPL-16)."
+          "description": "What the run started from (ADR-REPL-5)."
         },
         "ticks": {
           "description": "Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.",
@@ -7175,7 +7175,7 @@
     },
     "RunSetup": {
       "additionalProperties": false,
-      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-16).",
+      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-5).",
       "properties": {
         "carried": {
           "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.",
@@ -7209,7 +7209,7 @@
         },
         "offer_mode": {
           "$ref": "#/$defs/OfferMode",
-          "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
+          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",
@@ -7233,7 +7233,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -7244,7 +7244,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.",
+          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7272,7 +7272,7 @@
           "type": "array"
         },
         "upgrades": {
-          "description": "The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
+          "description": "The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-5): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7291,7 +7291,7 @@
               "type": "null"
             }
           ],
-          "description": "Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
+          "description": "Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
         }
       },
       "required": [
@@ -7392,14 +7392,14 @@
         },
         "ledger": {
           "$ref": "#/$defs/RunLedger",
-          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-15)."
+          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-6)."
         },
         "outcome": {
           "$ref": "#/$defs/Outcome",
           "description": "How the run stood at the end: a bug report may stop while it is still running."
         },
         "stardust": {
-          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the\napp pays it after the run (ADR-REPL-16).",
+          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the\napp pays it after the run (ADR-REPL-5).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -7506,7 +7506,7 @@
       "type": "object"
     },
     "Selector": {
-      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-SIM-18).",
+      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-SIM-4).",
       "oneOf": [
         {
           "enum": [
@@ -7570,7 +7570,7 @@
       "type": "string"
     },
     "Skill": {
-      "description": "A skill block (ADR-SIM-18). Percentages are whole percent.",
+      "description": "A skill block (ADR-SIM-4). Percentages are whole percent.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -7733,7 +7733,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`\npercent, for `duration_ticks`.",
+          "description": "`status` (a status ID of the registry, ADR-SIM-4) on the main character, `value_pct`\npercent, for `duration_ticks`.",
           "properties": {
             "duration_ticks": {
               "format": "uint32",
@@ -7909,7 +7909,7 @@
       "type": "object"
     },
     "SmashEffect": {
-      "description": "What a smash (a step reached by `smash`) does to every enemy it hits: one\nof a closed list built into `core`, its numbers in JSON (ADR-CONT-11).",
+      "description": "What a smash (a step reached by `smash`) does to every enemy it hits: one\nof a closed list built into `core`, its numbers in JSON (ADR-CONT-1).",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -8086,7 +8086,7 @@
           ]
         },
         "stars": {
-          "description": "Falling stars on the map, in the order they dropped (ADR-REPL-16).",
+          "description": "Falling stars on the map, in the order they dropped (ADR-REPL-5).",
           "items": {
             "$ref": "#/$defs/StarView"
           },
@@ -8204,7 +8204,7 @@
               "type": "null"
             }
           ],
-          "description": "Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages\nhave them. Without them defeated enemies give nothing."
+          "description": "Experience and levels, each level-up giving a stat point (ADR-REPL-5); a mode's stages\nhave them. Without them defeated enemies give nothing."
         },
         "map": {
           "anyOf": [
@@ -8227,7 +8227,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-2). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -8258,7 +8258,7 @@
               "type": "null"
             }
           ],
-          "description": "Falling stars and the offers they open (ADR-REPL-16); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
+          "description": "Falling stars and the offers they open (ADR-REPL-5); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
         },
         "title": {
           "maxLength": 60,
@@ -8297,7 +8297,7 @@
         },
         "icon": {
           "$ref": "#/$defs/ContentId",
-          "description": "The asset the skill button draws (ADR-CONT-12): an asset ID of the registry."
+          "description": "The asset the skill button draws (ADR-CONT-2): an asset ID of the registry."
         },
         "id": {
           "$ref": "#/$defs/ContentId",
@@ -9393,7 +9393,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "A preset, in one of its trees (ADR-REPL-16): none is the weapon's first tree.",
+          "description": "A preset, in one of its trees (ADR-REPL-5): none is the weapon's first tree.",
           "properties": {
             "preset": {
               "additionalProperties": false,

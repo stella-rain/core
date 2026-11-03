@@ -176,7 +176,7 @@ fn boss_dead(e: &Engine) -> bool {
         .any(|ev| matches!(ev, DomainEvent::Died { entity, .. } if entity.0 == 1))
 }
 
-// Validation: the caps of the heal config and of the regen amount (ADR-SVC-7).
+// Validation: the caps of the heal config and of the regen amount (ADR-SVC-1).
 
 #[test]
 fn a_heal_config_is_bounded_like_the_other_content() {

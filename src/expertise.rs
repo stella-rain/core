@@ -1,4 +1,4 @@
-//! Expertise (ADR-CONT-11): one level inside one run, for the one weapon, with no highest
+//! Expertise (ADR-CONT-1): one level inside one run, for the one weapon, with no highest
 //! level. This is its content: the points levels 1 to 10 each need, the growth factor for every
 //! level after and the most a level needs, and for each weapon its three styles (a path: the
 //! style, then two upgrades and a capstone, at the levels of the mode's level table,
@@ -14,7 +14,7 @@
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`).
 //!
-//! The file is untrusted (ADR-SVC-7), as the rewards are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
 //! the factor is above 1, no pool is empty, every weapon preset has three complete styles, and
 //! every number is capped. Option and style IDs are the file's own, unique within a weapon. The
@@ -33,7 +33,7 @@ use crate::run_stats::StatEffect;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest expertise file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
 /// The levels whose thresholds the file lists: 1 to 10, so far as the style path's last level
 /// (`stage::MAX_STYLE_LEVEL`).

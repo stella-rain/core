@@ -1,4 +1,4 @@
-//! The worst-case tick (ADR-SVC-7, ADR-SIM-17). Shared by `benches/worst_tick.rs`, which counts its
+//! The worst-case tick (ADR-SVC-1, ADR-SIM-3). Shared by `benches/worst_tick.rs`, which counts its
 //! instructions, and `tests/worst_case.rs`, which checks that it really reaches every dynamic
 //! cap: a benchmark of a tick that does not would pass without measuring the worst case.
 
@@ -55,7 +55,7 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// each, 32 of them elites (`MAX_ELITES_ALIVE`)
 /// (core BR1b: nothing here fires a projectile).
 ///
-/// The push-apart (ADR-SIM-19) parts a fresh stack on every tick: on each tick it does not start
+/// The push-apart (ADR-SIM-5) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
 /// crowded enemy still carries out). So when the pass runs, all stand on the point but the 15
 /// or 20 that started their attack the tick before, which are within 8 pixels of it. Every

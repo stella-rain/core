@@ -5,7 +5,7 @@
 //! trailing bytes. What the content and the setup
 //! decide is not in them: `decode_state` takes it from a fresh engine of the same run, and
 //! checks every length and the content indices it lists against it (`check_indices`), so a
-//! stale file is refused, not indexed out of range on a later tick (ADR-SVC-7). It does not
+//! stale file is refused, not indexed out of range on a later tick (ADR-SVC-1). It does not
 //! check that the values are ones a run can reach (a boss phase past its last, a stat point
 //! past its limit): that is for the savepoint file's hash and for the fuzz target on this
 //! function to show whether a check is needed.
@@ -36,7 +36,7 @@ pub(crate) fn encode_state(engine: &Engine) -> Vec<u8> {
 /// by the rules module of `fresh`'s version. `fresh` is an engine started from the same setup
 /// and content, untouched: everything the content and the setup decide comes from it, and every
 /// length and index in the bytes is checked against it. The stats record is trusted like the
-/// replay prefix (ADR-SAVE-14), but a slot outside the party must be zero.
+/// replay prefix (ADR-SAVE-4), but a slot outside the party must be zero.
 pub(crate) fn decode_state(
     bytes: &[u8],
     fresh: &Engine,
@@ -65,7 +65,7 @@ pub(crate) fn decode_state(
 }
 
 /// The coding of one rules module's state: the same text for each version, which owns its types
-/// (ADR-REPL-13). Frozen versions keep their text; a change to the live one is a new version's.
+/// (ADR-REPL-2). Frozen versions keep their text; a change to the live one is a new version's.
 macro_rules! state_codec {
     ($sim:ident, $get:expr) => {
         use crate::$sim::World;
@@ -327,7 +327,7 @@ mod v1 {
     state_codec!(sim_v1, |s| vec![&s.player]);
 }
 
-/// The live module's copy of `state_codec!`: it follows the live `sim` (ADR-REPL-13) while the macro
+/// The live module's copy of `state_codec!`: it follows the live `sim` (ADR-REPL-2) while the macro
 /// above keeps the frozen text. A fix to a check shared by both is made in both until the frozen
 /// version is retired.
 macro_rules! state_codec_v2 {
@@ -622,7 +622,7 @@ mod v2 {
 
 #[cfg(test)]
 mod players_tests {
-    //! The index check reads every player, not the first only (ADR-SIM-21).
+    //! The index check reads every player, not the first only (ADR-SIM-7).
 
     use crate::bench_fixtures::worst_case;
     use crate::engine::{Engine, Run};
@@ -920,7 +920,7 @@ mod career_rest_tests {
 #[cfg(test)]
 mod frozen_text_tests {
     //! Version 1's coding is the macro's text and its invocation; one moved byte there fails this
-    //! (ADR-REPL-13). The markers are built in pieces so this test does not contain them.
+    //! (ADR-REPL-2). The markers are built in pieces so this test does not contain them.
 
     use crate::hash::fnv1a64;
 

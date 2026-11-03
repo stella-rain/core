@@ -1,4 +1,4 @@
-//! `content-pack`: checks a content pack as the game does (ADR-CONT-15, core#148), for the content
+//! `content-pack`: checks a content pack as the game does (ADR-CONT-5, core#148), for the content
 //! repository's release workflow, and writes the bundled content as a pack. The pack is
 //! untrusted, so this uses the same size limit and validation as the game.
 //!
@@ -16,7 +16,7 @@
 //! as `name: value` lines, and `export` writes the pack
 //! to standard output. Without DIR, `export` writes the pack built into this binary; with DIR
 //! (core's `content/`, as `unpack` takes it; the mode files in `DIR/../modes`), the pack of the
-//! files there. `unpack` (ADR-CONT-14) checks PACK as `verify` does, then writes the files it
+//! files there. `unpack` (ADR-CONT-4) checks PACK as `verify` does, then writes the files it
 //! holds into DIR (core's `content/`; the three mode files into `modes/` beside it), each as the
 //! file on its own, LF, so that `export` of those files gives PACK byte for byte; a pack that
 //! `export` would not write that way is refused. A file an optional slot of the pack lacks is

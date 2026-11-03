@@ -1,4 +1,4 @@
-//! The six regular enemy roles of the `time_limit` mode (R2, ADR-CONT-12): placeholder
+//! The six regular enemy roles of the `time_limit` mode (R2, ADR-CONT-2): placeholder
 //! content, each a wave of the bundled schedule with its own ID. The roles' rules are the ones
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.
@@ -52,7 +52,7 @@ fn role(id: &str) -> Value {
 }
 
 /// The speed of a follower in 1/256 pixel a tick: its `speed`, or 4 pixels a tick without one
-/// (ADR-SIM-19).
+/// (ADR-SIM-5).
 fn follow_speed(id: &str) -> i64 {
     role(id)["enemy"]["movement"]["speed"]
         .as_i64()
@@ -199,7 +199,7 @@ fn a_splitter_splits_once_when_it_is_below_half() {
     assert_eq!(splits, 1);
 }
 
-// --- A whole run with a bot (ADR-SIM-17, ADR-SVC-7, ADR-REPL-16) --------------------------------------
+// --- A whole run with a bot (ADR-SIM-3, ADR-SVC-1, ADR-REPL-5) --------------------------------------
 
 #[test]
 fn a_run_on_normal_with_a_bot_holds_the_caps_and_its_replay_verifies() {

@@ -1,6 +1,6 @@
 //! The pack each corpus case pins (`case.json`), the packs it names (`packs/<sha256>.json`) and
 //! the frozen trees (`tests/corpus/v<N>/`, N >= 1), which are never written and carry a
-//! `manifest.sha256` (ADR-SIM-17). `corpus.rs` plays the cases; this file loads what they pin,
+//! `manifest.sha256` (ADR-SIM-3). `corpus.rs` plays the cases; this file loads what they pin,
 //! writes it, and checks a frozen tree.
 
 use std::collections::BTreeMap;

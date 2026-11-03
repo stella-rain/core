@@ -1,5 +1,5 @@
-//! The match-up table (ADR-CONT-11): weak, strong and resisted percents, read from JSON as
-//! untrusted bytes (ADR-SVC-7), each at most `MAX_MATCH_UP_PCT`, and the most the type bonuses
+//! The match-up table (ADR-CONT-1): weak, strong and resisted percents, read from JSON as
+//! untrusted bytes (ADR-SVC-1), each at most `MAX_MATCH_UP_PCT`, and the most the type bonuses
 //! add to one attack, 1 to `MAX_TYPE_BONUS_PCT`. The bundled file is the
 //! default; other bytes run the same way and change the run's content hash.
 

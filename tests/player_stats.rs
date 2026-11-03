@@ -1,6 +1,6 @@
-//! The per-player totals the engine folds from the events (ADR-SIM-21): what a solo run counts,
+//! The per-player totals the engine folds from the events (ADR-SIM-7): what a solo run counts,
 //! that a replay rebuilds them exactly, and that a run resumed from a savepoint has the totals
-//! of the whole run (format 2 holds them, ADR-SAVE-14).
+//! of the whole run (format 2 holds them, ADR-SAVE-4).
 
 use crate::common::run::trial_setup;
 use crate::run_play::play_run;

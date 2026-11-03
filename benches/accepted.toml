@@ -1,4 +1,4 @@
-# The ledger of accepted instruction rises (ADR-SIM-20 point 3). Kade merges every change to this file.
+# The ledger of accepted instruction rises (ADR-SIM-6 point 3). Kade merges every change to this file.
 #
 # A bench case that rises by more than 2% against the base commit fails the bench job. A rise that
 # is understood and wanted (a new rule, a new enemy) is accepted by adding an entry here in the

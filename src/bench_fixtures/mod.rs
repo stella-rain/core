@@ -1,4 +1,4 @@
-//! The cases the tick benches count (`benches/`, ADR-SIM-19): the worst-case tick, the collision
+//! The cases the tick benches count (`benches/`, ADR-SIM-5): the worst-case tick, the collision
 //! tick (crowd in a band and spread over the largest map) and the heaviest tick of a `time_limit`
 //! run. The benches build their engines here, through the crate, so that a change to the
 //! simulation's API edits `src/` alone and the bench job can still compare it with its base
@@ -76,7 +76,7 @@ pub fn worst_minute_peak() -> worst_minute_case::Run {
     worst_minute_case::worst_minute_peak()
 }
 
-/// Takes option `index` of the open offer through a step (ADR-REPL-16). A pick the engine refuses
+/// Takes option `index` of the open offer through a step (ADR-REPL-5). A pick the engine refuses
 /// takes nothing and so leaves no events, which a fixture's offer never does.
 pub(crate) fn take_option(e: &mut Engine, index: u32) {
     e.step(&[

@@ -1,5 +1,5 @@
 //! Every field of the run's state moves the state hash, or is listed here as one that does not,
-//! with its reason (ADR-SIM-17 point 2). Each state type has one invocation of
+//! with its reason (ADR-SIM-3 point 2). Each state type has one invocation of
 //! `each_field_moves_the_hash!`, which destructures the type without `..`: a field that is in
 //! none of its three lists does not compile.
 

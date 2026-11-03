@@ -1,4 +1,4 @@
-//! A party starts from a setup (ADR-SIM-21): the same state as the one-player start grown to
+//! A party starts from a setup (ADR-SIM-7): the same state as the one-player start grown to
 //! `n` by the one builder, and version 1 stays one player.
 
 use crate::run_setup::RunSetup;

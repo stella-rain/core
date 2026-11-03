@@ -1,4 +1,4 @@
-//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-17).
+//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-3).
 
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
@@ -25,8 +25,8 @@ use std::sync::LazyLock;
 pub(crate) const UNLIMITED: u32 = u32::MAX;
 
 /// The run's generators, one per purpose, so a change to one kind of draw leaves the others
-/// where they were (ADR-SIM-16). Each is `rng::derive(seed, tag)`; the hash writes them in this
-/// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-21): the hash and
+/// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
+/// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-7): the hash and
 /// savepoint format 1 write slot 0's between `loot` and `horde`, where it was.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -65,7 +65,7 @@ impl Streams {
 
 /// The world tick on which each slot's open offer is picked for it, in a timed run: `None` for a
 /// slot with no offer open and for an absent slot. The countdown is state, so it is in the hash
-/// and the savepoint (ADR-SIM-17 point 2, ADR-SAVE-14 point 1).
+/// and the savepoint (ADR-SIM-3 point 2, ADR-SAVE-4 point 1).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct OfferTimer {
     pub due: [Option<u32>; MAX_PLAYERS as usize],
@@ -83,16 +83,16 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    /// The players, by slot (`Players::id` is a slot's entity number now): one now (ADR-SIM-21).
+    /// The players, by slot (`Players::id` is a slot's entity number now): one now (ADR-SIM-7).
     pub players: Players,
-    /// The deadlines of a timed run's open offers (ADR-SIM-21 point 4); `None` in a `stop` run.
+    /// The deadlines of a timed run's open offers (ADR-SIM-7 point 4); `None` in a `stop` run.
     pub offer_timer: Option<OfferTimer>,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
     pub companions: Vec<AgentState>,
     /// In spawn order, which is entity-ID order.
     pub enemies: Vec<AgentState>,
-    /// Attacks that are being carried out, oldest first (ADR-SIM-18 tier 3).
+    /// Attacks that are being carried out, oldest first (ADR-SIM-4 tier 3).
     pub tasks: Vec<AttackTask>,
     /// Phased attacks in progress, in the order they started.
     pub runs: Vec<AttackRun>,
@@ -109,7 +109,7 @@ pub(crate) struct State {
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
     /// The next entity number. It starts at `MAX_PLAYERS`: the numbers 0 to 2 are the player slots,
-    /// present or not (ADR-SIM-21). The hash and the savepoint write it, like every entity number,
+    /// present or not (ADR-SIM-7). The hash and the savepoint write it, like every entity number,
     /// as it is.
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
@@ -177,7 +177,7 @@ pub(crate) struct Horde {
     pub held: Vec<u32>,
 }
 
-/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-16).
+/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
@@ -215,8 +215,8 @@ pub(crate) struct ExpertiseOffer {
 }
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
-/// player's offers (ADR-REPL-16). The offers due and open, and what each player's offers have
-/// used, are per slot in `Offers` (ADR-SIM-21).
+/// player's offers (ADR-REPL-5). The offers due and open, and what each player's offers have
+/// used, are per slot in `Offers` (ADR-SIM-7).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -235,7 +235,7 @@ pub(crate) struct StarField {
 }
 
 /// One player's star offers: those due and the open one, and what the player's offers have used
-/// (ADR-REPL-16). A slot holds `Some` exactly when the stage has stars (`State::stars`).
+/// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
@@ -300,7 +300,7 @@ pub(crate) struct StatRule {
     pub limit: u8,
 }
 
-/// Experience, levels and stat points (ADR-REPL-16; DS18).
+/// Experience, levels and stat points (ADR-REPL-5; DS18).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {
@@ -330,7 +330,7 @@ pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 /// What one player carries through the run besides the player's body: the experience and levels
 /// (`None` in a stage without levels), the offer generator and the star offers (`None` in a stage
 /// without stars), the expertise gauge, the Stardust earned and the regeneration. One per slot in
-/// `Players` (ADR-SIM-21, ADR-SIM-16).
+/// `Players` (ADR-SIM-7, ADR-SIM-2).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Career {
@@ -397,12 +397,12 @@ impl Default for Career {
 /// The players of a run: `1..=MAX_PLAYERS` of them, in the slots a presence mask names. All
 /// places are held, the absent ones as copies of the first that nothing reads, so that an index
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
-/// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-21).
+/// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-7).
 ///
 /// Each slot also holds its `Career` (the level progress, the offer generator, the star offers,
 /// the expertise gauge, the Stardust and the regeneration). The state hash and the savepoint write
 /// the shared fields, then one presence byte (bit `i` is slot `i`) and, for each present slot in
-/// ascending order, its player and its career (ADR-SIM-17, ADR-SAVE-14); an absent slot writes
+/// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-4); an absent slot writes
 /// nothing, and a hole in the mask hashes and saves. A party builder supplies a career for every
 /// present slot.
 #[derive(Clone, Debug)]
@@ -413,7 +413,7 @@ pub(crate) struct Players {
     /// Bit `i` is set when slot `i` is in the party.
     present: u8,
     /// The generation of each slot's current or last occupant: `leave` adds one, so the next
-    /// occupant's entity number matches nothing the leaver owned (ADR-SIM-21). Hashed and saved
+    /// occupant's entity number matches nothing the leaver owned (ADR-SIM-7). Hashed and saved
     /// for every slot, present or not.
     generations: [u8; MAX_PLAYERS as usize],
 }
@@ -616,7 +616,7 @@ impl Players {
             .filter_map(PlayerIdx::new)
     }
 
-    /// The entity number of slot `me` (ADR-SIM-21): the number its shots, hits and dots carry.
+    /// The entity number of slot `me` (ADR-SIM-7): the number its shots, hits and dots carry.
     #[inline]
     pub(crate) fn id(&self, me: PlayerIdx) -> EntityId {
         me.id_at(self.generations[me.get()])
@@ -640,7 +640,7 @@ impl Players {
         self.generations
     }
 
-    /// The present slot whose entity number is `id` (ADR-SIM-21): the owner of a shot, a hit or a
+    /// The present slot whose entity number is `id` (ADR-SIM-7): the owner of a shot, a hit or a
     /// dot a player made. `None` for a companion, an enemy or a slot not in the party.
     #[inline]
     pub(crate) fn of_id(&self, id: EntityId) -> Option<PlayerIdx> {
@@ -942,7 +942,7 @@ pub(crate) struct BossState {
     /// Copied from the stage when it appears.
     pub defence: u32,
     pub statuses: Statuses,
-    /// The phase being carried out, 0-based (ADR-SIM-18 tier 2).
+    /// The phase being carried out, 0-based (ADR-SIM-4 tier 2).
     pub phase: u32,
     /// Ticks since the phase began.
     pub phase_age: u32,
@@ -964,7 +964,7 @@ pub(crate) struct BossState {
     pub age: u32,
 }
 
-/// A breakable part of the boss, with its own hit points (ADR-CONT-17).
+/// A breakable part of the boss, with its own hit points (ADR-CONT-7).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PartState {
@@ -1006,7 +1006,7 @@ pub(crate) enum AgentSource {
     Escort,
 }
 
-/// A companion or an enemy: a movement and a rule list (ADR-SIM-18 tier 1).
+/// A companion or an enemy: a movement and a rule list (ADR-SIM-4 tier 1).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AgentState {
@@ -1033,7 +1033,7 @@ pub(crate) struct AgentState {
     /// For `orbit`, in 1/256 degree.
     pub orbit_angle: i32,
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
-    /// pixel, so it does not take its own step to its place this tick (ADR-SIM-19).
+    /// pixel, so it does not take its own step to its place this tick (ADR-SIM-5).
     pub crowded: bool,
     /// Enemies only: it removed itself with a `self_destruct` rule. It is at 0 hit points for
     /// the removal, but it was not defeated, so nothing credits it. It only lives until the end
@@ -1134,7 +1134,7 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses of this version (ADR-SIM-18): the three a skill can apply, and bleed, poison and
+/// The statuses of this version (ADR-SIM-4): the three a skill can apply, and bleed, poison and
 /// burn, which only their runes apply. The IDs in the registry are the names of the
 /// first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1541,7 +1541,7 @@ impl MoveIndex {
     }
 }
 
-/// An attack being carried out (ADR-SIM-18 tier 3): a program, where it has got to, and what it
+/// An attack being carried out (ADR-SIM-4 tier 3): a program, where it has got to, and what it
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
 #[derive(Clone, Debug)]

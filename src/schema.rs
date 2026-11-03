@@ -1,4 +1,4 @@
-//! JSON Schema generated from the types (ADR-CONT-11). The files in `schema/` are this output,
+//! JSON Schema generated from the types (ADR-CONT-1). The files in `schema/` are this output,
 //! checked in; `tests/schema.rs` fails when they are stale and rewrites them when run with
 //! `UPDATE_SCHEMA=1`.
 

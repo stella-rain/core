@@ -10,7 +10,7 @@ globs:
 
 # The step log and the recorder
 
-Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16, ADR-SIM-21, ADR-SIM-22. File formats,
+Sources: ADR-REPL-1, ADR-REPL-5, ADR-SAVE-4, ADR-SAVE-6, ADR-SIM-7, ADR-SIM-8. File formats,
 hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
 
 ## What is where
@@ -62,7 +62,7 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   (`RunReplayError::OfferOpen`); a `timed` run takes the picks of the inputs the engine accepts
   first, records them as one PICKS step, clears them from the inputs and ticks on those, so a
   TICKS block never holds a pick. The timer's own picks are derived, never recorded
-  (`OfferMode::Timed`, ADR-REPL-16 point 5); `resimulate` refuses a TICKS run over an open offer
+  (`OfferMode::Timed`, ADR-REPL-5 point 5); `resimulate` refuses a TICKS run over an open offer
   in a `stop` run only.
 - `join(slot)` and `leave(slot)` call the engine and write a JOIN or LEAVE at the tick the run
   is on; a refusal (`PresenceRefused`, the end of the run, the cap) records nothing.

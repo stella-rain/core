@@ -1,5 +1,5 @@
 //! The constellations (core#NS3, app#336): sets of named stars with tiers. The file is read as
-//! untrusted bytes (ADR-SVC-7): members must be named stars of the run's rewards, each in at most
+//! untrusted bytes (ADR-SVC-1): members must be named stars of the run's rewards, each in at most
 //! one set, 2 to 4 to a set; the tiers ascend and the top one is the whole set; a tier's
 //! effects are the reward effects, held to the same caps. A tier lists the effects the set
 //! has **at that tier**: reaching the full tier replaces the small one's, it is not added to

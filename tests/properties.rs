@@ -1,4 +1,4 @@
-//! Property tests (ADR-SIM-17): invariants that must hold for any input sequence, run on
+//! Property tests (ADR-SIM-3): invariants that must hold for any input sequence, run on
 //! the stages of the replay corpus. `proptest` shrinks a failure to the shortest inputs that
 //! still fail and saves the seed in `proptest-regressions/`; commit that file with the fix.
 //!
@@ -104,7 +104,7 @@ fn inputs() -> impl Strategy<Value = Vec<Input>> {
     })
 }
 
-// --- Determinism (ADR-SIM-15, ADR-SIM-17) ----------------------------------------------------------
+// --- Determinism (ADR-SIM-1, ADR-SIM-3) ----------------------------------------------------------
 
 proptest! {
     #![proptest_config(config())]
@@ -147,7 +147,7 @@ proptest! {
     }
 }
 
-// --- Positions stay in bounds (ADR-SVC-7) ------------------------------------------------------
+// --- Positions stay in bounds (ADR-SVC-1) ------------------------------------------------------
 
 fn within(map: MapView, x: i32, y: i32, margin: i32) -> bool {
     (-margin..=map.width.0 + margin).contains(&x) && (-margin..=map.height.0 + margin).contains(&y)
@@ -178,7 +178,7 @@ proptest! {
     }
 }
 
-// --- Hit points (ADR-SIM-18) --------------------------------------------------------------------
+// --- Hit points (ADR-SIM-4) --------------------------------------------------------------------
 
 /// `hp` is a `u32`, so it cannot go below zero; what can go wrong is going up. The main
 /// character has entity ID 0.
@@ -227,7 +227,7 @@ proptest! {
     }
 }
 
-// --- Statuses expire (ADR-SIM-18) ---------------------------------------------------------------
+// --- Statuses expire (ADR-SIM-4) ---------------------------------------------------------------
 
 proptest! {
     #![proptest_config(config())]

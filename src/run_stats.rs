@@ -1,11 +1,11 @@
-//! Run stats (ADR-REPL-16, ADR-CONT-11): the stats a stat point can raise during a run, each with
+//! Run stats (ADR-REPL-5, ADR-CONT-1): the stats a stat point can raise during a run, each with
 //! its step and its limit. They are content, not code: a JSON list of any length up to
 //! `MAX_STATS`, read in its order, so a stat is added, removed or retuned by editing the file.
 //! Data picks, code acts: each stat names one of the effect kinds built in here
 //! (`StatEffect`), and a new kind of effect is a code change. Stats that share an effect add
 //! up.
 //!
-//! The file is untrusted (ADR-SVC-7), because it may later come from outside the app: a size
+//! The file is untrusted (ADR-SVC-1), because it may later come from outside the app: a size
 //! limit before parsing, strict parsing, the current versions only, and every field bounded.
 //! Stat IDs must be well-formed and unique within the file; they are the file's own, not
 //! registry entries, so a file can bring a stat this build has never seen as long as its
@@ -24,7 +24,7 @@ use crate::validate::limits::MAX_PLAYER_HP;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest run stats file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest run stats file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_RUN_STATS_BYTES: usize = 16 * 1024;
 /// The most stats a file lists.
 pub const MAX_STATS: usize = 32;
@@ -40,11 +40,11 @@ pub const MAX_TITLE_CHARS: usize = 32;
 pub const MAX_DESCRIPTION_CHARS: usize = 160;
 
 /// The largest immunity to a new stun after one ends, in ticks: a placeholder
-/// bound, as the other limits are (ADR-SVC-7 decides that one exists).
+/// bound, as the other limits are (ADR-SVC-1 decides that one exists).
 pub const MAX_STUN_IMMUNE_TICKS: u32 = 600;
 
 /// The most the attack speed total's cap can be, in percent: the ceiling the run stats file's
-/// `max_attack_speed_pct` may not pass (ADR-SVC-7), and the largest total one of the options
+/// `max_attack_speed_pct` may not pass (ADR-SVC-1), and the largest total one of the options
 /// weighed in app#298 allowed. Expertise options have no stack limit, so the total saturates
 /// at the file's cap.
 pub const MAX_ATTACK_SPEED_PCT: u32 = 800;

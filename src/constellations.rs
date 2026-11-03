@@ -3,9 +3,9 @@
 //! lower one's, it does not add to it. A tier lists the effects the set has **at that tier**, in
 //! the reward effect list, so the engine applies the difference between two tiers
 //! (`tier_delta`): the full tier's reroll count is the count in all, not on top of the small
-//! tier's. Carried stars count as held (ADR-REPL-16).
+//! tier's. Carried stars count as held (ADR-REPL-5).
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded. A set has 2 to
 //! `MAX_MEMBERS` members, each a named star of the rewards the file is read with and in no
 //! other set; its tiers ascend strictly from 1 to the member count, the top tier being the
@@ -33,9 +33,9 @@ use crate::run_stats;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest constellations file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest constellations file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_CONSTELLATIONS_BYTES: usize = 32 * 1024;
-/// The most sets a file lists (a placeholder bound, ADR-SVC-7).
+/// The most sets a file lists (a placeholder bound, ADR-SVC-1).
 pub const MAX_CONSTELLATIONS: usize = 16;
 /// The fewest members of a set.
 pub const MIN_MEMBERS: usize = 2;

@@ -1,4 +1,4 @@
-//! The worst case of melee hit boxes and zones against the crowd within the caps of ADR-SVC-7
+//! The worst case of melee hit boxes and zones against the crowd within the caps of ADR-SVC-1
 //! (core BR1b). Shared by `benches/hit_tick.rs`, which counts its instructions, and
 //! `tests/hit_case.rs`, which checks that the measured tick has the load it claims. It takes the
 //! place of the main character's bullet collision case (BR1b): no orb is alive.
@@ -105,7 +105,7 @@ fn wave_sizes() -> Vec<u16> {
 }
 
 /// The crowd in a clump: the enemies of the run's cap (260) in waves of at most 100 that spawn
-/// one a tick each at one point, and push apart (ADR-SIM-19) into a clump round it.
+/// one a tick each at one point, and push apart (ADR-SIM-5) into a clump round it.
 pub fn stage() -> Stage {
     let (x, y) = CROWD_AT;
     built(

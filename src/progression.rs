@@ -4,13 +4,13 @@
 //! `starting_unlocks` a new save. Every number comes from the run's content (`stardust.json`,
 //! `difficulties.json`, `starting_unlocks.json`), none from Rust.
 //!
-//! The rule, restated by ADR-SAVE-13: a clear pays its own Stardust and the whole
+//! The rule, restated by ADR-SAVE-3: a clear pays its own Stardust and the whole
 //! bank of its mode and difficulty; a fail pays `pay_pct` of it and banks `bank_pct`, up to
 //! `bank_cap`. Stardust is in tenths, as core counts it (`Engine::stardust`); rounding is to a
 //! tenth. Nothing here is kept, read from a file or random: the caller passes the bank the save
 //! holds and stores the bank returned. The bank is untrusted (a save can be edited): a value
 //! over the cap counts as the cap, and all arithmetic is `u64`. The ad multiplier never reaches
-//! core (ADR-PLAT-7); it multiplies `Settlement::paid_tenths` only. The
+//! core (ADR-PLAT-3); it multiplies `Settlement::paid_tenths` only. The
 //! simulation reads nothing from this module, so no state hash depends on it.
 
 use crate::engine::{Engine, Outcome};

@@ -1,11 +1,11 @@
-//! Attacks (amending tier 3 of ADR-SIM-18): an attack is an ordered list of phases, each
+//! Attacks (amending tier 3 of ADR-SIM-4): an attack is an ordered list of phases, each
 //! lasting a fixed number of ticks, with its own hit box, base damage and the emitter nodes it
 //! spawns. Emitter nodes are trees whose parameters are small fixed-point expressions. Presets
 //! are registered content IDs; a stage refers to one with arguments, or holds an inline copy it
 //! may edit freely.
 //!
 //! Angles are in 1/256 degree; speeds and lengths in 1/256 pixel (per tick for speeds; the
-//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-REPL-12).
+//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-REPL-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -454,7 +454,7 @@ pub enum Direction {
     Sequential { step: Expr },
 }
 
-/// A fixed-point expression (ADR-SIM-18): a literal, an input, or an operator. No variables,
+/// A fixed-point expression (ADR-SIM-4): a literal, an input, or an operator. No variables,
 /// loops or recursion beyond the tree itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -465,7 +465,7 @@ pub enum Expr {
     LoopIndex,
     /// Ticks since the attack started: 0 on its first tick.
     PhaseTime,
-    /// A draw from the run's SplitMix64 (ADR-SIM-16), from `lo` to `hi` inclusive; `lo` if the
+    /// A draw from the run's SplitMix64 (ADR-SIM-2), from `lo` to `hi` inclusive; `lo` if the
     /// range is empty. Expressions are evaluated left to right, so the order of draws is fixed.
     Rand(Box<(Expr, Expr)>),
     Add(Box<(Expr, Expr)>),

@@ -1,5 +1,5 @@
 //! Core compiles its content in once, as `Pack::BUNDLED`, and one function reads the versions of
-//! every versioned file (CS1a; ADR-CONT-11, ADR-CONT-15, ADR-SVC-7).
+//! every versioned file (CS1a; ADR-CONT-1, ADR-CONT-5, ADR-SVC-1).
 
 // The scans read the crate's tree, which the iOS Simulator run does not have.
 #![cfg(not(target_os = "ios"))]

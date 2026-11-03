@@ -1,4 +1,4 @@
-# The tests and the replay corpus in the iOS Simulator (ADR-PLAT-5, ADR-REL-12): the golden hash of
+# The tests and the replay corpus in the iOS Simulator (ADR-PLAT-1, ADR-REL-3): the golden hash of
 # `tests/engine.rs` and the replay corpus must match there as on every other platform. iOS is a
 # run-check target for release candidates, so this is not a check of every PR: it runs by hand
 # and as a reusable workflow for Candidate (candidate.yml calls it). A job that is not a PR check
