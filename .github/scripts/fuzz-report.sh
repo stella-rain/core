@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Turns the crash artifacts of a failed long fuzz run into issues (fuzz-long.yml, ADR-020).
+# Turns the crash artifacts of a failed long fuzz run into issues (fuzz-long.yml, ADR-SVC-7 point 6).
 #
 # Usage: fuzz-report.sh <dir>   <dir> holds one folder per failed target, named
 #                               fuzz-crash-<target>, each with the crash inputs.

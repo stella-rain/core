@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-function profile of every bench case, base against head (ADR-SIM-8).
+"""Per-function profile of every bench case, base against head (ADR-SIM-20 point 4).
 
 Reads the callgrind files iai-callgrind leaves under its home, runs `callgrind_annotate` on the
 head and, when there is one, the base (`.out.base@main`) of each case, and writes the annotate
@@ -18,7 +18,7 @@ LINE = re.compile(r"^\s*([\d,]+)\s+(\S.*?)\s*$")
 BINARY = re.compile(r"\s+\[[^\]]*\]$")
 NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
-# The live rules and the frozen ones (ADR-REPL-9) run the same schedule; a step is counted by its name.
+# The live rules and the frozen ones (ADR-REPL-13) run the same schedule; a step is counted by its name.
 STEP_PREFIXES = (
     "stella_rain_core::sim::schedule::steps::",
     "stella_rain_core::sim_v1::schedule::steps::",
