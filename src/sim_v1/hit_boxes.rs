@@ -2,7 +2,7 @@
 //! collision step, before orbs.
 //!
 //! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at,
-//! and faces the way the attack faced when it started. Its
+//!   and faces the way the attack faced when it started. Its
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
