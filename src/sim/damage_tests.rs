@@ -183,3 +183,110 @@ fn an_echo_on_a_standing_target_lowers_it_and_one_at_zero_is_skipped() {
     assert_eq!(hits(&ev).len(), 1);
     assert!(s.echoes.is_empty());
 }
+
+/// A poison stack on enemy 0 that is due on the next tick: 3 stacks of 10.
+fn poisoned(s: &mut State, by: u8) {
+    use super::state::{DotState, StatusKind, StatusState};
+    while !s.enemies[0].statuses.is_empty() {
+        s.enemies[0].statuses.pop();
+    }
+    s.enemies[0].statuses.push(StatusState {
+        kind: StatusKind::Poison,
+        source: slot(by).id(),
+        remaining: 10,
+        total: 10,
+        stacks: 3,
+        value_pct: 0,
+        dot: Some(DotState {
+            damage: 10,
+            damage_type: None,
+            atk_up_pct: 0,
+            type_bonus_pct: 0,
+            interval: 1,
+            next_in: 1,
+        }),
+    });
+}
+
+#[test]
+fn a_damage_over_time_tick_lands_as_a_runed_hit_of_its_source() {
+    let (w, mut s) = bare(3);
+    s.enemies[0].hp = 1000;
+    s.enemies[0].defence = 0;
+    poisoned(&mut s, 2);
+    let mut ev = Vec::new();
+    super::entity::tick_dots(&w, &mut s, &mut ev);
+    let ev = only(ev, s.enemies[0].id);
+    assert_eq!(s.enemies[0].hp, 970);
+    assert_eq!(
+        hits(&ev),
+        vec![(30, false, false, Some(slot(2).id()), None)]
+    );
+    assert!(ev.iter().any(|e| matches!(
+        e,
+        DomainEvent::Hit {
+            rune: Some(crate::rune::Rune::Poison),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn a_damage_over_time_kill_is_credited_to_the_stack_owner() {
+    let (w, mut s) = bare(3);
+    s.enemies[0].hp = 20;
+    s.enemies[0].defence = 0;
+    poisoned(&mut s, 1);
+    let mut ev = Vec::new();
+    super::entity::tick_dots(&w, &mut s, &mut ev);
+    let ev = only(ev, s.enemies[0].id);
+    assert_eq!(s.enemies[0].hp, 0);
+    assert_eq!(deaths(&ev), vec![Some(slot(1).id())]);
+    assert_eq!(super::killer_of(&s, 0), slot(1));
+}
+
+#[test]
+fn a_hit_by_a_companion_or_an_unknown_source_is_slot_zeros() {
+    let (w, mut s) = bare(2);
+    s.enemies[0].hp = 1000;
+    let mut ev = Vec::new();
+    let b = shot(&s, EntityId(999), 0, 5);
+    super::damage(&w, &mut s, slot(0), b, Who::Enemy(0), &mut ev);
+    assert_eq!(hits(&ev)[0].3, Some(slot(0).id()));
+}
+
+#[test]
+fn a_kill_burst_lands_a_plain_hit_without_an_echo() {
+    let (w, mut s) = bare(1);
+    s.players[slot(0)].burst_pct = 5;
+    s.players[slot(0)].burst_radius = 100_000;
+    s.players[slot(0)].echo_hit_pct = 50;
+    let (a, b) = (s.enemies[0].at, s.enemies[1].at);
+    s.enemies[1].at = a;
+    let _ = b;
+    s.enemies[0].hp = 0;
+    s.enemies[0].max_hp = 1000;
+    s.enemies[0].defence = 0;
+    s.enemies[1].hp = 500;
+    s.enemies[1].defence = 0;
+    let mut ev = Vec::new();
+    let mut n = 0;
+    super::combat::bursts(&w, &mut s, slot(0), &mut n, &mut ev);
+    let landed = hits(&only(ev, s.enemies[1].id));
+    assert!(!landed.is_empty(), "the burst hurt a neighbour");
+    assert!(landed.iter().all(|h| !h.1 && !h.2));
+    assert_eq!(landed[0].0, 50);
+    assert!(s.echoes.is_empty());
+}
+
+/// The events that name `id` as their target.
+fn only(ev: Vec<DomainEvent>, id: EntityId) -> Vec<DomainEvent> {
+    ev.into_iter()
+        .filter(|e| match e {
+            DomainEvent::Hit { target, .. } | DomainEvent::Died { entity: target, .. } => {
+                *target == id
+            }
+            _ => false,
+        })
+        .collect()
+}
