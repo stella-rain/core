@@ -1908,6 +1908,12 @@ impl State {
         if state.next_id < u32::from(crate::id::MAX_PLAYERS) {
             return Err(DecodeError::Invalid("next entity id in the player slots"));
         }
+        // ... and short of the numbers a rejoined player has (`id::MAX_ENTITY_NUMBER`).
+        if state.next_id >= crate::id::MAX_ENTITY_NUMBER {
+            return Err(DecodeError::Invalid(
+                "next entity id past the entity numbers",
+            ));
+        }
         Ok(state)
     }
 

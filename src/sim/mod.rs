@@ -1462,7 +1462,7 @@ fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
     s.players
         .of_id(up.source)
         .filter(|b| *b != me)
-        .map(PlayerIdx::id)
+        .map(|b| s.players.id(b))
 }
 
 /// Whether anything can damage `target`: a shrine and a mimic in disguise are objects.
@@ -1504,7 +1504,7 @@ pub(super) fn died_event(
         kind: kind_of(s, target),
         class,
         elite: agent.is_some_and(AgentState::shows_elite),
-        killer: killer.map(PlayerIdx::id),
+        killer: killer.map(|k| s.players.id(k)),
     }
 }
 

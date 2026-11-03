@@ -117,8 +117,9 @@ pub struct EntityId(pub u32);
 /// other entity is numbered below `1 << GENERATION_SHIFT` (`MAX_ENTITY_NUMBER`).
 pub(crate) const GENERATION_SHIFT: u32 = 24;
 
-/// The first number no entity but a rejoined player has: the spawns stop short of it, so that
-/// `player_of` never reads an enemy as a player.
+/// The first number only a rejoined player has. Enemies and heal drops stop short of it, a
+/// savepoint with a `next_id` at or past it is refused, and a run's other spawns (stars, boss
+/// parts, companions) are far fewer than the caps allow, so `player_of` never reads one as a player.
 pub(crate) const MAX_ENTITY_NUMBER: u32 = 1 << GENERATION_SHIFT;
 
 /// The most players a run holds (ADR-SIM-21 point 1). A code cap, not a tuning number.

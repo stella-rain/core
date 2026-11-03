@@ -83,7 +83,7 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-21).
+    /// The players, by slot (`Players::id` is a slot's entity number now): one now (ADR-SIM-21).
     pub players: Players,
     /// The deadlines of a timed run's open offers (ADR-SIM-21 point 4); `None` in a `stop` run.
     pub offer_timer: Option<OfferTimer>,
