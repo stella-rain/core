@@ -10,7 +10,7 @@
 //! tenth. Nothing here is kept, read from a file or random: the caller passes the bank the save
 //! holds and stores the bank returned. The bank is untrusted (a save can be edited): a value
 //! over the cap counts as the cap, and all arithmetic is `u64`. The ad multiplier never reaches
-//! core (ADR-PLAT-7); it multiplies `Settlement::paid_tenths` only. The
+//! core (ADR-PLAT-3); it multiplies `Settlement::paid_tenths` only. The
 //! simulation reads nothing from this module, so no state hash depends on it.
 
 use crate::engine::{Engine, Outcome};

@@ -5,7 +5,7 @@ paths:
 
 # Workflows and scripts
 
-Sources: ADR-SIM-3, ADR-PLAT-5, ADR-REL-12.
+Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-12.
 
 ## `.github/workflows/`
 
@@ -53,8 +53,8 @@ fuzz report (`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover
 
 ## Gates in CI
 
-- iOS readiness: `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-5). The tests
+- iOS readiness: `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-1). The tests
   and the corpus run in the iOS Simulator by hand or from Candidate.
 - The replay corpus runs on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and
-  macOS arm64 runners, every PR and weekly on `main` (ADR-SIM-3, ADR-PLAT-5). `frozen corpus unchanged` fails a PR
+  macOS arm64 runners, every PR and weekly on `main` (ADR-SIM-3, ADR-PLAT-1). `frozen corpus unchanged` fails a PR
   that changes a file in a frozen `tests/corpus/v<N>/`.

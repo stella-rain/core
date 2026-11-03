@@ -4,7 +4,7 @@
 with a Cargo runner, `scripts/ios_device_runner.py`, that uses Xcode's own tools (`xcrun devicectl`,
 `codesign`, `security`). The iPhone 13 is the reference device. This is the iOS half of the device gate
 (ADR-REL-12): the same simulation on the phone's own arm64, iOS loader and libc gives the same state hash on
-every checked tick (ADR-SIM-3, ADR-PLAT-5).
+every checked tick (ADR-SIM-3, ADR-PLAT-1).
 
 ## What runs, and what does not
 

@@ -48,8 +48,8 @@ What is inside these folders loads from `.claude/rules/` when those files are to
 | Part | Gate |
 |---|---|
 | Rust code | `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` |
-| Simulation | The replay corpus on x86_64 and arm64 (ADR-SIM-3, ADR-PLAT-5); an intended change: `cargo xtask bless` regenerates every generated set; CI runs `cargo xtask bless --check`; CI `frozen corpus unchanged` fails a changed frozen `v<N>/` |
-| iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-5) |
+| Simulation | The replay corpus on x86_64 and arm64 (ADR-SIM-3, ADR-PLAT-1); an intended change: `cargo xtask bless` regenerates every generated set; CI runs `cargo xtask bless --check`; CI `frozen corpus unchanged` fails a changed frozen `v<N>/` |
+| iOS readiness | `cargo check --target aarch64-apple-ios` on every PR (ADR-PLAT-1) |
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: fmt, clippy, `cargo test`, `cargo +nightly fuzz build`; a short fuzz run per target in CI |
 | Tick cost | `cargo bench` (every target in `benches/budgets.toml`); CI: budgets block, a case over +2% fails unless `benches/accepted.toml` covers it (ADR-SIM-6) |
 | `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
