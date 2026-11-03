@@ -96,27 +96,37 @@ def decision(points):
     return f"# ADR\n\n## Context\n\n1. not a decision\n\n## Decision\n\n{body}\n\n## Consequences\n"
 
 
-def make_app(root, with_new_sim=True):
+AREAS = ("sim", "cont", "repl", "brdg", "save", "plat", "rel", "svc", "proc")
+
+
+def make_app(root):
+    """App's final layout: every folder of the nine areas, files numbered from 001."""
     adr = os.path.join(root, "docs", "adr")
-    for area in adr_ids.FIRST_NUMBER:
-        os.makedirs(os.path.join(adr, area.lower()), exist_ok=True)
-    write(os.path.join(adr, "sim", "014-old.md"), decision(9))
-    write(os.path.join(adr, "svc", "007-z.md"), decision(2))
-    write(os.path.join(adr, "svc", "006-old.md"), decision(4))
-    if with_new_sim:
-        write(os.path.join(adr, "sim", "015-y.md"), decision(3))
+    for area in AREAS:
+        os.makedirs(os.path.join(adr, area), exist_ok=True)
+    write(os.path.join(adr, "sim", "001-y.md"), decision(3))
+    write(os.path.join(adr, "sim", "002-q.md"), decision(11))
+    write(os.path.join(adr, "sim", "README.md"), "# The area\n")
+    write(os.path.join(adr, "svc", "001-z.md"), decision(2))
 
 
 class TestGenerator(unittest.TestCase):
-    def test_only_the_set_in_force_is_listed_sorted_with_counts(self):
+    def test_every_numbered_file_of_the_nine_areas_is_listed(self):
         with tempfile.TemporaryDirectory() as app:
             make_app(app)
-            write(os.path.join(app, "docs", "adr", "sim", "016-q.md"), decision(11))
             ids = adr_ids.read_app(app)
-            self.assertEqual(ids, {"SIM-15": 3, "SIM-16": 11, "SVC-7": 2})
+            self.assertEqual(ids, {"SIM-1": 3, "SIM-2": 11, "SVC-1": 2})
             lines = adr_ids.render(ids).splitlines()
             self.assertEqual(lines[0], adr_ids.HEADER)
-            self.assertEqual(lines[1:], ["ADR-SIM-15 3", "ADR-SIM-16 11", "ADR-SVC-7 2"])
+            self.assertEqual(lines[1:], ["ADR-SIM-1 3", "ADR-SIM-2 11", "ADR-SVC-1 2"])
+
+    def test_a_missing_area_folder_stops_the_generator(self):
+        with tempfile.TemporaryDirectory() as app:
+            make_app(app)
+            os.rmdir(os.path.join(app, "docs", "adr", "plat"))
+            with self.assertRaises(SystemExit) as stop:
+                adr_ids.read_app(app)
+            self.assertIn("plat", str(stop.exception))
 
     def test_numbers_sort_as_numbers(self):
         text = adr_ids.render({"SIM-9": 1, "SIM-10": 2})
@@ -125,11 +135,11 @@ class TestGenerator(unittest.TestCase):
     def test_a_new_file_without_decision_points_stops_the_generator(self):
         with tempfile.TemporaryDirectory() as app:
             make_app(app)
-            write(os.path.join(app, "docs", "adr", "sim", "017-bad.md"),
+            write(os.path.join(app, "docs", "adr", "sim", "003-bad.md"),
                   "# ADR\n\n## Decision\n\nNo numbered point.\n")
             with self.assertRaises(SystemExit) as stop:
                 adr_ids.read_app(app)
-            self.assertIn("017-bad.md", str(stop.exception))
+            self.assertIn("003-bad.md", str(stop.exception))
 
     def test_write_then_check_agree_and_a_change_fails_check(self):
         with tempfile.TemporaryDirectory() as app:
@@ -140,7 +150,7 @@ class TestGenerator(unittest.TestCase):
                 capture_output=True, text=True)
             self.assertEqual(run("write").returncode, 0)
             self.assertEqual(run("check").returncode, 0)
-            write(os.path.join(app, "docs", "adr", "sim", "015-y.md"), decision(4))
+            write(os.path.join(app, "docs", "adr", "sim", "001-y.md"), decision(4))
             self.assertEqual(run("check").returncode, 1)
 
     def test_parse_list_round_trips(self):
