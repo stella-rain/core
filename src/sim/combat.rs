@@ -112,35 +112,17 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             continue;
         }
         let me = super::hitter(s, echo.source);
-        let hp = s.hp_mut(target);
-        let hp_before = *hp;
-        *hp = hp.saturating_sub(echo.damage);
-        let dead = *hp == 0;
-        events.push(DomainEvent::Hit {
+        let how = super::damage::Landing {
+            id: echo.target,
             source: echo.source,
-            target: echo.target,
-            target_kind: super::kind_of(s, target),
-            damage: echo.damage,
             damage_type: echo.damage_type,
             match_up: MatchUp::None,
             rune: None,
             crit: false,
             echo: true,
-            player: Some(s.players.id(me)),
             buffed_by: None,
-        });
-        if dead {
-            if let Who::Enemy(i) = target {
-                if hp_before > 0 {
-                    super::record_kill(s, i, me);
-                }
-            }
-            events.push(super::death_event(s, target, echo.target, Some(me)));
-        }
-        s.raise_aggro(
-            echo.source,
-            echo.damage.saturating_mul(stage.tuning.aggro_per_damage),
-        );
+        };
+        super::damage::land(stage, s, me, target, echo.damage, how, events);
     }
 }
 

@@ -53,7 +53,8 @@
 //! kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
 //! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
 //! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
-//! player who applied the stack last. Offers are per slot and the world stops while any is open.
+//! player who applied the stack last. Every such hit, and an echo, lowers the foe's hit points in
+//! `damage::land`. Offers are per slot and the world stops while any is open.
 //! The hash and format 1
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
@@ -116,6 +117,7 @@ pub(crate) use world::{
 #[cfg(test)]
 mod codec_fields_tests;
 mod combat;
+mod damage;
 mod dash;
 mod entity;
 mod expertise;
@@ -136,6 +138,8 @@ mod levels;
 mod loadout;
 mod offer_rating;
 pub(crate) use offer_rating::offer_ratings;
+#[cfg(test)]
+mod damage_tests;
 mod orbit;
 mod player;
 #[cfg(test)]
@@ -1326,7 +1330,8 @@ fn enemy_grid(stage: &World, s: &mut State) -> Grid {
 /// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
 /// reported too. A combo step's hit adds expertise points (`expertise`), puts the
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
-/// that are ready (`runes`).
+/// that are ready (`runes`). The hit points, the kill credit, the events and the aggro are
+/// `damage::land`.
 fn damage(
     stage: &World,
     s: &mut State,
@@ -1366,42 +1371,27 @@ fn damage(
         s.defence(target),
         stage.tuning.defence_k,
     );
-    let hp = s.hp_mut(target);
-    let before = *hp;
-    *hp = hp.saturating_sub(dealt);
-    let dead = *hp == 0;
-    if dead && before > 0 {
-        if let Who::Enemy(i) = target {
-            record_kill(s, i, me);
-        }
-    }
-    let foe = !State::is_ally(target);
     // The buffer is read only in a party, and for a player's own shot (ADR-SIM-21).
-    let buffed_by = if foe && s.players.len() > 1 && s.players.of_id(b.owner).is_some() {
-        buffer_of(s, me)
-    } else {
-        None
-    };
-    events.push(DomainEvent::Hit {
+    let buffed_by =
+        if !State::is_ally(target) && s.players.len() > 1 && s.players.of_id(b.owner).is_some() {
+            buffer_of(s, me)
+        } else {
+            None
+        };
+    let how = damage::Landing {
+        id,
         source: b.owner,
-        target: id,
-        target_kind: kind_of(s, target),
-        damage: dealt,
         damage_type: b.damage_type,
         match_up,
         rune: b.rune,
         crit,
         echo: false,
-        player: foe.then(|| s.players.id(me)),
         buffed_by,
-    });
-    if dead {
-        let killer = (foe && before > 0).then_some(me);
-        events.push(death_event(s, target, id, killer));
-    } else if s.players[me].echo_hit_pct != 0 {
+    };
+    let dead = damage::land(stage, s, me, target, dealt, how, events).dead;
+    if !dead && s.players[me].echo_hit_pct != 0 {
         combat::queue_echo(s, me, &b, id, dealt, !State::is_ally(target));
     }
-    s.raise_aggro(b.owner, dealt.saturating_mul(stage.tuning.aggro_per_damage));
     if b.combo {
         expertise::credit(stage, s, me, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
