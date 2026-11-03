@@ -3902,7 +3902,8 @@
   "default_xp": 1,
   "offer_size": 3,
   "defence_k": 10000,
-  "crit_damage_base_pct": 200
+  "crit_damage_base_pct": 200,
+  "offer_timer_ticks": 300
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
