@@ -1,7 +1,7 @@
 //! `sim_v1` is a copy of `sim` that owns its types (ADR-REPL-9): an engine forced to version 1
 //! and one forced to version 2 run the same rules, so every observable is equal after every
-//! tick. Until a version 2 differs, this is the proof that the copy equals the original; the
-//! frozen corpus is the proof that the copy equals what was released.
+//! tick, except the state hash, whose layout differs by design (ADR-SIM-3). Until a version 2
+//! differs, this is the proof that the copy equals the original; the frozen corpus is the proof that the copy equals what was released.
 
 use super::*;
 use crate::bench_fixtures::{self, Case};
