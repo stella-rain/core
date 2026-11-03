@@ -107,6 +107,8 @@ pub enum PresenceError {
     Ended,
     /// A `sim_version` 1 run has one player for good.
     SoloRules,
+    /// `slot` has left 255 times: its generation is spent (`leave`).
+    Exhausted { slot: PlayerIdx },
 }
 
 /// A run of one stage.
@@ -490,7 +492,7 @@ impl Engine {
     /// leaver left in flight stays and resolves through the slots present; the leaver's totals
     /// stay in `player_stats` until the slot is joined again. No event is emitted. An open offer
     /// of the leaver closes with it. Refused, changing nothing: slot 0, a slot not in the
-    /// party, a run that is over, a `sim_version` 1 run.
+    /// party, a slot that has already left 255 times, a run that is over, a `sim_version` 1 run.
     pub fn leave(&mut self, slot: PlayerIdx) -> Result<(), PresenceError> {
         self.check_presence()?;
         if slot == PlayerIdx::SOLO {
@@ -498,6 +500,9 @@ impl Engine {
         }
         if self.present() >> slot.get() & 1 == 0 {
             return Err(PresenceError::Absent { slot });
+        }
+        if self.run.generation(slot) == u8::MAX {
+            return Err(PresenceError::Exhausted { slot });
         }
         self.run.leave(slot);
         self.events.clear();

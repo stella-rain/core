@@ -1115,7 +1115,10 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
     };
     let d = stage.defs.get(index);
     let def = &d.agent;
+    // Every number below `MAX_ENTITY_NUMBER` is an enemy's or a companion's; from there on a
+    // number reads as a rejoined player's, so the spawns stop (a run spawns far fewer).
     let room = count(&s.enemies) < stage.enemy_cap
+        && s.next_id < crate::id::MAX_ENTITY_NUMBER
         && (def.elite.is_none()
             || s.enemies.iter().filter(|e| e.elite.is_some()).count()
                 < usize::from(stage.elite_cap()));

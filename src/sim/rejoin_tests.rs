@@ -214,3 +214,54 @@ fn a_rejoined_slot_has_the_same_roll_key() {
     let s = state(&e);
     assert_eq!(s.roll_key(number(s, 1)), s.roll_key(old));
 }
+
+#[test]
+fn the_numbers_of_things_stop_short_of_a_players() {
+    // A normal run has spawned enemies by tick 200; one whose numbers are spent spawns none and
+    // never takes a number a player could have.
+    let play = |next_id: Option<u32>| {
+        let mut e = Engine::start(&setup()).unwrap();
+        if let Some(n) = next_id {
+            live(&mut e).next_id = n;
+        }
+        for _ in 0..300 {
+            e.step(&input());
+        }
+        let s = state(&e);
+        (s.enemies.len(), s.next_id)
+    };
+    assert!(play(None).0 > 0);
+    assert_eq!(
+        play(Some(crate::id::MAX_ENTITY_NUMBER)),
+        (0, crate::id::MAX_ENTITY_NUMBER)
+    );
+}
+
+#[test]
+fn a_slot_cannot_leave_past_generation_255() {
+    let mut e = Engine::start_party(&setup(), 2).unwrap();
+    live(&mut e).players.set_generation_for_test(slot(1), 255);
+    let h = e.state_hash();
+    assert_eq!(
+        e.leave(slot(1)),
+        Err(crate::engine::PresenceError::Exhausted { slot: slot(1) })
+    );
+    assert_eq!(e.state_hash(), h);
+    assert_eq!(e.present(), 0b011);
+}
+
+#[test]
+fn the_hash_and_the_savepoint_read_the_generation() {
+    let rejoin = |times: u8| {
+        let mut e = Engine::start_party(&setup(), 2).unwrap();
+        for _ in 0..times {
+            e.leave(slot(1)).unwrap();
+            e.join(slot(1)).unwrap();
+        }
+        e
+    };
+    let (once, twice) = (rejoin(1), rejoin(2));
+    assert_eq!(state(&once).players.generation(slot(1)), 1);
+    assert_eq!(state(&twice).players.generation(slot(1)), 2);
+    assert_ne!(once.state_hash(), twice.state_hash());
+}

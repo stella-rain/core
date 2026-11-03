@@ -313,6 +313,14 @@ impl Run {
         }
     }
 
+    /// The generation of slot `slot`'s current or last occupant: 0 under version 1.
+    pub(crate) fn generation(&self, slot: PlayerIdx) -> u8 {
+        match self {
+            Run::V1 { .. } => 0,
+            Run::V2 { state, .. } => state.players.generation(slot),
+        }
+    }
+
     /// Slot 0's player as the run starts, for a joiner; none under version 1.
     pub(crate) fn joiner_template(&self) -> Option<sim::state::Players> {
         match self {

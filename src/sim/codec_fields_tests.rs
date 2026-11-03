@@ -63,6 +63,8 @@ fn block(s: &State, i: PlayerIdx) -> Vec<u8> {
 
 fn tail(s: &State) -> Vec<u8> {
     let mut out = vec![s.players.mask()];
+    // The generation of every slot follows the mask, present or not.
+    out.extend(s.players.generations());
     for i in s.players.indices() {
         out.extend(block(s, i));
     }

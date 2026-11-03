@@ -41,7 +41,7 @@ fn advance(engine: &mut Engine, from: u32, to: u32) {
 }
 
 #[test]
-fn a_join_and_a_leave_move_the_mask_and_leave_the_hash_where_it_was() {
+fn a_join_and_a_leave_move_the_mask_and_the_slots_generation() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     advance(&mut engine, 0, 120);
     let h0 = engine.state_hash();
@@ -52,7 +52,9 @@ fn a_join_and_a_leave_move_the_mask_and_leave_the_hash_where_it_was() {
     assert!(engine.events().is_empty());
     engine.leave(slot(1)).unwrap();
     assert_eq!(engine.present(), 0b001);
-    assert_eq!(engine.state_hash(), h0);
+    // The leave advanced slot 1's generation, which the hash reads: the party of one is the
+    // same, the state is not.
+    assert_ne!(engine.state_hash(), h0);
 }
 
 #[test]
@@ -130,7 +132,8 @@ fn a_refusal_changes_nothing() {
         Err(PresenceError::Occupied { slot: slot(1) })
     );
     e.leave(slot(1)).unwrap();
-    assert_eq!(e.state_hash(), h);
+    // The leave advanced slot 1's generation (hashed), so the hash is not where it was.
+    assert_ne!(e.state_hash(), h);
 }
 
 #[test]

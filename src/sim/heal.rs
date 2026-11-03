@@ -59,7 +59,10 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
         .filter(|e| e.hp == 0 && !e.burst && e.elite.is_none())
     {
         let drops = rng.loot.below(cfg.drop_one_in) == 0;
-        if !drops || pickups.len() >= usize::from(cfg.cap) {
+        if !drops
+            || pickups.len() >= usize::from(cfg.cap)
+            || *next_id >= crate::id::MAX_ENTITY_NUMBER
+        {
             continue;
         }
         let id = EntityId(*next_id);
