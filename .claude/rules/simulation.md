@@ -22,8 +22,9 @@ outcome changes follow the `schema-change` skill.
   1 takes only 1, `run.rs`), steps (`step(&[Input; MAX_PLAYERS])`: one entry per slot, an absent
   one ignored), joins and leaves a slot (`join`, `leave`, `present`, `PresenceError`), chooses,
   spends and hashes. An open offer stops the world only in a `stop` run; a `timed` run takes the
-  picks first, then ticks (`offer_mode`, `RunSetup`; `content.md`); `snapshot.rs` builds the snapshot, `places` (ids, kinds, positions per tick)
-  and `tally` (the HUD tallies, `Counted` in `ledger.rs`, outside the hashed state).
+  picks first, then ticks (`offer_mode`, `RunSetup`; `content.md`); `snapshot.rs` builds the
+  snapshot, `places` (ids, kinds, positions per tick) and `tally` (the HUD tallies, `Counted` in
+  `ledger.rs`, outside the hashed state).
 - `sim/`: the live rules, run for the newest `sim_version` (2, open while `DEVELOPMENT` is true,
   `src/version.rs`; ADR-REPL-13 points 2 and 3): an outcome change is a gate on the version, a full
   copy only for a rewrite (`determinism.md`). `state.rs` is the run's `State`; `world.rs` the
