@@ -172,6 +172,7 @@ fn a_joiner_is_a_fresh_player_at_the_first_players_place() {
 // C. The recorder and the verifier.
 
 use stella_rain_core::RangeStep;
+use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
 
 fn rec_steps(rec: &mut RunRecorder, from: u32, to: u32, inputs: impl Fn(u32) -> [Input; 3]) {
@@ -303,4 +304,96 @@ fn the_recorder_stops_at_sixty_four_changes() {
         rec.join(slot(1)).unwrap_err(),
         RunReplayError::BadInputs("more joins and leaves than the cap")
     );
+}
+
+// D. Resume, replay_at and save across a presence change.
+
+use stella_rain_core::pack::Pack;
+
+/// A party of 3 that loses slot 1 at 50, slot 2 at 100 and takes slot 2 back at 150.
+fn churn(from: u32, to: u32, rec: Option<RunRecorder>) -> RunRecorder {
+    let mut rec = rec.unwrap_or_else(|| RunRecorder::start_party(&trial_setup(), 3).unwrap());
+    for t in from..to {
+        match t {
+            50 => rec.leave(slot(1)).unwrap(),
+            100 => rec.leave(slot(2)).unwrap(),
+            150 => rec.join(slot(2)).unwrap(),
+            _ => {}
+        }
+        rec_steps(&mut rec, t, t + 1, scripted);
+    }
+    rec
+}
+
+const END: u32 = 220;
+const CUTS: [u32; 5] = [25, 75, 125, 180, END];
+
+#[test]
+fn resume_continues_a_run_with_changes_at_every_cut() {
+    let whole = churn(0, END, None);
+    verify_run(&whole.replay().to_bytes()).unwrap();
+    assert_eq!(whole.engine().present(), 0b101);
+    for cut in CUTS {
+        let live = churn(0, cut, None);
+        let prefix = live.replay();
+        let mut resumed = RunRecorder::resume_with_pack(&prefix, Pack::bundled()).unwrap();
+        assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
+        assert_eq!(resumed.engine().present(), live.engine().present());
+        resumed = churn(cut, END, Some(resumed));
+        assert_eq!(resumed.replay(), whole.replay(), "resume at {cut}");
+    }
+}
+
+#[test]
+fn a_savepoint_in_any_window_round_trips() {
+    let whole = churn(0, END, None);
+    for cut in CUTS {
+        let live = churn(0, cut, None);
+        let (prefix, bytes) = (live.replay(), live.save());
+        let mut resumed =
+            RunRecorder::resume_from_savepoint(&bytes, &prefix, Pack::bundled()).unwrap();
+        assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
+        assert_eq!(
+            resumed.engine().player_stats(),
+            live.engine().player_stats()
+        );
+        assert_eq!(resumed.save(), bytes, "re-saving at {cut}");
+        resumed = churn(cut, END, Some(resumed));
+        assert_eq!(resumed.replay(), whole.replay(), "save at {cut}");
+    }
+}
+
+#[test]
+fn replay_at_cuts_a_log_with_changes() {
+    let whole = churn(0, END, None);
+    let full = whole.replay();
+    for t in [0, 50, 75, 100, 150, 200, END] {
+        let at = whole.replay_at(t, 0);
+        assert_eq!(at.ticks, t);
+        // A cut keeps the picks and changes that follow its last tick, as the range reader
+        // does at its end; the world steps are the same.
+        let worlds = |r: &RunReplay| -> Vec<RangeStep> {
+            r.step_range(0, t, u32::MAX)
+                .unwrap()
+                .steps
+                .into_iter()
+                .filter(|s| matches!(s, RangeStep::Ticks { .. }))
+                .collect()
+        };
+        assert_eq!(worlds(&at), worlds(&full), "tick {t}");
+    }
+    let past = whole.replay_at(END + 1000, 0);
+    assert_eq!(past.inputs, full.inputs);
+}
+
+#[test]
+fn a_savepoint_against_a_prefix_with_another_mask_is_refused() {
+    let live = churn(0, 75, None);
+    let bytes = live.save();
+    let before_the_leave = churn(0, 25, None).replay();
+    assert!(
+        RunRecorder::resume_from_savepoint(&bytes, &before_the_leave, Pack::bundled()).is_err()
+    );
+    let solo = RunRecorder::start(&trial_setup()).unwrap().replay();
+    assert!(RunRecorder::resume_from_savepoint(&bytes, &solo, Pack::bundled()).is_err());
 }
