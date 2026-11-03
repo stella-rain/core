@@ -284,6 +284,7 @@ mod tests {
         assert_eq!(MAX_BURST_DEPTH, crate::rewards::MAX_BURST_DEPTH);
         assert_eq!(MAX_OFFER_CANDIDATES, crate::rewards::MAX_OFFER_CANDIDATES);
         assert_eq!(3600, crate::rules::MAX_OFFER_TIMER_TICKS);
+        assert_eq!(100, crate::rules::MAX_PARTY_DAMAGE_PCT);
         assert_eq!(MAX_REWARDS, crate::rewards::MAX_REWARDS);
         assert_eq!(MAX_STACK, crate::rewards::MAX_STACK);
         assert_eq!(MAX_TIERS, crate::validate::limits::MAX_TIERS);

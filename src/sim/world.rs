@@ -666,6 +666,22 @@ mod tests {
         assert!(refused.message.contains("65535"), "{refused:?}");
     }
 
+    #[test]
+    fn the_party_damage_table_reaches_the_tuning() {
+        assert_eq!(
+            World::for_test(RunContent::bundled().trial().clone())
+                .tuning
+                .party_damage_pct,
+            [100, 100, 100]
+        );
+        let mut v: serde_json::Value =
+            serde_json::from_slice(crate::pack::ContentFiles::bundled_file("rules")).unwrap();
+        v["party_damage_pct"] = serde_json::json!([100, 60, 30]);
+        let rules =
+            Rules::parse(v.to_string().as_bytes(), crate::version::Versions::CURRENT).unwrap();
+        assert_eq!(Tuning::of(&rules).party_damage_pct, [100, 60, 30]);
+    }
+
     fn agent_of(movement: serde_json::Value, rules: serde_json::Value) -> Agent {
         serde_json::from_value(serde_json::json!({
             "base": "bat", "hp": 10, "radius": 2048, "movement": movement, "rules": rules }))
