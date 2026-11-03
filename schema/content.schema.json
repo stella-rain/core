@@ -5263,6 +5263,21 @@
         }
       ]
     },
+    "OfferMode": {
+      "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
+      "oneOf": [
+        {
+          "const": "stop",
+          "description": "An open offer stops the world until a pick answers it: today's behaviour.",
+          "type": "string"
+        },
+        {
+          "const": "timed",
+          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-16 point 5). Needs\n`sim_version` 2.",
+          "type": "string"
+        }
+      ]
+    },
     "OfferOption": {
       "description": "One option of an open offer; `candidate` is a place in its candidates, from 0.",
       "oneOf": [
@@ -6941,6 +6956,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "offer_timer_ticks": {
+          "default": 300,
+          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-21 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "orb_radius": {
           "description": "A friendly orb's hit circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
           "format": "int32",
@@ -7170,6 +7192,10 @@
         "mode": {
           "$ref": "#/$defs/ContentId",
           "description": "A mode ID: the content the run plays."
+        },
+        "offer_mode": {
+          "$ref": "#/$defs/OfferMode",
+          "description": "Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",
