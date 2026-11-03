@@ -206,13 +206,24 @@ mod tests {
     }
 
     #[test]
-    fn no_row_cites_an_archived_adr_126() {
-        assert!(LIMITS.iter().all(|e| e.adr != "ADR-126"));
+    fn no_row_cites_a_bare_number() {
+        for e in LIMITS {
+            let id = e
+                .adr
+                .strip_prefix("ADR-")
+                .unwrap_or_else(|| panic!("{}: {}", e.name, e.adr));
+            assert!(
+                !id.chars().all(|c| c.is_ascii_digit()),
+                "{} cites {}, a number with no area",
+                e.name,
+                e.adr
+            );
+        }
         let leash = LIMITS
             .iter()
             .find(|e| e.name == "MAX_LEASH_MOVES_PER_TICK")
             .expect("leash row");
-        assert_eq!(leash.adr, "ADR-SIM-11");
+        assert_eq!(leash.adr, "ADR-SIM-19");
     }
 
     #[test]
