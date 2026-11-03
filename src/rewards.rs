@@ -237,6 +237,37 @@ pub enum RewardEffect {
 }
 
 impl RewardEffect {
+    /// Every kind, in declaration order. Not serialized.
+    pub const ALL: [RewardEffect; 27] = [
+        RewardEffect::MaxHp,
+        RewardEffect::AttackPct,
+        RewardEffect::AttackSpeedPct,
+        RewardEffect::EvadePct,
+        RewardEffect::SpeedPct,
+        RewardEffect::XpPct,
+        RewardEffect::StageSkill,
+        RewardEffect::EvadeCharge,
+        RewardEffect::Orbit,
+        RewardEffect::RangePct,
+        RewardEffect::TypeBonusPct,
+        RewardEffect::AttackTypeBonusPct,
+        RewardEffect::ElementBonusPct,
+        RewardEffect::RuneHaste,
+        RewardEffect::RandomRune,
+        RewardEffect::Regen,
+        RewardEffect::PickupRadiusPct,
+        RewardEffect::SkillCooldownPct,
+        RewardEffect::HealPerKills,
+        RewardEffect::OfferCandidates,
+        RewardEffect::Rerolls,
+        RewardEffect::Banishes,
+        RewardEffect::CritChancePct,
+        RewardEffect::CritDamagePct,
+        RewardEffect::EchoHitPct,
+        RewardEffect::KillBurst,
+        RewardEffect::BurstDepth,
+    ];
+
     /// The run stats' effect kind it adds to, if it is one.
     pub fn stat(self) -> Option<StatEffect> {
         Some(match self {

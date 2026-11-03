@@ -13,7 +13,7 @@ use crate::ledger::RunLedger;
 use crate::rewards::{Rarity, Rewards};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
-use crate::snapshot::{OfferOption, Snapshot};
+use crate::snapshot::{OfferOption, OfferRating, Snapshot};
 use crate::stage::Stage;
 use crate::validate::Issue;
 use crate::{sim, sim_v1};
@@ -380,6 +380,15 @@ impl Run {
             Run::V2 { world, state } => {
                 sim::offer_options(world, rewards, expertise, state, player)
             }
+        }
+    }
+
+    /// The ratings of the candidates of `player`'s open star or boss offer; version 1 is frozen
+    /// and rates nothing.
+    pub(crate) fn offer_ratings(&self, rewards: &Rewards, player: PlayerIdx) -> Vec<OfferRating> {
+        match self {
+            Run::V1 { .. } => Vec::new(),
+            Run::V2 { world, state } => sim::offer_ratings(world, rewards, state, player),
         }
     }
 

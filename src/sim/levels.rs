@@ -257,14 +257,33 @@ fn shortened(ticks: u32, pct: u32) -> u32 {
 
 /// The main character's attack stat with the points spent on attack.
 pub(super) fn attack(s: &State, me: PlayerIdx, atk: u32) -> u32 {
-    raised(atk, total(s, me, StatEffect::AttackPct))
+    attack_of(s.players.career(me).progress.as_ref(), atk)
+}
+
+/// `atk` with the points `progress` holds spent on attack: `attack` for any one `Progress`.
+#[inline]
+pub(super) fn attack_of(progress: Option<&Progress>, atk: u32) -> u32 {
+    raised(
+        atk,
+        progress.map_or(0, |p| p.totals[StatEffect::AttackPct as usize]),
+    )
 }
 
 /// The main character's attack speed, in percent, with the points spent on it.
 pub(super) fn attack_speed(s: &State, me: PlayerIdx) -> u32 {
-    run_stats::capped_attack_speed_pct(
-        total(s, me, StatEffect::AttackSpeedPct),
+    attack_speed_of(
+        s.players.career(me).progress.as_ref(),
         s.max_attack_speed_pct,
+    )
+}
+
+/// The attack speed, in percent, the points `progress` holds give, held to `cap`:
+/// `attack_speed` for any one `Progress`.
+#[inline]
+pub(super) fn attack_speed_of(progress: Option<&Progress>, cap: u32) -> u32 {
+    run_stats::capped_attack_speed_pct(
+        progress.map_or(0, |p| p.totals[StatEffect::AttackSpeedPct as usize]),
+        cap,
     )
 }
 
