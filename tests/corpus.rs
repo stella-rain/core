@@ -27,7 +27,7 @@ use crate::corpus_pins::{
     case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
     run_case_pack, write_case_json, write_pack_file,
 };
-use crate::run_play::{PartyCase, party_cases, play_party, play_run_with};
+use crate::run_play::{PartyCase, party_cases, play_run_with};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -268,7 +268,7 @@ fn write_party_case(dir: &Path, case: &PartyCase) {
     ensure_writable(dir).unwrap();
     fs::create_dir_all(dir).unwrap();
     write_case_json(dir, &to_hex(&Pack::bundled().sha256())).unwrap();
-    let recorded = play_party(&case.setup, case.party, case.ticks, &case.changes).replay();
+    let recorded = case.play().replay();
     write_atomic(&dir.join("run.replay"), &recorded.to_bytes());
 }
 
