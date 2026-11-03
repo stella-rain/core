@@ -319,13 +319,20 @@ const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
 /// Ticks the target steps a loaded run on.
 const SAVEPOINT_EXTRA_STEPS: usize = 20;
 
-/// A record's dense entries, one per present slot, padded to one entry per slot.
-fn slots<T: Copy + Default>(dense: &[T]) -> [T; 3] {
+/// A record's dense entries, one per slot of `mask`, placed at their slots.
+fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; 3] {
     let mut all = [T::default(); 3];
-    for (to, from) in all.iter_mut().zip(dense) {
-        *to = *from;
+    let mut from = dense.iter();
+    for (slot, to) in all.iter_mut().enumerate() {
+        if mask >> slot & 1 == 1 {
+            *to = *from.next().expect("one entry per present slot");
+        }
     }
     all
+}
+
+fn slot_of(n: u8) -> PlayerIdx {
+    PlayerIdx::new(n).expect("a slot of a verified run")
 }
 
 /// The recorder of `run` (a verified run of any party size, from slot 0) driven by the run's own
@@ -347,12 +354,22 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    recorder.step(&slots(inputs)).expect("a verified run steps");
+                    let all = slots(recorder.engine().present(), inputs);
+                    recorder.step(&all).expect("a verified run steps");
                 }
             }
-            RangeStep::Picks { picks } => recorder
-                .picks(&slots(picks))
-                .expect("a verified run's picks are accepted"),
+            RangeStep::Picks { picks } => {
+                let all = slots(recorder.engine().present(), picks);
+                recorder
+                    .picks(&all)
+                    .expect("a verified run's picks are accepted");
+            }
+            RangeStep::Join { slot } => recorder
+                .join(slot_of(*slot))
+                .expect("a verified run's joins are accepted"),
+            RangeStep::Leave { slot } => recorder
+                .leave(slot_of(*slot))
+                .expect("a verified run's leaves are accepted"),
         }
     }
     recorder
@@ -384,7 +401,7 @@ fn party_cuts() -> [u32; 2] {
             RangeStep::Picks { picks } if picks[1..].iter().any(Option::is_some) => {
                 return [150, world];
             }
-            RangeStep::Picks { .. } => {}
+            RangeStep::Picks { .. } | RangeStep::Join { .. } | RangeStep::Leave { .. } => {}
         }
     }
     panic!("a pick by slot 1 or 2");
@@ -394,6 +411,21 @@ fn party_cuts() -> [u32; 2] {
 /// that tick), or to its end for `None`.
 pub fn party_recorder(cut: Option<u32>) -> RunRecorder {
     let run = RunReplay::from_bytes(PARTY_RUN).expect("the party run is a run replay");
+    recorder_until(&run, cut)
+}
+
+/// The party run with joins and leaves of the savepoint target: the corpus case `leave_hole`
+/// (slot 1 leaves at 900, slot 2 at 1500 and comes back at 2100).
+const CHANGE_RUN: &[u8] =
+    include_bytes!("../../tests/corpus/current/parties/leave_hole/run.replay");
+
+/// The ticks the change target's prefixes are cut at: inside the first hole (`0b101`), alone
+/// (`0b001`) and in the second hole.
+const CHANGE_CUTS: [u32; 3] = [1000, 1600, 2200];
+
+/// The change run played to `cut` ticks (before the picks that follow that tick), or to its end.
+pub fn change_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(CHANGE_RUN).expect("the change run is a run replay");
     recorder_until(&run, cut)
 }
 
@@ -413,6 +445,11 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
                     .map(|cut| Some(*cut))
                     .chain([None])
                     .map(|cut| party_recorder(cut).replay()),
+            )
+            .chain(
+                CHANGE_CUTS
+                    .iter()
+                    .map(|cut| change_recorder(Some(*cut)).replay()),
             )
             .collect()
     })
@@ -446,11 +483,11 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                     if recorder.engine().outcome() != Outcome::Running {
                         break;
                     }
-                    let party = recorder.engine().players();
                     let moved = if recorder.engine().offer_open() {
-                        // The slot that holds the offer answers it with choice 0.
-                        let holder = (0..party)
-                            .filter_map(|i| PlayerIdx::new(u8::try_from(i).ok()?))
+                        // The slot that holds the offer answers it with choice 0 (an absent
+                        // slot, in a hole, is refused by `check_pick`).
+                        let holder = (0..3u8)
+                            .filter_map(PlayerIdx::new)
                             .find(|p| recorder.engine().check_pick(*p, 0).is_ok())
                             .unwrap_or(PlayerIdx::SOLO);
                         recorder.choose(holder, 0)
@@ -513,6 +550,18 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         (
             "valid-party-open".to_owned(),
             party_recorder(Some(party_cuts()[1])).save(),
+        ),
+        (
+            "valid-hole".to_owned(),
+            change_recorder(Some(CHANGE_CUTS[0])).save(),
+        ),
+        (
+            "valid-alone-after-leaves".to_owned(),
+            change_recorder(Some(CHANGE_CUTS[1])).save(),
+        ),
+        (
+            "valid-second-hole".to_owned(),
+            change_recorder(Some(CHANGE_CUTS[2])).save(),
         ),
         ("format".to_owned(), edited(4, &|b| b.wrapping_add(1))),
         ("sim-version".to_owned(), edited(8, &|b| b.wrapping_add(1))),
@@ -797,11 +846,14 @@ pub fn step_log_range_input(ticks: u32, a: u32, b: u32, log: &[u8]) -> Vec<u8> {
 enum RangeEntry {
     Tick(Vec<Input>),
     Picks(Vec<Option<u32>>),
+    Join(u8),
+    Leave(u8),
 }
 
 /// The whole log expanded to one entry per tick, cut to `a..b` by the written rule and not by the
 /// reader's code: a tick `t` is in iff `a <= t < b`; a PICKS after `p` ticks is in iff
-/// `a <= p < b`, or `b == ticks` and `p == ticks` and the range is not empty.
+/// `a <= p < b`, or `b == ticks` and `p == ticks` and the range is not empty; a JOIN or LEAVE
+/// goes by the same rule as a PICKS.
 fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry> {
     let mut out = Vec::new();
     let mut world = 0u32;
@@ -821,6 +873,16 @@ fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry>
                     out.push(RangeEntry::Picks(picks.clone()));
                 }
             }
+            RangeStep::Join { slot } | RangeStep::Leave { slot } => {
+                let inside = (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                if inside {
+                    out.push(if matches!(step, RangeStep::Join { .. }) {
+                        RangeEntry::Join(*slot)
+                    } else {
+                        RangeEntry::Leave(*slot)
+                    });
+                }
+            }
         }
     }
     out
@@ -834,9 +896,26 @@ fn expand_range(range: &StepRange) -> Vec<RangeEntry> {
                 out.extend((0..*run).map(|_| RangeEntry::Tick(inputs.clone())));
             }
             RangeStep::Picks { picks } => out.push(RangeEntry::Picks(picks.clone())),
+            RangeStep::Join { slot } => out.push(RangeEntry::Join(*slot)),
+            RangeStep::Leave { slot } => out.push(RangeEntry::Leave(*slot)),
         }
     }
     out
+}
+
+/// The mask after every change before world tick `first`, by the written rule: the log's first
+/// byte, then each JOIN or LEAVE after `p < first` world ticks.
+fn mask_before(full: &StepRange, first: u32) -> u8 {
+    let (mut mask, mut world) = (full.present, 0u32);
+    for step in &full.steps {
+        match step {
+            RangeStep::Ticks { run, .. } => world += run,
+            RangeStep::Join { slot } if world < first => mask |= 1 << slot,
+            RangeStep::Leave { slot } if world < first => mask &= !(1 << slot),
+            _ => {}
+        }
+    }
+    mask
 }
 
 /// The step log range reader (ADR-REPL-10, ADR-SVC-1). The bytes are `ticks`, `a`, `b` (little-endian
@@ -870,6 +949,11 @@ pub fn step_log_range(data: &[u8]) -> bool {
     match (&full, &part) {
         (Ok(full), Ok(part)) => {
             assert_eq!((part.first, part.end, part.present), (x, y, full.present));
+            assert_eq!(
+                part.present_at_first,
+                mask_before(full, x),
+                "the mask at {x}"
+            );
             assert!(
                 part.steps.len() <= full.steps.len(),
                 "a range has more steps"

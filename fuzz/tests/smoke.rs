@@ -16,8 +16,8 @@ use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
-    MINISIGN_SEED_MANIFEST, commands, minisign_verify, pack_load, packs_load, party_recorder,
-    replay_load, run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder,
+    MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, pack_load, packs_load,
+    party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder,
     savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
 };
 
@@ -338,7 +338,44 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             ));
         }
     }
-    let forged: [(&str, u32, &[u8]); 3] = [
+    // The party cases hold joins and leaves: the whole log and the middle third of each.
+    let parties = root().join("tests/corpus/current/parties");
+    for case in ["join_two", "leave_hole"] {
+        let run =
+            RunReplay::from_bytes(&fs::read(parties.join(case).join("run.replay")).expect("run"))
+                .expect("a corpus party replay");
+        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+        let t = run.ticks;
+        for (label, a, b) in [("whole", 0, t), ("middle", t / 3, 2 * t / 3)] {
+            seeds.push((
+                format!("{case}-{label}"),
+                step_log_range_input(t, a, b, &log),
+            ));
+        }
+    }
+    let forged: [(&str, u32, &[u8]); 7] = [
+        // A join, a leave, then a double join and a leave of slot 0, which are refused.
+        (
+            "forged-join",
+            2,
+            &[
+                0x01, 0x00, 0x01, 0x02, 0x00, 0x00, 0x02, 0x01, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00,
+                0x00, 0x00,
+            ],
+        ),
+        (
+            "forged-leave",
+            1,
+            &[
+                0x03, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x01,
+            ],
+        ),
+        (
+            "forged-refused-double-join",
+            0,
+            &[0x01, 0x02, 0x01, 0x02, 0x01],
+        ),
+        ("forged-refused-leave-first", 0, &[0x01, 0x03, 0x00]),
         (
             "forged-huge-run",
             u32::MAX,
@@ -645,7 +682,7 @@ fn a_real_log_range_gets_past_the_scanner() {
     let seeds = step_log_range_seeds();
     assert!(seeds.len() >= 9 * 5 + 3);
     for (name, bytes) in &seeds {
-        let real = !name.starts_with("forged-unknown");
+        let real = !name.starts_with("forged-unknown") && !name.starts_with("forged-refused");
         assert_eq!(step_log_range(bytes), real, "{name}");
     }
 }
@@ -787,6 +824,17 @@ fn the_party_cases_pass_the_replay_oracle() {
         sizes.contains(&2) && sizes.contains(&3),
         "the corpus holds an N=2 and an N=3 case: {sizes:?}"
     );
+}
+
+#[test]
+fn a_savepoint_inside_a_hole_gets_past_the_loader() {
+    for cut in [1000, 1600, 2200] {
+        let rec = change_recorder(Some(cut));
+        assert!(savepoint_load(&rec.save()), "change run, tick {cut}");
+    }
+    assert_eq!(change_recorder(Some(1000)).engine().present(), 0b101);
+    assert_eq!(change_recorder(Some(1600)).engine().present(), 0b001);
+    assert_eq!(change_recorder(Some(2200)).engine().present(), 0b101);
 }
 
 #[test]
