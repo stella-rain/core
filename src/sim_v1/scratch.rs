@@ -8,7 +8,7 @@ use super::push::Body;
 use crate::id::EntityId;
 
 /// Makes room in `v` for `capacity` items in all, whatever it holds now: a vector is reserved
-/// once, at load, to the most a run can put in it (DIR1, ADR-SIM-7 decision 9).
+/// once, at load, to the most a run can put in it (DIR1, ADR-SIM-19 point 4).
 pub(super) fn reserve_to<T>(v: &mut Vec<T>, capacity: usize) {
     v.reserve(capacity.saturating_sub(v.len()));
 }
@@ -78,7 +78,7 @@ impl std::fmt::Debug for Scratch {
 
 impl Scratch {
     /// Reserves every buffer for a run of up to `enemies` enemies alive on a map `width` by
-    /// `height` (1/256 pixels), once, when the run is built (DIR1, ADR-SIM-7 decision 9): a tick
+    /// `height` (1/256 pixels), once, when the run is built (DIR1, ADR-SIM-19 point 4): a tick
     /// then never grows one. The bounds, per buffer:
     /// - `bodies`, `offsets`, `found`: one entry per enemy; `found_bits`: one bit per enemy.
     /// - the grid: one circle, cell and member per enemy, and the cells of the map.

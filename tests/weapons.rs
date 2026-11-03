@@ -1,4 +1,4 @@
-//! The Main weapon's combos and the Sub weapon's pull (ADR-070, ADR-076), made by hand. Small
+//! The Main weapon's combos and the Sub weapon's pull, made by hand. Small
 //! stages whose every tick can be worked out by hand: the main character stands at (46080,
 //! 147456), facing up the field.
 //!
@@ -536,7 +536,7 @@ fn every_weapon_preset_is_registered_and_both_roles_are_valid() {
     }
 }
 
-// --- The Vindictus shape (ADR-084 points 2 and 11) --------------------------------------------
+// --- The Vindictus shape --------------------------------------------
 
 /// The weapon preset `id`.
 fn weapon_of(id: &str) -> &'static stella_rain_core::weapon::Weapon {
@@ -592,7 +592,7 @@ fn active_radius(attack: &AttackRef) -> i32 {
 
 #[test]
 fn a_smash_ends_its_combo_in_every_weapon() {
-    // ADR-084 point 2: after a B press the combo ends, the dash branch included.
+    // After a B press the combo ends, the dash branch included.
     for id in Weapons::bundled().ids().map(|i| i.as_str()) {
         let w = weapon_of(id);
         for (smash, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
@@ -605,8 +605,8 @@ fn a_smash_ends_its_combo_in_every_weapon() {
 
 #[test]
 fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
-    // ADR-084 point 8: the Sword's smashes put the bleed on what they hit, the Hammer's stun them
-    // for 30 ticks (a placeholder, ADR-085 point 5).
+    // The Sword's smashes put the bleed on what they hit, the Hammer's stun them
+    // for 30 ticks (a placeholder).
     use stella_rain_core::weapon::SmashEffect;
     assert_eq!(weapon_of("giant_sword").smash, Some(SmashEffect::Bleed {}));
     assert_eq!(
@@ -617,7 +617,7 @@ fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
 
 #[test]
 fn the_giant_sword_takes_the_vindictus_shape() {
-    // A to AAAAA, and the smashes B, AB, AAB, AAAB, AAAAB and AAAAAB, all open (ADR-117).
+    // A to AAAAA, and the smashes B, AB, AAB, AAAB, AAAAB and AAAAAB, all open (ADR-REPL-16).
     let w = weapon_of("giant_sword");
     for presses in [
         "A", "AA", "AAA", "AAAA", "AAAAA", "B", "AB", "AAB", "AAAB", "AAAAB", "AAAAAB",
@@ -660,7 +660,7 @@ fn the_giant_sword_takes_the_vindictus_shape() {
 
 #[test]
 fn the_giant_hammer_spins_wider_with_each_normal_attack() {
-    // A to AAAAA, each a spin wider than the last; AAA holds (ADR-084 point 6); the smashes
+    // A to AAAAA, each a spin wider than the last; AAA holds; the smashes
     // B and AB, and AAB, AAAB, AAAAB and AAAAAB.
     let w = weapon_of("giant_hammer");
     for presses in [
@@ -716,7 +716,7 @@ fn the_long_smashes_end_the_combo_and_hit_harder_the_longer_the_chain() {
 
 #[test]
 fn every_step_of_the_giant_hammer_is_strike() {
-    // ADR-100: every Hammer step is Strike, the dash branch included.
+    // Every Hammer step is Strike, the dash branch included.
     let w = weapon_of("giant_hammer");
     for (_, step) in steps(&w.combo).into_iter().chain(steps(&w.dash)) {
         assert_eq!(active_types(&step.attack), [Some(DamageType::Strike)]);

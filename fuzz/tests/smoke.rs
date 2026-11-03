@@ -1,4 +1,4 @@
-//! The fuzz targets on stable (ADR-020), every PR: each target reaches the code behind its first
+//! The fuzz targets on stable (ADR-SVC-7), every PR: each target reaches the code behind its first
 //! gate on a real stage, replay, run replay, share code, run setup and content pack, rejects
 //! garbage, and survives a deterministic sweep over those files: every prefix, and a flipped
 //! byte at a regular step. Crashes that a real fuzz run found are kept in
@@ -66,7 +66,7 @@ fn pins_bundled(case: &Path) -> bool {
     json.contains(&to_hex(&Pack::bundled().sha256()))
 }
 
-/// The `run.replay` of every run case of the corpus (ADR-051) that plays on the bundled pack,
+/// The `run.replay` of every run case of the corpus (ADR-REPL-16) that plays on the bundled pack,
 /// which `replay_load` also loads. A case that pins a derived pack verifies only with that pack,
 /// so it is left out here (CI still seeds the fuzz targets with it).
 fn run_replays() -> Vec<Vec<u8>> {
@@ -740,7 +740,7 @@ const ORACLE_TICK_LIMIT: u32 = 65_536;
 #[test]
 fn the_fuzz_crate_tests_are_built_optimised() {
     // The sweep simulates whole runs; at opt-level 0 it takes about 13 minutes, at 1 about 1.5
-    // (ADR-SIM-3, ADR-019). Overflow checks must stay on beside it.
+    // (ADR-SIM-17). Overflow checks must stay on beside it.
     let text = fs::read_to_string(root().join("fuzz/Cargo.toml")).expect("fuzz/Cargo.toml");
     let section: Vec<String> = text
         .lines()

@@ -1,9 +1,9 @@
 //! The state hash: FNV-1a 64 over an explicit byte encoding that this crate writes itself
-//! (ADR-019). Never `DefaultHasher` or a derived `Hash`: neither promises the same output
+//! (ADR-SIM-17). Never `DefaultHasher` or a derived `Hash`: neither promises the same output
 //! across Rust releases or platforms. The algorithm and encoding are part of a
 //! `sim_version`'s frozen rules.
 //!
-//! What goes into the hash is written by `StableHash` impls (ADR-SIM-3 point 2). The encoding is
+//! What goes into the hash is written by `StableHash` impls (ADR-SIM-17 point 2). The encoding is
 //! prefix-free: every `Option` and enum variant starts with a tag byte, every list with its
 //! length, every other value is a fixed width, so two different values never write the same
 //! bytes. A struct writes its fields in declaration order with nothing between them.

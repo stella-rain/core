@@ -55,7 +55,7 @@ pub(super) fn perform(
                 (Who::Boss, Some(b)) => b.phase_age.saturating_sub(1),
                 _ => 0,
             };
-            // Not ready while its last attack runs (ADR-055): the next rule gets its turn.
+            // Not ready while its last attack runs: the next rule gets its turn.
             let started = attacks::start_aged(stage, s, me, 0, target, attack, base, age, events);
             if started && ranged {
                 attacks::mark_ranged(s);

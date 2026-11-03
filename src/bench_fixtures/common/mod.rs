@@ -12,7 +12,7 @@ use crate::stage::Stage;
 use crate::version::Versions;
 use serde_json::{Value, json};
 
-/// The evade of every case stage (ADR-050): 48 pixels over 8 ticks, 10 ticks of invulnerability
+/// The evade of every case stage: 48 pixels over 8 ticks, 10 ticks of invulnerability
 /// and a 40-tick cooldown.
 fn evade() -> Value {
     json!({ "distance": 12_288, "ticks": 8, "invulnerable_ticks": 10, "cooldown_ticks": 40 })
@@ -23,7 +23,7 @@ fn step(attack: Value) -> Value {
     json!({ "attack": attack })
 }
 
-/// An inline weapon (ADR-084) with `combo` as its root branches and no window.
+/// An inline weapon with `combo` as its root branches and no window.
 pub fn weapon_combo(combo: Value) -> Value {
     json!({ "inline": { "combo": combo, "window_ticks": 0, "assist_range": 0 } })
 }

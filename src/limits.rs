@@ -1,11 +1,11 @@
-//! Tuning limits catalogue and single source of truth for runtime checks (ADR-PROC-2, ADR-SIM-11, ADR-CONT-10).
+//! Tuning limits catalogue and single source of truth for runtime checks (ADR-SIM-19, ADR-CONT-13).
 //!
 //! Values here define the simulation's authoritative runtime limits, file budgets, and tuning
 //! caps. `content-pack catalogue` generates `docs/tuning.md` from the catalogue table below.
 //! It lists caps and code numbers only; the numbers a designer tunes are `content/rules.json`
-//! keys (ADR-CONT-10).
+//! keys (ADR-CONT-13).
 
-/// An entry in the tuning limits catalogue (ADR-PROC-2).
+/// An entry in the tuning limits catalogue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LimitEntry {
     pub name: &'static str,
@@ -34,7 +34,7 @@ impl LimitEntry {
 // Authoritative constants (DS138 Q1 = A)
 // ---------------------------------------------------------------------------
 
-// Dynamic budgets of a tick (ADR-058)
+// Dynamic budgets of a tick (ADR-SIM-19)
 pub const MAX_ENEMY_CAP: u16 = 500;
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
 pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
@@ -52,17 +52,17 @@ pub const MAX_ATTACK_TASKS: u32 = 256;
 pub const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 pub const MAX_ELITES_ALIVE: u16 = 32;
 
-// The push-apart (ADR-058)
+// The push-apart (ADR-SIM-19)
 pub const PUSH_STEP_PX: i64 = 4;
 pub const PUSH_LEAST_RADIUS_PX: i32 = 8;
 pub const PUSH_CANDIDATES: usize = 32;
 pub const PUSH_NEIGHBOURS: usize = 6;
 pub const PUSH_CROWDED_OVER_PX: i64 = 1;
 
-// The leash: the cap stays code, its numbers are content (ADR-CONT-10)
+// The leash: the cap stays code, its numbers are content (ADR-CONT-13)
 pub const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 
-// Reward effects (ADR-058, ADR-020, ADR-117)
+// Reward effects (ADR-SIM-19, ADR-SVC-7, ADR-REPL-16)
 pub const MAX_ECHOES_PER_TICK: usize = 64;
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 pub const MAX_REWARD_EFFECTS: usize = 4;
@@ -71,14 +71,14 @@ pub const MAX_OFFER_CANDIDATES: usize = 4;
 pub const MAX_REWARDS: usize = 192;
 pub const MAX_STACK: u8 = 20;
 
-// Drop tiers and difficulties (ADR-068, ADR-110)
+// Drop tiers and difficulties
 pub const MAX_TIERS: usize = 16;
 pub const MAX_TIER_LEVEL: u32 = 100;
 pub const MAX_RARITY_WEIGHT: u16 = 10_000;
 pub const MAX_DIFFICULTIES: usize = 8;
 pub const MAX_PCT: u32 = 1_000;
 
-// Run replay and setup (ADR-117, ADR-112)
+// Run replay and setup (ADR-REPL-16, ADR-SVC-7)
 pub const MAX_COMMANDS: u32 = 1_000;
 pub const MAX_RUN_REPLAY_BYTES: usize = 1_048_576;
 pub const MAX_SETUP_BYTES: usize = 4_096;
@@ -87,92 +87,102 @@ pub const MAX_CARRIED_STARS: usize = 5;
 pub const MAX_LUMINE: u8 = 10;
 pub const MAX_STARS_ON_MAP: u16 = 64;
 
-// Time limit (ADR-020)
+// Time limit (ADR-SVC-7)
 pub const MAX_WAVES: usize = 16;
 pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
 
 // ---------------------------------------------------------------------------
-// The limits catalogue table (ADR-PROC-2)
+// The limits catalogue table
 // ---------------------------------------------------------------------------
 
 pub const LIMITS: &[LimitEntry] = &[
-    LimitEntry::new("MAX_ENEMY_CAP", "500", "enemies alive at once", "ADR-058"),
-    LimitEntry::new("MIN_CAP_HEADROOM_PCT", "25", "percent", "ADR-058"),
-    LimitEntry::new("MAX_CAP_HEADROOM_PCT", "30", "percent", "ADR-058"),
-    LimitEntry::new("MAX_CROWD_TARGET", "400", "enemies", "ADR-058"),
-    LimitEntry::new("MAX_RULES_BYTES", "4096", "bytes", "ADR-020"),
+    LimitEntry::new(
+        "MAX_ENEMY_CAP",
+        "500",
+        "enemies alive at once",
+        "ADR-SIM-19",
+    ),
+    LimitEntry::new("MIN_CAP_HEADROOM_PCT", "25", "percent", "ADR-SIM-19"),
+    LimitEntry::new("MAX_CAP_HEADROOM_PCT", "30", "percent", "ADR-SIM-19"),
+    LimitEntry::new("MAX_CROWD_TARGET", "400", "enemies", "ADR-SIM-19"),
+    LimitEntry::new("MAX_RULES_BYTES", "4096", "bytes", "ADR-SVC-7"),
     LimitEntry::new(
         "MAX_ZONES_ALIVE",
         "128",
         "zones alive at once",
-        "ADR-SIM-11",
+        "ADR-SIM-19",
     ),
     LimitEntry::new(
         "MAX_RANGED_ATTACKERS",
         "4",
         "regular ranged attackers",
-        "ADR-SIM-11",
+        "ADR-SIM-19",
     ),
-    LimitEntry::new("VIEW_HALF_WIDTH", "420", "px", "ADR-SIM-11"),
-    LimitEntry::new("VIEW_HALF_HEIGHT", "180", "px", "ADR-SIM-11"),
+    LimitEntry::new("VIEW_HALF_WIDTH", "420", "px", "ADR-SIM-19"),
+    LimitEntry::new("VIEW_HALF_HEIGHT", "180", "px", "ADR-SIM-19"),
     LimitEntry::new(
         "MAX_ORBS_PER_OWNER",
         "8",
         "slow orbs per attacker",
-        "ADR-SIM-11",
+        "ADR-SIM-19",
     ),
     LimitEntry::new(
         "MAX_ORBS_ALIVE",
         "32",
         "slow orbs alive at once",
-        "ADR-SIM-6",
+        "ADR-SIM-19",
     ),
-    LimitEntry::new("MAX_ORB_TICKS", "600", "ticks", "ADR-SIM-11"),
+    LimitEntry::new("MAX_ORB_TICKS", "600", "ticks", "ADR-SIM-19"),
     LimitEntry::new(
         "MAX_ATTACK_TASKS",
         "256",
         "attacks running at once",
-        "ADR-058",
+        "ADR-SIM-19",
     ),
     LimitEntry::new(
         "MAX_EMITTER_STEPS_PER_TICK",
         "4096",
         "steps per tick",
-        "ADR-058",
+        "ADR-SIM-19",
     ),
-    LimitEntry::new("MAX_ELITES_ALIVE", "32", "elites among enemies", "ADR-020"),
-    LimitEntry::new("STEP", "4", "px/tick", "ADR-058"),
-    LimitEntry::new("LEAST_RADIUS", "8", "px", "ADR-058"),
-    LimitEntry::new("CANDIDATES", "32", "enemies", "ADR-058"),
-    LimitEntry::new("NEIGHBOURS", "6", "enemies", "ADR-058"),
-    LimitEntry::new("CROWDED_OVER", "1", "px", "ADR-058"),
+    LimitEntry::new(
+        "MAX_ELITES_ALIVE",
+        "32",
+        "elites among enemies",
+        "ADR-SIM-19",
+    ),
+    LimitEntry::new("STEP", "4", "px/tick", "ADR-SIM-19"),
+    LimitEntry::new("LEAST_RADIUS", "8", "px", "ADR-SIM-19"),
+    LimitEntry::new("CANDIDATES", "32", "enemies", "ADR-SIM-19"),
+    LimitEntry::new("NEIGHBOURS", "6", "enemies", "ADR-SIM-19"),
+    LimitEntry::new("CROWDED_OVER", "1", "px", "ADR-SIM-19"),
     LimitEntry::new(
         "MAX_LEASH_MOVES_PER_TICK",
         "16",
         "moves per tick",
-        "ADR-SIM-11",
+        "ADR-SIM-19",
     ),
-    LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-058"),
-    LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-058"),
-    LimitEntry::new("MAX_REWARD_EFFECTS", "4", "effects per reward", "ADR-020"),
-    LimitEntry::new("MAX_BURST_DEPTH", "5", "burst depth", "ADR-020"),
-    LimitEntry::new("MAX_OFFER_CANDIDATES", "4", "candidates", "ADR-117"),
-    LimitEntry::new("MAX_REWARDS", "192", "rewards", "ADR-020"),
-    LimitEntry::new("MAX_STACK", "20", "stacks", "ADR-020"),
-    LimitEntry::new("MAX_TIERS", "16", "tiers", "ADR-068"),
-    LimitEntry::new("MAX_TIER_LEVEL", "100", "level", "ADR-068"),
-    LimitEntry::new("MAX_RARITY_WEIGHT", "10000", "weight", "ADR-068"),
-    LimitEntry::new("MAX_DIFFICULTIES", "8", "difficulties", "ADR-110"),
-    LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-110"),
-    LimitEntry::new("MAX_COMMANDS", "1000", "commands", "ADR-117"),
-    LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-112"),
-    LimitEntry::new("MAX_SETUP_BYTES", "4096", "bytes", "ADR-112"),
-    LimitEntry::new("MAX_EXTRA_REROLLS", "20", "rerolls", "ADR-117"),
-    LimitEntry::new("MAX_CARRIED_STARS", "5", "stars", "ADR-117"),
-    LimitEntry::new("MAX_LUMINE", "10", "level", "ADR-117"),
-    LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-117"),
-    LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-020"),
-    LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-020"),
+    LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-SIM-19"),
+    LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-SIM-19"),
+    LimitEntry::new("MAX_REWARD_EFFECTS", "4", "effects per reward", "ADR-SVC-7"),
+    LimitEntry::new("MAX_BURST_DEPTH", "5", "burst depth", "ADR-SVC-7"),
+    LimitEntry::new("MAX_OFFER_CANDIDATES", "4", "candidates", "ADR-REPL-16"),
+    LimitEntry::new("MAX_REWARDS", "192", "rewards", "ADR-SVC-7"),
+    LimitEntry::new("MAX_STACK", "20", "stacks", "ADR-SVC-7"),
+    LimitEntry::new("MAX_TIERS", "16", "tiers", "ADR-CONT-13"),
+    LimitEntry::new("MAX_TIER_LEVEL", "100", "level", "ADR-CONT-13"),
+    LimitEntry::new("MAX_RARITY_WEIGHT", "10000", "weight", "ADR-CONT-13"),
+    LimitEntry::new("MAX_DIFFICULTIES", "8", "difficulties", "ADR-CONT-11"),
+    LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-CONT-11"),
+    LimitEntry::new("MAX_COMMANDS", "1000", "commands", "ADR-REPL-16"),
+    LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-SVC-7"),
+    LimitEntry::new("MAX_SETUP_BYTES", "4096", "bytes", "ADR-SVC-7"),
+    LimitEntry::new("MAX_EXTRA_REROLLS", "20", "rerolls", "ADR-REPL-16"),
+    LimitEntry::new("MAX_CARRIED_STARS", "5", "stars", "ADR-REPL-16"),
+    LimitEntry::new("MAX_LUMINE", "10", "level", "ADR-REPL-16"),
+    LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-REPL-16"),
+    LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-7"),
+    LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-7"),
 ];
 
 /// Formats the limits catalogue as a GitHub-flavored Markdown table for `docs/tuning.md`.
@@ -191,7 +201,7 @@ pub fn tuning_catalogue_markdown() -> String {
     }
     s.push_str(
         "\nThe numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) \
-         are content, not listed here: see content/rules.json (ADR-CONT-10).\n",
+         are content, not listed here: see content/rules.json (ADR-CONT-13).\n",
     );
     s
 }
@@ -206,13 +216,24 @@ mod tests {
     }
 
     #[test]
-    fn no_row_cites_an_archived_adr_126() {
-        assert!(LIMITS.iter().all(|e| e.adr != "ADR-126"));
+    fn no_row_cites_a_bare_number() {
+        for e in LIMITS {
+            let id = e
+                .adr
+                .strip_prefix("ADR-")
+                .unwrap_or_else(|| panic!("{}: {}", e.name, e.adr));
+            assert!(
+                !id.chars().all(|c| c.is_ascii_digit()),
+                "{} cites {}, a number with no area",
+                e.name,
+                e.adr
+            );
+        }
         let leash = LIMITS
             .iter()
             .find(|e| e.name == "MAX_LEASH_MOVES_PER_TICK")
             .expect("leash row");
-        assert_eq!(leash.adr, "ADR-SIM-11");
+        assert_eq!(leash.adr, "ADR-SIM-19");
     }
 
     #[test]
@@ -301,7 +322,7 @@ mod tests {
 
     #[test]
     fn the_catalogue_points_to_rules_json() {
-        assert!(tuning_catalogue_markdown().ends_with("see content/rules.json (ADR-CONT-10).\n"));
+        assert!(tuning_catalogue_markdown().ends_with("see content/rules.json (ADR-CONT-13).\n"));
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! The bodies of the fuzz targets (ADR-020), as plain functions: the targets in
+//! The bodies of the fuzz targets (ADR-SVC-7), as plain functions: the targets in
 //! `fuzz_targets/` only call them, and `tests/smoke.rs` runs them on stable.
 //!
 //! Each function takes any bytes, must not panic, and returns whether the bytes got past the
@@ -45,10 +45,10 @@ const RUN_TICKS: usize = 120;
 /// A stage the replay target verifies against (the corpus case that is cleared).
 const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/current/stages/clear/stage.json");
 
-/// The stage parser and validator (ADR-020 items 1 to 4). A stage that loads can be saved
+/// The stage parser and validator (ADR-SVC-7). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
 /// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table, as
-/// runes and as attack presets (ADR-067, ADR-078, ADR-098, ADR-099, ADR-100, CS1b-1), content
+/// runes and as attack presets (ADR-CONT-11, CS1b-1), content
 /// that may come from outside the app: they parse without a panic, and files that load hash the
 /// same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
@@ -112,7 +112,7 @@ pub fn stage_parse(data: &[u8]) -> bool {
 }
 
 /// The validator, then the simulation: a stage that validates must start a run and survive
-/// `RUN_TICKS` ticks of any input without a panic (ADR-019, ADR-020). The bytes are the stage
+/// `RUN_TICKS` ticks of any input without a panic (ADR-SIM-17, ADR-SVC-7). The bytes are the stage
 /// file and, read over and over, the inputs.
 pub fn stage_run(data: &[u8]) -> bool {
     // Deserialised without the validator's own parse, so the validator sees what the strict
@@ -132,9 +132,9 @@ pub fn stage_run(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// The run setup (ADR-051) and the run it starts: a setup that validates must save and load as
+/// The run setup (ADR-REPL-16) and the run it starts: a setup that validates must save and load as
 /// the same setup, start a run, and survive `RUN_TICKS` ticks of any input without a panic
-/// (ADR-019, ADR-020). The bytes are the setup file and, read over and over, the inputs.
+/// (ADR-SIM-17, ADR-SVC-7). The bytes are the setup file and, read over and over, the inputs.
 pub fn run_setup(data: &[u8]) -> bool {
     let Ok(setup) = run_setup::parse_and_validate(data) else {
         return false;
@@ -158,7 +158,7 @@ pub fn run_setup(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// One tick of `input`, after the commands between ticks (ADR-079): a choice with `pick` as it
+/// One tick of `input`, after the commands between ticks (ADR-REPL-16): a choice with `pick` as it
 /// is, which may be refused and must then change nothing; then, while an offer is open, a choice
 /// of `pick` inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
@@ -231,7 +231,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
         .collect()
 }
 
-/// The replay loader (ADR-020 item 5, ADR-051 §3), for stage replays and run replays: a replay
+/// The replay loader (ADR-SVC-7, ADR-REPL-16), for stage replays and run replays: a replay
 /// that loads unpacks without a panic and saves to bytes that load as the same replay; any
 /// bytes verified against a stage that is cleared, or as a run replay, never panic, whatever
 /// they claim; a run replay that verifies is exactly what its own commands record; and a replay
@@ -455,7 +455,7 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
     })
 }
 
-/// The savepoint loader (ADR-SAVE-3, ADR-SVC-1). The bytes are a savepoint file, tried against
+/// The savepoint loader (ADR-SAVE-14, ADR-SVC-7). The bytes are a savepoint file, tried against
 /// each prefix of `savepoint_prefixes()` with the bundled pack. The refusal is one of the seven
 /// typed errors (the `match` is exhaustive); a savepoint that loads is the canonical bytes of
 /// the run it holds: its replay is the prefix, saving it again gives the same bytes, its state
@@ -618,7 +618,7 @@ pub fn commands(run: &RunReplay) -> Vec<Command> {
     out
 }
 
-/// The share-code decoder (ADR-020 item 7, ADR-009). The bytes are tried as a code, and wrapped
+/// The share-code decoder (ADR-SVC-7, ADR-REPL-17). The bytes are tried as a code, and wrapped
 /// as the zlib stream of a code so that they reach the code behind the decompression. A code
 /// that decodes holds files that encode to a code that decodes to them; base64 round-trips
 /// any bytes.
@@ -645,10 +645,10 @@ fn check_code(code: &str) -> bool {
     true
 }
 
-/// The content pack loader (ADR-020, ADR-080): a pack that loads loads again as the same pack,
+/// The content pack loader (ADR-SVC-7, ADR-CONT-15): a pack that loads loads again as the same pack,
 /// its hash is the SHA-256 of its bytes, it saves (compactly) to a pack of the same content,
 /// and its content starts a run of each mode that survives `RUN_TICKS` ticks of any input
-/// without a panic (ADR-019). The bytes are the pack and, read over and over, the inputs.
+/// without a panic (ADR-SIM-17). The bytes are the pack and, read over and over, the inputs.
 pub fn pack_load(data: &[u8]) -> bool {
     let Ok(pack) = Pack::from_bytes(data) else {
         return false;
@@ -776,7 +776,7 @@ fn settles_everything(data: &[u8], pack: &Pack) {
     }
 }
 
-/// The `packs.json` manifest loader (FT1a, ADR-020): a manifest that loads loads again as the
+/// The `packs.json` manifest loader (FT1a, ADR-SVC-7): a manifest that loads loads again as the
 /// same manifest, every channel is found under its own key, and holds an `https://` url and a
 /// tag the checks allow; bytes over the cap are refused without being parsed.
 pub fn packs_load(data: &[u8]) -> bool {
@@ -918,7 +918,7 @@ fn mask_before(full: &StepRange, first: u32) -> u8 {
     mask
 }
 
-/// The step log range reader (ADR-REPL-10, ADR-SVC-1). The bytes are `ticks`, `a`, `b` (little-endian
+/// The step log range reader (ADR-REPL-16, ADR-SVC-7). The bytes are `ticks`, `a`, `b` (little-endian
 /// `u32`) and a schema 2 step log. A range that is backwards or past `ticks` is refused; for a
 /// range inside the log the verdict is the full read's, error for error, because the whole log is
 /// validated; and when both succeed on a log of at most 65,536 ticks the range equals the full

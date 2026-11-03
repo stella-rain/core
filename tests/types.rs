@@ -1,4 +1,4 @@
-//! The stage, event and replay types (ADR-018): files round-trip, unknown fields are rejected, and
+//! The stage, event and replay types (ADR-CONT-11): files round-trip, unknown fields are rejected, and
 //! the input record says nothing about the device.
 
 use stella_rain_core::event::DomainEvent;
@@ -77,7 +77,7 @@ fn missing_required_fields_are_rejected() {
 
 #[test]
 fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
-    // ADR-071: named for what they do, never for a device, a button or a key.
+    // Named for what they do, never for a device, a button or a key.
     let input = Input {
         move_x: -127,
         move_y: 64,
@@ -159,8 +159,8 @@ fn replay_round_trips_and_rejects_unknown_fields() {
 
 #[test]
 fn versions_are_one_from_the_freeze() {
-    // Version 1 is the frozen first version (ADR-REPL-7) and still read beside the open
-    // version 2 (ADR-REPL-9); version 0 is refused.
+    // Version 1 is the frozen first version (ADR-REPL-13) and still read beside the open
+    // version 2 (ADR-REPL-13); version 0 is refused.
     assert_eq!((SCHEMA_VERSION, SIM_VERSION), (2, 2));
     // The stage file is authored content at the first schema; it is read as it is.
     let stage = parse(STAGE).unwrap();
@@ -180,7 +180,7 @@ fn at_versions(schema_version: u32, sim_version: u32) -> Vec<u8> {
 
 #[test]
 fn a_stage_at_version_0_is_refused() {
-    // ADR-REPL-7 point 8: no migration from version 0.
+    // No migration from version 0.
     for (schema_version, sim_version) in [(0, 0), (SCHEMA_VERSION, 0), (0, SIM_VERSION)] {
         assert_eq!(
             validate::parse_and_validate(&at_versions(schema_version, sim_version)),

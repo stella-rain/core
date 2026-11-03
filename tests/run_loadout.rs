@@ -1,6 +1,6 @@
-//! What a run setup carries in besides its mode, weapon and seed (ADR-107): a perk set, the
+//! What a run setup carries in besides its mode, weapon and seed: a perk set, the
 //! rune pool, the carried stars under the Lumine budget and the starting rune.
-//! The setup is untrusted (ADR-020): known IDs, sorted and unique where a list says so, the
+//! The setup is untrusted (ADR-SVC-7): known IDs, sorted and unique where a list says so, the
 //! budget kept, and anything else fails closed with one issue per problem and its path.
 
 use serde_json::{Value, json};

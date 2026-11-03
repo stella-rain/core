@@ -1,4 +1,4 @@
-//! The boomerang rune (ADR-099 points 2, 3, 7 and 8; ADR-100): an on-hit rune of its own,
+//! The boomerang rune: an on-hit rune of its own,
 //! neutral, on its own cooldown. When a combo step of the Main weapon hits and boomerang's
 //! cooldown is 0, it is thrown: its hit box flies from the main character to the point hit over
 //! its first active phase, then back toward where the main character is over its second, a

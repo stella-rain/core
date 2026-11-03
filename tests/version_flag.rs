@@ -1,4 +1,4 @@
-//! The development flag (ADR-REPL-9): `version::DEVELOPMENT` is one plain line the app can match,
+//! The development flag (ADR-REPL-13): `version::DEVELOPMENT` is one plain line the app can match,
 //! and it is set exactly while the live version has no frozen corpus.
 
 use stella_rain_core::version;

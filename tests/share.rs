@@ -1,5 +1,5 @@
-//! Share codes (ADR-010, ADR-018): exact bytes in, exact bytes out, and nothing a hostile code
-//! can do to blow up memory (ADR-020).
+//! Share codes (ADR-SVC-13, ADR-CONT-11): exact bytes in, exact bytes out, and nothing a hostile code
+//! can do to blow up memory (ADR-SVC-7).
 
 use crate::common;
 
@@ -182,7 +182,7 @@ fn the_caps_are_the_ones_from_before_run_replays_were_files() {
 
 #[test]
 fn a_run_replay_is_not_shared_as_a_code() {
-    // Shape of a run replay file (ADR-066): setup, content hash, commands.
+    // Shape of a run replay file (ADR-REPL-16): setup, content hash, commands.
     let run = br#"{"setup":{},"content_sha256":"00","ticks":0,"final_hash":"00","inputs":"","commands":""}"#;
     assert_eq!(encode(b"{}", run), Err(ShareError::RunReplay));
     // A hand-made code carrying one is refused by the decoder too.

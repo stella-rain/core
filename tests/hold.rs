@@ -1,4 +1,4 @@
-//! Held steps (ADR-084 point 6), worked out by hand. The main character stands at (46080,
+//! Held steps, worked out by hand. The main character stands at (46080,
 //! 147456) facing up the field, with the far boss in the distance. The held step's own attack
 //! spawns one orb at speed 0 on tick 1 (its first tick) and has its recovery from tick 3, so
 //! the hold begins on tick 3 if `main` is still held then. The loop spawns one orb on each

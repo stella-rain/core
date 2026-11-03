@@ -1,4 +1,4 @@
-//! More Stardust earners (ADR-109, app#336 SD2): the Treasure Goblin's kill pays 10,000 stored
+//! More Stardust earners (app#336 SD2): the Treasure Goblin's kill pays 10,000 stored
 //! (1,000 shown) times the factor and its leaving pays nothing; a won shrine challenge pays the
 //! elite base, 200, times the factor at the win tick, a lost or untouched one nothing; an enemy
 //! summoned by a boss or a splitter pays the regular base, 10, times the factor. Guardians,

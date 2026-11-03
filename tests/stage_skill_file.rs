@@ -1,5 +1,5 @@
-//! The stage skills file (ADR-075, ADR-098): content of its own beside the rewards file that
-//! names its skills, read from JSON as untrusted bytes (ADR-020): a size limit before parsing,
+//! The stage skills file: content of its own beside the rewards file that
+//! names its skills, read from JSON as untrusted bytes (ADR-SVC-7): a size limit before parsing,
 //! strict parsing, the current versions only and every field bounded. A skill has an icon, a
 //! title and a description, and each level a cooldown and a list of effects, at most one of
 //! each building block and at most `MAX_SKILL_EFFECTS`.
@@ -236,7 +236,7 @@ fn the_status_blocks_name_a_status_and_their_numbers_are_bounded() {
         )
     };
     assert!(parse(&on_self("atk_up", pct, d)).is_ok());
-    // Any status is open to both blocks (ADR-098).
+    // Any status is open to both blocks.
     assert!(parse(&on_self("slow", 1, 1)).is_ok());
     invalid_at(&on_self("no_such_status", 1, 1), &effect_at("status"));
     invalid_at(&on_self("pilot_a", 1, 1), &effect_at("status"));

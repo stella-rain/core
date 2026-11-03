@@ -1,19 +1,18 @@
-//! Rewards (ADR-079 §3, ADR-067, ADR-068): what an offer from a falling star holds. Each has a
+//! Rewards (ADR-REPL-16, ADR-CONT-11): what an offer from a falling star holds. Each has a
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
-//! `amount` to that effect's total, as a stat point adds its step, a stage skill (ADR-075,
-//! ADR-098): one of the stage skills file's skills, `amount` levels of it, `amount` more
-//! evade charges, up to the stage's `max_charges` (ADR-074), an orbit of `amount` orbs that
-//! attack on their own (ADR-069), `amount` percent more range for every combo step of the
-//! Main weapon (ADR-099), or a type bonus: `amount` percent more damage for the main
-//! character's attacks of one damage type, of every attack type or of every element (ADR-100),
+//! `amount` to that effect's total, as a stat point adds its step, a stage skill: one of the stage skills file's skills, `amount` levels of it, `amount` more
+//! evade charges, up to the stage's `max_charges`, an orbit of `amount` orbs that
+//! attack on their own, `amount` percent more range for every combo step of the
+//! Main weapon, or a type bonus: `amount` percent more damage for the main
+//! character's attacks of one damage type, of every attack type or of every element,
 //! or a random rune: one of the runes the Main weapon does not hold, drawn when it is picked
-//! (ADR-099). A random rune alone has no amount and no stack limit of its own: it leaves the
+//!. A random rune alone has no amount and no stack limit of its own: it leaves the
 //! offers once the Main holds every rune. In a bundle with other effects (a named star's) it is
 //! one entry of a reward that has its limit, and a reward holds at most one.
 //!
-//! The file is untrusted (ADR-020), as the run stats are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-7), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
 //! unique within it; a run setup's star pool names them. A reward's skill must be in the stage
 //! skills file the rewards are read with. The bundled file, `content/rewards.json`, is the
@@ -37,7 +36,7 @@ use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 use std::sync::Arc;
 
-/// The largest rewards file read (a tuning value; ADR-020 decides that one exists).
+/// The largest rewards file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
 /// The most rewards a file lists.
 pub const MAX_REWARDS: usize = 192;
@@ -45,9 +44,9 @@ pub const MAX_REWARDS: usize = 192;
 pub const MAX_AMOUNT: u32 = 100;
 /// The largest amount of one type bonus reward, in percent: twice `MAX_AMOUNT`, so that the
 /// supernova row (128, D6c) fits. The bonuses that apply to an attack's type saturate at the
-/// match-up file's `max_type_bonus_pct` (a placeholder bound, ADR-020).
+/// match-up file's `max_type_bonus_pct` (a placeholder bound, ADR-SVC-7).
 pub const MAX_TYPE_BONUS_AMOUNT: u32 = 200;
-/// The largest amount of hit points: 5,000 shown hit points, scaled (ADR-103); Vigour (Supernova)
+/// The largest amount of hit points: 5,000 shown hit points, scaled; Vigour (Supernova)
 /// gives 1,600 shown.
 pub const MAX_HP_AMOUNT: u32 = 5_000 * DAMAGE_SCALE;
 /// The most times one run takes one reward.
@@ -65,11 +64,11 @@ pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
 pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// The most a combo step's hit box is widened, in percent: twice as large. It bounds one range
 /// reward's amount and holds what the range rewards and the expertise range options add up to
-/// (ADR-099, ADR-020).
+/// (ADR-SVC-7).
 pub const MAX_RANGE_PCT: u32 = 100;
 /// The ceiling of Rune Haste, in percent: the most the rewards file's `max_rune_haste_pct` may
 /// name, and so the most one reward gives and the picks add up to, a cooldown or tick interval
-/// then being a ninth as long, and never less than a tick (ADR-099 point 5, ADR-020). The
+/// then being a ninth as long, and never less than a tick (ADR-SVC-7). The
 /// file's cap (500 in the bundle, app#298) is the number; this is the bound on it.
 pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
 /// The cap of a rewards file that names none: the cap before it was content (app#298 raised
@@ -77,9 +76,9 @@ pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
 pub const DEFAULT_MAX_RUNE_HASTE_PCT: u32 = 300;
 /// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
-/// attack's type saturate (ADR-100, ADR-020).
+/// attack's type saturate (ADR-SVC-7).
 pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
-/// The most one reward widens the pickup circle, in percent (a placeholder bound, ADR-020).
+/// The most one reward widens the pickup circle, in percent (a placeholder bound, ADR-SVC-7).
 pub const MAX_PICKUP_RADIUS_PCT: u32 = 200;
 /// The most the picks of a run widen it: four times the stage's circle in all.
 pub const MAX_PICKUP_RADIUS_TOTAL_PCT: u32 = 300;
@@ -92,11 +91,11 @@ pub const MAX_HEAL_KILLS: u32 = 100;
 /// The most rerolls or banishes one reward gives.
 pub const MAX_COUNTER_AMOUNT: u32 = 10;
 /// The most candidates an offer holds once offer-candidate rewards are taken: the base offer
-/// shows 3, and each such reward adds 1 (a placeholder bound, ADR-020).
+/// shows 3, and each such reward adds 1 (a placeholder bound, ADR-SVC-7).
 pub const MAX_OFFER_CANDIDATES: usize = 4;
 
 /// The most one reward adds to the chance of a critical hit, in percent (a placeholder bound,
-/// ADR-020).
+/// ADR-SVC-7).
 pub const MAX_CRIT_CHANCE_PCT: u32 = 50;
 /// The most the picks of a run add up to: a hit is a crit three times in four at the most.
 pub const MAX_CRIT_CHANCE_TOTAL_PCT: u32 = 75;
@@ -108,7 +107,7 @@ pub const MAX_CRIT_DAMAGE_TOTAL_PCT: u32 = 300;
 /// The most one reward lets an echo repeat of a hit's damage, in percent, and the most the
 /// picks add up to.
 pub const MAX_ECHO_HIT_PCT: u32 = 100;
-/// The most echoes one tick resolves; the rest are dropped, first-come first-served (ADR-058).
+/// The most echoes one tick resolves; the rest are dropped, first-come first-served (ADR-SIM-19).
 pub const MAX_ECHOES_PER_TICK: usize = 64;
 /// The most of a killed enemy's maximum hit points a kill burst deals, in percent (a reward's
 /// `amount`), and the most the picks add up to.
@@ -118,10 +117,10 @@ pub const MAX_BURST_PCT: u32 = 100;
 pub const MAX_BURST_RADIUS_PX: u32 = 240;
 /// The most links of a chain of bursts (a reward's `depth`): the first burst is the first link.
 pub const MAX_BURST_DEPTH: u32 = 5;
-/// The most bursts one tick resolves, as ADR-058's contagion cap; the rest are dropped.
+/// The most bursts one tick resolves, as ADR-SIM-19's contagion cap; the rest are dropped.
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 
-/// `ticks` shortened by `haste_pct` percent of Rune Haste (ADR-099 point 5): `ticks × 100 /
+/// `ticks` shortened by `haste_pct` percent of Rune Haste: `ticks × 100 /
 /// (100 + h)` rounded up, at least 1. The haste is held to `MAX_RUNE_HASTE_PCT`, the ceiling,
 /// so an unvalidated sum cannot pass it; a run holds its sum to the file's cap first.
 pub fn rune_haste_ticks(ticks: u32, haste_pct: u32) -> u32 {
@@ -130,7 +129,7 @@ pub fn rune_haste_ticks(ticks: u32, haste_pct: u32) -> u32 {
     u32::try_from(shortened).unwrap_or(u32::MAX).max(1)
 }
 
-/// A reward's rarity, from the most common up (ADR-079 §2).
+/// A reward's rarity, from the most common up (ADR-REPL-16).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -174,28 +173,28 @@ pub enum RewardEffect {
     EvadePct,
     SpeedPct,
     XpPct,
-    /// The stage skill the reward's `skill` names, `amount` levels of it (ADR-075).
+    /// The stage skill the reward's `skill` names, `amount` levels of it.
     StageSkill,
     /// `amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready
-    /// (ADR-074).
+    ///.
     EvadeCharge,
-    /// The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS` (ADR-069).
+    /// The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS`.
     Orbit,
     /// Every combo step of the Main weapon `amount` percent wider, as the expertise range
-    /// option widens it, adding up over the picks (ADR-099).
+    /// option widens it, adding up over the picks.
     RangePct,
-    /// The main character's attacks of the reward's `type` `amount` percent stronger (ADR-100).
+    /// The main character's attacks of the reward's `type` `amount` percent stronger.
     TypeBonusPct,
     /// Its attacks of every attack type (Slash, Pierce, Strike) `amount` percent stronger.
     AttackTypeBonusPct,
     /// Its attacks of every element `amount` percent stronger.
     ElementBonusPct,
     /// Every on-hit rune's cooldown and every damage-over-time tick interval the main character
-    /// applies `amount` percent of haste shorter, adding up over the picks (ADR-099): see
+    /// applies `amount` percent of haste shorter, adding up over the picks: see
     /// `rune_haste_ticks`.
     RuneHaste,
     /// One rune the Main weapon does not hold, drawn from the run's generator when the reward
-    /// is picked, never before: an offer shows it hidden (ADR-099). It is offered only while
+    /// is picked, never before: an offer shows it hidden. It is offered only while
     /// the Main lacks a rune.
     RandomRune,
     /// Hit points the main character regenerates each second, `amount` more (the perk
@@ -313,11 +312,11 @@ pub struct EffectEntry {
 
 /// The most effects one reward holds.
 pub const MAX_REWARD_EFFECTS: usize = 4;
-/// The most named rewards a file lists (a placeholder bound, ADR-020).
+/// The most named rewards a file lists (a placeholder bound, ADR-SVC-7).
 pub const MAX_NAMED_REWARDS: usize = 32;
 /// The weight a reward has when its file gives none.
 pub const DEFAULT_WEIGHT: u16 = 100;
-/// The largest draw weight; the smallest is 1 (a placeholder bound, ADR-020).
+/// The largest draw weight; the smallest is 1 (a placeholder bound, ADR-SVC-7).
 pub const MAX_WEIGHT: u16 = 1_000;
 /// The fewest times an unnamed reward stacks: ordinary rewards stack.
 pub const MIN_UNNAMED_LIMIT: u8 = 2;
@@ -332,7 +331,7 @@ fn is_default_weight(w: &u16) -> bool {
 
 /// One reward an offer can hold. In a file it is written with an `effects` list of 1 to
 /// `MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the
-/// reward itself, which reads as a list of one (ADR-026).
+/// reward itself, which reads as a list of one (ADR-CONT-12).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "RawReward")]
 #[schemars(with = "RawReward")]
@@ -457,7 +456,7 @@ impl TryFrom<RawReward> for Reward {
     }
 }
 
-/// Orbs that turn round the main character and attack on their own (ADR-069). Each orb runs
+/// Orbs that turn round the main character and attack on their own. Each orb runs
 /// `attack` in an attack slot of its own, at the main character's attack stat, its facing
 /// turned `turn_per_tick` further every tick and the orbs spaced evenly round the turn: the
 /// attack's hit box offset is how far out an orb is. A round of attacks starts when the orbit
@@ -477,7 +476,7 @@ pub struct Orbit {
 /// The number of rarities a rewards file prices: every rarity once.
 pub const MAX_RARITIES: usize = Rarity::ALL.len();
 
-/// What carrying a star of one rarity costs, in Lumine (ADR-107 point 2).
+/// What carrying a star of one rarity costs, in Lumine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RarityCost {
@@ -495,7 +494,7 @@ pub struct RewardsFile {
     /// (app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_rune_haste_pct: Option<u32>,
-    /// What carrying a star of each rarity costs, in Lumine (ADR-107 point 2): every rarity
+    /// What carrying a star of each rarity costs, in Lumine: every rarity
     /// once, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars
     /// are priced from this list.
     pub rarities: Vec<RarityCost>,
@@ -770,7 +769,7 @@ pub(crate) fn validate_entry(
 }
 
 /// The caps over the entries of one reward: what a kind's entries add up to stays within the
-/// kind's largest amount, as the picks of a run do (ADR-020), and a reward holds one orbit and
+/// kind's largest amount, as the picks of a run do (ADR-SVC-7), and a reward holds one orbit and
 /// one random rune.
 pub(crate) fn validate_bundle(
     effects: &[EffectEntry],

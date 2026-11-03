@@ -114,10 +114,10 @@
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite (ADR-007)."
+          "description": "Asset ID of the sprite (ADR-CONT-17)."
         },
         "defence": {
-          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.",
           "format": "uint32",
           "maximum": 1000000,
           "minimum": 0,
@@ -132,7 +132,7 @@
               "type": "null"
             }
           ],
-          "description": "An enemy that holds where it spawned and acts only while the main character is within\nits range, until a boss calls it; its star is a tier higher (ADR-068). Not a companion."
+          "description": "An enemy that holds where it spawned and acts only while the main character is within\nits range, until a boss calls it; its star is a tier higher. Not a companion."
         },
         "hp": {
           "format": "uint32",
@@ -162,7 +162,7 @@
               "type": "null"
             }
           ],
-          "description": "What it is weak and strong against (ADR-100); without one, every type is neutral against\nit. An enemy's or an elite's only: a companion has none."
+          "description": "What it is weak and strong against; without one, every type is neutral against\nit. An enemy's or an elite's only: a companion has none."
         },
         "radius": {
           "description": "Radius of the hurt circle.",
@@ -173,7 +173,7 @@
         },
         "rules": {
           "default": [],
-          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-036).",
+          "description": "Evaluated in order each tick; the first rule that can fire, fires (ADR-SIM-18).",
           "items": {
             "$ref": "#/$defs/Rule"
           },
@@ -220,14 +220,14 @@
     },
     "AttackPhase": {
       "additionalProperties": false,
-      "description": "One phase of an attack (ADR-055).",
+      "description": "One phase of an attack.",
       "properties": {
         "breaks_charge": {
           "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
         },
         "damage": {
-          "description": "Base damage of the phase's hits and of the zones it spawns (ADR-056). Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.",
+          "description": "Base damage of the phase's hits and of the zones it spawns. Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values) for an enemy or the boss.",
           "format": "uint32",
           "maximum": 1000000,
           "minimum": 1,
@@ -301,7 +301,7 @@
               "type": "null"
             }
           ],
-          "description": "The damage type of the phase's hits and of the zones it spawns (ADR-100); absent, they\nare neutral and never get a match-up."
+          "description": "The damage type of the phase's hits and of the zones it spawns; absent, they\nare neutral and never get a match-up."
         }
       },
       "required": [
@@ -500,7 +500,7 @@
     },
     "AttackView": {
       "additionalProperties": false,
-      "description": "An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
+      "description": "An attack in progress, for the frontend to draw its telegraph and its swing on the\nsame tick that `core` judges them.",
       "properties": {
         "at": {
           "anyOf": [
@@ -511,7 +511,7 @@
               "type": "null"
             }
           ],
-          "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit (ADR-099)."
+          "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit."
         },
         "facing": {
           "$ref": "#/$defs/Facing",
@@ -549,7 +549,7 @@
           "description": "The preset it came from; absent for an inline attack."
         },
         "slot": {
-          "description": "0 for an agent's or the boss's attacks and the main character's combo (ADR-069).",
+          "description": "0 for an agent's or the boss's attacks and the main character's combo.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -580,7 +580,7 @@
     },
     "Aura": {
       "additionalProperties": false,
-      "description": "What a pack leader does for the enemies near it (ADR-090). Every non-elite enemy whose centre\nis within `radius` of the leader's centre (the edge counts) deals its damage times\n`100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest\n`damage_percent` counts. It ends with the leader's death.",
+      "description": "What a pack leader does for the enemies near it. Every non-elite enemy whose centre\nis within `radius` of the leader's centre (the edge counts) deals its damage times\n`100 + damage_percent` over 100, rounded down; when several leaders reach it, the highest\n`damage_percent` counts. It ends with the leader's death.",
       "properties": {
         "damage_percent": {
           "description": "1 to `MAX_AURA_PERCENT`.",
@@ -604,7 +604,7 @@
       "type": "object"
     },
     "Blanket": {
-      "description": "A blanket resist: every attack type, or every element (ADR-100).",
+      "description": "A blanket resist: every attack type, or every element.",
       "enum": [
         "physical",
         "elements"
@@ -613,7 +613,7 @@
     },
     "Boss": {
       "additionalProperties": false,
-      "description": "Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.",
+      "description": "Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.",
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId"
@@ -627,10 +627,10 @@
               "type": "null"
             }
           ],
-          "description": "When every elite alive joins the boss fight (ADR-068); without it the boss calls none."
+          "description": "When every elite alive joins the boss fight; without it the boss calls none."
         },
         "defence": {
-          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.",
           "format": "uint32",
           "maximum": 1000000,
           "minimum": 0,
@@ -645,7 +645,7 @@
               "type": "null"
             }
           ],
-          "description": "The expertise points the boss gives (ADR-078 §2); none when absent."
+          "description": "The expertise points the boss gives; none when absent."
         },
         "hp": {
           "format": "uint32",
@@ -688,7 +688,7 @@
               "type": "null"
             }
           ],
-          "description": "What it is weak and strong against (ADR-100); without one, every type is neutral against\nit."
+          "description": "What it is weak and strong against; without one, every type is neutral against\nit."
         },
         "radius": {
           "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -735,21 +735,21 @@
         },
         {
           "const": "stay",
-          "description": "It is not called and does not leave: it stays where it is (the shrine's, ADR-090).",
+          "description": "It is not called and does not leave: it stays where it is (the shrine's).",
           "type": "string"
         }
       ]
     },
     "BossPart": {
       "additionalProperties": false,
-      "description": "A breakable part with its own HP and hurt circle (ADR-007, ADR-036).",
+      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).",
       "properties": {
         "asset": {
           "$ref": "#/$defs/ContentId",
           "description": "Asset ID of the part's sprite."
         },
         "defence": {
-          "description": "Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.",
+          "description": "Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.",
           "format": "uint32",
           "maximum": 1000000,
           "minimum": 0,
@@ -778,7 +778,7 @@
               "type": "null"
             }
           ],
-          "description": "Its own profile (ADR-100), not the boss's; without one, every type is neutral against it."
+          "description": "Its own profile, not the boss's; without one, every type is neutral against it."
         },
         "radius": {
           "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -866,7 +866,7 @@
           "description": "The set a named star belongs to and how far it is; absent for a reward in no set."
         },
         "hidden": {
-          "description": "A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
+          "description": "A random rune: which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
           "type": "boolean"
         },
         "named": {
@@ -941,7 +941,7 @@
     },
     "Charge": {
       "additionalProperties": false,
-      "description": "A charged step (ADR-070): the ticks held raise its level, and letting go attacks at the\nlevel reached; inside the level's perfect window it adds its perfect bonus. At `max_ticks`\nit releases by itself, without the bonus. Level 0, before the first of `levels`, is the\nstep's own attack. The frontend slows time from level 1; the rules do not.",
+      "description": "A charged step: the ticks held raise its level, and letting go attacks at the\nlevel reached; inside the level's perfect window it adds its perfect bonus. At `max_ticks`\nit releases by itself, without the bonus. Level 0, before the first of `levels`, is the\nstep's own attack. The frontend slows time from level 1; the rules do not.",
       "properties": {
         "levels": {
           "description": "Level 1 and up, in order of `at_ticks`, the first after 0.",
@@ -1020,7 +1020,7 @@
     },
     "ChargeView": {
       "additionalProperties": false,
-      "description": "A charge in progress (ADR-070). `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
+      "description": "A charge in progress. `core` judges the perfect window on this tick, so what the\nfrontend shows is what a release on the next tick gets.",
       "properties": {
         "held": {
           "description": "Ticks held since the step began to charge, 0 on its first tick.",
@@ -1029,7 +1029,7 @@
           "type": "integer"
         },
         "level": {
-          "description": "The level reached: 0 before level 1, when letting go is a plain step and the frontend\nkeeps its clock at full speed (ADR-071).",
+          "description": "The level reached: 0 before level 1, when letting go is a plain step and the frontend\nkeeps its clock at full speed.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -1049,10 +1049,10 @@
     },
     "ComboView": {
       "additionalProperties": false,
-      "description": "Where the main character is in its combos (ADR-070): what the frontend's combo trail draws,\nwith the next possible presses read from the weapon's tree.",
+      "description": "Where the main character is in its combos: what the frontend's combo trail draws,\nwith the next possible presses read from the weapon's tree.",
       "properties": {
         "auto": {
-          "description": "The auto combo: the presses auto mode plays from the root (ADR-073).",
+          "description": "The auto combo: the presses auto mode plays from the root.",
           "items": {
             "$ref": "#/$defs/Press"
           },
@@ -1215,7 +1215,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-036).",
+          "description": "The main character's centre is within `distance` of the agent's centre (the edge counts):\nan exploder's burst (ADR-SIM-18).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -1386,12 +1386,12 @@
       "type": "object"
     },
     "ContentId": {
-      "description": "A content ID from the registry (ADR-026): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "description": "A content ID from the registry (ADR-CONT-12): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
     "Countdown": {
       "additionalProperties": false,
-      "description": "A count-down in the snapshot (ADR-103): the ticks left and the ticks it started with.",
+      "description": "A count-down in the snapshot: the ticks left and the ticks it started with.",
       "properties": {
         "remaining": {
           "description": "Ticks left.",
@@ -1414,10 +1414,10 @@
     },
     "DamageOverTimeRune": {
       "additionalProperties": false,
-      "description": "A damage-over-time rune's numbers (ADR-099 point 2): the status a combo step's hit puts on\nthe enemy hit.",
+      "description": "A damage-over-time rune's numbers: the status a combo step's hit puts on\nthe enemy hit.",
       "properties": {
         "damage": {
-          "description": "The base damage of a tick for each stack, 1 to `MAX_DAMAGE` (ADR-056).",
+          "description": "The base damage of a tick for each stack, 1 to `MAX_DAMAGE`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -1452,7 +1452,7 @@
               "type": "null"
             }
           ],
-          "description": "Its ticks' damage type (ADR-100); absent, they are neutral."
+          "description": "Its ticks' damage type; absent, they are neutral."
         }
       },
       "required": [
@@ -1466,7 +1466,7 @@
     },
     "DamageOverTimeView": {
       "additionalProperties": false,
-      "description": "A damage-over-time status on an entity (ADR-099): bleed, poison or burn.",
+      "description": "A damage-over-time status on an entity: bleed, poison or burn.",
       "properties": {
         "next_tick_in": {
           "description": "Ticks until it next deals its damage, at least 1.",
@@ -1500,7 +1500,7 @@
       "type": "object"
     },
     "DamageType": {
-      "description": "The damage types, a closed list (ADR-100): three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change.",
+      "description": "The damage types, a closed list: three attack types, which are physical, and the\nelements. A list for the prototype; changing it is a schema change.",
       "enum": [
         "slash",
         "pierce",
@@ -1599,7 +1599,7 @@
               "type": "null"
             }
           ],
-          "description": "The expertise levels (ADR-106 point 4) in place of the mode's."
+          "description": "The expertise levels in place of the mode's."
         },
         "opens_after": {
           "anyOf": [
@@ -1621,13 +1621,13 @@
           "description": "The lowest rarity its drops and offers may have, over all six."
         },
         "rune_shards": {
-          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-4).",
+          "description": "The Rune Shards a clear of this difficulty pays (game design, Rewards), 0 to\n`MAX_RUNE_SHARDS`. The simulation never reads it; the app credits it (ADR-SAVE-13).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "stardust_tiers": {
-          "description": "The Stardust time factor's tiers (ADR-109 decision 2) in place of the mode's: as the\nmode file's `stardust_tiers`.",
+          "description": "The Stardust time factor's tiers in place of the mode's: as the\nmode file's `stardust_tiers`.",
           "items": {
             "$ref": "#/$defs/StardustTier"
           },
@@ -1761,7 +1761,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,\nthe stage skill, a burst or a damage-over-time tick; left out when neutral."
+                  "description": "The damage type the hit was dealt in, whatever its source: a weapon, a rune,\nthe stage skill, a burst or a damage-over-time tick; left out when neutral."
                 },
                 "echo": {
                   "description": "The hit is an echo of an earlier one, a tick later; left out when not.",
@@ -1769,7 +1769,7 @@
                 },
                 "match_up": {
                   "$ref": "#/$defs/MatchUp",
-                  "description": "The match-up the hit got (ADR-100); left out when none."
+                  "description": "The match-up the hit got; left out when none."
                 },
                 "player": {
                   "anyOf": [
@@ -1780,7 +1780,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-12)."
+                  "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21)."
                 },
                 "rune": {
                   "anyOf": [
@@ -1791,7 +1791,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "The rune that dealt the hit (ADR-099): the on-hit rune whose attack landed, or the\ndamage-over-time rune whose status ticked; left out for every other hit."
+                  "description": "The rune that dealt the hit: the on-hit rune whose attack landed, or the\ndamage-over-time rune whose status ticked; left out for every other hit."
                 },
                 "source": {
                   "$ref": "#/$defs/EntityId"
@@ -2002,7 +2002,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`target`'s stun ran out; it is immune to a new one for the immunity ticks (ADR-085).",
+          "description": "`target`'s stun ran out; it is immune to a new one for the immunity ticks.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2029,7 +2029,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character started an evade (ADR-074).",
+          "description": "The main character started an evade.",
           "properties": {
             "type": {
               "const": "Evaded",
@@ -2043,7 +2043,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character used its stage skill, at `level` (ADR-075).",
+          "description": "The main character used its stage skill, at `level`.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2077,7 +2077,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A press took a combo step (ADR-070): the step `depth` presses from the root.",
+          "description": "A press took a combo step: the step `depth` presses from the root.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2125,7 +2125,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A charged step was released at `level` (from 1; a release before level 1 is a plain step\nand says nothing), `perfect` inside the level's perfect window (ADR-070).",
+          "description": "A charged step was released at `level` (from 1; a release before level 1 is a plain step\nand says nothing), `perfect` inside the level's perfect window.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2173,7 +2173,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A held step's hold was let go, or reached its `max_ticks`, after `ticks` ticks held; its\nrelease attack follows (ADR-084 point 6).",
+          "description": "A held step's hold was let go, or reached its `max_ticks`, after `ticks` ticks held; its\nrelease attack follows.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2216,7 +2216,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).",
+          "description": "An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2432,7 +2432,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character reached `level` (ADR-079 §2): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
+          "description": "The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2461,7 +2461,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-079 §4, DS18).",
+          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-REPL-16, DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2525,7 +2525,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A kill dropped the falling star `star` (ADR-079 §2).",
+          "description": "A kill dropped the falling star `star` (ADR-REPL-16).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2614,7 +2614,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The boss called its elites: the `elites` alive leave their places and fight beside it,\nand every elite that comes later is called at once (ADR-068).",
+          "description": "The boss called its elites: the `elites` alive leave their places and fight beside it,\nand every elite that comes later is called at once.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2643,7 +2643,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`\n(ADR-090); for a mimic, the sprite it is disguised as. Not sent when the cap on elites\nalive held it back.",
+          "description": "An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`\n; for a mimic, the sprite it is disguised as. Not sent when the cap on elites\nalive held it back.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2712,7 +2712,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The elite `elite` left the map without dying: no kill, no reward (ADR-090).",
+          "description": "The elite `elite` left the map without dying: no kill, no reward.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2739,7 +2739,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character touched the shrine `elite`: its guardians appeared and its timer began\n(ADR-090).",
+          "description": "The main character touched the shrine `elite`: its guardians appeared and its timer began\n.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2766,7 +2766,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character came within the mimic `elite`'s reveal radius: it is no longer\ndisguised, takes damage and acts as a grade elite from now on. Sent once (ADR-090).",
+          "description": "The main character came within the mimic `elite`'s reveal radius: it is no longer\ndisguised, takes damage and acts as a grade elite from now on. Sent once.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2793,7 +2793,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character's hit box broke the breakable orb of `owner` at `at`, and its burst did\nnot run (core Z2, ADR-127 point 37).",
+          "description": "The main character's hit box broke the breakable orb of `owner` at `at`, and its burst did\nnot run (core Z2).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2824,7 +2824,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An offer opened, and the world stopped until a choice closes it (ADR-079 §3).",
+          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2862,7 +2862,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The reward was taken: the run now has it `taken` times. For a random rune, `rune` is\nthe rune it drew, now on the Main weapon (ADR-099).",
+          "description": "The reward was taken: the run now has it `taken` times. For a random rune, `rune` is\nthe rune it drew, now on the Main weapon.",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3022,7 +3022,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-106 §4, §5; ADR-079 §2, §3).",
+          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-16).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3225,11 +3225,11 @@
               "type": "null"
             }
           ],
-          "description": "A pack leader's aura (ADR-090): while it is alive, the non-elite enemies near it deal more."
+          "description": "A pack leader's aura: while it is alive, the non-elite enemies near it deal more."
         },
         "boss_call": {
           "$ref": "#/$defs/BossCall",
-          "description": "What the boss's call does to it (ADR-090); `join` when absent."
+          "description": "What the boss's call does to it; `join` when absent."
         },
         "escort": {
           "anyOf": [
@@ -3240,7 +3240,7 @@
               "type": "null"
             }
           ],
-          "description": "A pack leader's escort (ADR-090): ordinary enemies that spawn with it on a ring around it.\nKept here, with the aura, because both are about what makes this enemy an elite of its\nkind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`)."
+          "description": "A pack leader's escort: ordinary enemies that spawn with it on a ring around it.\nKept here, with the aura, because both are about what makes this enemy an elite of its\nkind, as `boss_call` is; the ring is the shrine's guardians' (`Guardians`)."
         },
         "mimic": {
           "anyOf": [
@@ -3251,7 +3251,7 @@
               "type": "null"
             }
           ],
-          "description": "A mimic's disguise (ADR-090): until the main character comes near, it is drawn as another\nsprite and nothing can touch it. Kept here, with the aura and the escort, because it is\nabout what makes this enemy an elite of its kind."
+          "description": "A mimic's disguise: until the main character comes near, it is drawn as another\nsprite and nothing can touch it. Kept here, with the aura and the escort, because it is\nabout what makes this enemy an elite of its kind."
         },
         "range": {
           "description": "How near the main character's centre must come to its centre for its rules to fire.",
@@ -3292,7 +3292,7 @@
     },
     "EliteType": {
       "additionalProperties": false,
-      "description": "An elite type (ADR-090): a content ID (ADR-026) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite (ADR-068). A grade is a type; later kinds of elite add entries.",
+      "description": "An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite. A grade is a type; later kinds of elite add entries.",
       "properties": {
         "enemy": {
           "$ref": "#/$defs/Agent",
@@ -3620,7 +3620,7 @@
       ]
     },
     "EntityId": {
-      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-036).",
+      "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-18).",
       "format": "uint32",
       "minimum": 0,
       "type": "integer"
@@ -3638,7 +3638,7 @@
         },
         {
           "const": "shrine",
-          "description": "An elite object that is not an enemy: it cannot be damaged and fights through its\nguardians, who are `Enemy`s (ADR-090). Its `elite` flag is set.",
+          "description": "An elite object that is not an enemy: it cannot be damaged and fights through its\nguardians, who are `Enemy`s. Its `elite` flag is set.",
           "type": "string"
         }
       ]
@@ -3664,7 +3664,7 @@
           "description": "The attack it is making, if any."
         },
         "aura_radius": {
-          "description": "A pack leader's aura (ADR-090): the radius, around `at`, within which the non-elite\nenemies deal more damage for as long as this entity is there to be drawn.",
+          "description": "A pack leader's aura: the radius, around `at`, within which the non-elite\nenemies deal more damage for as long as this entity is there to be drawn.",
           "format": "int32",
           "type": [
             "integer",
@@ -3672,18 +3672,18 @@
           ]
         },
         "damage_over_time": {
-          "description": "Its damage-over-time statuses (ADR-099), one of a kind at most.",
+          "description": "Its damage-over-time statuses, one of a kind at most.",
           "items": {
             "$ref": "#/$defs/DamageOverTimeView"
           },
           "type": "array"
         },
         "disguised": {
-          "description": "A mimic that is still disguised (ADR-090): `asset` is its disguise and `elite` is false,\nso the app draws an object and the minimap shows nothing. Absent when false.",
+          "description": "A mimic that is still disguised: `asset` is its disguise and `elite` is false,\nso the app draws an object and the minimap shows nothing. Absent when false.",
           "type": "boolean"
         },
         "elite": {
-          "description": "An elite enemy (ADR-068), which the minimap shows wherever it is.",
+          "description": "An elite enemy, which the minimap shows wherever it is.",
           "type": "boolean"
         },
         "fight": {
@@ -3695,7 +3695,7 @@
               "type": "null"
             }
           ],
-          "description": "A shrine's running fight (ADR-090, ADR-103): the ticks left before it leaves unkilled.\nAbsent for every other entity, and for a shrine nobody has touched."
+          "description": "A shrine's running fight: the ticks left before it leaves unkilled.\nAbsent for every other entity, and for a shrine nobody has touched."
         },
         "hp": {
           "format": "uint32",
@@ -3735,7 +3735,7 @@
           "type": "integer"
         },
         "statuses": {
-          "description": "Its statuses and auras, sorted by ID (ADR-103 decision 3).",
+          "description": "Its statuses and auras, sorted by ID.",
           "items": {
             "$ref": "#/$defs/StatusView"
           },
@@ -3754,7 +3754,7 @@
     },
     "Evade": {
       "additionalProperties": false,
-      "description": "A dash with invulnerability (ADR-050), on charges (ADR-074). A press with a charge ready\ndashes `distance` over `ticks`, along the movement direction, or along the facing when the\nstick is centred; the stick is ignored until the dash ends, and a press during it with a\ncharge ready starts the next dash at once. Invulnerability counts from the press, and so\ndoes the cooldown of the charge it spent: each spent charge recovers on its own timer.",
+      "description": "A dash with invulnerability, on charges. A press with a charge ready\ndashes `distance` over `ticks`, along the movement direction, or along the facing when the\nstick is centred; the stick is ignored until the dash ends, and a press during it with a\ncharge ready starts the next dash at once. Invulnerability counts from the press, and so\ndoes the cooldown of the charge it spent: each spent charge recovers on its own timer.",
       "properties": {
         "charges": {
           "description": "The charges a run starts with: 1 when absent.",
@@ -3782,7 +3782,7 @@
           "type": "integer"
         },
         "max_charges": {
-          "description": "The most charges rewards can raise it to (ADR-074): `charges` when absent.",
+          "description": "The most charges rewards can raise it to: `charges` when absent.",
           "format": "uint8",
           "maximum": 3,
           "minimum": 1,
@@ -3808,7 +3808,7 @@
     },
     "EvadeView": {
       "additionalProperties": false,
-      "description": "The evade and its charges (ADR-074).",
+      "description": "The evade and its charges.",
       "properties": {
         "charges": {
           "description": "The charges held, ready or recovering: from the stage's `charges`, raised by rewards up\nto its `max_charges`.",
@@ -3877,7 +3877,7 @@
         },
         {
           "const": "range_pct",
-          "description": "Every combo step's hit box `amount` percent larger, as the range reward widens it\n(ADR-070, ADR-099), at most `MAX_RANGE_PCT`.",
+          "description": "Every combo step's hit box `amount` percent larger, as the range reward widens it,\nat most `MAX_RANGE_PCT`.",
           "type": "string"
         }
       ]
@@ -3925,7 +3925,7 @@
       "type": "object"
     },
     "ExpertiseOfferKind": {
-      "description": "What an expertise level offers (ADR-078 §4, §5).",
+      "description": "What an expertise level offers.",
       "oneOf": [
         {
           "const": "common",
@@ -3951,7 +3951,7 @@
     },
     "ExpertiseOfferView": {
       "additionalProperties": false,
-      "description": "An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
+      "description": "An expertise offer (ADR-REPL-16). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
       "properties": {
         "candidates": {
           "items": {
@@ -4018,7 +4018,7 @@
     },
     "ExpertisePoints": {
       "additionalProperties": false,
-      "description": "What a hit and a kill by an A or a B step of a combo add to the one expertise gauge\n(ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.\nA hit on a boss part gives the boss's points per hit; its break is not a kill.",
+      "description": "What a hit and a kill by an A or a B step of a combo add to the one expertise gauge\n: elites, bosses and the Star-Hunter give far more. Other damage gives none.\nA hit on a boss part gives the boss's points per hit; its break is not a kill.",
       "properties": {
         "hit": {
           "description": "Points per hit, at most `MAX_EXPERTISE_PER_HIT`.",
@@ -4043,7 +4043,7 @@
     },
     "ExpertiseView": {
       "additionalProperties": false,
-      "description": "The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken (ADR-078 §5), and the open expertise offer (ADR-079 §3).",
+      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-16).",
       "properties": {
         "level": {
           "description": "From 0, with no highest level.",
@@ -4140,7 +4140,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
+          "description": "A draw from the run's SplitMix64 (ADR-SIM-16), from `lo` to `hi` inclusive; `lo` if the\nrange is empty. Expressions are evaluated left to right, so the order of draws is fixed.",
           "properties": {
             "rand": {
               "maxItems": 2,
@@ -4327,7 +4327,7 @@
           "type": "integer"
         }
       ],
-      "description": "A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
+      "description": "A fixed-point expression (ADR-SIM-18): a literal, an input, or an operator. No variables,\nloops or recursion beyond the tree itself."
     },
     "Facing": {
       "additionalProperties": false,
@@ -4397,7 +4397,7 @@
     },
     "Healing": {
       "additionalProperties": false,
-      "description": "Healing (see `Stage::heal`). Hit points are in the stage's own scale (ADR-103).",
+      "description": "Healing (see `Stage::heal`). Hit points are in the stage's own scale.",
       "properties": {
         "amount": {
           "description": "The hit points a pickup heals when the main character takes it, from 1 up.",
@@ -4610,7 +4610,7 @@
     },
     "Hold": {
       "additionalProperties": false,
-      "description": "A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a\nrelease attack when it is let go, or at `max_ticks`. The hold begins where the step's\nrecovery after its last `active` phase would, so that phase is the hold's place.",
+      "description": "A held step: an attack that goes on while the button stays held, then a\nrelease attack when it is let go, or at `max_ticks`. The hold begins where the step's\nrecovery after its last `active` phase would, so that phase is the hold's place.",
       "properties": {
         "loop": {
           "$ref": "#/$defs/AttackRef",
@@ -4644,7 +4644,7 @@
     },
     "HoldView": {
       "additionalProperties": false,
-      "description": "A hold in progress (ADR-084 point 6): the ticks held so far, 0 on the tick it began, and the\nmost it can last. The release comes on the tick the button is let go or the maximum is reached.",
+      "description": "A hold in progress: the ticks held so far, 0 on the tick it began, and the\nmost it can last. The release comes on the tick the button is let go or the maximum is reached.",
       "properties": {
         "held": {
           "format": "uint32",
@@ -4667,11 +4667,11 @@
       "additionalProperties": false,
       "properties": {
         "assist": {
-          "description": "Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.",
+          "description": "Aim assist is on for this tick, a switch: a combo step faces the target.",
           "type": "boolean"
         },
         "auto": {
-          "description": "Auto mode is on for this tick, a switch (ADR-073): the simulation plays the auto combo\nat the target. Its presses come from the state, never from this record.",
+          "description": "Auto mode is on for this tick, a switch: the simulation plays the auto combo\nat the target. Its presses come from the state, never from this record.",
           "type": "boolean"
         },
         "evade": {
@@ -4679,15 +4679,15 @@
           "type": "boolean"
         },
         "interact": {
-          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-13). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-21). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
           "type": "boolean"
         },
         "main": {
-          "description": "The Main attack button (A) is held on this tick (ADR-070).",
+          "description": "The Main attack button (A) is held on this tick.",
           "type": "boolean"
         },
         "move_x": {
-          "description": "Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation\nclamps the vector to length 127 and scales it to the character's speed (ADR-071).",
+          "description": "Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation\nclamps the vector to length 127 and scales it to the character's speed.",
           "format": "int8",
           "maximum": 127,
           "minimum": -128,
@@ -4700,7 +4700,7 @@
           "type": "integer"
         },
         "pick": {
-          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-3). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
+          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -4709,11 +4709,11 @@
           ]
         },
         "skill": {
-          "description": "The stage skill button (Y) is held on this tick: a press uses the skill in the slot when\nit is ready (ADR-075).",
+          "description": "The stage skill button (Y) is held on this tick: a press uses the skill in the slot when\nit is ready.",
           "type": "boolean"
         },
         "smash": {
-          "description": "The smash button (B) is held on this tick (ADR-070).",
+          "description": "The smash button (B) is held on this tick.",
           "type": "boolean"
         }
       },
@@ -4744,14 +4744,14 @@
           ]
         },
         "difficulties": {
-          "description": "The difficulties (ADR-110).",
+          "description": "The difficulties.",
           "items": {
             "$ref": "#/$defs/IntroducedId"
           },
           "type": "array"
         },
         "elite_types": {
-          "description": "The elite types of the `time_limit` mode file (ADR-090).",
+          "description": "The elite types of the `time_limit` mode file.",
           "items": {
             "$ref": "#/$defs/IntroducedId"
           },
@@ -4765,7 +4765,7 @@
           "type": "array"
         },
         "perk_sets": {
-          "description": "The perk sets (ADR-105).",
+          "description": "The perk sets.",
           "items": {
             "$ref": "#/$defs/IntroducedId"
           },
@@ -4829,7 +4829,7 @@
     },
     "LevelTable": {
       "additionalProperties": false,
-      "description": "The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of\neach of the two style upgrades and of the capstone. Every other level is a common offer.\nThe levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.",
+      "description": "The expertise levels of a run's style path: the level of the style choice, of\neach of the two style upgrades and of the capstone. Every other level is a common offer.\nThe levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.",
       "properties": {
         "capstone": {
           "format": "uint32",
@@ -4979,7 +4979,7 @@
       "type": "object"
     },
     "MatchUp": {
-      "description": "The match-up a hit got (ADR-100), which the `Hit` event reports.",
+      "description": "The match-up a hit got, which the `Hit` event reports.",
       "enum": [
         "weak",
         "strong",
@@ -5030,11 +5030,11 @@
     },
     "Mimic": {
       "additionalProperties": false,
-      "description": "What a mimic is (ADR-090). It starts disguised: it does not move or attack, nothing damages\nit, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick\nthe main character's centre is within `reveal_radius` of its centre (the edge counts) it\nreveals, for good: from that tick's collisions on it takes damage, and from the next tick it\nacts by its movement and rules like a grade elite. The boss's call skips it while it is\ndisguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,\nshrine or flee movement.",
+      "description": "What a mimic is. It starts disguised: it does not move or attack, nothing damages\nit, aim assist and the selectors pass it over, and it is drawn as `disguise`. The first tick\nthe main character's centre is within `reveal_radius` of its centre (the edge counts) it\nreveals, for good: from that tick's collisions on it takes damage, and from the next tick it\nacts by its movement and rules like a grade elite. The boss's call skips it while it is\ndisguised and calls it once it is revealed. Needs `boss_call` `join`, and no aura, escort,\nshrine or flee movement.",
       "properties": {
         "disguise": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-007)."
+          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-CONT-17)."
         },
         "reveal_radius": {
           "description": "1 to `MAX_LEN`.",
@@ -5094,7 +5094,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-058).",
+          "description": "Circles the main character. A companion is set on its circle; an enemy moves to its\nplace on it, at most its orbit step plus 4 pixels a tick (ADR-SIM-19).",
           "properties": {
             "radius": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5116,7 +5116,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-058).",
+          "description": "Trails the main character at a distance, at most `speed` a tick (a tank's is slower);\nabsent, 4 pixels a tick as it always was (ADR-SIM-19).",
           "properties": {
             "distance": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5148,7 +5148,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-058).",
+          "description": "Keeps to a point. A companion is set on it; an enemy walks to it from where it is, at\nmost 4 pixels a tick, and walks back when it is pushed off it (ADR-SIM-19).",
           "properties": {
             "at": {
               "$ref": "#/$defs/Point"
@@ -5192,7 +5192,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An elite's (it needs the `elite` field): holds its place until it is disturbed, by\ndamage or by the main character coming within `disturb_radius` of its centre, then runs\ndirectly away from the main character at `speed` a tick, kept on the map, and leaves it\nunkilled `leave_after_ticks` ticks after the disturbance (ADR-090).",
+          "description": "An elite's (it needs the `elite` field): holds its place until it is disturbed, by\ndamage or by the main character coming within `disturb_radius` of its centre, then runs\ndirectly away from the main character at `speed` a tick, kept on the map, and leaves it\nunkilled `leave_after_ticks` ticks after the disturbance.",
           "properties": {
             "disturb_radius": {
               "description": "A length in 1/256 pixel units. In files it is the plain integer.",
@@ -5224,7 +5224,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be\ndamaged and does nothing until the main character's body touches it. It then activates\nonce: its guardians appear on a ring around it and it gives its kill reward when they are\nall dead within `fight_ticks` ticks of the touch, else it leaves unkilled (ADR-090).",
+          "description": "An elite's (it needs the `elite` field, with `boss_call` `stay`): an object that cannot be\ndamaged and does nothing until the main character's body touches it. It then activates\nonce: its guardians appear on a ring around it and it gives its kill reward when they are\nall dead within `fight_ticks` ticks of the touch, else it leaves unkilled.",
           "properties": {
             "fight_ticks": {
               "format": "uint32",
@@ -5249,7 +5249,7 @@
       ]
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-079 §2).",
+      "description": "What opened an offer (ADR-REPL-16).",
       "oneOf": [
         {
           "const": "star",
@@ -5347,7 +5347,7 @@
     },
     "OfferView": {
       "additionalProperties": false,
-      "description": "An offer from a falling star (ADR-079 §3).",
+      "description": "An offer from a falling star (ADR-REPL-16).",
       "properties": {
         "banishes_left": {
           "format": "uint32",
@@ -5411,7 +5411,7 @@
     },
     "OnHitRune": {
       "additionalProperties": false,
-      "description": "An on-hit rune's numbers (ADR-099 point 2).",
+      "description": "An on-hit rune's numbers.",
       "properties": {
         "attack": {
           "description": "Its attack's phases, 1 to `MAX_RUNE_PHASES`: hit boxes centred on the point hit, facing\nthe way the main character faces as it fires; a phase's `type` is its hits' damage type.",
@@ -5427,7 +5427,7 @@
           "type": "integer"
         },
         "damage": {
-          "description": "The base damage of its attack's hits, 1 to `MAX_DAMAGE` (ADR-056).",
+          "description": "The base damage of its attack's hits, 1 to `MAX_DAMAGE`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -5442,7 +5442,7 @@
           ]
         },
         "range": {
-          "description": "Homing missiles only: how far from the main character its targets may be, 1 to\n`MAX_ASSIST_RANGE`, as aim assist's range (ADR-072).",
+          "description": "Homing missiles only: how far from the main character its targets may be, 1 to\n`MAX_ASSIST_RANGE`, as aim assist's range.",
           "format": "int32",
           "type": [
             "integer",
@@ -5523,7 +5523,7 @@
     },
     "Orbit": {
       "additionalProperties": false,
-      "description": "Orbs that turn round the main character and attack on their own (ADR-069). Each orb runs\n`attack` in an attack slot of its own, at the main character's attack stat, its facing\nturned `turn_per_tick` further every tick and the orbs spaced evenly round the turn: the\nattack's hit box offset is how far out an orb is. A round of attacks starts when the orbit\narrives and again `cooldown_ticks` after a round's start, once the round before has ended.",
+      "description": "Orbs that turn round the main character and attack on their own. Each orb runs\n`attack` in an attack slot of its own, at the main character's attack stat, its facing\nturned `turn_per_tick` further every tick and the orbs spaced evenly round the turn: the\nattack's hit box offset is how far out an orb is. A round of attacks starts when the orbit\narrives and again `cooldown_ticks` after a round's start, once the round before has ended.",
       "properties": {
         "attack": {
           "$ref": "#/$defs/AttackRef",
@@ -5550,7 +5550,7 @@
     },
     "OrbitView": {
       "additionalProperties": false,
-      "description": "An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots\n`2 + 8 × its place in orbits` and on.",
+      "description": "An orbit held. Its orbs' attacks are in the main character's `attacks`, in slots\n`2 + 8 × its place in orbits` and on.",
       "properties": {
         "cooldown_left": {
           "description": "Ticks until the next round may start, counted from the last one's start; 0 while a\nround that outlasts it goes on.",
@@ -5588,7 +5588,7 @@
         },
         {
           "const": "cleared",
-          "description": "The stage was cleared: this is what a replay has to prove (ADR-009).",
+          "description": "The stage was cleared: this is what a replay has to prove (ADR-REPL-17).",
           "type": "string"
         },
         {
@@ -5672,7 +5672,7 @@
               "type": "null"
             }
           ],
-          "description": "The rules the app pays a failed run's Stardust by (ADR-101 point 4). Optional: a pack\nreleased before it yields the bundled file."
+          "description": "The rules the app pays a failed run's Stardust by. Optional: a pack\nreleased before it yields the bundled file."
         },
         "starting_unlocks": {
           "anyOf": [
@@ -5722,7 +5722,7 @@
         },
         "tutorial": {
           "$ref": "#/$defs/Stage",
-          "description": "The `tutorial` mode's stage, checked as any stage is (ADR-086)."
+          "description": "The `tutorial` mode's stage, checked as any stage is."
         }
       },
       "required": [
@@ -5765,7 +5765,7 @@
     },
     "PatternView": {
       "additionalProperties": false,
-      "description": "A big pattern announced in the snapshot (ADR-103): its content ID, the ticks the count-down\nstarted with and the ticks left until it starts.",
+      "description": "A big pattern announced in the snapshot: its content ID, the ticks the count-down\nstarted with and the ticks left until it starts.",
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId"
@@ -5958,7 +5958,7 @@
     },
     "Player": {
       "additionalProperties": false,
-      "description": "The main character, as the creator configured it; challengers get exactly this (ADR-012).",
+      "description": "The main character, as the creator configured it; challengers get exactly this.",
       "properties": {
         "atk": {
           "format": "uint32",
@@ -5970,7 +5970,7 @@
           "$ref": "#/$defs/ContentId"
         },
         "defence": {
-          "description": "Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the\nrun's setup when the setup exists (ADR-049).",
+          "description": "Reduces every hit the main character takes; 0 when absent. It moves to the\nrun's setup when the setup exists.",
           "format": "uint32",
           "maximum": 1000000,
           "minimum": 0,
@@ -5978,7 +5978,7 @@
         },
         "evade": {
           "$ref": "#/$defs/Evade",
-          "description": "Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists\n(ADR-049)."
+          "description": "Skill 1. It moves to the run's setup with the character when the setup exists\n."
         },
         "hp": {
           "format": "uint32",
@@ -5988,7 +5988,7 @@
         },
         "weapon": {
           "$ref": "#/$defs/WeaponRef",
-          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n(ADR-084). It moves to the run's setup when the setup exists (ADR-049, ADR-051, ADR-107)."
+          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n. It moves to the run's setup when the setup exists (ADR-REPL-16)."
         }
       },
       "required": [
@@ -6007,14 +6007,14 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came (ADR-069), then from 34 one for each\non-hit rune, by its place in `Rune::ALL` (ADR-099).",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came, then from 34 one for each\non-hit rune, by its place in `Rune::ALL`.",
           "items": {
             "$ref": "#/$defs/AttackView"
           },
           "type": "array"
         },
         "auto_charge": {
-          "description": "The level auto mode is charging the current step to, while it is (ADR-114): its own\nfield, so `charge` stays the player's and the frontend slows only for that (ADR-071\npoint 3), never for auto mode.",
+          "description": "The level auto mode is charging the current step to, while it is: its own\nfield, so `charge` stays the player's and the frontend slows only for that, never for auto mode.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -6047,11 +6047,11 @@
               "type": "null"
             }
           ],
-          "description": "The current step charging, if it is (ADR-070)."
+          "description": "The current step charging, if it is."
         },
         "combo": {
           "$ref": "#/$defs/ComboView",
-          "description": "Where it is in its Main weapon's combos (ADR-070)."
+          "description": "Where it is in its Main weapon's combos."
         },
         "crit_chance_pct": {
           "description": "What the combat rewards taken add up to (core#NS2b): the chance of a crit in percent\n(at most 75), a crit's bonus damage beyond twice (at most 300), an echo's percent of a\nhit (at most 100), and a kill burst's percent of max hit points, radius in pixels and\nchain depth; each 0 while none is held.",
@@ -6074,7 +6074,7 @@
         },
         "facing": {
           "$ref": "#/$defs/Facing",
-          "description": "The last non-zero movement direction (ADR-055)."
+          "description": "The last non-zero movement direction."
         },
         "hold": {
           "anyOf": [
@@ -6085,7 +6085,7 @@
               "type": "null"
             }
           ],
-          "description": "The current step held, if it is (ADR-084 point 6)."
+          "description": "The current step held, if it is."
         },
         "hp": {
           "format": "uint32",
@@ -6110,7 +6110,7 @@
           "type": "integer"
         },
         "orbits": {
-          "description": "The orbits rewards gave, in the order they came (ADR-069).",
+          "description": "The orbits rewards gave, in the order they came.",
           "items": {
             "$ref": "#/$defs/OrbitView"
           },
@@ -6139,19 +6139,19 @@
           "type": "integer"
         },
         "range_pct": {
-          "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.",
+          "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT`. The wider hit boxes are already in `attacks`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "rune_haste_pct": {
-          "description": "What the Rune Haste rewards taken add up to, in percent, before the clamp at\nthe rewards file's `max_rune_haste_pct` (ADR-099). The shorter cooldowns and intervals are already in the\nrunes' cooldowns and the statuses' timers.",
+          "description": "What the Rune Haste rewards taken add up to, in percent, before the clamp at\nthe rewards file's `max_rune_haste_pct`. The shorter cooldowns and intervals are already in the\nrunes' cooldowns and the statuses' timers.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "runes": {
-          "description": "The runes its Main weapon holds, in the order drawn (ADR-099).",
+          "description": "The runes its Main weapon holds, in the order drawn.",
           "items": {
             "$ref": "#/$defs/RuneView"
           },
@@ -6177,7 +6177,7 @@
               "type": "null"
             }
           ],
-          "description": "The stage skill in its slot, if a reward has filled it (ADR-075)."
+          "description": "The stage skill in its slot, if a reward has filled it."
         },
         "skill_cooldown_pct": {
           "description": "What the skill cooldown rewards taken add up to, in percent, before the clamp at\n`MAX_SKILL_COOLDOWN_TOTAL_PCT`: the stage skill's cooldown is already that much shorter.",
@@ -6186,7 +6186,7 @@
           "type": "integer"
         },
         "statuses": {
-          "description": "Its statuses, sorted by ID (ADR-103 decision 3): the timed buffs and debuffs it holds.",
+          "description": "Its statuses, sorted by ID: the timed buffs and debuffs it holds.",
           "items": {
             "$ref": "#/$defs/StatusView"
           },
@@ -6201,10 +6201,10 @@
               "type": "null"
             }
           ],
-          "description": "The enemy aim assist and auto mode would face, while either is on (ADR-072), so the\nfrontend can mark it."
+          "description": "The enemy aim assist and auto mode would face, while either is on, so the\nfrontend can mark it."
         },
         "type_bonuses": {
-          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n(ADR-100).",
+          "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n.",
           "items": {
             "$ref": "#/$defs/TypeBonusView"
           },
@@ -6244,7 +6244,7 @@
       "type": "object"
     },
     "Press": {
-      "description": "Which button's press took a combo step (ADR-070): A or B.",
+      "description": "Which button's press took a combo step: A or B.",
       "enum": [
         "main",
         "smash"
@@ -6253,7 +6253,7 @@
     },
     "Profile": {
       "additionalProperties": false,
-      "description": "What an enemy, an elite, a boss or a boss part is weak and strong against (ADR-100). The\nvalidator holds each type at most once in each list, and never in both.",
+      "description": "What an enemy, an elite, a boss or a boss part is weak and strong against. The\nvalidator holds each type at most once in each list, and never in both.",
       "properties": {
         "resist": {
           "anyOf": [
@@ -6283,7 +6283,7 @@
     },
     "ProgressView": {
       "additionalProperties": false,
-      "description": "Where the run stands in experience, levels and stat points (ADR-079 §2, §4).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-REPL-16).",
       "properties": {
         "level": {
           "description": "From 1.",
@@ -6300,10 +6300,10 @@
               "type": "null"
             }
           ],
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-079 §3)."
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-16)."
         },
         "spent": {
-          "description": "Points spent on each run stat, in the run stats' order (ADR-067).",
+          "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-11).",
           "items": {
             "format": "uint8",
             "maximum": 255,
@@ -6371,7 +6371,7 @@
       "type": "object"
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-079 §2).",
+      "description": "A reward's rarity, from the most common up (ADR-REPL-16).",
       "enum": [
         "common",
         "uncommon",
@@ -6384,7 +6384,7 @@
     },
     "RarityCost": {
       "additionalProperties": false,
-      "description": "What carrying a star of one rarity costs, in Lumine (ADR-107 point 2).",
+      "description": "What carrying a star of one rarity costs, in Lumine.",
       "properties": {
         "lumine_cost": {
           "description": "Its cost in Lumine, 1 to `run_setup::MAX_LUMINE`.",
@@ -6457,7 +6457,7 @@
       "additionalProperties": false,
       "properties": {
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick (ADR-019), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
+          "description": "The FNV-1a 64 state hash after the last tick (ADR-SIM-17), 16 lowercase hex digits. Hex,\nbecause JSON readers that use doubles cannot hold every 64-bit integer.",
           "type": "string"
         },
         "inputs": {
@@ -6465,7 +6465,7 @@
           "type": "string"
         },
         "schema_version": {
-          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-7).",
+          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-13).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6477,7 +6477,7 @@
           "type": "integer"
         },
         "sim_version": {
-          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-7).",
+          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-13).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6506,7 +6506,7 @@
     },
     "Reward": {
       "additionalProperties": false,
-      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-026).",
+      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-CONT-12).",
       "properties": {
         "amount": {
           "default": null,
@@ -6657,27 +6657,27 @@
         },
         {
           "const": "stage_skill",
-          "description": "The stage skill the reward's `skill` names, `amount` levels of it (ADR-075).",
+          "description": "The stage skill the reward's `skill` names, `amount` levels of it.",
           "type": "string"
         },
         {
           "const": "evade_charge",
-          "description": "`amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready\n(ADR-074).",
+          "description": "`amount` more evade charges, never beyond the stage's `max_charges`; each arrives ready\n.",
           "type": "string"
         },
         {
           "const": "orbit",
-          "description": "The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS` (ADR-069).",
+          "description": "The reward's `orbit`, with `amount` more orbs, never beyond `MAX_ORBS`.",
           "type": "string"
         },
         {
           "const": "range_pct",
-          "description": "Every combo step of the Main weapon `amount` percent wider, as the expertise range\noption widens it, adding up over the picks (ADR-099).",
+          "description": "Every combo step of the Main weapon `amount` percent wider, as the expertise range\noption widens it, adding up over the picks.",
           "type": "string"
         },
         {
           "const": "type_bonus_pct",
-          "description": "The main character's attacks of the reward's `type` `amount` percent stronger (ADR-100).",
+          "description": "The main character's attacks of the reward's `type` `amount` percent stronger.",
           "type": "string"
         },
         {
@@ -6692,12 +6692,12 @@
         },
         {
           "const": "rune_haste",
-          "description": "Every on-hit rune's cooldown and every damage-over-time tick interval the main character\napplies `amount` percent of haste shorter, adding up over the picks (ADR-099): see\n`rune_haste_ticks`.",
+          "description": "Every on-hit rune's cooldown and every damage-over-time tick interval the main character\napplies `amount` percent of haste shorter, adding up over the picks: see\n`rune_haste_ticks`.",
           "type": "string"
         },
         {
           "const": "random_rune",
-          "description": "One rune the Main weapon does not hold, drawn from the run's generator when the reward\nis picked, never before: an offer shows it hidden (ADR-099). It is offered only while\nthe Main lacks a rune.",
+          "description": "One rune the Main weapon does not hold, drawn from the run's generator when the reward\nis picked, never before: an offer shows it hidden. It is offered only while\nthe Main lacks a rune.",
           "type": "string"
         },
         {
@@ -6776,7 +6776,7 @@
           ]
         },
         "rarities": {
-          "description": "What carrying a star of each rarity costs, in Lumine (ADR-107 point 2): every rarity\nonce, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars\nare priced from this list.",
+          "description": "What carrying a star of each rarity costs, in Lumine: every rarity\nonce, from common up, each 1 to `run_setup::MAX_LUMINE`. The run setup's carried stars\nare priced from this list.",
           "items": {
             "$ref": "#/$defs/RarityCost"
           },
@@ -6798,7 +6798,7 @@
     },
     "Rule": {
       "additionalProperties": false,
-      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-036).",
+      "description": "`when <condition>` → `target <selector>` → `do <action>` (ADR-SIM-18).",
       "properties": {
         "charges": {
           "description": "Times the rule may fire; absent means unlimited.",
@@ -6848,25 +6848,25 @@
       "description": "The rules file.",
       "properties": {
         "aggro_decay": {
-          "description": "Aggro lost every tick (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro lost every tick (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_buff": {
-          "description": "Aggro raised by a buff (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.",
+          "description": "Aggro raised by a buff (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_damage": {
-          "description": "Aggro raised per point of damage dealt (ADR-036), in stored units: 0 to 100.",
+          "description": "Aggro raised per point of damage dealt (ADR-SIM-18), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "aggro_per_heal_point": {
-          "description": "Aggro raised per point healed (ADR-036), in stored units: 0 to 100.",
+          "description": "Aggro raised per point healed (ADR-SIM-18), in stored units: 0 to 100.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6903,7 +6903,7 @@
           "type": "integer"
         },
         "defence_k": {
-          "description": "The defence that halves a hit (ADR-056), in stored units: 1 to 1,000,000.",
+          "description": "The defence that halves a hit, in stored units: 1 to 1,000,000.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6935,7 +6935,7 @@
           "type": "integer"
         },
         "offer_size": {
-          "description": "The base candidates of an offer (ADR-079): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+          "description": "The base candidates of an offer (ADR-REPL-16): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -6953,12 +6953,12 @@
           "type": "integer"
         },
         "player_radius": {
-          "description": "The main character's hurt circle, in 1/256 px (ADR-050): 1 to `limits::MAX_RADIUS`.",
+          "description": "The main character's hurt circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
           "format": "int32",
           "type": "integer"
         },
         "player_speed": {
-          "description": "The main character's speed at full stick, in 1/256 px a tick (ADR-050): 1 to 4,096.",
+          "description": "The main character's speed at full stick, in 1/256 px a tick: 1 to 4,096.",
           "format": "int32",
           "type": "integer"
         },
@@ -7016,7 +7016,7 @@
     },
     "RunLedger": {
       "additionalProperties": false,
-      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).",
+      "description": "A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-15).",
       "properties": {
         "bestiary": {
           "description": "Bestiary bits per enemy kind ID: bit 0 encountered, bits 1..=10 for `DamageType::ALL`.",
@@ -7104,11 +7104,11 @@
           "type": "string"
         },
         "content_sha256": {
-          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-080). Any other pack invalidates the replay.",
+          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-CONT-15). Any other pack invalidates the replay.",
           "type": "string"
         },
         "final_hash": {
-          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-019), 16\nlowercase hex digits.",
+          "description": "The FNV-1a 64 state hash after the last tick and the commands after it (ADR-SIM-17), 16\nlowercase hex digits.",
           "type": "string"
         },
         "inputs": {
@@ -7117,7 +7117,7 @@
         },
         "setup": {
           "$ref": "#/$defs/RunSetup",
-          "description": "What the run started from (ADR-079 §1)."
+          "description": "What the run started from (ADR-REPL-16)."
         },
         "ticks": {
           "description": "Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.",
@@ -7139,10 +7139,10 @@
     },
     "RunSetup": {
       "additionalProperties": false,
-      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-051).",
+      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-16).",
       "properties": {
         "carried": {
-          "description": "The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.",
+          "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.",
           "items": {
             "$ref": "#/$defs/CarriedStar"
           },
@@ -7151,7 +7151,7 @@
         "difficulty": {
           "$ref": "#/$defs/ContentId",
           "default": "normal",
-          "description": "The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
+          "description": "The difficulty the run is played on, by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
         },
         "extra_rerolls": {
           "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.",
@@ -7161,7 +7161,7 @@
           "type": "integer"
         },
         "lumine": {
-          "description": "The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107\npoint 2).",
+          "description": "The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -7174,14 +7174,14 @@
         "perk_set": {
           "$ref": "#/$defs/ContentId",
           "default": "duelist",
-          "description": "The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk\nsets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`."
+          "description": "The perk set the run applies from tick 0, by the ID of the run's perk\nsets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`."
         },
         "pick_stats": {
           "description": "Each level reached opens an offer of the stats below their limit, answered through\n`Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.",
           "type": "boolean"
         },
         "rune_pool": {
-          "description": "The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each\nonce, at most `MAX_RUNE_POOL`. Empty: every rune.",
+          "description": "The runes the random rune may draw: rune IDs, sorted, each\nonce, at most `MAX_RUNE_POOL`. Empty: every rune.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7193,7 +7193,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-033), all 64 bits.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -7204,7 +7204,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.",
+          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7222,7 +7222,7 @@
               "type": "null"
             }
           ],
-          "description": "A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It\ncosts no Lumine, and the random rune never draws it again."
+          "description": "A rune the run starts holding: in the rune pool when there is one. It\ncosts no Lumine, and the random rune never draws it again."
         },
         "stat_priority": {
           "description": "The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,\nat most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,\nthen the stats this list leaves out in the run stats file's order; empty is that order\nalone. With `pick_stats` the stats are offered instead.",
@@ -7232,7 +7232,7 @@
           "type": "array"
         },
         "upgrades": {
-          "description": "The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
+          "description": "The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7240,7 +7240,7 @@
         },
         "weapon": {
           "$ref": "#/$defs/ContentId",
-          "description": "A weapon preset: the one weapon the run's main character carries (ADR-107)."
+          "description": "A weapon preset: the one weapon the run's main character carries."
         },
         "weapon_tree": {
           "anyOf": [
@@ -7251,7 +7251,7 @@
               "type": "null"
             }
           ],
-          "description": "Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
+          "description": "Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
         }
       },
       "required": [
@@ -7352,14 +7352,14 @@
         },
         "ledger": {
           "$ref": "#/$defs/RunLedger",
-          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-6)."
+          "description": "The ledger of counts, bestiary encounters and build picks (ADR-BRDG-15)."
         },
         "outcome": {
           "$ref": "#/$defs/Outcome",
           "description": "How the run stood at the end: a bug report may stop while it is still running."
         },
         "stardust": {
-          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST` (ADR-109): the\napp pays it after the run (ADR-079, ADR-101).",
+          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the\napp pays it after the run (ADR-REPL-16).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -7422,7 +7422,7 @@
     },
     "RuneView": {
       "additionalProperties": false,
-      "description": "A rune the Main weapon holds (ADR-099).",
+      "description": "A rune the Main weapon holds.",
       "properties": {
         "cooldown_left": {
           "description": "For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.",
@@ -7466,7 +7466,7 @@
       "type": "object"
     },
     "Selector": {
-      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-036).",
+      "description": "Who a rule, condition or skill acts on. Ties break by squared fixed-point distance, then\nentity ID (ADR-SIM-18).",
       "oneOf": [
         {
           "enum": [
@@ -7530,7 +7530,7 @@
       "type": "string"
     },
     "Skill": {
-      "description": "A skill block (ADR-008, ADR-036). Percentages are whole percent.",
+      "description": "A skill block (ADR-SIM-18). Percentages are whole percent.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -7657,7 +7657,7 @@
       ]
     },
     "SkillEffect": {
-      "description": "One building block of a use (ADR-098 §2), at the skill's point.",
+      "description": "One building block of a use, at the skill's point.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -7693,7 +7693,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`status` (a status ID of the registry, ADR-036) on the main character, `value_pct`\npercent, for `duration_ticks`.",
+          "description": "`status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`\npercent, for `duration_ticks`.",
           "properties": {
             "duration_ticks": {
               "format": "uint32",
@@ -7761,7 +7761,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`attack` runs in the stage skill's own attack slot (ADR-069), along the aim, at the main\ncharacter's attack stat: it neither waits for nor cancels a combo step. A new attack\nends the one still running.",
+          "description": "`attack` runs in the stage skill's own attack slot, along the aim, at the main\ncharacter's attack stat: it neither waits for nor cancels a combo step. A new attack\nends the one still running.",
           "properties": {
             "attack": {
               "$ref": "#/$defs/AttackRef"
@@ -7831,7 +7831,7 @@
     },
     "SkillView": {
       "additionalProperties": false,
-      "description": "The stage skill held (ADR-075): what the skill button draws.",
+      "description": "The stage skill held: what the skill button draws.",
       "properties": {
         "cooldown_left": {
           "description": "Ticks until it is ready again, counted from its use.",
@@ -7841,7 +7841,7 @@
         },
         "icon": {
           "$ref": "#/$defs/ContentId",
-          "description": "The asset the button draws (ADR-098)."
+          "description": "The asset the button draws."
         },
         "level": {
           "description": "From 1.",
@@ -7869,7 +7869,7 @@
       "type": "object"
     },
     "SmashEffect": {
-      "description": "What a smash (a step reached by `smash`) does to every enemy it hits (ADR-084 point 8): one\nof a closed list built into `core`, its numbers in JSON (ADR-067).",
+      "description": "What a smash (a step reached by `smash`) does to every enemy it hits: one\nof a closed list built into `core`, its numbers in JSON (ADR-CONT-11).",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -7931,7 +7931,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The enemy hit gets the `bleed` status, the one bleed of ADR-099 with the bleed rune's\nnumbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has\nno bleed gives none.",
+          "description": "The enemy hit gets the `bleed` status, the one bleed with the bleed rune's\nnumbers from the run's runes file, none of its own. A run whose file has\nno bleed gives none.",
           "properties": {
             "type": {
               "const": "bleed",
@@ -7945,7 +7945,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The enemy hit is stunned for `ticks` (ADR-085): it stops what it was doing and cannot act\nuntil the stun runs out. Bosses resist it, and an elite takes half the ticks.",
+          "description": "The enemy hit is stunned for `ticks`: it stops what it was doing and cannot act\nuntil the stun runs out. Bosses resist it, and an elite takes half the ticks.",
           "properties": {
             "ticks": {
               "format": "uint32",
@@ -7992,7 +7992,7 @@
               "type": "null"
             }
           ],
-          "description": "The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no\nexpertise points."
+          "description": "The expertise gauge; absent in a stage whose enemies and boss give no\nexpertise points."
         },
         "heal_pickups": {
           "description": "Heal pickups on the map, in the order they dropped; empty without healing.",
@@ -8012,7 +8012,7 @@
           "type": "array"
         },
         "patterns": {
-          "description": "The boss's big patterns announced and not yet started (ADR-103), the call of its elites\nfirst; the frontend draws each as a count-down bar.",
+          "description": "The boss's big patterns announced and not yet started, the call of its elites\nfirst; the frontend draws each as a count-down bar.",
           "items": {
             "$ref": "#/$defs/PatternView"
           },
@@ -8037,7 +8037,7 @@
           "description": "Experience, level, stat points and the open offer; absent in a stage without levels."
         },
         "stardust": {
-          "description": "The Stardust earned so far, times 10 (ADR-109); absent in a stage without a Stardust\nfactor.",
+          "description": "The Stardust earned so far, times 10; absent in a stage without a Stardust\nfactor.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -8046,7 +8046,7 @@
           ]
         },
         "stars": {
-          "description": "Falling stars on the map, in the order they dropped (ADR-079 §2).",
+          "description": "Falling stars on the map, in the order they dropped (ADR-REPL-16).",
           "items": {
             "$ref": "#/$defs/StarView"
           },
@@ -8111,7 +8111,7 @@
           "type": "string"
         },
         "elite_cap": {
-          "description": "The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that\nwould spawn past it does not, and a wave counts it as spawned.",
+          "description": "The most elites alive at once; `MAX_ELITES_ALIVE` when absent. An elite that\nwould spawn past it does not, and a wave counts it as spawned.",
           "format": "uint16",
           "maximum": 32,
           "minimum": 1,
@@ -8153,7 +8153,7 @@
               "type": "null"
             }
           ],
-          "description": "The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent."
+          "description": "The levels of the expertise style path; `LevelTable::NORMAL` when absent."
         },
         "levels": {
           "anyOf": [
@@ -8164,7 +8164,7 @@
               "type": "null"
             }
           ],
-          "description": "Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages\nhave them. Without them defeated enemies give nothing."
+          "description": "Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages\nhave them. Without them defeated enemies give nothing."
         },
         "map": {
           "anyOf": [
@@ -8187,7 +8187,7 @@
           "type": "integer"
         },
         "seed": {
-          "description": "Seeds the run's SplitMix64 (ADR-033). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
+          "description": "Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as\nJSON, GDScript included, keeps it exact; the simulation widens it.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -8207,7 +8207,7 @@
               "type": "null"
             }
           ],
-          "description": "How a kill's Stardust grows over the run (ADR-109): without it the run counts none."
+          "description": "How a kill's Stardust grows over the run: without it the run counts none."
         },
         "stars": {
           "anyOf": [
@@ -8218,7 +8218,7 @@
               "type": "null"
             }
           ],
-          "description": "Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
+          "description": "Falling stars and the offers they open (ADR-REPL-16); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
         },
         "title": {
           "maxLength": 60,
@@ -8251,13 +8251,13 @@
       "description": "One stage skill.",
       "properties": {
         "ahead": {
-          "description": "How far ahead of the main character its point is, along the facing, or toward the aim\nassist's target while `assist` is on (ADR-072); 0, the default, is at the main\ncharacter. An attack places its own hit boxes instead.",
+          "description": "How far ahead of the main character its point is, along the facing, or toward the aim\nassist's target while `assist` is on; 0, the default, is at the main\ncharacter. An attack places its own hit boxes instead.",
           "format": "int32",
           "type": "integer"
         },
         "icon": {
           "$ref": "#/$defs/ContentId",
-          "description": "The asset the skill button draws (ADR-026): an asset ID of the registry."
+          "description": "The asset the skill button draws (ADR-CONT-12): an asset ID of the registry."
         },
         "id": {
           "$ref": "#/$defs/ContentId",
@@ -8337,7 +8337,7 @@
     },
     "StardustFactor": {
       "additionalProperties": false,
-      "description": "The Stardust time factor (ADR-109 decision 2): a table of time tiers, each the tick it starts\nat and a percent. A kill's base Stardust is multiplied by the percent of the last tier that\nstarted at or before the kill tick, truncated toward zero; past the last tier's start\n(overtime included) the last tier holds. A mode's run takes the mode file's table, or its\ndifficulty's when the difficulty gives one (ADR-110 decision 2). `stardust_tiers_problem`\nsays what a valid table is.",
+      "description": "The Stardust time factor: a table of time tiers, each the tick it starts\nat and a percent. A kill's base Stardust is multiplied by the percent of the last tier that\nstarted at or before the kill tick, truncated toward zero; past the last tier's start\n(overtime included) the last tier holds. A mode's run takes the mode file's table, or its\ndifficulty's when the difficulty gives one. `stardust_tiers_problem`\nsays what a valid table is.",
       "properties": {
         "summon_base": {
           "description": "The base Stardust a kill of a summoned enemy earns before the factor, times 10 (a boss's\nor a splitter's `summon`), at most `limits::MAX_STARDUST_BASE`; none when absent.\nGuardians, escorts and a boss's parts earn nothing.",
@@ -8454,7 +8454,7 @@
           "type": "integer"
         },
         "tiers": {
-          "description": "The drop table: tiers by the player's level, the first from level 1, each later one from\na higher level (ADR-068). A star draws its rarity from the tier of the level reached.",
+          "description": "The drop table: tiers by the player's level, the first from level 1, each later one from\na higher level. A star draws its rarity from the tier of the level reached.",
           "items": {
             "$ref": "#/$defs/Tier"
           },
@@ -8538,7 +8538,7 @@
         },
         {
           "const": "attack_speed_pct",
-          "description": "`step` percent faster attacks: a combo step's length divided by `1 + step / 100`\n(ADR-070), each of its phases at least 1 tick.",
+          "description": "`step` percent faster attacks: a combo step's length divided by `1 + step / 100`\neach of its phases at least 1 tick.",
           "type": "string"
         },
         {
@@ -8553,7 +8553,7 @@
         },
         {
           "const": "xp_pct",
-          "description": "`step` percent more experience from every kill, rounded down (ADR-068: the build that\nunlocks rarer stars sooner).",
+          "description": "`step` percent more experience from every kill, rounded down (the build that\nunlocks rarer stars sooner).",
           "type": "string"
         }
       ]
@@ -8577,7 +8577,7 @@
     },
     "StatusView": {
       "additionalProperties": false,
-      "description": "A status on an entity, or a pack leader's aura (ADR-103 decision 3): what the app shows as\nan icon with a count-down, or as a row while it lasts.",
+      "description": "A status on an entity, or a pack leader's aura: what the app shows as\nan icon with a count-down, or as a row while it lasts.",
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId",
@@ -8605,7 +8605,7 @@
     },
     "Step": {
       "additionalProperties": false,
-      "description": "One step of a combo (ADR-070).",
+      "description": "One step of a combo.",
       "properties": {
         "attack": {
           "$ref": "#/$defs/AttackRef",
@@ -8631,7 +8631,7 @@
               "type": "null"
             }
           ],
-          "description": "Held past its last `active` phase, the button that reached the step starts a hold\ninstead of the attack's recovery (ADR-084 point 6). A step has a charge or a hold, never\nboth."
+          "description": "Held past its last `active` phase, the button that reached the step starts a hold\ninstead of the attack's recovery. A step has a charge or a hold, never\nboth."
         },
         "next": {
           "$ref": "#/$defs/Branches"
@@ -8712,7 +8712,7 @@
               "$ref": "#/$defs/AttackRef"
             },
             "big": {
-              "description": "A big pattern (ADR-103): announced in the snapshot, with the ticks left until it\nstarts, while the timed steps before it run. Only a preset can be big; its ID names\nit.",
+              "description": "A big pattern: announced in the snapshot, with the ticks left until it\nstarts, while the timed steps before it run. Only a preset can be big; its ID names\nit.",
               "type": "boolean"
             },
             "type": {
@@ -8744,7 +8744,7 @@
     },
     "StunRules": {
       "additionalProperties": false,
-      "description": "The stun rules (ADR-085 points 4 and 6): run rules read with the stats, as they are content\ntoo. Both are tuning values; that each is bounded is the decision.",
+      "description": "The stun rules: run rules read with the stats, as they are content\ntoo. Both are tuning values; that each is bounded is the decision.",
       "properties": {
         "elite_pct": {
           "description": "The share of a stun's ticks an elite takes, in percent, 0 to 100.",
@@ -8767,7 +8767,7 @@
     },
     "Style": {
       "additionalProperties": false,
-      "description": "A style (ADR-106 §5): a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
+      "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
       "properties": {
         "amount": {
           "description": "What choosing it adds to the effect's total, from 1 to the effect's most.",
@@ -8884,14 +8884,14 @@
           "type": "integer"
         },
         "elite_table": {
-          "description": "The elites each whole minute that starts no boss brings (ADR-090): 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`sim::horde`).",
+          "description": "The elites each whole minute that starts no boss brings: 1 to\n`MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting\nbefore the length. An elite minute draws from it (`sim::horde`).",
           "items": {
             "$ref": "#/$defs/EliteTier"
           },
           "type": "array"
         },
         "elite_types": {
-          "description": "The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The\ntable names them; one no tier names is allowed.",
+          "description": "The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID. The\ntable names them; one no tier names is allowed.",
           "items": {
             "$ref": "#/$defs/EliteType"
           },
@@ -8913,7 +8913,7 @@
         },
         "level_table": {
           "$ref": "#/$defs/LevelTable",
-          "description": "The expertise levels of the style path (ADR-106 §4): the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own."
+          "description": "The expertise levels of the style path: the style first, the levels rising\nstrictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The\nrun's stage takes it as its own."
         },
         "levels": {
           "$ref": "#/$defs/Levels",
@@ -8971,7 +8971,7 @@
           ]
         },
         "stardust_tiers": {
-          "description": "The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,\nthe first at tick 0, the ticks rising strictly, each percent from 1 to\n`limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).",
+          "description": "The Stardust time factor: 1 to `limits::MAX_STARDUST_TIERS` tiers,\nthe first at tick 0, the ticks rising strictly, each percent from 1 to\n`limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own.",
           "items": {
             "$ref": "#/$defs/StardustTier"
           },
@@ -9087,7 +9087,7 @@
     },
     "TypeBonusView": {
       "additionalProperties": false,
-      "description": "The type bonus the main character holds for one damage type (ADR-100): the one-type\nbonuses of that type and its group's bonus, added up.",
+      "description": "The type bonus the main character holds for one damage type: the one-type\nbonuses of that type and its group's bonus, added up.",
       "properties": {
         "pct": {
           "format": "uint32",
@@ -9172,7 +9172,7 @@
               "type": "null"
             }
           ],
-          "description": "The expertise points each enemy of the wave gives (ADR-078 §2); none when absent."
+          "description": "The expertise points each enemy of the wave gives; none when absent."
         },
         "id": {
           "anyOf": [
@@ -9197,7 +9197,7 @@
           "description": "A point on the map where each enemy of the wave spawns (a stage's way to place a wave).\nGive this or `edge`, not both."
         },
         "stardust": {
-          "description": "The Stardust a kill of each enemy of the wave earns before the time factor, times 10\n(ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage\nwith a `stardust` factor.",
+          "description": "The Stardust a kill of each enemy of the wave earns before the time factor, times 10\nat most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage\nwith a `stardust` factor.",
           "format": "uint32",
           "maximum": 100000,
           "minimum": 0,
@@ -9226,10 +9226,10 @@
     },
     "Weapon": {
       "additionalProperties": false,
-      "description": "A weapon (ADR-084): its combo tree, the timings that join its steps and its smash effect.",
+      "description": "A weapon: its combo tree, the timings that join its steps and its smash effect.",
       "properties": {
         "assist_range": {
-          "description": "How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle\nreaches within this distance of the main character.",
+          "description": "How far aim assist and auto mode look for a target: an enemy whose circle\nreaches within this distance of the main character.",
           "format": "int32",
           "maximum": 131072,
           "minimum": 0,
@@ -9353,7 +9353,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "A preset, in one of its trees (ADR-117): none is the weapon's first tree.",
+          "description": "A preset, in one of its trees (ADR-REPL-16): none is the weapon's first tree.",
           "properties": {
             "preset": {
               "additionalProperties": false,

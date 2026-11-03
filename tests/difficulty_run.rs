@@ -1,4 +1,4 @@
-//! What a run's difficulty does (ADR-110): the enemies, elites and bosses it spawns have its
+//! What a run's difficulty does: the enemies, elites and bosses it spawns have its
 //! percent of the content's hit points, their attacks its percent of the damage, its rarity
 //! range bounds the stars that drop, and easy sets the Time Limit's length, boss times and level
 //! table. A setup that names none plays on `normal`.
@@ -149,7 +149,7 @@ fn damage_taken(difficulty: &str, ticks: u32) -> u32 {
 #[test]
 fn an_enemys_attack_does_the_difficultys_percent_of_the_damage() {
     // The first orb lands at about tick 60, and the main character is then invulnerable
-    // for a while: one hit, scaled before the damage pipeline (ADR-110).
+    // for a while: one hit, scaled before the damage pipeline.
     let normal = damage_taken("normal", 70);
     assert!(normal > 0, "the enemy hits");
     for (id, _, damage_pct) in DIFFICULTIES {

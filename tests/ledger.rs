@@ -1,4 +1,4 @@
-//! Tests for core `RunLedger` (ADR-BRDG-6, DS49).
+//! Tests for core `RunLedger` (ADR-BRDG-15, DS49).
 //!
 //! The ledger counts kills, bestiary bits, picks and skill uses inside the simulation
 //! from domain events and state observations, matching the rules previously kept in

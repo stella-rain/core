@@ -1,4 +1,4 @@
-//! A run of the trial mode (ADR-079), shared by the run replay, recording and corpus tests.
+//! A run of the trial mode (ADR-REPL-16), shared by the run replay, recording and corpus tests.
 use crate::common;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
@@ -19,7 +19,7 @@ pub const TRIAL_LENGTH: u32 = 5400;
 pub const STAGE_SKILL_SEED: u64 = 11;
 
 /// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
-/// boss ends in its kill, as the case's name says. Under the Vindictus shape (ADR-084) seed
+/// boss ends in its kill, as the case's name says. Under the Vindictus shape seed
 /// 20261010 ends with the main character falling. Of seeds 1 to 10, seeds 1, 2, 4, 5 and 8 end in
 /// a kill; this one is the lowest.
 pub const KILL_SEED: u64 = 1;

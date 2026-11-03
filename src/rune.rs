@@ -1,4 +1,4 @@
-//! Runes (ADR-099): unique effects on the Main weapon for the rest of a run. Each is one of a
+//! Runes: unique effects on the Main weapon for the rest of a run. Each is one of a
 //! closed list built into `core`, of two kinds; the Main holds each at most once, never
 //! upgraded or stacked, and never carries one to another run. A run gets them from the random
 //! rune, a star reward that draws one the Main does not hold when it is picked (`rewards`).
@@ -7,7 +7,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// The most runes the Main weapon holds: each rune once (ADR-099 point 7).
+/// The most runes the Main weapon holds: each rune once.
 pub const MAX_RUNES: usize = Rune::ALL.len();
 
 /// A rune, one of the closed list.
@@ -36,7 +36,7 @@ pub enum Rune {
     Burn,
 }
 
-/// What sets a rune off (ADR-099 point 2).
+/// What sets a rune off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RuneKind {
@@ -64,7 +64,7 @@ impl Rune {
     }
 
     /// The rune's content ID: its name in snake case, as a setup's rune pool and starting rune
-    /// name it (ADR-107).
+    /// name it.
     pub fn id(self) -> &'static str {
         match self {
             Rune::Explosion => "explosion",

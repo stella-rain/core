@@ -235,7 +235,7 @@ fn a_result_exists_only_for_an_ended_run() {
     assert_eq!(result.stardust_tenths, engine.stardust());
 }
 
-// --- The Stardust split and the bank (ADR-101, ADR-SAVE-4 point 3) -----------------------------
+// --- The Stardust split and the bank (ADR-SAVE-13) -----------------------------
 
 fn bank_of(entries: &[(&str, &str, u64)]) -> Bank {
     Bank::new(

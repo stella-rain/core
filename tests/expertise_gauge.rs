@@ -1,4 +1,4 @@
-//! The expertise gauge (ADR-078 §2, §3): one gauge for both weapons. A hit and a kill by an A
+//! The expertise gauge: one gauge for both weapons. A hit and a kill by an A
 //! or a B step of the combo add the enemy's points to it; other damage gives none. Content
 //! thresholds take it through levels 1 to 10, then each level needs the one before's points
 //! times the growth factor, saturating at the content maximum. The weapons here are inline,

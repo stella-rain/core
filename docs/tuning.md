@@ -4,47 +4,47 @@
 
 | Name | Value | Unit | ADR |
 |---|---|---|---|
-| `MAX_ENEMY_CAP` | 500 | enemies alive at once | ADR-058 |
-| `MIN_CAP_HEADROOM_PCT` | 25 | percent | ADR-058 |
-| `MAX_CAP_HEADROOM_PCT` | 30 | percent | ADR-058 |
-| `MAX_CROWD_TARGET` | 400 | enemies | ADR-058 |
-| `MAX_RULES_BYTES` | 4096 | bytes | ADR-020 |
-| `MAX_ZONES_ALIVE` | 128 | zones alive at once | ADR-SIM-11 |
-| `MAX_RANGED_ATTACKERS` | 4 | regular ranged attackers | ADR-SIM-11 |
-| `VIEW_HALF_WIDTH` | 420 | px | ADR-SIM-11 |
-| `VIEW_HALF_HEIGHT` | 180 | px | ADR-SIM-11 |
-| `MAX_ORBS_PER_OWNER` | 8 | slow orbs per attacker | ADR-SIM-11 |
-| `MAX_ORBS_ALIVE` | 32 | slow orbs alive at once | ADR-SIM-6 |
-| `MAX_ORB_TICKS` | 600 | ticks | ADR-SIM-11 |
-| `MAX_ATTACK_TASKS` | 256 | attacks running at once | ADR-058 |
-| `MAX_EMITTER_STEPS_PER_TICK` | 4096 | steps per tick | ADR-058 |
-| `MAX_ELITES_ALIVE` | 32 | elites among enemies | ADR-020 |
-| `STEP` | 4 | px/tick | ADR-058 |
-| `LEAST_RADIUS` | 8 | px | ADR-058 |
-| `CANDIDATES` | 32 | enemies | ADR-058 |
-| `NEIGHBOURS` | 6 | enemies | ADR-058 |
-| `CROWDED_OVER` | 1 | px | ADR-058 |
-| `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-SIM-11 |
-| `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-058 |
-| `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-058 |
-| `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-020 |
-| `MAX_BURST_DEPTH` | 5 | burst depth | ADR-020 |
-| `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-117 |
-| `MAX_REWARDS` | 192 | rewards | ADR-020 |
-| `MAX_STACK` | 20 | stacks | ADR-020 |
-| `MAX_TIERS` | 16 | tiers | ADR-068 |
-| `MAX_TIER_LEVEL` | 100 | level | ADR-068 |
-| `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-068 |
-| `MAX_DIFFICULTIES` | 8 | difficulties | ADR-110 |
-| `MAX_PCT` | 1000 | percent | ADR-110 |
-| `MAX_COMMANDS` | 1000 | commands | ADR-117 |
-| `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-112 |
-| `MAX_SETUP_BYTES` | 4096 | bytes | ADR-112 |
-| `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-117 |
-| `MAX_CARRIED_STARS` | 5 | stars | ADR-117 |
-| `MAX_LUMINE` | 10 | level | ADR-117 |
-| `MAX_STARS_ON_MAP` | 64 | stars | ADR-117 |
-| `MAX_WAVES` | 16 | waves | ADR-020 |
-| `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-020 |
+| `MAX_ENEMY_CAP` | 500 | enemies alive at once | ADR-SIM-19 |
+| `MIN_CAP_HEADROOM_PCT` | 25 | percent | ADR-SIM-19 |
+| `MAX_CAP_HEADROOM_PCT` | 30 | percent | ADR-SIM-19 |
+| `MAX_CROWD_TARGET` | 400 | enemies | ADR-SIM-19 |
+| `MAX_RULES_BYTES` | 4096 | bytes | ADR-SVC-7 |
+| `MAX_ZONES_ALIVE` | 128 | zones alive at once | ADR-SIM-19 |
+| `MAX_RANGED_ATTACKERS` | 4 | regular ranged attackers | ADR-SIM-19 |
+| `VIEW_HALF_WIDTH` | 420 | px | ADR-SIM-19 |
+| `VIEW_HALF_HEIGHT` | 180 | px | ADR-SIM-19 |
+| `MAX_ORBS_PER_OWNER` | 8 | slow orbs per attacker | ADR-SIM-19 |
+| `MAX_ORBS_ALIVE` | 32 | slow orbs alive at once | ADR-SIM-19 |
+| `MAX_ORB_TICKS` | 600 | ticks | ADR-SIM-19 |
+| `MAX_ATTACK_TASKS` | 256 | attacks running at once | ADR-SIM-19 |
+| `MAX_EMITTER_STEPS_PER_TICK` | 4096 | steps per tick | ADR-SIM-19 |
+| `MAX_ELITES_ALIVE` | 32 | elites among enemies | ADR-SIM-19 |
+| `STEP` | 4 | px/tick | ADR-SIM-19 |
+| `LEAST_RADIUS` | 8 | px | ADR-SIM-19 |
+| `CANDIDATES` | 32 | enemies | ADR-SIM-19 |
+| `NEIGHBOURS` | 6 | enemies | ADR-SIM-19 |
+| `CROWDED_OVER` | 1 | px | ADR-SIM-19 |
+| `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-SIM-19 |
+| `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-SIM-19 |
+| `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-SIM-19 |
+| `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-SVC-7 |
+| `MAX_BURST_DEPTH` | 5 | burst depth | ADR-SVC-7 |
+| `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-REPL-16 |
+| `MAX_REWARDS` | 192 | rewards | ADR-SVC-7 |
+| `MAX_STACK` | 20 | stacks | ADR-SVC-7 |
+| `MAX_TIERS` | 16 | tiers | ADR-CONT-13 |
+| `MAX_TIER_LEVEL` | 100 | level | ADR-CONT-13 |
+| `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-CONT-13 |
+| `MAX_DIFFICULTIES` | 8 | difficulties | ADR-CONT-11 |
+| `MAX_PCT` | 1000 | percent | ADR-CONT-11 |
+| `MAX_COMMANDS` | 1000 | commands | ADR-REPL-16 |
+| `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-7 |
+| `MAX_SETUP_BYTES` | 4096 | bytes | ADR-SVC-7 |
+| `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-REPL-16 |
+| `MAX_CARRIED_STARS` | 5 | stars | ADR-REPL-16 |
+| `MAX_LUMINE` | 10 | level | ADR-REPL-16 |
+| `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-16 |
+| `MAX_WAVES` | 16 | waves | ADR-SVC-7 |
+| `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-7 |
 
-The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-10).
+The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-13).

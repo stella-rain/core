@@ -1,6 +1,6 @@
 //! The hit benchmark's tick (`bench_fixtures::hit_case`, core BR1b) has the load it claims: no
 //! orb, the enemies of the cap alive and the crowd under the main character's melee hit
-//! boxes (ADR-055) and 128 active zones (core Z1), clustered and spread over the largest map.
+//! boxes and 128 active zones (core Z1), clustered and spread over the largest map.
 //! Enemy zones hurt only the main character and the companions, so the zones that load the
 //! crowd are the friendly ones: 112 of the 128, the other 16 an enemy's.
 

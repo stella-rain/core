@@ -1,4 +1,4 @@
-//! Elites (ADR-068, app#214): enemies that hold where they spawned and act only while the main
+//! Elites (app#214): enemies that hold where they spawned and act only while the main
 //! character is within their range, with their own cap on the map; a killed elite always drops
 //! a star, drawn from the drop table's next tier up.
 

@@ -1,10 +1,10 @@
 //! The `time_limit` mode file (core#212 step a): how long a run lasts, when its bosses come,
 //! which bosses they may be, the overtime after the last one, the Star-Hunter's extra time and
-//! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-020), like the other
+//! the map. Read from `modes/time_limit.json` as untrusted bytes (ADR-SVC-7), like the other
 //! content files: a size limit before parsing, strict parsing, the current versions only, every
 //! content ID in the registry, and each number under a named cap. Only the file is read here;
-//! its end and the elites come in later steps. The elite table and the elite cap (ADR-090) are
-//! read by the run's elite minutes (`sim::horde`, ADR-090).
+//! its end and the elites come in later steps. The elite table and the elite cap are
+//! read by the run's elite minutes (`sim::horde`).
 //!
 //! Step b (core#212) adds the schedule: `waves`, the enemies that spawn over the run, as a stage's
 //! waves do (`stage::Wave`), checked as a stage's are with larger caps and without elites.
@@ -108,11 +108,11 @@ pub struct TimeLimitFile {
     /// wave with `edge` spawns on the spawn rectangle around the main character (VS1); the
     /// placeholder content is the trial's enemies.
     pub waves: Vec<Wave>,
-    /// The elites each whole minute that starts no boss brings (ADR-090): 1 to
+    /// The elites each whole minute that starts no boss brings: 1 to
     /// `MAX_ELITE_TIERS` time tiers, the first at tick 0, the rest rising strictly and starting
     /// before the length. An elite minute draws from it (`sim::horde`).
     pub elite_table: Vec<EliteTier>,
-    /// The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID (ADR-090). The
+    /// The elite types: 1 to `MAX_ELITE_DEFINITIONS`, each with a unique ID. The
     /// table names them; one no tier names is allowed.
     pub elite_types: Vec<EliteType>,
     /// The most elites alive at once, 1 to `MAX_ELITES_ALIVE` (the stage's `elite_cap` has the
@@ -123,7 +123,7 @@ pub struct TimeLimitFile {
     /// own, and the director holds the mode's wave spawns at it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub crowd_target: Option<u16>,
-    /// The expertise levels of the style path (ADR-106 §4): the style first, the levels rising
+    /// The expertise levels of the style path: the style first, the levels rising
     /// strictly, two upgrades and a capstone, each from 1 to `stage::MAX_STYLE_LEVEL`. The
     /// run's stage takes it as its own.
     pub level_table: LevelTable,
@@ -135,9 +135,9 @@ pub struct TimeLimitFile {
     /// The falling stars' drop table of the run (XP2), as a stage's `stars`, checked the same
     /// way; its tiers follow `levels`. The run's stage takes it as its own.
     pub stars: Stars,
-    /// The Stardust time factor (ADR-109 decision 2): 1 to `limits::MAX_STARDUST_TIERS` tiers,
+    /// The Stardust time factor: 1 to `limits::MAX_STARDUST_TIERS` tiers,
     /// the first at tick 0, the ticks rising strictly, each percent from 1 to
-    /// `limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own (ADR-110).
+    /// `limits::MAX_STARDUST_PCT`. A run takes it unless its difficulty gives its own.
     pub stardust_tiers: Vec<StardustTier>,
     /// The base Stardust a kill of a summoned enemy earns before the factor, times 10, at most
     /// `limits::MAX_STARDUST_BASE`; the run's stage takes it as its `stardust.summon_base`.
@@ -165,9 +165,9 @@ pub struct EliteWeight {
     pub weight: u32,
 }
 
-/// An elite type (ADR-090): a content ID (ADR-026) and the enemy it spawns, with what a kill of
+/// An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of
 /// it gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the
-/// enemy must be an elite (ADR-068). A grade is a type; later kinds of elite add entries.
+/// enemy must be an elite. A grade is a type; later kinds of elite add entries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EliteType {

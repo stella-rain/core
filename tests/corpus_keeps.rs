@@ -1,4 +1,4 @@
-//! What a re-blessed `current/` case must keep (ADR-SIM-3, ADR-REPL-9): the hashes of the
+//! What a re-blessed `current/` case must keep (ADR-SIM-17, ADR-REPL-13): the hashes of the
 //! `current/` cases are re-recorded when the hash layout moves, but the run they record is the
 //! same run. The table is written by hand from the tree before the layout move; the bless never
 //! writes it. `gameplay_observables::PINS` guard the same runs by digest, this table says which

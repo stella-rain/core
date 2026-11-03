@@ -1,6 +1,6 @@
-//! Stardust (ADR-109): every kill by the player earns the enemy's base times the time factor at
+//! Stardust: every kill by the player earns the enemy's base times the time factor at
 //! the kill tick, counted in the run state (so in the state hash), in the snapshot and in the
-//! verified run, saturating at a cap. Bases are held times 10 (ADR-103 style), the factor is the
+//! verified run, saturating at a cap. Bases are held times 10, the factor is the
 //! percent of a time tier (`stardust_tiers.rs`), integer math truncated toward zero.
 //! A stage without a `stardust` factor counts nothing and hashes as it did.
 

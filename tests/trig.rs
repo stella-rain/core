@@ -1,4 +1,4 @@
-//! The sine table (ADR-004): integer sine and cosine, in 1/256 degree, scaled by 65536, with
+//! The sine table (ADR-SIM-15): integer sine and cosine, in 1/256 degree, scaled by 65536, with
 //! linear interpolation between whole degrees.
 
 use stella_rain_core::trig::{PER_DEGREE, PER_TURN, SCALE, sin_cos};

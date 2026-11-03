@@ -14,9 +14,9 @@
 //! Unlike `stardust`, the simulation reads this file, so the pack must hold it (a required slot)
 //! and the derived content hash covers it: a replay never depends on the client's build.
 //!
-//! The file is untrusted (ADR-020), as every content file is: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing, strict
 //! parsing, the current versions only, and every number bounded. The pack's own target must keep
-//! its derived cap within `limits::MAX_ENEMY_CAP` (ADR-SIM-7): a pack over the ceiling is
+//! its derived cap within `limits::MAX_ENEMY_CAP` (ADR-SIM-19): a pack over the ceiling is
 //! refused. An override is bounded by its own file (1 to `limits::MAX_CROWD_TARGET`) and clamped
 //! when the run is built (`Rules::enemy_cap_for`), so the cap never passes the ceiling.
 
@@ -33,7 +33,7 @@ use crate::validate::limits::{MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_RADIUS
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest rules file read (a placeholder; ADR-020 decides that a limit exists).
+/// The largest rules file read (a placeholder; ADR-SVC-7 decides that a limit exists).
 pub const MAX_RULES_BYTES: usize = 4 * 1024;
 /// The least and the most the cap stands above the target, in percent (DS101: 125 to 130%).
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
@@ -48,21 +48,21 @@ pub struct RulesFile {
     pub crowd_target: u16,
     /// How far above the target the cap stands, in percent, from 25 to 30.
     pub cap_headroom_pct: u8,
-    /// The main character's speed at full stick, in 1/256 px a tick (ADR-050): 1 to 4,096.
+    /// The main character's speed at full stick, in 1/256 px a tick: 1 to 4,096.
     pub player_speed: Fx,
-    /// The main character's hurt circle, in 1/256 px (ADR-050): 1 to `limits::MAX_RADIUS`.
+    /// The main character's hurt circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.
     pub player_radius: Fx,
     /// A friendly orb's hit circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.
     pub orb_radius: Fx,
     /// Ticks of invulnerability after the main character is hit: 0 to 600.
     pub hit_invulnerable_ticks: u32,
-    /// Aggro raised per point of damage dealt (ADR-036), in stored units: 0 to 100.
+    /// Aggro raised per point of damage dealt (ADR-SIM-18), in stored units: 0 to 100.
     pub aggro_per_damage: u32,
-    /// Aggro raised by a buff (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.
+    /// Aggro raised by a buff (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.
     pub aggro_per_buff: u32,
-    /// Aggro raised per point healed (ADR-036), in stored units: 0 to 100.
+    /// Aggro raised per point healed (ADR-SIM-18), in stored units: 0 to 100.
     pub aggro_per_heal_point: u32,
-    /// Aggro lost every tick (ADR-036), in stored units: 0 to `limits::MAX_AGGRO`.
+    /// Aggro lost every tick (ADR-SIM-18), in stored units: 0 to `limits::MAX_AGGRO`.
     pub aggro_decay: u32,
     /// How far to the side of the view's centre a regular enemy may be before the leash moves it, in 1/256 px: 1 to 4,096 px.
     pub leash_reach_x: Fx,
@@ -86,9 +86,9 @@ pub struct RulesFile {
     pub boss_arrival_above: Fx,
     /// The experience of a summon or a wave that gives none: 0 to `limits::MAX_ENEMY_XP`.
     pub default_xp: u32,
-    /// The base candidates of an offer (ADR-079): 1 to `rewards::MAX_OFFER_CANDIDATES`.
+    /// The base candidates of an offer (ADR-REPL-16): 1 to `rewards::MAX_OFFER_CANDIDATES`.
     pub offer_size: u8,
-    /// The defence that halves a hit (ADR-056), in stored units: 1 to 1,000,000.
+    /// The defence that halves a hit, in stored units: 1 to 1,000,000.
     pub defence_k: u32,
     /// What a critical hit deals before any bonus, in percent: 100 to 1,000.
     pub crit_damage_base_pct: u32,
@@ -133,12 +133,12 @@ impl Rules {
         self.file.cap_headroom_pct
     }
 
-    /// The main character's speed at full stick, in 1/256 px a tick (ADR-050).
+    /// The main character's speed at full stick, in 1/256 px a tick.
     pub fn player_speed(&self) -> Fx {
         self.file.player_speed
     }
 
-    /// The main character's hurt circle, in 1/256 px (ADR-050).
+    /// The main character's hurt circle, in 1/256 px.
     pub fn player_radius(&self) -> Fx {
         self.file.player_radius
     }
@@ -153,22 +153,22 @@ impl Rules {
         self.file.hit_invulnerable_ticks
     }
 
-    /// Aggro raised per point of damage dealt (ADR-036), in stored units.
+    /// Aggro raised per point of damage dealt (ADR-SIM-18), in stored units.
     pub fn aggro_per_damage(&self) -> u32 {
         self.file.aggro_per_damage
     }
 
-    /// Aggro raised by a buff (ADR-036), in stored units.
+    /// Aggro raised by a buff (ADR-SIM-18), in stored units.
     pub fn aggro_per_buff(&self) -> u32 {
         self.file.aggro_per_buff
     }
 
-    /// Aggro raised per point healed (ADR-036), in stored units.
+    /// Aggro raised per point healed (ADR-SIM-18), in stored units.
     pub fn aggro_per_heal_point(&self) -> u32 {
         self.file.aggro_per_heal_point
     }
 
-    /// Aggro lost every tick (ADR-036), in stored units.
+    /// Aggro lost every tick (ADR-SIM-18), in stored units.
     pub fn aggro_decay(&self) -> u32 {
         self.file.aggro_decay
     }
@@ -228,12 +228,12 @@ impl Rules {
         self.file.default_xp
     }
 
-    /// The base candidates of an offer (ADR-079).
+    /// The base candidates of an offer (ADR-REPL-16).
     pub fn offer_size(&self) -> u8 {
         self.file.offer_size
     }
 
-    /// The defence that halves a hit (ADR-056), in stored units.
+    /// The defence that halves a hit, in stored units.
     pub fn defence_k(&self) -> u32 {
         self.file.defence_k
     }

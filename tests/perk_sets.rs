@@ -1,5 +1,5 @@
-//! The perk sets file (ADR-105 point 3, ADR-107, ADR-067): each set a content ID, a title and a
-//! short list of effects from a closed list, read from JSON as untrusted bytes (ADR-020).
+//! The perk sets file (ADR-CONT-11): each set a content ID, a title and a
+//! short list of effects from a closed list, read from JSON as untrusted bytes (ADR-SVC-7).
 //! The bundled file is the default; other bytes run the same way and change the run's content
 //! hash.
 
@@ -61,7 +61,7 @@ fn the_bundled_file_holds_the_four_sets_with_kades_numbers() {
     assert_eq!(ids, ["vanguard", "duelist", "scout", "scholar"]);
     assert_eq!(
         effects_of("vanguard"),
-        // Kade's numbers are shown hit points; the file holds them scaled (ADR-103).
+        // Kade's numbers are shown hit points; the file holds them scaled.
         [
             (PerkEffect::MaxHp, 300 * DAMAGE_SCALE),
             (PerkEffect::Regen, 10 * DAMAGE_SCALE)

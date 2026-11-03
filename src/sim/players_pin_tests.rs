@@ -1,6 +1,6 @@
 //! The live state's hash and savepoint bytes, pinned. They were pinned before the state held its
-//! players as a list (ADR-SIM-12) and re-pinned once, when the hash and the savepoint moved to a
-//! presence byte and one block per player (ADR-SIM-3, ADR-SAVE-7): a refactor of the state moves
+//! players as a list (ADR-SIM-21) and re-pinned once, when the hash and the savepoint moved to a
+//! presence byte and one block per player (ADR-SIM-17, ADR-SAVE-14): a refactor of the state moves
 //! neither at one player.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};

@@ -1,5 +1,5 @@
 //! The adapter from the frozen events of `sim_version` 1 to the live `DomainEvent`
-//! (ADR-REPL-9 point 1, ADR-REPL-7 points 3 and 4) is exact: every field is carried, nothing is
+//! (ADR-REPL-13 points 1 to 4) is exact: every field is carried, nothing is
 //! reordered, and the four player fields are `None`, so a version 1 run's events serialise to the
 //! bytes they always did. The scratch the engine hands the frozen rules never allocates.
 

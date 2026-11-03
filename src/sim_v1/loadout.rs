@@ -1,4 +1,4 @@
-//! What a run's setup brings in at tick 0 (ADR-105 point 3, ADR-107 point 3): the perk set's
+//! What a run's setup brings in at tick 0: the perk set's
 //! effects, the auto combo, the rune pool, the carried stars and the starting rune. They apply
 //! before the first step, in this order: the perk set, the carried stars in setup order, as if
 //! each were picked from an offer (they count toward their reward's stack limit), then the

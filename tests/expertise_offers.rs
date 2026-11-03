@@ -1,4 +1,4 @@
-//! The expertise offers (ADR-106 §4 to §6; ADR-079 §2, §3): each level reached opens one offer
+//! The expertise offers (ADR-REPL-16): each level reached opens one offer
 //! at the end of the tick, for the one weapon, in level order. The mode's level table places the
 //! style path (normal: style 3, upgrades 6 and 9, capstone 10); every other level is a common
 //! offer drawn from the weapon's common pool. The style level shows the weapon's three styles;
@@ -409,7 +409,7 @@ fn a_boss_kill_s_clear_opens_its_offer_then_its_levels_then_the_star_s() {
 #[test]
 fn damage_stays_bounded_with_many_damage_options_stacked() {
     // Every level after the table needs 10 points: a kill's 100_000 points cross about 10_000
-    // levels, each a pick of 100 percent more damage, which the arithmetic of ADR-056
+    // levels, each a pick of 100 percent more damage, which the arithmetic
     // holds without overflowing.
     let big = |p: &str| vec![option(p, "attack_pct", 100)];
     let content = content_with([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 101, 10, big("m"));

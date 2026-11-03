@@ -1,4 +1,4 @@
-//! The stage skill (ADR-075, ADR-098): the slot a falling star's reward fills, the use on a
+//! The stage skill: the slot a falling star's reward fills, the use on a
 //! press of `skill`, and what each building block does. A use needs a skill in the slot and its
 //! cooldown run out; it then acts at its point (`ahead` along the facing, or toward the aim
 //! assist's target while `assist` is on), its level's cooldown starts, and its level's effects
@@ -15,7 +15,7 @@
 //! - **shield:** kept in the state for its time; damage to the main character takes from it
 //!   first.
 //!
-//! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-036).
+//! A new pull or shield replaces the one there; statuses refresh as any status does (ADR-SIM-18).
 
 use super::World;
 use crate::event::DomainEvent;
@@ -33,7 +33,7 @@ use super::levels;
 use super::overlaps;
 use super::player;
 
-/// The main character's attack slot for a stage skill's attack (ADR-069); the combo is 0.
+/// The main character's attack slot for a stage skill's attack; the combo is 0.
 pub(super) const SKILL_SLOT: u8 = 1;
 
 /// The timers of the slot, the pull and the shield run down a tick; the pull and the shield end

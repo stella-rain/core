@@ -388,7 +388,7 @@ fn a_tier_boundary_on_an_elite_minute_picks_the_later_tier() {
 #[test]
 fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() {
     // Recorded before elite types became content: same weights, same seed. The positions are
-    // those after the boss's call counts from its arrival (ADR-103). Re-recorded on the horde
+    // those after the boss's call counts from its arrival. Re-recorded on the horde
     // stream when the generator split per purpose (R1): the weights and the seed are the same.
     // The positions are those on the spawn rectangle (VS1); the sprites and the stream's state
     // are as before, one horde draw per elite.
@@ -510,7 +510,7 @@ fn the_boss_calls_the_elites_of_the_minutes_before_and_after_it_comes() {
         }
     }
     // The elite of minute 1 is alive when the boss comes at 4000, and is called when the
-    // boss's 1800 ticks from its arrival are up (ADR-103).
+    // boss's 1800 ticks from its arrival are up.
     assert_eq!(called, [(5_800, 1)]);
     // The elite of minute 2 spawned after the call: called at once.
     let elites: Vec<bool> = e

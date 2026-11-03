@@ -1,4 +1,4 @@
-//! The public API names players (ADR-SIM-12): the snapshot and the places hold one entry per
+//! The public API names players (ADR-SIM-21): the snapshot and the places hold one entry per
 //! player, and `choose` takes the player. At one player the bytes are the pins'.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};

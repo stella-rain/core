@@ -1,4 +1,4 @@
-//! Hit boxes (ADR-055): an active phase's hit box follows its attacker, faces the way the attack
+//! Hit boxes: an active phase's hit box follows its attacker, faces the way the attack
 //! faced when it started, and hits every target inside it once per active phase, or again after
 //! `rehit_ticks`; wind-ups and recoveries deal nothing; an attacker killed earlier in the tick
 //! still lands its hit (a trade); invulnerability stops a hit without using it up. A phase's
@@ -300,7 +300,7 @@ fn a_phases_damage_is_the_base_damage_of_the_zones_it_spawns() {
             .collect::<Vec<u32>>()
     };
     assert_eq!(shot(Some(7)), [9_893]);
-    // Without one, an enemy's attack does 100 (1 before the scale of ADR-103).
+    // Without one, an enemy's attack does 100 (1 before the scale).
     assert_eq!(shot(None), [9_800]);
 }
 

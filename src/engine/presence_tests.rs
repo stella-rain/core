@@ -1,4 +1,4 @@
-//! A slot joins and leaves between steps (ADR-SIM-13, ADR-SIM-14): what the state holds after,
+//! A slot joins and leaves between steps (ADR-SIM-21, ADR-SIM-22): what the state holds after,
 //! the hole-safe lookups, and the `id_gap` rule at the tick the count changes.
 
 use crate::id::EntityId;

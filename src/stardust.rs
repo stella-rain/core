@@ -1,4 +1,4 @@
-//! The Stardust file (ADR-101 point 4, ADR-080, DS6 Q10): the rules the app pays a failed run's
+//! The Stardust file (ADR-CONT-15, DS6 Q10): the rules the app pays a failed run's
 //! Stardust by, one entry per mode. A clear pays all the Stardust a run earned; a fail pays
 //! `pay_pct` of it and, while `bank` is on, adds `bank_pct` of it (rounded up, never more than
 //! what is left after the pay) to a bank kept up to `bank_cap`. The next clear of the same mode
@@ -6,12 +6,12 @@
 //! difficulty); the entry here is a mode's and holds for every difficulty.
 //!
 //! `progression::settle` pays, splits and banks by these numbers; the app keeps the bank in its
-//! save (ADR-101 point 7). Core counts what a run earns (ADR-109, `sim::stardust`); this file
+//! save. Core counts what a run earns (`sim::stardust`); this file
 //! only carries the numbers, so no simulation outcome depends on it.
 //!
-//! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every number bounded: at most `MAX_MODES`
-//! entries, each a mode of the registry (ADR-026) once, `pay_pct` and `bank_pct` from 0 to 100
+//! entries, each a mode of the registry (ADR-CONT-12) once, `pay_pct` and `bank_pct` from 0 to 100
 //! with a sum of at most 100, and `bank_cap` at most `MAX_BANK_CAP`. `Pack` holds the file as
 //! an optional field: a pack released before it yields the bundled file (`Stardust::bundled`),
 //! so older packs still load. A mode without an entry has none of these rules (`Stardust::mode`
@@ -27,12 +27,11 @@ use crate::registry::{self, Kind};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest Stardust file read (a tuning value; ADR-020 decides that one exists).
+/// The largest Stardust file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_STARDUST_BYTES: usize = 4 * 1024;
 /// The most modes one file has entries for (3 modes exist today).
 pub const MAX_MODES: usize = 16;
-/// The hard ceiling of any mode's `bank_cap`, in whole Stardust (a tuning value, ADR-101
-/// point 5).
+/// The hard ceiling of any mode's `bank_cap`, in whole Stardust (a tuning value).
 pub const MAX_BANK_CAP: u32 = 1_000_000;
 /// The largest share: a percent.
 pub const MAX_PCT: u32 = 100;

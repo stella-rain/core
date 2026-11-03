@@ -1,4 +1,4 @@
-//! Attacks as phases (ADR-055): each phase lasts its ticks and spawns its nodes on its first
+//! Attacks as phases: each phase lasts its ticks and spawns its nodes on its first
 //! tick; an attacker runs one attack at a time; the patterns a phase spawns run to their own
 //! end; a wind-up announces itself; `move_pct` scales the attacker's movement; a boss timeline
 //! step waits for its attack; the snapshot shows the phase.

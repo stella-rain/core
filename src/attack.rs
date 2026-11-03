@@ -1,11 +1,11 @@
-//! Attacks (ADR-055, amending tier 3 of ADR-036): an attack is an ordered list of phases, each
+//! Attacks (amending tier 3 of ADR-SIM-18): an attack is an ordered list of phases, each
 //! lasting a fixed number of ticks, with its own hit box, base damage and the emitter nodes it
 //! spawns. Emitter nodes are trees whose parameters are small fixed-point expressions. Presets
 //! are registered content IDs; a stage refers to one with arguments, or holds an inline copy it
 //! may edit freely.
 //!
 //! Angles are in 1/256 degree; speeds and lengths in 1/256 pixel (per tick for speeds; the
-//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-035).
+//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-REPL-12).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ pub enum AttackRef {
     ),
 }
 
-/// One phase of an attack (ADR-055).
+/// One phase of an attack.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttackPhase {
@@ -43,13 +43,13 @@ pub struct AttackPhase {
     /// The area the phase covers, attached to the attacker.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hit_box: Option<HitBox>,
-    /// Base damage of the phase's hits and of the zones it spawns (ADR-056). Absent, it is
+    /// Base damage of the phase's hits and of the zones it spawns. Absent, it is
     /// what the attacker's own attack does: the main character's `atk`, a `shot` skill's
-    /// `damage`, or 100 (1 at the design values, ADR-103) for an enemy or the boss.
+    /// `damage`, or 100 (1 at the design values) for an enemy or the boss.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_DAMAGE))]
     pub damage: Option<u32>,
-    /// The damage type of the phase's hits and of the zones it spawns (ADR-100); absent, they
+    /// The damage type of the phase's hits and of the zones it spawns; absent, they
     /// are neutral and never get a match-up.
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub damage_type: Option<DamageType>,
@@ -92,7 +92,7 @@ fn is_full_speed(v: &u8) -> bool {
     *v == 100
 }
 
-/// The damage types, a closed list (ADR-100): three attack types, which are physical, and the
+/// The damage types, a closed list: three attack types, which are physical, and the
 /// elements. A list for the prototype; changing it is a schema change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -138,7 +138,7 @@ impl DamageType {
     }
 }
 
-/// A blanket resist: every attack type, or every element (ADR-100).
+/// A blanket resist: every attack type, or every element.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Blanket {
@@ -156,7 +156,7 @@ impl Blanket {
     }
 }
 
-/// What an enemy, an elite, a boss or a boss part is weak and strong against (ADR-100). The
+/// What an enemy, an elite, a boss or a boss part is weak and strong against. The
 /// validator holds each type at most once in each list, and never in both.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -189,7 +189,7 @@ impl Profile {
     }
 }
 
-/// The match-up a hit got (ADR-100), which the `Hit` event reports.
+/// The match-up a hit got, which the `Hit` event reports.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchUp {
@@ -454,7 +454,7 @@ pub enum Direction {
     Sequential { step: Expr },
 }
 
-/// A fixed-point expression (ADR-036): a literal, an input, or an operator. No variables,
+/// A fixed-point expression (ADR-SIM-18): a literal, an input, or an operator. No variables,
 /// loops or recursion beyond the tree itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -465,7 +465,7 @@ pub enum Expr {
     LoopIndex,
     /// Ticks since the attack started: 0 on its first tick.
     PhaseTime,
-    /// A draw from the run's SplitMix64 (ADR-033), from `lo` to `hi` inclusive; `lo` if the
+    /// A draw from the run's SplitMix64 (ADR-SIM-16), from `lo` to `hi` inclusive; `lo` if the
     /// range is empty. Expressions are evaluated left to right, so the order of draws is fixed.
     Rand(Box<(Expr, Expr)>),
     Add(Box<(Expr, Expr)>),

@@ -1,4 +1,4 @@
-//! Auto mode (ADR-073): while `auto` is on and there is a target, the simulation presses for
+//! Auto mode: while `auto` is on and there is a target, the simulation presses for
 //! the player through the auto combo, step by step, and starts it again from the root once its
 //! last step has run out. It never holds, evades or takes the dash branch. The auto combo starts
 //! as the Main weapon's A chain; a combo the player joins by hand replaces it when it resets,
@@ -232,7 +232,7 @@ fn auto_mode_faces_the_target_with_assist_off_and_the_hand_does_not() {
     assert_eq!((f.x, f.y), (0, -SCALE));
 }
 
-// --- Charged steps (ADR-114) -------------------------------------------------------------------
+// --- Charged steps -------------------------------------------------------------------
 
 /// A, then AA that charges (level 1 at 5 ticks held, level 2 at 10, both with a perfect window
 /// that would add damage), then AAA, a leaf.

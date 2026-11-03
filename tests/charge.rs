@@ -1,4 +1,4 @@
-//! Charged combo steps (ADR-070), worked out by hand. The main character stands at (46080,
+//! Charged combo steps, worked out by hand. The main character stands at (46080,
 //! 147456), facing up the field; every attack goes along the facing.
 //!
 //! The test step charges while its button stays held from its start: level 0 is its own

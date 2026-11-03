@@ -1,14 +1,14 @@
-//! Stage skills (ADR-075, ADR-098): what the `skill` button uses. A run's one slot starts empty
+//! Stage skills: what the `skill` button uses. A run's one slot starts empty
 //! and is filled from falling stars: a reward with the `stage_skill` effect names one of the
 //! stage skills file's skills. Taking a skill other than the one held replaces it, and it
 //! arrives ready; taking the same skill again raises its level, up to its highest.
 //!
-//! Data picks, code acts (ADR-067): each level's effects are building blocks from a closed list
+//! Data picks, code acts (ADR-CONT-11): each level's effects are building blocks from a closed list
 //! built into `core`, with their numbers here, at most one of each block and at most
 //! `MAX_SKILL_EFFECTS`. A new block is a code change and a new `sim_version`. A skill's look is
 //! content too: its icon, title and description.
 //!
-//! The file is untrusted (ADR-020), as the rewards are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-7), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded; the bounds are tuning values.
 //! The bundled file, `content/stage_skills.json`, is the default; the SHA-256 of whatever bytes
 //! a run used is part of its content hash.
@@ -45,7 +45,7 @@ pub const MAX_SKILL_AHEAD: i32 = 131_072;
 pub const MAX_PULL: i32 = 2_048;
 /// The largest status: +1000%.
 pub const MAX_SKILL_PCT: u16 = 1_000;
-/// The most damage a shield absorbs: 10,000 at the design values, scaled (ADR-103).
+/// The most damage a shield absorbs: 10,000 at the design values, scaled.
 pub const MAX_SHIELD: u32 = 10_000 * crate::validate::limits::DAMAGE_SCALE;
 
 /// One stage skill.
@@ -54,10 +54,10 @@ pub const MAX_SHIELD: u32 = 10_000 * crate::validate::limits::DAMAGE_SCALE;
 pub struct StageSkill {
     /// The skill's own ID, unique within the file; a reward names it.
     pub id: ContentId,
-    /// The asset the skill button draws (ADR-026): an asset ID of the registry.
+    /// The asset the skill button draws (ADR-CONT-12): an asset ID of the registry.
     pub icon: ContentId,
     /// How far ahead of the main character its point is, along the facing, or toward the aim
-    /// assist's target while `assist` is on (ADR-072); 0, the default, is at the main
+    /// assist's target while `assist` is on; 0, the default, is at the main
     /// character. An attack places its own hit boxes instead.
     #[serde(default, skip_serializing_if = "is_zero_fx")]
     pub ahead: Fx,
@@ -80,7 +80,7 @@ pub struct SkillLevel {
     pub effects: Vec<SkillEffect>,
 }
 
-/// One building block of a use (ADR-098 §2), at the skill's point.
+/// One building block of a use, at the skill's point.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SkillEffect {
@@ -92,7 +92,7 @@ pub enum SkillEffect {
         strength: Fx,
         duration_ticks: u32,
     },
-    /// `status` (a status ID of the registry, ADR-036) on the main character, `value_pct`
+    /// `status` (a status ID of the registry, ADR-SIM-18) on the main character, `value_pct`
     /// percent, for `duration_ticks`.
     SelfStatus {
         status: ContentId,
@@ -107,7 +107,7 @@ pub enum SkillEffect {
         value_pct: u16,
         duration_ticks: u32,
     },
-    /// `attack` runs in the stage skill's own attack slot (ADR-069), along the aim, at the main
+    /// `attack` runs in the stage skill's own attack slot, along the aim, at the main
     /// character's attack stat: it neither waits for nor cancels a combo step. A new attack
     /// ends the one still running.
     Attack { attack: AttackRef },

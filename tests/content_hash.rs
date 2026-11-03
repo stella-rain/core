@@ -1,4 +1,4 @@
-//! The stage content hash (ADR-034): SHA-256 of the SHA-256 of the stage bytes followed by the
+//! The stage content hash (ADR-SVC-13): SHA-256 of the SHA-256 of the stage bytes followed by the
 //! SHA-256 of the replay bytes. Players' caches and the moderation blocklist store it, so the
 //! vector below is frozen.
 

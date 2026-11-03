@@ -1,9 +1,9 @@
-//! Golden recordings (ADR-016): the JSON Lines recording of a short run for a companion, an
-//! enemy, a boss and the main shot, kept as `insta` snapshots in `tests/golden/` (ADR-021).
+//! Golden recordings (ADR-BRDG-12): the JSON Lines recording of a short run for a companion, an
+//! enemy, a boss and the main shot, kept as `insta` snapshots in `tests/golden/` (ADR-SIM-17).
 //! They read like a story of what each agent did and why the hash moved, and any change to the
 //! rules shows up as a diff in review. After an intended change, run
 //! `cargo insta test --features record --test integration --review` (or set `INSTA_UPDATE=always`)
-//! and say `Corpus regenerated: <why>` in the PR (ADR-035). In CI a difference always fails.
+//! and say `Corpus regenerated: <why>` in the PR (ADR-REPL-12). In CI a difference always fails.
 #![cfg(feature = "record")]
 
 use crate::common;

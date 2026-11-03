@@ -13,7 +13,7 @@
 //! `mid_boss_hp_pct`. A boss's death opens the boss offer as any boss's does; the run clears only
 //! on the final boss's.
 //!
-//! Elite minutes (ADR-090): on each whole minute of the run before its length that is not a boss
+//! Elite minutes: on each whole minute of the run before its length that is not a boss
 //! time, one elite is drawn from the tier whose start is the latest one not after the tick, by
 //! weight, and spawned on the spawn rectangle (VS1). They come in the tick's step
 //! right after the waves, so a tick draws the waves' placements, then the elite's type and
@@ -71,7 +71,7 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
         }
     };
     horde.spawned += 1;
-    // The elites that leave when a boss comes go (ADR-090).
+    // The elites that leave when a boss comes go.
     for e in &mut s.enemies {
         if let (Some(el), Some(l)) = (e.elite, e.leave.as_mut()) {
             l.go |= el.boss_call == BossCall::Leave;

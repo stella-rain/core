@@ -1,4 +1,4 @@
-//! Type bonuses (ADR-100 points 4, 5 and 7): falling-star reward effects that raise the damage
+//! Type bonuses: falling-star reward effects that raise the damage
 //! of one damage type (`type_bonus_pct`, with its `type`), of every attack type
 //! (`attack_type_bonus_pct`) or of every element (`element_bonus_pct`). The bonuses that apply
 //! to an attack's type add up into one of the attacker's multipliers, fixed when the attack
@@ -345,7 +345,7 @@ fn the_bonuses_that_apply_add_up_into_one_kind() {
 fn the_bonus_multiplies_with_each_match_up_and_never_adds() {
     let list = || vec![pyro(50)];
     let hit = |profile: Value| first_hit(100, Some("pyro"), Some(profile), list(), &["pyro"]);
-    // ADR-100's example: 1.5 × 0.8 = 1.2, never 1 + 0.5 − 0.2.
+    // An example: 1.5 × 0.8 = 1.2, never 1 + 0.5 − 0.2.
     assert_eq!(hit(json!({ "strong": ["pyro"] })), 120, "strong");
     assert_eq!(hit(json!({ "resist": "elements" })), 120, "resisted");
     assert_eq!(hit(json!({ "weak": ["pyro"] })), 180, "weak: 1.5 × 1.2");

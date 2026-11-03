@@ -1,10 +1,10 @@
-//! Weapons (ADR-084): the main character carries one weapon and attacks with it by hand. The
+//! Weapons: the main character carries one weapon and attacks with it by hand. The
 //! weapon owns the combo tree, reached by presses of `main` (A) and `smash` (B), each step a
-//! phased attack (ADR-069) that may charge. A weapon is a preset by ID or an inline definition,
+//! phased attack that may charge. A weapon is a preset by ID or an inline definition,
 //! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
-//! reached by B) may carry one smash effect. The run's setup takes one ID (ADR-107).
+//! reached by B) may carry one smash effect. The run's setup takes one ID.
 //!
-//! Field names are placeholders until the freeze (ADR-035).
+//! Field names are placeholders until the freeze (ADR-REPL-12).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use crate::id::ContentId;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeaponRef<W> {
-    /// A preset, in one of its trees (ADR-117): none is the weapon's first tree.
+    /// A preset, in one of its trees (ADR-REPL-16): none is the weapon's first tree.
     Preset {
         id: ContentId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -26,7 +26,7 @@ pub enum WeaponRef<W> {
     Inline(Box<W>),
 }
 
-/// A weapon (ADR-084): its combo tree, the timings that join its steps and its smash effect.
+/// A weapon: its combo tree, the timings that join its steps and its smash effect.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Weapon {
@@ -44,7 +44,7 @@ pub struct Weapon {
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DASH_STRIKE_TICKS))]
     pub dash_strike_ticks: u32,
-    /// How far aim assist and auto mode look for a target (ADR-072): an enemy whose circle
+    /// How far aim assist and auto mode look for a target: an enemy whose circle
     /// reaches within this distance of the main character.
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_ASSIST_RANGE))]
     pub assist_range: Fx,
@@ -77,7 +77,7 @@ impl Branches {
     }
 }
 
-/// One step of a combo (ADR-070).
+/// One step of a combo.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Step {
@@ -87,7 +87,7 @@ pub struct Step {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<Charge>,
     /// Held past its last `active` phase, the button that reached the step starts a hold
-    /// instead of the attack's recovery (ADR-084 point 6). A step has a charge or a hold, never
+    /// instead of the attack's recovery. A step has a charge or a hold, never
     /// both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hold: Option<Hold>,
@@ -95,7 +95,7 @@ pub struct Step {
     pub next: Branches,
 }
 
-/// A held step (ADR-084 point 6): an attack that goes on while the button stays held, then a
+/// A held step: an attack that goes on while the button stays held, then a
 /// release attack when it is let go, or at `max_ticks`. The hold begins where the step's
 /// recovery after its last `active` phase would, so that phase is the hold's place.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -117,7 +117,7 @@ pub struct Hold {
     pub move_pct: u8,
 }
 
-/// A charged step (ADR-070): the ticks held raise its level, and letting go attacks at the
+/// A charged step: the ticks held raise its level, and letting go attacks at the
 /// level reached; inside the level's perfect window it adds its perfect bonus. At `max_ticks`
 /// it releases by itself, without the bonus. Level 0, before the first of `levels`, is the
 /// step's own attack. The frontend slows time from level 1; the rules do not.
@@ -168,8 +168,8 @@ fn is_zero_u16(v: &u16) -> bool {
     *v == 0
 }
 
-/// What a smash (a step reached by `smash`) does to every enemy it hits (ADR-084 point 8): one
-/// of a closed list built into `core`, its numbers in JSON (ADR-067).
+/// What a smash (a step reached by `smash`) does to every enemy it hits: one
+/// of a closed list built into `core`, its numbers in JSON (ADR-CONT-11).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SmashEffect {
@@ -189,11 +189,11 @@ pub enum SmashEffect {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_PULL_TICKS))]
         ticks: u32,
     },
-    /// The enemy hit gets the `bleed` status, the one bleed of ADR-099 with the bleed rune's
-    /// numbers from the run's runes file, none of its own (ADR-084 point 8). A run whose file has
+    /// The enemy hit gets the `bleed` status, the one bleed with the bleed rune's
+    /// numbers from the run's runes file, none of its own. A run whose file has
     /// no bleed gives none.
     Bleed {},
-    /// The enemy hit is stunned for `ticks` (ADR-085): it stops what it was doing and cannot act
+    /// The enemy hit is stunned for `ticks`: it stops what it was doing and cannot act
     /// until the stun runs out. Bosses resist it, and an elite takes half the ticks.
     Stun {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]

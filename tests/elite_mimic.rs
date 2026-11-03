@@ -1,4 +1,4 @@
-//! The mimic (ADR-090 point 5, app#259): an elite in disguise. Disguised it is an object: it
+//! The mimic (app#259): an elite in disguise. Disguised it is an object: it
 //! does not move or attack, nothing damages it, aim assist and the selectors never pick it, the
 //! snapshot shows its disguise sprite and the minimap does not know it is an elite. The first
 //! tick the main character's centre is within `reveal_radius` of it, it reveals (`MimicRevealed`,

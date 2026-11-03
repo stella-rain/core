@@ -1,4 +1,4 @@
-//! `content-pack unpack PACK DIR` (BS1, ADR-131): a pack's files written back into `content/`
+//! `content-pack unpack PACK DIR` (BS1, ADR-CONT-14): a pack's files written back into `content/`
 //! (and `modes/` beside it), so that exporting them gives the same pack bytes.
 
 // It starts the `content-pack` binary as a host process, which the iOS Simulator run cannot.

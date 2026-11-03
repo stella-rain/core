@@ -1,7 +1,7 @@
-//! The difficulties file (ADR-110): each difficulty a content ID with the percents its enemies
+//! The difficulties file: each difficulty a content ID with the percents its enemies
 //! are scaled by, the range of rarities its drops may have and,
 //! optionally, its own length, boss times, level table and Stardust tiers (`stardust_tiers.rs`). Read from JSON as untrusted bytes
-//! (ADR-020). The bundled file is the default; other bytes run the same way and change the run's
+//! (ADR-SVC-7). The bundled file is the default; other bytes run the same way and change the run's
 //! content hash.
 
 use crate::common;

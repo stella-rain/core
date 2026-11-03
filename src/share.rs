@@ -1,12 +1,12 @@
-//! Share codes (ADR-010, ADR-018): a stage and its clear replay as text, for players without GitHub.
+//! Share codes (ADR-SVC-13, ADR-CONT-11): a stage and its clear replay as text, for players without GitHub.
 //! The two files go into one JSON object as strings, so their exact bytes survive (the replay
-//! names the SHA-256 of the stage file, and the content hash covers both, ADR-034). The object
+//! names the SHA-256 of the stage file, and the content hash covers both, ADR-SVC-13). The object
 //! is compressed with zlib (the `miniz_oxide` crate) and base64-encoded.
 //!
-//! A code never holds a run's replay (ADR-066): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
+//! A code never holds a run's replay (ADR-REPL-16): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
 //! and a code carrying one is refused (`ShareError::RunReplay`).
 //!
-//! A code is untrusted (ADR-020). Its length is limited before anything is decoded, the
+//! A code is untrusted (ADR-SVC-7). Its length is limited before anything is decoded, the
 //! decompressed size is limited while decompressing, so a small code cannot expand into a
 //! large file, and the two files inside must each be within their own limits.
 
@@ -52,7 +52,7 @@ pub enum ShareError {
     Parse,
     /// A file is over its own size limit.
     FileTooLarge,
-    /// The replay is a run's replay (ADR-066), which is shared as a file, not a code.
+    /// The replay is a run's replay (ADR-REPL-16), which is shared as a file, not a code.
     RunReplay,
     /// A file is not text (stage and replay files are JSON).
     NotText,
@@ -75,7 +75,7 @@ impl fmt::Display for ShareError {
 
 impl std::error::Error for ShareError {}
 
-/// The keys only a run replay has (ADR-066): a stage replay has none of them.
+/// The keys only a run replay has (ADR-REPL-16): a stage replay has none of them.
 #[derive(Deserialize)]
 struct RunReplayKeys {
     setup: Option<serde::de::IgnoredAny>,

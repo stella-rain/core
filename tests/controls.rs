@@ -1,5 +1,5 @@
-//! The controls of ADR-071 as far as they run so far: the input record's movement, the
-//! persistent facing (ADR-069), the Main weapon's attack on a press of `main`, along the facing,
+//! The controls as far as they run so far: the input record's movement, the
+//! persistent facing, the Main weapon's attack on a press of `main`, along the facing,
 //! and the evade. Every number here is worked out by hand from the rules' constants.
 
 use crate::common;
@@ -211,7 +211,7 @@ fn the_evade_cooldown_counts_from_its_start() {
 
 #[test]
 fn a_held_button_presses_once() {
-    // ADR-071: buttons are sent held, and only a button held now and not on the tick before is a
+    // Buttons are sent held, and only a button held now and not on the tick before is a
     // press, so holding the evade through its cooldown never evades again.
     let mut e = running(vec![]);
     let seen = run_until(&mut e, evading(127, 0), EVADE_COOLDOWN * 3, |_| false);

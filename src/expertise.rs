@@ -1,20 +1,20 @@
-//! Expertise (ADR-106, ADR-067): one level inside one run, for the one weapon, with no highest
+//! Expertise (ADR-CONT-11): one level inside one run, for the one weapon, with no highest
 //! level. This is its content: the points levels 1 to 10 each need, the growth factor for every
 //! level after and the most a level needs, and for each weapon its three styles (a path: the
 //! style, then two upgrades and a capstone, at the levels of the mode's level table,
 //! `stage::LevelTable`) and its common pool, drawn at the other levels. No option has a stack
 //! limit and none leaves its pool by being taken (the attack speed total is held at
 //! `run_stats::MAX_ATTACK_SPEED_PCT`); cooldown reduction is no expertise option but Rune
-//! Haste, a star reward (ADR-099). Each enemy's points per hit and per kill are in the stage
+//! Haste, a star reward. Each enemy's points per hit and per kill are in the stage
 //! (`stage::ExpertisePoints`).
 //!
 //! Data picks, code acts: an option's effect is one of the run stats' effect kinds
-//! (`StatEffect`), under the same names, or `range_pct`, the range reward's widening
-//! (ADR-070, ADR-099). The gauge reads the thresholds, the growth and the maximum, the common offers
+//! (`StatEffect`), under the same names, or `range_pct`, the range reward's widening.
+//! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`).
 //!
-//! The file is untrusted (ADR-020), as the rewards are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-7), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
 //! the factor is above 1, no pool is empty, every weapon preset has three complete styles, and
 //! every number is capped. Option and style IDs are the file's own, unique within a weapon. The
@@ -33,16 +33,16 @@ use crate::run_stats::StatEffect;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest expertise file read (a tuning value; ADR-020 decides that one exists).
+/// The largest expertise file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
 /// The levels whose thresholds the file lists: 1 to 10, so far as the style path's last level
-/// (ADR-106 §3, `stage::MAX_STYLE_LEVEL`).
+/// (`stage::MAX_STYLE_LEVEL`).
 pub const TABLE_LEVELS: usize = 10;
 /// The most points one level needs, a threshold or the growth's maximum.
 pub const MAX_LEVEL_POINTS: u32 = 1_000_000;
 /// The largest growth factor, in percent: four times the level before.
 pub const MAX_GROWTH_PCT: u16 = 400;
-/// The styles of each weapon: exactly three (ADR-106 §5).
+/// The styles of each weapon: exactly three.
 pub const STYLES: usize = 3;
 /// The most fixed choices a style offers at each of its two upgrades and its capstone.
 pub const MAX_STYLE_CHOICES: usize = 3;
@@ -62,8 +62,8 @@ pub enum ExpertiseEffect {
     EvadePct,
     SpeedPct,
     XpPct,
-    /// Every combo step's hit box `amount` percent larger, as the range reward widens it
-    /// (ADR-070, ADR-099), at most `MAX_RANGE_PCT`.
+    /// Every combo step's hit box `amount` percent larger, as the range reward widens it,
+    /// at most `MAX_RANGE_PCT`.
     RangePct,
 }
 
@@ -102,7 +102,7 @@ pub struct ExpertiseOption {
     pub amount: u32,
 }
 
-/// A style (ADR-106 §5): a path chosen at the level table's style level, held for the run. Its
+/// A style: a path chosen at the level table's style level, held for the run. Its
 /// own effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the
 /// table's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

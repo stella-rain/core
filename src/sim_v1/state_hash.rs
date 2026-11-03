@@ -1,4 +1,4 @@
-//! The state hash of every `State` type (ADR-SIM-3 point 2): each impl destructures its type
+//! The state hash of every `State` type (ADR-SIM-17 point 2): each impl destructures its type
 //! without `..`, so a field added without a decision does not compile. A field that is left out
 //! is `field: _` with `// not hashed: <why>`; `engine::hash_coverage_tests` lists them again and
 //! checks both halves.

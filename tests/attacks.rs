@@ -1,4 +1,4 @@
-//! Attacks (ADR-036 tier 3): emitter trees carried out over time, expressions, presets and
+//! Attacks (ADR-SIM-18 tier 3): emitter trees carried out over time, expressions, presets and
 //! their inline copies, and the runtime caps. An enemy standing at (46080, 50000) starts an
 //! attack straight above the main character, so "aimed" means straight down; the orbs that
 //! come out are read from the snapshot, and their velocities from where they first appear (one

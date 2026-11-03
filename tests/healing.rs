@@ -3,7 +3,7 @@
 //! taking the pickup heals 300 shown hit points, never above the most; a regen reward adds its
 //! amount a second at its rarity (10, 15, 30, 35, 60 and 80 shown hit points from common up to
 //! supernova). Kade's numbers are shown hit points; the files hold them in the stage's scale
-//! (ADR-103): `DAMAGE_SCALE` (100) is one shown hit point. Every number here is worked out by hand.
+//!: `DAMAGE_SCALE` (100) is one shown hit point. Every number here is worked out by hand.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -176,7 +176,7 @@ fn boss_dead(e: &Engine) -> bool {
         .any(|ev| matches!(ev, DomainEvent::Died { entity, .. } if entity.0 == 1))
 }
 
-// Validation: the caps of the heal config and of the regen amount (ADR-020).
+// Validation: the caps of the heal config and of the regen amount (ADR-SVC-7).
 
 #[test]
 fn a_heal_config_is_bounded_like_the_other_content() {

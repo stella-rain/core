@@ -1,7 +1,7 @@
-//! Damage types and match-ups (ADR-100): an attack phase may have one damage type, which its
+//! Damage types and match-ups: an attack phase may have one damage type, which its
 //! hit box and its orbs carry; enemies, elites, bosses and boss parts may have a match-up
 //! profile. Each hit gets exactly one match-up, weak (+20), strong (−20), resisted (−20) or
-//! none, applied as a target's multiplier after vulnerability and before defence (ADR-056).
+//! none, applied as a target's multiplier after vulnerability and before defence.
 
 use crate::common;
 
@@ -161,7 +161,7 @@ fn no_profile_is_neutral_to_every_type() {
 
 #[test]
 fn the_match_up_comes_after_vulnerability_and_before_defence() {
-    // 10 × 150 / 100 = 15, × 120 / 100 = 18, × 10,000 / 20,000 = 9 (K is 10,000, ADR-103).
+    // 10 × 150 / 100 = 15, × 120 / 100 = 18, × 10,000 / 20,000 = 9 (K is 10,000).
     let rules = json!([
         { "when": always(), "target": "nearest_enemy", "once": true,
           "do": cast(json!({ "type": "vulnerable", "value_pct": 50, "duration_ticks": 60 })) },

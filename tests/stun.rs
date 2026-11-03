@@ -1,5 +1,5 @@
-//! Stun (ADR-085): a smash's stun puts the `stun` status on the enemy it hits, for the smash's
-//! ticks, and does what ADR-085 says while it lasts: it cancels the enemy's running attack, pauses
+//! Stun: a smash's stun puts the `stun` status on the enemy it hits, for the smash's
+//! ticks, and, while it lasts, it cancels the enemy's running attack, pauses
 //! its movement and its rules (its cooldowns keep counting), and when it ends the enemy is immune
 //! to a new stun for the run's `immune_ticks`. It does not stack: a stun on a stunned enemy keeps
 //! the longer remainder. An elite takes its share of the ticks, and a boss takes none. Every

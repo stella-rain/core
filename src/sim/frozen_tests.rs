@@ -1,11 +1,11 @@
-//! The source of `sim_v1` is the frozen copy of the first rules (ADR-REPL-9 point 1): the corpus
+//! The source of `sim_v1` is the frozen copy of the first rules (ADR-REPL-13 point 3): the corpus
 //! `tests/corpus/v1/` guards its outcomes, this guards its text.
 
 use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 8_587_317_920_102_118_791;
+const SIM_V1_SOURCE: u64 = 8_148_982_153_939_929_215;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
 /// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, so the list is closed.
@@ -68,7 +68,7 @@ fn sim_v1_is_the_frozen_copy() {
     assert_eq!(
         h.finish(),
         SIM_V1_SOURCE,
-        "src/sim_v1 changed: a change to its behaviour needs Kade's call (ADR-REPL-9 point 1); \
+        "src/sim_v1 changed: a change to its behaviour needs Kade's call (ADR-REPL-13 point 3); \
          an edit only to keep compiling updates this constant in the same commit and says so in \
          its body"
     );
@@ -138,7 +138,7 @@ fn the_event_scan_finds_a_live_import() {
     assert_eq!(live_event_lines("a\nuse crate::{\n  event,\n};"), [2]);
 }
 
-/// The frozen rules own the events they emit (ADR-REPL-9 point 1, ADR-REPL-7 point 3): a change
+/// The frozen rules own the events they emit (ADR-REPL-13 points 1 to 3): a change
 /// to the live event edits `engine/v1_events.rs`, never `sim_v1`.
 #[test]
 fn sim_v1_imports_nothing_from_the_live_event() {

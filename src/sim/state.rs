@@ -1,4 +1,4 @@
-//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-3).
+//! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-17).
 
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
@@ -25,8 +25,8 @@ use std::sync::LazyLock;
 pub(crate) const UNLIMITED: u32 = u32::MAX;
 
 /// The run's generators, one per purpose, so a change to one kind of draw leaves the others
-/// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
-/// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-12): the hash and
+/// where they were (ADR-SIM-16). Each is `rng::derive(seed, tag)`; the hash writes them in this
+/// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-21): the hash and
 /// savepoint format 1 write slot 0's between `loot` and `horde`, where it was.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -75,16 +75,16 @@ pub(crate) struct State {
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
-    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-12).
+    /// The players, in entity-ID order (`PlayerIdx::id`): one now (ADR-SIM-21).
     pub players: Players,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
     pub companions: Vec<AgentState>,
     /// In spawn order, which is entity-ID order.
     pub enemies: Vec<AgentState>,
-    /// Attacks that are being carried out, oldest first (ADR-036 tier 3).
+    /// Attacks that are being carried out, oldest first (ADR-SIM-18 tier 3).
     pub tasks: Vec<AttackTask>,
-    /// Phased attacks in progress, in the order they started (ADR-055).
+    /// Phased attacks in progress, in the order they started.
     pub runs: Vec<AttackRun>,
     /// What `runs` leave each attacker's speed; updated wherever `runs` changes.
     pub move_index: MoveIndex,
@@ -99,7 +99,7 @@ pub(crate) struct State {
     /// Enemies spawned so far, per wave.
     pub spawned: Vec<u16>,
     /// The next entity number. It starts at `MAX_PLAYERS`: the numbers 0 to 2 are the player slots,
-    /// present or not (ADR-SIM-13). The hash and the savepoint write it, like every entity number,
+    /// present or not (ADR-SIM-21). The hash and the savepoint write it, like every entity number,
     /// as it is.
     pub next_id: u32,
     /// Cage groups taken so far (Z3a-3).
@@ -108,12 +108,12 @@ pub(crate) struct State {
     pub stars: Option<StarField>,
     /// Heal pickups on the map, in the order they dropped; `None` in a stage without healing.
     pub heal_pickups: Option<Vec<HealPickup>>,
-    /// What each match-up does to a hit (ADR-100): content, fixed for the run and covered by
+    /// What each match-up does to a hit: content, fixed for the run and covered by
     /// the content hash, so the state hash leaves it out.
     pub match_ups: MatchUps,
-    /// What each on-hit rune does when it fires (ADR-099): content, as the match-ups are.
+    /// What each on-hit rune does when it fires: content, as the match-ups are.
     pub runes: Runes,
-    /// The stun rules (ADR-085 points 4 and 6): content, as the match-ups are.
+    /// The stun rules: content, as the match-ups are.
     pub stun: crate::run_stats::StunRules,
     /// The cap of the attack speed total (app#298): content, as the stun rules are.
     pub max_attack_speed_pct: u32,
@@ -126,7 +126,7 @@ pub(crate) struct State {
     /// The bosses of a `time_limit` run, as they come; `None` in any other run.
     pub horde: Option<Horde>,
     /// The percents the run's difficulty scales enemies' hit points and attacks' damage by
-    /// (ADR-110): fixed for the run, part of the setup, and hashed with it.
+    ///: fixed for the run, part of the setup, and hashed with it.
     pub hp_pct: u32,
     pub damage_pct: u32,
     /// The run's seed, which the critical-hit rolls are hashed from: they draw nothing from
@@ -167,7 +167,7 @@ pub(crate) struct Horde {
     pub held: Vec<u32>,
 }
 
-/// The one expertise gauge of the one weapon (ADR-106 §1 to §3), and its offers (ADR-079 §2, §3).
+/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-16).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
@@ -184,10 +184,10 @@ pub(crate) struct ExpertiseGauge {
     /// for a weapon with no expertise content.
     pub taken: Vec<u8>,
     /// What the range options taken add up to: every combo step's hit box that much wider,
-    /// with the range rewards' (ADR-070, ADR-099).
+    /// with the range rewards'.
     pub range_pct: u32,
     /// The weapon's style, a place among its three, once chosen at the level table's style
-    /// level; held for the run (ADR-106 §5).
+    /// level; held for the run.
     pub style: Option<u8>,
     /// The places of the style's choices taken at the upgrade and capstone levels, in level
     /// order.
@@ -205,8 +205,8 @@ pub(crate) struct ExpertiseOffer {
 }
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
-/// player's offers (ADR-079 §2, §3). The offers due and open, and what each player's offers have
-/// used, are per slot in `Offers` (ADR-SIM-12).
+/// player's offers (ADR-REPL-16). The offers due and open, and what each player's offers have
+/// used, are per slot in `Offers` (ADR-SIM-21).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -214,10 +214,10 @@ pub(crate) struct StarField {
     pub misses: u32,
     /// The stars waiting on the map, in the order they dropped (entity-ID order).
     pub on_map: Vec<StarState>,
-    /// The rarities its stars and offers may have, lowest and highest (ADR-110): fixed for the
+    /// The rarities its stars and offers may have, lowest and highest: fixed for the
     /// run, part of the setup, and hashed with it.
     pub rarity: (Rarity, Rarity),
-    /// The runes the random rune may draw, by `Rune::index` (ADR-107): fixed for the run, part
+    /// The runes the random rune may draw, by `Rune::index`: fixed for the run, part
     /// of the setup, and hashed with it.
     pub rune_pool: u8,
     /// The run's pool: places in the rewards file, in its order, fixed for the run.
@@ -225,7 +225,7 @@ pub(crate) struct StarField {
 }
 
 /// One player's star offers: those due and the open one, and what the player's offers have used
-/// (ADR-079 §2, §3). A slot holds `Some` exactly when the stage has stars (`State::stars`).
+/// (ADR-REPL-16). A slot holds `Some` exactly when the stage has stars (`State::stars`).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
@@ -290,7 +290,7 @@ pub(crate) struct StatRule {
     pub limit: u8,
 }
 
-/// Experience, levels and stat points (ADR-079 §2, §4; DS18).
+/// Experience, levels and stat points (ADR-REPL-16; DS18).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {
@@ -320,7 +320,7 @@ pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 /// What one player carries through the run besides the player's body: the experience and levels
 /// (`None` in a stage without levels), the offer generator and the star offers (`None` in a stage
 /// without stars), the expertise gauge, the Stardust earned and the regeneration. One per slot in
-/// `Players` (ADR-SIM-12, ADR-SIM-2).
+/// `Players` (ADR-SIM-21, ADR-SIM-16).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Career {
@@ -331,10 +331,10 @@ pub(crate) struct Career {
     pub offers: Option<Offers>,
     /// The expertise gauge; `None` in a stage whose enemies and boss give no expertise points.
     pub expertise: Option<ExpertiseGauge>,
-    /// The Stardust the run has earned, times 10 (ADR-109): `Some` in a stage with a Stardust
+    /// The Stardust the run has earned, times 10: `Some` in a stage with a Stardust
     /// factor.
     pub stardust: Option<u32>,
-    /// Hit points the main character regenerates each second (a perk, ADR-105): set at the start
+    /// Hit points the main character regenerates each second (a perk): set at the start
     /// and raised by rewards.
     pub regen: u32,
 }
@@ -387,12 +387,12 @@ impl Default for Career {
 /// The players of a run: `1..=MAX_PLAYERS` of them, in the slots a presence mask names. All
 /// places are held, the absent ones as copies of the first that nothing reads, so that an index
 /// is a plain offset and a steady tick allocates nothing. Slot 0 is always present. The entity
-/// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-13).
+/// numbers 0 to 2 are the slots whether or not one is present (ADR-SIM-21).
 ///
 /// Each slot also holds its `Career` (the level progress, the offer generator, the star offers,
 /// the expertise gauge, the Stardust and the regeneration). The state hash and the savepoint write
 /// the shared fields, then one presence byte (bit `i` is slot `i`) and, for each present slot in
-/// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-7); an absent slot writes
+/// ascending order, its player and its career (ADR-SIM-17, ADR-SAVE-14); an absent slot writes
 /// nothing, and a hole in the mask hashes and saves. A party builder supplies a career for every
 /// present slot.
 #[derive(Clone, Debug)]
@@ -588,7 +588,7 @@ impl Players {
             .filter_map(PlayerIdx::new)
     }
 
-    /// The present slot whose entity number is `id` (ADR-SIM-13): the owner of a shot, a hit or a
+    /// The present slot whose entity number is `id` (ADR-SIM-21): the owner of a shot, a hit or a
     /// dot a player made. `None` for a companion, an enemy or a slot not in the party.
     #[inline]
     pub(crate) fn owner_of(&self, id: EntityId) -> Option<PlayerIdx> {
@@ -663,37 +663,37 @@ pub(crate) struct PlayerState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
-    /// Copied from the stage when it appears (ADR-056).
+    /// Copied from the stage when it appears.
     pub defence: u32,
     /// Ticks of invulnerability left, after a hit or from an evade.
     pub invulnerable: u32,
-    /// The last non-zero movement direction (ADR-069): where a combo step attacks and where an
+    /// The last non-zero movement direction: where a combo step attacks and where an
     /// evade without movement dashes.
     pub facing: Dir,
-    /// The enemy aim assist and auto mode face, picked each tick while either is on (ADR-072).
+    /// The enemy aim assist and auto mode face, picked each tick while either is on.
     pub target: Option<EntityId>,
-    /// The evade's charges held, ready or recovering (ADR-074).
+    /// The evade's charges held, ready or recovering.
     pub evade_charges: u8,
     /// Ticks left on each spent charge, in the order they were spent; none is 0 and there are
     /// never more than `evade_charges`.
     pub evade_recovering: Vec<u32>,
     /// The buttons held on the last tick (`input::held_buttons`), so that only a button held now
-    /// and not then is a press (ADR-071).
+    /// and not then is a press.
     pub held: u8,
-    /// Where it is in its Main weapon's combos (ADR-070).
+    /// Where it is in its Main weapon's combos.
     pub combo: ComboState,
     /// The dash in progress, if any.
     pub dash: Option<DashState>,
-    /// The stage skill slot (ADR-075): empty until a reward fills it.
+    /// The stage skill slot: empty until a reward fills it.
     pub skill: Option<SkillSlot>,
     /// The stage skill's pull while it pulls, and its shield while it holds.
     pub pull: Option<PullState>,
     pub shield: Option<ShieldState>,
-    /// The orbits rewards gave (ADR-069), in the order they came, at most `MAX_ORBITS`.
+    /// The orbits rewards gave, in the order they came, at most `MAX_ORBITS`.
     pub orbits: Vec<OrbitState>,
-    /// What the range rewards taken add up to, in percent, saturating (ADR-099).
+    /// What the range rewards taken add up to, in percent, saturating.
     pub range_pct: u32,
-    /// What the Rune Haste rewards taken add up to, in percent, saturating (ADR-099).
+    /// What the Rune Haste rewards taken add up to, in percent, saturating.
     pub rune_haste_pct: u32,
     /// What the pickup radius rewards taken add up to, in percent, saturating: the pickup
     /// circle of stars and heal pickups is that much wider, held to
@@ -728,11 +728,11 @@ pub(crate) struct PlayerState {
     /// Links more on the chain, from `burst_depth` rewards.
     pub burst_depth_extra: u32,
     /// What the type bonus rewards taken add up to for each damage type, by its place in
-    /// `DamageType::ALL`, in percent, saturating (ADR-100): a group's bonus is added to each
+    /// `DamageType::ALL`, in percent, saturating: a group's bonus is added to each
     /// type of its group.
     pub type_bonus_pct: [u32; DamageType::ALL.len()],
     /// The runes the Main weapon holds, in the order drawn, each once, at most `MAX_RUNES`
-    /// (ADR-099).
+    ///.
     pub runes: Vec<HeldRune>,
     pub aggro: u32,
     pub statuses: Statuses,
@@ -747,7 +747,7 @@ impl PlayerState {
     }
 }
 
-/// Where the main character is in its Main weapon's combo tree (ADR-070, ADR-076).
+/// Where the main character is in its Main weapon's combo tree.
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ComboState {
@@ -767,19 +767,19 @@ pub(crate) struct ComboState {
     pub dash_strike_left: u32,
     /// The current step charging: ticks held, 0 on the tick it began.
     pub charge: Option<u32>,
-    /// The current step held (ADR-084 point 6): ticks held, 0 on the tick it began.
+    /// The current step held: ticks held, 0 on the tick it began.
     pub hold: Option<u32>,
     /// The current step's hold has released, so its release attack, and its recovery, never
     /// begins a hold again; a step taken next clears it.
     pub released: bool,
-    /// A press by hand took a step in this combo (ADR-073): auto mode waits, and the combo
+    /// A press by hand took a step in this combo: auto mode waits, and the combo
     /// becomes the auto combo when it resets, unless it began in the dash branch.
     pub hand: bool,
     /// The auto combo auto mode plays: its presses from the root, the first in bit 0 (1 for
     /// `smash`), and how many; at most the tree's depth.
     pub auto_path: u32,
     pub auto_depth: u8,
-    /// The charge level each step of the combo was released at (ADR-114), 4 bits a step from
+    /// The charge level each step of the combo was released at, 4 bits a step from
     /// the root, the first in the low bits (a charge has at most `MAX_CHARGE_LEVELS` = 8
     /// levels): by hand, the level the player let go at; for a step auto mode played, the level
     /// it played. 0 for a plain step.
@@ -790,7 +790,7 @@ pub(crate) struct ComboState {
     pub charge_auto: bool,
 }
 
-/// The Sub weapon's pull on what a combo part hits (ADR-070), carried by the attack and the
+/// The Sub weapon's pull on what a combo part hits, carried by the attack and the
 /// orbs it spawns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Pull {
@@ -798,22 +798,22 @@ pub(crate) struct Pull {
     pub ticks: u32,
 }
 
-/// What a smash (a step reached by B) does to the enemy it hits (ADR-084 point 8), carried by
+/// What a smash (a step reached by B) does to the enemy it hits, carried by
 /// the attack and the orbs it spawns, as a combo step's hits carry it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Smash {
     Pull(Pull),
     /// The enemy is pushed away from the main character, as far and as long as the pull's numbers.
     Knockback(Pull),
-    /// The `bleed` status, with the bleed rune's numbers from the runes file (ADR-099 point 3).
+    /// The `bleed` status, with the bleed rune's numbers from the runes file.
     Bleed,
-    /// The `stun` status of a smash, for its ticks (ADR-085).
+    /// The `stun` status of a smash, for its ticks.
     Stun {
         ticks: u32,
     },
 }
 
-/// The stage skill held (ADR-075): its place in the stage skills file, its level from 1, and
+/// The stage skill held: its place in the stage skills file, its level from 1, and
 /// the ticks until it is ready again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SkillSlot {
@@ -887,10 +887,10 @@ pub(crate) struct BossState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
-    /// Copied from the stage when it appears (ADR-056).
+    /// Copied from the stage when it appears.
     pub defence: u32,
     pub statuses: Statuses,
-    /// The phase being carried out, 0-based (ADR-036 tier 2).
+    /// The phase being carried out, 0-based (ADR-SIM-18 tier 2).
     pub phase: u32,
     /// Ticks since the phase began.
     pub phase_age: u32,
@@ -908,11 +908,11 @@ pub(crate) struct BossState {
     /// Whether it has called its elites; `None` for a boss that calls none.
     pub elites_called: Option<bool>,
     /// Ticks since it arrived: 1 on its first tick. The call of its elites counts them
-    /// (ADR-103), and so does the announcement of that call.
+    /// and so does the announcement of that call.
     pub age: u32,
 }
 
-/// A breakable part of the boss, with its own hit points (ADR-007).
+/// A breakable part of the boss, with its own hit points (ADR-CONT-17).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PartState {
@@ -923,7 +923,7 @@ pub(crate) struct PartState {
     pub kind: KindIndex,
     pub hp: u32,
     pub max_hp: u32,
-    /// Copied from the stage when it appears (ADR-056).
+    /// Copied from the stage when it appears.
     pub defence: u32,
     /// From the boss's centre, and the hurt circle's radius: both from the stage.
     pub offset: Point,
@@ -954,7 +954,7 @@ pub(crate) enum AgentSource {
     Escort,
 }
 
-/// A companion or an enemy: a movement and a rule list (ADR-036 tier 1).
+/// A companion or an enemy: a movement and a rule list (ADR-SIM-18 tier 1).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AgentState {
@@ -967,7 +967,7 @@ pub(crate) struct AgentState {
     pub at: Point,
     pub hp: u32,
     pub max_hp: u32,
-    /// Copied from the stage when it appears (ADR-056).
+    /// Copied from the stage when it appears.
     pub defence: u32,
     /// Ticks since it spawned.
     pub age: u32,
@@ -981,14 +981,14 @@ pub(crate) struct AgentState {
     /// For `orbit`, in 1/256 degree.
     pub orbit_angle: i32,
     /// Enemies only: the last push-apart found it overlapping its neighbours by more than a
-    /// pixel, so it does not take its own step to its place this tick (ADR-058).
+    /// pixel, so it does not take its own step to its place this tick (ADR-SIM-19).
     pub crowded: bool,
     /// Enemies only: it removed itself with a `self_destruct` rule. It is at 0 hit points for
     /// the removal, but it was not defeated, so nothing credits it. It only lives until the end
     /// of the tick it is set in.
     pub burst: bool,
     /// Ticks left in which a new stun cannot land on this enemy, from the end of its last stun
-    /// (ADR-085 point 4); 0 for none.
+    ///; 0 for none.
     pub stun_immune: u32,
     /// An elite's own state; `None` for every other agent.
     pub elite: Option<EliteState>,
@@ -1000,7 +1000,7 @@ pub(crate) struct AgentState {
 }
 
 impl AgentState {
-    /// A mimic that has not revealed yet: an object nothing touches (ADR-090).
+    /// A mimic that has not revealed yet: an object nothing touches.
     pub(crate) fn hidden(&self) -> bool {
         self.elite.is_some_and(|el| el.disguised)
     }
@@ -1024,7 +1024,7 @@ impl AgentState {
     }
 }
 
-/// A shrine's fight (ADR-090).
+/// A shrine's fight.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ShrineState {
@@ -1034,7 +1034,7 @@ pub(crate) struct ShrineState {
     pub guardians: Vec<EntityId>,
 }
 
-/// When an elite that leaves is to go (ADR-090).
+/// When an elite that leaves is to go.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct LeaveState {
@@ -1044,7 +1044,7 @@ pub(crate) struct LeaveState {
     pub go: bool,
 }
 
-/// An elite holds `home`, where it spawned, until a boss calls it (ADR-068).
+/// An elite holds `home`, where it spawned, until a boss calls it.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct EliteState {
@@ -1052,7 +1052,7 @@ pub(crate) struct EliteState {
     pub called: bool,
     /// What the boss's call does to it; its definition's, so not part of the hash.
     pub boss_call: BossCall,
-    /// A mimic that has not revealed yet (ADR-090); false for every other elite.
+    /// A mimic that has not revealed yet; false for every other elite.
     pub disguised: bool,
 }
 
@@ -1082,8 +1082,8 @@ pub(crate) struct RuleState {
     pub fired: bool,
 }
 
-/// The statuses of this version (ADR-036): the three a skill can apply, and bleed, poison and
-/// burn, which only their runes apply (ADR-099). The IDs in the registry are the names of the
+/// The statuses of this version (ADR-SIM-18): the three a skill can apply, and bleed, poison and
+/// burn, which only their runes apply. The IDs in the registry are the names of the
 /// first three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StatusKind {
@@ -1093,13 +1093,13 @@ pub(crate) enum StatusKind {
     Vulnerable,
     /// Slower movement.
     Slow,
-    /// Damage over time, in stacks (ADR-099, ADR-084 point 8).
+    /// Damage over time, in stacks.
     Bleed,
-    /// Damage over time, in stacks, of its own beside bleed's (ADR-099).
+    /// Damage over time, in stacks, of its own beside bleed's.
     Poison,
-    /// Damage over time, in stacks, of its own beside bleed's (ADR-099).
+    /// Damage over time, in stacks, of its own beside bleed's.
     Burn,
-    /// The enemy stops what it was doing for its ticks (ADR-085). Not a skill's status.
+    /// The enemy stops what it was doing for its ticks. Not a skill's status.
     Stun,
 }
 
@@ -1160,7 +1160,7 @@ pub(crate) struct StatusState {
     /// Who applied it last.
     pub source: EntityId,
     pub remaining: u32,
-    /// The ticks of the application that set `remaining`, for the snapshot (ADR-103): a
+    /// The ticks of the application that set `remaining`, for the snapshot: a
     /// refresh with a longer duration sets it, a shorter one leaves both alone.
     pub total: u32,
     pub stacks: u16,
@@ -1185,9 +1185,9 @@ impl Default for StatusState {
     }
 }
 
-/// What a damage-over-time status deals and when (ADR-099 points 2 and 3): its damage a stack
+/// What a damage-over-time status deals and when: its damage a stack
 /// and its type, from the content that applied it; the atk-up and type bonus of its source,
-/// fixed when it was last applied, as an attack's are when it starts (ADR-056); its interval,
+/// fixed when it was last applied, as an attack's are when it starts; its interval,
 /// and the ticks to its next tick, at least 1.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -1221,8 +1221,8 @@ impl Dir {
 
 /// What an attack's `aimed` directions point at, and which way it faces. This is where the
 /// ways of aiming meet: enemies, companions and the boss aim at an entity; the main
-/// character's combo steps aim along its facing (ADR-069). A new way of aiming (an effect's
-/// target, ADR-069) is a new variant, read in `attacks::aim`, hashed in its `StableHash` impl and given its
+/// character's combo steps aim along its facing. A new way of aiming (an effect's
+/// target) is a new variant, read in `attacks::aim`, hashed in its `StableHash` impl and given its
 /// heading here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Aim {
@@ -1256,13 +1256,13 @@ pub(crate) struct OrbState {
     /// Who fired it, for the hit event and for aggro.
     pub owner: EntityId,
     pub damage: u32,
-    /// The type of the phase that fired it (ADR-100); `None` is neutral.
+    /// The type of the phase that fired it; `None` is neutral.
     pub damage_type: Option<DamageType>,
     /// Its hit breaks the main character's charge (core#83).
     pub breaks_charge: bool,
-    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    /// The Sub weapon's pull, for a combo part's hits.
     pub smash: Option<Smash>,
-    /// Fired by a combo step, A or B: its hit adds expertise points (ADR-078 §2).
+    /// Fired by a combo step, A or B: its hit adds expertise points.
     pub combo: bool,
     /// Starts an attack of its own when it ends: an orb's burst.
     pub hook: Option<Box<Hook>>,
@@ -1346,9 +1346,9 @@ pub(crate) struct Hook {
     pub damage: u32,
     pub damage_type: Option<DamageType>,
     pub breaks_charge: bool,
-    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    /// The Sub weapon's pull, for a combo part's hits.
     pub smash: Option<Smash>,
-    /// Of a combo step, A or B (ADR-078 §2).
+    /// Of a combo step, A or B.
     pub combo: bool,
 }
 
@@ -1384,18 +1384,18 @@ pub(crate) struct Frame {
     pub offset: i32,
 }
 
-/// A phased attack an attacker is carrying out (ADR-055): one at a time per attacker and slot.
+/// A phased attack an attacker is carrying out: one at a time per attacker and slot.
 /// Its phases spawn their nodes as `AttackTask`s, which run to their own end.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AttackRun {
     pub owner: EntityId,
-    /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
+    /// 0 for an agent's or the boss's attacks and the main character's combo.
     pub slot: u8,
     /// The attack it carries out, compiled when the run started (`World::attacks`).
     pub attack: AttackIndex,
     /// The attack speed that shortens its phases, in percent, and the range that widens its hit
-    /// boxes, fixed when it starts (ADR-070); read through `attacks::phase`.
+    /// boxes, fixed when it starts; read through `attacks::phase`.
     pub speed_pct: u32,
     pub width_pct: u32,
     pub phase: u32,
@@ -1407,17 +1407,17 @@ pub(crate) struct AttackRun {
     pub friendly: bool,
     /// Started by a `ranged` rule: while in wind-up or active it holds a ranged token (core Z2).
     pub ranged: bool,
-    /// The damage its starter gives a phase that sets none (ADR-055): the main character's
+    /// The damage its starter gives a phase that sets none: the main character's
     /// attack, a shot skill's own damage, 1 for an enemy or the boss.
     pub base: u32,
-    /// The attacker's atk-up, in percent, fixed when the attack starts (ADR-056).
+    /// The attacker's atk-up, in percent, fixed when the attack starts.
     pub atk_up_pct: u32,
     /// The percent of the damage a difficulty scales an enemy's or the boss's attack by
-    /// (ADR-110), fixed when the attack starts; 100 for the main character's and its allies'.
+    /// fixed when the attack starts; 100 for the main character's and its allies'.
     pub damage_pct: u32,
     /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
     /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
-    /// starts (ADR-100): the main character's, once it holds any; none for every other
+    /// starts: the main character's, once it holds any; none for every other
     /// attacker. Boxed, so that a run without one stays as small as it was.
     pub type_bonus_pct: Option<Box<[u32; DamageType::ALL.len()]>>,
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
@@ -1425,16 +1425,16 @@ pub(crate) struct AttackRun {
     /// Who the current active phase has hit, and on which tick last, sorted by entity ID;
     /// emptied when an active phase begins.
     pub hits: Vec<(EntityId, u32)>,
-    /// The Sub weapon's pull, when the attack is a combo part (ADR-070).
+    /// The Sub weapon's pull, when the attack is a combo part.
     pub smash: Option<Smash>,
     /// Where its hit boxes are centred instead of on its attacker: an on-hit rune's attack, at
-    /// the point the combo step hit (ADR-099), or where a thrown one has flown to.
+    /// the point the combo step hit, or where a thrown one has flown to.
     pub at: Option<Point>,
     /// A thrown rune's turn point, the point the combo step hit: its first phase flies `at`
     /// there from the main character, its second back to the main character (boomerang). A
     /// homing missile's goal: where its target is, or was last.
     pub throw: Option<Point>,
-    /// A homing missile's target (ADR-099): `throw` follows it while it is alive, and the
+    /// A homing missile's target: `throw` follows it while it is alive, and the
     /// missile is gone once it hits anything.
     pub homing: Option<EntityId>,
     /// Where its target stood when it began, for the hit boxes and zones anchored at the target
@@ -1489,7 +1489,7 @@ impl MoveIndex {
     }
 }
 
-/// An attack being carried out (ADR-036 tier 3): a program, where it has got to, and what it
+/// An attack being carried out (ADR-SIM-18 tier 3): a program, where it has got to, and what it
 /// needs to know to aim and to hurt. Presets are expanded before they get here, so a preset and
 /// its inline copy are the same task.
 #[derive(Clone, Debug)]
@@ -1504,13 +1504,13 @@ pub(crate) struct AttackTask {
     pub aim: Aim,
     pub friendly: bool,
     pub damage: u32,
-    /// The type of the phase that started it, which its orbs carry (ADR-100).
+    /// The type of the phase that started it, which its orbs carry.
     pub damage_type: Option<DamageType>,
     /// The orbs it fires break the main character's charge (core#83).
     pub breaks_charge: bool,
-    /// The Sub weapon's pull, for a combo part's hits (ADR-070).
+    /// The Sub weapon's pull, for a combo part's hits.
     pub smash: Option<Smash>,
-    /// Started by a combo step, A or B: its hits add expertise points (ADR-078 §2).
+    /// Started by a combo step, A or B: its hits add expertise points.
     pub combo: bool,
     /// Ticks since it started.
     pub age: u32,

@@ -1,5 +1,5 @@
-//! The run setup (ADR-051 §1): a run starts from the setup alone, and the setup is untrusted
-//! (ADR-020).
+//! The run setup (ADR-REPL-16): a run starts from the setup alone, and the setup is untrusted
+//! (ADR-SVC-7).
 
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
@@ -181,7 +181,7 @@ fn only_the_setup_format_parses() {
 
 #[test]
 fn a_setup_holds_no_expertise_level() {
-    // Every run starts the expertise gauge at level 0 (ADR-079 §1): the setup carries none.
+    // Every run starts the expertise gauge at level 0 (ADR-REPL-16): the setup carries none.
     let without = r#"{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"giant_sword","seed":20261010}"#;
     assert!(run_setup::parse_and_validate(without.as_bytes()).is_ok());
     for field in ["\"main_expertise\":0,", "\"sub_expertise\":0,"] {
@@ -282,7 +282,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
     assert_eq!(run_setup::mode_file("giant_sword"), None);
 }
 
-// --- The star pool and extra rerolls (ADR-079 §1) ---------------------------------------------
+// --- The star pool and extra rerolls (ADR-REPL-16) ---------------------------------------------
 
 fn with_pool(ids: &[&str]) -> RunSetup {
     RunSetup {
@@ -409,7 +409,7 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
     assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
 }
 
-// --- Permanent upgrades (ADR-079, ADR-084 point 7) -----------------------------------------
+// --- Permanent upgrades (ADR-REPL-16) -----------------------------------------
 
 fn with_upgrades(ids: &[&str]) -> RunSetup {
     RunSetup {
@@ -521,7 +521,7 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
 
 #[test]
 fn a_setup_at_version_0_is_refused() {
-    // ADR-REPL-7 point 8: no migration from version 0.
+    // No migration from version 0.
     for (schema_version, sim_version) in [(0, 0), (SCHEMA_VERSION, 0), (0, SIM_VERSION)] {
         let old = RunSetup {
             schema_version,

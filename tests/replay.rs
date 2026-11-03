@@ -1,5 +1,5 @@
-//! Replays (ADR-009, ADR-016): the packed input encoding, recording, verification and the
-//! checks on untrusted replay files (ADR-020).
+//! Replays (ADR-REPL-17, ADR-BRDG-12): the packed input encoding, recording, verification and the
+//! checks on untrusted replay files (ADR-SVC-7).
 
 use crate::common;
 
@@ -55,7 +55,7 @@ fn stick(move_x: i8, move_y: i8, evade: bool) -> Input {
     }
 }
 
-/// `stick` with the buttons and switches of bits 1 to 5 of `bits` (ADR-071): `main`, `smash`,
+/// `stick` with the buttons and switches of bits 1 to 5 of `bits`: `main`, `smash`,
 /// `skill`, `assist`, `auto`.
 fn buttons(input: Input, bits: u32) -> Input {
     Input {
@@ -325,7 +325,7 @@ fn a_replay_that_does_not_clear_is_recorded_but_does_not_verify() {
         verify(&stage, &failed.to_bytes()),
         Err(ReplayError::NotCleared { tick: 600 })
     );
-    // Still running when the inputs end: a bug report (ADR-016).
+    // Still running when the inputs end: a bug report (ADR-BRDG-12).
     let running = record(&stage, &[idle(); 10]).unwrap();
     assert_eq!(running.ticks, 10);
     assert_eq!(
@@ -481,7 +481,7 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
 fn the_encoding_is_pinned() {
     // The replay file and its hashes for a fixed stage and inputs. Every platform must write
     // and verify exactly this; a change is a change to the format or to a frozen version's
-    // rules, which is a new version (ADR-REPL-7). The stage's two versions are in the stage
+    // rules, which is a new version (ADR-REPL-13). The stage's two versions are in the stage
     // file, so `stage_sha256` and the content hash moved once, at the freeze of version 1.
     let (stage, replay, bytes) = recorded();
     assert_eq!(
@@ -706,7 +706,7 @@ fn corpus_replay_at(schema_version: u32, sim_version: u32) -> Vec<u8> {
 
 #[test]
 fn a_replay_at_version_0_is_older() {
-    // ADR-REPL-7 point 8: the production table has no migration from version 0.
+    // The production table has no migration from version 0.
     assert_eq!(
         Replay::from_bytes(&corpus_replay_at(0, 0)),
         Err(ReplayError::Older {
@@ -742,7 +742,7 @@ fn the_corpus_replay_loads_at_the_current_versions_and_not_one_above() {
     );
 }
 
-// --- Schema 2 (ADR-REPL-7 point 4) -------------------------------------------------------------
+// --- Schema 2 (ADR-REPL-13 point 4) -------------------------------------------------------------
 
 /// The clearing stage with its schema version set.
 fn stage_at_schema(schema_version: u32) -> Vec<u8> {

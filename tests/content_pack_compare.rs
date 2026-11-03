@@ -1,4 +1,4 @@
-//! Tests for `content-pack compare --numbers-only BASE_DIR HEAD_DIR` (RP2-1, ADR-CONT-5).
+//! Tests for `content-pack compare --numbers-only BASE_DIR HEAD_DIR` (RP2-1, ADR-CONT-14).
 //!
 //! Exit status:
 //! - 0: valid numbers-only difference (or identical).

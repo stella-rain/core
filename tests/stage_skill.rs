@@ -1,4 +1,4 @@
-//! The stage skill (ADR-075, ADR-098): one slot, empty at the start of a run, filled from
+//! The stage skill: one slot, empty at the start of a run, filled from
 //! falling stars; a press of `skill` uses a ready skill at its level, and each skill has its own
 //! cooldown, counted from its use. Taking another skill replaces the one held and arrives ready;
 //! taking the same one again raises its level. A level's effects are building blocks, applied
@@ -429,7 +429,7 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
             }
         }
     }
-    // The first shot's 100 damage (the default, 1 before the scale of ADR-103) is absorbed; the shield is gone, and the next one hurts.
+    // The first shot's 100 damage (the default, 1 before the scale) is absorbed; the shield is gone, and the next one hurts.
     assert_eq!(hits.first(), Some(&hp));
     assert!(hits.iter().any(|&h| h < hp), "{hits:?}");
     assert_eq!(e.snapshot().players[0].shield, None);
@@ -527,7 +527,7 @@ fn the_slot_is_in_the_state_hash() {
     assert_ne!(a.state_hash(), b.state_hash(), "the level differs");
 }
 
-// --- Effects together (ADR-098) --------------------------------------------------------------
+// --- Effects together --------------------------------------------------------------
 
 /// A stage where the skill `it` is taken from a star, then two enemies stand 10 pixels right of
 /// the test skills' point and 120 pixels left of it; it returns once both are there.

@@ -1,4 +1,4 @@
-//! The boss (ADR-036 tier 2): body parts and an ordered list of phases. A phase ends when its
+//! The boss (ADR-SIM-18 tier 2): body parts and an ordered list of phases. A phase ends when its
 //! `until` condition holds, and phases only move forward; the last lasts until the boss dies.
 //! The boss acts before the companions and the enemies (its entity ID is the lowest).
 //!
@@ -20,11 +20,11 @@
 //!   since the phase began.
 //!
 //! After that, a boss with `call_elites` that is still alive and has not called yet calls its
-//! elites (ADR-068) once its time is up or its hit points are below its share: every elite
+//! elites once its time is up or its hit points are below its share: every elite
 //! alive is called, and so is every one that spawns later (`spawn_enemy`). A called elite
 //! leaves its place and acts at any distance, by its own movement and rules. An elite whose
 //! `boss_call` is `leave` is not called: it leaves the map; one whose `boss_call` is `stay` (the shrine)
-//! is not called and stays (ADR-090).
+//! is not called and stays.
 
 use super::World;
 use super::event::DomainEvent;
@@ -48,7 +48,7 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         return;
     };
     {
-        // An attack phase with `move_pct` 0 holds the boss where it is (ADR-055).
+        // An attack phase with `move_pct` 0 holds the boss where it is.
         let rooted = s
             .boss
             .as_ref()
@@ -108,7 +108,7 @@ pub(super) fn call_elites(stage: &World, s: &mut State, events: &mut Vec<DomainE
         return;
     }
     // The boss's first tick is its age 1, so its time is up on its tick `after_ticks + 1`:
-    // counted from its arrival, not from the run's first tick (ADR-103).
+    // counted from its arrival, not from the run's first tick.
     let time_up = call
         .after_ticks
         .is_some_and(|t| b.age.saturating_sub(1) >= t);
@@ -137,10 +137,10 @@ pub(super) fn call_elites(stage: &World, s: &mut State, events: &mut Vec<DomainE
     events.push(DomainEvent::ElitesCalled { elites });
 }
 
-/// The content ID the boss's call of its elites is announced under (ADR-103).
+/// The content ID the boss's call of its elites is announced under.
 pub(crate) const CALL_ELITES: &str = "call_elites";
 
-/// The big patterns announced now, the call of the elites first (ADR-103): each with the ticks
+/// The big patterns announced now, the call of the elites first: each with the ticks
 /// its count-down started with and the ticks left until it starts. It is a view of the state;
 /// nothing is stored.
 pub(crate) fn announced(stage: &World, s: &State) -> Vec<PatternView> {
@@ -278,7 +278,7 @@ fn timeline(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = s.boss_def(stage) else {
         return;
     };
-    // An `attack` step lasts as long as its attack (ADR-055), and so does any attack the
+    // An `attack` step lasts as long as its attack, and so does any attack the
     // boss's rules started: one attack at a time.
     if s.boss.as_ref().is_some_and(|b| attacks::busy(s, b.id, 0)) {
         return;

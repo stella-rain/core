@@ -1,6 +1,6 @@
-//! The expertise gauge (ADR-106 §1 to §3), in a stage whose enemies or boss give expertise
+//! The expertise gauge, in a stage whose enemies or boss give expertise
 //! points: one gauge for the one weapon, from level 0 with no highest level; and its offers
-//! (ADR-106 §4 to §6; ADR-079 §2, §3).
+//! (ADR-REPL-16).
 //!
 //! A hit by an attack of an A or a B step of the combo adds its target's points per hit, and a
 //! kill its points per kill too: an enemy's from its wave, the boss's and its parts' from the
@@ -15,7 +15,7 @@
 //! tick's cost stays bounded however many levels its points cross.
 //!
 //! Each level reached is due an offer, in level order, of the kind the stage's level table gives
-//! (`stage::LevelTable`, ADR-106 §4): the weapon's three styles at the table's style level, the
+//! (`stage::LevelTable`): the weapon's three styles at the table's style level, the
 //! chosen style's first and second upgrades at its upgrade levels and its capstone at its
 //! capstone level; every other level is a common offer. A common offer draws `offer_size`
 //! (`rules.json`) candidates from the weapon's common pool, from the run's generator, leaving out the
@@ -24,7 +24,7 @@
 //! the stars' offers) and another option could come; never a skip or a banish. Taking an option
 //! adds its effect as a reward of that kind does, a range option widening the combo steps as a
 //! range reward does, and counts it. No option has a stack limit and none leaves the pool by
-//! being taken (ADR-099).
+//! being taken.
 //!
 //! A style, upgrade or capstone offer is not drawn: it shows its fixed choices in the content's
 //! order, takes nothing from the generator, and its options are the choices alone: no reroll,
@@ -139,7 +139,7 @@ pub(super) fn level_up(expertise: &Expertise, s: &mut State, me: PlayerIdx) {
     }
 }
 
-/// The kind of the offer level `level` opens (ADR-106 §4); none at level 0.
+/// The kind of the offer level `level` opens; none at level 0.
 fn slot(table: &LevelTable, level: u32) -> Option<ExpertiseOfferKind> {
     use ExpertiseOfferKind::{Capstone, Common, Style, Upgrade};
     Some(if level == 0 {
@@ -239,7 +239,7 @@ fn choice_of<'a>(
 }
 
 /// Whether the option at `i` may be offered: in the pool and not in `held`. No option has a
-/// stack limit, so one taken before is still offered (ADR-099).
+/// stack limit, so one taken before is still offered.
 fn eligible(pool: &[ExpertiseOption], i: u8, held: &[u8]) -> bool {
     usize::from(i) < pool.len() && !held.contains(&i)
 }

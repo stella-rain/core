@@ -1,4 +1,4 @@
-//! Agents (ADR-036 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
+//! Agents (ADR-SIM-18 tier 1): rule lists, selectors, conditions, statuses, aggro, movement,
 //! summons and the skills they cast. Small stages whose every tick can be
 //! worked out by hand; the expected numbers come from the constants in `sim`.
 
@@ -62,7 +62,7 @@ fn probe(selector: Value) -> Value {
     rule(always(), selector, telegraph(), 0)
 }
 
-// --- Selectors (ADR-036) ---------------------------------------------------------------------
+// --- Selectors (ADR-SIM-18) ---------------------------------------------------------------------
 
 /// Companions A (2), B (3), C (4) and the probe P (5) stand at fixed points; the player is at
 /// (46080, 147456). From P at (46080, 120000): A is 20000 away, the player 27456, B about
@@ -447,7 +447,7 @@ fn has_status_sees_a_status_until_it_runs_out() {
 
 #[test]
 fn aggro_above_compares_with_the_aggro_that_fades() {
-    // A buff gives +4,000 on tick 1 (40 before the scale of ADR-103) and the aggro fades by 100
+    // A buff gives +4,000 on tick 1 (40 before the scale) and the aggro fades by 100
     // a tick; it is 4,000 - 100 (n - 1) on tick n, so it is above 3,000 until tick 10.
     let rules = json!([
         rule(always(), json!("self"), atk_up(10, 5), 1000),

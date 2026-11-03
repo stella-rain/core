@@ -1,5 +1,4 @@
-//! The engine's run, one variant per released rules version (ADR-REPL-9 point 1, ADR-REPL-7
-//! point 4): each version owns its `World`, its `State` and its snapshot view, `V1` in `sim_v1`
+//! The engine's run, one variant per released rules version (ADR-REPL-13 points 3 and 4): each version owns its `World`, its `State` and its snapshot view, `V1` in `sim_v1`
 //! (frozen) and `V2` in `sim` (live). Every call into the rules goes through a `match` here, so
 //! adding a version lists each site as a compile error. No box, no trait object: the enum is the
 //! larger variant's `World` and `State` and a tag. A version's events are its own types too:
@@ -23,7 +22,7 @@ use super::{Load, Outcome, Places};
 
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
 /// of that version's types. The engine reaches them, and the snapshot view, only through here.
-// The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-12). One run
+// The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-21). One run
 // is held per engine, so the size difference costs nothing.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
@@ -74,7 +73,7 @@ pub(crate) struct Build<'a> {
     pub party: u8,
 }
 
-/// What a run takes from its difficulty (ADR-110), as plain values.
+/// What a run takes from its difficulty, as plain values.
 #[derive(Clone, Copy)]
 pub(crate) struct Difficulty {
     pub hp_pct: u32,

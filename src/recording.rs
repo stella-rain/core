@@ -1,4 +1,4 @@
-//! The JSON Lines recording of a run (ADR-016), behind the `record` feature: for every tick the
+//! The JSON Lines recording of a run (ADR-BRDG-12), behind the `record` feature: for every tick the
 //! input the frontend sent, the domain events the backend answered with, and the state hash.
 //! Golden-file tests and the debug overlay read it; a replay stores only the commands.
 //!
@@ -8,7 +8,7 @@
 //! {"tick":1203,"dir":"be>fe","type":"StateHash","data":"9f3a0c12aa55bb66"}
 //! ```
 //!
-//! A run (ADR-079 §5) also has commands between ticks: a `Choose` line, `fe>be`,
+//! A run (ADR-REPL-16) also has commands between ticks: a `Choose` line, `fe>be`,
 //! after the hash of the tick they follow, then the events the command caused, all on that
 //! tick. The next `StateHash` is the next tick's, so there is still one hash a tick.
 //!
@@ -80,7 +80,7 @@ pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error
     Ok(out)
 }
 
-/// Runs `commands` from a setup (ADR-079), with the bundled run stats, and returns the
+/// Runs `commands` from a setup (ADR-REPL-16), with the bundled run stats, and returns the
 /// recording: each tick as `record` writes it, and each command between ticks as a `Choose`
 /// line followed by the events it caused. Like the run replay it stops on the tick the
 /// run ends, and fails closed on a command the engine refuses (`run_replay::record_run`).

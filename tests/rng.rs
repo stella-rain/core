@@ -1,4 +1,4 @@
-//! SplitMix64 is the simulation PRNG (ADR-033). Its outputs are frozen rules: these vectors
+//! SplitMix64 is the simulation PRNG (ADR-SIM-16). Its outputs are frozen rules: these vectors
 //! come from the published algorithm and must never change.
 
 use std::collections::BTreeMap;

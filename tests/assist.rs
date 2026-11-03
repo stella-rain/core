@@ -1,4 +1,4 @@
-//! Aim assist (ADR-072): while `assist` is on, each tick picks a target among the enemies whose
+//! Aim assist: while `assist` is on, each tick picks a target among the enemies whose
 //! circle reaches within the Main weapon's `assist_range` of the main character: the boss or
 //! one of its parts first, then an elite, then any other enemy; within a class the nearest,
 //! then the lower entity ID. A combo step faces the target as its attack starts (a charged

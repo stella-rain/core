@@ -1,5 +1,5 @@
-//! The runes file (ADR-099 points 2 and 7, ADR-067): each on-hit rune's numbers, read from
-//! JSON as untrusted bytes (ADR-020). Every on-hit rune of the closed list has its entry, once:
+//! The runes file (ADR-CONT-11): each on-hit rune's numbers, read from
+//! JSON as untrusted bytes (ADR-SVC-7). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
 //! over before the cooldown is, spawning no orbs. Explosion, thunder, boomerang and homing
@@ -371,7 +371,7 @@ fn homing_missiles_attack_is_one_flight_an_active_phase_with_a_hit_box() {
 
 #[test]
 fn the_bundled_bleed_is_slash_damage_over_time_in_stacks() {
-    // The numbers of app#298 ("C spiky"): 3 damage a stack (300 after the scale of ADR-103)
+    // The numbers of app#298 ("C spiky"): 3 damage a stack (300 after the scale)
     // every 20 ticks for 180 ticks, up to 6 stacks, Slash.
     let bleed = Runes::bundled()
         .damage_over_time(Rune::Bleed)

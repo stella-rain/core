@@ -1,4 +1,4 @@
-//! The worst-case tick (ADR-020, ADR-021). Shared by `benches/worst_tick.rs`, which counts its
+//! The worst-case tick (ADR-SVC-7, ADR-SIM-17). Shared by `benches/worst_tick.rs`, which counts its
 //! instructions, and `tests/worst_case.rs`, which checks that it really reaches every dynamic
 //! cap: a benchmark of a tick that does not would pass without measuring the worst case.
 
@@ -55,7 +55,7 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// each, 32 of them elites (`MAX_ELITES_ALIVE`)
 /// (core BR1b: nothing here fires a projectile).
 ///
-/// The push-apart (ADR-058) parts a fresh stack on every tick: on each tick it does not start
+/// The push-apart (ADR-SIM-19) parts a fresh stack on every tick: on each tick it does not start
 /// its attack, every enemy orders itself back to the point in one tick (`move_to`, which a
 /// crowded enemy still carries out). So when the pass runs, all stand on the point but the 15
 /// or 20 that started their attack the tick before, which are within 8 pixels of it. Every
@@ -71,7 +71,7 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// longer than the case, so each holds its token. The 32 orbs (`MAX_ORBS_ALIVE`) fly slowly
 /// for 600 ticks and burst into nothing. No other projectile is alive or made.
 ///
-/// The main character is a run that holds every rune (ADR-099): before the enemies arrive it
+/// The main character is a run that holds every rune: before the enemies arrive it
 /// kills eight small ones in front of it and takes the seven runes and Rune Haste of 300 percent
 /// (`DEFAULT_MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
 /// walks to the left of the enemies, about 36,000 units from them (out of the 128-pixel arcs of their
@@ -82,10 +82,9 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// every tick three statuses on each enemy (780 at the cap of 260) deal damage, and each on-hit rune, whose cooldown the haste cuts to
 /// a quarter, fires again as soon as its attack is over. The step charges for the 24 ticks
 /// before the measured tick and lets go on it. From the measured tick aim assist and auto mode are on, with
-/// the longest assist range, so every tick looks through all the enemies for a target
-/// (ADR-072, ADR-073).
+/// the longest assist range, so every tick looks through all the enemies for a target.
 ///
-/// Hit boxes (ADR-055): the enemies' attack is one active phase of 30 ticks, so every enemy is
+/// Hit boxes: the enemies' attack is one active phase of 30 ticks, so every enemy is
 /// always in it, with a 128-pixel arc facing the main character, out of its reach. The four
 /// companions (`MAX_COMPANIONS`) stand 78 pixels to the right of the enemies, behind every
 /// arc, so each arc tests each of them against its angle and both edges and misses. They cleave

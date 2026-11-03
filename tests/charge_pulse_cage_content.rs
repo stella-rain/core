@@ -1,7 +1,7 @@
 //! The charge, the shrine pulse and the orb cage in the bundled `time_limit` content (Z3b, DS11
 //! items 3, 4, 7 and 9): Horn Charger C (a K5 lane charge that ends in a shockwave ring), `elite_mid`
 //! B (three lobs and a lane charge), Weaver C phase 3 (four orbs that stop and are joined by beams)
-//! and `elite_shrine` B (a pulse during its fight). Every number is a placeholder (ADR-126). The
+//! and `elite_shrine` B (a pulse during its fight). Every number is a placeholder. The
 //! rules they use are covered by `dash.rs`, `orb_cage.rs`, `zones.rs` and `elite_shrine.rs`.
 
 use crate::common;

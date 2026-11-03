@@ -1,4 +1,4 @@
-//! The render snapshot: what the frontend draws and interpolates between ticks (ADR-005). It is
+//! The render snapshot: what the frontend draws and interpolates between ticks (ADR-BRDG-13). It is
 //! a view of the state, not the state; the state hash does not read it.
 
 use schemars::JsonSchema;
@@ -13,12 +13,12 @@ use crate::rewards::Rarity;
 use crate::rune::Rune;
 use std::sync::Arc;
 
-/// An attack in progress (ADR-055), for the frontend to draw its telegraph and its swing on the
+/// An attack in progress, for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttackView {
-    /// 0 for an agent's or the boss's attacks and the main character's combo (ADR-069).
+    /// 0 for an agent's or the boss's attacks and the main character's combo.
     pub slot: u8,
     /// The preset it came from; absent for an inline attack.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -36,7 +36,7 @@ pub struct AttackView {
     /// box with it.
     pub facing: Facing,
     /// Where its hit box is centred, offset along `facing`, when that is not its attacker: an
-    /// on-hit rune's attack, at the point the combo step hit (ADR-099).
+    /// on-hit rune's attack, at the point the combo step hit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<Point>,
 }
@@ -87,7 +87,7 @@ pub struct Snapshot {
     /// each as a telegraph while it warns and as a hit while it is active.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zones: Vec<ZoneView>,
-    /// Falling stars on the map, in the order they dropped (ADR-079 §2).
+    /// Falling stars on the map, in the order they dropped (ADR-REPL-16).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
     /// The run's constellations and how many of each set's members are held (core#NS3); empty
@@ -100,21 +100,21 @@ pub struct Snapshot {
     /// Experience, level, stat points and the open offer; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
-    /// The expertise gauge (ADR-078); absent in a stage whose enemies and boss give no
+    /// The expertise gauge; absent in a stage whose enemies and boss give no
     /// expertise points.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertiseView>,
-    /// The boss's big patterns announced and not yet started (ADR-103), the call of its elites
+    /// The boss's big patterns announced and not yet started, the call of its elites
     /// first; the frontend draws each as a count-down bar.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patterns: Vec<PatternView>,
-    /// The Stardust earned so far, times 10 (ADR-109); absent in a stage without a Stardust
+    /// The Stardust earned so far, times 10; absent in a stage without a Stardust
     /// factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<u32>,
 }
 
-/// A big pattern announced in the snapshot (ADR-103): its content ID, the ticks the count-down
+/// A big pattern announced in the snapshot: its content ID, the ticks the count-down
 /// started with and the ticks left until it starts.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -124,9 +124,9 @@ pub struct PatternView {
     pub remaining: u32,
 }
 
-/// The one expertise gauge of both weapons (ADR-078 §1 to §3): its level, from 0, its points
+/// The one expertise gauge of both weapons: its level, from 0, its points
 /// toward the next, the common options taken, the styles chosen and the Main style's path
-/// taken (ADR-078 §5), and the open expertise offer (ADR-079 §3).
+/// taken, and the open expertise offer (ADR-REPL-16).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseView {
@@ -153,7 +153,7 @@ pub struct ExpertiseView {
     pub offer: Option<ExpertiseOfferView>,
 }
 
-/// What an expertise level offers (ADR-078 §4, §5).
+/// What an expertise level offers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExpertiseOfferKind {
@@ -167,7 +167,7 @@ pub enum ExpertiseOfferKind {
     Capstone,
 }
 
-/// An expertise offer (ADR-078 §4 to §6; ADR-079 §3). A common one is drawn from one weapon's
+/// An expertise offer (ADR-REPL-16). A common one is drawn from one weapon's
 /// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
 /// fixed choices, with no reroll. None has a skip or a banish.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -193,7 +193,7 @@ pub struct ExpertiseCandidateView {
     pub option: ContentId,
 }
 
-/// Where the run stands in experience, levels and stat points (ADR-079 §2, §4).
+/// Where the run stands in experience, levels and stat points (ADR-REPL-16).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProgressView {
@@ -203,14 +203,14 @@ pub struct ProgressView {
     pub xp: u32,
     /// Experience the next level needs; 0 at the highest level.
     pub xp_next: u32,
-    /// Points spent on each run stat, in the run stats' order (ADR-067).
+    /// Points spent on each run stat, in the run stats' order (ADR-CONT-11).
     pub spent: Vec<u8>,
     /// The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and
     /// `Engine::choose` takes one of its options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stat_offer: Option<StatOfferView>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
-    /// of its options (ADR-079 §3).
+    /// of its options (ADR-REPL-16).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
 }
@@ -241,7 +241,7 @@ pub struct HealPickupView {
     pub at: Point,
 }
 
-/// An offer from a falling star (ADR-079 §3).
+/// An offer from a falling star (ADR-REPL-16).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OfferView {
@@ -259,7 +259,7 @@ pub struct OfferView {
     pub banishes_left: u32,
 }
 
-/// What opened an offer (ADR-079 §2).
+/// What opened an offer (ADR-REPL-16).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferKind {
@@ -304,7 +304,7 @@ pub struct CandidateView {
     /// Its ID in the run's rewards file.
     pub reward: ContentId,
     pub rarity: Rarity,
-    /// A random rune (ADR-099): which rune it gives is drawn only when it is taken, so the
+    /// A random rune: which rune it gives is drawn only when it is taken, so the
     /// frontend shows it face down.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
@@ -349,29 +349,28 @@ pub struct PlayerView {
     pub hp: u32,
     /// The main character's hurt circle.
     pub radius: Fx,
-    /// The last non-zero movement direction (ADR-055).
+    /// The last non-zero movement direction.
     pub facing: Facing,
     /// Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.
     pub invulnerable: u32,
     pub evade: EvadeView,
-    /// Where it is in its Main weapon's combos (ADR-070).
+    /// Where it is in its Main weapon's combos.
     pub combo: ComboView,
-    /// The current step charging, if it is (ADR-070).
+    /// The current step charging, if it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charge: Option<ChargeView>,
-    /// The level auto mode is charging the current step to, while it is (ADR-114): its own
-    /// field, so `charge` stays the player's and the frontend slows only for that (ADR-071
-    /// point 3), never for auto mode.
+    /// The level auto mode is charging the current step to, while it is: its own
+    /// field, so `charge` stays the player's and the frontend slows only for that, never for auto mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_charge: Option<u8>,
-    /// The current step held, if it is (ADR-084 point 6).
+    /// The current step held, if it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hold: Option<HoldView>,
-    /// The enemy aim assist and auto mode would face, while either is on (ADR-072), so the
+    /// The enemy aim assist and auto mode would face, while either is on, so the
     /// frontend can mark it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<EntityId>,
-    /// The stage skill in its slot, if a reward has filled it (ADR-075).
+    /// The stage skill in its slot, if a reward has filled it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<SkillView>,
     /// The stage skill's pull while it pulls.
@@ -380,15 +379,15 @@ pub struct PlayerView {
     /// The stage skill's shield while it holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shield: Option<ShieldView>,
-    /// The orbits rewards gave, in the order they came (ADR-069).
+    /// The orbits rewards gave, in the order they came.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orbits: Vec<OrbitView>,
     /// What the range rewards taken add up to, in percent, before the clamp at
-    /// `MAX_RANGE_PCT` (ADR-099). The wider hit boxes are already in `attacks`.
+    /// `MAX_RANGE_PCT`. The wider hit boxes are already in `attacks`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub range_pct: u32,
     /// What the Rune Haste rewards taken add up to, in percent, before the clamp at
-    /// the rewards file's `max_rune_haste_pct` (ADR-099). The shorter cooldowns and intervals are already in the
+    /// the rewards file's `max_rune_haste_pct`. The shorter cooldowns and intervals are already in the
     /// runes' cooldowns and the statuses' timers.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub rune_haste_pct: u32,
@@ -425,23 +424,23 @@ pub struct PlayerView {
     pub burst_depth: u32,
     /// What the type bonus rewards taken add up to, for each damage type that has any, in the
     /// order of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`
-    /// (ADR-100).
+    ///.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub type_bonuses: Vec<TypeBonusView>,
-    /// The runes its Main weapon holds, in the order drawn (ADR-099).
+    /// The runes its Main weapon holds, in the order drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runes: Vec<RuneView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
-    /// one for each orb, in the order the orbits came (ADR-069), then from 34 one for each
-    /// on-hit rune, by its place in `Rune::ALL` (ADR-099).
+    /// one for each orb, in the order the orbits came, then from 34 one for each
+    /// on-hit rune, by its place in `Rune::ALL`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
-    /// Its statuses, sorted by ID (ADR-103 decision 3): the timed buffs and debuffs it holds.
+    /// Its statuses, sorted by ID: the timed buffs and debuffs it holds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
 }
 
-/// The type bonus the main character holds for one damage type (ADR-100): the one-type
+/// The type bonus the main character holds for one damage type: the one-type
 /// bonuses of that type and its group's bonus, added up.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -451,7 +450,7 @@ pub struct TypeBonusView {
     pub pct: u32,
 }
 
-/// A rune the Main weapon holds (ADR-099).
+/// A rune the Main weapon holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RuneView {
@@ -460,7 +459,7 @@ pub struct RuneView {
     pub cooldown_left: u32,
 }
 
-/// An orbit held (ADR-069). Its orbs' attacks are in the main character's `attacks`, in slots
+/// An orbit held. Its orbs' attacks are in the main character's `attacks`, in slots
 /// `2 + 8 × its place in orbits` and on.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -474,13 +473,13 @@ pub struct OrbitView {
     pub cooldown_left: u32,
 }
 
-/// The stage skill held (ADR-075): what the skill button draws.
+/// The stage skill held: what the skill button draws.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SkillView {
     /// Its ID in the stage skills file, for its name.
     pub skill: ContentId,
-    /// The asset the button draws (ADR-098).
+    /// The asset the button draws.
     pub icon: ContentId,
     /// From 1.
     pub level: u8,
@@ -510,7 +509,7 @@ pub struct ShieldView {
     pub ticks_left: u32,
 }
 
-/// The evade and its charges (ADR-074).
+/// The evade and its charges.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvadeView {
@@ -528,7 +527,7 @@ pub struct EvadeView {
     pub dash_left: u32,
 }
 
-/// Where the main character is in its combos (ADR-070): what the frontend's combo trail draws,
+/// Where the main character is in its combos: what the frontend's combo trail draws,
 /// with the next possible presses read from the weapon's tree.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -544,18 +543,18 @@ pub struct ComboView {
     pub buffered: Option<Press>,
     /// Ticks left in which a press continues the combo, once a step has run out.
     pub window_left: u32,
-    /// The auto combo: the presses auto mode plays from the root (ADR-073).
+    /// The auto combo: the presses auto mode plays from the root.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub auto: Vec<Press>,
 }
 
-/// A charge in progress (ADR-070). `core` judges the perfect window on this tick, so what the
+/// A charge in progress. `core` judges the perfect window on this tick, so what the
 /// frontend shows is what a release on the next tick gets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ChargeView {
     /// The level reached: 0 before level 1, when letting go is a plain step and the frontend
-    /// keeps its clock at full speed (ADR-071).
+    /// keeps its clock at full speed.
     pub level: u8,
     /// Ticks held since the step began to charge, 0 on its first tick.
     pub held: u32,
@@ -563,7 +562,7 @@ pub struct ChargeView {
     pub perfect: bool,
 }
 
-/// A hold in progress (ADR-084 point 6): the ticks held so far, 0 on the tick it began, and the
+/// A hold in progress: the ticks held so far, 0 on the tick it began, and the
 /// most it can last. The release comes on the tick the button is let go or the maximum is reached.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -592,30 +591,30 @@ pub struct EntityView {
     /// The attack it is making, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attack: Option<AttackView>,
-    /// A mimic that is still disguised (ADR-090): `asset` is its disguise and `elite` is false,
+    /// A mimic that is still disguised: `asset` is its disguise and `elite` is false,
     /// so the app draws an object and the minimap shows nothing. Absent when false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub disguised: bool,
-    /// An elite enemy (ADR-068), which the minimap shows wherever it is.
+    /// An elite enemy, which the minimap shows wherever it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elite: bool,
-    /// A pack leader's aura (ADR-090): the radius, around `at`, within which the non-elite
+    /// A pack leader's aura: the radius, around `at`, within which the non-elite
     /// enemies deal more damage for as long as this entity is there to be drawn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aura_radius: Option<Fx>,
-    /// Its damage-over-time statuses (ADR-099), one of a kind at most.
+    /// Its damage-over-time statuses, one of a kind at most.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
-    /// Its statuses and auras, sorted by ID (ADR-103 decision 3).
+    /// Its statuses and auras, sorted by ID.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
-    /// A shrine's running fight (ADR-090, ADR-103): the ticks left before it leaves unkilled.
+    /// A shrine's running fight: the ticks left before it leaves unkilled.
     /// Absent for every other entity, and for a shrine nobody has touched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fight: Option<Countdown>,
 }
 
-/// A count-down in the snapshot (ADR-103): the ticks left and the ticks it started with.
+/// A count-down in the snapshot: the ticks left and the ticks it started with.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Countdown {
@@ -625,7 +624,7 @@ pub struct Countdown {
     pub total: u32,
 }
 
-/// A status on an entity, or a pack leader's aura (ADR-103 decision 3): what the app shows as
+/// A status on an entity, or a pack leader's aura: what the app shows as
 /// an icon with a count-down, or as a row while it lasts.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -640,7 +639,7 @@ pub struct StatusView {
     pub total: u32,
 }
 
-/// A damage-over-time status on an entity (ADR-099): bleed, poison or burn.
+/// A damage-over-time status on an entity: bleed, poison or burn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DamageOverTimeView {
@@ -661,7 +660,7 @@ pub enum EntityKind {
     Boss,
     BossPart,
     /// An elite object that is not an enemy: it cannot be damaged and fights through its
-    /// guardians, who are `Enemy`s (ADR-090). Its `elite` flag is set.
+    /// guardians, who are `Enemy`s. Its `elite` flag is set.
     Shrine,
 }
 

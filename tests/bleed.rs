@@ -1,5 +1,4 @@
-//! The bleed rune and the damage-over-time status (ADR-099 points 2, 3, 7 and 8; ADR-100 point
-//! 1; ADR-084 point 8): when a combo step of the Main weapon hits and the main character holds
+//! The bleed rune and the damage-over-time status: when a combo step of the Main weapon hits and the main character holds
 //! bleed, the enemy hit gets the `bleed` status, or a stack more of it, up to the stack maximum,
 //! and its duration starts again. Every interval it deals its damage per stack times its stacks:
 //! the main character's damage without a combo step, through the atk-up and the Slash bonus
@@ -308,7 +307,7 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
                 "amount": 50, "limit": 2 }),
     ];
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
-    // K is 10,000 after the scale of ADR-103: a defence of K halves a hit.
+    // K is 10,000 after the scale: a defence of K halves a hit.
     target["enemy"]["defence"] = json!(10_000);
     let mut e = with(
         &stage(9, target),
@@ -455,7 +454,7 @@ fn a_run_holding_bleed_records_and_verifies() {
 
 #[test]
 fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_zero() {
-    // ADR-103 decision 3: the status is listed with what is left of it and the ticks it was
+    // The status is listed with what is left of it and the ticks it was
     // applied for, beside the damage-over-time view it has always had.
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
     let target = wait_for_target(&mut e);
@@ -509,7 +508,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
     );
 }
 
-// --- A smash's bleed (ADR-084 point 8) ---------------------------------------------------------
+// --- A smash's bleed ---------------------------------------------------------
 
 /// The Main weapon of one blow, its `smash` step the same blow, and its smash bleeding what it
 /// hits: a press of `smash` (B) puts the one bleed on the enemy hit, a press of `main` none.
@@ -675,7 +674,7 @@ fn a_smash_that_kills_applies_no_bleed() {
 fn a_smash_and_the_rune_share_one_bleed() {
     // Held, the rune bleeds every combo hit. The main step's hit gives one stack. The smash, 60
     // ticks on, is a combo hit too, so the rune adds its stack and the smash adds its own: each
-    // source adds to the one bleed (ADR-099 point 3), with the rune's numbers.
+    // source adds to the one bleed, with the rune's numbers.
     let mut e = with(
         &armed(stage(7, tough(0, None, None)), smashing()),
         &content(vec![random_rune()], None, runes(30, 180, 3, 5)),

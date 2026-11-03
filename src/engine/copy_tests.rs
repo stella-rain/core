@@ -1,6 +1,6 @@
-//! `sim_v1` is a copy of `sim` that owns its types (ADR-REPL-9): an engine forced to version 1
+//! `sim_v1` is a copy of `sim` that owns its types (ADR-REPL-13): an engine forced to version 1
 //! and one forced to version 2 run the same rules, so every observable is equal after every
-//! tick, except the state hash, whose layout differs by design (ADR-SIM-3). Until a version 2
+//! tick, except the state hash, whose layout differs by design (ADR-SIM-17). Until a version 2
 //! differs, this is the proof that the copy equals the original; the frozen corpus is the proof that the copy equals what was released.
 
 use super::*;
@@ -10,7 +10,7 @@ use crate::run_replay::RunRecorder;
 use crate::savepoint::{Savepoint, SavepointError, restore};
 
 /// The `Debug` text of `value` with the entity numbers of the engine `e` as version 1 numbers
-/// them. The newest rules reserve the entity numbers 0 to 2 for the player slots (ADR-SIM-13), so
+/// them. The newest rules reserve the entity numbers 0 to 2 for the player slots (ADR-SIM-21), so
 /// at one player every other entity is 2 higher than in version 1; the text is compared with
 /// that difference taken out. Version 1's text is as it is.
 fn as_v1(e: &Engine, value: &impl std::fmt::Debug) -> String {

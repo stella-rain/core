@@ -1,4 +1,4 @@
-//! Runes (ADR-099 points 1, 2, 4, 7, 8): a closed list built into `core`, held by the Main
+//! Runes: a closed list built into `core`, held by the Main
 //! weapon each at most once, and the random rune, a star reward that shows as a hidden
 //! candidate and draws its rune from the run's generator only when it is picked, among the
 //! runes not held. Once every rune is held it leaves the pool. What explosion, thunder,

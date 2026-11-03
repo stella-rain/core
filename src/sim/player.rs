@@ -1,5 +1,5 @@
-//! The main character (ADR-071): movement from the input's stick, the persistent facing
-//! (ADR-069), the evade on its charges (ADR-074), and the combos of its Main weapon, made by hand (ADR-070, ADR-076).
+//! The main character: movement from the input's stick, the persistent facing,
+//! the evade on its charges, and the combos of its Main weapon, made by hand.
 //!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
@@ -10,21 +10,21 @@
 //! weapon's pull. A step with a charge charges while the button that reached it is still held
 //! as it starts: let go before level 1, it attacks as a tap would; later, at the level reached,
 //! with the perfect bonus inside a window; at `max_ticks` it releases by itself. Presses while
-//! charging are not buffered. A step with a hold (ADR-084 point 6) holds where its recovery would
+//! charging are not buffered. A step with a hold holds where its recovery would
 //! begin while its button is still held: its loop runs and starts again each time it ends, until
 //! the button is let go or `max_ticks`, when its release plays; presses while holding are
 //! buffered. An evade cancels the running step, breaks a charge or a hold and clears the buffer,
 //! and a press during its dash or `dash_strike_ticks` after it takes the dash branch.
-//! Every step's attack is wider by the range rewards and the expertise range options taken
-//! (ADR-078, ADR-099), at most `MAX_RANGE_PCT` in all.
+//! Every step's attack is wider by the range rewards and the expertise range options taken,
+//! at most `MAX_RANGE_PCT` in all.
 //!
-//! Aim assist (ADR-072): while `assist` or `auto` is on, each tick picks a target; with `assist`
-//! on, a step faces it as its attack starts. Auto mode (ADR-073): while `auto` is on, there is a
+//! Aim assist: while `assist` or `auto` is on, each tick picks a target; with `assist`
+//! on, a step faces it as its attack starts. Auto mode: while `auto` is on, there is a
 //! target and no press by hand is in the combo, it presses for the player, the next press of
 //! the auto combo, taken as a buffered press would be; after the auto combo's last step, or
 //! anywhere else, it starts again from the root once the step has run out. Its presses never
 //! hold; a step with a charge is charged to the level the player released it at by hand in the
-//! combo it came from (ADR-114), with no perfect bonus; they never take the dash branch and always face the target. A combo with a press by hand
+//! combo it came from, with no perfect bonus; they never take the dash branch and always face the target. A combo with a press by hand
 //! becomes the auto combo when it resets, unless it began in the dash branch.
 
 use super::World;
@@ -46,7 +46,7 @@ use super::levels;
 use super::select;
 use super::skill;
 
-/// The stick's full deflection on each axis (ADR-071); −128 counts as −127.
+/// The stick's full deflection on each axis; −128 counts as −127.
 const STICK_MAX: i8 = 127;
 
 /// `⌈√n⌉`.
@@ -57,7 +57,7 @@ fn ceil_sqrt(n: u64) -> u64 {
 
 /// The move of a stick at `(x, y)` under a speed cap of `cap` units: the vector clamped to
 /// length 127, then scaled so that 127 is the cap. Its length is rounded up, so a diagonal is
-/// never faster than a straight line (ADR-071).
+/// never faster than a straight line.
 fn stick_move(x: i8, y: i8, cap: i64) -> (i64, i64) {
     let (x, y) = (i64::from(x), i64::from(y));
     let len = ceil_sqrt((x * x + y * y).unsigned_abs()).max(STICK_MAX as u64);
@@ -155,8 +155,8 @@ fn move_player(stage: &World, s: &mut State, me: PlayerIdx, x: i8, y: i8) {
 }
 
 /// A press with a charge ready dashes along the facing, which is the stick's direction when it
-/// is not centred (ADR-071), from where the main character is, a dash in progress or not
-/// (ADR-074). Invulnerability and the spent charge's `cooldown` count from the press.
+/// is not centred, from where the main character is, a dash in progress or not
+///. Invulnerability and the spent charge's `cooldown` count from the press.
 fn start_evade(stage: &World, p: &mut PlayerState, cooldown: u32, events: &mut Vec<DomainEvent>) {
     let evade = &stage.player.evade;
     p.dash = Some(DashState {
@@ -171,7 +171,7 @@ fn start_evade(stage: &World, p: &mut PlayerState, cooldown: u32, events: &mut V
     events.push(DomainEvent::Evaded);
 }
 
-/// A reward's `amount` more evade charges, never beyond the stage's `max_charges` (ADR-074 §5).
+/// A reward's `amount` more evade charges, never beyond the stage's `max_charges`.
 /// The new ones are ready: the spent ones keep their timers.
 pub(super) fn add_evade_charges(stage: &World, p: &mut PlayerState, amount: u32) {
     // The validator holds `max_charges` to `charges..=3`; the clamp keeps an unvalidated stage
@@ -211,7 +211,7 @@ fn dash(stage: &World, p: &mut PlayerState) {
     });
 }
 
-/// The main character's attack slots (ADR-069): the combo; the stage skill and the effects
+/// The main character's attack slots: the combo; the stage skill and the effects
 /// that attack on their own come with their own.
 pub(super) const COMBO_SLOT: u8 = 0;
 
@@ -248,7 +248,7 @@ fn last_press_smash(c: &ComboState) -> bool {
 }
 
 /// Back to the root, reported if the combo was anywhere else. A combo with a press by hand
-/// becomes the auto combo, unless it began in the dash branch (ADR-073).
+/// becomes the auto combo, unless it began in the dash branch.
 fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     if c.depth > 0 {
         events.push(DomainEvent::ComboReset);
@@ -268,7 +268,7 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     c.released = false;
 }
 
-/// One tick of the combo (ADR-070, ADR-076): see the module's description.
+/// One tick of the combo: see the module's description.
 fn combo(
     stage: &World,
     s: &mut State,
@@ -292,7 +292,7 @@ fn combo(
     let me_id = s.id_of(Who::Player(me));
     let busy = attacks::busy(s, me_id, COMBO_SLOT);
     // A held step holds where its recovery would begin, unless a buffered press takes its next
-    // step first (ADR-084 points 3 and 6).
+    // step first.
     if busy
         && attacks::hold_ready(stage, s, me_id, COMBO_SLOT)
         && begins_hold(main, &s.players[me].combo, input)
@@ -349,8 +349,8 @@ fn press_of_pressed(pressed: u8) -> Option<bool> {
     }
 }
 
-/// Whether the step whose recovery begins now holds (ADR-084 point 6): it has a hold, its press
-/// was by hand (auto mode never holds, ADR-073, ADR-114), the button that reached it is still held, and
+/// Whether the step whose recovery begins now holds: it has a hold, its press
+/// was by hand (auto mode never holds), the button that reached it is still held, and
 /// no buffered press takes a next step, which cancels the recovery instead (point 3).
 fn begins_hold(main: &Weapon, c: &ComboState, input: Input) -> bool {
     let Some(step) = step_at(main, c) else {
@@ -386,8 +386,8 @@ fn begin_hold(
     spin(stage, s, me, main, input, events);
 }
 
-/// The loop starts again, as a new attack: its facing is the main character's as it starts
-/// (ADR-069), or the target's with aim assist on (ADR-072).
+/// The loop starts again, as a new attack: its facing is the main character's as it starts,
+/// or the target's with aim assist on.
 fn spin(
     stage: &World,
     s: &mut State,
@@ -402,7 +402,7 @@ fn spin(
     strike(stage, s, me, &hold.loop_attack, 0, input.assist, events);
 }
 
-/// One tick of a hold (ADR-084 point 6): a press is buffered, as during any step. Letting go,
+/// One tick of a hold: a press is buffered, as during any step. Letting go,
 /// or reaching `max_ticks`, releases with the ticks held; otherwise the hold goes on, and the
 /// loop starts again once the last one has ended.
 #[allow(clippy::too_many_arguments)]
@@ -445,7 +445,7 @@ fn holding(
 }
 
 /// The release: the loop ends with the hold, and the release attack starts with its facing
-/// locked (ADR-069). Its recovery is the end lag, as any step's (point 3).
+/// locked. Its recovery is the end lag, as any step's (point 3).
 fn release_hold(
     stage: &World,
     s: &mut State,
@@ -463,7 +463,7 @@ fn release_hold(
     events.push(DomainEvent::HoldReleased { ticks });
 }
 
-/// What auto mode presses this tick (ADR-073).
+/// What auto mode presses this tick.
 enum Auto {
     /// The next press of the auto combo, `true` for `smash`, taken as a buffered press would be.
     Next(bool),
@@ -488,7 +488,7 @@ fn auto_press(c: &ComboState, input: Input, target: bool) -> Option<Auto> {
 }
 
 /// The combo a run starts with: at the root, with the weapon's A chain as the auto combo,
-/// `main` pressed from the root until a step has no next step for it (ADR-073).
+/// `main` pressed from the root until a step has no next step for it.
 pub(super) fn initial_combo(stage: &World) -> ComboState {
     let mut depth = 0u8;
     if let Some(main) = stage.weapon() {
@@ -506,7 +506,7 @@ pub(super) fn initial_combo(stage: &World) -> ComboState {
 
 /// The press `smash`, buffered `by_hand` or auto mode's, takes its step: the next one from where
 /// the combo is, or else the first from the root, in the dash branch while a dash-strike may
-/// start and it has one (by hand only). Auto mode's step charges only to its recorded level (ADR-114) and faces the target.
+/// start and it has one (by hand only). Auto mode's step charges only to its recorded level and faces the target.
 #[allow(clippy::too_many_arguments)]
 fn take_step(
     stage: &World,
@@ -531,7 +531,7 @@ fn take_step(
     }
     c.hand |= by_hand;
     c.path |= u32::from(smash) << c.depth;
-    // A step auto mode plays carries the level the auto combo records for it (ADR-114); a
+    // A step auto mode plays carries the level the auto combo records for it; a
     // press by hand starts at 0 and records its release.
     let level = if by_hand {
         0
@@ -549,7 +549,7 @@ fn take_step(
         return;
     };
     let held = by_hand && if smash { input.smash } else { input.main };
-    // Auto mode charges a step to the level recorded for it, with no button (ADR-114).
+    // Auto mode charges a step to the level recorded for it, with no button.
     let auto_level = step.charge.as_ref().filter(|_| !by_hand).map_or(0, |_| {
         level_of(s.players[me].combo.levels, s.players[me].combo.depth - 1)
     });
@@ -569,11 +569,11 @@ fn take_step(
     }
 }
 
-/// The current step's attack starts in the combo slot along the facing (ADR-069), at the
+/// The current step's attack starts in the combo slot along the facing, at the
 /// stage's attack stat, faster by the attack speed, wider by the range rewards and the
 /// expertise range options taken (at most `MAX_RANGE_PCT` in all), with
 /// `bonus_pct` and, for a combo part, the Sub weapon's pull. When it `aim`s and there is a target, the facing first turns to it
-/// (ADR-072).
+///.
 fn strike(
     stage: &World,
     s: &mut State,
@@ -680,7 +680,7 @@ pub(crate) fn charge_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u8
     ))
 }
 
-/// The level auto mode is charging the current step to (ADR-114), if it is charging: the
+/// The level auto mode is charging the current step to, if it is charging: the
 /// snapshot's `auto_charge`, which leaves `charge` for hand charges only.
 pub(crate) fn auto_charge_view(s: &State, me: PlayerIdx) -> Option<u8> {
     let c = &s.players[me].combo;
@@ -688,7 +688,7 @@ pub(crate) fn auto_charge_view(s: &State, me: PlayerIdx) -> Option<u8> {
 }
 
 /// A charge held rises a tick; let go, judged on the last held tick (the one whose snapshot
-/// the player saw, ADR-005), or at `max_ticks` without the bonus, it releases.
+/// the player saw, ADR-BRDG-13), or at `max_ticks` without the bonus, it releases.
 #[allow(clippy::too_many_arguments)]
 fn charging(
     stage: &World,
@@ -712,7 +712,7 @@ fn charging(
         return;
     };
     if c.charge_auto {
-        // Auto mode's charge (ADR-114): a press by hand is buffered, as during any auto step;
+        // Auto mode's charge: a press by hand is buffered, as during any auto step;
         // the button does not matter; it lets go on the tick the recorded level is reached,
         // never judged for the perfect bonus.
         if let Some(press) = press_of_pressed(pressed) {
@@ -796,7 +796,7 @@ fn release(
     });
 }
 
-/// An evade cancels the running step, breaks a charge and clears the buffer (ADR-070).
+/// An evade cancels the running step, breaks a charge and clears the buffer.
 fn cancel(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     let me_id = s.id_of(Who::Player(me));
     attacks::end_run(stage, s, me_id, COMBO_SLOT);
@@ -813,8 +813,7 @@ fn cancel(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
 }
 
 /// A hit from a phase that breaks charges ends a charge or a hold in progress without an
-/// attack (a hold's loop ends with it), and the combo starts again from the root (ADR-070,
-/// ADR-084 point 6).
+/// attack (a hold's loop ends with it), and the combo starts again from the root.
 pub(super) fn break_charge(
     stage: &World,
     s: &mut State,
@@ -855,7 +854,7 @@ fn current_hold<'a>(stage: &'a World, s: &State, me: PlayerIdx) -> Option<&'a Ho
     step_at(main, &s.players[me].combo)?.hold.as_ref()
 }
 
-/// The hold's view for the snapshot (ADR-084 point 9): the ticks held and the most it can last.
+/// The hold's view for the snapshot: the ticks held and the most it can last.
 pub(crate) fn hold_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u32, u32)> {
     let held = s.players[me].combo.hold?;
     Some((held, current_hold(stage, s, me)?.max_ticks))

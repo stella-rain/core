@@ -1,4 +1,4 @@
-//! The `stage-verify` command line (ADR-009, ADR-015): exit status, output, and that nothing
+//! The `stage-verify` command line (ADR-REPL-17, ADR-SVC-13): exit status, output, and that nothing
 //! from the files is repeated back.
 
 // It starts the `stage-verify` binary as a host process; the iOS Simulator run (ios-sim.yml)

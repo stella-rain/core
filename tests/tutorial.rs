@@ -1,4 +1,4 @@
-//! The tutorial mode (ADR-086): a three-minute run of gentle bats and one weak golem, with no
+//! The tutorial mode: a three-minute run of gentle bats and one weak golem, with no
 //! elites and no mid-boss, that every bundled weapon can be played in, and whose file is in the
 //! pack the run's content hash covers.
 
@@ -133,7 +133,7 @@ fn the_bundled_pack_holds_the_tutorial_file_and_the_run_hash_covers_it() {
     );
 }
 
-/// The tutorial earns no Stardust (ADR-086, ADR-109): a stage with no Stardust factor counts
+/// The tutorial earns no Stardust: a stage with no Stardust factor counts
 /// nothing, and the tutorial's stage has none, so the bot's run, which kills what it reaches,
 /// leaves the counter at zero.
 #[test]
