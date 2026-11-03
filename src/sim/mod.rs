@@ -745,7 +745,9 @@ pub(super) fn pick_due(
             .copied()
         {
             Some(option) => choose(2, stage, rewards, expertise, s, me, option, events),
-            // An offer with nothing to pick stays; its deadline is dropped so the step ends.
+            // An offer with no option at all (not reachable by construction) stays open: its
+            // deadline is dropped here so this loop ends, and the sync that follows starts a new
+            // countdown, so the offer is tried again one timer length later.
             None => {
                 if let Some(t) = s.offer_timer.as_mut() {
                     t.due[me.get()] = None;

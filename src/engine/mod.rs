@@ -411,11 +411,10 @@ impl Engine {
         }
         // In a timed run the picks are taken first, before the world's tick; the tick's own
         // events (and the timer's pick, inside it) are folded after them.
-        let mark = self.events.len();
         if timed {
             self.take_picks(inputs);
         }
-        let mark = if timed { self.events.len() } else { mark };
+        let mark = self.events.len();
         if self.runs_its_version() {
             self.run.step(
                 self.content.rewards(),
