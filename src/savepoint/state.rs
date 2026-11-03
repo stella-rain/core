@@ -413,6 +413,26 @@ macro_rules! state_codec_v2 {
             if s.spawned.len() != fresh.spawned.len() {
                 return Err(differs("spawned length differs from the content"));
             }
+            same_presence(
+                &s.stars,
+                &fresh.stars,
+                "stars presence differs from the content",
+            )?;
+            same_presence(
+                &s.heal_pickups,
+                &fresh.heal_pickups,
+                "heal_pickups presence differs from the content",
+            )?;
+            same_presence(
+                &s.horde,
+                &fresh.horde,
+                "horde presence differs from the content",
+            )?;
+            if let (Some(a), Some(f)) = (&s.stars, &fresh.stars) {
+                if a.pool.len() != f.pool.len() {
+                    return Err(differs("star pool length differs from the content"));
+                }
+            }
             for me in s.players.indices() {
                 same_presence(
                     &s.players.career(me).progress,
@@ -420,24 +440,9 @@ macro_rules! state_codec_v2 {
                     "progress presence differs from the content",
                 )?;
                 same_presence(
-                    &s.stars,
-                    &fresh.stars,
-                    "stars presence differs from the content",
-                )?;
-                same_presence(
-                    &s.heal_pickups,
-                    &fresh.heal_pickups,
-                    "heal_pickups presence differs from the content",
-                )?;
-                same_presence(
                     &s.players.career(me).expertise,
                     &fresh.players.career(PlayerIdx::SOLO).expertise,
                     "expertise presence differs from the content",
-                )?;
-                same_presence(
-                    &s.horde,
-                    &fresh.horde,
-                    "horde presence differs from the content",
                 )?;
                 same_presence(
                     &s.players.career(me).stardust,
@@ -453,11 +458,6 @@ macro_rules! state_codec_v2 {
                     }
                     if p.priority.len() != f.stats.len() {
                         return Err(differs("priority length differs from the content"));
-                    }
-                }
-                if let (Some(a), Some(f)) = (&s.stars, &fresh.stars) {
-                    if a.pool.len() != f.pool.len() {
-                        return Err(differs("star pool length differs from the content"));
                     }
                 }
                 // Slot 0's offers: the content-sized lists are the slot's.
