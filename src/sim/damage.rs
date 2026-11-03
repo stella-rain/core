@@ -1,4 +1,4 @@
-//! Where a player's damage meets a foe's hit points (ADR-SIM-14). `damage` (a hit, a damage over
+//! Where a player's damage meets a foe's hit points (ADR-SIM-21). `damage` (a hit, a damage over
 //! time tick, a kill burst) and `combat::deal_echoes` work out their number and call `land`, which is the one place that
 //! lowers a foe's, the boss's or a boss part's hit points, credits the kill, reports `Hit` and `Died` and raises the shooter's aggro.
 
@@ -33,7 +33,7 @@ pub(super) struct Landed {
 /// already checked the target stands and may be damaged.
 ///
 /// `shown` is what the `Hit` event, the aggro and the echo carry. `applied` is the only number
-/// that reaches the hit points: ADR-SIM-14's party factor goes on that one line, and is not
+/// that reaches the hit points: ADR-SIM-21's party factor goes on that one line, and is not
 /// applied yet, so the two are equal.
 #[inline]
 pub(super) fn land(

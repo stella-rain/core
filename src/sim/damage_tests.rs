@@ -1,6 +1,6 @@
 //! Pins for where a player's damage meets a foe's hit points: the numbers, the events and the
 //! credit of a hit, a damage over time tick, a kill burst and an echo, which all land through
-//! `damage::land` (ADR-SIM-14); and a scan that keeps the write in that one place.
+//! `damage::land` (ADR-SIM-21); and a scan that keeps the write in that one place.
 
 use super::entity::Who;
 use super::state::{PlayerIdx, State};
