@@ -21,6 +21,10 @@ Sources: ADR-SIM-21, ADR-SIM-22, ADR-REPL-16, ADR-SAVE-16. The log bytes and the
   level 1, with no event; `leave(slot)` keeps the leaver's in-flight attacks and closes its open
   offer. Slot 0 never leaves, so a hole (`0b101`) arises only by LEAVE. A `sim_version` 1 run
   refuses both (`PresenceError::SoloRules`).
+- In a `timed` run every present slot has its own deadline (`State.offer_timer.due`, one
+  `Option<u32>` per slot): the timer takes the first option of an offer nobody answers, with a
+  manual pick's events (`pick_due`), and a leaver's deadline is cleared with its offer. A `stop`
+  run waits for every slot. `timed_two` (slot 1 never answers) is the case that shows it.
 - Only a hole at tick 0 is refused by the recorder and verifier; the step log reaches a hole by
   LEAVE. The app never resumes a party run: `resume_*` for a party serve tests, replay and
   "continue alone" (ADR-SAVE-16).
