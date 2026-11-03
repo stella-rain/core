@@ -1,7 +1,6 @@
-//! Where a player's damage meets a foe's hit points (ADR-SIM-14). A hit (`damage`), a damage
-//! over time tick, a kill burst and an echo (`combat::deal_echoes`) each work out their number
-//! and call `land`, which is the one place that lowers a foe's, the boss's or a boss part's hit
-//! points, credits the kill, reports `Hit` and `Died` and raises the shooter's aggro.
+//! Where a player's damage meets a foe's hit points (ADR-SIM-14). `damage` (a hit, a damage over
+//! time tick, a kill burst) and `combat::deal_echoes` work out their number and call `land`, which is the one place that
+//! lowers a foe's, the boss's or a boss part's hit points, credits the kill, reports `Hit` and `Died` and raises the shooter's aggro.
 
 use super::entity::Who;
 use super::state::{PlayerIdx, State};

@@ -1,10 +1,11 @@
 //! Pins for where a player's damage meets a foe's hit points: the numbers, the events and the
-//! credit as the rules stand before the landing is one function (ADR-SIM-14).
+//! credit of a hit, a damage over time tick, a kill burst and an echo, which all land through
+//! `damage::land` (ADR-SIM-14); and a scan that keeps the write in that one place.
 
 use super::entity::Who;
 use super::state::{PlayerIdx, State};
 use super::{Shot, World};
-use crate::bench_fixtures::worst_case;
+use crate::bench_fixtures::{time_limit_case, worst_case};
 use crate::engine::{Engine, Run};
 use crate::event::DomainEvent;
 use crate::id::EntityId;
@@ -132,16 +133,21 @@ fn defence_reduces_the_damage_that_lands() {
 
 #[test]
 fn a_hit_on_the_boss_lowers_its_hit_points() {
-    let (w, mut s) = bare(1);
-    let Some(b) = s.boss.as_mut() else {
-        return; // the fixture has no boss at this tick: the enemy cases above cover the write
+    let e: Engine = time_limit_case::warmed_up();
+    let (w, s) = match e.run() {
+        Run::V2 { world, state, .. } => (world, state),
+        Run::V1 { .. } => panic!("the live rules"),
     };
+    let mut s = s.clone();
+    let b = s.boss.as_mut().expect("the trial has a boss");
     b.hp = 10_000;
     b.defence = 0;
+    b.invulnerable = 0;
     let mut ev = Vec::new();
     let sh = shot(&s, slot(0).id(), 0, 100);
-    super::damage(&w, &mut s, slot(0), sh, Who::Boss, &mut ev);
+    super::damage(w, &mut s, slot(0), sh, Who::Boss, &mut ev);
     assert_eq!(s.boss.as_ref().map(|b| b.hp), Some(9_900));
+    assert_eq!(hits(&ev)[0].0, 100);
 }
 
 #[test]
@@ -264,9 +270,7 @@ fn a_kill_burst_lands_a_plain_hit_without_an_echo() {
     s.players[slot(0)].burst_pct = 5;
     s.players[slot(0)].burst_radius = 100_000;
     s.players[slot(0)].echo_hit_pct = 50;
-    let (a, b) = (s.enemies[0].at, s.enemies[1].at);
-    s.enemies[1].at = a;
-    let _ = b;
+    s.enemies[1].at = s.enemies[0].at;
     s.enemies[0].hp = 0;
     s.enemies[0].max_hp = 1000;
     s.enemies[0].defence = 0;
