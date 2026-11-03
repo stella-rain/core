@@ -1,8 +1,8 @@
-//! Hit boxes (ADR-055): every active phase with a hit box hurts the targets inside it, in the
+//! Hit boxes: every active phase with a hit box hurts the targets inside it, in the
 //! collision step, before orbs.
 //!
-//! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at
-//!   (ADR-099), and faces the way the attack faced when it started. Its
+//! - A hit box follows its attacker, or stays on the point an on-hit rune's attack fired at,
+//! and faces the way the attack faced when it started. Its
 //!   offset is forward along that facing and to the attacker's right as seen from above: a
 //!   quarter turn clockwise on the screen, so facing down the screen its right is the screen's
 //!   left.
@@ -16,7 +16,7 @@
 //!   in entity-ID order; enemy hit boxes hit the present players in slot order, then the companions
 //!   once. A hit box
 //!   hits every target inside it (cleave), each once per active phase, or again `rehit_ticks`
-//!   after its last hit. A homing missile's (ADR-099) hits only the first, once, and the
+//!   after its last hit. A homing missile's hits only the first, once, and the
 //!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not
 //!   counted as hit.
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
@@ -139,7 +139,7 @@ impl Sector {
 /// Every active hit box hurts what it covers. `grid` is the enemy grid, built here if a
 /// friendly hit box needs it and left for the orbs after.
 // Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
-// (ADR-058).
+// (ADR-SIM-19).
 #[inline(never)]
 pub(super) fn resolve(
     stage: &World,
@@ -617,7 +617,7 @@ fn hit_companions_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec
 
 #[cfg(test)]
 mod party_tests {
-    //! Hits on each player of a party (ADR-SIM-12): an enemy's swing or orb reaches every player
+    //! Hits on each player of a party (ADR-SIM-21): an enemy's swing or orb reaches every player
     //! it covers, once each and in slot order, and the companions once.
 
     use super::*;

@@ -9,7 +9,7 @@ use super::state::PlayerIdx;
 use crate::id::EntityId;
 
 /// Makes room in `v` for `capacity` items in all, whatever it holds now: a vector is reserved
-/// once, at load, to the most a run can put in it (DIR1, ADR-SIM-7 decision 9).
+/// once, at load, to the most a run can put in it (DIR1, ADR-SIM-19 point 4).
 pub(super) fn reserve_to<T>(v: &mut Vec<T>, capacity: usize) {
     v.reserve(capacity.saturating_sub(v.len()));
 }
@@ -47,8 +47,8 @@ pub(crate) struct Scratch {
     /// The player whose hit took each enemy (by index) from above 0 to 0 hit points this tick, in
     /// the tick's fixed order of hits; `None` for an enemy no hit defeated. Read by the bursts and
     /// the kill-heal; emptied by `collide` once the dead are removed. A `Died` event's `killer` is the same player,
-    /// read as the hit lands (ADR-SIM-12). Not hashed: enemy indices
-    /// are stable from the first hit to that removal (ADR-SIM-3).
+    /// read as the hit lands (ADR-SIM-21). Not hashed: enemy indices
+    /// are stable from the first hit to that removal (ADR-SIM-17).
     pub(super) killers: Vec<Option<PlayerIdx>>,
     /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
@@ -85,7 +85,7 @@ impl std::fmt::Debug for Scratch {
 
 impl Scratch {
     /// Reserves every buffer for a run of up to `enemies` enemies alive on a map `width` by
-    /// `height` (1/256 pixels), once, when the run is built (DIR1, ADR-SIM-7 decision 9): a tick
+    /// `height` (1/256 pixels), once, when the run is built (DIR1, ADR-SIM-19 point 4): a tick
     /// then never grows one. The bounds, per buffer:
     /// - `bodies`, `offsets`, `found`, `killers`: one entry per enemy; `found_bits`: one bit per enemy.
     /// - the grid: one circle, cell and member per enemy, and the cells of the map.

@@ -1,4 +1,4 @@
-//! The state holds its players as `players`, addressed by a `PlayerIdx` (ADR-SIM-12), and a system
+//! The state holds its players as `players`, addressed by a `PlayerIdx` (ADR-SIM-21), and a system
 //! acts on the player it is given. The hash and the savepoint write one block per present player (`hash_fields_tests`).
 
 use super::state::{Career, MAX_PLAYERS, PlayerIdx, Players, State};
@@ -156,7 +156,7 @@ fn a_party_of_two_has_two_views() {
     assert_eq!(places.players[1], s2.players[p1()].at);
 }
 
-// ---- Slots 0 to 2 are reserved (ADR-SIM-12, ADR-SIM-13) ----
+// ---- Slots 0 to 2 are reserved (ADR-SIM-21, ADR-SIM-21) ----
 
 fn ps(e: &Engine) -> super::state::PlayerState {
     live(e).1.players[PlayerIdx::SOLO].clone()
@@ -272,7 +272,7 @@ fn a_saved_next_id_inside_the_player_slots_is_refused() {
     );
 }
 
-// The level progress is per slot: `Players.careers` (ADR-SIM-12).
+// The level progress is per slot: `Players.careers` (ADR-SIM-21).
 
 mod careers {
     use super::super::state::{Progress, StatRule};
@@ -441,7 +441,7 @@ mod careers {
 }
 
 // The star offers and the offer generator are per slot: `Career.offers`, `Career.offer`
-// (ADR-SIM-12, ADR-SIM-2).
+// (ADR-SIM-21, ADR-SIM-16).
 
 mod offers {
     use super::super::state::{Due, OfferState, Offers, StarField, StarState};
@@ -698,7 +698,7 @@ mod offers {
 }
 
 // The expertise gauge, the run's Stardust and the regeneration are per slot: `Career.expertise`,
-// `Career.stardust`, `Career.regen` (ADR-SIM-12, ADR-SIM-13).
+// `Career.stardust`, `Career.regen` (ADR-SIM-21, ADR-SIM-21).
 
 mod career_rest {
     use super::super::state::{ExpertiseGauge, ExpertiseOffer};
@@ -953,7 +953,7 @@ mod career_rest {
 }
 
 /// Routing to the acting player: the slot of an entity, the offers of each slot, and the picks
-/// of a party (ADR-SIM-12, ADR-SIM-13, ADR-SIM-2).
+/// of a party (ADR-SIM-21, ADR-SIM-21, ADR-SIM-16).
 mod route {
     use super::super::state::{Due, OfferState};
     use super::*;
@@ -1444,7 +1444,7 @@ mod route {
     }
 }
 
-/// The events name the player behind a hit, a heal, a buff and a kill (ADR-SIM-12).
+/// The events name the player behind a hit, a heal, a buff and a kill (ADR-SIM-21).
 mod stats_events {
     use super::super::state::{StatusKind, StatusState};
     use super::*;

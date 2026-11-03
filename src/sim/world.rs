@@ -309,7 +309,7 @@ pub(crate) struct HordeSpec {
     pub bosses: Vec<Boss>,
     /// The run's length: an elite minute comes only before it.
     pub length_ticks: u32,
-    /// The mode's elite table (ADR-090), by start.
+    /// The mode's elite table, by start.
     pub elite_table: Vec<EliteTier>,
     /// For each elite type of the mode file, the stage wave that holds its definition: the
     /// type's enemy, experience and expertise, never spawned as a wave (count 0). A kill's
@@ -502,7 +502,7 @@ impl World {
             }
         }
         let weapon = content.weapons().resolve(main).cloned();
-        // A stage's own weapon is judged by the content that runs it (ADR-CONT-7 point 6): the
+        // A stage's own weapon is judged by the content that runs it (ADR-CONT-13 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
             if let Some(found) = crate::presets::hold_problems(w, content.attack_presets())

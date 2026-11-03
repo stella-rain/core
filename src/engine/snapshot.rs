@@ -1,4 +1,4 @@
-//! The snapshot builder: what the frontend draws after the last tick (ADR-005).
+//! The snapshot builder: what the frontend draws after the last tick (ADR-BRDG-13).
 
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
@@ -94,7 +94,7 @@ impl Engine {
         self.run.places(out);
     }
 
-    /// What the frontend draws after the last tick (ADR-005), built by the run's rules module
+    /// What the frontend draws after the last tick (ADR-BRDG-13), built by the run's rules module
     /// (`sim::snapshot`). Its `places` repeats the rules for the ids, kinds and positions, and
     /// the players' positions: change them together.
     pub fn snapshot(&self) -> Snapshot {

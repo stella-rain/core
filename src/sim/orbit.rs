@@ -1,4 +1,4 @@
-//! Orbits (ADR-069): what an orbit reward gives. Each orbit held turns its orbs round the main
+//! Orbits: what an orbit reward gives. Each orbit held turns its orbs round the main
 //! character; each orb runs the orbit's attack in an attack slot of its own, so an orb never
 //! waits for or cancels a combo step, the stage skill or another orb. Every tick, for each
 //! orbit in the order they came:
@@ -23,7 +23,7 @@ use crate::trig::PER_TURN;
 use super::attacks;
 use super::levels;
 
-/// The attack slot of the first orbit's first orb (ADR-069): 0 is the combo and 1 the stage
+/// The attack slot of the first orbit's first orb: 0 is the combo and 1 the stage
 /// skill. Orbit `k`'s orb `j` attacks in `FIRST_SLOT + k × MAX_ORBS + j`.
 pub(super) const FIRST_SLOT: u8 = 2;
 

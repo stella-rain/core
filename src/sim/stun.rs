@@ -1,7 +1,7 @@
-//! Stun (ADR-085): what a smash's stun does to the enemy it hits. The status is `add_stun`'s
+//! Stun: what a smash's stun does to the enemy it hits. The status is `add_stun`'s
 //! (`entity.rs`). Only an enemy takes a stun: a boss and its parts resist it, and the main
 //! character's and the companions' hits never stun anything. An elite takes its share of the
-//! ticks (ADR-085 point 6), and a stun of no ticks does nothing.
+//! ticks, and a stun of no ticks does nothing.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -42,7 +42,7 @@ pub(super) fn apply(
     };
     if ticks > 0 {
         // The stun cancels what the enemy was doing: its running attack, in any phase. Orbs it
-        // has spawned fly on (ADR-085 point 2).
+        // has spawned fly on.
         let id = s.id_of(target);
         s.add_stun(target, source, ticks, events);
         attacks::end_runs_of(stage, s, id);

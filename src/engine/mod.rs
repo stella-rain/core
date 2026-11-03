@@ -1,14 +1,14 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
-//! (ADR-004, ADR-015). The only external influence is one `Input` per tick and the commands
-//! between ticks (ADR-079: `choose`); everything else comes from the stage and its
-//! seed, or from a run setup, and from the run stats (ADR-067), so the state hash after each
-//! tick is the same on every platform (ADR-019).
+//! (ADR-SIM-15, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
+//! between ticks (ADR-REPL-16: `choose`); everything else comes from the stage and its
+//! seed, or from a run setup, and from the run stats (ADR-CONT-11), so the state hash after each
+//! tick is the same on every platform (ADR-SIM-17).
 //!
-//! Rules are dispatched by the stage's `sim_version` (ADR-017, ADR-REPL-7 point 3): versions
+//! Rules are dispatched by the stage's `sim_version` (ADR-REPL-12, ADR-REPL-13 points 1 to 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
 //! outcome after it is a gate on the new version in `sim`, a copy only for a rewrite (see `sim`
 //! for what it does and does not do yet). The engine holds its run as a `Run`, one variant per
-//! released rules version (`run.rs`, ADR-REPL-9) that owns that version's `World` and `State`;
+//! released rules version (`run.rs`, ADR-REPL-13) that owns that version's `World` and `State`;
 //! every call into the rules goes through it, the snapshot view included (`sim::snapshot`).
 
 use schemars::JsonSchema;
@@ -38,7 +38,7 @@ pub enum ChoiceError {
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
     OutOfRange { index: u32, options: u32 },
-    /// The run's `sim_version` is not one this game runs (ADR-REPL-7 point 3). `Engine::new`
+    /// The run's `sim_version` is not one this game runs (ADR-REPL-13 points 1 to 3). `Engine::new`
     /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
     Unsupported { sim_version: u32 },
 }
@@ -48,13 +48,13 @@ pub enum ChoiceError {
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Running,
-    /// The stage was cleared: this is what a replay has to prove (ADR-009).
+    /// The stage was cleared: this is what a replay has to prove (ADR-REPL-17).
     Cleared,
     /// The main character died, or the stage ran out of ticks.
     Failed,
 }
 
-/// How much of each dynamic budget (ADR-020) a tick used: the most it reached during the tick.
+/// How much of each dynamic budget (ADR-SVC-7) a tick used: the most it reached during the tick.
 /// A read-out for tests and benchmarks, not part of the state: nothing here is hashed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Load {
@@ -112,19 +112,19 @@ pub enum PresenceError {
 /// A run of one stage.
 #[derive(Debug)]
 pub struct Engine {
-    /// The content files the run reads (ADR-067), fixed for the run.
+    /// The content files the run reads (ADR-CONT-11), fixed for the run.
     content: RunContent,
     run: Run,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
     /// What the last tick used of the dynamic budgets; zero when the tick did not run.
     load: Load,
-    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-15).
     ledger: RunLedger,
     /// The HUD tallies, counted from the events (outside the hashed state).
     counted: Counted,
     /// Damage, kills and support per player slot, folded from the events (outside the hashed
-    /// state; a savepoint holds them, ADR-SIM-13, ADR-SAVE-7).
+    /// state; a savepoint holds them, ADR-SIM-21, ADR-SAVE-14).
     player_stats: PlayerStats,
     /// Slot 0's player as the run started (the loadout, level 1), what a joiner is built from.
     /// Outside the hashed state; none under `sim_version` 1.
@@ -239,14 +239,14 @@ impl Engine {
         }
     }
 
-    /// Starts a run. The stage is validated first (ADR-020), so the rules below only ever see
+    /// Starts a run. The stage is validated first (ADR-SVC-7), so the rules below only ever see
     /// stages inside the budgets.
     /// A stage with levels raises the bundled run stats, in their order.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
         Engine::new_with(stage, RunContent::bundled())
     }
 
-    /// As `new`, with `content` in place of the bundled files (ADR-067).
+    /// As `new`, with `content` in place of the bundled files (ADR-CONT-11).
     pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
         Engine::new_with_stats(stage, content, &[], false)
     }
@@ -285,13 +285,13 @@ impl Engine {
         Ok(Engine::of(run, content, forced))
     }
 
-    /// Starts a run from a setup alone (ADR-079 §1): the setup is validated, then its mode's
+    /// Starts a run from a setup alone (ADR-REPL-16): the setup is validated, then its mode's
     /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
         Engine::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `content` in place of the bundled files (ADR-067).
+    /// As `start`, with `content` in place of the bundled files (ADR-CONT-11).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         Engine::start_party_with(setup, content, 1)
     }
@@ -393,11 +393,11 @@ impl Engine {
     /// included, is ignored. Once the run is over this does nothing, so a replay that is longer
     /// than the run cannot change the final hash.
     ///
-    /// While an offer is open for any player the world is stopped (ADR-079 §3): each player, in
+    /// While an offer is open for any player the world is stopped (ADR-REPL-16): each player, in
     /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
     /// offer, the events are the picks' and the tick does not advance; a player with no offer
     /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
-    /// offer open `pick` is not read (ADR-REPL-3).
+    /// offer open `pick` is not read (ADR-REPL-16).
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -428,7 +428,7 @@ impl Engine {
         self.observe_tick();
     }
 
-    /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-12).
+    /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-21).
     pub fn players(&self) -> usize {
         self.run.party()
     }
@@ -439,7 +439,7 @@ impl Engine {
         self.run.present()
     }
 
-    /// Slot `slot` joins the party at the tick the engine is on (ADR-SIM-13, ADR-SIM-14). The
+    /// Slot `slot` joins the party at the tick the engine is on (ADR-SIM-21, ADR-SIM-22). The
     /// joiner is the run's starting player at slot 0's current place, facing as it faces, at
     /// level 1 with no offer open; its totals start at zero. No event is emitted. Called between
     /// steps, like `choose`; an open offer does not block it. A join at tick 0 equals the party
@@ -511,7 +511,7 @@ impl Engine {
     }
 
     /// Whether `player` could take option `index` of its open offer by a pick in `step`
-    /// (ADR-079 §3). An open offer belongs to the slot that holds it, and the snapshot shows the
+    /// (ADR-REPL-16). An open offer belongs to the slot that holds it, and the snapshot shows the
     /// first player's. Refused for a player outside the party, a player with no offer open, a
     /// `sim_version` this game does not run, or an index outside its options. Read-only.
     pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
@@ -580,7 +580,7 @@ impl Engine {
     }
 
     /// Damage dealt, kills and support per player slot, folded from the events of every step
-    /// (ADR-SIM-13). Not hashed, but in a savepoint (ADR-SAVE-7), so a resumed run's totals are
+    /// (ADR-SIM-21). Not hashed, but in a savepoint (ADR-SAVE-14), so a resumed run's totals are
     /// those of the whole run, as a replay rebuilds them. A run of `sim_version` 1 stays zero.
     pub fn player_stats(&self) -> &PlayerStats {
         &self.player_stats
@@ -606,7 +606,7 @@ impl Engine {
         self.run.tick()
     }
 
-    /// The Stardust the run has earned, times 10 (ADR-109); 0 in a stage without a factor.
+    /// The Stardust the run has earned, times 10; 0 in a stage without a factor.
     pub fn stardust(&self) -> u32 {
         self.run.stardust()
     }
@@ -615,12 +615,12 @@ impl Engine {
         self.run.outcome()
     }
 
-    /// An offer is open: `step` does nothing until `choose` closes it (ADR-079 §3).
+    /// An offer is open: `step` does nothing until `choose` closes it (ADR-REPL-16).
     pub fn offer_open(&self) -> bool {
         self.run.offer_open()
     }
 
-    /// FNV-1a 64 over the whole state after the last tick (ADR-019).
+    /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-17).
     pub fn state_hash(&self) -> u64 {
         self.run.state_hash()
     }
@@ -631,7 +631,7 @@ impl Engine {
         &self.events
     }
 
-    /// The ledger of counts and bestiary encounters (ADR-BRDG-6).
+    /// The ledger of counts and bestiary encounters (ADR-BRDG-15).
     pub fn ledger(&self) -> &RunLedger {
         &self.ledger
     }
@@ -643,13 +643,13 @@ impl Engine {
         self.run.caps()
     }
 
-    /// How much of each dynamic budget the last tick used (ADR-020).
+    /// How much of each dynamic budget the last tick used (ADR-SVC-7).
     pub fn load(&self) -> Load {
         self.load
     }
 }
 
-/// What the setup's difficulty brings to the run (ADR-110): its percents, and its rarity range
+/// What the setup's difficulty brings to the run: its percents, and its rarity range
 /// clamped to the rarities the run's rewards have.
 fn run_difficulty(setup: &RunSetup, content: &RunContent) -> Result<Difficulty, Error> {
     let d = run_setup::difficulty_of(setup, content.difficulties())?;

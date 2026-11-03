@@ -1,7 +1,7 @@
-//! The live rules (ADR-REPL-7, ADR-REPL-9): the module that runs the newest `sim_version`, with the
-//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-019).
+//! The live rules (ADR-REPL-13, ADR-REPL-13): the module that runs the newest `sim_version`, with the
+//! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-SIM-17).
 //!
-//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-12); a
+//! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-21); a
 //! system that acts on or for a player takes `me` right after the state. A place that names no
 //! player yet reads `PlayerIdx::SOLO` and says which later change settles it (`// N=1: ...`).
 //!
@@ -13,21 +13,21 @@
 //! |---|---|
 //! | `spawn_boss` | the boss of a `time_limit` run whose time the tick reaches comes, before the counter advances (`horde`) |
 //! | `advance_tick` | the tick counter advances |
-//! | `regen` | the main character regenerates the hit points of a perk (ADR-105, `loadout`) |
+//! | `regen` | the main character regenerates the hit points of a perk (`loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
 //! | `leash` | a regular, unanchored enemy outside the leash's reach rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) around the view's centre (`view_centre`) moves to the centre's rectangle of `leash_land_x`, `leash_land_y` on the opposite side (or on the enemy's own side when that one is off the map), at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
-//! | `player_update` | the main character turns to its stick, picks a target while aim assist or auto mode is on (ADR-072, `select`), recovers evade charges, evades, uses its stage skill (ADR-075, `skill`), walks its combo (ADR-073, ADR-070, ADR-076), then dashes or moves (`player`) |
+//! | `player_update` | the main character turns to its stick, picks a target while aim assist or auto mode is on (`select`), recovers evade charges, evades, uses its stage skill (`skill`), walks its combo, then dashes or moves (`player`) |
 //! | `runes_fly` | thrown runes' hit boxes (boomerang) fly a step, after the main character has moved (`runes`) |
-//! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (ADR-069, `orbit`) |
+//! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (`orbit`) |
 //! | `boss_act` | the boss: phases, timeline, rules (`boss`) |
 //! | `call_elites` | a boss that calls elites does so when its time comes (`boss`) |
-//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-036); an elite (ADR-068) holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
+//! | `agents_act` | companions, then enemies, in entity-ID order: move, then the first rule that can fire, fires (ADR-SIM-18); an elite holds where it spawned, and its rules fire only while the main character is in range (`agents`) |
 //! | `dash_attackers` | an enemy or the boss in an active phase with a dash moves its share of the distance along its attack's locked facing, held to the map; a boss's parts follow (`dash`) |
-//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-058, `push`) |
+//! | `push_apart` | the enemies push apart, all at once, and one found crowded does not step to its place on the next tick, and one that is dashing is not moved (ADR-SIM-19, `push`) |
 //! | `skill_pull` | the stage skill's black hole pulls (`skill`) |
 //! | `runes_steer` | homing missiles' hit boxes steer toward where their targets are now (`runes`) |
 //! | `zones_advance` | the zones age and run out (`zones`) |
@@ -43,7 +43,7 @@
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
 //! `collide` adds them to the one expertise gauge, and its levels are reached in `level_up`
 //! (`expertise`). Each level reached is due an offer of the kind the stage's level table gives
-//! (ADR-106 §4): common options, the weapon's three styles, or the chosen style's upgrades or
+//!: common options, the weapon's three styles, or the chosen style's upgrades or
 //! capstone.
 //!
 //! In a stage with levels, defeated enemies give their experience as they are removed in
@@ -60,23 +60,23 @@
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
 //!
-//! The stage skill (ADR-075, `skill`) acts in `player_update` on a press, after the evade and
+//! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
 //! character's damage in `collide`.
 //!
-//! Orbits (ADR-069, `orbit`) act in `orbits`: their hit boxes land in `collide`. A run holds at
+//! Orbits (`orbit`) act in `orbits`: their hit boxes land in `collide`. A run holds at
 //! most `MAX_ORBITS` orbits of `MAX_ORBS` orbs.
 //!
-//! Range rewards (ADR-099) widen the hit boxes of the combo steps started after they are taken,
+//! Range rewards widen the hit boxes of the combo steps started after they are taken,
 //! adding up over the picks (`player`).
 //!
-//! Type bonus rewards (ADR-100) add up for each damage type, a group's to each type of its
+//! Type bonus rewards add up for each damage type, a group's to each type of its
 //! group (`stars`). An attack the main character starts fixes those sums, each held to the
 //! match-up file's `max_type_bonus_pct`; each of its phases of a type raises its damage by
 //! that type's, after atk-up (`attacks::phase_damage`), and the match-up multiplies it at the
 //! hit.
 //!
-//! On-hit runes (ADR-099, `runes`): each cooldown counts down in `runes_tick`; a combo step's
+//! On-hit runes (`runes`): each cooldown counts down in `runes_tick`; a combo step's
 //! hit in `collide` fires each one held and ready, an attack in its own slot whose hit boxes
 //! stay on the point hit and land from the next tick, and sets its cooldown. Its hits are no
 //! combo step's. A thrown rune's hit boxes (boomerang) fly in `runes_fly`: out to the point hit,
@@ -84,7 +84,7 @@
 //! the push-apart and the pull; one that hits anything in `collide` is gone once the hit boxes
 //! have landed.
 //!
-//! Damage-over-time runes (ADR-099, `runes`): a combo step's hit in `collide` that leaves its
+//! Damage-over-time runes (`runes`): a combo step's hit in `collide` that leaves its
 //! target standing puts each one's status on it, bleed's `bleed`, poison's `poison`, burn's
 //! `burn`, or a stack more up to its maximum, its duration starting again. Statuses of that
 //! kind do not run out in `statuses_and_aggro`: at the start of `collide`, before any hit
@@ -94,7 +94,7 @@
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-020): at most `World::enemy_cap` enemies (the crowd target and the
+//! Dynamic budgets (ADR-SVC-7): at most `World::enemy_cap` enemies (the crowd target and the
 //! pack's headroom, 260 for the bundled pack, derived when the run is built and at most
 //! `limits::MAX_ENEMY_CAP`, DS103), the stage's elite cap of
 //! them elites (at most `MAX_ELITES_ALIVE`), `MAX_ZONES_ALIVE` zones, `MAX_ORBS_ALIVE` orbs,
@@ -197,12 +197,12 @@ pub(crate) use stars::{constellation_views, offer_view};
 
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
-/// Zones alive at once (core Z1, a placeholder cap pending ADR-058); a zone placed over it is
+/// Zones alive at once (core Z1, a placeholder cap pending ADR-SIM-19); a zone placed over it is
 /// dropped, as an orb over `MAX_ORBS_ALIVE` is.
 pub(crate) const MAX_ZONES_ALIVE: u32 = 128;
 /// Regular enemies attacking at range at once (core Z2, DS10): a `ranged` run holds a token while
 /// it is in its wind-up or active phase. The tokens are the two pools of `rules.json`
-/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-7's cap); they go to the nearest ready enemies in view (RA1).
+/// (`ranged_zone_tokens`, `ranged_line_tokens`), which sum to at most this (ADR-SIM-19's cap); they go to the nearest ready enemies in view (RA1).
 pub(crate) const MAX_RANGED_ATTACKERS: u32 = 4;
 /// The view rectangle (RA1, DS82): the widest supported aspect, 21:9, of the 360 px design
 /// height, 840 by 360 px, never the device's screen. It is the camera's rectangle: centred on the
@@ -237,7 +237,7 @@ pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
 /// dropped in node order.
 pub(crate) const MAX_ORBS_PER_OWNER: u32 = 8;
 pub(crate) const MAX_ORBS_ALIVE: u32 = 32;
-/// Attacks being carried out at once (ADR-036 tier 3), and the node steps they may take in a
+/// Attacks being carried out at once (ADR-SIM-18 tier 3), and the node steps they may take in a
 /// tick between them. An attack that would take more waits for the next tick.
 pub(crate) const MAX_ATTACK_TASKS: u32 = 256;
 pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
@@ -246,19 +246,19 @@ pub(crate) const MAX_EMITTER_STEPS_PER_TICK: u32 = 4096;
 /// with the largest enemy, so it stays what the friendly orbs' radius was.
 const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 
-/// The most aggro anyone holds (ADR-036; an overflow bound, also the validator's bound of
+/// The most aggro anyone holds (ADR-SIM-18; an overflow bound, also the validator's bound of
 /// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-079 §1).
+/// and the rerolls its setup adds to the stage's (ADR-REPL-16).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
     pub difficulty: RunDifficulty,
 }
 
-/// `hp` scaled by `pct` (ADR-110): never to 0 from a positive value, which would be dead at
+/// `hp` scaled by `pct`: never to 0 from a positive value, which would be dead at
 /// its spawn.
 pub(crate) fn scale_hp(hp: u32, pct: u32) -> u32 {
     match hp {
@@ -267,7 +267,7 @@ pub(crate) fn scale_hp(hp: u32, pct: u32) -> u32 {
     }
 }
 
-/// What a run takes from its difficulty (ADR-110): the percents its enemies' hit points and
+/// What a run takes from its difficulty: the percents its enemies' hit points and
 /// attacks' damage are scaled by, and the range of rarities its stars and offers may have.
 /// Fixed for the run, part of the setup, and hashed with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -287,7 +287,7 @@ impl RunDifficulty {
 }
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
-/// stage, the setup's for a run (ADR-051).
+/// stage, the setup's for a run (ADR-REPL-16).
 pub(crate) fn initial_state(
     stage: &World,
     content: &RunContent,
@@ -300,8 +300,7 @@ pub(crate) fn initial_state(
     state
 }
 
-/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-7
-/// decision 9): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
+/// Makes room, once, for the most the run's per-enemy lists can hold (DIR1, ADR-SIM-19 point 4): the cap on enemies alive, and the other caps, so that no tick grows a buffer.
 /// Called when the run is built and again for a clone of its state, because a cloned `Vec` has
 /// only its length. The scratch buffers are `Scratch::reserve`'s.
 pub(crate) fn reserve(stage: &World, s: &mut State) {
@@ -361,7 +360,7 @@ fn unreserved_state(
     let run_stats = content.run_stats();
     let rewards = content.rewards().rewards().len();
     // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
-    // (ADR-SIM-13); the boss and the companions come after them.
+    // (ADR-SIM-21); the boss and the companions come after them.
     let mut next_id = u32::from(MAX_PLAYERS);
     let boss_id = stage.boss.as_ref().map(|_| {
         let id = EntityId(next_id);
@@ -390,7 +389,7 @@ fn unreserved_state(
         .collect();
     // The boss's parts come after the companions in the order of entity IDs. Of these, the crit roll
     // and the push-apart angle read a number: they read `State::roll_key`, the number without
-    // the empty player slots (ADR-SIM-13).
+    // the empty player slots (ADR-SIM-21).
     let boss = boss_id.map(|id| {
         let arrival = Arrival {
             at: stage.boss(BossIndex(0)).boss.spawn,
@@ -537,7 +536,7 @@ fn unreserved_state(
     }
 }
 
-/// The big patterns the boss has announced (ADR-103), for the snapshot; an enemy's are not.
+/// The big patterns the boss has announced, for the snapshot; an enemy's are not.
 pub(crate) fn announced_patterns(stage: &World, s: &State) -> Vec<crate::snapshot::PatternView> {
     boss::announced(stage, s)
 }
@@ -555,7 +554,7 @@ pub(crate) struct Arrival {
 
 /// The boss before its first tick, its parts taking the entity IDs from `next_id` on. The
 /// first phase begins on the first tick (see `boss::act`).
-/// The boss's state at its spawn, its hit points and its parts' scaled by `hp_pct` (ADR-110).
+/// The boss's state at its spawn, its hit points and its parts' scaled by `hp_pct`.
 pub(crate) fn boss_state(
     stage: &World,
     boss: BossIndex,
@@ -661,7 +660,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens, for every present player in slot order, the first offer due unless one is open for
 /// that player: the boss offer, then the expertise levels' in level order, then the stat offers
-/// in level order, then the stars' in the order taken (ADR-079 §2, DS18). The players open
+/// in level order, then the stars' in the order taken (ADR-REPL-16, DS18). The players open
 /// theirs side by side.
 fn open_offers(
     stage: &World,
@@ -1077,7 +1076,7 @@ pub(super) fn spawn_enemy(stage: &World, s: &mut State, key: AgentKey, at: Point
         }
     }
     s.enemies.push(enemy);
-    // A pack leader's escort comes with it, on a ring around it (ADR-090). Only a wave's enemy
+    // A pack leader's escort comes with it, on a ring around it. Only a wave's enemy
     // has one: that is the definition the escort is found by.
     if key.source == AgentSource::Wave {
         if let Some(escort) = def.elite.as_ref().and_then(|e| e.escort.as_ref()) {
@@ -1157,14 +1156,14 @@ struct Shot {
     owner: EntityId,
     friendly: bool,
     damage: u32,
-    /// Its type (ADR-100); `None` is neutral.
+    /// Its type; `None` is neutral.
     damage_type: Option<DamageType>,
     breaks_charge: bool,
-    /// What a smash does to the enemy it hits (ADR-084 point 8), for a combo part's hit.
+    /// What a smash does to the enemy it hits, for a combo part's hit.
     smash: Option<Smash>,
-    /// A combo step's hit, which adds expertise points (ADR-078 §2).
+    /// A combo step's hit, which adds expertise points.
     combo: bool,
-    /// The rune that dealt it (ADR-099), which the `Hit` event reports.
+    /// The rune that dealt it, which the `Hit` event reports.
     rune: Option<Rune>,
     /// A hit the combat rewards make (a kill burst), which neither crits nor echoes.
     chain: bool,
@@ -1269,7 +1268,7 @@ fn damage(
     target: Who,
     events: &mut Vec<DomainEvent>,
 ) {
-    // A shrine, or a mimic in disguise, is an object: nothing damages it (ADR-090).
+    // A shrine, or a mimic in disguise, is an object: nothing damages it.
     if !damageable(s, target) {
         return;
     }
@@ -1279,7 +1278,7 @@ fn damage(
     );
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
-    // The common case, with no combat reward held, pays for one comparison (ADR-058).
+    // The common case, with no combat reward held, pays for one comparison (ADR-SIM-19).
     let crit = s.players[me].crit_chance_pct != 0
         && combat::crits(s, me, &b, id, s.hp(target), !State::is_ally(target));
     let base = if crit {
@@ -1310,7 +1309,7 @@ fn damage(
         }
     }
     let foe = !State::is_ally(target);
-    // The buffer is read only in a party, and for a player's own shot (ADR-SIM-12).
+    // The buffer is read only in a party, and for a player's own shot (ADR-SIM-21).
     let buffed_by = if foe && s.players.len() > 1 && s.players.owner_of(b.owner).is_some() {
         buffer_of(s, me)
     } else {
@@ -1387,7 +1386,7 @@ pub(super) fn hitter(s: &State, owner: EntityId) -> PlayerIdx {
 
 /// The other player whose attack-up is on `me` and still running, if any: the one that applied
 /// it last (`StatusState::source`). Read when a hit lands, from the hashed state alone, so a
-/// replay gives the same answer (ADR-SIM-12).
+/// replay gives the same answer (ADR-SIM-21).
 fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
     let up = s
         .statuses(Who::Player(me))
@@ -1399,7 +1398,7 @@ fn buffer_of(s: &State, me: PlayerIdx) -> Option<EntityId> {
         .map(PlayerIdx::id)
 }
 
-/// Whether anything can damage `target`: a shrine and a mimic in disguise are objects (ADR-090).
+/// Whether anything can damage `target`: a shrine and a mimic in disguise are objects.
 fn damageable(s: &State, target: Who) -> bool {
     !matches!(target, Who::Enemy(i) if s.enemies[i].shrine.is_some() || s.enemies[i].hidden())
 }
@@ -1459,7 +1458,7 @@ pub(super) fn kind_of(s: &State, who: Who) -> Option<KindIndex> {
     }
 }
 
-/// The profile of a target (ADR-100): an enemy's or an elite's own, the boss's, or a part's own.
+/// The profile of a target: an enemy's or an elite's own, the boss's, or a part's own.
 /// The main character and the companions have none.
 fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profile> {
     match target {
@@ -1470,7 +1469,7 @@ fn profile<'a>(stage: &'a World, s: &'a State, target: Who) -> Option<&'a Profil
     }
 }
 
-/// The Sub weapon's pull on enemy `i`, hit by a combo part (ADR-070): it is drawn toward the
+/// The Sub weapon's pull on enemy `i`, hit by a combo part: it is drawn toward the
 /// main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and stops where their circles touch. A dead enemy and an elite are not pulled.
 pub(super) fn pull_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, pull: Pull) {
@@ -1502,7 +1501,7 @@ pub(super) fn pull_enemy(stage: &World, s: &mut State, me: PlayerIdx, i: usize, 
     });
 }
 
-/// A smash's knockback on enemy `i` (ADR-084 point 8): the pull's mirror. It is pushed away from
+/// A smash's knockback on enemy `i`: the pull's mirror. It is pushed away from
 /// the main character by at most `distance`, over `ticks`, as a move order that replaces its
 /// movement, and ends inside the map. A dead enemy and an elite are not pushed, nor one on the
 /// main character's very centre (no direction); a boss and its parts are never enemies here.
@@ -1573,7 +1572,7 @@ fn hurt_player(
         &s.players[me].statuses,
         crate::sim::state::StatusKind::Vulnerable,
     );
-    // The main character has no profile (ADR-100): every hit on it is neutral.
+    // The main character has no profile: every hit on it is neutral.
     let dealt = scale_damage(
         b.damage,
         0,
@@ -1605,7 +1604,7 @@ fn hurt_player(
     }
 }
 
-/// `b` with the damage a pack leader's aura adds (ADR-090), for a hit of an enemy's on an ally:
+/// `b` with the damage a pack leader's aura adds, for a hit of an enemy's on an ally:
 /// if the enemy that dealt it is still on the map and not an elite, the highest `damage_percent`
 /// among the auras whose leader's centre is within `radius` of its centre (the edge counts)
 /// raises the damage to `damage * (100 + percent) / 100`, rounded down. Every leader still in
@@ -1627,7 +1626,7 @@ fn aided(stage: &World, s: &State, b: Shot) -> Shot {
     }
 }
 
-/// The auras of the elites on the map, each with its leader's centre, in index order (ADR-090).
+/// The auras of the elites on the map, each with its leader's centre, in index order.
 pub(crate) fn aura_sources<'a>(
     stage: &'a World,
     s: &'a State,
@@ -1747,7 +1746,7 @@ fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<
     }
 }
 
-/// The state hash (ADR-SIM-3 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
+/// The state hash (ADR-SIM-17 point 2): FNV-1a 64 over the `StableHash` encoding of the whole
 /// state, which `state_hash.rs` writes.
 pub(crate) fn state_hash(s: &State) -> u64 {
     let mut h = StateHasher::new();

@@ -1,11 +1,11 @@
-//! Attacks (ADR-055): an attacker runs one phased attack at a time per slot (`AttackRun`). A
+//! Attacks: an attacker runs one phased attack at a time per slot (`AttackRun`). A
 //! run starts with its first phase on the tick it starts; at the start of each later tick it
 //! goes on to its next phase once the current one has lasted its ticks, and ends after the last.
 //! Leaving its attacker (death, or a boss leaving the phase that started it) ends it too. A
 //! wind-up announces itself with a `Telegraph` event. Each phase spawns its nodes on its first
 //! tick as a task of their own, which runs to its end whatever the run does next.
 //!
-//! The nodes (ADR-036 tier 3) are a tree carried out over time. A task keeps a stack
+//! The nodes (ADR-SIM-18 tier 3) are a tree carried out over time. A task keeps a stack
 //! of frames, one for each list of nodes it is inside, so that it can stop at a `wait` or between
 //! the rounds of a `repeat` and go on in a later tick. Presets are expanded to inline nodes
 //! before a task starts (see `presets`), so a preset and its inline copy are the same task.
@@ -34,7 +34,7 @@
 //! `rand` drawing from the run's SplitMix64 in that order. Arithmetic saturates, and dividing by
 //! zero gives 0. Counts, ticks and speeds that an expression computes are clamped.
 //!
-//! Dynamic budgets (ADR-020): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
+//! Dynamic budgets (ADR-SVC-7): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Orbs and zones are capped as everywhere else.
 
@@ -190,7 +190,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State, me: PlayerIdx) {
             if best[p][..len[p]].iter().any(|(_, id)| *id == e.id) {
                 continue;
             }
-            // Not ready while its last attack runs (ADR-055): it could not use the grant.
+            // Not ready while its last attack runs: it could not use the grant.
             if busy(s, e.id, 0) {
                 continue;
             }
@@ -273,7 +273,7 @@ pub(super) fn start(
 }
 
 /// As `start`, for an attack whose clock does not start at 0: the boss's attacks count the time
-/// since its phase began, so that `phase_time` is the phase's time (ADR-036).
+/// since its phase began, so that `phase_time` is the phase's time (ADR-SIM-18).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn start_aged(
     world: &World,
@@ -333,9 +333,9 @@ pub(super) fn start_with(
     true
 }
 
-/// How the main character's combo step attacks (ADR-070): `bonus_pct` more damage (a perfect
+/// How the main character's combo step attacks: `bonus_pct` more damage (a perfect
 /// release's), `speed_pct` faster (attack speed), `range_pct` wider (the range rewards and
-/// options; ADR-078, ADR-099), and the smash's effect for a combo
+/// options), and the smash's effect for a combo
 /// part.
 #[derive(Clone, Copy)]
 pub(super) struct Strike {
@@ -389,7 +389,7 @@ pub(super) fn start_player(
 }
 
 /// Starts an on-hit rune's `attack` for the main character in `slot`, its hit boxes
-/// centred on `at` and facing `facing`, at `base_damage` (ADR-099): raised by its atk-up and type
+/// centred on `at` and facing `facing`, at `base_damage`: raised by its atk-up and type
 /// bonuses as they are now, as any of its attacks, but no combo step's. False, starting
 /// nothing, if the slot is busy.
 #[allow(clippy::too_many_arguments)]
@@ -599,7 +599,7 @@ fn launch(
     // A bonus (a perfect release's) adds to the atk-up, for every hit of the attack.
     let atk_up_pct = status_pct(s.statuses(owner), StatusKind::AtkUp).saturating_add(bonus_pct);
     // The main character's type bonuses, each held to the content's limit, which the validator
-    // holds to the hard cap; the clamp keeps an unvalidated table there (ADR-100).
+    // holds to the hard cap; the clamp keeps an unvalidated table there.
     let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
     let held = &s.players[me].type_bonus_pct;
     let type_bonus_pct = (owner == Who::Player(me) && held.iter().any(|pct| *pct > 0))
@@ -714,14 +714,14 @@ pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
 }
 
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
-/// a follow-up press its recovery (ADR-070, ADR-076). Orbs it spawned fly on.
+/// a follow-up press its recovery. Orbs it spawned fly on.
 pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
     retain_runs(s, |r| r.owner != owner || r.slot != slot);
     s.move_index.rebuild(world, &s.runs);
 }
 
 /// Whether `owner`'s run in `slot` is in a `recovery` phase after its last `active` one: where
-/// a follow-up press may cancel it (ADR-076). False with no run, or no active phase.
+/// a follow-up press may cancel it. False with no run, or no active phase.
 pub(super) fn in_end_recovery(world: &World, s: &State, owner: EntityId, slot: u8) -> bool {
     s.runs.iter().any(|r| {
         r.owner == owner
@@ -735,7 +735,7 @@ pub(super) fn in_end_recovery(world: &World, s: &State, owner: EntityId, slot: u
 }
 
 /// Whether `owner`'s run in `slot` has just reached the recovery after its last `active` phase,
-/// on its first tick: where a held step's hold begins (ADR-084 point 6).
+/// on its first tick: where a held step's hold begins.
 pub(super) fn hold_ready(world: &World, s: &State, owner: EntityId, slot: u8) -> bool {
     in_end_recovery(world, s, owner, slot)
         && s.runs
@@ -769,7 +769,7 @@ pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
     )
 }
 
-/// Whether run `r` is the main character's combo step, A or B (ADR-078 §2).
+/// Whether run `r` is the main character's combo step, A or B.
 pub(super) fn is_combo(r: &AttackRun) -> bool {
     r.owner == PlayerIdx::SOLO.id() && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
 }
@@ -822,7 +822,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
 
 /// Orbs whose lifetime is over start their bursts, to be carried out this tick.
 // Kept out of `sim::step`, so the tick-cost gate measures the rules, not the inliner
-// (ADR-058).
+// (ADR-SIM-19).
 #[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
     let mut starts = Vec::new();

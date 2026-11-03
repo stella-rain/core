@@ -39,12 +39,12 @@ impl State {
 
     /// The number a roll or an angle reads for the entity `id`: its number without the empty
     /// player slots, so a party of one rolls as it did before the slots were reserved
-    /// (ADR-SIM-13).
+    /// (ADR-SIM-21).
     ///
     /// The gap is the count in force: when a join or leave changes the party, every live
     /// enemy's key moves by one per slot gained or lost, and its next crit roll and push angle
     /// read the new key; enemies spawned later are keyed by the count then. A pure function of
-    /// the presence mask, so a replay and every peer agree (ADR-SIM-14).
+    /// the presence mask, so a replay and every peer agree (ADR-SIM-22).
     #[inline]
     pub(crate) fn roll_key(&self, id: EntityId) -> u32 {
         crate::id::to_compact(id, self.id_gap())
@@ -216,7 +216,7 @@ impl State {
             .map(Who::Companion)
     }
 
-    /// Adds to an ally's aggro (ADR-036), up to a cap. Others have none to raise.
+    /// Adds to an ally's aggro (ADR-SIM-18), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
             Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro, // N=1: M-DOWN-PARTY
@@ -272,7 +272,7 @@ impl State {
 }
 
 impl State {
-    /// Puts the `stun` status on an enemy for `ticks` (ADR-085 point 1). It does not stack: a stun
+    /// Puts the `stun` status on an enemy for `ticks`. It does not stack: a stun
     /// on a stunned enemy keeps the longer of the two remainders.
     pub(super) fn add_stun(
         &mut self,
@@ -311,7 +311,7 @@ impl State {
 }
 
 impl State {
-    /// Applies a damage-over-time status of `kind` (ADR-099), or adds a stack to the one there,
+    /// Applies a damage-over-time status of `kind`, or adds a stack to the one there,
     /// up to `max_stacks`: one status of a kind per entity, its stacks shared. Either way its
     /// duration starts again and `dot`, with the multipliers of its source fixed now, replaces
     /// what was there; but its tick timer runs on, so reapplying never puts a tick off.
@@ -362,7 +362,7 @@ impl State {
     }
 }
 
-/// The damage-over-time statuses tick (ADR-099), in step 6 before any hit lands: on the boss,
+/// The damage-over-time statuses tick, in step 6 before any hit lands: on the boss,
 /// its unbroken parts, then the enemies in entity-ID order. Each counts down to its next tick,
 /// and on it deals its damage a stack times its stacks, raised by the multipliers fixed when it
 /// was last applied, then as a hit by its source of its type (`damage`): the target's
@@ -468,12 +468,12 @@ pub(super) fn speed_pct(statuses: &[StatusState]) -> i64 {
     100 - i64::from(status_pct(statuses, StatusKind::Slow))
 }
 
-/// `base` damage, raised by the attacker's atk-up and type bonus (ADR-100) and by the target's
-/// vulnerability (percent each), changed by the hit's match-up (`match_up_pct`, -100 to 100;
-/// ADR-100), then reduced to `K / (K + defence)` of it (ADR-056), in that order, truncating
+/// `base` damage, raised by the attacker's atk-up and type bonus and by the target's
+/// vulnerability (percent each), changed by the hit's match-up (`match_up_pct`, -100 to 100),
+/// then reduced to `K / (K + defence)` of it, in that order, truncating
 /// toward zero at each step in 64 bits. A hit with any damage at all does at least 1. `defence_k`
-/// is `K` of ADR-056: a defence of `K` halves a hit (`rules.json`'s `defence_k`, 100 at the design
-/// values, scaled with the damage and the defences by ADR-103, so a defence keeps its share).
+/// is `K`: a defence of `K` halves a hit (`rules.json`'s `defence_k`, 100 at the design
+/// values, scaled with the damage and the defences so a defence keeps its share).
 pub(super) fn scale_damage(
     base: u32,
     atk_up_pct: u32,
@@ -530,7 +530,7 @@ pub(super) fn tick_statuses_and_aggro(
         dots |= age(&mut c.statuses);
         c.aggro = c.aggro.saturating_sub(aggro_decay);
     }
-    // An enemy's immunity counts down, and a stun that runs out starts it (ADR-085 point 4).
+    // An enemy's immunity counts down, and a stun that runs out starts it.
     let immune = s.stun.immune_ticks;
     for e in &mut s.enemies {
         e.stun_immune = e.stun_immune.saturating_sub(1);
@@ -595,7 +595,7 @@ mod tests {
     fn a_match_up_scales_after_vulnerability_and_before_defence() {
         assert_eq!(scale_damage(10, 0, 0, 0, 20, 0), 12);
         assert_eq!(scale_damage(10, 0, 0, 0, -20, 0), 8);
-        // A defence of K halves the hit (K = 10,000 after the scale of ADR-103).
+        // A defence of K halves the hit (K = 10,000 after the scale).
         assert_eq!(scale_damage(10, 0, 0, 50, 20, 10_000), 9);
         assert_eq!(scale_damage(10, 0, 0, 0, 0, 0), 10);
     }
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn a_percentage_of_a_scaled_hit_is_not_rounded_away() {
-        // ADR-103: at the design values +5% of 10 is 10 (10.5 cut), and +25% of 1 is 1; at the
+        // At the design values +5% of 10 is 10 (10.5 cut), and +25% of 1 is 1; at the
         // scaled values the same percentages are whole numbers.
         assert_eq!(scale_damage(10, 5, 0, 0, 0, 0), 10);
         assert_eq!(scale_damage(1_000, 5, 0, 0, 0, 0), 1_050);
@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     fn a_type_bonus_raises_with_the_atk_up_and_multiplies_with_the_match_up() {
-        // ADR-100's example: Pyro +50 against a target strong against Pyro, 1.5 × 0.8.
+        // An example: Pyro +50 against a target strong against Pyro, 1.5 × 0.8.
         assert_eq!(scale_damage(100, 0, 50, 0, -20, 0), 120);
         // After the atk-up, truncated at each step: 7 × 1.5 = 10, × 1.5 = 15.
         assert_eq!(scale_damage(7, 50, 50, 0, 0, 0), 15);
@@ -635,7 +635,7 @@ mod tests {
 
     #[test]
     fn the_largest_hit_the_bounds_allow_stays_below_the_32_bit_limit() {
-        // ADR-103: the damage scale makes the limit of ADR-056 decision 5 100 times nearer, so
+        // The damage scale makes the 32-bit limit 100 times nearer, so
         // the largest base damage the validator allows, with the atk-up, the type bonus and the
         // vulnerability at their caps and the match-up at its cap, is held below it: that hit
         // is dealt whole, not saturated.

@@ -1,5 +1,5 @@
-//! The stage validator (ADR-020): a byte-size limit before parsing, strict parsing, registry
-//! lookups with the introducing `sim_version`, and the static budgets of ADR-020 and ADR-036.
+//! The stage validator (ADR-SVC-7): a byte-size limit before parsing, strict parsing, registry
+//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-7 and ADR-SIM-18.
 //! The app and `stage-verify` call the same code, and an invalid stage is not playable (fail
 //! closed).
 //!
@@ -32,8 +32,8 @@ use crate::trig;
 use crate::version::{self, ReadError};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
-/// Limits a stage must keep. The first block is ADR-020, the second ADR-036, the rest the
-/// loadout and numeric ranges that ADR-012 and ADR-019 ask for.
+/// Limits a stage must keep. The first block is ADR-SVC-7, the second ADR-SIM-18, the rest the
+/// loadout and numeric ranges that ADR-SIM-17 ask for.
 pub mod limits {
     pub const MAX_STAGE_BYTES: usize = 256 * 1024;
     /// Five minutes at 60 ticks per second.
@@ -43,7 +43,7 @@ pub mod limits {
     pub const MAX_PHASES: usize = 8;
     pub const MAX_TITLE_CHARS: usize = 60;
     pub const MAX_DESCRIPTION_CHARS: usize = 500;
-    /// Stage IDs are slugs (ADR-010).
+    /// Stage IDs are slugs (ADR-SVC-13).
     pub const MAX_STAGE_ID_CHARS: usize = 40;
 
     pub const MAX_RULES: usize = 8;
@@ -52,35 +52,35 @@ pub mod limits {
     pub const MAX_PATTERN_NODES: u32 = 64;
     pub const MAX_EXPR_NODES: u32 = 16;
     pub const MAX_REPEAT: i32 = 100;
-    /// Phases in one attack, and the ticks one lasts: 10 seconds (ADR-055).
+    /// Phases in one attack, and the ticks one lasts: 10 seconds.
     pub const MAX_ATTACK_PHASES: usize = 8;
     pub const MAX_PHASE_TICKS: u32 = 600;
 
     /// An evade's dash: at most 256 pixels, over at most a second, and at most a second of
-    /// invulnerability (ADR-050).
+    /// invulnerability.
     pub const MAX_EVADE_DISTANCE: i32 = 65_536;
     pub const MAX_EVADE_TICKS: u32 = 60;
-    /// An evade holds at most 3 charges (ADR-074).
+    /// An evade holds at most 3 charges.
     pub const MAX_EVADE_CHARGES: u8 = 3;
     /// A charge (core#83): at most 8 levels over at most 10 seconds of game time, and a perfect
     /// bonus of at most +1000%.
     pub const MAX_CHARGE_LEVELS: usize = 8;
     pub const MAX_CHARGE_TICKS: u32 = 600;
-    /// A held step's hold (ADR-084 point 6): at most 10 seconds, as a charge.
+    /// A held step's hold: at most 10 seconds, as a charge.
     pub const MAX_HOLD_TICKS: u32 = 600;
-    /// A Main weapon's combos (ADR-070, ADR-084): at most 32 steps in its tree and dash branch
+    /// A Main weapon's combos: at most 32 steps in its tree and dash branch
     /// together, no path from the root deeper than six steps (six attacks, AAAAAB at most); a
     /// window of at most 2 seconds and a dash-strike of at most 1 second.
     pub const MAX_COMBO_STEPS: usize = 32;
     pub const MAX_COMBO_DEPTH: u32 = 6;
     pub const MAX_COMBO_WINDOW_TICKS: u32 = 120;
     pub const MAX_DASH_STRIKE_TICKS: u32 = 60;
-    /// Aim assist looks at most 512 pixels away (ADR-072).
+    /// Aim assist looks at most 512 pixels away.
     pub const MAX_ASSIST_RANGE: i32 = 131_072;
-    /// The Sub weapon's pull (ADR-070): at most 64 pixels, over at most 1 second.
+    /// The Sub weapon's pull: at most 64 pixels, over at most 1 second.
     pub const MAX_PULL_DISTANCE: i32 = 16_384;
     pub const MAX_PULL_TICKS: u32 = 60;
-    /// A stun lasts at most 2 seconds (ADR-085 point 5, a placeholder bound).
+    /// A stun lasts at most 2 seconds (a placeholder bound).
     pub const MAX_STUN_TICKS: u32 = 120;
     /// Twenty seconds: an orb at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
@@ -95,15 +95,15 @@ pub mod limits {
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
     pub const MAX_WAVE_COUNT: u16 = 100;
-    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-051).
+    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-REPL-16).
     pub const MAX_LEVELS: usize = 100;
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
     pub const MAX_ENEMY_XP: u32 = 1000;
-    /// The expertise points an enemy or the boss gives for a hit and for a kill (ADR-078 §7).
+    /// The expertise points an enemy or the boss gives for a hit and for a kill.
     pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
     pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
-    /// Stardust (ADR-109, ADR-020), held times 10: the base an enemy or the boss earns for a kill
+    /// Stardust (ADR-SVC-7), held times 10: the base an enemy or the boss earns for a kill
     /// (the bundled boss's is 2,000), the percent of a time factor tier (as
     /// `difficulties::MAX_PCT`), the tiers of a time factor table, and the run's total, at which the counter saturates. At the largest base and percent a
     /// kill earns 1,000,000, so the total is reached in ten kills and never wraps a `u32`.
@@ -111,20 +111,20 @@ pub mod limits {
     pub const MAX_STARDUST_PCT: u32 = 1_000;
     pub const MAX_STARDUST_TIERS: usize = 16;
     pub const MAX_RUN_STARDUST: u32 = 10_000_000;
-    /// Falling stars (ADR-079 §2, ADR-068): the drop chance is in 1000; the pity, the stars on
+    /// Falling stars (ADR-REPL-16): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
     pub const MAX_DROP_PER_MILLE: u16 = 1000;
     pub const MAX_PITY: u16 = 1000;
     pub const MAX_STARS_ON_MAP: u16 = 64;
-    /// The most pickups of healing on the map at once: a hard cap (ADR-020).
+    /// The most pickups of healing on the map at once: a hard cap (ADR-SVC-7).
     pub const MAX_HEAL_PICKUPS: u16 = 16;
     /// The most a boss kill heals, in percent of the most hit points.
     pub const MAX_HEAL_PCT: u16 = 100;
     /// The chance of a heal pickup is at least 1 in this many; 1 in `MAX_HEAL_ONE_IN` is the
     /// rarest a file may give.
     pub const MAX_HEAL_ONE_IN: u32 = 1_000_000;
-    /// The most hit points a pickup heals: 1,000 shown hit points, scaled (ADR-103). A run's
+    /// The most hit points a pickup heals: 1,000 shown hit points, scaled. A run's
     /// main character holds more than a stage's `MAX_PLAYER_HP` (perks, stat points, rewards),
     /// and a heal never goes beyond the most it holds.
     pub const MAX_HEAL_AMOUNT: u32 = 1_000 * DAMAGE_SCALE;
@@ -135,9 +135,9 @@ pub mod limits {
     pub const MAX_TIER_LEVEL: u32 = 100;
     pub const MAX_RARITY_WEIGHT: u16 = 10_000;
     pub const MAX_SUMMON_COUNT: u8 = 8;
-    /// Elites alive at once (ADR-068), among the enemies.
+    /// Elites alive at once, among the enemies.
     pub const MAX_ELITES_ALIVE: u16 = 32;
-    /// The engine ceiling on the enemy cap (ADR-SIM-7, DS103): a pack whose derived cap is over it
+    /// The engine ceiling on the enemy cap (ADR-SIM-19, DS103): a pack whose derived cap is over it
     /// is refused, as `MAX_ELITES_ALIVE` bounds `elite_cap`. The cap of a run is derived from the
     /// pack's rules and is 260 for the bundled pack; this is the most any pack may ask for.
     pub const MAX_ENEMY_CAP: u16 = 500;
@@ -146,15 +146,15 @@ pub mod limits {
     /// within `MAX_ENEMY_CAP` (`rules::Rules::enemy_cap_for`).
     pub const MAX_CROWD_TARGET: u16 = 400;
     /// The most guardians one shrine rings itself with, or escorts one pack leader brings
-    /// (ADR-090).
+    ///.
     pub const MAX_SHRINE_GUARDIANS: u8 = 16;
     /// The most a pack leader's aura adds to the damage of the enemies near it, in percent
-    /// (ADR-090).
+    ///.
     pub const MAX_AURA_PERCENT: u16 = 200;
 
-    /// What every default damage and hit-point value is multiplied by (ADR-103 decision 6), so
+    /// What every default damage and hit-point value is multiplied by, so
     /// that a percentage of a hit (an aura's +25%) is a whole number. The bounds below, `K` of
-    /// ADR-056, the aggro constants and the bundled content all hold the scaled values.
+    /// the aggro constants and the bundled content all hold the scaled values.
     pub const DAMAGE_SCALE: u32 = 100;
     pub const MAX_PLAYER_HP: u32 = 999 * DAMAGE_SCALE;
     pub const MAX_PLAYER_ATK: u32 = 999 * DAMAGE_SCALE;
@@ -162,9 +162,9 @@ pub mod limits {
     pub const MAX_BOSS_HP: u32 = 1_000_000 * DAMAGE_SCALE;
     /// The largest base damage. With the atk-up, the type bonus and the vulnerability at their
     /// caps and the match-up at its cap, a hit of it is `MAX_DAMAGE × 11 × 11 × 11 × 2`: below
-    /// `u32::MAX` (ADR-056 decision 5), as `sim::entity`'s tests check.
+    /// `u32::MAX`, as `sim::entity`'s tests check.
     pub const MAX_DAMAGE: u32 = 10_000 * DAMAGE_SCALE;
-    /// At this defence a hit keeps about 1% of its damage (ADR-056, K = 100 × `DAMAGE_SCALE`).
+    /// At this defence a hit keeps about 1% of its damage (K = 100 × `DAMAGE_SCALE`).
     pub const MAX_DEFENCE: u32 = 10_000 * DAMAGE_SCALE;
     pub const MAX_BUFF_PCT: u16 = 500;
     pub const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
@@ -214,7 +214,7 @@ pub enum Error {
         line: usize,
         column: usize,
     },
-    /// Written by a newer game: listed greyed out as "update the app" (ADR-017).
+    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-12).
     UnsupportedVersion {
         schema_version: u32,
         sim_version: u32,
@@ -262,7 +262,7 @@ pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
 }
 
 /// Checks the phases of one attack against the same budgets as a stage's inline attacks, for an
-/// attack that takes `arity` arguments (the developer's presets, ADR-036). The problems are
+/// attack that takes `arity` arguments (the developer's presets, ADR-SIM-18). The problems are
 /// reported at paths from the attack: `$[0].spawn[0].body[1]`.
 pub fn validate_attack(
     phases: &[AttackPhase],
@@ -354,7 +354,7 @@ pub fn validate_levels_and_stars(
 }
 
 /// Checks an attack outside a stage, a preset by ID with its arguments or an inline one, against
-/// the same budgets as a stage's: a damage-area stage skill's (ADR-075). The problems are
+/// the same budgets as a stage's: a damage-area stage skill's. The problems are
 /// reported at paths from the attack: `$.preset.id`, `$.inline[0].ticks`.
 pub fn validate_attack_ref(attack: &AttackRef, registry: &[Entry]) -> Result<(), Vec<Issue>> {
     let mut ctx = Ctx {
@@ -684,9 +684,7 @@ impl<'a> Ctx<'a> {
                             c.key("elite", |c| c.fail("a companion cannot be an elite"));
                         }
                         if a.profile.is_some() {
-                            c.key("profile", |c| {
-                                c.fail("a companion has no match-up profile (ADR-100)")
-                            });
+                            c.key("profile", |c| c.fail("a companion has no match-up profile"));
                         }
                     });
                 }
@@ -889,7 +887,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// The weapon's combo tree (ADR-084): at most `MAX_COMBO_STEPS` steps in all, none deeper
+    /// The weapon's combo tree: at most `MAX_COMBO_STEPS` steps in all, none deeper
     /// than `MAX_COMBO_DEPTH`, each attack and charge checked, and its smash effect.
     fn weapon(&mut self, w: &Weapon) {
         let mut steps = 0;
@@ -963,7 +961,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// A held step's hold (ADR-084 point 6): the ticks held and the movement are bounded, the
+    /// A held step's hold: the ticks held and the movement are bounded, the
     /// loop's phases are all `active`, and both attacks are checked as any attack's are.
     fn hold(&mut self, h: &Hold) {
         self.within(
@@ -1002,7 +1000,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// A charged step (ADR-070). Level 0 is the step's own attack; the levels here are 1 and
+    /// A charged step. Level 0 is the step's own attack; the levels here are 1 and
     /// up, after 0, rising strictly and all before `max_ticks`; a perfect window ends by the next
     /// level (or `max_ticks`).
     fn charge(&mut self, c: &Charge) {
@@ -1480,7 +1478,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// A match-up profile (ADR-100 point 7): each type at most once in each list, and never in
+    /// A match-up profile: each type at most once in each list, and never in
     /// both. The one blanket resist is the parser's: `resist` holds a single value.
     fn profile(&mut self, p: &Profile) {
         let types = DamageType::ALL.len();
@@ -1562,7 +1560,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// Validates an attack reference: either a preset with arguments or an inline attack.
-    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-8, ADR-CONT-2).
+    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-13, ADR-CONT-12).
     fn attack_ref(&mut self, a: &AttackRef) {
         match a {
             AttackRef::Preset { id, args } => {
@@ -1613,7 +1611,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// An attack's phases (ADR-055). The nodes they spawn count against one pattern budget.
+    /// An attack's phases. The nodes they spawn count against one pattern budget.
     fn phases(&mut self, phases: &[AttackPhase]) {
         if phases.is_empty() {
             self.fail("an attack has at least one phase");

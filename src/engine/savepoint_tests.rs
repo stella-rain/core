@@ -1,4 +1,4 @@
-//! `encode_state` and `decode_state` (ADR-SIM-3): the whole run state round-trips, on a hand-built
+//! `encode_state` and `decode_state` (ADR-SIM-17): the whole run state round-trips, on a hand-built
 //! state and on every state of the replay corpus; a decode checks its lengths and indices
 //! against a fresh engine and refuses damaged bytes without panicking.
 
