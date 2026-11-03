@@ -265,7 +265,7 @@ fn a_run_with_other_stats_verifies_only_with_those_stats() {
     let content = RunContent::new(stats.clone(), Rewards::bundled().clone());
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..50 {
-        recorder.step(run_script(t)).unwrap();
+        recorder.step(&[run_script(t)]).unwrap();
     }
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());

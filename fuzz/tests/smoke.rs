@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use stella_rain_core::content_hash::to_hex;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayError};
@@ -100,9 +101,11 @@ fn run_prefixes() -> Vec<Vec<u8>> {
                             break;
                         }
                         steps += 1;
-                        recorder.step(input).expect("a corpus run steps");
+                        recorder.step(&[input]).expect("a corpus run steps");
                     }
-                    Command::Choose(index) => recorder.choose(index).expect("a corpus choice"),
+                    Command::Choose(index) => recorder
+                        .choose(PlayerIdx::SOLO, index)
+                        .expect("a corpus choice"),
                 }
             }
             recorder.replay().to_bytes()

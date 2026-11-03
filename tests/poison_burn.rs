@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
@@ -296,11 +297,11 @@ fn a_run_holding_poison_and_burn_records_and_verifies() {
             let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
             let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
             recorder
-                .choose(u32::try_from(rune.unwrap_or(0)).unwrap())
+                .choose(PlayerIdx::SOLO, u32::try_from(rune.unwrap_or(0)).unwrap())
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(input).is_err() {
+        if recorder.step(&[input]).is_err() {
             break;
         }
         for ev in recorder.engine().events() {

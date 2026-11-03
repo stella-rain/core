@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::Replay;
 use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay};
@@ -35,8 +36,8 @@ fn the_open_version_is_2() {
 fn apply(rec: &mut RunRecorder, commands: &[Command]) {
     for c in commands {
         match *c {
-            Command::Step(input) => rec.step(input).unwrap(),
-            Command::Choose(index) => rec.choose(index).unwrap(),
+            Command::Step(input) => rec.step(&[input]).unwrap(),
+            Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
 }

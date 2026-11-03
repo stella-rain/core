@@ -521,7 +521,7 @@ fn a_run_with_other_rewards_verifies_only_with_those_rewards() {
     let content = RunContent::new(RunStats::bundled().clone(), stronger());
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..50 {
-        recorder.step(run_script(t)).unwrap();
+        recorder.step(&[run_script(t)]).unwrap();
     }
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());

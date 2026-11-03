@@ -12,6 +12,7 @@ use crate::common;
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
 use std::path::PathBuf;
+use stella_rain_core::id::PlayerIdx;
 
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
@@ -52,7 +53,7 @@ fn written_form(
     let mut at = apply_commands(&mut rec, commands, 0, 0).unwrap();
     for (i, input) in (0u32..).zip(inputs) {
         at = apply_commands(&mut rec, commands, at, i).unwrap();
-        rec.step(*input).unwrap();
+        rec.step(&[*input]).unwrap();
     }
     apply_commands(&mut rec, commands, at, file.ticks).unwrap();
     let written = rec.replay();
@@ -208,7 +209,7 @@ fn apply_commands(
     tick: u32,
 ) -> Result<usize, String> {
     while at < commands.len() && commands[at].tick == tick {
-        rec.choose(commands[at].index)
+        rec.choose(PlayerIdx::SOLO, commands[at].index)
             .map_err(|e| format!("choose at tick {tick}: {e:?}"))?;
         at += 1;
     }
@@ -226,7 +227,7 @@ fn play_from(
     let mut at = case.commands.partition_point(|c| c.tick < from);
     for i in from..case.recorded.ticks {
         at = apply_commands(&mut rec, &case.commands, at, i)?;
-        rec.step(case.inputs[i as usize])
+        rec.step(&[case.inputs[i as usize]])
             .map_err(|e| format!("{}: step {}: {e:?}", case.label, i + 1))?;
         visit(i + 1, &rec)?;
     }
@@ -332,7 +333,7 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
         }
         let mut restored = restored;
         if r.offer[t as usize - 1] {
-            let refused = restored.step(Input::default());
+            let refused = restored.step(&[Input::default()]);
             if !matches!(refused, Err(RunReplayError::OfferOpen { .. })) {
                 return fail(format!("a step with the offer open gave {refused:?}"));
             }
@@ -497,7 +498,7 @@ fn a_restore_that_runs_one_tick_too_far_is_named() {
     let (case, r) = tutorial();
     let too_far = |rec: &RunRecorder, _: &[u8], _: &RunReplay, _: &Pack| {
         let mut rec = rec.clone();
-        rec.step(Input::default()).unwrap();
+        rec.step(&[Input::default()]).unwrap();
         rec
     };
     let err = check_run(&case, &r, &[100], &too_far).unwrap_err();
@@ -541,7 +542,7 @@ fn a_restore_that_forgets_an_open_offer_is_named() {
     let cut = (1..r.ticks()).find(|t| r.offer[*t as usize - 1]).unwrap();
     let answered = |rec: &RunRecorder, _: &[u8], _: &RunReplay, _: &Pack| {
         let mut rec = rec.clone();
-        rec.choose(0).unwrap();
+        rec.choose(PlayerIdx::SOLO, 0).unwrap();
         rec
     };
     let err = check_run(&case, &r, &[cut], &answered).unwrap_err();
@@ -578,9 +579,9 @@ fn rand_attack_case() -> (Case, Reference) {
     let mut rec = RunRecorder::start_with_pack(&setup, &pack).unwrap();
     for tick in 0..RAND_TICKS {
         if rec.engine().offer_open() {
-            rec.choose(0).unwrap();
+            rec.choose(PlayerIdx::SOLO, 0).unwrap();
         }
-        rec.step(common::run::run_script(tick)).unwrap();
+        rec.step(&[common::run::run_script(tick)]).unwrap();
     }
     assert_eq!(rec.engine().outcome(), Outcome::Running);
     let recorded = rec.replay();

@@ -330,10 +330,10 @@ pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
         match command {
             Command::Step(input) => {
                 steps += 1;
-                recorder.step(input).expect("the savepoint run steps");
+                recorder.step(&[input]).expect("the savepoint run steps");
             }
             Command::Choose(index) => recorder
-                .choose(index)
+                .choose(PlayerIdx::SOLO, index)
                 .expect("the savepoint run's choice is accepted"),
         }
     }
@@ -383,9 +383,9 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                         break;
                     }
                     let moved = if recorder.engine().offer_open() {
-                        recorder.choose(0)
+                        recorder.choose(PlayerIdx::SOLO, 0)
                     } else {
-                        recorder.step(Input::default())
+                        recorder.step(&[Input::default()])
                     };
                     if moved.is_err() {
                         break;

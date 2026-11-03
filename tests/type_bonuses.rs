@@ -11,6 +11,7 @@ use stella_rain_core::attack::DamageType;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
@@ -516,10 +517,10 @@ fn a_run_with_a_type_bonus_taken_records_and_verifies() {
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..1_200 {
         while recorder.engine().offer_open() {
-            recorder.choose(0).unwrap();
+            recorder.choose(PlayerIdx::SOLO, 0).unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(input).is_err() {
+        if recorder.step(&[input]).is_err() {
             break;
         }
     }

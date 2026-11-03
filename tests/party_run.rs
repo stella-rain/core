@@ -4,6 +4,7 @@
 //! what their movement does to the hash.
 
 use crate::common::run::trial_setup;
+use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
@@ -47,9 +48,19 @@ fn answer_offers(rec: &mut RunRecorder, n: u8) {
     }
 }
 
+/// The inputs of every slot at `tick`: slot 0 played by the zone bot, the others scripted.
+fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> Vec<Input> {
+    (0..n)
+        .map(|s| match s {
+            0 => run_input(rec.engine(), tick),
+            _ => input_of(usize::from(s), tick),
+        })
+        .collect()
+}
+
 fn step_party(rec: &mut RunRecorder, n: u8, tick: u32) {
     answer_offers(rec, n);
-    let inputs: Vec<Input> = (0..n).map(|s| input_of(usize::from(s), tick)).collect();
+    let inputs = inputs_at(rec, n, tick);
     rec.step(&inputs).unwrap();
 }
 
@@ -127,12 +138,8 @@ fn a_recorded_party_verifies() {
             })
             .unwrap();
         assert_eq!(first.len(), usize::from(n));
-        for (s, got) in first.iter().enumerate() {
-            let want = Input {
-                pick: None,
-                ..input_of(s, 0)
-            };
-            assert_eq!(*got, want, "slot {s}");
+        for (s, got) in first.iter().enumerate().skip(1) {
+            assert_eq!(*got, input_of(s, 0), "slot {s}");
         }
     }
 }
@@ -184,6 +191,11 @@ fn the_recorder_refuses_what_it_cannot_record() {
 fn offer_cut(n: u8) -> (RunRecorder, u32) {
     let mut rec = RunRecorder::start_party(&trial_setup(), n).unwrap();
     for t in 0..5400 {
+        assert_eq!(
+            rec.engine().outcome(),
+            Outcome::Running,
+            "no offer before the end"
+        );
         step_party_no_answer(&mut rec, n, t);
         if rec.engine().offer_open() {
             return (rec, t);
@@ -193,7 +205,7 @@ fn offer_cut(n: u8) -> (RunRecorder, u32) {
 }
 
 fn step_party_no_answer(rec: &mut RunRecorder, n: u8, tick: u32) {
-    let inputs: Vec<Input> = (0..n).map(|s| input_of(usize::from(s), tick)).collect();
+    let inputs = inputs_at(rec, n, tick);
     rec.step(&inputs).unwrap();
 }
 
@@ -305,4 +317,65 @@ fn the_solo_views_refuse_a_party() {
     }
     let solo = play(1, 100).replay();
     assert_eq!(solo.unpack_inputs(u32::MAX).unwrap().len(), 100);
+}
+
+// E. Solo bytes unchanged.
+
+/// Re-records `case` through the recorder from its own steps and picks.
+fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
+    let bytes = std::fs::read(case.join("run.replay")).unwrap();
+    let recorded = RunReplay::from_bytes(&bytes).unwrap();
+    let pack = crate::corpus_pins::case_pack(case).unwrap();
+    let mut rec = RunRecorder::start_with_pack(&recorded.setup, &pack).unwrap();
+    let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
+    assert_eq!(range.present, 0b1);
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                for _ in 0..*run {
+                    rec.step(inputs).unwrap();
+                }
+            }
+            RangeStep::Picks { picks } => rec.picks(picks).unwrap(),
+        }
+    }
+    (recorded, rec.replay())
+}
+
+#[test]
+fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
+    let mut seen = 0;
+    for tree in ["current", "v1"] {
+        let mut cases: Vec<_> = std::fs::read_dir(root.join(tree).join("runs"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        cases.sort();
+        for case in cases {
+            let (was, now) = rerecord(&case);
+            let name = case.display();
+            assert_eq!(now.final_hash, was.final_hash, "{name}");
+            assert_eq!(now.checkpoints, was.checkpoints, "{name}");
+            assert_eq!(now.ticks, was.ticks, "{name}");
+            assert_eq!(
+                now.unpack_inputs(u32::MAX).unwrap(),
+                was.unpack_inputs(u32::MAX).unwrap(),
+                "{name}"
+            );
+            assert_eq!(
+                now.unpack_commands().unwrap(),
+                was.unpack_commands().unwrap(),
+                "{name}"
+            );
+            if was.setup.schema_version >= 2 {
+                assert_eq!(now.inputs, was.inputs, "{name}: the bytes");
+            }
+            seen += 1;
+        }
+    }
+    assert!(
+        seen >= 18,
+        "the 9 current and the 9 v1 run cases, saw {seen}"
+    );
 }

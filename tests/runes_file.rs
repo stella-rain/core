@@ -842,7 +842,7 @@ fn a_run_with_other_runes_verifies_only_with_them() {
     let content = RunContent::bundled().clone().with_runes(other());
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..50 {
-        recorder.step(run_script(t)).unwrap();
+        recorder.step(&[run_script(t)]).unwrap();
     }
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());

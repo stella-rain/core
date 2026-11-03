@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
@@ -203,18 +204,18 @@ fn the_recorder_keeps_only_what_the_engine_took() {
         .unwrap();
     let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
     let take = |recorder: &mut RunRecorder, c: &Command| match *c {
-        Command::Step(input) => recorder.step(input).unwrap(),
-        Command::Choose(index) => recorder.choose(index).unwrap(),
+        Command::Step(input) => recorder.step(&[input]).unwrap(),
+        Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
     };
     commands[..at].iter().for_each(|c| take(&mut recorder, c));
     let before = recorder.replay();
 
     assert!(matches!(
-        recorder.choose(99),
+        recorder.choose(PlayerIdx::SOLO, 99),
         Err(RunReplayError::ChoiceRefused { .. })
     ));
     assert!(matches!(
-        recorder.step(run_script(0)),
+        recorder.step(&[run_script(0)]),
         Err(RunReplayError::OfferOpen { .. })
     ));
     assert_eq!(
@@ -262,20 +263,20 @@ fn the_recorder_refuses_an_input_while_an_offer_is_open() {
     let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
     for c in to_first_offer() {
         match c {
-            Command::Step(input) => recorder.step(input).unwrap(),
-            Command::Choose(index) => recorder.choose(index).unwrap(),
+            Command::Step(input) => recorder.step(&[input]).unwrap(),
+            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
     assert!(recorder.engine().offer_open());
     let before = recorder.replay();
     let tick = recorder.engine().tick();
     assert_eq!(
-        recorder.step(run_script(0)),
+        recorder.step(&[run_script(0)]),
         Err(RunReplayError::OfferOpen { tick })
     );
     assert_eq!(recorder.replay(), before, "the input is not recorded");
-    recorder.choose(0).unwrap();
-    recorder.step(run_script(0)).unwrap();
+    recorder.choose(PlayerIdx::SOLO, 0).unwrap();
+    recorder.step(&[run_script(0)]).unwrap();
 }
 
 #[test]
@@ -768,8 +769,8 @@ fn after_steps(commands: &[Command], from: usize, n: usize) -> usize {
 fn feed(recorder: &mut RunRecorder, commands: &[Command]) {
     for c in commands {
         match *c {
-            Command::Step(input) => recorder.step(input).unwrap(),
-            Command::Choose(index) => recorder.choose(index).unwrap(),
+            Command::Step(input) => recorder.step(&[input]).unwrap(),
+            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
 }
@@ -801,7 +802,7 @@ fn a_prefix_with_an_open_offer_resumes_with_it_open() {
     assert_eq!(r.engine().tick(), prefix.ticks);
     let tick = prefix.ticks;
     assert_eq!(
-        r.step(run_script(0)),
+        r.step(&[run_script(0)]),
         Err(RunReplayError::OfferOpen { tick })
     );
     let end = after_steps(&all, first, 300);
@@ -1225,8 +1226,8 @@ fn a_replay_built_at_tick_n_verifies_up_to_n() {
     let mut points = Vec::new();
     for c in &commands {
         match *c {
-            Command::Step(input) => r.step(input).unwrap(),
-            Command::Choose(index) => r.choose(index).unwrap(),
+            Command::Step(input) => r.step(&[input]).unwrap(),
+            Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         // Right after the step that reaches the tick, with no offer open.
         let (tick, hash) = point(&r);
@@ -1295,8 +1296,8 @@ fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
     let mut checked = 0;
     for c in &commands {
         match *c {
-            Command::Step(input) => r.step(input).unwrap(),
-            Command::Choose(index) => r.choose(index).unwrap(),
+            Command::Step(input) => r.step(&[input]).unwrap(),
+            Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         let (tick, hash) = point(&r);
         if [59, 60, 130].contains(&tick) || r.engine().offer_open() {
@@ -1310,8 +1311,8 @@ fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
     let mut fell = RunRecorder::start_with(&setup, &content).unwrap();
     for c in &play_run_in(&setup, &content, TRIAL_LENGTH) {
         match *c {
-            Command::Step(input) => fell.step(input).unwrap(),
-            Command::Choose(index) => fell.choose(index).unwrap(),
+            Command::Step(input) => fell.step(&[input]).unwrap(),
+            Command::Choose(index) => fell.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
     assert_ne!(fell.engine().outcome(), Outcome::Running);

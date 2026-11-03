@@ -7,6 +7,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::EntityId;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{
     DEFAULT_MAX_RUNE_HASTE_PCT, MAX_RUNE_HASTE_PCT, Rewards, rune_haste_ticks,
@@ -292,11 +293,11 @@ fn a_run_with_haste_records_and_verifies() {
             });
             taken |= at.is_some();
             recorder
-                .choose(u32::try_from(at.unwrap_or(0)).unwrap())
+                .choose(PlayerIdx::SOLO, u32::try_from(at.unwrap_or(0)).unwrap())
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(input).is_err() {
+        if recorder.step(&[input]).is_err() {
             break;
         }
     }

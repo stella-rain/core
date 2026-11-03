@@ -8,6 +8,7 @@ use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use stella_rain_core::engine::{ChoiceError, Engine};
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
 use stella_rain_core::run_replay::{
@@ -109,7 +110,7 @@ fn the_recorder_refuses_as_before() {
     let setup = crate::common::run::trial_setup();
     let mut recorder = RunRecorder::start(&setup).unwrap();
     assert!(matches!(
-        recorder.choose(0),
+        recorder.choose(PlayerIdx::SOLO, 0),
         Err(RunReplayError::ChoiceRefused {
             error: ChoiceError::NoOffer,
             ..
