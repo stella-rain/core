@@ -7,6 +7,20 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
 use stella_rain_core::run_setup::{OfferMode, RunSetup};
 
+/// The event a pick of a star offer or a stat offer leaves.
+fn is_pick(ev: &DomainEvent) -> bool {
+    matches!(
+        ev,
+        DomainEvent::RewardTaken { .. } | DomainEvent::StatRaised { .. }
+    )
+}
+
+/// The open offers as the snapshot shows them.
+fn offer_views(e: &Engine) -> String {
+    let p = e.snapshot().progress.unwrap();
+    serde_json::to_string(&(p.stat_offer, p.offer)).unwrap()
+}
+
 fn d() -> Input {
     Input::default()
 }
@@ -182,16 +196,13 @@ fn a_timed_world_keeps_going_with_an_offer_open() {
     let mut e = Engine::start(&timed()).unwrap();
     assert_eq!(e.offer_mode(), OfferMode::Timed);
     let t = until_offer(&mut e);
-    let offer = serde_json::to_string(&e.snapshot().progress.as_ref().unwrap().stat_offer).unwrap();
+    let offer = offer_views(&e);
     let mut seen = vec![e.state_hash()];
     for k in 1..=10 {
         e.step(&[d(), d(), d()]);
         assert_eq!(e.tick(), t + k);
         assert!(e.offer_open());
-        assert_eq!(
-            serde_json::to_string(&e.snapshot().progress.as_ref().unwrap().stat_offer).unwrap(),
-            offer
-        );
+        assert_eq!(offer_views(&e), offer);
         assert!(!seen.contains(&e.state_hash()));
         seen.push(e.state_hash());
     }
@@ -213,7 +224,7 @@ fn the_timer_picks_option_0_on_the_300th_step() {
     let want: Vec<_> = manual
         .events()
         .iter()
-        .filter(|ev| matches!(ev, DomainEvent::StatRaised { .. }))
+        .filter(|ev| is_pick(ev))
         .cloned()
         .collect();
     assert_eq!(want.len(), 1);
@@ -222,7 +233,7 @@ fn the_timer_picks_option_0_on_the_300th_step() {
     let got: Vec<_> = e
         .events()
         .iter()
-        .filter(|ev| matches!(ev, DomainEvent::StatRaised { .. }))
+        .filter(|ev| is_pick(ev))
         .cloned()
         .collect();
     assert_eq!(got, want);
@@ -237,11 +248,7 @@ fn a_pick_beats_the_timer_of_the_same_step() {
     }
     e.step(&[Input::picking(1), d(), d()]);
     assert_eq!(e.tick(), t + 300);
-    let raised = e
-        .events()
-        .iter()
-        .filter(|ev| matches!(ev, DomainEvent::StatRaised { .. }))
-        .count();
+    let raised = e.events().iter().filter(|ev| is_pick(ev)).count();
     assert_eq!(raised, 1, "one pick, not two");
     // A pick for nothing, or out of range, changes nothing.
     let mut a = Engine::start(&timed()).unwrap();
@@ -279,17 +286,46 @@ fn offers_left_to_the_timer_record_no_pick_and_verify() {
     for _ in 0..900 {
         let i = common::run::run_input(r.engine(), r.engine().tick());
         r.step(&[i, d(), d()]).unwrap();
-        for ev in r.engine().events() {
-            match ev {
-                DomainEvent::StatOfferOpened { .. } => opened += 1,
-                DomainEvent::StatRaised { .. } => raised += 1,
-                _ => {}
-            }
-        }
+        opened += usize::from(r.engine().offer_open());
+        raised += r.engine().events().iter().filter(|ev| is_pick(ev)).count();
     }
     assert!(opened > 0 && raised > 0);
     let v = verify_run(&r.replay().to_bytes()).unwrap();
     assert_eq!(v.commands, 0);
     assert_eq!(v.final_hash, r.engine().state_hash());
     assert_eq!(r.engine().outcome(), Outcome::Running);
+}
+
+#[test]
+fn a_timed_run_saves_and_resumes_with_an_offer_open() {
+    use stella_rain_core::pack::Pack;
+    let mut r = RunRecorder::start(&timed()).unwrap();
+    // Picks at some offers, the timer at others.
+    let mut opened = 0;
+    for k in 0..700 {
+        let mut i = common::run::run_input(r.engine(), r.engine().tick());
+        if r.engine().offer_open() && k % 2 == 0 && opened % 2 == 0 {
+            i.pick = Some(0);
+        }
+        opened += usize::from(r.engine().offer_open());
+        r.step(&[i, d(), d()]).unwrap();
+    }
+    while !r.engine().offer_open() {
+        let i = common::run::run_input(r.engine(), r.engine().tick());
+        r.step(&[i, d(), d()]).unwrap();
+    }
+    r.step(&[d(), d(), d()]).unwrap();
+    assert!(r.engine().offer_open());
+    let (bytes, prefix) = (r.save(), r.replay());
+    let mut back = RunRecorder::resume_from_savepoint(&bytes, &prefix, Pack::bundled()).unwrap();
+    assert_eq!(back.engine().state_hash(), r.engine().state_hash());
+    assert_eq!(back.save(), bytes);
+    for _ in 0..150 {
+        let i = common::run::run_input(r.engine(), r.engine().tick());
+        r.step(&[i, d(), d()]).unwrap();
+        back.step(&[i, d(), d()]).unwrap();
+    }
+    assert_eq!(back.engine().state_hash(), r.engine().state_hash());
+    assert_eq!(back.replay().to_bytes(), r.replay().to_bytes());
+    assert!(verify_run(&r.replay().to_bytes()).is_ok());
 }
