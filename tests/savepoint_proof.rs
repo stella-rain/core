@@ -53,7 +53,8 @@ fn written_form(
     let mut at = apply_commands(&mut rec, commands, 0, 0).unwrap();
     for (i, input) in (0u32..).zip(inputs) {
         at = apply_commands(&mut rec, commands, at, i).unwrap();
-        rec.step(&[*input]).unwrap();
+        rec.step(&[*input, Default::default(), Default::default()])
+            .unwrap();
     }
     apply_commands(&mut rec, commands, at, file.ticks).unwrap();
     let written = rec.replay();
@@ -227,8 +228,12 @@ fn play_from(
     let mut at = case.commands.partition_point(|c| c.tick < from);
     for i in from..case.recorded.ticks {
         at = apply_commands(&mut rec, &case.commands, at, i)?;
-        rec.step(&[case.inputs[i as usize]])
-            .map_err(|e| format!("{}: step {}: {e:?}", case.label, i + 1))?;
+        rec.step(&[
+            case.inputs[i as usize],
+            Default::default(),
+            Default::default(),
+        ])
+        .map_err(|e| format!("{}: step {}: {e:?}", case.label, i + 1))?;
         visit(i + 1, &rec)?;
     }
     apply_commands(&mut rec, &case.commands, at, case.recorded.ticks)?;
@@ -333,7 +338,8 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
         }
         let mut restored = restored;
         if r.offer[t as usize - 1] {
-            let refused = restored.step(&[Input::default()]);
+            let refused =
+                restored.step(&[Input::default(), Default::default(), Default::default()]);
             if !matches!(refused, Err(RunReplayError::OfferOpen { .. })) {
                 return fail(format!("a step with the offer open gave {refused:?}"));
             }
@@ -498,7 +504,8 @@ fn a_restore_that_runs_one_tick_too_far_is_named() {
     let (case, r) = tutorial();
     let too_far = |rec: &RunRecorder, _: &[u8], _: &RunReplay, _: &Pack| {
         let mut rec = rec.clone();
-        rec.step(&[Input::default()]).unwrap();
+        rec.step(&[Input::default(), Default::default(), Default::default()])
+            .unwrap();
         rec
     };
     let err = check_run(&case, &r, &[100], &too_far).unwrap_err();
@@ -581,7 +588,12 @@ fn rand_attack_case() -> (Case, Reference) {
         if rec.engine().offer_open() {
             rec.choose(PlayerIdx::SOLO, 0).unwrap();
         }
-        rec.step(&[common::run::run_script(tick)]).unwrap();
+        rec.step(&[
+            common::run::run_script(tick),
+            Default::default(),
+            Default::default(),
+        ])
+        .unwrap();
     }
     assert_eq!(rec.engine().outcome(), Outcome::Running);
     let recorded = rec.replay();

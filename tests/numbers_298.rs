@@ -234,7 +234,7 @@ fn offered(seeds: std::ops::Range<u64>, ticks: u32) -> BTreeSet<String> {
                 break;
             }
             let input = run_input(&e, t);
-            e.step(&[input]);
+            e.step(&[input, Default::default(), Default::default()]);
         }
     }
     seen

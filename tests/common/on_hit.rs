@@ -231,7 +231,7 @@ pub fn runes_with(on_hit: Vec<Value>, damage_over_time: Vec<Value>) -> Runes {
 /// Steps idle until the tough target is on the map, and returns its ID.
 pub fn wait_for_target(e: &mut Engine) -> EntityId {
     while e.tick() < TARGET_TICK {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let s = e.snapshot();
     s.entities
@@ -250,7 +250,7 @@ pub fn hits(
 ) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..n {
-        e.step(&[input(e.tick())]);
+        e.step(&[input(e.tick()), Default::default(), Default::default()]);
         for ev in e.events() {
             if let DomainEvent::Hit {
                 target: t, damage, ..

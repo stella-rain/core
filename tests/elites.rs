@@ -148,7 +148,11 @@ fn target(tick: u32, is_elite: bool) -> Value {
 fn drops(e: &mut Engine, ticks: u32) -> (Vec<usize>, Vec<Rarity>) {
     let (mut kills, mut at, mut rarities) = (0, Vec::new(), Vec::new());
     for _ in 0..ticks {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Died { .. } => kills += 1,
@@ -333,7 +337,7 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
             .map(|v| v.id.0)
             .collect();
         match c {
-            Command::Step(input) => e.step(&[input]),
+            Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
             Command::Choose(i) => common::pick(&mut e, i).unwrap(),
         }
         for ev in e.events() {

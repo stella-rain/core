@@ -947,10 +947,14 @@ mod tests {
             };
             let mut rec = RunRecorder::start(&setup).unwrap();
             for tick in 0..90u8 {
-                rec.step(&[Input {
-                    move_x: i8::try_from(tick).unwrap(),
-                    ..Input::default()
-                }])
+                rec.step(&[
+                    Input {
+                        move_x: i8::try_from(tick).unwrap(),
+                        ..Input::default()
+                    },
+                    Default::default(),
+                    Default::default(),
+                ])
                 .unwrap();
             }
             let two = rec.replay();

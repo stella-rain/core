@@ -77,7 +77,7 @@ fn holding(runes: Runes, rewards: Vec<Value>, picks: &[&str]) -> Engine {
 fn cooldowns_after_a_hit(e: &mut Engine) -> Vec<u32> {
     wait_for_target(e);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     [
         Rune::Explosion,
         Rune::Thunder,
@@ -177,7 +177,7 @@ fn every_damage_over_time_kind_is_shortened() {
     let mut e = holding(runes(120, 30), vec![haste("h1", 50, 2)], &["h1"]);
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     let on = e
         .snapshot()
         .entities
@@ -242,11 +242,15 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
         }
         let target = wait_for_target(&mut e);
         let start = e.tick();
-        e.step(&[Input {
-            skill: true,
-            evade: true,
-            ..idle()
-        }]);
+        e.step(&[
+            Input {
+                skill: true,
+                evade: true,
+                ..idle()
+            },
+            Default::default(),
+            Default::default(),
+        ]);
         let after = e.snapshot().players[0].clone();
         let skill_cooldown = after.skill.map(|s| s.cooldown_left);
         let press = |t: u32| Input {
@@ -297,7 +301,10 @@ fn a_run_with_haste_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
     }

@@ -308,7 +308,7 @@ fn names_no_player(event: &DomainEvent) -> bool {
 /// Steps `e` and, by hand, a clone of it through the frozen rules into a frozen `Vec` that
 /// `Into` adapts: the engine's events must be those, in that order.
 fn step_both(e: &mut Engine, by_hand: &mut Engine, input: Input) -> usize {
-    e.step(&[input]);
+    e.step(&[input, Default::default(), Default::default()]);
     let mut frozen = Vec::new();
     let mut load = Load::default();
     let Run::V1 { world, state, .. } = &mut by_hand.run else {
@@ -410,7 +410,7 @@ fn the_scratch_never_allocates_after_load() {
     let (scratch, _) = v1_room(&e);
     let events = e.events.capacity();
     for tick in 1..=120 {
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         let Run::V1 { events: left, .. } = &e.run else {
             panic!("version 1");
         };

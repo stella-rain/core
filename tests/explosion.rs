@@ -66,7 +66,7 @@ fn a_combo_step_hit_fires_an_explosion_around_the_point_hit() {
     let target = wait_for_target(&mut e);
     let start = e.tick();
     // The step's hit on the tick the press starts it.
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     let step_hit = e.tick();
     assert!(e.events().iter().any(|ev| matches!(
         ev,
@@ -113,12 +113,16 @@ fn the_explosion_hits_everything_around_the_point() {
     );
     take_all(&mut e);
     while e.tick() < TARGET_TICK {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let start = e.tick();
     let (mut steps, mut blasts) = (0, 0);
     for _ in 0..10 {
-        e.step(&[once(start)(e.tick())]);
+        e.step(&[
+            once(start)(e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         for ev in e.events() {
             match ev {
                 DomainEvent::Hit { damage: 10, .. } => steps += 1,
@@ -157,7 +161,11 @@ fn the_cooldown_counts_down_each_tick() {
     let start = e.tick();
     let mut left = Vec::new();
     for _ in 0..33 {
-        e.step(&[once(start)(e.tick())]);
+        e.step(&[
+            once(start)(e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         left.push(cooldown(&e));
     }
     let expected: Vec<u32> = (0..=30).rev().chain([0, 0]).collect();
@@ -326,10 +334,14 @@ fn boosted(ty: Option<&str>) -> (u32, u32) {
     take(&mut e, "war_cry_r");
     take(&mut e, "pyro");
     let target = wait_for_target(&mut e);
-    e.step(&[Input {
-        skill: true,
-        ..idle()
-    }]);
+    e.step(&[
+        Input {
+            skill: true,
+            ..idle()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     let start = e.tick() + 1;
     let seen = hits(&mut e, target, 10, once(start));
     assert_eq!(seen.len(), 2, "{seen:?}");
@@ -357,8 +369,8 @@ fn the_state_hash_holds_the_cooldown() {
     wait_for_target(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
-    a.step(&[once(start)(start)]);
-    b.step(&[once(start)(start)]);
+    a.step(&[once(start)(start), Default::default(), Default::default()]);
+    b.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_ne!(a.state_hash(), b.state_hash());
 }
 
@@ -388,7 +400,10 @@ fn a_run_holding_explosion_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
         fired |= recorder.engine().snapshot().players[0]

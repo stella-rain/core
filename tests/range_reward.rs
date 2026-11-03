@@ -151,18 +151,22 @@ fn swing(e: &mut Engine) -> HitBox {
         if step_attack(e).is_none() {
             break;
         }
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
-    e.step(&[Input {
-        main: true,
-        ..Input::default()
-    }]);
+    e.step(&[
+        Input {
+            main: true,
+            ..Input::default()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     for _ in 0..60 {
         let step = step_attack(e).expect("a combo step started");
         if let Some(h) = step.hit_box {
             return h;
         }
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     panic!("no active phase within 60 ticks")
 }
@@ -186,8 +190,8 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
 #[test]
 fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
     let mut e = with(&targets(3), vec![range("reach", 40, 3)]);
-    e.step(&[idle()]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(swing(&mut e), hit_box(circle(1_024, 8_192)));
     next_offer(&mut e);
     take(&mut e, "reach");
@@ -278,14 +282,14 @@ fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
         )
     };
 
-    e.step(&[idle()]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(swing(&mut e), arc(2_048, 8_192));
     for _ in 0..30 {
         if e.offer_open() {
             break;
         }
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     assert!(e.offer_open(), "the expertise offer");
     common::pick(&mut e, 0).unwrap();

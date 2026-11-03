@@ -130,7 +130,7 @@ fn point(x: i32, y: i32) -> Point {
 fn every_hit(e: &mut Engine, n: u32, input: impl Fn(u32) -> Input) -> Vec<(u32, EntityId, u32)> {
     let mut out = Vec::new();
     for _ in 0..n {
-        e.step(&[input(e.tick())]);
+        e.step(&[input(e.tick()), Default::default(), Default::default()]);
         for ev in e.events() {
             if let DomainEvent::Hit { target, damage, .. } = ev {
                 out.push((e.tick(), *target, *damage));
@@ -156,7 +156,7 @@ fn a_combo_step_hit_launches_its_missiles_from_the_main_character_and_each_hits_
     let mut e = holding(&arena(vec![]), runes(3, RANGE));
     let target = at(&e, 0, NEAR_Y - START_Y);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     let fired = e.tick();
     assert_eq!(cooldown(&e), 60, "set as it fires");
     // Three missiles, in their own slots, each a step of 32 / 8 = 4 pixels up on the tick they
@@ -202,16 +202,16 @@ fn the_missiles_fly_toward_where_the_target_is_now() {
     take_all(&mut e);
     let target = wait_for_target(&mut e);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_eq!(missiles(&e).len(), 1, "launched");
     for _ in 0..FLIGHT - 1 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let snapshot = e.snapshot();
     let now = snapshot.entities.iter().find(|en| en.id == target).unwrap();
     assert!(now.at.x.0 > START_X + 1_024, "it walked: {:?}", now.at);
     assert_eq!(missiles(&e), [(MISSILE_SLOT, now.at)], "on the target");
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert!(missiles(&e).is_empty(), "its flight is over");
 }
 
@@ -336,7 +336,7 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
     ]);
     let mut e = holding(&arena(vec![]), runes);
     let start = e.tick();
-    e.step(&[once(start)(start)]);
+    e.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_eq!(
         (cooldown_of(&e, Rune::Explosion), cooldown(&e)),
         (30, 60),
@@ -421,10 +421,14 @@ fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     take(&mut e, "war_cry_r");
     take(&mut e, "bonus");
     let target = wait_for_target(&mut e);
-    e.step(&[Input {
-        skill: true,
-        ..idle()
-    }]);
+    e.step(&[
+        Input {
+            skill: true,
+            ..idle()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     let start = e.tick() + 1;
     let seen = hits(&mut e, target, 12, once(start));
     assert_eq!(seen.len(), 2, "{seen:?}");
@@ -452,7 +456,11 @@ fn no_orb_comes_from_it() {
     let mut e = holding(&arena(vec![]), runes(4, RANGE));
     let start = e.tick();
     for _ in 0..FLIGHT + 2 {
-        e.step(&[once(start)(e.tick())]);
+        e.step(&[
+            once(start)(e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         assert!(e.snapshot().orbs.is_empty(), "hit boxes, never orbs");
     }
 }
@@ -467,8 +475,8 @@ fn the_state_hash_holds_its_flight() {
     let mut b = holding(&arena(vec![]), with_homing(slower));
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
-    a.step(&[once(start)(start)]);
-    b.step(&[once(start)(start)]);
+    a.step(&[once(start)(start), Default::default(), Default::default()]);
+    b.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_ne!(a.state_hash(), b.state_hash());
 }
 
@@ -498,7 +506,10 @@ fn a_run_holding_homing_missiles_records_and_verifies() {
                 .unwrap();
         }
         let input: Input = run_input(recorder.engine(), t);
-        if recorder.step(&[input]).is_err() {
+        if recorder
+            .step(&[input, Default::default(), Default::default()])
+            .is_err()
+        {
             break;
         }
         fired |= recorder.engine().snapshot().players[0]

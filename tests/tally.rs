@@ -128,7 +128,8 @@ fn walk(
         if rec.engine().outcome() != Outcome::Running || rec.engine().offer_open() {
             break;
         }
-        rec.step(&[input]).unwrap();
+        rec.step(&[input, Default::default(), Default::default()])
+            .unwrap();
         ordinal += 1;
         let counted = fold.add(rec.engine().events());
         f(&rec, ordinal, counted, &fold);
@@ -296,7 +297,7 @@ fn striker(foe: Value) -> stella_rain_core::stage::Stage {
 fn kills_after(stage: &stella_rain_core::stage::Stage, ticks: u32) -> (u32, u32) {
     let mut e = engine(stage);
     for _ in 0..ticks {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let ledger = e.ledger();
     let ledgered: u32 = ledger
@@ -347,7 +348,11 @@ fn the_tally_counts_what_the_app_counts_and_the_ledger_does_not() {
     let mut e = engine(&stage);
     let mut died = false;
     for tick in 0..200 {
-        e.step(&[common::firing(idle(), tick)]);
+        e.step(&[
+            common::firing(idle(), tick),
+            Default::default(),
+            Default::default(),
+        ]);
         died |= e.events().iter().any(|ev| {
             matches!(
                 ev,
@@ -406,7 +411,7 @@ fn tally_changes_nothing() {
     let setup = common::run::time_limit_setup();
     let mut e = Engine::start(&setup).unwrap();
     for _ in 0..1800 {
-        e.step(&[Default::default()]);
+        e.step(&[Default::default(), Default::default(), Default::default()]);
     }
     let (hash, tick, events) = (e.state_hash(), e.tick(), e.events().to_vec());
     let ledger = e.ledger().clone();

@@ -98,15 +98,19 @@ fn press(e: &mut Engine, smash: bool) {
         if e.snapshot().players[0].attacks.iter().all(|a| a.slot != 0) {
             break;
         }
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
-    e.step(&[Input {
-        main: !smash,
-        smash,
-        ..Input::default()
-    }]);
+    e.step(&[
+        Input {
+            main: !smash,
+            smash,
+            ..Input::default()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     for _ in 0..20 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
 }
 
@@ -119,7 +123,7 @@ fn hits_by_a_and_b_steps_fill_the_one_gauge_to_a_level() {
         &stage(vec![target(1_000, 4, 50)], vec![]),
         &content(TABLE, 150, 1_000),
     );
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(gauge(&e), view(0, 0, 10), "every run starts at level 0");
 
     press(&mut e, false);
@@ -165,7 +169,7 @@ fn a_companion_s_hits_give_no_points() {
         &content(TABLE, 150, 1_000),
     );
     for _ in 0..30 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let hp = e.snapshot().entities.iter().map(|v| v.hp).min().unwrap();
     assert!(hp < 1_000, "the companion hit the enemy");
@@ -218,8 +222,8 @@ fn the_gauge_is_in_the_state_hash() {
     let content = content(TABLE, 150, 1_000);
     let mut one = with(&stage(vec![target(1_000, 1, 0)], vec![]), &content);
     let mut two = with(&stage(vec![target(1_000, 2, 0)], vec![]), &content);
-    one.step(&[idle()]);
-    two.step(&[idle()]);
+    one.step(&[idle(), Default::default(), Default::default()]);
+    two.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(one.state_hash(), two.state_hash(), "nothing hit yet");
     press(&mut one, true);
     press(&mut two, true);

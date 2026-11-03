@@ -147,12 +147,22 @@ fn a_steady_tick_allocates_and_frees_nothing() {
     // 2,004) is the first to grow one, so it now falls in the warm-up.
     let from = time_limit_case::WARMUP_TICKS + 1;
     for tick in from..from + STEADY_TICKS {
-        engine.step(&[time_limit_case::input(tick)]);
+        engine.step(&[
+            time_limit_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
     }
     let from = from + STEADY_TICKS;
     let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
     for tick in from..from + STEADY_TICKS {
-        per_tick.push(counted(|| engine.step(&[time_limit_case::input(tick)])));
+        per_tick.push(counted(|| {
+            engine.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ])
+        }));
     }
     let at = nonzero(&per_tick, from);
     assert!(
@@ -166,7 +176,7 @@ fn a_steady_tick_allocates_and_frees_nothing() {
 #[test]
 fn the_bench_tick_allocates_and_frees_nothing() {
     let Case { mut engine, input } = bench_fixtures::time_limit_tick();
-    let (allocs, freed) = counted(|| engine.step(&[input]));
+    let (allocs, freed) = counted(|| engine.step(&[input, Default::default(), Default::default()]));
     assert_eq!(
         (allocs, freed),
         (0, 0),
@@ -218,7 +228,10 @@ fn assert_tick_pinned(case: &str, measured: Allocs) {
 
 fn measure_case(case: &str, build: fn() -> Case) {
     let Case { mut engine, input } = build();
-    assert_tick_pinned(case, counted3(|| engine.step(&[input])));
+    assert_tick_pinned(
+        case,
+        counted3(|| engine.step(&[input, Default::default(), Default::default()])),
+    );
 }
 
 #[test]
@@ -285,7 +298,9 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
             main: tick % 2 == 0,
             ..Input::default()
         };
-        ticks.push(counted3(|| e.step(&[input])));
+        ticks.push(counted3(|| {
+            e.step(&[input, Default::default(), Default::default()])
+        }));
         most = most.max(e.load().enemies);
     }
     let grew: Vec<_> = ticks
@@ -310,7 +325,13 @@ fn a_horde_at_the_cap_allocates_nothing_after_load() {
         .expect("the run starts");
     let mut grew = Vec::new();
     for tick in 1..=time_limit_case::WARMUP_TICKS + STEADY_TICKS {
-        let counts = counted3(|| e.step(&[time_limit_case::input(tick)]));
+        let counts = counted3(|| {
+            e.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ])
+        });
         if counts != pin(0, 0, 0) {
             grew.push((tick, counts));
         }
@@ -346,7 +367,7 @@ fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
     let mut e = Engine::start_with(&setup, &content).unwrap();
     let mut held = 0;
     for _ in 0..300 {
-        e.step(&[Input::default()]);
+        e.step(&[Input::default(), Default::default(), Default::default()]);
         held += e.load().held_spawns;
     }
     assert!(held > 0, "no wave was held");
@@ -354,8 +375,8 @@ fn a_clone_of_a_run_with_waves_held_allocates_nothing() {
     let mut copy = e.clone();
     for tick in 0..60 {
         let (original, clone) = (
-            counted3(|| e.step(&[Input::default()])),
-            counted3(|| copy.step(&[Input::default()])),
+            counted3(|| e.step(&[Input::default(), Default::default(), Default::default()])),
+            counted3(|| copy.step(&[Input::default(), Default::default(), Default::default()])),
         );
         assert_eq!(clone, pin(0, 0, 0), "the clone's tick {tick}: {original:?}");
         assert_eq!(copy.state_hash(), e.state_hash());
@@ -397,7 +418,7 @@ fn peak_heap_of_the_worst_minute_is_under_16_mib() {
                 CommandKind::Choose => common::pick(&mut engine, c.index).unwrap(),
             }
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         if (i + 1) % MINUTE_TICKS == 0 {
             minutes.push(peak_bytes() - start);
             reset_peak();
@@ -419,7 +440,11 @@ fn peak_heap_of_a_minute_of_the_saturated_horde_is_under_16_mib() {
     let from = time_limit_case::WARMUP_TICKS + 1;
     reset_peak();
     for tick in from..from + u32::try_from(MINUTE_TICKS).unwrap() {
-        engine.step(&[time_limit_case::input(tick)]);
+        engine.step(&[
+            time_limit_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
     }
     let peak = peak_bytes() - start;
     eprintln!("peak heap of a minute of the saturated horde: {peak} bytes");
@@ -459,11 +484,13 @@ fn a_steady_tick_allocates_and_frees_nothing_while_melee_and_zones_hit_the_main_
     stage.player.hp = 99_900;
     let mut e = engine(&stage);
     for _ in 0..600 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
     let mut per_tick = Vec::new();
     for _ in 0..600 {
-        per_tick.push(counted(|| e.step(&[idle()])));
+        per_tick.push(counted(|| {
+            e.step(&[idle(), Default::default(), Default::default()])
+        }));
     }
     let at = nonzero(&per_tick, 0);
     assert!(
@@ -480,14 +507,22 @@ fn places_allocates_nothing_in_a_steady_tick() {
     let mut places = stella_rain_core::engine::Places::default();
     let from = time_limit_case::WARMUP_TICKS + 1;
     for tick in from..from + 2 * STEADY_TICKS {
-        engine.step(&[time_limit_case::input(tick)]);
+        engine.step(&[
+            time_limit_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
         engine.places(&mut places);
     }
     let from = from + 2 * STEADY_TICKS;
     let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
     for tick in from..from + STEADY_TICKS {
         per_tick.push(counted(|| {
-            engine.step(&[time_limit_case::input(tick)]);
+            engine.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ]);
             engine.places(&mut places);
         }));
     }
@@ -521,13 +556,21 @@ fn tally_allocates_nothing_in_a_steady_tick() {
     let mut engine = time_limit_case::warmed_up();
     let from = time_limit_case::WARMUP_TICKS + 1;
     for tick in from..from + 2 * STEADY_TICKS {
-        engine.step(&[time_limit_case::input(tick)]);
+        engine.step(&[
+            time_limit_case::input(tick),
+            Default::default(),
+            Default::default(),
+        ]);
     }
     let from = from + 2 * STEADY_TICKS;
     let mut per_tick = Vec::with_capacity(STEADY_TICKS as usize);
     for tick in from..from + STEADY_TICKS {
         per_tick.push(counted(|| {
-            engine.step(&[time_limit_case::input(tick)]);
+            engine.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ]);
             let t = engine.tally();
             std::hint::black_box((
                 t.kills(),
@@ -567,13 +610,13 @@ fn measure(
 ) -> Vec<Row> {
     for _ in 0..warm {
         let t = engine.tick();
-        engine.step(&[input(t)]);
+        engine.step(&[input(t), Default::default(), Default::default()]);
     }
     let mut rows = Vec::new();
     for _ in 0..ticks {
         let t = engine.tick();
         let i = input(t);
-        let calls = counted3(|| engine.step(&[i]));
+        let calls = counted3(|| engine.step(&[i, Default::default(), Default::default()]));
         rows.push(Row {
             tick: engine.tick(),
             calls,

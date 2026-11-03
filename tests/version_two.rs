@@ -36,7 +36,9 @@ fn the_open_version_is_2() {
 fn apply(rec: &mut RunRecorder, commands: &[Command]) {
     for c in commands {
         match *c {
-            Command::Step(input) => rec.step(&[input]).unwrap(),
+            Command::Step(input) => rec
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
@@ -206,8 +208,8 @@ fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
         let mut a = Engine::new_with(&stage, pack.content()).unwrap();
         let mut b = Engine::new_with(&newer, pack.content()).unwrap();
         for input in &inputs {
-            a.step(&[*input]);
-            b.step(&[*input]);
+            a.step(&[*input, Default::default(), Default::default()]);
+            b.step(&[*input, Default::default(), Default::default()]);
             same_tick(&a, &b, &name);
         }
         assert_eq!(a.stardust(), b.stardust(), "{name}");
@@ -229,8 +231,8 @@ fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
                 apply_command(&mut a, c).unwrap();
                 apply_command(&mut b, c).unwrap();
             }
-            a.step(&[*input]);
-            b.step(&[*input]);
+            a.step(&[*input, Default::default(), Default::default()]);
+            b.step(&[*input, Default::default(), Default::default()]);
             same_tick(&a, &b, &name);
         }
         assert_eq!(a.stardust(), b.stardust(), "{name}");

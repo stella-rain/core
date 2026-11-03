@@ -254,7 +254,7 @@ fn corpus_run_computes_expected_ledger() {
                 }
             }
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
     }
 
     let ledger = engine.ledger();

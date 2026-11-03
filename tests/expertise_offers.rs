@@ -223,7 +223,7 @@ fn an_expertise_offer_opens_at_the_end_of_the_tick_and_stops_the_world() {
         "the kill's tick opens level 1's offer"
     );
     let tick = e.tick();
-    e.step(&[Input::default()]);
+    e.step(&[Input::default(), Default::default(), Default::default()]);
     assert_eq!(e.tick(), tick, "the world is stopped");
     assert!(e.events().is_empty());
 }
@@ -492,7 +492,7 @@ fn a_run_with_expertise_choices_replays_and_verifies() {
     let (mut expertise_choices, mut style_choices) = (0, 0);
     for c in &commands {
         match c {
-            Command::Step(input) => e.step(&[*input]),
+            Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
             Command::Choose(i) => {
                 if let Some(offer) = e.snapshot().expertise.and_then(|g| g.offer) {
                     expertise_choices += 1;

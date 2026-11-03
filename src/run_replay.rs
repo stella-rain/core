@@ -920,7 +920,9 @@ pub fn record_run_with(
             break;
         }
         match *command {
-            Command::Step(input) => recorder.step(&[input])?,
+            Command::Step(input) => {
+                recorder.step(&[input, Default::default(), Default::default()])?
+            }
             Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index)?,
         }
     }
@@ -1449,7 +1451,8 @@ mod tests {
         };
         let mut r = RunRecorder::start(&setup).unwrap();
         for _ in 0..130 {
-            r.step(&[Input::default()]).unwrap();
+            r.step(&[Input::default(), Default::default(), Default::default()])
+                .unwrap();
         }
         let hash = r.engine().state_hash();
         let bytes_before = r.replay().to_bytes();
@@ -1514,7 +1517,8 @@ mod party_size_tests {
     #[test]
     fn a_schema_1_replay_is_one_player() {
         let mut rec = RunRecorder::start(&setup()).unwrap();
-        rec.step(&[Input::default()]).unwrap();
+        rec.step(&[Input::default(), Default::default(), Default::default()])
+            .unwrap();
         let mut replay = rec.replay();
         replay.setup.schema_version = 1;
         assert_eq!(replay.party_size(), Some(1));

@@ -657,7 +657,11 @@ fn a_run_replay_recorded_with_a_pack_records_that_pack_s_hash() {
     let mut recorder =
         run_replay::RunRecorder::start_with_pack(&common::run::trial_setup(), &pack).unwrap();
     recorder
-        .step(&[stella_rain_core::input::Input::default()])
+        .step(&[
+            stella_rain_core::input::Input::default(),
+            Default::default(),
+            Default::default(),
+        ])
         .unwrap();
     assert_eq!(
         recorder.replay().content_sha256,
@@ -686,7 +690,7 @@ fn verification_works_with_a_pack_the_caller_supplies() {
             .unwrap()
             .into_iter()
             .map(|input| {
-                engine.step(&[input]);
+                engine.step(&[input, Default::default(), Default::default()]);
                 engine.state_hash()
             })
             .collect()

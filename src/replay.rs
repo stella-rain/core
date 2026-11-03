@@ -479,7 +479,7 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
         if engine.outcome() != Outcome::Running {
             break;
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         used += 1;
     }
     Ok(Replay {
@@ -553,7 +553,7 @@ fn verify_inner(
                 });
             }
         }
-        engine.step(&[*input]);
+        engine.step(&[*input, Default::default(), Default::default()]);
         if let Some(expected) = expected {
             let actual = engine.state_hash();
             if expected[i] != actual {

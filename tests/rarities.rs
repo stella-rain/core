@@ -211,7 +211,7 @@ fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
             common::pick(&mut e, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         for ev in e.events() {
             if let DomainEvent::StarDropped { rarity, .. } = ev {
                 out.push(*rarity);
@@ -338,12 +338,16 @@ fn take(e: &mut Engine, reward: &str) {
 
 /// Kills the enemy in reach: presses main, then steps past the hit.
 fn kill(e: &mut Engine) {
-    e.step(&[Input {
-        main: true,
-        ..Input::default()
-    }]);
+    e.step(&[
+        Input {
+            main: true,
+            ..Input::default()
+        },
+        Default::default(),
+        Default::default(),
+    ]);
     for _ in 0..60 {
-        e.step(&[idle()]);
+        e.step(&[idle(), Default::default(), Default::default()]);
     }
 }
 
@@ -355,8 +359,8 @@ fn an_offer_at_supernova_falls_to_legendary_once_the_supernova_reward_is_taken()
         &targets("supernova"),
         vec![once("sup", "supernova", 40), once("leg", "legendary", 25)],
     );
-    e.step(&[idle()]);
-    e.step(&[idle()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
+    e.step(&[idle(), Default::default(), Default::default()]);
     kill(&mut e);
     next_offer(&mut e);
     assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));

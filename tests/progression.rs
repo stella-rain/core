@@ -221,7 +221,7 @@ fn a_result_exists_only_for_an_ended_run() {
                 CommandKind::Choose => common::pick(&mut engine, c.index).unwrap(),
             }
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
     }
     let result = RunResult::from_run(&replay.setup, &engine).expect("the run ended");
     let outcome = match engine.outcome() {

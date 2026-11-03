@@ -137,7 +137,9 @@ fn a_run_with_another_table_verifies_only_with_that_table() {
     let content = RunContent::bundled().clone().with_match_ups(other());
     let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
     for t in 0..50 {
-        recorder.step(&[run_script(t)]).unwrap();
+        recorder
+            .step(&[run_script(t), Default::default(), Default::default()])
+            .unwrap();
     }
     let bytes = recorder.replay().to_bytes();
     assert!(verify_run_with(&bytes, &content).is_ok());

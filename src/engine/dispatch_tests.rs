@@ -56,7 +56,7 @@ fn offering_at(v: u32) -> Engine {
 #[test]
 fn version_1_runs_the_rules() {
     let mut e = at_version(1);
-    e.step(&[Input::default()]);
+    e.step(&[Input::default(), Default::default(), Default::default()]);
     assert_eq!(e.tick(), 1);
     assert_eq!(e.outcome(), Outcome::Running);
     let mut e = offering_at(1);
@@ -70,7 +70,7 @@ fn version_1_runs_the_rules() {
 fn another_version_fails_closed_without_running_the_rules() {
     for v in [0, SIM_VERSION + 1] {
         let mut e = at_version(v);
-        e.step(&[Input::default()]);
+        e.step(&[Input::default(), Default::default(), Default::default()]);
         assert_eq!(e.tick(), 0, "{v}");
         assert_eq!(e.outcome(), Outcome::Failed, "{v}");
     }
@@ -98,7 +98,9 @@ fn the_run_variant_is_the_stage_version() {
         .unwrap_or_else(|e| panic!("{e:?}"));
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
-    recorder.step(&[Input::default()]).unwrap();
+    recorder
+        .step(&[Input::default(), Default::default(), Default::default()])
+        .unwrap();
     let prefix = recorder.replay();
     let (restored, _) =
         crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
@@ -120,7 +122,9 @@ fn the_run_owns_its_world() {
         .unwrap_or_else(|e| panic!("{e:?}"));
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
-    recorder.step(&[Input::default()]).unwrap();
+    recorder
+        .step(&[Input::default(), Default::default(), Default::default()])
+        .unwrap();
     let prefix = recorder.replay();
     let (restored, _) =
         crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();

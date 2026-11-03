@@ -78,7 +78,7 @@ fn commands_of(replay: &RunReplay) -> Vec<TickCommand> {
 
 fn apply(engine: &mut Engine, c: Command) {
     match c {
-        Command::Step(input) => engine.step(&[input]),
+        Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
         Command::Choose(index) => common::pick(engine, index).unwrap(),
     }
 }
@@ -152,7 +152,7 @@ fn a_choice_after_the_run_ended_is_refused() {
             continue;
         }
         let input = run_input(&engine, engine.tick());
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         commands.push(Command::Step(input));
     }
     let replay = record_run(&trial_setup(), &commands).unwrap();
@@ -204,7 +204,9 @@ fn the_recorder_keeps_only_what_the_engine_took() {
         .unwrap();
     let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
     let take = |recorder: &mut RunRecorder, c: &Command| match *c {
-        Command::Step(input) => recorder.step(&[input]).unwrap(),
+        Command::Step(input) => recorder
+            .step(&[input, Default::default(), Default::default()])
+            .unwrap(),
         Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
     };
     commands[..at].iter().for_each(|c| take(&mut recorder, c));
@@ -215,7 +217,7 @@ fn the_recorder_keeps_only_what_the_engine_took() {
         Err(RunReplayError::ChoiceRefused { .. })
     ));
     assert!(matches!(
-        recorder.step(&[run_script(0)]),
+        recorder.step(&[run_script(0), Default::default(), Default::default()]),
         Err(RunReplayError::OfferOpen { .. })
     ));
     assert_eq!(
@@ -263,7 +265,9 @@ fn the_recorder_refuses_an_input_while_an_offer_is_open() {
     let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
     for c in to_first_offer() {
         match c {
-            Command::Step(input) => recorder.step(&[input]).unwrap(),
+            Command::Step(input) => recorder
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
@@ -271,12 +275,14 @@ fn the_recorder_refuses_an_input_while_an_offer_is_open() {
     let before = recorder.replay();
     let tick = recorder.engine().tick();
     assert_eq!(
-        recorder.step(&[run_script(0)]),
+        recorder.step(&[run_script(0), Default::default(), Default::default()]),
         Err(RunReplayError::OfferOpen { tick })
     );
     assert_eq!(recorder.replay(), before, "the input is not recorded");
     recorder.choose(PlayerIdx::SOLO, 0).unwrap();
-    recorder.step(&[run_script(0)]).unwrap();
+    recorder
+        .step(&[run_script(0), Default::default(), Default::default()])
+        .unwrap();
 }
 
 #[test]
@@ -464,7 +470,11 @@ fn per_tick_hashes_name_the_first_tick_that_differs() {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     let mut hashes: Vec<u64> = (0..100)
         .map(|t| {
-            engine.step(&[run_input(&engine, t)]);
+            engine.step(&[
+                run_input(&engine, t),
+                Default::default(),
+                Default::default(),
+            ]);
             engine.state_hash()
         })
         .collect();
@@ -711,7 +721,7 @@ fn smash_depths(setup: &RunSetup) -> Vec<u8> {
         let Command::Step(input) = command else {
             continue;
         };
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         for event in engine.events() {
             if let DomainEvent::ComboStep { press, depth } = event {
                 if *press == Press::Smash {
@@ -769,7 +779,9 @@ fn after_steps(commands: &[Command], from: usize, n: usize) -> usize {
 fn feed(recorder: &mut RunRecorder, commands: &[Command]) {
     for c in commands {
         match *c {
-            Command::Step(input) => recorder.step(&[input]).unwrap(),
+            Command::Step(input) => recorder
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }
@@ -802,7 +814,7 @@ fn a_prefix_with_an_open_offer_resumes_with_it_open() {
     assert_eq!(r.engine().tick(), prefix.ticks);
     let tick = prefix.ticks;
     assert_eq!(
-        r.step(&[run_script(0)]),
+        r.step(&[run_script(0), Default::default(), Default::default()]),
         Err(RunReplayError::OfferOpen { tick })
     );
     let end = after_steps(&all, first, 300);
@@ -1226,7 +1238,9 @@ fn a_replay_built_at_tick_n_verifies_up_to_n() {
     let mut points = Vec::new();
     for c in &commands {
         match *c {
-            Command::Step(input) => r.step(&[input]).unwrap(),
+            Command::Step(input) => r
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         // Right after the step that reaches the tick, with no offer open.
@@ -1296,7 +1310,9 @@ fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
     let mut checked = 0;
     for c in &commands {
         match *c {
-            Command::Step(input) => r.step(&[input]).unwrap(),
+            Command::Step(input) => r
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
         }
         let (tick, hash) = point(&r);
@@ -1311,7 +1327,9 @@ fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
     let mut fell = RunRecorder::start_with(&setup, &content).unwrap();
     for c in &play_run_in(&setup, &content, TRIAL_LENGTH) {
         match *c {
-            Command::Step(input) => fell.step(&[input]).unwrap(),
+            Command::Step(input) => fell
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap(),
             Command::Choose(index) => fell.choose(PlayerIdx::SOLO, index).unwrap(),
         }
     }

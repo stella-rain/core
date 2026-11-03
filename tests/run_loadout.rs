@@ -340,7 +340,7 @@ fn vanguard_adds_300_shown_hit_points_and_duelist_none() {
 fn hashes(mut e: Engine, ticks: u32, script: impl Fn(u32) -> Input) -> Vec<u64> {
     (0..ticks)
         .map(|t| {
-            e.step(&[script(t)]);
+            e.step(&[script(t), Default::default(), Default::default()]);
             e.state_hash()
         })
         .collect()
@@ -399,7 +399,7 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
         let mut e = Engine::start_with(&setup, content).unwrap();
         let mut out = Vec::new();
         for t in 0..1200 {
-            e.step(&[idle_script(t)]);
+            e.step(&[idle_script(t), Default::default(), Default::default()]);
             out.push(hp(&e));
             if e.offer_open() {
                 break;
@@ -431,7 +431,7 @@ fn scholar_adds_two_rerolls_and_a_banish_to_an_offer() {
         let mut e = Engine::start_with(&setup, &plain_content()).unwrap();
         for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
             match c {
-                Command::Step(input) => e.step(&[input]),
+                Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
                 Command::Choose(_) => break,
             }
             if e.offer_open() {
@@ -525,7 +525,7 @@ fn a_carried_star_counts_toward_its_stack_limit() {
     let mut e = start(&setup).unwrap();
     for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
         match c {
-            Command::Step(input) => e.step(&[input]),
+            Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
             // An expertise offer (VS1: the first one opens before any star offer) is answered as
             // the script does; the first choice with a star offer open is what the test reads.
             Command::Choose(index) => common::pick(&mut e, index).unwrap(),
@@ -575,7 +575,7 @@ fn runes_after_the_run(setup: &RunSetup) -> Vec<Rune> {
     let mut e = Engine::start_with(setup, &content).unwrap();
     for c in crate::run_play::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
         match c {
-            Command::Step(input) => e.step(&[input]),
+            Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
             Command::Choose(index) => common::pick(&mut e, index).unwrap(),
         }
     }

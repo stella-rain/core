@@ -228,11 +228,15 @@ fn interact_moves_no_hash() {
             main: tick % 7 < 3,
             ..Input::default()
         };
-        plain.step(&[walk]);
-        held.step(&[Input {
-            interact: true,
-            ..walk
-        }]);
+        plain.step(&[walk, Default::default(), Default::default()]);
+        held.step(&[
+            Input {
+                interact: true,
+                ..walk
+            },
+            Default::default(),
+            Default::default(),
+        ]);
         assert_eq!(plain.state_hash(), held.state_hash(), "tick {tick}");
     }
 }

@@ -186,13 +186,13 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
         !engine.offer_open(),
         "an offer stayed open after 64 choices"
     );
-    engine.step(&[input]);
+    engine.step(&[input, Default::default(), Default::default()]);
 }
 
 /// Takes option `index` of the open offer through a step, as `check_pick` allows it.
 fn take(engine: &mut Engine, index: u32) -> Result<(), ChoiceError> {
     engine.check_pick(PlayerIdx::SOLO, index)?;
-    engine.step(&[Input::picking(index)]);
+    engine.step(&[Input::picking(index), Default::default(), Default::default()]);
     Ok(())
 }
 

@@ -48,7 +48,7 @@ pub fn play_run_with(
         }
         between(&mut engine, &mut out, &mut offers);
         let input = input(&engine, t);
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
         out.push(Command::Step(input));
     }
     between(&mut engine, &mut out, &mut offers);
@@ -61,7 +61,7 @@ pub fn first_point_tick() -> u32 {
     let mut engine = Engine::start(&trial_setup()).unwrap();
     for command in play_run(STEER_FROM) {
         match command {
-            Command::Step(input) => engine.step(&[input]),
+            Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
             Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
         }
         if engine.snapshot().progress.is_some_and(|p| p.level > 1) {

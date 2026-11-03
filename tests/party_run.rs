@@ -100,8 +100,8 @@ fn a_party_of_one_is_the_solo_start() {
     let mut a = Engine::start_with(&setup, pack().content()).unwrap();
     let mut b = Engine::start_party_with(&setup, pack().content(), 1).unwrap();
     for t in 0..120 {
-        a.step(&[input_of(0, t)]);
-        b.step(&[input_of(0, t)]);
+        a.step(&[input_of(0, t), Default::default(), Default::default()]);
+        b.step(&[input_of(0, t), Default::default(), Default::default()]);
     }
     assert_eq!(a.state_hash(), b.state_hash());
 }
@@ -165,7 +165,8 @@ fn a_stick_axis_of_minus_128_is_canonical() {
 fn the_recorder_refuses_what_it_cannot_record() {
     let mut rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
     assert_eq!(
-        rec.step(&[Input::default()]).unwrap_err(),
+        rec.step(&[Input::default(), Default::default(), Default::default()])
+            .unwrap_err(),
         RunReplayError::BadInputs("one input per player")
     );
     assert_eq!(rec.engine().tick(), 0);

@@ -92,7 +92,9 @@ fn recorded_replays_have_no_command_list() {
         let mut rec = RunRecorder::start_with(&old.setup, &content).unwrap();
         for command in commands_of(&old) {
             match command {
-                Command::Step(input) => rec.step(&[input]).unwrap(),
+                Command::Step(input) => rec
+                    .step(&[input, Default::default(), Default::default()])
+                    .unwrap(),
                 Command::Choose(i) => rec.choose(PlayerIdx::SOLO, i).unwrap(),
             }
         }
@@ -195,7 +197,9 @@ fn resume_from_a_schema_2_replay_works() {
     for command in commands_of(&old) {
         match command {
             Command::Step(input) => {
-                whole.step(&[input]).unwrap();
+                whole
+                    .step(&[input, Default::default(), Default::default()])
+                    .unwrap();
                 ticks += 1;
                 if ticks == old.ticks / 2 {
                     cut = Some(whole.clone());
@@ -213,7 +217,9 @@ fn resume_from_a_schema_2_replay_works() {
             Command::Step(input) => {
                 seen += 1;
                 if seen > prefix.ticks {
-                    resumed.step(&[input]).unwrap();
+                    resumed
+                        .step(&[input, Default::default(), Default::default()])
+                        .unwrap();
                 }
             }
             Command::Choose(i) => {

@@ -111,7 +111,11 @@ pub fn fire_until(
 ) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for _ in 0..max_ticks {
-        e.step(&[firing(input, e.tick())]);
+        e.step(&[
+            firing(input, e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         if stop(e) {
             break;
@@ -324,7 +328,7 @@ pub fn run_until(
 ) -> Vec<(u32, DomainEvent)> {
     let mut seen = Vec::new();
     for _ in 0..max_ticks {
-        e.step(&[input]);
+        e.step(&[input, Default::default(), Default::default()]);
         seen.extend(e.events().iter().map(|ev| (e.tick(), ev.clone())));
         if stop(e) {
             break;
@@ -450,7 +454,11 @@ fn near_start_is_the_start_moved_by_whole_pixels() {
 /// refuses it.
 pub fn pick(e: &mut Engine, index: u32) -> Result<(), stella_rain_core::engine::ChoiceError> {
     e.check_pick(stella_rain_core::id::PlayerIdx::SOLO, index)?;
-    e.step(&[Input::picking(index)]);
+    e.step(&[
+        Input::picking(index),
+        Default::default(),
+        Default::default(),
+    ]);
     Ok(())
 }
 

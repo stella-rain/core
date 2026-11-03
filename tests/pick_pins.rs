@@ -26,7 +26,7 @@ fn after_commands(name: &str, take: usize) -> Vec<Pin> {
         if seen.len() >= take {
             break;
         }
-        engine.step(&[input]);
+        engine.step(&[input, Default::default(), Default::default()]);
     }
     seen
 }

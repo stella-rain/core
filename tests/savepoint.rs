@@ -29,7 +29,9 @@ const CHECKSUM_AT: usize = 96;
 
 fn apply(rec: &mut RunRecorder, c: &Command) {
     match *c {
-        Command::Step(input) => rec.step(&[input]).unwrap(),
+        Command::Step(input) => rec
+            .step(&[input, Default::default(), Default::default()])
+            .unwrap(),
         Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
     }
 }
@@ -120,7 +122,7 @@ fn a_savepoint_taken_with_an_offer_open_resumes_with_it_open() {
     let mut r = restore(&rec.save(), &rec.replay()).unwrap();
     assert!(r.engine().offer_open());
     assert!(matches!(
-        r.step(&[idle()]),
+        r.step(&[idle(), Default::default(), Default::default()]),
         Err(RunReplayError::OfferOpen { .. })
     ));
     for c in &all[at..] {
@@ -442,8 +444,12 @@ mod golden {
         };
         while rec.engine().tick() < ticks {
             take(&mut rec, &mut next);
-            rec.step(&[inputs[usize::try_from(rec.engine().tick()).unwrap()]])
-                .unwrap();
+            rec.step(&[
+                inputs[usize::try_from(rec.engine().tick()).unwrap()],
+                Default::default(),
+                Default::default(),
+            ])
+            .unwrap();
         }
         take(&mut rec, &mut next);
         rec
@@ -512,7 +518,8 @@ mod golden {
         // To the end of tick 360: the checkpoint is taken before the commands that follow it.
         let mut r = drive(&replay, &pack, 359, Some(r));
         let input = replay.unpack_inputs(replay.ticks).unwrap()[359];
-        r.step(&[input]).unwrap();
+        r.step(&[input, Default::default(), Default::default()])
+            .unwrap();
         let checkpoints = replay.checkpoints.as_bytes();
         let want = hash_from_hex(std::str::from_utf8(&checkpoints[5 * 16..6 * 16]).unwrap());
         assert_eq!(Some(r.engine().state_hash()), want);

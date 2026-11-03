@@ -58,7 +58,11 @@ pub fn with(stage: &Stage, content: &RunContent) -> Engine {
 /// Fires until an offer is open, then takes the candidate that is `reward`.
 pub fn take(e: &mut Engine, reward: &str) {
     for _ in 0..600 {
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         if e.offer_open() {
             break;
         }

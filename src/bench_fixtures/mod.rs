@@ -23,7 +23,7 @@ pub fn enemy_cap() -> u16 {
 }
 
 /// A case ready to measure: an engine warmed up to the tick before the measured one, and the
-/// input of the measured tick. The bench runs `engine.step(&[input])` and counts it.
+/// input of the measured tick. The bench runs `engine.step(&[input, Default::default(), Default::default()])` and counts it.
 pub struct Case {
     pub engine: Engine,
     pub input: Input,
@@ -78,6 +78,10 @@ pub fn worst_minute_peak() -> worst_minute_case::Run {
 /// Takes option `index` of the open offer through a step (ADR-REPL-3). A pick the engine refuses
 /// takes nothing and so leaves no events, which a fixture's offer never does.
 pub(crate) fn take_option(e: &mut Engine, index: u32) {
-    e.step(&[Input::picking(index)]);
+    e.step(&[
+        Input::picking(index),
+        Default::default(),
+        Default::default(),
+    ]);
     assert!(!e.events().is_empty(), "option {index} of the open offer");
 }

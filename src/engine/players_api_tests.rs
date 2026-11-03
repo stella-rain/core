@@ -40,7 +40,7 @@ pub(super) fn with_offer() -> Engine {
                 return e;
             }
             let next = e.tick() + 1;
-            e.step(&[input(next)]);
+            e.step(&[input(next), Default::default(), Default::default()]);
         }
     }
     panic!("no walk reached an offer");
@@ -65,7 +65,7 @@ fn the_snapshot_has_one_player_per_slot() {
             assert_eq!(places.players[0], snap.players[0].at, "tick {tick}");
             if round == 0 {
                 for _ in 0..60 {
-                    e.step(&[Input::default()]);
+                    e.step(&[Input::default(), Default::default(), Default::default()]);
                 }
             }
         }

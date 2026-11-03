@@ -63,7 +63,11 @@ fn kills(e: &mut Engine, ticks: u32) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for _ in 0..ticks {
         let before = e.stardust();
-        e.step(&[firing(idle(), e.tick())]);
+        e.step(&[
+            firing(idle(), e.tick()),
+            Default::default(),
+            Default::default(),
+        ]);
         let gained = e.stardust() - before;
         if gained > 0 {
             out.push((e.tick(), gained));
@@ -183,7 +187,7 @@ fn a_mode_run_earns_by_its_tier_and_its_replay_verifies() {
         for c in &commands {
             let before = e.stardust();
             match c {
-                Command::Step(input) => e.step(&[*input]),
+                Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
                 Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
             }
             if e.stardust() > before {
