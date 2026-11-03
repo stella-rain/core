@@ -3,39 +3,49 @@ paths:
   - "src/step_log.rs"
   - "src/run_replay.rs"
   - "src/recording.rs"
-  - "tests/party_run.rs"
   - "tests/schema2_range.rs"
   - "tests/schema2_write.rs"
   - "tests/run_replay.rs"
-  - "tests/corpus/current/parties/**"
 ---
 
 # The step log and the recorder
 
-Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16. File formats, hashes and the corpus: `replay.md`.
+Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16, ADR-SIM-21, ADR-SIM-22. File formats,
+hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
 
 ## What is where
 
 - `step_log.rs`: the in-memory model of a run's inputs for both schemas. Schema 2 `inputs` bytes:
   a `present` byte (bit `i` is slot `i`, at least one set, bits 3-7 zero), then records.
-  `0x00` TICKS: a varint `run` >= 1, then a 3-byte block (`flags`, `move_x`, `move_y`) per present
-  slot, for `run` ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: one step that
-  does not advance the world, one byte per present slot (`0x00` none, `0x01` and a varint index),
-  at least one. `0x02` JOIN and `0x03` LEAVE are reserved and refused. Runs sum to `ticks`; at
-  most `MAX_COMMANDS` (1000, `run_replay.rs`) PICKS. Bit 6 of `flags` is `interact`; an axis of
-  -128 is written -127 (`block_of`, `replay.rs`). `SCHEMA_VERSION` 2 is written, 1 and 2 read
-  (`version.rs`); schema 1 migrates in memory (`from_schema1`).
-- The party: `StepLog::party_of(present)` is the one validator of a `present` byte (`0b001`,
-  `0b011`, `0b111` are parties of 1 to 3; a hole or a bit past slot 2 is `None`, refused).
-  `RunReplay::party_size()` reads the first byte only (1 for schema 1). `resimulate` starts the
-  party the log names and refuses a hole as `BadInputs("the party does not match the run")`.
-- Solo views: `RunReplay::unpack_inputs` and `unpack_commands` refuse a party as
-  `BadInputs("a party has no solo view")`; the recorder does not use them.
+  `0x00` TICKS: a varint `run` >= 1, then a 3-byte block (`flags`, `move_x`, `move_y`) per
+  present slot, for `run` ticks; two TICKS in a row never hold equal blocks (a JOIN or LEAVE
+  between them resets the check). `0x01` PICKS: one step that does not advance the world, one
+  byte per present slot (`0x00` none, `0x01` and a varint index), at least one. `0x02 <slot>`
+  JOIN and `0x03 <slot>` LEAVE change the mask between two records (before the first, after the
+  last); the records after one hold a block per slot of the mask in force. Refused: slot 0
+  leaving, a join of a present slot, a leave of an absent one, a slot past 2, and more than
+  `MAX_PRESENCE_CHANGES` (64). Runs sum to `ticks`; at most `MAX_COMMANDS` (1000,
+  `run_replay.rs`) PICKS. Bit 6 of `flags` is `interact`; an axis of -128 is written -127
+  (`block_of`, `replay.rs`). `SCHEMA_VERSION` 2 is written, 1 and 2 read (`version.rs`);
+  schema 1 migrates in memory (`from_schema1`).
+- The party: `StepLog::party_of(present)` is the one validator of tick 0's `present` byte
+  (`0b001`, `0b011`, `0b111` are parties of 1 to 3; a hole or a bit past slot 2 is `None`,
+  refused): a hole arises only by LEAVE. The non-test reader of the party at the end is
+  `RunReplay::presence_at_end` over `StepLog::presence_at_end`: the mask after the last JOIN or
+  LEAVE, from one scan (the savepoint restore reads it). `resimulate` starts the party the log
+  names, then calls `Engine::join` and `leave`; the engine's refusal is
+  `RunReplayError::PresenceRefused { tick, error }`.
+- Solo views: `RunReplay::unpack_inputs` and `unpack_commands` refuse a party or a log with a
+  JOIN or LEAVE (`has_changes`) as `BadInputs("a party has no solo view")`; the recorder does
+  not use them.
 - `read_step_range(bytes, ticks, max_ticks, a, b)` and `StepLog::range`: ticks 0-based, range
   half-open. A TICKS run overlapping it is returned once, clipped, never expanded (memory is
-  bounded by the records in the range). A PICKS step after `p` ticks is in iff `a <= p < b`; a
-  range with `b == ticks` also holds the picks after the last tick. The whole log is validated
-  first; `a > b` and `b > ticks` are `BadInputs`, before the bytes are read.
+  bounded by the records in the range). A PICKS, JOIN or LEAVE after `p` ticks is in iff
+  `a <= p < b`; a range with `b == ticks` also holds those after the last tick. A step is a
+  `RangeStep` (`Ticks`, `Picks`, `Join`, `Leave`), dense for the mask in force there;
+  `StepRange.present` is tick 0's mask, `present_at_first` the mask after every change before
+  tick `a`. The whole log is validated first; `a > b` and `b > ticks` are `BadInputs`, before the
+  bytes are read.
 
 ## The recorder
 
@@ -43,26 +53,15 @@ Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16. File formats, hashe
   `start` is a party of 1 and writes the bytes it always wrote; `start_party`, `start_party_with`
   and `start_party_with_pack` take a size of 1 to 3 (another is `Setup`, from
   `Engine::start_party_with`, `$.party`).
-- `step(&[Input])` takes one input per player; another length is `BadInputs("one input per
-  player")` and records nothing. Each input is stored as its block bytes read back, so an axis of
-  -128 then -127 is one run. `choose(player, i)` is one pick; `picks(&[Option<u32>])` is one step
-  with several picks, at least one.
+- `step(&[Input; MAX_PLAYERS])` takes one entry per slot, present or not: an absent slot's is
+  ignored and the log keeps one block per present slot. Each input is stored as its block bytes
+  read back, so an axis of -128 then -127 is one run. `choose(player, i)` of a player outside the
+  party is `BadInputs("a player outside the party")`; `picks(&[Option<u32>; MAX_PLAYERS])` is one
+  step with several picks, at least one among the present slots (a pick at an absent slot is
+  ignored).
+- `join(slot)` and `leave(slot)` call the engine and write a JOIN or LEAVE at the tick the run
+  is on; a refusal (`PresenceRefused`, the end of the run, the cap) records nothing.
 - `replay_at` cuts the log with `StepLog::prefix` and reads nothing from the engine.
   `resume_with_pack` and `resume_from_savepoint` keep the whole log; the savepoint restore builds
-  the party the prefix names (`replay.md`, Pins).
-
-## Parties
-
-- Slots 1 and 2 are passive in the rules (`simulation.md`): their inputs are logged and read
-  back. The recorder and verifier refuse a hole; joining and leaving do not exist yet (JOIN and
-  LEAVE above). The app never resumes a party run: `resume_*` for a party serve tests, replay
-  and "continue alone" (ADR-SAVE-16).
-
-## Tests
-
-- `tests/party_run.rs`: the start, the recorder and its refusals, resume with and without an
-  open offer, `replay_at`, savepoint round trips and size mismatches, the solo views, the solo
-  run cases re-recorded byte-equal, and the party cases (`tests/corpus/current/parties/`).
-- `tests/schema2_range.rs`, `tests/schema2_write.rs`; fuzz targets `step_log_range` and
-  `replay_load`. Their builders `recorder_until` and `savepoint_recorder` (`fuzz/src/lib.rs`)
-  re-record a verified run from its own step range, the party from the `present` byte.
+  the party the prefix ends on, not the one it names (`replay.md`, Pins). `prefix` keeps a JOIN
+  or LEAVE at world tick `p` iff `p` <= the cut.
