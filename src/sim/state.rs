@@ -445,6 +445,45 @@ impl Players {
     /// The mask of a party of one.
     const SOLO_MASK: u8 = 0b001;
 
+    /// The party of one that holds slot 0's player and career as they are now: the joiner
+    /// template an engine keeps from its start.
+    pub(crate) fn template(&self) -> Players {
+        Players::solo(self.items[0].clone(), self.careers[0].clone())
+    }
+
+    /// Slot `me` joins: a player built as `party` builds slots 1 and 2 from `template`'s first
+    /// slot (the run's starting player at level 1, its own offer stream by `offer_tag`), placed
+    /// where slot 0 is now and facing as it faces. `me` is a free slot other than 0.
+    pub(crate) fn join(&mut self, me: PlayerIdx, template: &Players, crit_seed: u64) {
+        assert!(me != PlayerIdx::SOLO && !self.is_present(me), "a free slot");
+        let c0 = &template.careers[0];
+        let mut player = template.items[0].clone();
+        player.at = self.items[0].at;
+        player.facing = self.items[0].facing;
+        self.items[me.get()] = player;
+        self.careers[me.get()] = Career::new(
+            crit_seed,
+            me,
+            c0.progress.clone(),
+            c0.offers.clone(),
+            c0.expertise.clone(),
+            c0.stardust,
+        );
+        self.present |= 1 << me.get();
+    }
+
+    /// Slot `me` leaves: its bit is cleared and its place is filled as `from_parts` fills an
+    /// absent one, which nothing reads or hashes. Slot 0 never leaves.
+    pub(crate) fn leave(&mut self, me: PlayerIdx) {
+        assert!(
+            me != PlayerIdx::SOLO && self.is_present(me),
+            "a present slot"
+        );
+        self.items[me.get()] = self.items[0].clone();
+        self.careers[me.get()] = Career::default();
+        self.present &= !(1 << me.get());
+    }
+
     pub(crate) fn solo(p: PlayerState, career: Career) -> Players {
         Players {
             items: [p.clone(), p.clone(), p],

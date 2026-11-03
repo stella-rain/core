@@ -94,6 +94,21 @@ fn horde_kinds(stage: &Stage, horde: &HordeSpec) -> Result<KindTable, crate::val
     KindTable::of_stage_and(stage, &bosses, &sprites, crate::kinds::MAX_KINDS)
 }
 
+/// Why `Engine::join` or `Engine::leave` refused a change; the run is unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PresenceError {
+    /// `slot` is already in the party (`join`).
+    Occupied { slot: PlayerIdx },
+    /// `slot` is not in the party (`leave`).
+    Absent { slot: PlayerIdx },
+    /// Slot 0 never leaves.
+    FirstSlot,
+    /// The run is over.
+    Ended,
+    /// A `sim_version` 1 run has one player for good.
+    SoloRules,
+}
+
 /// A run of one stage.
 #[derive(Debug)]
 pub struct Engine {
@@ -111,6 +126,9 @@ pub struct Engine {
     /// Damage, kills and support per player slot, folded from the events (outside the hashed
     /// state; a savepoint holds them, ADR-SIM-13, ADR-SAVE-7).
     player_stats: PlayerStats,
+    /// Slot 0's player as the run started (the loadout, level 1), what a joiner is built from.
+    /// Outside the hashed state; none under `sim_version` 1.
+    joiner: Option<crate::sim::state::Players>,
     /// Built past the `SIM_VERSION` check by `Engine::forced`, to run a version the game does
     /// not release yet.
     #[cfg(test)]
@@ -135,6 +153,7 @@ impl Clone for Engine {
             ledger: self.ledger.clone(),
             counted: self.counted.clone(),
             player_stats: self.player_stats.clone(),
+            joiner: self.joiner.clone(),
             #[cfg(test)]
             forced: self.forced,
         }
@@ -198,6 +217,7 @@ impl Engine {
             ledger,
             counted,
             player_stats,
+            joiner: self.joiner,
             #[cfg(test)]
             forced: self.forced,
         }
@@ -208,6 +228,7 @@ impl Engine {
         Engine {
             events: Vec::with_capacity(run.events_room()),
             ledger: run.new_ledger(),
+            joiner: run.joiner_template(),
             run,
             content: content.clone(),
             load: Load::default(),
@@ -381,7 +402,7 @@ impl Engine {
         self.events.clear();
         self.load = Load::default();
         if self.offer_open() {
-            for (i, input) in inputs.iter().take(self.players()).enumerate() {
+            for (i, input) in inputs.iter().enumerate() {
                 let Some(player) = u8::try_from(i).ok().and_then(PlayerIdx::new) else {
                     continue;
                 };
@@ -412,6 +433,83 @@ impl Engine {
         self.run.party()
     }
 
+    /// The slots in the party, bit `i` for slot `i`: `0b001` for a run of `sim_version` 1.
+    /// Slot 0 is always set; a hole such as `0b101` arises when slot 1 leaves.
+    pub fn present(&self) -> u8 {
+        self.run.present()
+    }
+
+    /// Slot `slot` joins the party at the tick the engine is on (ADR-SIM-13, ADR-SIM-14). The
+    /// joiner is the run's starting player at slot 0's current place, facing as it faces, at
+    /// level 1 with no offer open; its totals start at zero. No event is emitted. Called between
+    /// steps, like `choose`; an open offer does not block it. A join at tick 0 equals the party
+    /// start of the same mask. Refused, changing nothing: a slot in the party, a run that is
+    /// over, a `sim_version` 1 run.
+    pub fn join(&mut self, slot: PlayerIdx) -> Result<(), PresenceError> {
+        self.check_presence()?;
+        if self.present() >> slot.get() & 1 == 1 {
+            return Err(PresenceError::Occupied { slot });
+        }
+        let template = self.joiner.take().ok_or(PresenceError::SoloRules)?;
+        self.run.join(slot, &template);
+        self.joiner = Some(template);
+        self.player_stats.reset_slot(slot);
+        self.events.clear();
+        Ok(())
+    }
+
+    /// Slot `slot` leaves the party at the tick the engine is on. Slot 0 never leaves. What the
+    /// leaver left in flight stays and resolves through the slots present; the leaver's totals
+    /// stay in `player_stats` until the slot is joined again. No event is emitted. An open offer
+    /// of the leaver closes with it. Refused, changing nothing: slot 0, a slot not in the
+    /// party, a run that is over, a `sim_version` 1 run.
+    pub fn leave(&mut self, slot: PlayerIdx) -> Result<(), PresenceError> {
+        self.check_presence()?;
+        if slot == PlayerIdx::SOLO {
+            return Err(PresenceError::FirstSlot);
+        }
+        if self.present() >> slot.get() & 1 == 0 {
+            return Err(PresenceError::Absent { slot });
+        }
+        self.run.leave(slot);
+        self.events.clear();
+        Ok(())
+    }
+
+    fn check_presence(&self) -> Result<(), PresenceError> {
+        if self.outcome() != Outcome::Running {
+            return Err(PresenceError::Ended);
+        }
+        if self.joiner.is_none() {
+            return Err(PresenceError::SoloRules);
+        }
+        Ok(())
+    }
+
+    /// A fresh party of 3 with the slots outside `mask` cleared: the engine a savepoint of that
+    /// mask restores over. `mask` holds slot 0.
+    pub(crate) fn start_party_mask(
+        setup: &RunSetup,
+        content: &RunContent,
+        mask: u8,
+    ) -> Result<Engine, Error> {
+        // A version 1 run has no other party than one; it starts as one.
+        let party = if mask == 0b001 {
+            1
+        } else {
+            crate::id::MAX_PLAYERS
+        };
+        let mut engine = Engine::start_party_with(setup, content, party)?;
+        for i in 1..crate::id::MAX_PLAYERS {
+            if mask >> i & 1 == 0 && party > 1 {
+                if let Some(slot) = PlayerIdx::new(i) {
+                    engine.run.leave(slot);
+                }
+            }
+        }
+        Ok(engine)
+    }
+
     /// Whether `player` could take option `index` of its open offer by a pick in `step`
     /// (ADR-079 §3). An open offer belongs to the slot that holds it, and the snapshot shows the
     /// first player's. Refused for a player outside the party, a player with no offer open, a
@@ -421,7 +519,7 @@ impl Engine {
     }
 
     fn pick_option(&self, player: PlayerIdx, index: u32) -> Result<OfferOption, ChoiceError> {
-        if player.get() >= self.players() {
+        if self.present() >> player.get() & 1 == 0 {
             return Err(ChoiceError::NoPlayer { player });
         }
         if !self.run.offer_open_for(player) {
@@ -622,6 +720,8 @@ mod party_tests;
 mod pick_tests;
 #[cfg(test)]
 mod players_api_tests;
+#[cfg(test)]
+mod presence_tests;
 #[cfg(test)]
 mod savepoint_tests;
 #[cfg(test)]

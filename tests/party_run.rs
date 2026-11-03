@@ -61,11 +61,14 @@ fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
     inputs
 }
 
-/// A record's dense entries, one per present slot, padded to one entry per slot.
-fn slots<T: Copy + Default>(dense: &[T]) -> [T; 3] {
+/// A record's dense entries, one per slot of `mask`, placed at their slots.
+fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; 3] {
     let mut all = [T::default(); 3];
-    for (to, from) in all.iter_mut().zip(dense) {
-        *to = *from;
+    let mut from = dense.iter();
+    for (slot, to) in all.iter_mut().enumerate() {
+        if mask >> slot & 1 == 1 {
+            *to = *from.next().unwrap();
+        }
     }
     all
 }
@@ -146,7 +149,7 @@ fn a_recorded_party_verifies() {
             .iter()
             .find_map(|s| match s {
                 RangeStep::Ticks { inputs, .. } => Some(inputs.clone()),
-                RangeStep::Picks { .. } => None,
+                _ => None,
             })
             .unwrap();
         assert_eq!(first.len(), usize::from(n));
@@ -340,10 +343,12 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    rec.step(&slots(inputs)).unwrap();
+                    rec.step(&slots(rec.engine().present(), inputs)).unwrap();
                 }
             }
-            RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
+            RangeStep::Picks { picks } => rec.picks(&slots(rec.engine().present(), picks)).unwrap(),
+            RangeStep::Join { slot: s } => rec.join(slot(*s)).unwrap(),
+            RangeStep::Leave { slot: s } => rec.leave(slot(*s)).unwrap(),
         }
     }
     (recorded, rec.replay())
@@ -391,10 +396,12 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 3] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 5] = [
     ("two_time_limit", 3000, Outcome::Running, [69, 5, 0], 1200),
     ("three_time_limit", 3000, Outcome::Running, [72, 3, 0], 1230),
     ("three_tutorial", 862, Outcome::Cleared, [11, 1, 1], 0),
+    ("join_two", 3000, Outcome::Running, [69, 1, 0], 1160),
+    ("leave_hole", 3000, Outcome::Running, [69, 0, 3], 1220),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
@@ -404,11 +411,17 @@ fn parties_dir() -> std::path::PathBuf {
 fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
     let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
     let mut per = [0u32; 3];
+    let mut mask = range.present;
     for step in &range.steps {
-        if let RangeStep::Picks { picks } = step {
-            for (i, p) in picks.iter().enumerate() {
-                per[i] += u32::from(p.is_some());
+        match step {
+            RangeStep::Picks { picks } => {
+                for (s, p) in (0..3).filter(|s| mask >> s & 1 == 1).zip(picks) {
+                    per[s] += u32::from(p.is_some());
+                }
             }
+            RangeStep::Join { slot } => mask |= 1 << slot,
+            RangeStep::Leave { slot } => mask &= !(1 << slot),
+            RangeStep::Ticks { .. } => {}
         }
     }
     per
@@ -417,7 +430,7 @@ fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
 #[test]
 fn the_party_cases_are_what_the_table_says() {
     for case in party_cases() {
-        let rec = play_party(&case.setup, case.party, case.ticks);
+        let rec = play_party(&case.setup, case.party, case.ticks, &case.changes);
         let replay = rec.replay();
         let verified = verify_run(&replay.to_bytes()).unwrap();
         let got = (
@@ -430,7 +443,9 @@ fn the_party_cases_are_what_the_table_says() {
         let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
         assert_eq!(got, *want);
         let per = picks_per_slot(&replay);
-        assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
+        if case.changes.is_empty() {
+            assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
+        }
         assert!(replay.ticks <= 3000);
         assert!(replay.to_bytes().len() < 64 * 1024);
     }
@@ -442,7 +457,7 @@ fn the_party_case_files_are_the_recording_and_verify() {
     for case in party_cases() {
         let dir = parties_dir().join(case.name);
         let bytes = std::fs::read(dir.join("run.replay")).unwrap();
-        let fresh = play_party(&case.setup, case.party, case.ticks).replay();
+        let fresh = play_party(&case.setup, case.party, case.ticks, &case.changes).replay();
         assert_eq!(
             bytes,
             fresh.to_bytes(),
@@ -469,17 +484,19 @@ fn drive(rec: &mut RunRecorder, range: &StepRange) {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    rec.step(&slots(inputs)).unwrap();
+                    rec.step(&slots(rec.engine().present(), inputs)).unwrap();
                 }
             }
-            RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
+            RangeStep::Picks { picks } => rec.picks(&slots(rec.engine().present(), picks)).unwrap(),
+            RangeStep::Join { slot: s } => rec.join(slot(*s)).unwrap(),
+            RangeStep::Leave { slot: s } => rec.leave(slot(*s)).unwrap(),
         }
     }
 }
 
 /// Three cuts: early, with an offer open, and one tick before the end. The open one is where
 /// slot 1 or 2 holds an offer when that is before the last tick, else the first offer.
-fn cuts(recorded: &RunReplay) -> [u32; 3] {
+fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
     let mut world = 0;
     let (mut other, mut any) = (None, None);
@@ -492,11 +509,11 @@ fn cuts(recorded: &RunReplay) -> [u32; 3] {
                     other.get_or_insert(world);
                 }
             }
-            RangeStep::Picks { .. } => {}
+            RangeStep::Picks { .. } | RangeStep::Join { .. } | RangeStep::Leave { .. } => {}
         }
     }
     [
-        60,
+        early,
         other.or(any).expect("an offer before the end"),
         recorded.ticks - 1,
     ]
@@ -507,7 +524,9 @@ fn the_party_cases_resume_and_save_at_three_cuts() {
     for case in party_cases() {
         let bytes = std::fs::read(parties_dir().join(case.name).join("run.replay")).unwrap();
         let recorded = RunReplay::from_bytes(&bytes).unwrap();
-        for cut in cuts(&recorded) {
+        // A case with changes cuts first just inside its first window.
+        let early = case.changes.first().map_or(60, |(at, _)| at + 100);
+        for cut in cuts(&recorded, early) {
             let live = recorder_at(&recorded, case.party, cut);
             let prefix = live.replay();
             let rest = recorded.step_range(cut, recorded.ticks, u32::MAX).unwrap();
@@ -532,4 +551,50 @@ fn the_party_cases_resume_and_save_at_three_cuts() {
             }
         }
     }
+}
+
+#[test]
+fn the_change_cases_hold_what_they_are_for() {
+    let find = |name: &str| {
+        let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
+        play_party(&case.setup, case.party, case.ticks, &case.changes).replay()
+    };
+    // join_two: slot 1 answers an offer after its join at tick 600.
+    let join = find("join_two");
+    let range = join.step_range(0, join.ticks, u32::MAX).unwrap();
+    let (mut world, mut mask, mut after) = (0u32, range.present, 0);
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, .. } => world += run,
+            RangeStep::Join { slot } => {
+                assert_eq!((*slot, world), (1, 600));
+                mask |= 1 << slot;
+            }
+            RangeStep::Picks { picks } if mask == 0b011 && picks[1].is_some() => {
+                assert!(world > 600);
+                after += 1;
+            }
+            _ => {}
+        }
+    }
+    assert!(after >= 1);
+    // leave_hole: a Picks step of length 2 falls in the first window (0b101), the hole is
+    // closed by the second leave and reopened by the join.
+    let hole = find("leave_hole");
+    let range = hole.step_range(0, hole.ticks, u32::MAX).unwrap();
+    let (mut world, mut masks, mut two) = (0u32, vec![range.present], 0);
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, .. } => world += run,
+            RangeStep::Join { slot } => masks.push(masks.last().unwrap() | 1 << slot),
+            RangeStep::Leave { slot } => masks.push(masks.last().unwrap() & !(1 << slot)),
+            RangeStep::Picks { picks } => {
+                if picks.len() == 2 && (900..=1500).contains(&world) {
+                    two += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(masks, [0b111, 0b101, 0b001, 0b101]);
+    assert!(two >= 1, "a Picks step inside the hole holds two entries");
 }

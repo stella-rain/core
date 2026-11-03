@@ -50,6 +50,9 @@ fn expand(steps: &[RangeStep]) -> Vec<Entry> {
                 out.extend((0..*run).map(|_| Entry::Tick(inputs.clone())));
             }
             RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                unreachable!("these logs hold no join or leave")
+            }
         }
     }
     out
@@ -75,6 +78,9 @@ fn oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<Entry> {
                 if (a <= world && world < b) || (a < b && b == ticks && world == ticks) {
                     out.push(Entry::Picks(picks.clone()));
                 }
+            }
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                unreachable!("these logs hold no join or leave")
             }
         }
     }

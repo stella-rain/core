@@ -46,7 +46,7 @@ use sha2::{Digest, Sha256};
 
 use crate::base64;
 use crate::content_hash::to_hex;
-use crate::engine::{ChoiceError, Engine, Outcome};
+use crate::engine::{ChoiceError, Engine, Outcome, PresenceError};
 use crate::id::{MAX_PLAYERS, PlayerIdx};
 use crate::input::Input;
 use crate::ledger::RunLedger;
@@ -57,7 +57,7 @@ use crate::replay::{
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
-use crate::step_log::{Record, StepLog, StepRange, read_step_range};
+use crate::step_log::{MAX_PRESENCE_CHANGES, Record, StepLog, StepRange, read_step_range};
 use crate::validate;
 use crate::version::{
     self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
@@ -199,6 +199,11 @@ pub enum RunReplayError {
         tick: u32,
         error: ChoiceError,
     },
+    /// A join or leave on this tick was refused by the engine.
+    PresenceRefused {
+        tick: u32,
+        error: PresenceError,
+    },
     /// The run ended on this tick, before the inputs did.
     InputsAfterEnd {
         ended_at: u32,
@@ -292,6 +297,24 @@ impl fmt::Display for RunReplayError {
                     f,
                     "a choice on tick {tick} is in a run of sim_version {sim_version}, \
                      which this game does not run"
+                ),
+            },
+            RunReplayError::PresenceRefused { tick, error } => match error {
+                PresenceError::Occupied { slot } => write!(
+                    f,
+                    "tick {tick}: slot {} joins but is already in the party",
+                    slot.get()
+                ),
+                PresenceError::Absent { slot } => write!(
+                    f,
+                    "tick {tick}: slot {} leaves but is not in the party",
+                    slot.get()
+                ),
+                PresenceError::FirstSlot => write!(f, "tick {tick}: slot 0 never leaves"),
+                PresenceError::Ended => write!(f, "tick {tick}: the run is over"),
+                PresenceError::SoloRules => write!(
+                    f,
+                    "tick {tick}: a run of sim_version 1 has one player for good"
                 ),
             },
             RunReplayError::InputsAfterEnd { ended_at } => {
@@ -571,6 +594,7 @@ impl RunReplay {
     /// The party the replay starts with, read from the first byte of its step log alone (the
     /// `present` byte, ADR-REPL-10): 1 for a schema 1 replay. `None` for a byte that is not a
     /// party from slot 0 (a hole, a bit past slot 2, no byte, bad base64).
+    #[cfg(test)]
     pub(crate) fn party_size(&self) -> Option<u8> {
         if self.setup.schema_version < 2 {
             return Some(1);
@@ -578,6 +602,17 @@ impl RunReplay {
         let head: String = self.inputs.chars().take(4).collect();
         let present = *base64::decode(&head).ok()?.first()?;
         StepLog::party_of(present)
+    }
+
+    /// The party after the last join or leave of the replay's step log: `0b001` for a schema 1
+    /// replay, the first byte alone when the log holds no change; `None` for bytes the step log
+    /// scanner refuses. Reads the bytes once, with the full checks, and builds no log.
+    pub(crate) fn presence_at_end(&self) -> Option<u8> {
+        if self.setup.schema_version < 2 {
+            return Some(0b001);
+        }
+        let raw = base64::decode(&self.inputs).ok()?;
+        StepLog::presence_at_end(&raw, self.ticks)
     }
 
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
@@ -782,8 +817,18 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
+        // The inputs of the present slots, in slot order, in a fixed array: no allocation per tick.
+        let mask = self.engine.present();
+        let mut kept = [Input::default(); MAX_PLAYERS as usize];
+        let mut count = 0;
+        for (slot, input) in inputs.iter().enumerate() {
+            if mask >> slot & 1 == 1 {
+                kept[count] = *input;
+                count += 1;
+            }
+        }
         self.engine.step(inputs);
-        let present = &inputs[..self.engine.players()];
+        let present = &kept[..count];
         // The log holds each input as its block bytes read it back (a stick axis of -128 is
         // -127, a pick is never in the stream), so equal blocks are one run.
         let held = |input: &Input| {
@@ -809,7 +854,7 @@ impl RunRecorder {
     /// `player` chooses option `index` of its open offer: `picks` with that one pick. A player
     /// outside the party is `BadInputs`.
     pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), RunReplayError> {
-        if player.get() >= self.engine.players() {
+        if self.engine.present() >> player.get() & 1 == 0 {
             return Err(RunReplayError::BadInputs("a player outside the party"));
         }
         let mut picks = [None; MAX_PLAYERS as usize];
@@ -825,16 +870,57 @@ impl RunRecorder {
         &mut self,
         picks: &[Option<u32>; MAX_PLAYERS as usize],
     ) -> Result<(), RunReplayError> {
-        let picks = &picks[..self.engine.players()];
+        let picks = dense(self.engine.present(), picks);
         if picks.iter().all(Option::is_none) {
             return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
         }
         self.room()?;
-        apply_picks(&mut self.engine, picks)?;
-        self.records.push(Record::Picks {
-            picks: picks.to_vec(),
-        });
+        apply_picks(&mut self.engine, &picks)?;
+        self.records.push(Record::Picks { picks });
         self.picks_made += 1;
+        Ok(())
+    }
+
+    /// Slot `slot` joins the party before the next step (`Engine::join`): a JOIN record at the
+    /// tick the run is on. Refused, recording nothing, after the run ended, past
+    /// `MAX_PRESENCE_CHANGES`, or when the engine refuses.
+    pub fn join(&mut self, slot: PlayerIdx) -> Result<(), RunReplayError> {
+        self.change(slot, true)
+    }
+
+    /// Slot `slot` leaves the party before the next step (`Engine::leave`): a LEAVE record.
+    /// Refused as `join` is.
+    pub fn leave(&mut self, slot: PlayerIdx) -> Result<(), RunReplayError> {
+        self.change(slot, false)
+    }
+
+    fn change(&mut self, slot: PlayerIdx, join: bool) -> Result<(), RunReplayError> {
+        let tick = self.engine.tick();
+        if self.engine.outcome() != Outcome::Running {
+            return Err(RunReplayError::InputsAfterEnd { ended_at: tick });
+        }
+        let made = self
+            .records
+            .iter()
+            .filter(|r| matches!(r, Record::Join { .. } | Record::Leave { .. }))
+            .count();
+        if made >= MAX_PRESENCE_CHANGES as usize {
+            return Err(RunReplayError::BadInputs(
+                "more joins and leaves than the cap",
+            ));
+        }
+        let done = if join {
+            self.engine.join(slot)
+        } else {
+            self.engine.leave(slot)
+        };
+        done.map_err(|error| RunReplayError::PresenceRefused { tick, error })?;
+        let slot = u8::try_from(slot.get()).unwrap_or(u8::MAX);
+        self.records.push(if join {
+            Record::Join { slot }
+        } else {
+            Record::Leave { slot }
+        });
         Ok(())
     }
 
@@ -1112,7 +1198,7 @@ fn resimulate(
     for record in &log.records {
         match record {
             Record::Ticks { run, inputs } => {
-                let inputs = slots(inputs);
+                let inputs = slots(engine.present(), inputs);
                 for _ in 0..*run {
                     if engine.outcome() != Outcome::Running {
                         return Err(RunReplayError::InputsAfterEnd {
@@ -1148,6 +1234,23 @@ fn resimulate(
                     }
                 }
             }
+            Record::Join { slot } | Record::Leave { slot } => {
+                if engine.outcome() != Outcome::Running {
+                    return Err(RunReplayError::InputsAfterEnd {
+                        ended_at: engine.tick(),
+                    });
+                }
+                let tick = engine.tick();
+                let slot = PlayerIdx::new(*slot).ok_or(RunReplayError::BadInputs(
+                    "the party does not match the run",
+                ))?;
+                let done = if matches!(record, Record::Join { .. }) {
+                    engine.join(slot)
+                } else {
+                    engine.leave(slot)
+                };
+                done.map_err(|error| RunReplayError::PresenceRefused { tick, error })?;
+            }
             Record::Picks { picks: chosen } => {
                 apply_picks(&mut engine, chosen)?;
                 picks += u32::try_from(chosen.iter().flatten().count()).unwrap_or(u32::MAX);
@@ -1168,7 +1271,8 @@ fn resimulate(
 fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunReplayError> {
     let tick = engine.tick();
     let mut inputs = [Input::default(); MAX_PLAYERS as usize];
-    for (slot, pick) in chosen.iter().enumerate() {
+    let all = slots(engine.present(), chosen);
+    for (slot, pick) in all.iter().enumerate() {
         let Some(index) = *pick else {
             continue;
         };
@@ -1188,14 +1292,28 @@ fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunRep
     Ok(())
 }
 
-/// The dense entries of a record, one per present slot, padded to one entry per slot with the
-/// default: what `Engine::step` takes.
-fn slots<T: Copy + Default>(dense: &[T]) -> [T; MAX_PLAYERS as usize] {
+/// The dense entries of a record, one per slot of `mask` in slot order, placed at their slots
+/// and padded with the default: what `Engine::step` takes.
+fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; MAX_PLAYERS as usize] {
     let mut all = [T::default(); MAX_PLAYERS as usize];
-    for (to, from) in all.iter_mut().zip(dense) {
-        *to = *from;
+    let mut from = dense.iter();
+    for (slot, to) in all.iter_mut().enumerate() {
+        if mask >> slot & 1 == 1 {
+            if let Some(entry) = from.next() {
+                *to = *entry;
+            }
+        }
     }
     all
+}
+
+/// The entries of the slots of `mask` out of one entry per slot: the dense record.
+fn dense<T: Copy>(mask: u8, all: &[T; MAX_PLAYERS as usize]) -> Vec<T> {
+    all.iter()
+        .enumerate()
+        .filter(|(slot, _)| mask >> slot & 1 == 1)
+        .map(|(_, entry)| *entry)
+        .collect()
 }
 
 #[cfg(test)]

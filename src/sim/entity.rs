@@ -40,6 +40,11 @@ impl State {
     /// The number a roll or an angle reads for the entity `id`: its number without the empty
     /// player slots, so a party of one rolls as it did before the slots were reserved
     /// (ADR-SIM-13).
+    ///
+    /// The gap is the count in force: when a join or leave changes the party, every live
+    /// enemy's key moves by one per slot gained or lost, and its next crit roll and push angle
+    /// read the new key; enemies spawned later are keyed by the count then. A pure function of
+    /// the presence mask, so a replay and every peer agree (ADR-SIM-14).
     #[inline]
     pub(crate) fn roll_key(&self, id: EntityId) -> u32 {
         crate::id::to_compact(id, self.id_gap())
@@ -175,7 +180,7 @@ impl State {
 
     /// The entity with this ID, if it is still around.
     pub(super) fn find(&self, id: EntityId) -> Option<Who> {
-        if let Some(i) = PlayerIdx::of_id(id, self.players.len()) {
+        if let Some(i) = PlayerIdx::of_mask(id, self.players.mask()) {
             return Some(Who::Player(i));
         }
         if self.boss.as_ref().is_some_and(|b| b.id == id) {
@@ -202,7 +207,7 @@ impl State {
 
     /// The ally with this entity ID, if it is still around.
     pub(super) fn find_ally(&self, id: EntityId) -> Option<Who> {
-        if let Some(i) = PlayerIdx::of_id(id, self.players.len()) {
+        if let Some(i) = PlayerIdx::of_mask(id, self.players.mask()) {
             return Some(Who::Player(i));
         }
         self.companions

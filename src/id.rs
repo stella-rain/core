@@ -178,6 +178,17 @@ impl PlayerIdx {
             _ => None,
         }
     }
+
+    /// The player that entity `id` is, in the party whose slots are the bits of `mask`: a
+    /// bit test, not a count, so a hole (`0b101`) finds slot 2 and misses slot 1.
+    #[inline]
+    pub(crate) fn of_mask(id: EntityId, mask: u8) -> Option<PlayerIdx> {
+        if id.0 < u32::from(MAX_PLAYERS) && mask >> id.0 & 1 == 1 {
+            u8::try_from(id.0).ok().and_then(PlayerIdx::new)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -185,6 +196,20 @@ mod gap_tests {
     //! The map between the live rules' entity numbers (players first, slots 0 to 2 reserved) and
     //! the compact numbers the crit roll and the push-apart key by (ADR-SIM-12, ADR-SIM-13).
     use super::*;
+
+    #[test]
+    fn of_mask_follows_the_slots_present() {
+        assert_eq!(
+            PlayerIdx::of_mask(EntityId(2), 0b101),
+            Some(PlayerIdx::Third)
+        );
+        assert_eq!(PlayerIdx::of_mask(EntityId(1), 0b101), None);
+        assert_eq!(PlayerIdx::of_mask(EntityId(3), 0b111), None);
+        assert_eq!(
+            PlayerIdx::of_mask(EntityId(0), 0b001),
+            Some(PlayerIdx::First)
+        );
+    }
 
     #[test]
     fn a_party_of_one_maps_its_ids_down_by_two() {
