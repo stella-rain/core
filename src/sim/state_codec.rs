@@ -1803,6 +1803,7 @@ impl State {
             rng,
             outcome,
             players,
+            offer_timer,
             boss,
             companions,
             enemies,
@@ -1882,6 +1883,13 @@ impl State {
             stardust.encode(w);
             regen.encode(w);
         }
+        // A timed run's deadlines after the players, as the hash writes them; a `stop` run
+        // saves nothing here.
+        if let Some(timer) = offer_timer {
+            for me in players.indices() {
+                timer.due[me.get()].encode(w);
+            }
+        }
     }
 }
 
@@ -1911,6 +1919,8 @@ impl State {
             outcome: Decode::decode(r)?,
             // The party comes last in the bytes; `fresh`'s stands in until then.
             players: fresh.players.clone(),
+            // The deadlines come after the party, and only in a timed run; `fresh` says which.
+            offer_timer: fresh.offer_timer.as_ref().map(|_| OfferTimer::default()),
             boss: Decode::decode(r)?,
             companions: decode_vec(r, companions_cap)?,
             enemies: decode_vec(r, enemies_cap)?,
@@ -1973,6 +1983,27 @@ impl State {
             careers.push(career);
         }
         state.players = Players::from_parts(mask, items, careers);
+        if let Some(timer) = state.offer_timer.as_mut() {
+            for me in state.players.indices() {
+                timer.due[me.get()] = Decode::decode(r)?;
+            }
+        }
+        // The bytes hold a deadline for each present slot only, so an absent slot has none.
+        if let Some(timer) = &state.offer_timer {
+            for me in state.players.indices() {
+                let due = timer.due[me.get()];
+                if due.is_some() != crate::sim::offer_open_for(&state, me) {
+                    return Err(DecodeError::Invalid("offer deadline and offer disagree"));
+                }
+                if due.is_some_and(|d| {
+                    d > state
+                        .tick
+                        .saturating_add(crate::rules::MAX_OFFER_TIMER_TICKS)
+                }) {
+                    return Err(DecodeError::Invalid("offer deadline out of range"));
+                }
+            }
+        }
         Ok(state)
     }
 }

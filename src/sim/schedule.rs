@@ -214,6 +214,7 @@ pub(super) mod steps {
     pub(super) fn open_offers(c: &mut Ctx) {
         match c.s.outcome {
             Outcome::Running | Outcome::Cleared => {
+                crate::sim::pick_due(c.world, c.rewards, c.expertise, c.s, c.events);
                 super::open_offers(c.world, c.rewards, c.expertise, c.s, c.events);
             }
             Outcome::Failed => {}

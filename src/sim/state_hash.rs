@@ -1017,6 +1017,7 @@ impl State {
             rng,
             outcome,
             players,
+            offer_timer,
             boss,
             companions,
             enemies,
@@ -1077,6 +1078,14 @@ impl State {
         for me in players.indices() {
             debug_assert_eq!(stars.is_some(), players.career(me).offers.is_some());
             hash_player(players, me, h);
+        }
+        // A timed run's deadlines, after the players: a `stop` run writes nothing here, so its
+        // hash is what it always was (ADR-SIM-21 point 4). The encoding is prefix-free within a
+        // mode; the mode is fixed for a run and states of the two are never compared.
+        if let Some(timer) = offer_timer {
+            for me in players.indices() {
+                timer.due[me.get()].stable_hash(h);
+            }
         }
     }
 }
