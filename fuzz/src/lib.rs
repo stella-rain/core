@@ -429,6 +429,20 @@ pub fn change_recorder(cut: Option<u32>) -> RunRecorder {
     recorder_until(&run, cut)
 }
 
+/// The timed party run of the savepoint target: the corpus case `timed_two` (two players, offers
+/// that stay open while the world runs, the timer closing the ones nobody answers).
+const TIMED_RUN: &[u8] = include_bytes!("../../tests/corpus/current/parties/timed_two/run.replay");
+
+/// The ticks the timed target's prefixes are cut at: offers are open and running toward their
+/// deadlines in the middle of the run.
+pub const TIMED_CUTS: [u32; 2] = [700, 2000];
+
+/// The timed run played to `cut` ticks (before the picks that follow that tick), or to its end.
+pub fn timed_recorder(cut: Option<u32>) -> RunRecorder {
+    let run = RunReplay::from_bytes(TIMED_RUN).expect("the timed run is a run replay");
+    recorder_until(&run, cut)
+}
+
 /// The replays a savepoint is loaded against: the solo run at each of `SAVEPOINT_CUTS` and whole
 /// (a finished run), then the party run at its two cuts and whole.
 pub fn savepoint_prefixes() -> &'static [RunReplay] {
@@ -450,6 +464,11 @@ pub fn savepoint_prefixes() -> &'static [RunReplay] {
                 CHANGE_CUTS
                     .iter()
                     .map(|cut| change_recorder(Some(*cut)).replay()),
+            )
+            .chain(
+                TIMED_CUTS
+                    .iter()
+                    .map(|cut| timed_recorder(Some(*cut)).replay()),
             )
             .collect()
     })
@@ -550,6 +569,10 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         (
             "valid-party-open".to_owned(),
             party_recorder(Some(party_cuts()[1])).save(),
+        ),
+        (
+            "valid-timed-tick700".to_owned(),
+            timed_recorder(Some(700)).save(),
         ),
         (
             "valid-hole".to_owned(),
@@ -691,6 +714,7 @@ pub fn pack_load(data: &[u8]) -> bool {
             stat_priority: Vec::new(),
             pick_stats: false,
             difficulty: "normal".into(),
+            ..RunSetup::default()
         };
         let mut engine = Engine::start_with(&setup, pack.content())
             .expect("a pack that loads starts a run of each mode");
