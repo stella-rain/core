@@ -24,22 +24,8 @@ Sources: ADR-REPL-3, ADR-REPL-4, ADR-BRDG-3, ADR-SVC-6, ADR-SIM-3, ADR-SAVE-3.
 - `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-4, ADR-BRDG-3).
   A run's replay holds the setup, the content SHA-256 and the inputs (picks, `choose` and
   `spend`, are steps of the step log); it is verified from the file and its run stats (ADR-REPL-3).
-- `step_log.rs`: the in-memory model of a run's inputs for both schemas. Schema 2 `inputs` bytes:
-  a `present` byte (bit `i` is slot `i`, at least one set, bits 3-7 zero), then records.
-  `0x00` TICKS: a varint `run` >= 1, then a 3-byte block (`flags`, `move_x`, `move_y`) per present
-  slot, for `run` ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: one step that
-  does not advance the world, one byte per present slot (`0x00` none, `0x01` and a varint index),
-  at least one. `0x02` JOIN and `0x03` LEAVE are reserved and refused. Runs sum to `ticks`; at
-  most `MAX_COMMANDS` (1000, `run_replay.rs`) PICKS. Bit 6 of `flags` is `interact`; an axis of
-  -128 is written -127 (`block_of`, `replay.rs`). `SCHEMA_VERSION` 2 is written, 1 and 2 read
-  (`version.rs`); schema 1 migrates in memory (`from_schema1`); `solo_commands` and `to_solo`
-  refuse `present != 0b1`.
-- `read_step_range(bytes, ticks, max_ticks, a, b)` and `StepLog::range`: ticks 0-based, range
-  half-open. A TICKS run overlapping it is returned once, clipped, never expanded (memory is
-  bounded by the records in the range). A PICKS step after `p` ticks is in iff `a <= p < b`; a
-  range with `b == ticks` also holds the picks after the last tick. The whole log is validated
-  first; `a > b` and `b > ticks` are `BadInputs`, before the bytes are read.
-  Tests: `tests/schema2_range.rs`; fuzz target `step_log_range`.
+- The step log, the range reader and the recorder (`step_log.rs`, `RunRecorder`):
+  `step-log.md`.
 - `share.rs`, `base64.rs`: share codes; `recording.rs`: the `record` feature's JSON Lines.
   `content_hash.rs`: SHA-256 of the two file hashes (ADR-SVC-6).
   `parsed_stage_hash.rs`: the blocklist's hash (ADR-SVC-6), pinned in `tests/parsed_stage_hash.rs`.
