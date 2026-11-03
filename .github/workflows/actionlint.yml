@@ -1,7 +1,7 @@
 # Lints this repository's workflows with actionlint, which also runs shellcheck on `run:`
 # scripts, on PRs and pushes to main that touch them. The reusable workflow in
 # stella-rain/.github pins the binary and checks its SHA-256. Path-filtered, so auto-merge's
-# `require:` never names it (ADR-052); the PRs it checks are Kade's to merge.
+# `require:` never names it; the PRs it checks are Kade's to merge.
 name: actionlint
 
 on:

@@ -1,5 +1,5 @@
 # The long fuzz run of every fuzz target (`fuzz/fuzz_targets/`, listed by .github/scripts/fuzz_targets.py;
-# ADR-020 item 7, ADR-054): every week, on demand, and as a reusable workflow for Candidate
+# ADR-SVC-7 point 6, ADR-REL-12 point 5): every week, on demand, and as a reusable workflow for Candidate
 # (candidate.yml calls it).
 # `rust.yml` keeps the 60-second run of a PR that touches parsing.
 #
