@@ -136,6 +136,8 @@ mod levels;
 mod loadout;
 mod offer_rating;
 pub(crate) use offer_rating::offer_ratings;
+#[cfg(test)]
+mod damage_tests;
 mod orbit;
 mod player;
 #[cfg(test)]
