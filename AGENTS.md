@@ -42,7 +42,7 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
 | `.github/` | Workflows and the scripts they run |
 | `clippy.toml` | Bans `f32`, `f64`, `HashMap`, `HashSet` (ADR-SIM-3) |
 
-What is inside these folders loads from `.claude/rules/` when those files are touched.
+What is inside these folders loads from `.claude/rules/` when those files are touched; `.agents/rules/` holds the same files with `globs:`, edited together.
 ## Gates
 
 | Part | Gate |
