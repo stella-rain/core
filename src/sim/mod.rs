@@ -1,4 +1,4 @@
-//! The live rules (ADR-REPL-13, ADR-REPL-13): the module that runs the newest `sim_version`, with the
+//! The live rules (ADR-REPL-13): the module that runs the newest `sim_version`, with the
 //! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-SIM-17).
 //!
 //! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-21); a

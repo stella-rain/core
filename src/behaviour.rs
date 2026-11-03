@@ -282,7 +282,7 @@ pub enum Action {
     },
 }
 
-/// A skill block (ADR-SIM-18, ADR-SIM-18). Percentages are whole percent.
+/// A skill block (ADR-SIM-18). Percentages are whole percent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Skill {

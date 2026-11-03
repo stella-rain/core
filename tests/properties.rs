@@ -1,4 +1,4 @@
-//! Property tests (ADR-SIM-17, ADR-SIM-17): invariants that must hold for any input sequence, run on
+//! Property tests (ADR-SIM-17): invariants that must hold for any input sequence, run on
 //! the stages of the replay corpus. `proptest` shrinks a failure to the shortest inputs that
 //! still fail and saves the seed in `proptest-regressions/`; commit that file with the fix.
 //!

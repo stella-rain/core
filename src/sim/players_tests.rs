@@ -156,7 +156,7 @@ fn a_party_of_two_has_two_views() {
     assert_eq!(places.players[1], s2.players[p1()].at);
 }
 
-// ---- Slots 0 to 2 are reserved (ADR-SIM-21, ADR-SIM-21) ----
+// ---- Slots 0 to 2 are reserved (ADR-SIM-21) ----
 
 fn ps(e: &Engine) -> super::state::PlayerState {
     live(e).1.players[PlayerIdx::SOLO].clone()
@@ -698,7 +698,7 @@ mod offers {
 }
 
 // The expertise gauge, the run's Stardust and the regeneration are per slot: `Career.expertise`,
-// `Career.stardust`, `Career.regen` (ADR-SIM-21, ADR-SIM-21).
+// `Career.stardust`, `Career.regen` (ADR-SIM-21).
 
 mod career_rest {
     use super::super::state::{ExpertiseGauge, ExpertiseOffer};
@@ -953,7 +953,7 @@ mod career_rest {
 }
 
 /// Routing to the acting player: the slot of an entity, the offers of each slot, and the picks
-/// of a party (ADR-SIM-21, ADR-SIM-21, ADR-SIM-16).
+/// of a party (ADR-SIM-21, ADR-SIM-16).
 mod route {
     use super::super::state::{Due, OfferState};
     use super::*;

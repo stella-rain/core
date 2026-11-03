@@ -122,7 +122,7 @@ pub(crate) fn id_gap(party: usize) -> u32 {
 }
 
 /// The number the crit roll and the push-apart key `id` by in a party whose `id_gap` is `gap`: a
-/// player's slot as it is, every other entity `gap` lower (ADR-SIM-21, ADR-SIM-21). A rule of
+/// player's slot as it is, every other entity `gap` lower (ADR-SIM-21). A rule of
 /// the simulation, not an encoding: the hash and the savepoint write entity numbers as they are.
 #[inline]
 pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
@@ -194,7 +194,7 @@ impl PlayerIdx {
 #[cfg(test)]
 mod gap_tests {
     //! The map between the live rules' entity numbers (players first, slots 0 to 2 reserved) and
-    //! the compact numbers the crit roll and the push-apart key by (ADR-SIM-21, ADR-SIM-21).
+    //! the compact numbers the crit roll and the push-apart key by (ADR-SIM-21).
     use super::*;
 
     #[test]

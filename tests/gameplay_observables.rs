@@ -1,4 +1,4 @@
-//! The gameplay observables pin (ADR-SIM-21, ADR-SIM-21). One digest per case over everything a
+//! The gameplay observables pin (ADR-SIM-21). One digest per case over everything a
 //! player or the app can read from a run: the events of every tick, the outcome, the snapshot
 //! (every tick of a stage case, every `SNAPSHOT_STRIDE`-th tick and the last of a run or bench
 //! case), then the ledger and the kill tally at the end. It leaves out the state hash and the
