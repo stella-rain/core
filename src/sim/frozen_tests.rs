@@ -5,7 +5,7 @@ use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 8_148_982_153_939_929_215;
+const SIM_V1_SOURCE: u64 = 8_091_220_405_681_644_702;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
 /// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, so the list is closed.
