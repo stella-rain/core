@@ -498,6 +498,9 @@ fn unreserved_state(
                 runes: Vec::new(),
                 aggro: 0,
                 statuses: Default::default(),
+                down_ticks: 0,
+                revive_hold: 0,
+                out: false,
             },
             Career::new(
                 seed,
