@@ -1665,3 +1665,19 @@ mod stats_events {
         assert_eq!(sources, vec![some(1), None, some(1)]);
     }
 }
+
+#[test]
+fn lookups_follow_the_mask_in_a_hole() {
+    use crate::id::PlayerIdx as P;
+    let mut e = Engine::start(&crate::run_setup::RunSetup::default()).unwrap();
+    assert!(live(&e).1.find(EntityId(1)).is_none());
+    e.join(P::Third).unwrap();
+    let s = live(&e).1;
+    assert!(s.find(EntityId(1)).is_none());
+    assert!(matches!(s.find(EntityId(2)), Some(Who::Player(P::Third))));
+    assert!(matches!(
+        s.find_ally(EntityId(2)),
+        Some(Who::Player(P::Third))
+    ));
+    assert!(s.find_ally(EntityId(1)).is_none());
+}

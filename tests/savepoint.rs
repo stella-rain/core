@@ -632,14 +632,24 @@ fn an_edited_record_restores_with_the_edited_totals_and_saves_the_same_bytes() {
 }
 
 #[test]
-fn a_record_for_a_player_who_is_not_in_the_party_is_damaged() {
+fn a_record_for_a_player_who_is_not_in_the_party_is_accepted() {
+    // A player who left keeps the totals they had, so the record of an absent slot may hold
+    // them; the record is unhashed and trusted like the replay prefix.
     let rec = run(450);
     let prefix = rec.replay();
     let mut bytes = rec.save();
     // Slot 2's damage_dealt, 40 bytes into the record.
     bytes[HEADER_LEN + 40] = 1;
     reseal(&mut bytes);
-    refused_bundled(&bytes, &prefix, SavepointError::Damaged, &prefix);
+    let restored = restore(&bytes, &prefix).unwrap();
+    assert_eq!(
+        restored
+            .engine()
+            .player_stats()
+            .slot(PlayerIdx::new(2).unwrap())
+            .damage_dealt,
+        1
+    );
 }
 
 #[test]

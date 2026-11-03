@@ -491,16 +491,22 @@ impl PlayerStats {
         self.slots[player.get()]
     }
 
-    /// The record of a savepoint of the party `mask`: a slot that is not in the party is zero,
-    /// or the record is refused.
-    pub(crate) fn decode_for(r: &mut Reader<'_>, mask: u8) -> Result<PlayerStats, DecodeError> {
-        let stats = PlayerStats::decode(r)?;
-        for (i, s) in stats.slots.iter().enumerate() {
-            if mask >> i & 1 == 0 && *s != SlotStats::default() {
-                return Err(DecodeError::Invalid("stats of an absent player"));
-            }
-        }
-        Ok(stats)
+    /// Credits `damage` to `player` (tests).
+    #[cfg(test)]
+    pub(crate) fn hit_for_test(&mut self, player: PlayerIdx, damage: u32) {
+        self.hit(player.id(), None, damage);
+    }
+
+    /// Zeroes one slot's totals: a player who joins starts a count of their own. A leaver's
+    /// totals stay as they were at the leave until then (only present slots earn more).
+    pub(crate) fn reset_slot(&mut self, player: PlayerIdx) {
+        self.slots[player.get()] = SlotStats::default();
+    }
+
+    /// The record of a savepoint of the party `mask`. A slot outside the party may hold the
+    /// totals of a player who left: the record is unhashed and trusted like the replay prefix.
+    pub(crate) fn decode_for(r: &mut Reader<'_>, _mask: u8) -> Result<PlayerStats, DecodeError> {
+        PlayerStats::decode(r)
     }
 
     /// The slot an entity number names, if it is a player's.
@@ -985,15 +991,21 @@ mod player_stats_tests {
     }
 
     #[test]
-    fn a_record_for_an_absent_player_is_refused() {
+    fn a_record_for_an_absent_player_is_accepted() {
+        // A player who left keeps the totals they had; the record is trusted.
         use crate::savepoint::testing::to_bytes;
         let bytes = to_bytes(&folded(&[hit(Some(1), None, 9)]));
         let read = |mask| PlayerStats::decode_for(&mut Reader::new(&bytes), mask);
         assert_eq!(read(0b011).map(|s| s.slot(slot(1)).damage_dealt), Ok(9));
-        assert_eq!(
-            read(0b001),
-            Err(DecodeError::Invalid("stats of an absent player"))
-        );
+        assert_eq!(read(0b101).map(|s| s.slot(slot(1)).damage_dealt), Ok(9));
+    }
+
+    #[test]
+    fn a_joining_slot_starts_a_count_of_its_own() {
+        let mut stats = folded(&[hit(Some(1), None, 9), hit(Some(0), None, 4)]);
+        stats.reset_slot(slot(1));
+        assert_eq!(stats.slot(slot(1)), SlotStats::default());
+        assert_eq!(stats.slot(slot(0)).damage_dealt, 4);
     }
 
     #[test]

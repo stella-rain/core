@@ -3,6 +3,7 @@
 //! `replay_at`, save and verify agree on a run whose presence mask moves.
 
 use crate::common::run::trial_setup;
+use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome, PresenceError};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
@@ -34,7 +35,8 @@ fn advance(engine: &mut Engine, from: u32, to: u32) {
             inputs[usize::from(holder)] = Input::picking(0);
             engine.step(&inputs);
         }
-        engine.step(&[a(t), d(), d()]);
+        let first = run_input(engine, t);
+        engine.step(&[first, d(), d()]);
     }
 }
 

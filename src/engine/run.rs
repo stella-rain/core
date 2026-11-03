@@ -295,6 +295,38 @@ impl Run {
         }
     }
 
+    /// The slots in the party, bit `i` for slot `i`: `0b001` under version 1.
+    pub(crate) fn present(&self) -> u8 {
+        match self {
+            Run::V1 { .. } => 0b001,
+            Run::V2 { state, .. } => state.players.mask(),
+        }
+    }
+
+    /// Slot 0's player as the run starts, for a joiner; none under version 1.
+    pub(crate) fn joiner_template(&self) -> Option<sim::state::Players> {
+        match self {
+            Run::V1 { .. } => None,
+            Run::V2 { state, .. } => Some(state.players.template()),
+        }
+    }
+
+    /// Slot `me` joins, built from `template`; the room is taken at once. Live rules only.
+    pub(crate) fn join(&mut self, me: PlayerIdx, template: &sim::state::Players) {
+        if let Run::V2 { world, state } = self {
+            let seed = state.crit_seed;
+            state.players.join(me, template, seed);
+            sim::reserve(world, state);
+        }
+    }
+
+    /// Slot `me` leaves. Live rules only.
+    pub(crate) fn leave(&mut self, me: PlayerIdx) {
+        if let Run::V2 { state, .. } = self {
+            state.players.leave(me);
+        }
+    }
+
     /// Whether `player` has an offer open.
     pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
         match self {

@@ -310,10 +310,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             width: map.width,
             height: map.height,
         },
-        players: (0..s.players.len())
-            .filter_map(|i| u8::try_from(i).ok().and_then(PlayerIdx::new))
-            .map(player_view)
-            .collect(),
+        players: s.players.indices().map(player_view).collect(),
         entities,
         zones: s
             .zones
