@@ -137,8 +137,10 @@ pub struct PartyCase {
 }
 
 /// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
-/// seeds are the first found where each answers at least one): the time_limit mode for two, the
-/// tutorial for three.
+/// seeds are found where, in the middle of the run, each answers an offer of its own): the
+/// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
+/// is cleared; in time_limit slot 1 answers in the middle of the run and slot 2 is not offered one
+/// (no seed of 1 to 300 gives both).
 pub fn party_cases() -> Vec<PartyCase> {
     let at = |mode: &str, seed: u64| RunSetup {
         mode: mode.into(),
@@ -155,6 +157,12 @@ pub fn party_cases() -> Vec<PartyCase> {
         PartyCase {
             name: "three_tutorial",
             setup: at("tutorial", 67),
+            party: 3,
+            ticks: 3000,
+        },
+        PartyCase {
+            name: "three_time_limit",
+            setup: at("time_limit", 22),
             party: 3,
             ticks: 3000,
         },
