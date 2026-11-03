@@ -1,6 +1,6 @@
-//! The stage file (ADR-006): data only, parsed strictly (ADR-018, ADR-020). Unknown fields are
-//! rejected everywhere. Field names follow ADR-036's shape and are placeholders until the
-//! freeze (ADR-035); the validator (budgets, registry, text) is separate.
+//! The stage file (ADR-CONT-11): data only, parsed strictly (ADR-CONT-11, ADR-SVC-7). Unknown fields are
+//! rejected everywhere. Field names follow ADR-SIM-18's shape and are placeholders until the
+//! freeze (ADR-REPL-12); the validator (budgets, registry, text) is separate.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub struct Stage {
     #[serde(default)]
     #[schemars(length(max = crate::validate::limits::MAX_DESCRIPTION_CHARS))]
     pub description: String,
-    /// Seeds the run's SplitMix64 (ADR-033). 32 bits so that every tool reading the file as
+    /// Seeds the run's SplitMix64 (ADR-SIM-16). 32 bits so that every tool reading the file as
     /// JSON, GDScript included, keeps it exact; the simulation widens it.
     pub seed: u32,
     /// Ticks until the stage ends if the boss is still alive.
@@ -46,11 +46,11 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up giving a stat point (ADR-079 §2); a mode's stages
+    /// Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages
     /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
-    /// Falling stars and the offers they open (ADR-079 §2, §3, ADR-068); only with `levels`.
+    /// Falling stars and the offers they open (ADR-REPL-16); only with `levels`.
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
@@ -58,7 +58,7 @@ pub struct Stage {
     /// a stage heals only by a reward.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub heal: Option<Healing>,
-    /// The most elites alive at once (ADR-068); `MAX_ELITES_ALIVE` when absent. An elite that
+    /// The most elites alive at once; `MAX_ELITES_ALIVE` when absent. An elite that
     /// would spawn past it does not, and a wave counts it as spawned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_ELITES_ALIVE))]
@@ -71,19 +71,19 @@ pub struct Stage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_CROWD_TARGET))]
     pub crowd_target: Option<u16>,
-    /// The levels of the expertise style path (ADR-106 §4); `LevelTable::NORMAL` when absent.
+    /// The levels of the expertise style path; `LevelTable::NORMAL` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_table: Option<LevelTable>,
-    /// How a kill's Stardust grows over the run (ADR-109): without it the run counts none.
+    /// How a kill's Stardust grows over the run: without it the run counts none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<StardustFactor>,
 }
 
-/// The Stardust time factor (ADR-109 decision 2): a table of time tiers, each the tick it starts
+/// The Stardust time factor: a table of time tiers, each the tick it starts
 /// at and a percent. A kill's base Stardust is multiplied by the percent of the last tier that
 /// started at or before the kill tick, truncated toward zero; past the last tier's start
 /// (overtime included) the last tier holds. A mode's run takes the mode file's table, or its
-/// difficulty's when the difficulty gives one (ADR-110 decision 2). `stardust_tiers_problem`
+/// difficulty's when the difficulty gives one. `stardust_tiers_problem`
 /// says what a valid table is.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -113,7 +113,7 @@ pub struct StardustTier {
 
 /// Why a Stardust tier table is not valid, if it is not: 1 to `limits::MAX_STARDUST_TIERS`
 /// tiers, the first at tick 0, the ticks rising strictly, each percent from 1 to
-/// `limits::MAX_STARDUST_PCT` (ADR-020).
+/// `limits::MAX_STARDUST_PCT` (ADR-SVC-7).
 pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
     use crate::validate::limits::{MAX_STARDUST_PCT, MAX_STARDUST_TIERS};
     if tiers.is_empty() || tiers.len() > MAX_STARDUST_TIERS {
@@ -136,10 +136,10 @@ pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
 }
 
 /// The highest level a level table may name: the last level whose threshold the expertise file
-/// lists (ADR-106 §3, ADR-020).
+/// lists (ADR-SVC-7).
 pub const MAX_STYLE_LEVEL: u32 = 10;
 
-/// The expertise levels of a run's style path (ADR-106 §4): the level of the style choice, of
+/// The expertise levels of a run's style path: the level of the style choice, of
 /// each of the two style upgrades and of the capstone. Every other level is a common offer.
 /// The levels rise in that order, strictly, each from 1 to `MAX_STYLE_LEVEL`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -214,12 +214,12 @@ pub struct Stars {
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_BANISHES))]
     pub banishes: u8,
     /// The drop table: tiers by the player's level, the first from level 1, each later one from
-    /// a higher level (ADR-068). A star draws its rarity from the tier of the level reached.
+    /// a higher level. A star draws its rarity from the tier of the level reached.
     #[schemars(length(min = 1, max = crate::validate::limits::MAX_TIERS))]
     pub tiers: Vec<Tier>,
 }
 
-/// Healing (see `Stage::heal`). Hit points are in the stage's own scale (ADR-103).
+/// Healing (see `Stage::heal`). Hit points are in the stage's own scale.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Healing {
@@ -394,7 +394,7 @@ impl Map {
     }
 }
 
-/// The main character, as the creator configured it; challengers get exactly this (ADR-012).
+/// The main character, as the creator configured it; challengers get exactly this.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Player {
@@ -403,20 +403,20 @@ pub struct Player {
     pub hp: u32,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_PLAYER_ATK))]
     pub atk: u32,
-    /// Reduces every hit the main character takes (ADR-056); 0 when absent. It moves to the
-    /// run's setup when the setup exists (ADR-049).
+    /// Reduces every hit the main character takes; 0 when absent. It moves to the
+    /// run's setup when the setup exists.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// The one weapon, whose combos the main character makes by hand with both buttons
-    /// (ADR-084). It moves to the run's setup when the setup exists (ADR-049, ADR-051, ADR-107).
+    ///. It moves to the run's setup when the setup exists (ADR-REPL-16).
     pub weapon: WeaponRef<Weapon>,
-    /// Skill 1 (ADR-050). It moves to the run's setup with the character when the setup exists
-    /// (ADR-049).
+    /// Skill 1. It moves to the run's setup with the character when the setup exists
+    ///.
     pub evade: Evade,
 }
 
-/// A dash with invulnerability (ADR-050), on charges (ADR-074). A press with a charge ready
+/// A dash with invulnerability, on charges. A press with a charge ready
 /// dashes `distance` over `ticks`, along the movement direction, or along the facing when the
 /// stick is centred; the stick is ignored until the dash ends, and a press during it with a
 /// charge ready starts the next dash at once. Invulnerability counts from the press, and so
@@ -435,7 +435,7 @@ pub struct Evade {
     #[serde(default = "one_charge", skip_serializing_if = "is_one_charge")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_EVADE_CHARGES))]
     pub charges: u8,
-    /// The most charges rewards can raise it to (ADR-074): `charges` when absent.
+    /// The most charges rewards can raise it to: `charges` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_EVADE_CHARGES))]
     pub max_charges: Option<u8>,
@@ -490,11 +490,11 @@ pub struct Wave {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_ENEMY_XP))]
     pub xp: Option<u32>,
-    /// The expertise points each enemy of the wave gives (ADR-078 §2); none when absent.
+    /// The expertise points each enemy of the wave gives; none when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
     /// The Stardust a kill of each enemy of the wave earns before the time factor, times 10
-    /// (ADR-109), at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage
+    /// at most `limits::MAX_STARDUST_BASE`; none when absent. Counts only in a stage
     /// with a `stardust` factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_STARDUST_BASE))]
@@ -529,7 +529,7 @@ pub enum Side {
 }
 
 /// What a hit and a kill by an A or a B step of a combo add to the one expertise gauge
-/// (ADR-078 §2): elites, bosses and the Star-Hunter give far more. Other damage gives none.
+///: elites, bosses and the Star-Hunter give far more. Other damage gives none.
 /// A hit on a boss part gives the boss's points per hit; its break is not a kill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -542,7 +542,7 @@ pub struct ExpertisePoints {
     pub kill: u32,
 }
 
-/// Tier 2 (ADR-036): body parts and an ordered list of phases that only move forward.
+/// Tier 2 (ADR-SIM-18): body parts and an ordered list of phases that only move forward.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Boss {
@@ -553,11 +553,11 @@ pub struct Boss {
     pub hp: u32,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
     pub radius: Fx,
-    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    /// Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
-    /// What it is weak and strong against (ADR-100); without one, every type is neutral against
+    /// What it is weak and strong against; without one, every type is neutral against
     /// it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<Profile>,
@@ -567,10 +567,10 @@ pub struct Boss {
     pub parts: Vec<BossPart>,
     #[schemars(length(min = 1, max = crate::validate::limits::MAX_PHASES))]
     pub phases: Vec<Phase>,
-    /// When every elite alive joins the boss fight (ADR-068); without it the boss calls none.
+    /// When every elite alive joins the boss fight; without it the boss calls none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_elites: Option<CallElites>,
-    /// The expertise points the boss gives (ADR-078 §2); none when absent.
+    /// The expertise points the boss gives; none when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expertise: Option<ExpertisePoints>,
     /// The Stardust its kill earns before the time factor, times 10; as a wave's `stardust`.
@@ -591,7 +591,7 @@ pub struct CallElites {
     pub below_pct: Option<u8>,
 }
 
-/// A breakable part with its own HP and hurt circle (ADR-007, ADR-036).
+/// A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-18).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BossPart {
@@ -605,11 +605,11 @@ pub struct BossPart {
     pub offset: Point,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]
     pub radius: Fx,
-    /// Reduces every hit it takes to `K / (K + defence)` of it (ADR-056); 0 when absent.
+    /// Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
-    /// Its own profile (ADR-100), not the boss's; without one, every type is neutral against it.
+    /// Its own profile, not the boss's; without one, every type is neutral against it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<Profile>,
 }
@@ -660,7 +660,7 @@ pub enum Step {
     },
     Attack {
         attack: AttackRef,
-        /// A big pattern (ADR-103): announced in the snapshot, with the ticks left until it
+        /// A big pattern: announced in the snapshot, with the ticks left until it
         /// starts, while the timed steps before it run. Only a preset can be big; its ID names
         /// it.
         #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]

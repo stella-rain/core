@@ -1,4 +1,4 @@
-//! The runes file (ADR-099, ADR-067: data picks, code acts): each rune's numbers. What a rune
+//! The runes file (ADR-CONT-11: data picks, code acts): each rune's numbers. What a rune
 //! does is code (`sim`'s runes); when it fires and how hard is this file's. An on-hit
 //! rune has a cooldown, a base damage and its own attack: phases as any attack's, whose hit
 //! boxes are centred on the point the combo step hit instead of on the main character.
@@ -9,9 +9,9 @@
 //! and `range`, 1 to `MAX_ASSIST_RANGE`, within which they pick their targets; both are
 //! required on it and refused on every other rune.
 //!
-//! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, every on-hit rune of the closed list once, and
-//! bounds under hard caps (ADR-099 point 7): a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS`, a
+//! bounds under hard caps: a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS`, a
 //! damage of 1 to `MAX_DAMAGE`, and an attack of 1 to `MAX_RUNE_PHASES` phases, checked as any
 //! attack, that lasts no longer than the cooldown, so each rune has at most one attack going.
 //! It spawns no orbs, so no orb comes from a rune; it sets no damage of its own, the
@@ -21,7 +21,7 @@
 //! A damage-over-time rune (`damage_over_time`, each of the closed list once) has a tick
 //! interval of 1 to `MAX_DOT_INTERVAL_TICKS`, no longer than its duration, so it ticks at least
 //! once; a duration of 1 to `MAX_DOT_DURATION_TICKS`; a damage a stack of 1 to `MAX_DAMAGE`; a
-//! stack maximum of 1 to `MAX_DOT_STACKS`; and a damage type, or none for neutral (ADR-100).
+//! stack maximum of 1 to `MAX_DOT_STACKS`; and a damage type, or none for neutral.
 //! The bundled file, `content/runes.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 
@@ -38,22 +38,20 @@ use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest runes file read (a tuning value; ADR-020 decides that one exists).
+/// The largest runes file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_RUNES_BYTES: usize = 8 * 1024;
 /// The longest cooldown of an on-hit rune: a minute.
 pub const MAX_RUNE_COOLDOWN_TICKS: u32 = 3_600;
 /// The most phases an on-hit rune's attack has.
 pub const MAX_RUNE_PHASES: usize = 4;
-/// The most missiles homing missiles launch at once (a tuning value; ADR-099 point 7 decides
-/// that one exists).
+/// The most missiles homing missiles launch at once (a tuning value).
 pub const MAX_HOMING_MISSILES: u32 = 4;
-/// The longest tick interval of a damage-over-time rune: 10 seconds (a tuning value; ADR-099
-/// point 7 decides that one exists).
+/// The longest tick interval of a damage-over-time rune: 10 seconds (a tuning value).
 pub const MAX_DOT_INTERVAL_TICKS: u32 = 600;
 /// The longest duration of a damage-over-time status: a minute.
 pub const MAX_DOT_DURATION_TICKS: u32 = 3_600;
 /// The most stacks of a damage-over-time status: room above the design's 6 stacks (app#298).
-/// Runes are never upgraded (ADR-099 point 1), so no upgrade adds to them.
+/// Runes are never upgraded, so no upgrade adds to them.
 pub const MAX_DOT_STACKS: u32 = 10;
 
 /// The runes file.
@@ -66,7 +64,7 @@ pub struct RunesFile {
     pub damage_over_time: Vec<DamageOverTimeRune>,
 }
 
-/// A damage-over-time rune's numbers (ADR-099 point 2): the status a combo step's hit puts on
+/// A damage-over-time rune's numbers: the status a combo step's hit puts on
 /// the enemy hit.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -77,16 +75,16 @@ pub struct DamageOverTimeRune {
     pub interval_ticks: u32,
     /// Ticks it lasts after it was last applied, 1 to `MAX_DOT_DURATION_TICKS`.
     pub duration_ticks: u32,
-    /// The base damage of a tick for each stack, 1 to `MAX_DAMAGE` (ADR-056).
+    /// The base damage of a tick for each stack, 1 to `MAX_DAMAGE`.
     pub damage: u32,
     /// The most stacks it reaches, 1 to `MAX_DOT_STACKS`.
     pub max_stacks: u32,
-    /// Its ticks' damage type (ADR-100); absent, they are neutral.
+    /// Its ticks' damage type; absent, they are neutral.
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub damage_type: Option<DamageType>,
 }
 
-/// An on-hit rune's numbers (ADR-099 point 2).
+/// An on-hit rune's numbers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OnHitRune {
@@ -94,7 +92,7 @@ pub struct OnHitRune {
     /// Ticks it waits after it fires, 1 to `MAX_RUNE_COOLDOWN_TICKS`, at least its attack's
     /// length.
     pub cooldown_ticks: u32,
-    /// The base damage of its attack's hits, 1 to `MAX_DAMAGE` (ADR-056).
+    /// The base damage of its attack's hits, 1 to `MAX_DAMAGE`.
     pub damage: u32,
     /// Its attack's phases, 1 to `MAX_RUNE_PHASES`: hit boxes centred on the point hit, facing
     /// the way the main character faces as it fires; a phase's `type` is its hits' damage type.
@@ -104,7 +102,7 @@ pub struct OnHitRune {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub missiles: Option<u32>,
     /// Homing missiles only: how far from the main character its targets may be, 1 to
-    /// `MAX_ASSIST_RANGE`, as aim assist's range (ADR-072).
+    /// `MAX_ASSIST_RANGE`, as aim assist's range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<Fx>,
 }

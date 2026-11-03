@@ -221,7 +221,7 @@ impl Decode for EntityId {
     }
 }
 
-/// The index types of the frozen rules are their own types (ADR-REPL-9), coded the same way.
+/// The index types of the frozen rules are their own types (ADR-REPL-13), coded the same way.
 mod frozen_indices {
     use super::*;
     use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex};

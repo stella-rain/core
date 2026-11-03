@@ -1,11 +1,11 @@
-//! Run stats (ADR-079 §4, ADR-067): the stats a stat point can raise during a run, each with
+//! Run stats (ADR-REPL-16, ADR-CONT-11): the stats a stat point can raise during a run, each with
 //! its step and its limit. They are content, not code: a JSON list of any length up to
 //! `MAX_STATS`, read in its order, so a stat is added, removed or retuned by editing the file.
 //! Data picks, code acts: each stat names one of the effect kinds built in here
 //! (`StatEffect`), and a new kind of effect is a code change. Stats that share an effect add
 //! up.
 //!
-//! The file is untrusted (ADR-020), because it may later come from outside the app: a size
+//! The file is untrusted (ADR-SVC-7), because it may later come from outside the app: a size
 //! limit before parsing, strict parsing, the current versions only, and every field bounded.
 //! Stat IDs must be well-formed and unique within the file; they are the file's own, not
 //! registry entries, so a file can bring a stat this build has never seen as long as its
@@ -24,13 +24,13 @@ use crate::validate::limits::MAX_PLAYER_HP;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest run stats file read (a tuning value; ADR-020 decides that one exists).
+/// The largest run stats file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_RUN_STATS_BYTES: usize = 16 * 1024;
 /// The most stats a file lists.
 pub const MAX_STATS: usize = 32;
 /// The largest step: a percentage; for hit points, `MAX_HP_STEP`.
 pub const MAX_STEP: u32 = 100;
-/// The largest step of hit points: `MAX_STEP` at the design values, scaled (ADR-103).
+/// The largest step of hit points: `MAX_STEP` at the design values, scaled.
 pub const MAX_HP_STEP: u32 = MAX_STEP * crate::validate::limits::DAMAGE_SCALE;
 /// The most points one stat takes.
 pub const MAX_LIMIT: u8 = 20;
@@ -39,18 +39,18 @@ pub const MAX_TITLE_CHARS: usize = 32;
 /// The longest description, in characters.
 pub const MAX_DESCRIPTION_CHARS: usize = 160;
 
-/// The largest immunity to a new stun after one ends, in ticks (ADR-085 point 4): a placeholder
-/// bound, as the other limits are (ADR-020 decides that one exists).
+/// The largest immunity to a new stun after one ends, in ticks: a placeholder
+/// bound, as the other limits are (ADR-SVC-7 decides that one exists).
 pub const MAX_STUN_IMMUNE_TICKS: u32 = 600;
 
 /// The most the attack speed total's cap can be, in percent: the ceiling the run stats file's
-/// `max_attack_speed_pct` may not pass (ADR-020), and the largest total one of the options
+/// `max_attack_speed_pct` may not pass (ADR-SVC-7), and the largest total one of the options
 /// weighed in app#298 allowed. Expertise options have no stack limit, so the total saturates
-/// at the file's cap (ADR-099).
+/// at the file's cap.
 pub const MAX_ATTACK_SPEED_PCT: u32 = 800;
 
 /// What an attack does when an enemy or the boss makes it and the attack names none, when the
-/// file names none: 100 shown hit points, scaled (ADR-103). The file's value is bounded by
+/// file names none: 100 shown hit points, scaled. The file's value is bounded by
 /// `MAX_PLAYER_HP`, the most the main character holds.
 pub const DEFAULT_ENEMY_ATTACK_DAMAGE: u32 = 100 * crate::validate::limits::DAMAGE_SCALE;
 
@@ -75,13 +75,13 @@ pub enum StatEffect {
     /// `step` percent more damage from every attack of the main character.
     AttackPct,
     /// `step` percent faster attacks: a combo step's length divided by `1 + step / 100`
-    /// (ADR-070), each of its phases at least 1 tick.
+    /// each of its phases at least 1 tick.
     AttackSpeedPct,
     /// A `step` percent shorter evade cooldown (at least 1 tick).
     EvadePct,
     /// `step` percent more movement speed.
     SpeedPct,
-    /// `step` percent more experience from every kill, rounded down (ADR-068: the build that
+    /// `step` percent more experience from every kill, rounded down (the build that
     /// unlocks rarer stars sooner).
     XpPct,
 }
@@ -111,7 +111,7 @@ pub struct RunStat {
     pub limit: u8,
 }
 
-/// The stun rules (ADR-085 points 4 and 6): run rules read with the stats, as they are content
+/// The stun rules: run rules read with the stats, as they are content
 /// too. Both are tuning values; that each is bounded is the decision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

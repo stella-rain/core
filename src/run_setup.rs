@@ -1,10 +1,10 @@
-//! The run setup (ADR-051 §1): what a run of the launch game starts from, and all it starts
-//! from. The mode, the weapon (a content ID, ADR-026, ADR-107) and its tree (ADR-117), and the seed of the
-//! run's SplitMix64 (ADR-033). No expertise level: every run starts at level 0 (ADR-079 §1).
+//! The run setup (ADR-REPL-16): what a run of the launch game starts from, and all it starts
+//! from. The mode, the weapon (a content ID, ADR-CONT-12) and its tree (ADR-REPL-16), and the seed of the
+//! run's SplitMix64 (ADR-SIM-16). No expertise level: every run starts at level 0 (ADR-REPL-16).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
 //!
-//! A setup is untrusted (ADR-020): a size limit before parsing, strict parsing, the current
+//! A setup is untrusted (ADR-SVC-7): a size limit before parsing, strict parsing, the current
 //! versions only, and IDs that exist with the right kind and no newer than the setup's
 //! `sim_version`. Anything else fails closed, with one message per problem and its path, never
 //! text from the file.
@@ -33,15 +33,15 @@ pub const MAX_SETUP_BYTES: usize = 4096;
 pub const MAX_STAR_POOL: usize = crate::rewards::MAX_REWARDS;
 /// The most extra rerolls a setup brings.
 pub const MAX_EXTRA_REROLLS: u8 = 20;
-/// The perk set of a setup that names none: a setup written before perk sets existed (ADR-105).
+/// The perk set of a setup that names none: a setup written before perk sets existed.
 /// New setups always name theirs.
 pub const DEFAULT_PERK_SET: &str = "duelist";
 pub use crate::difficulties::DEFAULT_DIFFICULTY;
 /// The most runes a rune pool names: every rune once.
 pub const MAX_RUNE_POOL: usize = Rune::ALL.len();
-/// The most stars a run starts holding (ADR-107 point 2).
+/// The most stars a run starts holding.
 pub const MAX_CARRIED_STARS: usize = 5;
-/// The largest Lumine budget, the level of the Lumine upgrade at its most (ADR-107 point 2).
+/// The largest Lumine budget, the level of the Lumine upgrade at its most.
 pub const MAX_LUMINE: u8 = 10;
 /// The most run stats a stat priority names: the run stats file's own cap.
 pub const MAX_STAT_PRIORITY: usize = crate::pack::MAX_RUN_STATS;
@@ -54,7 +54,7 @@ pub struct CarriedStar {
 }
 
 /// What a run starts from: built by the app from local storage when a run starts, and stored
-/// in the run's replay (ADR-051).
+/// in the run's replay (ADR-REPL-16).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunSetup {
@@ -62,51 +62,50 @@ pub struct RunSetup {
     pub sim_version: u32,
     /// A mode ID: the content the run plays.
     pub mode: ContentId,
-    /// A weapon preset: the one weapon the run's main character carries (ADR-107).
+    /// A weapon preset: the one weapon the run's main character carries.
     pub weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo
+    /// Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo
     /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
     pub seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.
+    /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each
     /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
-    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// open, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and
     /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub upgrades: Vec<ContentId>,
-    /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
+    /// The perk set the run applies from tick 0, by the ID of the run's perk
     /// sets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.
     #[serde(default = "default_perk_set")]
     pub perk_set: ContentId,
-    /// The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:
+    /// The difficulty the run is played on, by the ID of the run's difficulties file:
     /// it scales the enemies, bounds the rarities and may set the mode's length. A setup written
     /// before difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.
     #[serde(default = "default_difficulty")]
     pub difficulty: ContentId,
-    /// The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each
+    /// The runes the random rune may draw: rune IDs, sorted, each
     /// once, at most `MAX_RUNE_POOL`. Empty: every rune.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rune_pool: Vec<ContentId>,
-    /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
+    /// The stars the run starts holding, at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
     /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub carried: Vec<CarriedStar>,
-    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
-    /// point 2).
+    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub lumine: u8,
-    /// A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It
+    /// A rune the run starts holding: in the rune pool when there is one. It
     /// costs no Lumine, and the random rune never draws it again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub starting_rune: Option<ContentId>,
@@ -152,7 +151,7 @@ impl Default for RunSetup {
 /// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
 /// auto mode is only the player's switch, recorded as input. A setup or replay written before
 /// that carries `"auto_combo": false`, which is ignored; `true` asked for a run that no longer
-/// exists, so it is refused (ADR-020).
+/// exists, so it is refused (ADR-SVC-7).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RunSetupFile {
@@ -160,51 +159,50 @@ struct RunSetupFile {
     sim_version: u32,
     /// A mode ID: the content the run plays.
     mode: ContentId,
-    /// A weapon preset: the one weapon the run's main character carries (ADR-107).
+    /// A weapon preset: the one weapon the run's main character carries.
     weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-117), by the tree's ID: it sets the combo
+    /// Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo
     /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
     /// tree, so a setup written before trees existed reads as it always did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weapon_tree: Option<ContentId>,
-    /// Seeds the run's SplitMix64 (ADR-033), all 64 bits.
+    /// Seeds the run's SplitMix64 (ADR-SIM-16), all 64 bits.
     seed: u64,
     /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-079 §1), each at most once. Absent: every reward in the file.
+    /// in the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
-    /// The permanent upgrades the player holds (ADR-079): registered upgrade IDs, sorted, each
+    /// The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each
     /// once, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is
-    /// open, ADR-117): an old setup that names `giant_sword_aab` and the others still reads, and
+    /// open, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and
     /// they are ignored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     upgrades: Vec<ContentId>,
-    /// The perk set the run applies from tick 0 (ADR-105, ADR-107), by the ID of the run's perk
+    /// The perk set the run applies from tick 0, by the ID of the run's perk
     /// sets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`.
     #[serde(default = "default_perk_set")]
     perk_set: ContentId,
-    /// The difficulty the run is played on (ADR-110), by the ID of the run's difficulties file:
+    /// The difficulty the run is played on, by the ID of the run's difficulties file:
     /// it scales the enemies, bounds the rarities and may set the mode's length. A setup written
     /// before difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing.
     #[serde(default = "default_difficulty")]
     difficulty: ContentId,
-    /// The runes the random rune may draw (ADR-099 point 4a, ADR-107): rune IDs, sorted, each
+    /// The runes the random rune may draw: rune IDs, sorted, each
     /// once, at most `MAX_RUNE_POOL`. Empty: every rune.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     rune_pool: Vec<ContentId>,
-    /// The stars the run starts holding (ADR-107 point 3), at most `MAX_CARRIED_STARS`: each
+    /// The stars the run starts holding, at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
     /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     carried: Vec<CarriedStar>,
-    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE` (ADR-107
-    /// point 2).
+    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.
     #[serde(default, skip_serializing_if = "is_zero")]
     lumine: u8,
-    /// A rune the run starts holding (ADR-107 point 3): in the rune pool when there is one. It
+    /// A rune the run starts holding: in the rune pool when there is one. It
     /// costs no Lumine, and the random rune never draws it again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     starting_rune: Option<ContentId>,
@@ -488,7 +486,7 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
 /// As `validate`, and against the run's content files: the perk set is one of the perk sets
 /// file's, the difficulty one of the difficulties file's, every star pool entry a reward of the rewards file, every carried star a reward of the rewards file (and of the star pool, when the
 /// setup names one) that is not the random rune, a reward carried no more times than it
-/// stacks, and the carried stars' costs within the Lumine budget (ADR-107 point 4). The call
+/// stacks, and the carried stars' costs within the Lumine budget. The call
 /// `Engine::start_with` makes.
 pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> {
     validate(setup)?;
@@ -662,7 +660,7 @@ fn stage_on(
         }
     };
     let mut stage = base.clone();
-    // The run's rules are its setup's (ADR-REPL-9); the mode file's own version is not the run's.
+    // The run's rules are its setup's (ADR-REPL-13); the mode file's own version is not the run's.
     stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
@@ -818,7 +816,7 @@ pub(crate) fn time_limit_run(
 }
 
 /// The most ticks a replay of `stage` may hold. A `time_limit` run's stage ends at the length
-/// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-079).
+/// and the overtime; its replay may also hold the Star-Hunter's extra time (ADR-REPL-16).
 pub fn max_replay_ticks(setup: &RunSetup, stage: &Stage, time_limit: &TimeLimit) -> u32 {
     if setup.mode.as_str() == "time_limit" {
         stage

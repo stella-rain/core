@@ -1,4 +1,4 @@
-//! Domain events, backend to frontend over the event bus (ADR-016). They drive the frontend's
+//! Domain events, backend to frontend over the event bus (ADR-BRDG-12). They drive the frontend's
 //! effects and sounds, the debug overlay and golden tests; the simulation never reads them.
 //! In a recording each is `{"type": ..., "data": {...}}`.
 
@@ -15,7 +15,7 @@ use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
 
-/// Which button's press took a combo step (ADR-070): A or B.
+/// Which button's press took a combo step: A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Press {
@@ -59,14 +59,14 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target_kind: Option<KindIndex>,
         damage: u32,
-        /// The damage type the hit was dealt in (ADR-100), whatever its source: a weapon, a rune,
+        /// The damage type the hit was dealt in, whatever its source: a weapon, a rune,
         /// the stage skill, a burst or a damage-over-time tick; left out when neutral.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         damage_type: Option<DamageType>,
-        /// The match-up the hit got (ADR-100); left out when none.
+        /// The match-up the hit got; left out when none.
         #[serde(default, skip_serializing_if = "MatchUp::is_none")]
         match_up: MatchUp,
-        /// The rune that dealt the hit (ADR-099): the on-hit rune whose attack landed, or the
+        /// The rune that dealt the hit: the on-hit rune whose attack landed, or the
         /// damage-over-time rune whose status ticked; left out for every other hit.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rune: Option<Rune>,
@@ -78,7 +78,7 @@ pub enum DomainEvent {
         echo: bool,
         /// The player credited with the hit, by its entity number (0 to 2, as `Healed::target`
         /// names one): the owner of the shot, or slot 0 for a companion's. Left out for a hit
-        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-12).
+        /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-21).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         player: Option<EntityId>,
         /// The other player whose attack-up was on `player` when the hit landed. Left out when
@@ -119,18 +119,18 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         source: Option<EntityId>,
     },
-    /// `target`'s stun ran out; it is immune to a new one for the immunity ticks (ADR-085).
+    /// `target`'s stun ran out; it is immune to a new one for the immunity ticks.
     StunEnded {
         target: EntityId,
     },
-    /// The main character started an evade (ADR-074).
+    /// The main character started an evade.
     Evaded,
-    /// The main character used its stage skill, at `level` (ADR-075).
+    /// The main character used its stage skill, at `level`.
     StageSkillUsed {
         skill: ContentId,
         level: u8,
     },
-    /// A press took a combo step (ADR-070): the step `depth` presses from the root.
+    /// A press took a combo step: the step `depth` presses from the root.
     ComboStep {
         press: Press,
         #[schemars(range(min = 1, max = i64::from(crate::validate::limits::MAX_COMBO_DEPTH)))]
@@ -140,7 +140,7 @@ pub enum DomainEvent {
     /// with no next step.
     ComboReset,
     /// A charged step was released at `level` (from 1; a release before level 1 is a plain step
-    /// and says nothing), `perfect` inside the level's perfect window (ADR-070).
+    /// and says nothing), `perfect` inside the level's perfect window.
     ChargeReleased {
         level: u8,
         perfect: bool,
@@ -148,13 +148,13 @@ pub enum DomainEvent {
     /// A charge ended without an attack: an evade, or a hit from an attack that breaks charges.
     ChargeBroken,
     /// A held step's hold was let go, or reached its `max_ticks`, after `ticks` ticks held; its
-    /// release attack follows (ADR-084 point 6).
+    /// release attack follows.
     HoldReleased {
         ticks: u32,
     },
     /// A hold ended without a release: an evade, or a hit from an attack that breaks charges.
     HoldBroken,
-    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-036).
+    /// An agent's rule fired: `rule` is its index in the agent's (or boss phase's) list (ADR-SIM-18).
     RuleFired {
         agent: EntityId,
         rule: u8,
@@ -192,13 +192,13 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level` (ADR-079 §2): a stat is raised by the run's priority,
+    /// The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,
     /// or a stat offer is due (DS18).
     LeveledUp {
         level: u32,
     },
     /// A level-up raised the run stat `stat`, by the priority or by a choice: it now has
-    /// `spent` points (ADR-079 §4, DS18).
+    /// `spent` points (ADR-REPL-16, DS18).
     StatRaised {
         stat: ContentId,
         spent: u8,
@@ -209,7 +209,7 @@ pub enum DomainEvent {
     StatOfferOpened {
         options: Vec<ContentId>,
     },
-    /// A kill dropped the falling star `star` (ADR-079 §2).
+    /// A kill dropped the falling star `star` (ADR-REPL-16).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -224,12 +224,12 @@ pub enum DomainEvent {
         pickup: EntityId,
     },
     /// The boss called its elites: the `elites` alive leave their places and fight beside it,
-    /// and every elite that comes later is called at once (ADR-068).
+    /// and every elite that comes later is called at once.
     ElitesCalled {
         elites: u32,
     },
     /// An elite minute of a `time_limit` run brought the elite `elite`, of the sprite `asset`
-    /// (ADR-090); for a mimic, the sprite it is disguised as. Not sent when the cap on elites
+    ///; for a mimic, the sprite it is disguised as. Not sent when the cap on elites
     /// alive held it back.
     EliteSpawned {
         elite: EntityId,
@@ -244,34 +244,34 @@ pub enum DomainEvent {
     EnemyRelocated {
         entity: EntityId,
     },
-    /// The elite `elite` left the map without dying: no kill, no reward (ADR-090).
+    /// The elite `elite` left the map without dying: no kill, no reward.
     EliteLeft {
         elite: EntityId,
     },
     /// The main character touched the shrine `elite`: its guardians appeared and its timer began
-    /// (ADR-090).
+    ///.
     ShrineActivated {
         elite: EntityId,
     },
     /// The main character came within the mimic `elite`'s reveal radius: it is no longer
-    /// disguised, takes damage and acts as a grade elite from now on. Sent once (ADR-090).
+    /// disguised, takes damage and acts as a grade elite from now on. Sent once.
     MimicRevealed {
         elite: EntityId,
     },
     /// The main character's hit box broke the breakable orb of `owner` at `at`, and its burst did
-    /// not run (core Z2, ADR-127 point 37).
+    /// not run (core Z2).
     OrbBroken {
         owner: EntityId,
         at: Point,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-079 §3).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,
         candidates: Vec<ContentId>,
     },
     /// The reward was taken: the run now has it `taken` times. For a random rune, `rune` is
-    /// the rune it drew, now on the Main weapon (ADR-099).
+    /// the rune it drew, now on the Main weapon.
     RewardTaken {
         reward: ContentId,
         taken: u8,
@@ -299,7 +299,7 @@ pub enum DomainEvent {
         reward: ContentId,
     },
     /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
-    /// choice closes it (ADR-106 §4, §5; ADR-079 §2, §3).
+    /// choice closes it (ADR-REPL-16).
     ExpertiseOfferOpened {
         level: u32,
         kind: ExpertiseOfferKind,

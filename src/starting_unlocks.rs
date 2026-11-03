@@ -1,9 +1,9 @@
-//! The starting unlocks (DS5 Q10, ADR-080, ADR-099 point 4a, ADR-124): the weapons, perk sets,
+//! The starting unlocks (DS5 Q10, ADR-CONT-15, ADR-SAVE-11): the weapons, perk sets,
 //! stage skills and runes a new save begins with. The pack lists them; the app seeds a new save
 //! from the pack, so changing them is a content release, and a save that exists keeps what it
 //! has. The simulation never reads this file: no outcome depends on it.
 //!
-//! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most
 //! `MAX_STARTING_UNLOCKS` IDs, none twice. Each ID must be one the game knows: a weapon preset,
 //! a perk set, a stage skill or a rune of the pack's own files, so a pack never starts a save
@@ -28,7 +28,7 @@ use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 use crate::weapons::Weapons;
 
-/// The largest starting unlocks file read (a tuning value; ADR-020 decides that one exists).
+/// The largest starting unlocks file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_STARTING_UNLOCKS_BYTES: usize = 4 * 1024;
 /// The most IDs one list holds (6 across the lists today; a tuning value).
 pub const MAX_STARTING_UNLOCKS: usize = 32;

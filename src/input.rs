@@ -1,4 +1,4 @@
-//! The per-tick input record (ADR-016, ADR-071): the only external influence on a run, and all
+//! The per-tick input record (ADR-BRDG-12): the only external influence on a run, and all
 //! a replay stores. Touch, keyboard and later a gamepad produce the same record; it never says
 //! which device made it, and its fields are named for what they do, not for buttons or keys.
 //!
@@ -13,28 +13,28 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct Input {
     /// Movement direction and strength, each −127 to 127 (−128 counts as −127). The simulation
-    /// clamps the vector to length 127 and scales it to the character's speed (ADR-071).
+    /// clamps the vector to length 127 and scales it to the character's speed.
     pub move_x: i8,
     pub move_y: i8,
-    /// The Main attack button (A) is held on this tick (ADR-070).
+    /// The Main attack button (A) is held on this tick.
     pub main: bool,
-    /// The smash button (B) is held on this tick (ADR-070).
+    /// The smash button (B) is held on this tick.
     pub smash: bool,
     /// The evade button (X) is held on this tick: a press dashes when an evade is ready.
     pub evade: bool,
     /// The stage skill button (Y) is held on this tick: a press uses the skill in the slot when
-    /// it is ready (ADR-075).
+    /// it is ready.
     pub skill: bool,
-    /// Aim assist is on for this tick, a switch (ADR-072): a combo step faces the target.
+    /// Aim assist is on for this tick, a switch: a combo step faces the target.
     pub assist: bool,
-    /// Auto mode is on for this tick, a switch (ADR-073): the simulation plays the auto combo
+    /// Auto mode is on for this tick, a switch: the simulation plays the auto combo
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
     /// On a tick where an offer is open: the option to take, an index into the offer's `options`
-    /// (ADR-REPL-3). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
+    /// (ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pick: Option<u32>,
-    /// The interact button is held on this tick: the revive hold (ADR-SIM-13). Read by the down
+    /// The interact button is held on this tick: the revive hold (ADR-SIM-21). Read by the down
     /// and revive rules only; the simulation ignores it until they exist. Schema 2 only: the
     /// schema 1 stream cannot carry it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

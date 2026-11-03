@@ -1,9 +1,9 @@
-//! The game content a run reads besides its mode's stage (ADR-067): the run stats a point
-//! raises, the rewards an offer holds and the stage skills those name (ADR-098), the
-//! expertise levels (ADR-078), the match-up table (ADR-100), the runes (ADR-099) and the perk
-//! sets (ADR-105) and the difficulties (ADR-110). One value, so
+//! The game content a run reads besides its mode's stage (ADR-CONT-11): the run stats a point
+//! raises, the rewards an offer holds and the stage skills those name, the
+//! expertise levels, the match-up table, the runes and the perk
+//! sets and the difficulties. One value, so
 //! that a run's engine, its recorder and its verification read the same files, and the replay's
-//! content hash covers each of them (ADR-079 §5).
+//! content hash covers each of them (ADR-REPL-16).
 
 use crate::attack_presets::AttackPresets;
 use crate::constellations::Constellations;
@@ -44,7 +44,7 @@ pub struct RunContent {
     /// not). Not part of any run: nothing in the simulation reads it, and the pack's hash covers
     /// it with the rest of the pack.
     starting_unlocks: Option<StartingUnlocks>,
-    /// The rules the app pays a failed run's Stardust by (ADR-101 point 4): the pack's file, or
+    /// The rules the app pays a failed run's Stardust by: the pack's file, or
     /// the bundled one for a pack released without it. Outside what a run reads, as
     /// `starting_unlocks`: the pack's hash covers it, no derived content hash does.
     stardust: Stardust,
@@ -52,11 +52,11 @@ pub struct RunContent {
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
     trial_bytes: Vec<u8>,
-    /// The `tutorial` mode's stage, and its file's bytes as they are in the pack (ADR-086).
+    /// The `tutorial` mode's stage, and its file's bytes as they are in the pack.
     tutorial: Stage,
     tutorial_bytes: Vec<u8>,
     /// The SHA-256 of the pack these files were read from: the content hash of a run
-    /// (ADR-079 §5, ADR-080). `None` once any file is replaced: the run's hash is then derived
+    /// (ADR-REPL-16, ADR-CONT-15). `None` once any file is replaced: the run's hash is then derived
     /// from the files (`run_replay::content_sha256_with`).
     pack_sha256: Option<[u8; 32]>,
 }
@@ -238,7 +238,7 @@ impl RunContent {
         &self.trial_bytes
     }
 
-    /// The `tutorial` mode's stage (ADR-086).
+    /// The `tutorial` mode's stage.
     pub fn tutorial(&self) -> &Stage {
         &self.tutorial
     }
@@ -278,12 +278,12 @@ impl RunContent {
         &self.runes
     }
 
-    /// The perk sets a setup picks from (ADR-105, ADR-107).
+    /// The perk sets a setup picks from.
     pub fn perk_sets(&self) -> &PerkSets {
         &self.perk_sets
     }
 
-    /// The difficulties a setup picks from (ADR-110).
+    /// The difficulties a setup picks from.
     pub fn difficulties(&self) -> &Difficulties {
         &self.difficulties
     }
@@ -309,7 +309,7 @@ impl RunContent {
         self.starting_unlocks.as_ref()
     }
 
-    /// The Stardust rules (ADR-101 point 4): the pack's file, or the bundled one for content
+    /// The Stardust rules: the pack's file, or the bundled one for content
     /// from a pack released without it.
     pub fn stardust(&self) -> &Stardust {
         &self.stardust

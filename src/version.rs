@@ -1,32 +1,32 @@
-//! File and rule versions (ADR-017). Version 1 is the frozen first version (ADR-REPL-7): a
+//! File and rule versions (ADR-REPL-12). Version 1 is the frozen first version (ADR-REPL-13): a
 //! change to a type or to a rule's outcome is a new version, never an edit in place (for a
 //! rule, a gate in `sim`, a copy only for a rewrite), and version 0, the development version
 //! before the freeze, is refused everywhere. A file is read at any `sim_version` from
-//! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-9): the frozen versions keep loading.
-//! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-9).
+//! `FIRST_SIM_VERSION` up to `SIM_VERSION` (ADR-REPL-13): the frozen versions keep loading.
+//! `DEVELOPMENT` marks the live `SIM_VERSION` as open until the freeze (ADR-REPL-13).
 
 /// Structure of stage, event and replay files, as writers write it: 2 since the replay step log
-/// (ADR-REPL-7 point 4, ADR-REPL-10); files at `FIRST_SCHEMA_VERSION` are still read.
+/// (ADR-REPL-13 point 4, ADR-REPL-16); files at `FIRST_SCHEMA_VERSION` are still read.
 pub const SCHEMA_VERSION: u32 = 2;
 
-/// The oldest `schema_version` still read (ADR-REPL-7 point 4): schema 1 files keep loading.
+/// The oldest `schema_version` still read (ADR-REPL-13 point 4): schema 1 files keep loading.
 pub const FIRST_SCHEMA_VERSION: u32 = 1;
 
 /// The newest `schema_version` this build reads, the one `SCHEMA_VERSION` writes. Schema 2 changes the run replay's input stream and adds `Input.interact`;
-/// stage, pack and setup files have the same structure at 1 and 2 (ADR-REPL-7 point 4).
+/// stage, pack and setup files have the same structure at 1 and 2 (ADR-REPL-13 point 4).
 pub const NEWEST_READ_SCHEMA_VERSION: u32 = 2;
 
-/// Simulation rules: the open live version (ADR-REPL-9); version 1 is frozen in `sim_v1`.
+/// Simulation rules: the open live version (ADR-REPL-13); version 1 is frozen in `sim_v1`.
 pub const SIM_VERSION: u32 = 2;
 
 /// Set while the live rules (`sim_version` `SIM_VERSION`, module `sim`) are open and change in
-/// place (ADR-REPL-9). A replay or resume slot made on such a build is test-build data and may
+/// place (ADR-REPL-13). A replay or resume slot made on such a build is test-build data and may
 /// stop verifying. The freeze writes `tests/corpus/v<SIM_VERSION>/` once and removes this flag;
 /// the app shows one label while it is set and refuses to promote such a build. Nothing in core
 /// reads it: no rule, hash, file check or `read_*` function branches on it.
 pub const DEVELOPMENT: bool = true;
 
-/// The oldest simulation rules still read; version 0 is refused (ADR-REPL-7 point 8).
+/// The oldest simulation rules still read; version 0 is refused.
 pub const FIRST_SIM_VERSION: u32 = 1;
 
 /// Why a versioned file was not read. Paths and numbers only, never text from the file.
@@ -99,7 +99,7 @@ fn parse_error(e: serde_json::Error) -> ReadError {
 }
 
 /// Reads a versioned file (a pack, a stage or a run setup): the size limit first, then the
-/// versions alone, then the strict parse (ADR-017, ADR-SVC-1). The versions are read before the
+/// versions alone, then the strict parse (ADR-REPL-12, ADR-SVC-7). The versions are read before the
 /// rest because a file for a newer game may have fields this one rejects, and that file is
 /// "needs a newer version", not a parse error.
 pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
@@ -134,8 +134,7 @@ pub(crate) fn read_current_in<T: serde::de::DeserializeOwned>(
 }
 
 /// Reads a content file: it has no versions of its own and is read at the versions of the pack
-/// that holds it (ADR-CONT-3), checked here so that a future migration has them (ADR-REPL-7
-/// point 1). The size limit first, then the versions, then the strict parse.
+/// that holds it (ADR-CONT-15), checked here so that a future migration has them (ADR-REPL-12 point 1). The size limit first, then the versions, then the strict parse.
 pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,
@@ -152,8 +151,8 @@ pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
 }
 
 /// One step from an older version pair to the next: `apply` turns the file's JSON at `from`
-/// into the JSON of the version after it (ADR-REPL-7 point 4). The production table is empty:
-/// version 1 is the first version, and version 0 has no migration (ADR-REPL-7 point 8).
+/// into the JSON of the version after it (ADR-REPL-13 point 4). The production table is empty:
+/// version 1 is the first version, and version 0 has no migration.
 pub(crate) struct Migration {
     pub from: Versions,
     pub apply: fn(serde_json::Value) -> serde_json::Value,
@@ -180,10 +179,10 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 }
 
 /// Reads a replay file: the size limit first, then the versions alone (`header`), then the
-/// strict parse (ADR-017, ADR-SVC-1). `current` is the newest pair this game reads; either number
+/// strict parse (ADR-REPL-12, ADR-SVC-7). `current` is the newest pair this game reads; either number
 /// above it is `Newer`, whatever else the file holds. A schema in `oldest_schema..=current.schema`
 /// with a sim version in `oldest..=current.sim_version` is parsed as it is (this is how a schema 1
-/// and a schema 2 file both load, ADR-REPL-7 point 4); anything below that is migrated by a
+/// and a schema 2 file both load, ADR-REPL-13 point 4); anything below that is migrated by a
 /// migration for exactly that pair, applied to the JSON first (positions of a `Damaged` after a
 /// migration are in the migrated bytes), and without one the file is `Older`. A migration's
 /// output is checked, not trusted: over the size limit it is `TooLarge`, and a document whose

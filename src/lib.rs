@@ -1,7 +1,7 @@
-//! Stella Rain's deterministic simulation (ADR-004).
+//! Stella Rain's deterministic simulation (ADR-SIM-15).
 //!
 //! The same stage, seed and inputs give the same state hash every tick on every platform
-//! (ADR-019). Simulation state uses fixed-width integers only: no floats, no `usize`.
+//! (ADR-SIM-17). Simulation state uses fixed-width integers only: no floats, no `usize`.
 
 #![forbid(unsafe_code)]
 

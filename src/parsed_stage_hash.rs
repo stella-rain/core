@@ -1,9 +1,9 @@
-//! The parsed-stage hash (ADR-046): what the moderation blocklist blocks a stage by.
+//! The parsed-stage hash (ADR-SVC-13): what the moderation blocklist blocks a stage by.
 //!
 //! `SHA-256( TAG ‖ compact JSON of the validated stage, fields in declared order, `id` left
 //! out )`. It is taken over what `core` parsed, not over the file's bytes, so a reformatted
 //! copy, a copy under another stage ID or one with another replay keeps the hash; the content
-//! hash of ADR-034 does not. `blocklist.json` stores the result, so from the freeze of ADR-035
+//! hash of ADR-SVC-13 does not. `blocklist.json` stores the result, so from the freeze of ADR-REPL-12
 //! the definition is frozen: a change needs a new ADR and a new field name. The bytes are
 //! pinned in `tests/parsed_stage_hash.rs`.
 

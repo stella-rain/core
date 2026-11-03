@@ -1,11 +1,11 @@
 //! The weapons file (WP1, DS20 item 2): each weapon's combo trees as content data, so that a
-//! weapon is balanced as content and not as code. A weapon is a registered weapon ID (ADR-026)
-//! with one to `MAX_TREES` trees, tree 1 first (ADR-117); a tree is a `Weapon` (ADR-084), the
+//! weapon is balanced as content and not as code. A weapon is a registered weapon ID (ADR-CONT-12)
+//! with one to `MAX_TREES` trees, tree 1 first (ADR-REPL-16); a tree is a `Weapon`, the
 //! stage format's own type, under a tree ID of its own. A stage names one by ID and tree
 //! (`WeaponRef::Preset`), or holds an inline weapon. The attack presets are content too
-//! (ADR-CONT-8, CS1b-1, `attack_presets.rs`).
+//! (ADR-CONT-13, CS1b-1, `attack_presets.rs`).
 //!
-//! The file is untrusted (ADR-020), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most `MAX_WEAPONS`
 //! weapons with unique registered IDs, at most `MAX_TREES` trees each with unique well-formed
 //! IDs, and each tree checked as a stage's inline weapon is (`validate::validate_weapon_preset`).
@@ -24,7 +24,7 @@ use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
 use crate::weapon::{Weapon, WeaponRef};
 
-/// The largest weapons file read (a tuning value; ADR-020 decides that one exists).
+/// The largest weapons file read (a tuning value; ADR-SVC-7 decides that one exists).
 pub const MAX_WEAPONS_BYTES: usize = 512 * 1024;
 /// The most weapons the file lists (1 today; a tuning value).
 pub const MAX_WEAPONS: usize = 16;
@@ -93,7 +93,7 @@ impl Weapons {
         self.list.iter().map(|w| &w.id)
     }
 
-    /// The IDs of a weapon's trees, tree 1 first (ADR-117); none for an ID that is no weapon.
+    /// The IDs of a weapon's trees, tree 1 first (ADR-REPL-16); none for an ID that is no weapon.
     pub fn tree_ids(&self, weapon: &str) -> impl Iterator<Item = &ContentId> {
         self.list
             .iter()
@@ -102,7 +102,7 @@ impl Weapons {
             .flat_map(|w| w.trees.iter().map(|t| &t.id))
     }
 
-    /// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-020: fail
+    /// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-SVC-7: fail
     /// closed, and never echo the file's text): not a well-formed ID, or not one of the
     /// weapon's trees. A weapon with no definition is left to the weapon's own check.
     pub fn tree_problem(&self, weapon: &str, tree: &str) -> Option<&'static str> {
