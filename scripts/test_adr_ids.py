@@ -12,7 +12,7 @@ import adr_ids
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-IDS = {"SIM-19": 7}
+IDS = {"SIM-2": 7}
 
 
 def kinds(findings):
@@ -25,8 +25,8 @@ def scan(text, path="src/x.rs"):
 
 class TestScan(unittest.TestCase):
     def test_a_real_id_and_point_pass(self):
-        self.assertEqual(scan("// see ADR-SIM-19 point 7\n"), [])
-        self.assertEqual(scan("// see ADR-SIM-19\n"), [])
+        self.assertEqual(scan("// see ADR-SIM-2 point 7\n"), [])
+        self.assertEqual(scan("// see ADR-SIM-2\n"), [])
 
     def test_an_id_the_list_lacks_is_missing(self):
         self.assertEqual(kinds(scan("// ADR-SIM-3\n")), [(1, "missing", "ADR-SIM-3")])
@@ -36,17 +36,17 @@ class TestScan(unittest.TestCase):
                          [(1, "legacy", "ADR-020"), (2, "legacy", "ADR 080")])
 
     def test_a_point_above_the_count_is_found(self):
-        self.assertEqual(kinds(scan("// ADR-SIM-19 point 8\n")),
-                         [(1, "point", "ADR-SIM-19 point 8")])
-        found = kinds(scan("// ADR-SIM-19 points 3, 4 and 9\n"))
-        self.assertEqual(found, [(1, "point", "ADR-SIM-19 point 9")])
-        self.assertEqual(kinds(scan("// points 2 to 9 of ADR-SIM-19\n")),
-                         [(1, "point", f"ADR-SIM-19 point {n}") for n in (8, 9)])
+        self.assertEqual(kinds(scan("// ADR-SIM-2 point 8\n")),
+                         [(1, "point", "ADR-SIM-2 point 8")])
+        found = kinds(scan("// ADR-SIM-2 points 3, 4 and 9\n"))
+        self.assertEqual(found, [(1, "point", "ADR-SIM-2 point 9")])
+        self.assertEqual(kinds(scan("// points 2 to 9 of ADR-SIM-2\n")),
+                         [(1, "point", f"ADR-SIM-2 point {n}") for n in (8, 9)])
 
     def test_a_citation_wrapped_onto_the_next_comment_line(self):
-        text = "//! (ADR-SIM-19 point\n//! 9)\n"
-        self.assertEqual(kinds(scan(text)), [(1, "point", "ADR-SIM-19 point 9")])
-        self.assertEqual(scan("//! (ADR-SIM-19 point\n//! 7)\n"), [])
+        text = "//! (ADR-SIM-2 point\n//! 9)\n"
+        self.assertEqual(kinds(scan(text)), [(1, "point", "ADR-SIM-2 point 9")])
+        self.assertEqual(scan("//! (ADR-SIM-2 point\n//! 7)\n"), [])
 
     def test_a_document_path_is_found(self):
         self.assertEqual(kinds(scan("// see docs/design/combat.md\n")),
@@ -67,12 +67,12 @@ class TestScan(unittest.TestCase):
 
 
     def test_the_reason_lines_of_the_bench_ledger_are_records(self):
-        text = ('# The ledger (ADR-SIM-20 point 3).\n'
+        text = ('# The ledger (ADR-SIM-3 point 3).\n'
                 '[[accepted]]\n'
                 'reason = "player index threaded through every system (ADR-SIM-12)"\n'
                 'note = "ADR-SIM-12"\n')
         found = adr_ids.scan_text("benches/accepted.toml", text, IDS)
-        self.assertEqual(kinds(found), [(1, "missing", "ADR-SIM-20"), (4, "missing", "ADR-SIM-12")])
+        self.assertEqual(kinds(found), [(1, "missing", "ADR-SIM-3"), (4, "missing", "ADR-SIM-12")])
         # the same `reason` line in any other file is scanned
         other = adr_ids.scan_text("benches/other.toml", text.split("\n")[2] + "\n", IDS)
         self.assertEqual(kinds(other), [(1, "missing", "ADR-SIM-12")])
@@ -154,7 +154,7 @@ class TestGenerator(unittest.TestCase):
             self.assertEqual(run("check").returncode, 1)
 
     def test_parse_list_round_trips(self):
-        ids = {"SIM-19": 7, "SVC-7": 7}
+        ids = {"SIM-2": 7, "SVC-1": 7}
         self.assertEqual(adr_ids.parse_list(adr_ids.render(ids)), ids)
 
 
