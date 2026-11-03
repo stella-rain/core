@@ -135,6 +135,7 @@ mod leash_tests;
 mod levels;
 mod loadout;
 mod offer_rating;
+pub(crate) use offer_rating::offer_ratings;
 mod orbit;
 mod player;
 #[cfg(test)]
