@@ -172,13 +172,10 @@ fn the_recorder_refuses_what_it_cannot_record() {
             ..
         }
     ));
-    assert!(matches!(
+    assert_eq!(
         rec.choose(slot(2), 0).unwrap_err(),
-        RunReplayError::ChoiceRefused {
-            error: ChoiceError::NoPlayer { .. },
-            ..
-        }
-    ));
+        RunReplayError::BadInputs("a player outside the party")
+    );
     assert_eq!(rec.replay().ticks, 0);
 }
 

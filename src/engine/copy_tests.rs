@@ -213,10 +213,10 @@ fn recorder_at(version: u32) -> RunRecorder {
     };
     let mut r = Engine::forced(version, || RunRecorder::start(&setup).unwrap());
     for _ in 0..120 {
-        r.step(Input {
+        r.step(&[Input {
             main: true,
             ..Input::default()
-        })
+        }])
         .unwrap();
     }
     r

@@ -436,7 +436,7 @@ mod tests {
         use crate::run_setup::RunSetup;
         let mut rec = RunRecorder::start(&RunSetup::default()).unwrap();
         for _ in 0..30 {
-            rec.step(Input::default()).unwrap();
+            rec.step(&[Input::default()]).unwrap();
         }
         let prefix = rec.replay();
         let bytes = rec.save();

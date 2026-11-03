@@ -127,13 +127,49 @@ impl StepLog {
         }
     }
 
+    /// The number of PICKS records, the unit `MAX_COMMANDS` counts.
+    pub(crate) fn picks_made(&self) -> u32 {
+        let n = self
+            .records
+            .iter()
+            .filter(|r| matches!(r, Record::Picks { .. }))
+            .count();
+        u32::try_from(n).unwrap_or(u32::MAX)
+    }
+
+    /// The log cut at world tick `ticks`: a TICKS run clipped to the room left, a PICKS step
+    /// kept while the world tick it follows is at most `ticks`. A `ticks` past the end keeps
+    /// everything.
+    pub(crate) fn prefix(self, ticks: u32) -> StepLog {
+        let mut world = 0u32;
+        let mut records = Vec::new();
+        for record in self.records {
+            match record {
+                Record::Ticks { run, inputs } => {
+                    let take = run.min(ticks.saturating_sub(world));
+                    world = world.saturating_add(run);
+                    if take > 0 {
+                        records.push(Record::Ticks { run: take, inputs });
+                    }
+                }
+                Record::Picks { picks } => {
+                    if world <= ticks {
+                        records.push(Record::Picks { picks });
+                    }
+                }
+            }
+        }
+        StepLog {
+            present: self.present,
+            records,
+        }
+    }
+
     /// The solo commands of a log without expanding its inputs: a run of `run` ticks only moves
     /// the tick count, so a hostile `run` allocates nothing here.
     pub(crate) fn solo_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         if self.present != 0b1 {
-            return Err(RunReplayError::BadInputs(
-                "a party this recorder cannot resume yet",
-            ));
+            return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
         let mut tick = 0u32;
         let mut commands = Vec::new();
@@ -158,9 +194,7 @@ impl StepLog {
     /// one.
     pub(crate) fn to_solo(&self) -> Result<(Vec<Input>, Vec<TickCommand>), RunReplayError> {
         if self.present != 0b1 {
-            return Err(RunReplayError::BadInputs(
-                "a party this recorder cannot resume yet",
-            ));
+            return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
         let mut inputs = Vec::new();
         let mut commands = Vec::new();
@@ -859,14 +893,15 @@ mod tests {
     }
 
     #[test]
-    fn a_party_other_than_the_engines_is_refused() {
+    fn a_party_with_a_hole_is_refused() {
+        // Joining and leaving are later work: the party is the slots from slot 0.
         let one = run_with_picks();
-        for players in [2u8, 3] {
+        for present in [0b010u8, 0b100, 0b101, 0b110] {
             let log = StepLog {
-                present: (1 << players) - 1,
+                present,
                 records: vec![Record::Ticks {
                     run: one.ticks,
-                    inputs: vec![Input::default(); usize::from(players)],
+                    inputs: vec![Input::default(); present.count_ones() as usize],
                 }],
             };
             assert_eq!(
@@ -905,10 +940,10 @@ mod tests {
             };
             let mut rec = RunRecorder::start(&setup).unwrap();
             for tick in 0..90u8 {
-                rec.step(Input {
+                rec.step(&[Input {
                     move_x: i8::try_from(tick).unwrap(),
                     ..Input::default()
-                })
+                }])
                 .unwrap();
             }
             let two = rec.replay();

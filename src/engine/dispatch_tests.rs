@@ -98,7 +98,7 @@ fn the_run_variant_is_the_stage_version() {
         .unwrap_or_else(|e| panic!("{e:?}"));
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
-    recorder.step(Input::default()).unwrap();
+    recorder.step(&[Input::default()]).unwrap();
     let prefix = recorder.replay();
     let (restored, _) =
         crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
@@ -120,7 +120,7 @@ fn the_run_owns_its_world() {
         .unwrap_or_else(|e| panic!("{e:?}"));
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
     let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
-    recorder.step(Input::default()).unwrap();
+    recorder.step(&[Input::default()]).unwrap();
     let prefix = recorder.replay();
     let (restored, _) =
         crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
