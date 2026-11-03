@@ -290,3 +290,82 @@ fn only(ev: Vec<DomainEvent>, id: EntityId) -> Vec<DomainEvent> {
         })
         .collect()
 }
+
+#[allow(dead_code, reason = "shared with tests/, which uses more of it")]
+mod data_root {
+    include!("../../tests/data_root.rs");
+}
+
+/// The non-test part of a source file: everything before the first `#[cfg(test)]` that opens an
+/// inline test module (`mod tests {`); a `#[cfg(test)] mod x_tests;` line is only a declaration.
+fn code_of(text: &str) -> &str {
+    let mut at = 0;
+    let mut lines = text.split_inclusive('\n').peekable();
+    while let Some(line) = lines.next() {
+        if line.trim() == "#[cfg(test)]"
+            && lines.peek().is_some_and(|n| n.trim_end().ends_with('{'))
+        {
+            return &text[..at];
+        }
+        at += line.len();
+    }
+    text
+}
+
+/// `file:line` of each `hp_mut(` call in `text`, a definition (`fn hp_mut`) not counted.
+fn writes_in(file: &str, text: &str) -> Vec<String> {
+    code_of(text)
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| l.contains("hp_mut(") && !l.contains("fn hp_mut"))
+        .map(|(i, _)| format!("{file}:{}", i + 1))
+        .collect()
+}
+
+#[test]
+fn the_guard_finds_a_write() {
+    assert_eq!(writes_in("x.rs", "let hp = s.hp_mut(target);").len(), 1);
+    assert!(writes_in("x.rs", "let hp = s.hp(target);").is_empty());
+    assert!(
+        writes_in(
+            "x.rs",
+            "fn hp_mut(&mut self)\n#[cfg(test)]\nmod t {\ns.hp_mut(t)"
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn foe_hit_points_fall_in_one_place() {
+    let dir = data_root::data_root().join("src/sim");
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("src/sim") {
+        let path = entry.expect("an entry").path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if !name.ends_with(".rs") || name.ends_with("_tests.rs") {
+            continue;
+        }
+        // `damage.rs` is the write; `act.rs` is the heal, which raises hit points.
+        if name == "damage.rs" || name == "act.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).expect("a source file");
+        found.extend(writes_in(name, &text));
+    }
+    assert!(
+        found.is_empty(),
+        "a hit point write outside `damage::land`: {found:?}"
+    );
+}
+
+#[test]
+fn the_rating_reads_the_rules_formula_and_keeps_no_copy() {
+    let dir = data_root::data_root().join("src/sim/offer_rating.rs");
+    let text = std::fs::read_to_string(dir).expect("offer_rating.rs");
+    let code = code_of(&text);
+    assert!(code.contains("attacks::swing_damage("));
+    assert!(code.contains("combat::crit_damage("));
+    for copy in ["fn scale_damage", "fn swing_damage", "fn crit_damage"] {
+        assert!(!code.contains(copy), "{copy}");
+    }
+}
