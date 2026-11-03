@@ -50,13 +50,24 @@ fn answer_offers(rec: &mut RunRecorder, n: u8) {
 }
 
 /// The inputs of every slot at `tick`: slot 0 played by the zone bot, the others scripted.
-fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> Vec<Input> {
-    (0..n)
-        .map(|s| match s {
+fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
+    let mut inputs = [Input::default(); 3];
+    for s in 0..n {
+        inputs[usize::from(s)] = match s {
             0 => run_input(rec.engine(), tick),
             _ => input_of(usize::from(s), tick),
-        })
-        .collect()
+        };
+    }
+    inputs
+}
+
+/// A record's dense entries, one per present slot, padded to one entry per slot.
+fn slots<T: Copy + Default>(dense: &[T]) -> [T; 3] {
+    let mut all = [T::default(); 3];
+    for (to, from) in all.iter_mut().zip(dense) {
+        *to = *from;
+    }
+    all
 }
 
 fn step_party(rec: &mut RunRecorder, n: u8, tick: u32) {
@@ -156,22 +167,17 @@ fn a_stick_axis_of_minus_128_is_canonical() {
         move_x: -127,
         ..Input::default()
     };
-    rec.step(&[Input::default(), a]).unwrap();
-    rec.step(&[Input::default(), b]).unwrap();
+    rec.step(&[Input::default(), a, Input::default()]).unwrap();
+    rec.step(&[Input::default(), b, Input::default()]).unwrap();
     verify_run(&rec.replay().to_bytes()).unwrap();
 }
 
 #[test]
 fn the_recorder_refuses_what_it_cannot_record() {
     let mut rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
-    assert_eq!(
-        rec.step(&[Input::default(), Default::default(), Default::default()])
-            .unwrap_err(),
-        RunReplayError::BadInputs("one input per player")
-    );
     assert_eq!(rec.engine().tick(), 0);
     assert_eq!(
-        rec.picks(&[None, None]).unwrap_err(),
+        rec.picks(&[None, None, None]).unwrap_err(),
         RunReplayError::BadInputs("a step of picks holds a pick")
     );
     assert!(matches!(
@@ -334,10 +340,10 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    rec.step(inputs).unwrap();
+                    rec.step(&slots(inputs)).unwrap();
                 }
             }
-            RangeStep::Picks { picks } => rec.picks(picks).unwrap(),
+            RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
         }
     }
     (recorded, rec.replay())
@@ -463,10 +469,10 @@ fn drive(rec: &mut RunRecorder, range: &StepRange) {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    rec.step(inputs).unwrap();
+                    rec.step(&slots(inputs)).unwrap();
                 }
             }
-            RangeStep::Picks { picks } => rec.picks(picks).unwrap(),
+            RangeStep::Picks { picks } => rec.picks(&slots(picks)).unwrap(),
         }
     }
 }

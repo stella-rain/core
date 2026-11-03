@@ -1015,8 +1015,8 @@ mod route {
         o.taken.iter().map(|t| u32::from(*t)).sum()
     }
 
-    fn picks(of: &[(usize, u32)], n: usize) -> Vec<Input> {
-        let mut v = vec![Input::default(); n];
+    fn picks(of: &[(usize, u32)]) -> [Input; 3] {
+        let mut v = [Input::default(); 3];
         for (i, k) in of {
             v[*i] = Input::picking(*k);
         }
@@ -1085,13 +1085,13 @@ mod route {
         due_on(&mut e, 1);
         let (hash, tick) = (e.state_hash(), e.tick());
         let b = [0, 1].map(|i| taken_of(&e, i));
-        e.step(&picks(&[(0, 0)], 2));
+        e.step(&picks(&[(0, 0)]));
         assert_eq!(
             (e.state_hash(), e.tick()),
             (hash, tick),
             "slot 0 has no offer"
         );
-        e.step(&picks(&[(1, 0)], 2));
+        e.step(&picks(&[(1, 0)]));
         assert_eq!(e.tick(), tick, "the tick does not advance");
         assert_eq!((taken_of(&e, 0), taken_of(&e, 1)), (b[0], b[1] + 1));
     }
@@ -1102,7 +1102,7 @@ mod route {
         due_on(&mut e, 0);
         due_on(&mut e, 2);
         let (tick, b) = (e.tick(), [0, 1, 2].map(|i| taken_of(&e, i)));
-        e.step(&picks(&[(0, 0), (2, 0)], 3));
+        e.step(&picks(&[(0, 0), (2, 0)]));
         assert_eq!(
             [0, 1, 2].map(|i| taken_of(&e, i)),
             [b[0] + 1, b[1], b[2] + 1]
@@ -1113,7 +1113,7 @@ mod route {
         due_on(&mut e, 0);
         due_on(&mut e, 2);
         let b = [0, 1, 2].map(|i| taken_of(&e, i));
-        e.step(&picks(&[(0, 99), (2, 0)], 3));
+        e.step(&picks(&[(0, 99), (2, 0)]));
         assert_eq!((taken_of(&e, 0), taken_of(&e, 2)), (b[0], b[2] + 1));
         assert!(offer_of(&e, 0).is_some(), "slot 0's offer is still open");
         assert!(e.offer_open());

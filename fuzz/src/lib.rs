@@ -192,7 +192,11 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
 /// Takes option `index` of the open offer through a step, as `check_pick` allows it.
 fn take(engine: &mut Engine, index: u32) -> Result<(), ChoiceError> {
     engine.check_pick(PlayerIdx::SOLO, index)?;
-    engine.step(&[Input::picking(index), Default::default(), Default::default()]);
+    engine.step(&[
+        Input::picking(index),
+        Default::default(),
+        Default::default(),
+    ]);
     Ok(())
 }
 
@@ -315,6 +319,15 @@ const SAVEPOINT_CUTS: [u32; 2] = [150, 230];
 /// Ticks the target steps a loaded run on.
 const SAVEPOINT_EXTRA_STEPS: usize = 20;
 
+/// A record's dense entries, one per present slot, padded to one entry per slot.
+fn slots<T: Copy + Default>(dense: &[T]) -> [T; 3] {
+    let mut all = [T::default(); 3];
+    for (to, from) in all.iter_mut().zip(dense) {
+        *to = *from;
+    }
+    all
+}
+
 /// The recorder of `run` (a verified run of any party size, from slot 0) driven by the run's own
 /// step log up to world tick `cut`, before the picks made at that tick, or to its end for `None`:
 /// the party is read from the log's `present` byte, so a party replay re-records as it is.
@@ -334,11 +347,11 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
         match step {
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
-                    recorder.step(inputs).expect("a verified run steps");
+                    recorder.step(&slots(inputs)).expect("a verified run steps");
                 }
             }
             RangeStep::Picks { picks } => recorder
-                .picks(picks)
+                .picks(&slots(picks))
                 .expect("a verified run's picks are accepted"),
         }
     }
@@ -442,7 +455,7 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                             .unwrap_or(PlayerIdx::SOLO);
                         recorder.choose(holder, 0)
                     } else {
-                        recorder.step(&vec![Input::default(); party])
+                        recorder.step(&[Input::default(); 3])
                     };
                     if moved.is_err() {
                         break;

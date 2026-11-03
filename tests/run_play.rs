@@ -89,13 +89,15 @@ pub fn scripted_input(slot: u8, tick: u32) -> Input {
 }
 
 /// The inputs of a party of `n` at `tick`: slot 0 played by the zone bot, the others scripted.
-pub fn party_inputs(rec: &RunRecorder, n: u8, tick: u32) -> Vec<Input> {
-    (0..n)
-        .map(|s| match s {
+pub fn party_inputs(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
+    let mut inputs = [Input::default(); 3];
+    for s in 0..n {
+        inputs[usize::from(s)] = match s {
             0 => run_input(rec.engine(), tick),
             _ => scripted_input(s, tick),
-        })
-        .collect()
+        };
+    }
+    inputs
 }
 
 /// Answers every open offer, each by the slot that holds it (option 0), one pick at a time.

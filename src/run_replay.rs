@@ -47,7 +47,7 @@ use sha2::{Digest, Sha256};
 use crate::base64;
 use crate::content_hash::to_hex;
 use crate::engine::{ChoiceError, Engine, Outcome};
-use crate::id::PlayerIdx;
+use crate::id::{MAX_PLAYERS, PlayerIdx};
 use crate::input::Input;
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
@@ -767,13 +767,11 @@ impl RunRecorder {
         &self.engine
     }
 
-    /// Runs the next tick with `inputs`, one per player in slot order. Refused, recording
-    /// nothing, when the length is not the party, after the run ended or while an offer is open
-    /// (ADR-079 §3: a choice answers it first).
-    pub fn step(&mut self, inputs: &[Input]) -> Result<(), RunReplayError> {
-        if inputs.len() != self.engine.players() {
-            return Err(RunReplayError::BadInputs("one input per player"));
-        }
+    /// Runs the next tick with `inputs`, one entry per slot, present or not, in slot order; an
+    /// absent slot's entry is ignored and the step log keeps one block per present slot. Refused,
+    /// recording nothing, after the run ended or while an offer is open (ADR-079 §3: a choice
+    /// answers it first).
+    pub fn step(&mut self, inputs: &[Input; MAX_PLAYERS as usize]) -> Result<(), RunReplayError> {
         if self.engine.outcome() != Outcome::Running {
             return Err(RunReplayError::InputsAfterEnd {
                 ended_at: self.engine.tick(),
@@ -785,6 +783,7 @@ impl RunRecorder {
             });
         }
         self.engine.step(inputs);
+        let present = &inputs[..self.engine.players()];
         // The log holds each input as its block bytes read it back (a stick axis of -128 is
         // -127, a pick is never in the stream), so equal blocks are one run.
         let held = |input: &Input| {
@@ -792,13 +791,13 @@ impl RunRecorder {
         };
         match self.records.last_mut() {
             Some(Record::Ticks { run, inputs: last })
-                if last.iter().zip(inputs).all(|(a, b)| *a == held(b)) =>
+                if last.iter().zip(present).all(|(a, b)| *a == held(b)) =>
             {
                 *run += 1;
             }
             _ => self.records.push(Record::Ticks {
                 run: 1,
-                inputs: inputs.iter().map(held).collect(),
+                inputs: present.iter().map(held).collect(),
             }),
         }
         if self.engine.tick() % CHECKPOINT_TICKS == 0 {
@@ -810,20 +809,23 @@ impl RunRecorder {
     /// `player` chooses option `index` of its open offer: `picks` with that one pick. A player
     /// outside the party is `BadInputs`.
     pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), RunReplayError> {
-        let mut picks = vec![None; self.engine.players()];
-        *picks
-            .get_mut(player.get())
-            .ok_or(RunReplayError::BadInputs("a player outside the party"))? = Some(index);
+        if player.get() >= self.engine.players() {
+            return Err(RunReplayError::BadInputs("a player outside the party"));
+        }
+        let mut picks = [None; MAX_PLAYERS as usize];
+        picks[player.get()] = Some(index);
         self.picks(&picks)
     }
 
-    /// One step that does not advance the world: the pick of each player (`None` for no pick),
-    /// at least one, taken together. Refused, recording nothing, when a pick is refused by the
-    /// engine or the replay already holds `MAX_COMMANDS` steps of picks.
-    pub fn picks(&mut self, picks: &[Option<u32>]) -> Result<(), RunReplayError> {
-        if picks.len() != self.engine.players() {
-            return Err(RunReplayError::BadInputs("one input per player"));
-        }
+    /// One step that does not advance the world: the pick of each slot (`None` for no pick),
+    /// at least one among the present slots, taken together. A pick at an absent slot is ignored.
+    /// Refused, recording nothing, when a pick is refused by the engine or the replay already
+    /// holds `MAX_COMMANDS` steps of picks.
+    pub fn picks(
+        &mut self,
+        picks: &[Option<u32>; MAX_PLAYERS as usize],
+    ) -> Result<(), RunReplayError> {
+        let picks = &picks[..self.engine.players()];
         if picks.iter().all(Option::is_none) {
             return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
         }
@@ -1110,6 +1112,7 @@ fn resimulate(
     for record in &log.records {
         match record {
             Record::Ticks { run, inputs } => {
+                let inputs = slots(inputs);
                 for _ in 0..*run {
                     if engine.outcome() != Outcome::Running {
                         return Err(RunReplayError::InputsAfterEnd {
@@ -1121,7 +1124,7 @@ fn resimulate(
                             tick: engine.tick(),
                         });
                     }
-                    engine.step(inputs);
+                    engine.step(&inputs);
                     if let Some(expected) = expected {
                         let actual = engine.state_hash();
                         let at = engine.tick() as usize - 1;
@@ -1164,10 +1167,9 @@ fn resimulate(
 /// then taken together.
 fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunReplayError> {
     let tick = engine.tick();
-    let mut inputs = Vec::with_capacity(chosen.len());
+    let mut inputs = [Input::default(); MAX_PLAYERS as usize];
     for (slot, pick) in chosen.iter().enumerate() {
         let Some(index) = *pick else {
-            inputs.push(Input::default());
             continue;
         };
         let player =
@@ -1180,10 +1182,20 @@ fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunRep
         engine
             .check_pick(player, index)
             .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
-        inputs.push(Input::picking(index));
+        inputs[slot] = Input::picking(index);
     }
     engine.step(&inputs);
     Ok(())
+}
+
+/// The dense entries of a record, one per present slot, padded to one entry per slot with the
+/// default: what `Engine::step` takes.
+fn slots<T: Copy + Default>(dense: &[T]) -> [T; MAX_PLAYERS as usize] {
+    let mut all = [T::default(); MAX_PLAYERS as usize];
+    for (to, from) in all.iter_mut().zip(dense) {
+        *to = *from;
+    }
+    all
 }
 
 #[cfg(test)]
@@ -1491,7 +1503,7 @@ mod party_size_tests {
     fn the_size_is_the_present_byte() {
         for n in 1..=3u8 {
             let mut rec = RunRecorder::start_party(&setup(), n).unwrap();
-            rec.step(&vec![Input::default(); usize::from(n)]).unwrap();
+            rec.step(&[Input::default(); 3]).unwrap();
             assert_eq!(rec.replay().party_size(), Some(n));
         }
     }
@@ -1499,7 +1511,7 @@ mod party_size_tests {
     #[test]
     fn a_byte_that_is_not_a_party_has_no_size() {
         let mut rec = RunRecorder::start_party(&setup(), 2).unwrap();
-        rec.step(&[Input::default(); 2]).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
         let mut replay = rec.replay();
         let bytes = base64::decode(&replay.inputs).unwrap();
         for bad in [0u8, 0b010, 0b101, 0b1000, 0b1111, 0xFF] {

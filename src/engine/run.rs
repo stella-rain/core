@@ -236,7 +236,7 @@ impl Run {
         &mut self,
         rewards: &Rewards,
         expertise: &Expertise,
-        inputs: &[Input],
+        inputs: &[Input; crate::id::MAX_PLAYERS as usize],
         events: &mut Vec<DomainEvent>,
         load: &mut Load,
     ) {

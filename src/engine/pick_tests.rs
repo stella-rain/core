@@ -84,15 +84,3 @@ fn an_open_offer_stops_the_world_without_a_pick() {
     e.step(&[Input::default(), Default::default(), Default::default()]);
     assert_eq!((e.state_hash(), e.tick()), (hash, tick));
 }
-
-#[test]
-#[should_panic(expected = "one input per player")]
-fn step_refuses_no_input() {
-    worst_case::warmed_up().step(&[]);
-}
-
-#[test]
-#[should_panic(expected = "one input per player")]
-fn step_refuses_an_input_too_many() {
-    worst_case::warmed_up().step(&[Input::default(), Input::default()]);
-}
