@@ -70,6 +70,8 @@ pub(crate) struct Build<'a> {
     pub pick_stats: bool,
     /// `None` for a stage run alone: no loadout.
     pub setup: Option<&'a RunSetup>,
+    /// The players in the party, 1 to `MAX_PLAYERS`; version 1 has one.
+    pub party: u8,
 }
 
 /// What a run takes from its difficulty (ADR-110), as plain values.
@@ -105,6 +107,12 @@ impl Run {
     }
 
     fn new_v1(b: Build<'_>) -> Result<Run, Issue> {
+        if b.party != 1 {
+            return Err(Issue {
+                path: "$.party".into(),
+                message: "sim_version 1 has one player".into(),
+            });
+        }
         let spec = b.spec.map(|s| sim_v1::HordeSpec {
             pool: s.pool,
             final_boss: s.final_boss,
@@ -189,6 +197,11 @@ impl Run {
                 PlayerIdx::SOLO,
                 &loadout,
             );
+        }
+        if b.party > 1 {
+            // Slots 1 and 2 take the run's loadout until the per-player setup.
+            state.players = sim::state::Players::party(b.party, &state.players, state.crit_seed);
+            sim::reserve(&world, &mut state);
         }
         Ok(Run::V2 { world, state })
     }

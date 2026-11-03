@@ -257,6 +257,7 @@ impl Engine {
                 stat_priority,
                 pick_stats,
                 setup: None,
+                party: 1,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -271,9 +272,31 @@ impl Engine {
 
     /// As `start`, with `content` in place of the bundled files (ADR-067).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
+        Engine::start_party_with(setup, content, 1)
+    }
+
+    /// As `start`, for a party of `party` players (1 to `MAX_PLAYERS`) with the bundled content
+    /// files. Slots 1 and 2 take the run's loadout until the per-player setup.
+    pub fn start_party(setup: &RunSetup, party: u8) -> Result<Engine, Error> {
+        Engine::start_party_with(setup, RunContent::bundled(), party)
+    }
+
+    /// As `start_party`, with `content` in place of the bundled files. A party outside
+    /// `1..=MAX_PLAYERS`, and any party above one under `sim_version` 1, is `Error::Invalid`.
+    pub fn start_party_with(
+        setup: &RunSetup,
+        content: &RunContent,
+        party: u8,
+    ) -> Result<Engine, Error> {
+        if !(1..=crate::id::MAX_PLAYERS).contains(&party) {
+            return Err(Error::Invalid(vec![Issue {
+                path: "$.party".into(),
+                message: "a party of 1 to 3 players".into(),
+            }]));
+        }
         run_setup::validate_in(setup, content)?;
         if setup.mode.as_str() == "time_limit" {
-            return Engine::start_time_limit(setup, content, content.time_limit());
+            return Engine::start_time_limit_party(setup, content, content.time_limit(), party);
         }
         let stage = run_setup::stage_in(setup, content)?;
         let kinds = KindTable::of_stage(&stage).map_err(|i| Error::Invalid(vec![i]))?;
@@ -293,6 +316,7 @@ impl Engine {
                 stat_priority: &setup.stat_priority,
                 pick_stats: setup.pick_stats,
                 setup: Some(setup),
+                party,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -305,6 +329,15 @@ impl Engine {
         setup: &RunSetup,
         content: &RunContent,
         mode: &crate::time_limit::TimeLimit,
+    ) -> Result<Engine, Error> {
+        Engine::start_time_limit_party(setup, content, mode, 1)
+    }
+
+    fn start_time_limit_party(
+        setup: &RunSetup,
+        content: &RunContent,
+        mode: &crate::time_limit::TimeLimit,
+        party: u8,
     ) -> Result<Engine, Error> {
         run_setup::validate_in(setup, content)?;
         let difficulty = run_setup::difficulty_of(setup, content.difficulties())?;
@@ -327,6 +360,7 @@ impl Engine {
                 stat_priority: &setup.stat_priority,
                 pick_stats: setup.pick_stats,
                 setup: Some(setup),
+                party,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -588,6 +622,8 @@ mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
 #[cfg(test)]
+mod party_tests;
+#[cfg(test)]
 mod pick_tests;
 #[cfg(test)]
 mod players_api_tests;
@@ -656,7 +692,7 @@ impl Engine {
 
     /// This engine, which runs the live rules, as a party of `n`; see `party`.
     pub(crate) fn into_party(mut self, n: u8) -> Engine {
-        use crate::sim::state::{Career, Players};
+        use crate::sim::state::Players;
         assert!((1..=crate::id::MAX_PLAYERS).contains(&n), "1 to 3 players");
         if n == 1 {
             return self;
@@ -664,22 +700,7 @@ impl Engine {
         let Run::V2 { state, .. } = &mut self.run else {
             panic!("the live rules");
         };
-        let first = state.players[PlayerIdx::SOLO].clone();
-        let c0 = state.players.career(PlayerIdx::SOLO).clone();
-        let mut players =
-            Players::with_mask((1u8 << n) - 1, first).keeping_career_of(&state.players);
-        for i in 1..n {
-            let me = PlayerIdx::new(i).expect("a slot");
-            *players.career_mut(me) = Career::new(
-                state.crit_seed,
-                me,
-                c0.progress.clone(),
-                c0.offers.clone(),
-                c0.expertise.clone(),
-                c0.stardust,
-            );
-        }
-        state.players = players;
+        state.players = Players::party(n, &state.players, state.crit_seed);
         self.run.reserve();
         self
     }
