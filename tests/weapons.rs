@@ -617,7 +617,7 @@ fn the_giant_sword_s_smashes_bleed_and_the_giant_hammer_s_smashes_stun() {
 
 #[test]
 fn the_giant_sword_takes_the_vindictus_shape() {
-    // A to AAAAA, and the smashes B, AB, AAB, AAAB, AAAAB and AAAAAB, all open (ADR-REPL-16).
+    // A to AAAAA, and the smashes B, AB, AAB, AAAB, AAAAB and AAAAAB, all open (ADR-REPL-5).
     let w = weapon_of("giant_sword");
     for presses in [
         "A", "AA", "AAA", "AAAA", "AAAAA", "B", "AB", "AAB", "AAAB", "AAAAB", "AAAAAB",

@@ -132,7 +132,7 @@ pub fn stage_run(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// The run setup (ADR-REPL-16) and the run it starts: a setup that validates must save and load as
+/// The run setup (ADR-REPL-5) and the run it starts: a setup that validates must save and load as
 /// the same setup, start a run, and survive `RUN_TICKS` ticks of any input without a panic
 /// (ADR-SIM-3, ADR-SVC-7). The bytes are the setup file and, read over and over, the inputs.
 pub fn run_setup(data: &[u8]) -> bool {
@@ -158,7 +158,7 @@ pub fn run_setup(data: &[u8]) -> bool {
     engine.tick() > 0
 }
 
-/// One tick of `input`, after the commands between ticks (ADR-REPL-16): a choice with `pick` as it
+/// One tick of `input`, after the commands between ticks (ADR-REPL-5): a choice with `pick` as it
 /// is, which may be refused and must then change nothing; then, while an offer is open, a choice
 /// of `pick` inside its options, which is never refused, so the world goes on.
 fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
@@ -231,7 +231,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
         .collect()
 }
 
-/// The replay loader (ADR-SVC-7, ADR-REPL-16), for stage replays and run replays: a replay
+/// The replay loader (ADR-SVC-7, ADR-REPL-5), for stage replays and run replays: a replay
 /// that loads unpacks without a panic and saves to bytes that load as the same replay; any
 /// bytes verified against a stage that is cleared, or as a run replay, never panic, whatever
 /// they claim; a run replay that verifies is exactly what its own commands record; and a replay
@@ -641,7 +641,7 @@ pub fn commands(run: &RunReplay) -> Vec<Command> {
     out
 }
 
-/// The share-code decoder (ADR-SVC-7, ADR-REPL-17). The bytes are tried as a code, and wrapped
+/// The share-code decoder (ADR-SVC-7, ADR-REPL-6). The bytes are tried as a code, and wrapped
 /// as the zlib stream of a code so that they reach the code behind the decompression. A code
 /// that decodes holds files that encode to a code that decodes to them; base64 round-trips
 /// any bytes.
@@ -942,7 +942,7 @@ fn mask_before(full: &StepRange, first: u32) -> u8 {
     mask
 }
 
-/// The step log range reader (ADR-REPL-16, ADR-SVC-7). The bytes are `ticks`, `a`, `b` (little-endian
+/// The step log range reader (ADR-REPL-5, ADR-SVC-7). The bytes are `ticks`, `a`, `b` (little-endian
 /// `u32`) and a schema 2 step log. A range that is backwards or past `ticks` is refused; for a
 /// range inside the log the verdict is the full read's, error for error, because the whole log is
 /// validated; and when both succeed on a log of at most 65,536 ticks the range equals the full

@@ -12,9 +12,9 @@
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
 //! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
-//! pack's own (ADR-CONT-5, as the registry's IDs are for a stage, ADR-REPL-12). An ID the released
+//! pack's own (ADR-CONT-5, as the registry's IDs are for a stage, ADR-REPL-1). An ID the released
 //! content (the bundled pack) does not hold is new and is recorded at the pack's `sim_version`,
-//! and is refused when it is recorded lower (ADR-REPL-13, ADR-CONT-2). The registry's IDs a
+//! and is refused when it is recorded lower (ADR-REPL-2, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
 //! The content files have no versions of their own: the pack's header is the only one, and each
@@ -935,7 +935,7 @@ fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
 
 /// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID
 /// the `released` entries (the bundled pack's) do not hold is new, and is recorded at the pack's
-/// own `sim_version` (ADR-REPL-13, ADR-CONT-2); a released ID keeps the version it was released at.
+/// own `sim_version` (ADR-REPL-2, ADR-CONT-2); a released ID keeps the version it was released at.
 fn check_ids(
     issues: &mut Vec<Issue>,
     at: &str,
@@ -1146,7 +1146,7 @@ fn stamp(released: &[IntroducedId], ids: Vec<&ContentId>, sim_version: u32) -> V
 }
 
 /// The table of `content`'s IDs: an ID the released table holds keeps the version it was
-/// released at, a new one is introduced in `sim_version` (ADR-CONT-2 point 6, ADR-REPL-13).
+/// released at, a new one is introduced in `sim_version` (ADR-CONT-2 point 6, ADR-REPL-2).
 fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
     let released = released();
     let list = |released: &[IntroducedId], ids: Vec<&ContentId>| stamp(released, ids, sim_version);

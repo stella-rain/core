@@ -1,12 +1,12 @@
-//! The run replay (ADR-REPL-16): a run of the launch game recorded as its setup, the SHA-256 of
+//! The run replay (ADR-REPL-5): a run of the launch game recorded as its setup, the SHA-256 of
 //! the game content it ran, the tick count, the final state hash, one input per tick and one
 //! stream of commands between ticks. Anyone can re-simulate it from the file and the content
 //! files it used (the run stats, the rewards, the stage skills, the expertise and the
 //! match-ups): the setup names a mode
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
-//! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-13 point 4,
-//! ADR-REPL-16): `inputs` is the step log (see `step_log`), each pick inside its step, and
+//! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-2 point 4,
+//! ADR-REPL-5): `inputs` is the step log (see `step_log`), each pick inside its step, and
 //! `commands` is empty. A schema 1 file is still read and verified, and its two streams are
 //! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
 //! are packed in the order they applied, each as the tick (a LEB128
@@ -25,14 +25,14 @@
 //! with the same checks (a final hash that differs is `PrefixHashDiffers`) and returns a live
 //! recorder at the cut, an open offer included, so a later `replay()` is one run from tick 0.
 //!
-//! A replay also holds `checkpoints`: the state hash after every 60th tick (ADR-REPL-17), each as
+//! A replay also holds `checkpoints`: the state hash after every 60th tick (ADR-REPL-6), each as
 //! 16 lowercase hex digits, concatenated, taken right after the tick and before the commands
 //! that follow it. The recorder writes them; re-simulation checks each as it passes it, so a run
 //! that no longer reproduces fails naming the first second that differs (`CheckpointDiffers`),
 //! and a field that is not `ticks / 60` hashes is `BadCheckpoints`. A run case of the corpus
 //! keeps its expected hashes in them, in place of a hash per tick.
 //!
-//! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-REPL-16,
+//! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-REPL-5,
 //! ADR-CONT-5), so any content update invalidates the replay rather than letting it drift, and a
 //! kept pack is found by it. The attack presets and the weapons are files of the pack
 //! (ADR-CONT-3, CS1b-1, WP1), so a change to a preset is a content release and a new hash.
@@ -63,7 +63,7 @@ use crate::version::{
     self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
 };
 
-/// The most commands a run replay holds (a tuning value; ADR-REPL-16 decides that a cap exists).
+/// The most commands a run replay holds (a tuning value; ADR-REPL-5 decides that a cap exists).
 /// Version 1 gives at most 99 points in a run; the rest is room for the offers' choices, a few
 /// per falling star taken. Measured (`tests/command_cap.rs`): the longest run, a `time_limit` run
 /// on normal, hard or rainy played to its end (at most 90,000 ticks, through the whole overtime)
@@ -79,7 +79,7 @@ pub const MAX_COMMANDS: u32 = 1000;
 /// a share code (`share`).
 pub const MAX_RUN_REPLAY_BYTES: usize = 1024 * 1024;
 
-/// A run replay holds the state hash after every this many ticks (ADR-REPL-17): one second.
+/// A run replay holds the state hash after every this many ticks (ADR-REPL-6): one second.
 pub const CHECKPOINT_TICKS: u32 = 60;
 
 /// What the hash derived from files replaced one by one starts with, so that it cannot be
@@ -89,7 +89,7 @@ const CONTENT_TAG: &[u8] = b"stella-rain run content v0\0";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunReplay {
-    /// What the run started from (ADR-REPL-16).
+    /// What the run started from (ADR-REPL-5).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content
     /// pack (`content_sha256_with`, ADR-CONT-5). Any other pack invalidates the replay.
@@ -117,7 +117,7 @@ const RETIRED_SPEND: u8 = 1;
 /// The kind of a command between ticks, and its byte in the packed stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
-    /// Option `index` of the open offer (ADR-REPL-16). Read from schema 1 files; no writer
+    /// Option `index` of the open offer (ADR-REPL-5). Read from schema 1 files; no writer
     /// writes it into a file (schema 2 holds a pick inside its step).
     Choose,
 }
@@ -145,7 +145,7 @@ pub struct TickCommand {
     pub index: u32,
 }
 
-/// A command of the run's stream (ADR-BRDG-12, ADR-REPL-16): one input for the next tick, or a command
+/// A command of the run's stream (ADR-BRDG-12, ADR-REPL-5): one input for the next tick, or a command
 /// between ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -376,7 +376,7 @@ pub struct RunVerified {
     /// The commands between ticks that applied.
     pub commands: u32,
     /// The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the
-    /// app pays it after the run (ADR-REPL-16).
+    /// app pays it after the run (ADR-REPL-5).
     pub stardust: u32,
     /// The ledger of counts, bestiary encounters and build picks (ADR-BRDG-15).
     pub ledger: RunLedger,
@@ -389,7 +389,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with `content`. Content read from a
-/// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-REPL-16, ADR-CONT-5), whatever
+/// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-REPL-5, ADR-CONT-5), whatever
 /// the mode. Content with any file replaced one by one has a hash derived from the mode's file,
 /// the attack presets file, and the bytes of the run stats, the rewards, the stage skills, the
 /// expertise, the match-ups, the runes and the perk sets, tagged and length-prefixed: never a pack's.
@@ -480,7 +480,7 @@ impl RunReplay {
     }
 
     /// Parses a run replay file: the size limit first, then the versions alone (the setup's),
-    /// then the strict parse (ADR-REPL-12, ADR-SVC-7). A file for a newer version is `Newer` even if
+    /// then the strict parse (ADR-REPL-1, ADR-SVC-7). A file for a newer version is `Newer` even if
     /// it has fields this version rejects; a file that is not JSON, has no versions, or fails the
     /// strict parse at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<RunReplay, RunReplayError> {
@@ -578,7 +578,7 @@ impl RunReplay {
         Ok(commands)
     }
 
-    /// The steps of world ticks `a..b` of the run (ADR-REPL-16), by the rule of
+    /// The steps of world ticks `a..b` of the run (ADR-REPL-5), by the rule of
     /// `read_step_range`, whichever schema the replay is. At schema 2 the log is validated and
     /// cut without expanding its runs; a schema 1 replay is migrated first, as every schema 1
     /// read is (the cost of its ticks).
@@ -595,7 +595,7 @@ impl RunReplay {
     }
 
     /// The party the replay starts with, read from the first byte of its step log alone (the
-    /// `present` byte, ADR-REPL-16): 1 for a schema 1 replay. `None` for a byte that is not a
+    /// `present` byte, ADR-REPL-5): 1 for a schema 1 replay. `None` for a byte that is not a
     /// party from slot 0 (a hole, a bit past slot 2, no byte, bad base64).
     #[cfg(test)]
     pub(crate) fn party_size(&self) -> Option<u8> {
@@ -668,7 +668,7 @@ pub struct RunRecorder {
     engine: Engine,
     /// Bit `i` set for player slot `i`: the party, from slot 0 (the log's `present` byte).
     present: u8,
-    /// The run as a step log (ADR-REPL-16): runs of ticks with one input per player, and the
+    /// The run as a step log (ADR-REPL-5): runs of ticks with one input per player, and the
     /// steps of picks between them.
     records: Vec<Record>,
     /// The number of `Record::Picks` in `records`: what `MAX_COMMANDS` counts.
@@ -677,7 +677,7 @@ pub struct RunRecorder {
 }
 
 impl RunRecorder {
-    /// Starts a run from `setup` (ADR-REPL-16) with the bundled content files.
+    /// Starts a run from `setup` (ADR-REPL-5) with the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, RunContent::bundled())
     }
@@ -729,7 +729,7 @@ impl RunRecorder {
     }
 
     /// As `start`, with the content of `pack` in place of the bundled pack: the replay records
-    /// the SHA-256 of the pack's bytes (ADR-REPL-16, ADR-CONT-5).
+    /// the SHA-256 of the pack's bytes (ADR-REPL-5, ADR-CONT-5).
     pub fn start_with_pack(setup: &RunSetup, pack: &Pack) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, pack.content())
     }
@@ -807,7 +807,7 @@ impl RunRecorder {
 
     /// Runs the next tick with `inputs`, one entry per slot, present or not, in slot order; an
     /// absent slot's entry is ignored and the step log keeps one block per present slot. Refused,
-    /// recording nothing, after the run ended or while an offer is open (ADR-REPL-16: a choice
+    /// recording nothing, after the run ended or while an offer is open (ADR-REPL-5: a choice
     /// answers it first).
     pub fn step(&mut self, inputs: &[Input; MAX_PLAYERS as usize]) -> Result<(), RunReplayError> {
         if self.engine.outcome() != Outcome::Running {
@@ -821,7 +821,7 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
-        // A timed run takes the picks of the inputs first (ADR-REPL-16): the ones the engine
+        // A timed run takes the picks of the inputs first (ADR-REPL-5): the ones the engine
         // accepts are recorded as one PICKS step, the rest are ignored as the engine ignores
         // them, and the tick runs on the inputs without picks, so the log holds no pick in a tick.
         let mut cleared;
@@ -1055,7 +1055,7 @@ pub fn record_run_with_pack(
 }
 
 /// Re-simulates a run replay from its bytes and the bundled content files, and checks every
-/// command and the final hash (ADR-REPL-16). The whole file is untrusted.
+/// command and the final hash (ADR-REPL-5). The whole file is untrusted.
 pub fn verify_run(replay_bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
     verify_inner(replay_bytes, RunContent::bundled(), None)
 }

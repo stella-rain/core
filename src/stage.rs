@@ -1,6 +1,6 @@
 //! The stage file (ADR-CONT-1): data only, parsed strictly (ADR-CONT-1, ADR-SVC-7). Unknown fields are
 //! rejected everywhere. Field names follow ADR-SIM-4's shape and are placeholders until the
-//! freeze (ADR-REPL-12); the validator (budgets, registry, text) is separate.
+//! freeze (ADR-REPL-1); the validator (budgets, registry, text) is separate.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -46,11 +46,11 @@ pub struct Stage {
     /// The map the run plays on; without one, the portrait field (`Map::PORTRAIT`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<Map>,
-    /// Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages
+    /// Experience and levels, each level-up giving a stat point (ADR-REPL-5); a mode's stages
     /// have them. Without them defeated enemies give nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub levels: Option<Levels>,
-    /// Falling stars and the offers they open (ADR-REPL-16); only with `levels`.
+    /// Falling stars and the offers they open (ADR-REPL-5); only with `levels`.
     /// Without them kills drop nothing and nothing is offered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stars: Option<Stars>,
@@ -409,7 +409,7 @@ pub struct Player {
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_DEFENCE))]
     pub defence: u32,
     /// The one weapon, whose combos the main character makes by hand with both buttons
-    ///. It moves to the run's setup when the setup exists (ADR-REPL-16).
+    ///. It moves to the run's setup when the setup exists (ADR-REPL-5).
     pub weapon: WeaponRef<Weapon>,
     /// Skill 1. It moves to the run's setup with the character when the setup exists
     ///.

@@ -520,7 +520,7 @@ fn hashes(stage: &Stage, ticks: u32) -> Vec<u64> {
 
 /// The hash after `GOLDEN_TICKS` ticks of `script` on the fixture stage. Every platform must
 /// produce exactly this (CI runs it on x86_64 and arm64); a change to it is a change to the
-/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-13, the
+/// frozen rules of version 1, which goes into a new `sim_version` (ADR-REPL-2, the
 /// `schema-change` skill), never a re-pin of this value.
 const GOLDEN_TICKS: u32 = 900;
 const GOLDEN_HASH: u64 = 0x7728_e264_08b8_adf9;

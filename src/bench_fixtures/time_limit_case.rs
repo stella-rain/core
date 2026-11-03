@@ -22,7 +22,7 @@ use crate::version::Versions;
 /// which the Main weapon hits and 260 enemies stand, tick 1,027 has the most attacks running (3)
 /// and then the most zones (124), under the 840 px view (tick 1,999 before it). Chosen
 /// by the engine's `Load`, not by an instruction count: valgrind was not at hand (BR1a). The
-/// Sword's chain is five A's deep (ADR-REPL-16), so its tap-every-other-tick cycle is long.
+/// Sword's chain is five A's deep (ADR-REPL-5), so its tap-every-other-tick cycle is long.
 pub const WARMUP_TICKS: u32 = 1_026;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.

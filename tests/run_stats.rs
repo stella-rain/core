@@ -1,4 +1,4 @@
-//! Run stats (ADR-REPL-16, ADR-CONT-1): the stats a stat point raises are content, read from JSON
+//! Run stats (ADR-REPL-5, ADR-CONT-1): the stats a stat point raises are content, read from JSON
 //! as untrusted bytes (ADR-SVC-7): a size limit before parsing, strict parsing, the current
 //! versions only and every field bounded. The bundled file is the default; other bytes (a
 //! server's, later) run the same way and change the run's content hash.

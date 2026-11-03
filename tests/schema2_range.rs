@@ -1,4 +1,4 @@
-//! The range reader of the step log (ADR-REPL-16): the steps of world ticks `a..b`, cut from the
+//! The range reader of the step log (ADR-REPL-5): the steps of world ticks `a..b`, cut from the
 //! corpus cases of both schemas, refused like the full decoder refuses, and never sized by the
 //! claimed tick count (ADR-SVC-7).
 

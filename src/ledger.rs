@@ -52,7 +52,7 @@ pub struct RunLedger {
     slain_indices: Vec<usize>,
 }
 
-/// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-13), so
+/// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-2), so
 /// the ledger is not copied per module.
 pub(crate) trait SeenEnemy {
     fn kind(&self) -> KindIndex;

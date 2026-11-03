@@ -1,4 +1,4 @@
-//! Replays (ADR-REPL-17, ADR-BRDG-12): the recorded inputs of a run, which anyone can re-simulate to
+//! Replays (ADR-REPL-6, ADR-BRDG-12): the recorded inputs of a run, which anyone can re-simulate to
 //! check that the stage can be cleared and reaches the same final hash.
 //!
 //! A `.replay` file is one JSON object: the versions, the seed, the SHA-256 of the exact stage
@@ -39,11 +39,11 @@ pub struct Replay {
     /// The `schema_version` the file was written at. This game reads the range
     /// `FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below
     /// the range is read only through a migration, else it is `Older`; a newer one is `Newer`
-    /// (ADR-REPL-13).
+    /// (ADR-REPL-2).
     pub schema_version: u32,
     /// The `sim_version` the file was written at. This game reads a file at any version
     /// from `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a
-    /// migration, else it is `Older`; a newer one is `Newer` (ADR-REPL-13).
+    /// migration, else it is `Older`; a newer one is `Newer` (ADR-REPL-2).
     pub sim_version: u32,
     /// Must equal the stage's.
     pub seed: u32,
@@ -273,7 +273,7 @@ impl Replay {
     }
 
     /// Parses a replay file: the size limit first, then the versions alone, then the strict
-    /// parse (ADR-REPL-12, ADR-SVC-7). A file for a newer version is `Newer` even if it has fields
+    /// parse (ADR-REPL-1, ADR-SVC-7). A file for a newer version is `Newer` even if it has fields
     /// this version rejects; a file that is not JSON, has no versions, or fails the strict parse
     /// at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Replay, ReplayError> {
@@ -494,7 +494,7 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
 }
 
 /// Checks that the replay is for this stage and clears it with the replay's final hash
-/// (ADR-REPL-17, ADR-SVC-13). The whole of both files is untrusted.
+/// (ADR-REPL-6, ADR-SVC-13). The whole of both files is untrusted.
 pub fn verify(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<Verified, ReplayError> {
     verify_inner(stage_bytes, replay_bytes, None)
 }

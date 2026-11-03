@@ -1,4 +1,4 @@
-//! Rating the candidates of an open offer (ADR-REPL-16): the categories of a reward, the
+//! Rating the candidates of an open offer (ADR-REPL-5): the categories of a reward, the
 //! expected gain in the main weapon's damage and the stats a pick moves. A read-only query on
 //! the state as it is; nothing here is hashed, saved or recorded (ADR-SIM-3), and it is not part
 //! of the snapshot (ADR-BRDG-13): call it once when an offer opens, not every frame.

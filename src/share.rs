@@ -3,7 +3,7 @@
 //! names the SHA-256 of the stage file, and the content hash covers both, ADR-SVC-13). The object
 //! is compressed with zlib (the `miniz_oxide` crate) and base64-encoded.
 //!
-//! A code never holds a run's replay (ADR-REPL-16): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
+//! A code never holds a run's replay (ADR-REPL-5): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
 //! and a code carrying one is refused (`ShareError::RunReplay`).
 //!
 //! A code is untrusted (ADR-SVC-7). Its length is limited before anything is decoded, the
@@ -52,7 +52,7 @@ pub enum ShareError {
     Parse,
     /// A file is over its own size limit.
     FileTooLarge,
-    /// The replay is a run's replay (ADR-REPL-16), which is shared as a file, not a code.
+    /// The replay is a run's replay (ADR-REPL-5), which is shared as a file, not a code.
     RunReplay,
     /// A file is not text (stage and replay files are JSON).
     NotText,
@@ -75,7 +75,7 @@ impl fmt::Display for ShareError {
 
 impl std::error::Error for ShareError {}
 
-/// The keys only a run replay has (ADR-REPL-16): a stage replay has none of them.
+/// The keys only a run replay has (ADR-REPL-5): a stage replay has none of them.
 #[derive(Deserialize)]
 struct RunReplayKeys {
     setup: Option<serde::de::IgnoredAny>,

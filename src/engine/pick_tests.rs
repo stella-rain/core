@@ -1,4 +1,4 @@
-//! An offer pick travels inside the step's input (ADR-SIM-7, ADR-REPL-16): `step` takes one
+//! An offer pick travels inside the step's input (ADR-SIM-7, ADR-REPL-5): `step` takes one
 //! input per slot, `check_pick` says why a pick is refused, and a pick changes nothing it
 //! should not.
 

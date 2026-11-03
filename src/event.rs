@@ -192,13 +192,13 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,
+    /// The main character reached `level` (ADR-REPL-5): a stat is raised by the run's priority,
     /// or a stat offer is due (DS18).
     LeveledUp {
         level: u32,
     },
     /// A level-up raised the run stat `stat`, by the priority or by a choice: it now has
-    /// `spent` points (ADR-REPL-16, DS18).
+    /// `spent` points (ADR-REPL-5, DS18).
     StatRaised {
         stat: ContentId,
         spent: u8,
@@ -209,7 +209,7 @@ pub enum DomainEvent {
     StatOfferOpened {
         options: Vec<ContentId>,
     },
-    /// A kill dropped the falling star `star` (ADR-REPL-16).
+    /// A kill dropped the falling star `star` (ADR-REPL-5).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -264,7 +264,7 @@ pub enum DomainEvent {
         owner: EntityId,
         at: Point,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,
@@ -299,7 +299,7 @@ pub enum DomainEvent {
         reward: ContentId,
     },
     /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
-    /// choice closes it (ADR-REPL-16).
+    /// choice closes it (ADR-REPL-5).
     ExpertiseOfferOpened {
         level: u32,
         kind: ExpertiseOfferKind,

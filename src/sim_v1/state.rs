@@ -173,7 +173,7 @@ pub(crate) struct Horde {
     pub held: Vec<u32>,
 }
 
-/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-16).
+/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
@@ -211,7 +211,7 @@ pub(crate) struct ExpertiseOffer {
 }
 
 /// Falling stars, the offers due and the open one, and what the run's offers have used
-/// (ADR-REPL-16).
+/// (ADR-REPL-5).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -288,7 +288,7 @@ pub(crate) struct StatRule {
     pub limit: u8,
 }
 
-/// Experience, levels and stat points (ADR-REPL-16; DS18).
+/// Experience, levels and stat points (ADR-REPL-5; DS18).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {

@@ -5,7 +5,7 @@
 //! may edit freely.
 //!
 //! Angles are in 1/256 degree; speeds and lengths in 1/256 pixel (per tick for speeds; the
-//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-REPL-12).
+//! units of `Fx`). Field, node and operator names are placeholders until the freeze (ADR-REPL-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

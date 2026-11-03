@@ -1,6 +1,6 @@
 //! `Engine::step`, `RunRecorder::step` and `RunRecorder::picks` take one entry per slot, present
-//! or not (ADR-SIM-7, ADR-REPL-16): an absent slot's input and pick are ignored, and the step log
-//! is still written dense, one block per present slot (ADR-REPL-16).
+//! or not (ADR-SIM-7, ADR-REPL-5): an absent slot's input and pick are ignored, and the step log
+//! is still written dense, one block per present slot (ADR-REPL-5).
 
 use crate::common::run::trial_setup;
 use crate::zone_bot::run_input;

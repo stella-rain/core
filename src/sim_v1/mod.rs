@@ -1,6 +1,6 @@
-//! The rules of `sim_version` 1, frozen (ADR-REPL-13): not edited again except to keep compiling
+//! The rules of `sim_version` 1, frozen (ADR-REPL-2): not edited again except to keep compiling
 //! against shared types. The hash check across CPUs is never relaxed (ADR-SIM-3). The events it
-//! emits are its own (`event`, ADR-REPL-13 points 1 to 3); `engine/v1_events.rs` turns them into the
+//! emits are its own (`event`, ADR-REPL-2 points 1 to 3); `engine/v1_events.rs` turns them into the
 //! live type.
 //!
 //! What a tick does, in this order (`schedule::TICK` is the order in code, and a test keeps this
@@ -232,7 +232,7 @@ const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-REPL-16).
+/// and the rerolls its setup adds to the stage's (ADR-REPL-5).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
@@ -268,7 +268,7 @@ impl RunDifficulty {
 }
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
-/// stage, the setup's for a run (ADR-REPL-16).
+/// stage, the setup's for a run (ADR-REPL-5).
 pub(crate) fn initial_state(
     stage: &World,
     content: &RunContent,
@@ -608,7 +608,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens the first offer due, unless one is open: the boss offer, then the expertise levels'
 /// in level order, then the stat offers in level order, then the stars' in the order taken
-/// (ADR-REPL-16, DS18).
+/// (ADR-REPL-5, DS18).
 fn open_offers(
     stage: &World,
     rewards: &Rewards,

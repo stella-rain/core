@@ -18,7 +18,7 @@ LINE = re.compile(r"^\s*([\d,]+)\s+(\S.*?)\s*$")
 BINARY = re.compile(r"\s+\[[^\]]*\]$")
 NAME_MAX = 200
 TOTALS = "PROGRAM TOTALS"
-# The live rules and the frozen ones (ADR-REPL-13) run the same schedule; a step is counted by its name.
+# The live rules and the frozen ones (ADR-REPL-2) run the same schedule; a step is counted by its name.
 STEP_PREFIXES = (
     "stella_rain_core::sim::schedule::steps::",
     "stella_rain_core::sim_v1::schedule::steps::",

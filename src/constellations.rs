@@ -3,7 +3,7 @@
 //! lower one's, it does not add to it. A tier lists the effects the set has **at that tier**, in
 //! the reward effect list, so the engine applies the difference between two tiers
 //! (`tier_delta`): the full tier's reroll count is the count in all, not on top of the small
-//! tier's. Carried stars count as held (ADR-REPL-16).
+//! tier's. Carried stars count as held (ADR-REPL-5).
 //!
 //! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded. A set has 2 to

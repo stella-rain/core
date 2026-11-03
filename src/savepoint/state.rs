@@ -65,7 +65,7 @@ pub(crate) fn decode_state(
 }
 
 /// The coding of one rules module's state: the same text for each version, which owns its types
-/// (ADR-REPL-13). Frozen versions keep their text; a change to the live one is a new version's.
+/// (ADR-REPL-2). Frozen versions keep their text; a change to the live one is a new version's.
 macro_rules! state_codec {
     ($sim:ident, $get:expr) => {
         use crate::$sim::World;
@@ -327,7 +327,7 @@ mod v1 {
     state_codec!(sim_v1, |s| vec![&s.player]);
 }
 
-/// The live module's copy of `state_codec!`: it follows the live `sim` (ADR-REPL-13) while the macro
+/// The live module's copy of `state_codec!`: it follows the live `sim` (ADR-REPL-2) while the macro
 /// above keeps the frozen text. A fix to a check shared by both is made in both until the frozen
 /// version is retired.
 macro_rules! state_codec_v2 {
@@ -920,7 +920,7 @@ mod career_rest_tests {
 #[cfg(test)]
 mod frozen_text_tests {
     //! Version 1's coding is the macro's text and its invocation; one moved byte there fails this
-    //! (ADR-REPL-13). The markers are built in pieces so this test does not contain them.
+    //! (ADR-REPL-2). The markers are built in pieces so this test does not contain them.
 
     use crate::hash::fnv1a64;
 

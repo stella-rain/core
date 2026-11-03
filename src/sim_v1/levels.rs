@@ -1,4 +1,4 @@
-//! Experience, levels and stat points (ADR-REPL-16; DS18), in a stage with `levels`.
+//! Experience, levels and stat points (ADR-REPL-5; DS18), in a stage with `levels`.
 //!
 //! Defeated enemies give their wave's experience as they are removed in the collisions. Each
 //! level reached raises a run stat (ADR-CONT-1) by its step, and adds the step to its effect's

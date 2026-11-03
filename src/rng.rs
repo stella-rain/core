@@ -1,5 +1,5 @@
 //! The simulation PRNG: SplitMix64 (ADR-SIM-2). The algorithm, `below(n)` and the order of draws
-//! are frozen rules (ADR-REPL-12); `tests/rng.rs` pins the outputs.
+//! are frozen rules (ADR-REPL-1); `tests/rng.rs` pins the outputs.
 
 /// The stream tags: each name padded with zeros to 8 bytes, read as a little-endian `u64`.
 pub const TAG_SPAWN: u64 = u64::from_le_bytes(*b"spawn\0\0\0");

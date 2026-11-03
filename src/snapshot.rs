@@ -87,7 +87,7 @@ pub struct Snapshot {
     /// each as a telegraph while it warns and as a hit while it is active.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zones: Vec<ZoneView>,
-    /// Falling stars on the map, in the order they dropped (ADR-REPL-16).
+    /// Falling stars on the map, in the order they dropped (ADR-REPL-5).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
     /// The run's constellations and how many of each set's members are held (core#NS3); empty
@@ -126,7 +126,7 @@ pub struct PatternView {
 
 /// The one expertise gauge of both weapons: its level, from 0, its points
 /// toward the next, the common options taken, the styles chosen and the Main style's path
-/// taken, and the open expertise offer (ADR-REPL-16).
+/// taken, and the open expertise offer (ADR-REPL-5).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseView {
@@ -167,7 +167,7 @@ pub enum ExpertiseOfferKind {
     Capstone,
 }
 
-/// An expertise offer (ADR-REPL-16). A common one is drawn from one weapon's
+/// An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's
 /// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
 /// fixed choices, with no reroll. None has a skip or a banish.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -193,7 +193,7 @@ pub struct ExpertiseCandidateView {
     pub option: ContentId,
 }
 
-/// Where the run stands in experience, levels and stat points (ADR-REPL-16).
+/// Where the run stands in experience, levels and stat points (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProgressView {
@@ -210,7 +210,7 @@ pub struct ProgressView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stat_offer: Option<StatOfferView>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
-    /// of its options (ADR-REPL-16).
+    /// of its options (ADR-REPL-5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
 }
@@ -241,7 +241,7 @@ pub struct HealPickupView {
     pub at: Point,
 }
 
-/// An offer from a falling star (ADR-REPL-16).
+/// An offer from a falling star (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OfferView {
@@ -259,7 +259,7 @@ pub struct OfferView {
     pub banishes_left: u32,
 }
 
-/// What opened an offer (ADR-REPL-16).
+/// What opened an offer (ADR-REPL-5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferKind {
@@ -334,7 +334,7 @@ pub enum OfferOption {
     Banish { candidate: u8 },
 }
 
-/// What a reward is for, to show it by (ADR-REPL-16). Derived from the effect kinds of the
+/// What a reward is for, to show it by (ADR-REPL-5). Derived from the effect kinds of the
 /// reward in one exhaustive table, never stored in the content (ADR-CONT-3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Category {

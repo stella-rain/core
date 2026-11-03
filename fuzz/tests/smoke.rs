@@ -67,7 +67,7 @@ fn pins_bundled(case: &Path) -> bool {
     json.contains(&to_hex(&Pack::bundled().sha256()))
 }
 
-/// The `run.replay` of every run case of the corpus (ADR-REPL-16) that plays on the bundled pack,
+/// The `run.replay` of every run case of the corpus (ADR-REPL-5) that plays on the bundled pack,
 /// which `replay_load` also loads. A case that pins a derived pack verifies only with that pack,
 /// so it is left out here (CI still seeds the fuzz targets with it).
 fn run_replays() -> Vec<Vec<u8>> {

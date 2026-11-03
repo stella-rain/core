@@ -76,7 +76,7 @@ pub fn worst_minute_peak() -> worst_minute_case::Run {
     worst_minute_case::worst_minute_peak()
 }
 
-/// Takes option `index` of the open offer through a step (ADR-REPL-16). A pick the engine refuses
+/// Takes option `index` of the open offer through a step (ADR-REPL-5). A pick the engine refuses
 /// takes nothing and so leaves no events, which a fixture's offer never does.
 pub(crate) fn take_option(e: &mut Engine, index: u32) {
     e.step(&[

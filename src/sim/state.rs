@@ -177,7 +177,7 @@ pub(crate) struct Horde {
     pub held: Vec<u32>,
 }
 
-/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-16).
+/// The one expertise gauge of the one weapon, and its offers (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
@@ -215,7 +215,7 @@ pub(crate) struct ExpertiseOffer {
 }
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
-/// player's offers (ADR-REPL-16). The offers due and open, and what each player's offers have
+/// player's offers (ADR-REPL-5). The offers due and open, and what each player's offers have
 /// used, are per slot in `Offers` (ADR-SIM-7).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -235,7 +235,7 @@ pub(crate) struct StarField {
 }
 
 /// One player's star offers: those due and the open one, and what the player's offers have used
-/// (ADR-REPL-16). A slot holds `Some` exactly when the stage has stars (`State::stars`).
+/// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
@@ -300,7 +300,7 @@ pub(crate) struct StatRule {
     pub limit: u8,
 }
 
-/// Experience, levels and stat points (ADR-REPL-16; DS18).
+/// Experience, levels and stat points (ADR-REPL-5; DS18).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {

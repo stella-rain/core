@@ -1,5 +1,5 @@
 //! `stage-verify`: re-simulates a replay against its stage and checks that the stage is cleared
-//! with the replay's final hash (ADR-REPL-17, ADR-SVC-13). Stage and replay are untrusted, so this
+//! with the replay's final hash (ADR-REPL-6, ADR-SVC-13). Stage and replay are untrusted, so this
 //! uses the same size limits and validation as the game. Attack presets a stage names are read
 //! from the content pack built into this binary (`content/pack.json`).
 //!

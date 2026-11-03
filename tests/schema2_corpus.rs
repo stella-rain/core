@@ -1,5 +1,5 @@
-//! The schema 2 cases of `tests/corpus/current/` are their schema 1 forms (ADR-REPL-13,
-//! ADR-REPL-13, ADR-REPL-16): rebuilt from the solo views with the schema 1 packers, each case
+//! The schema 2 cases of `tests/corpus/current/` are their schema 1 forms (ADR-REPL-2,
+//! ADR-REPL-2, ADR-REPL-5): rebuilt from the solo views with the schema 1 packers, each case
 //! verifies and reaches the same ticks, final hash, outcome and command count. The simulation
 //! did not move; only the file format did.
 

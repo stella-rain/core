@@ -1,4 +1,4 @@
-//! The live rules (ADR-REPL-13): the module that runs the newest `sim_version`, with the
+//! The live rules (ADR-REPL-2): the module that runs the newest `sim_version`, with the
 //! earlier versions frozen beside it (`sim_v1`); the hash check across CPUs is never relaxed (ADR-SIM-3).
 //!
 //! The state holds its players as `players`, one now, addressed by a `PlayerIdx` (ADR-SIM-7); a
@@ -259,7 +259,7 @@ const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
 /// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-REPL-16).
+/// and the rerolls its setup adds to the stage's (ADR-REPL-5).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
     pub extra_rerolls: u8,
@@ -295,7 +295,7 @@ impl RunDifficulty {
 }
 
 /// The state before the first tick, its generator seeded with `seed`: the stage's own for a
-/// stage, the setup's for a run (ADR-REPL-16).
+/// stage, the setup's for a run (ADR-REPL-5).
 pub(crate) fn initial_state(
     stage: &World,
     content: &RunContent,
@@ -669,7 +669,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens, for every present player in slot order, the first offer due unless one is open for
 /// that player: the boss offer, then the expertise levels' in level order, then the stat offers
-/// in level order, then the stars' in the order taken (ADR-REPL-16, DS18). The players open
+/// in level order, then the stars' in the order taken (ADR-REPL-5, DS18). The players open
 /// theirs side by side.
 fn open_offers(
     stage: &World,
@@ -730,7 +730,7 @@ fn sync_deadline(stage: &World, s: &mut State, me: PlayerIdx) {
 
 /// In a timed run, closes every offer whose deadline has come by a pick of its first option
 /// (ADR-SIM-7 point 4): the events are those of a manual pick, nothing is recorded for it
-/// (ADR-REPL-16 point 5). A slot in slot order; the next offer due to it opens at once, as after
+/// (ADR-REPL-5 point 5). A slot in slot order; the next offer due to it opens at once, as after
 /// a manual pick.
 pub(super) fn pick_due(
     stage: &World,

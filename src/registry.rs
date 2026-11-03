@@ -1,6 +1,6 @@
 //! The content-ID registry (ADR-CONT-2): every ID a stage may use, with the `sim_version` that
 //! introduced it. The validator rejects an ID that is missing, of the wrong kind, or newer than
-//! the stage (ADR-REPL-12, ADR-SVC-7). Every ID here is introduced in version 1, the frozen first
+//! the stage (ADR-REPL-1, ADR-SVC-7). Every ID here is introduced in version 1, the frozen first
 //! version; the entries are placeholders until the registry file replaces
 //! them.
 //!
@@ -23,9 +23,9 @@ pub enum Kind {
     Status,
     /// A weapon preset, with its Main and Sub roles.
     Weapon,
-    /// A game mode: the content a run plays (ADR-REPL-16), bundled in `core` (`modes/`).
+    /// A game mode: the content a run plays (ADR-REPL-5), bundled in `core` (`modes/`).
     Mode,
-    /// A permanent upgrade bought with Stardust (ADR-REPL-16): the run setup lists the ones the
+    /// A permanent upgrade bought with Stardust (ADR-REPL-5): the run setup lists the ones the
     /// player holds, and a combo step names the one that opens it.
     Upgrade,
 }
@@ -163,5 +163,5 @@ pub fn orb_style(id: &str) -> u16 {
         .map_or(0, |i| u16::try_from(i + 1).unwrap_or(0))
 }
 
-/// The most upgrades a setup names (ADR-REPL-16): the registry holds at most this many.
+/// The most upgrades a setup names (ADR-REPL-5): the registry holds at most this many.
 pub const MAX_UPGRADES: usize = 32;

@@ -46,7 +46,7 @@ The same stage, seed and inputs must give the same state hash every tick, on x86
   run's hash ends with a tail a `stop` run's lacks). Layout: `state-hash.md`. The bans on floats
   and hash-iteration types (ADR-SIM-1, ADR-SIM-3) are lints in `clippy.toml`.
 
-## `sim_version` (ADR-REPL-12)
+## `sim_version` (ADR-REPL-1)
 
 - `sim` runs the newest `sim_version`; `sim_v1` is the frozen copy of version 1 (`Run::V1`,
   `src/engine/run.rs`). The engine fails closed on any other version; version 0 files, packs

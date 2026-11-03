@@ -1,6 +1,6 @@
 //! A party of 2 and 3 recorded natively: the engine starts it, the recorder steps and picks per
-//! player, and record, resume, `replay_at`, save and verify agree (ADR-REPL-13 point 4,
-//! ADR-REPL-16, ADR-SAVE-14). Slots 1 and 2 are passive in the rules for now, so no test here pins
+//! player, and record, resume, `replay_at`, save and verify agree (ADR-REPL-2 point 4,
+//! ADR-REPL-5, ADR-SAVE-14). Slots 1 and 2 are passive in the rules for now, so no test here pins
 //! what their movement does to the hash.
 
 use crate::common::run::trial_setup;

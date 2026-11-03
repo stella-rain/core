@@ -17,13 +17,13 @@ paths:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
+Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-12, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
 
 ## What is where
 
-- `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-17, ADR-BRDG-12).
+- `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-6, ADR-BRDG-12).
   A run's replay holds the setup, the content SHA-256 and the inputs (picks, `choose` and
-  `spend`, are steps of the step log); it is verified from the file and its run stats (ADR-REPL-16).
+  `spend`, are steps of the step log); it is verified from the file and its run stats (ADR-REPL-5).
 - The step log, the range reader and the recorder (`step_log.rs`, `RunRecorder`):
   `step-log.md`.
 - `share.rs`, `base64.rs`: share codes; `recording.rs`: the `record` feature's JSON Lines.
@@ -38,7 +38,7 @@ Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-6, ADR-SVC-13, ADR-SIM-
   with an offer open); `tests/offer_rating.rs`: `Engine::offer_ratings`.
 - `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
-  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-16) and `case.json`;
+  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
   `stage.json`): `two_time_limit` (2 players), `three_time_limit`, `three_tutorial` (3),
   `join_two` (a solo run that takes slot 1 at tick 600), `leave_hole` (3 players; slot 1 leaves

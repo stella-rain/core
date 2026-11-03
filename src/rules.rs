@@ -107,7 +107,7 @@ pub struct RulesFile {
     pub boss_arrival_above: Fx,
     /// The experience of a summon or a wave that gives none: 0 to `limits::MAX_ENEMY_XP`.
     pub default_xp: u32,
-    /// The base candidates of an offer (ADR-REPL-16): 1 to `rewards::MAX_OFFER_CANDIDATES`.
+    /// The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.
     pub offer_size: u8,
     /// The defence that halves a hit, in stored units: 1 to 1,000,000.
     pub defence_k: u32,
@@ -259,7 +259,7 @@ impl Rules {
         self.file.default_xp
     }
 
-    /// The base candidates of an offer (ADR-REPL-16).
+    /// The base candidates of an offer (ADR-REPL-5).
     pub fn offer_size(&self) -> u8 {
         self.file.offer_size
     }

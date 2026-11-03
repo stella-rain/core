@@ -3,7 +3,7 @@
 //!
 //! Every variant here is a content ID (its serialised name) and will be recorded in the
 //! registry with the `sim_version` that introduced it (ADR-CONT-2). Names and fields are
-//! placeholders until the freeze (ADR-REPL-12).
+//! placeholders until the freeze (ADR-REPL-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-//! The engine's run, one variant per released rules version (ADR-REPL-13 points 3 and 4): each version owns its `World`, its `State` and its snapshot view, `V1` in `sim_v1`
+//! The engine's run, one variant per released rules version (ADR-REPL-2 points 3 and 4): each version owns its `World`, its `State` and its snapshot view, `V1` in `sim_v1`
 //! (frozen) and `V2` in `sim` (live). Every call into the rules goes through a `match` here, so
 //! adding a version lists each site as a compile error. No box, no trait object: the enum is the
 //! larger variant's `World` and `State` and a tag. A version's events are its own types too:

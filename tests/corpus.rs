@@ -9,9 +9,9 @@
 //! tick and the one before to `target/corpus-diff/<name>.json`; CI uploads that folder per
 //! architecture. After an intended change, run
 //! `UPDATE_CORPUS=1 cargo test --test integration corpus::` and say `Corpus regenerated: <why>`
-//! in the PR (ADR-REPL-12).
+//! in the PR (ADR-REPL-1).
 //!
-//! Runs of the launch game (ADR-REPL-16) are kept apart, in `tests/corpus/current/runs/<name>/`: a
+//! Runs of the launch game (ADR-REPL-5) are kept apart, in `tests/corpus/current/runs/<name>/`: a
 //! `run.replay` alone (a run replay: setup, content hash, inputs, commands and `checkpoints`, the
 //! hash after every 60th tick, which are the expected hashes). A failing second is re-run and its
 //! 61 snapshots written to `target/corpus-diff/<name>/`. They need no stage file, because the
@@ -148,7 +148,7 @@ pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> 
     }
 }
 
-/// Verifies one run case (ADR-REPL-16): its `run.replay` carries the expected hashes as checkpoints,
+/// Verifies one run case (ADR-REPL-5): its `run.replay` carries the expected hashes as checkpoints,
 /// one every 60 ticks, so it is the one file of the case. A `hashes.bin` or `hashes.txt` beside
 /// it would be a second source of truth and fails the case. When a checkpoint differs, the
 /// snapshots of the ticks of that second are written to `<diff_dir>/<name>/`.
@@ -476,7 +476,7 @@ fn a_replay_that_is_not_the_stages_fails() {
     assert!(message.contains("stage file has changed"), "{message}");
 }
 
-// --- Run cases (ADR-REPL-16) -----------------------------------------------------------------------
+// --- Run cases (ADR-REPL-5) -----------------------------------------------------------------------
 
 fn changed_run_case(name: &str) -> (PathBuf, PathBuf) {
     let dir = scratch(&format!("run-{name}"));

@@ -1,4 +1,4 @@
-//! The events of the first rules as released (ADR-REPL-13 point 3, ADR-REPL-13 points 1 to 3): the shape
+//! The events of the first rules as released (ADR-REPL-2 point 3, ADR-REPL-2 points 1 to 3): the shape
 //! version 1 emitted before the live event gained its player fields. Never changed, never
 //! serialised; `engine/v1_events.rs` turns each into the live `crate::event::DomainEvent`.
 
@@ -146,13 +146,13 @@ pub enum DomainEvent {
     },
     StageCleared,
     StageFailed,
-    /// The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,
+    /// The main character reached `level` (ADR-REPL-5): a stat is raised by the run's priority,
     /// or a stat offer is due (DS18).
     LeveledUp {
         level: u32,
     },
     /// A level-up raised the run stat `stat`, by the priority or by a choice: it now has
-    /// `spent` points (ADR-REPL-16, DS18).
+    /// `spent` points (ADR-REPL-5, DS18).
     StatRaised {
         stat: ContentId,
         spent: u8,
@@ -163,7 +163,7 @@ pub enum DomainEvent {
     StatOfferOpened {
         options: Vec<ContentId>,
     },
-    /// A kill dropped the falling star `star` (ADR-REPL-16).
+    /// A kill dropped the falling star `star` (ADR-REPL-5).
     StarDropped {
         star: EntityId,
         rarity: Rarity,
@@ -217,7 +217,7 @@ pub enum DomainEvent {
         owner: EntityId,
         at: Point,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).
+    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).
     OfferOpened {
         kind: OfferKind,
         rarity: Rarity,
@@ -250,7 +250,7 @@ pub enum DomainEvent {
         reward: ContentId,
     },
     /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
-    /// choice closes it (ADR-REPL-16).
+    /// choice closes it (ADR-REPL-5).
     ExpertiseOfferOpened {
         level: u32,
         kind: ExpertiseOfferKind,

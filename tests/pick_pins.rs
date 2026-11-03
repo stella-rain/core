@@ -1,4 +1,4 @@
-//! Pins what a choice does before it moves into the input (ADR-REPL-16): for corpus run cases
+//! Pins what a choice does before it moves into the input (ADR-REPL-5): for corpus run cases
 //! that hold commands, the state hash, the number of events and the tick after each of the first
 //! commands. The constants were taken once and stayed unchanged through the move of picks into
 //! `Input`; the hashes were re-pinned for the per-player hash layout and again for the slot generations (ADR-SIM-3), and the

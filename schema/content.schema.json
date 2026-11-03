@@ -2432,7 +2432,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The main character reached `level` (ADR-REPL-16): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
+          "description": "The main character reached `level` (ADR-REPL-5): a stat is raised by the run's priority,\nor a stat offer is due (DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2461,7 +2461,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-REPL-16, DS18).",
+          "description": "A level-up raised the run stat `stat`, by the priority or by a choice: it now has\n`spent` points (ADR-REPL-5, DS18).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2525,7 +2525,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A kill dropped the falling star `star` (ADR-REPL-16).",
+          "description": "A kill dropped the falling star `star` (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -2824,7 +2824,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-16).",
+          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3022,7 +3022,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-16).",
+          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-5).",
           "properties": {
             "data": {
               "additionalProperties": false,
@@ -3951,7 +3951,7 @@
     },
     "ExpertiseOfferView": {
       "additionalProperties": false,
-      "description": "An expertise offer (ADR-REPL-16). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
+      "description": "An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
       "properties": {
         "candidates": {
           "items": {
@@ -4043,7 +4043,7 @@
     },
     "ExpertiseView": {
       "additionalProperties": false,
-      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-16).",
+      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-5).",
       "properties": {
         "level": {
           "description": "From 0, with no highest level.",
@@ -4700,7 +4700,7 @@
           "type": "integer"
         },
         "pick": {
-          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
+          "description": "On a tick where an offer is open: the option to take, an index into the offer's `options`\n(ADR-REPL-5). Read only then; ignored otherwise. Not part of the schema 1 replay stream.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -5249,7 +5249,7 @@
       ]
     },
     "OfferKind": {
-      "description": "What opened an offer (ADR-REPL-16).",
+      "description": "What opened an offer (ADR-REPL-5).",
       "oneOf": [
         {
           "const": "star",
@@ -5264,7 +5264,7 @@
       ]
     },
     "OfferMode": {
-      "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
+      "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-5 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
       "oneOf": [
         {
           "const": "stop",
@@ -5273,7 +5273,7 @@
         },
         {
           "const": "timed",
-          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-16 point 5). Needs\n`sim_version` 2.",
+          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-5 point 5). Needs\n`sim_version` 2.",
           "type": "string"
         }
       ]
@@ -5362,7 +5362,7 @@
     },
     "OfferView": {
       "additionalProperties": false,
-      "description": "An offer from a falling star (ADR-REPL-16).",
+      "description": "An offer from a falling star (ADR-REPL-5).",
       "properties": {
         "banishes_left": {
           "format": "uint32",
@@ -5603,7 +5603,7 @@
         },
         {
           "const": "cleared",
-          "description": "The stage was cleared: this is what a replay has to prove (ADR-REPL-17).",
+          "description": "The stage was cleared: this is what a replay has to prove (ADR-REPL-6).",
           "type": "string"
         },
         {
@@ -6003,7 +6003,7 @@
         },
         "weapon": {
           "$ref": "#/$defs/WeaponRef",
-          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n. It moves to the run's setup when the setup exists (ADR-REPL-16)."
+          "description": "The one weapon, whose combos the main character makes by hand with both buttons\n. It moves to the run's setup when the setup exists (ADR-REPL-5)."
         }
       },
       "required": [
@@ -6298,7 +6298,7 @@
     },
     "ProgressView": {
       "additionalProperties": false,
-      "description": "Where the run stands in experience, levels and stat points (ADR-REPL-16).",
+      "description": "Where the run stands in experience, levels and stat points (ADR-REPL-5).",
       "properties": {
         "level": {
           "description": "From 1.",
@@ -6315,7 +6315,7 @@
               "type": "null"
             }
           ],
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-16)."
+          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-5)."
         },
         "spent": {
           "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-1).",
@@ -6386,7 +6386,7 @@
       "type": "object"
     },
     "Rarity": {
-      "description": "A reward's rarity, from the most common up (ADR-REPL-16).",
+      "description": "A reward's rarity, from the most common up (ADR-REPL-5).",
       "enum": [
         "common",
         "uncommon",
@@ -6480,7 +6480,7 @@
           "type": "string"
         },
         "schema_version": {
-          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-13).",
+          "description": "The `schema_version` the file was written at. This game reads the range\n`FIRST_SCHEMA_VERSION..=NEWEST_READ_SCHEMA_VERSION` and writes `SCHEMA_VERSION`; one below\nthe range is read only through a migration, else it is `Older`; a newer one is `Newer`\n(ADR-REPL-2).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6492,7 +6492,7 @@
           "type": "integer"
         },
         "sim_version": {
-          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-13).",
+          "description": "The `sim_version` the file was written at. This game reads a file at any version\nfrom `FIRST_SIM_VERSION` to its own `SIM_VERSION`; an older one is read only through a\nmigration, else it is `Older`; a newer one is `Newer` (ADR-REPL-2).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -6950,7 +6950,7 @@
           "type": "integer"
         },
         "offer_size": {
-          "description": "The base candidates of an offer (ADR-REPL-16): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -7153,7 +7153,7 @@
         },
         "setup": {
           "$ref": "#/$defs/RunSetup",
-          "description": "What the run started from (ADR-REPL-16)."
+          "description": "What the run started from (ADR-REPL-5)."
         },
         "ticks": {
           "description": "Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.",
@@ -7175,7 +7175,7 @@
     },
     "RunSetup": {
       "additionalProperties": false,
-      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-16).",
+      "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-5).",
       "properties": {
         "carried": {
           "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.",
@@ -7244,7 +7244,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-16), each at most once. Absent: every reward in the file.",
+          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7272,7 +7272,7 @@
           "type": "array"
         },
         "upgrades": {
-          "description": "The permanent upgrades the player holds (ADR-REPL-16): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-16): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
+          "description": "The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-5): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -7291,7 +7291,7 @@
               "type": "null"
             }
           ],
-          "description": "Which of the weapon's trees the run uses (ADR-REPL-16), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
+          "description": "Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
         }
       },
       "required": [
@@ -7399,7 +7399,7 @@
           "description": "How the run stood at the end: a bug report may stop while it is still running."
         },
         "stardust": {
-          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the\napp pays it after the run (ADR-REPL-16).",
+          "description": "The Stardust the run earned, times 10, at most `limits::MAX_RUN_STARDUST`: the\napp pays it after the run (ADR-REPL-5).",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -8086,7 +8086,7 @@
           ]
         },
         "stars": {
-          "description": "Falling stars on the map, in the order they dropped (ADR-REPL-16).",
+          "description": "Falling stars on the map, in the order they dropped (ADR-REPL-5).",
           "items": {
             "$ref": "#/$defs/StarView"
           },
@@ -8204,7 +8204,7 @@
               "type": "null"
             }
           ],
-          "description": "Experience and levels, each level-up giving a stat point (ADR-REPL-16); a mode's stages\nhave them. Without them defeated enemies give nothing."
+          "description": "Experience and levels, each level-up giving a stat point (ADR-REPL-5); a mode's stages\nhave them. Without them defeated enemies give nothing."
         },
         "map": {
           "anyOf": [
@@ -8258,7 +8258,7 @@
               "type": "null"
             }
           ],
-          "description": "Falling stars and the offers they open (ADR-REPL-16); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
+          "description": "Falling stars and the offers they open (ADR-REPL-5); only with `levels`.\nWithout them kills drop nothing and nothing is offered."
         },
         "title": {
           "maxLength": 60,
@@ -9393,7 +9393,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "A preset, in one of its trees (ADR-REPL-16): none is the weapon's first tree.",
+          "description": "A preset, in one of its trees (ADR-REPL-5): none is the weapon's first tree.",
           "properties": {
             "preset": {
               "additionalProperties": false,

@@ -1263,7 +1263,7 @@ fn a_smash_is_the_weapon_s_field_not_a_step_s() {
 
 #[test]
 fn a_step_has_no_unlock_any_more() {
-    // Every smash is open (ADR-REPL-16): the field the steps once took is refused like any other
+    // Every smash is open (ADR-REPL-5): the field the steps once took is refused like any other
     // unknown field, in the combo and in the dash branch.
     let unlocked = with_combo(chain(1), |w| {
         w["combo"]["main"]["next"]["smash"] =

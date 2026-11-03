@@ -1,6 +1,6 @@
 //! The weapons file (WP1, DS20 item 2): each weapon's combo trees as content data, so that a
 //! weapon is balanced as content and not as code. A weapon is a registered weapon ID (ADR-CONT-2)
-//! with one to `MAX_TREES` trees, tree 1 first (ADR-REPL-16); a tree is a `Weapon`, the
+//! with one to `MAX_TREES` trees, tree 1 first (ADR-REPL-5); a tree is a `Weapon`, the
 //! stage format's own type, under a tree ID of its own. A stage names one by ID and tree
 //! (`WeaponRef::Preset`), or holds an inline weapon. The attack presets are content too
 //! (ADR-CONT-3, CS1b-1, `attack_presets.rs`).
@@ -93,7 +93,7 @@ impl Weapons {
         self.list.iter().map(|w| &w.id)
     }
 
-    /// The IDs of a weapon's trees, tree 1 first (ADR-REPL-16); none for an ID that is no weapon.
+    /// The IDs of a weapon's trees, tree 1 first (ADR-REPL-5); none for an ID that is no weapon.
     pub fn tree_ids(&self, weapon: &str) -> impl Iterator<Item = &ContentId> {
         self.list
             .iter()

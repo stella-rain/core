@@ -27,19 +27,19 @@ paths:
 
 # Types, validator and content
 
-Sources: ADR-CONT-1, ADR-CONT-2, ADR-CONT-3, ADR-CONT-5, ADR-CONT-6, ADR-SVC-7, ADR-REPL-12,
-ADR-REPL-13, ADR-REPL-16.
+Sources: ADR-CONT-1, ADR-CONT-2, ADR-CONT-3, ADR-CONT-5, ADR-CONT-6, ADR-SVC-7, ADR-REPL-1,
+ADR-REPL-2, ADR-REPL-5.
 A change to a type, an event or a content ID starts with the `schema-change` skill.
 
 ## What is where
 
-- The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-13) are
+- The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-2) are
   `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
-  `snapshot.rs` (ADR-REPL-12, ADR-SIM-4, ADR-REPL-16). `serde`, `serde_json` and `schemars` parse and
+  `snapshot.rs` (ADR-REPL-1, ADR-SIM-4, ADR-REPL-5). `serde`, `serde_json` and `schemars` parse and
   describe them, outside the simulation path.
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-7).
   `registry.rs`: the content-ID registry (ADR-CONT-2).
-- `run_setup.rs`: the run setup a run starts from (ADR-REPL-16); each mode's content is bundled
+- `run_setup.rs`: the run setup a run starts from (ADR-REPL-5); each mode's content is bundled
   in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
   `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-7 point 4).
 - `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
@@ -50,7 +50,7 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - `run_content.rs`: a run's content, read once (ADR-CONT-1): rules, run stats, rewards,
   expertise, match-ups, runes, stage skills, the attack presets and the `trial` and
   `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
-  (ADR-REPL-16, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
+  (ADR-REPL-5, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
   file, hashed as its bytes and read as untrusted bytes (ADR-SVC-7, ADR-CONT-6).
   `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR

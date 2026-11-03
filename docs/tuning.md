@@ -29,7 +29,7 @@
 | `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-SIM-5 |
 | `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-SVC-7 |
 | `MAX_BURST_DEPTH` | 5 | burst depth | ADR-SVC-7 |
-| `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-REPL-16 |
+| `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-REPL-5 |
 | `MAX_OFFER_TIMER_TICKS` | 3600 | ticks | ADR-SIM-7 |
 | `MAX_PARTY_DAMAGE_PCT` | 100 | percent | ADR-SIM-8 |
 | `MAX_REWARDS` | 192 | rewards | ADR-SVC-7 |
@@ -39,14 +39,14 @@
 | `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-CONT-3 |
 | `MAX_DIFFICULTIES` | 8 | difficulties | ADR-CONT-1 |
 | `MAX_PCT` | 1000 | percent | ADR-CONT-1 |
-| `MAX_COMMANDS` | 1000 | commands | ADR-REPL-16 |
-| `MAX_PRESENCE_CHANGES` | 64 | changes | ADR-REPL-16 |
+| `MAX_COMMANDS` | 1000 | commands | ADR-REPL-5 |
+| `MAX_PRESENCE_CHANGES` | 64 | changes | ADR-REPL-5 |
 | `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-7 |
 | `MAX_SETUP_BYTES` | 4096 | bytes | ADR-SVC-7 |
-| `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-REPL-16 |
-| `MAX_CARRIED_STARS` | 5 | stars | ADR-REPL-16 |
-| `MAX_LUMINE` | 10 | level | ADR-REPL-16 |
-| `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-16 |
+| `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-REPL-5 |
+| `MAX_CARRIED_STARS` | 5 | stars | ADR-REPL-5 |
+| `MAX_LUMINE` | 10 | level | ADR-REPL-5 |
+| `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-5 |
 | `MAX_WAVES` | 16 | waves | ADR-SVC-7 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-7 |
 

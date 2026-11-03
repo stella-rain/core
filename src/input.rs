@@ -31,7 +31,7 @@ pub struct Input {
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
     /// On a tick where an offer is open: the option to take, an index into the offer's `options`
-    /// (ADR-REPL-16). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
+    /// (ADR-REPL-5). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pick: Option<u32>,
     /// The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down

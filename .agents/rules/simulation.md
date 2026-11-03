@@ -12,7 +12,7 @@ globs:
 
 # Simulation code
 
-Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-SIM-7, ADR-REPL-13, ADR-REPL-16, ADR-CONT-3. See `determinism.md`;
+Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-SIM-7, ADR-REPL-2, ADR-REPL-5, ADR-CONT-3. See `determinism.md`;
 outcome changes follow the `schema-change` skill.
 
 ## What is where
@@ -26,14 +26,14 @@ outcome changes follow the `schema-change` skill.
   snapshot, `places` (ids, kinds, positions per tick) and `tally` (the HUD tallies, `Counted` in
   `ledger.rs`, outside the hashed state).
 - `sim/`: the live rules, run for the newest `sim_version` (2, open while `DEVELOPMENT` is true,
-  `src/version.rs`; ADR-REPL-13 points 2 and 3): an outcome change is a gate on the version, a full
+  `src/version.rs`; ADR-REPL-2 points 2 and 3): an outcome change is a gate on the version, a full
   copy only for a rewrite (`determinism.md`). `state.rs` is the run's `State`; `world.rs` the
   run's definitions, resolved once and read-only (`DefIndex`, `AgentDef`, `AttackDef`).
   `schedule.rs` holds `TICK`, the one tick order (`tick_doc_lists_the_schedule` keeps the `sim`
   module doc's table equal to it): a step is added or moved there. `sim/` holds agents and the
   enemies' push-apart, attacks and hit boxes, skills, the main character's movement, facing and
   evade, the weapon's combos (ADR-SIM-4), aim assist, boss phases and parts, experience and
-  levels, the runes (`runes.rs`), the falling stars and their offers (`stars.rs`, ADR-REPL-16)
+  levels, the runes (`runes.rs`), the falling stars and their offers (`stars.rs`, ADR-REPL-5)
   and the expertise offers (`expertise.rs`). A `timed` run keeps a deadline per slot
   (`sync_deadline`, `pick_due`). `offer_rating.rs` rates the candidates of an open star or boss
   offer: `Engine::offer_ratings(player)` returns an `OfferRating` each (categories, `dps_bp`,
@@ -69,5 +69,5 @@ outcome changes follow the `schema-change` skill.
 - A new constant in `sim/` is code only when changing it needs code review: a cap, the grid, the
   push-apart, the view or a unit (ADR-CONT-3). A designer-facing number is a `rules.json` key
   read from `Tuning`. Code to content is a pack-hash change alone; content to code is a rules
-  change, gated on `sim_version` if an outcome moves (ADR-REPL-13 point 2). Never put a cap or a feel
+  change, gated on `sim_version` if an outcome moves (ADR-REPL-2 point 2). Never put a cap or a feel
   number in `limits.rs` and `rules.json` both.

@@ -13,7 +13,7 @@ globs:
 
 # The state hash and entity numbers
 
-Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-16, ADR-SAVE-14. Also `replay.md`.
+Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-14. Also `replay.md`.
 
 ## The state hash
 

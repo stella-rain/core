@@ -4,7 +4,7 @@
 //! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
 //! reached by B) may carry one smash effect. The run's setup takes one ID.
 //!
-//! Field names are placeholders until the freeze (ADR-REPL-12).
+//! Field names are placeholders until the freeze (ADR-REPL-1).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use crate::id::ContentId;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeaponRef<W> {
-    /// A preset, in one of its trees (ADR-REPL-16): none is the weapon's first tree.
+    /// A preset, in one of its trees (ADR-REPL-5): none is the weapon's first tree.
     Preset {
         id: ContentId,
         #[serde(default, skip_serializing_if = "Option::is_none")]

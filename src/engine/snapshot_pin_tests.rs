@@ -1,5 +1,5 @@
 //! The snapshot and places bytes, pinned over three worst-case walks, so that moving the view
-//! (ADR-REPL-13 point 4) cannot change a byte of either.
+//! (ADR-REPL-2 point 4) cannot change a byte of either.
 //!
 //! The pins of the walks on the newest rules were set again when the entity numbers 0 to 2 were
 //! reserved for the player slots (ADR-SIM-7): every other entity's number in the bytes is 2

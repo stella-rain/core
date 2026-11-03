@@ -3,7 +3,7 @@
 //! They read like a story of what each agent did and why the hash moved, and any change to the
 //! rules shows up as a diff in review. After an intended change, run
 //! `cargo insta test --features record --test integration --review` (or set `INSTA_UPDATE=always`)
-//! and say `Corpus regenerated: <why>` in the PR (ADR-REPL-12). In CI a difference always fails.
+//! and say `Corpus regenerated: <why>` in the PR (ADR-REPL-1). In CI a difference always fails.
 #![cfg(feature = "record")]
 
 use crate::common;

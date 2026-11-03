@@ -1,4 +1,4 @@
-//! Falling stars and their offers (ADR-REPL-16), in a stage with `stars`.
+//! Falling stars and their offers (ADR-REPL-5), in a stage with `stars`.
 //!
 //! In the collisions, after the defeated enemies' experience, each defeated enemy in entity-ID
 //! order may drop a star where it fell. With the map full of stars it drops none, and the pity
@@ -426,7 +426,7 @@ pub(super) struct Taken {
 /// then, for a member of a set, counts the set's members held and applies each tier newly
 /// reached once: the difference from the tier before (`constellations::tier_delta`), so the full
 /// tier replaces the small one. A pick from an open offer and a star the run starts with
-/// (ADR-REPL-16) go through here alike.
+/// (ADR-REPL-5) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &World,

@@ -1,4 +1,4 @@
-//! Rewards (ADR-REPL-16, ADR-CONT-1): what an offer from a falling star holds. Each has a
+//! Rewards (ADR-REPL-5, ADR-CONT-1): what an offer from a falling star holds. Each has a
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
@@ -129,7 +129,7 @@ pub fn rune_haste_ticks(ticks: u32, haste_pct: u32) -> u32 {
     u32::try_from(shortened).unwrap_or(u32::MAX).max(1)
 }
 
-/// A reward's rarity, from the most common up (ADR-REPL-16).
+/// A reward's rarity, from the most common up (ADR-REPL-5).
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]

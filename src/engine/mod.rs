@@ -1,14 +1,14 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-SIM-1, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
-//! between ticks (ADR-REPL-16: `choose`); everything else comes from the stage and its
+//! between ticks (ADR-REPL-5: `choose`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-CONT-1), so the state hash after each
 //! tick is the same on every platform (ADR-SIM-3).
 //!
-//! Rules are dispatched by the stage's `sim_version` (ADR-REPL-12, ADR-REPL-13 points 1 to 3): versions
+//! Rules are dispatched by the stage's `sim_version` (ADR-REPL-1, ADR-REPL-2 points 1 to 3): versions
 //! `1..=SIM_VERSION` run in `sim`, any other fails closed. Version 1 is frozen, so a change of
 //! outcome after it is a gate on the new version in `sim`, a copy only for a rewrite (see `sim`
 //! for what it does and does not do yet). The engine holds its run as a `Run`, one variant per
-//! released rules version (`run.rs`, ADR-REPL-13) that owns that version's `World` and `State`;
+//! released rules version (`run.rs`, ADR-REPL-2) that owns that version's `World` and `State`;
 //! every call into the rules goes through it, the snapshot view included (`sim::snapshot`).
 
 use schemars::JsonSchema;
@@ -38,7 +38,7 @@ pub enum ChoiceError {
     NoOffer,
     /// `index` is not below the number of the open offer's `options`.
     OutOfRange { index: u32, options: u32 },
-    /// The run's `sim_version` is not one this game runs (ADR-REPL-13 points 1 to 3). `Engine::new`
+    /// The run's `sim_version` is not one this game runs (ADR-REPL-2 points 1 to 3). `Engine::new`
     /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
     Unsupported { sim_version: u32 },
 }
@@ -48,7 +48,7 @@ pub enum ChoiceError {
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Running,
-    /// The stage was cleared: this is what a replay has to prove (ADR-REPL-17).
+    /// The stage was cleared: this is what a replay has to prove (ADR-REPL-6).
     Cleared,
     /// The main character died, or the stage ran out of ticks.
     Failed,
@@ -288,7 +288,7 @@ impl Engine {
         Ok(Engine::of(run, content, forced))
     }
 
-    /// Starts a run from a setup alone (ADR-REPL-16): the setup is validated, then its mode's
+    /// Starts a run from a setup alone (ADR-REPL-5): the setup is validated, then its mode's
     /// stage runs with its weapons and seed, and the bundled content files.
     pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
         Engine::start_with(setup, RunContent::bundled())
@@ -398,11 +398,11 @@ impl Engine {
     /// included, is ignored. Once the run is over this does nothing, so a replay that is longer
     /// than the run cannot change the final hash.
     ///
-    /// While an offer is open for any player the world is stopped (ADR-REPL-16): each player, in
+    /// While an offer is open for any player the world is stopped (ADR-REPL-5): each player, in
     /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
     /// offer, the events are the picks' and the tick does not advance; a player with no offer
     /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
-    /// offer open `pick` is not read (ADR-REPL-16).
+    /// offer open `pick` is not read (ADR-REPL-5).
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -451,7 +451,7 @@ impl Engine {
     }
 
     /// Takes only the picks of `inputs`, never ticking the world: a recorded PICKS step
-    /// (ADR-REPL-16), the same in both modes.
+    /// (ADR-REPL-5), the same in both modes.
     pub(crate) fn pick_step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -544,7 +544,7 @@ impl Engine {
     }
 
     /// Whether `player` could take option `index` of its open offer by a pick in `step`
-    /// (ADR-REPL-16). An open offer belongs to the slot that holds it, and the snapshot shows the
+    /// (ADR-REPL-5). An open offer belongs to the slot that holds it, and the snapshot shows the
     /// first player's. Refused for a player outside the party, a player with no offer open, a
     /// `sim_version` this game does not run, or an index outside its options. Read-only.
     pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
@@ -669,7 +669,7 @@ impl Engine {
         self.run.outcome()
     }
 
-    /// An offer is open: `step` does nothing until `choose` closes it (ADR-REPL-16).
+    /// An offer is open: `step` does nothing until `choose` closes it (ADR-REPL-5).
     pub fn offer_open(&self) -> bool {
         self.run.offer_open()
     }

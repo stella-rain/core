@@ -12,7 +12,7 @@ paths:
 
 # Benches and fuzz targets
 
-Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-6, ADR-SVC-7, ADR-REPL-16, ADR-CONT-5.
+Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-6, ADR-SVC-7, ADR-REPL-5, ADR-CONT-5.
 
 ## Benches (`benches/`)
 
@@ -61,7 +61,7 @@ event adapter are not benched.
 ## Fuzz (`fuzz/`)
 
 - `cargo-fuzz` targets for the parsers and loaders (stage, run, replays, share code, run setup,
-  content packs, minisign, savepoints, step log ranges; ADR-SVC-7, ADR-REPL-16, ADR-CONT-5): every
+  content packs, minisign, savepoints, step log ranges; ADR-SVC-7, ADR-REPL-5, ADR-CONT-5): every
   file in `fuzz_targets/`, in its own workspace, on nightly.
 - `fuzz/tests/smoke.rs` runs them on stable; `regressions/<target>/` keeps the inputs of fixed
   crashes. `savepoint_load` and `step_log_range` are seeded from generated files

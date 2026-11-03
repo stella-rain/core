@@ -159,8 +159,8 @@ fn replay_round_trips_and_rejects_unknown_fields() {
 
 #[test]
 fn versions_are_one_from_the_freeze() {
-    // Version 1 is the frozen first version (ADR-REPL-13) and still read beside the open
-    // version 2 (ADR-REPL-13); version 0 is refused.
+    // Version 1 is the frozen first version (ADR-REPL-2) and still read beside the open
+    // version 2 (ADR-REPL-2); version 0 is refused.
     assert_eq!((SCHEMA_VERSION, SIM_VERSION), (2, 2));
     // The stage file is authored content at the first schema; it is read as it is.
     let stage = parse(STAGE).unwrap();

@@ -95,7 +95,7 @@ pub mod limits {
     pub const MAX_TRANSITIONS: usize = 4;
     pub const MAX_PRESET_ARGS: usize = 8;
     pub const MAX_WAVE_COUNT: u16 = 100;
-    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-REPL-16).
+    /// Entries in a stage's `levels.xp`, and the experience in each (ADR-REPL-5).
     pub const MAX_LEVELS: usize = 100;
     pub const MAX_LEVEL_XP: u32 = 1_000_000;
     /// The experience an enemy gives.
@@ -111,7 +111,7 @@ pub mod limits {
     pub const MAX_STARDUST_PCT: u32 = 1_000;
     pub const MAX_STARDUST_TIERS: usize = 16;
     pub const MAX_RUN_STARDUST: u32 = 10_000_000;
-    /// Falling stars (ADR-REPL-16): the drop chance is in 1000; the pity, the stars on
+    /// Falling stars (ADR-REPL-5): the drop chance is in 1000; the pity, the stars on
     /// the map, the pickup circle (64 pixels), the rerolls and banishes, and the drop table's
     /// tiers, each starting at most at the highest level, with weights of at most 10,000.
     pub const MAX_DROP_PER_MILLE: u16 = 1000;
@@ -214,7 +214,7 @@ pub enum Error {
         line: usize,
         column: usize,
     },
-    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-12).
+    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-1).
     UnsupportedVersion {
         schema_version: u32,
         sim_version: u32,

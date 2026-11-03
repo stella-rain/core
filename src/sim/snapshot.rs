@@ -1,6 +1,6 @@
 //! The snapshot view of this version's state: what the frontend draws after the last tick
 //! (ADR-BRDG-13), and where the drawn things are (`places`). It reads this version's `World` and
-//! `State` only, so a copy of the rules brings its own view (ADR-REPL-13 point 4).
+//! `State` only, so a copy of the rules brings its own view (ADR-REPL-2 point 4).
 
 use crate::sim::state::PlayerIdx;
 use std::sync::LazyLock;
