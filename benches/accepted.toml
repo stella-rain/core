@@ -1,4 +1,4 @@
-# The ledger of accepted instruction rises (ADR-SIM-8). Kade merges every change to this file.
+# The ledger of accepted instruction rises (ADR-SIM-20 point 3). Kade merges every change to this file.
 #
 # A bench case that rises by more than 2% against the base commit fails the bench job. A rise that
 # is understood and wanted (a new rule, a new enemy) is accepted by adding an entry here in the
@@ -134,7 +134,7 @@ case = "worst_tick"
 arch = "x86_64"
 base = 4852942
 count = 4959000
-reason = "player index threaded through every system for N players (ADR-SIM-12)"
+reason = "player index threaded through every system for N players (ADR-SIM-21)"
 pr = 516
 
 [[accepted]]
@@ -143,7 +143,7 @@ case = "worst_tick"
 arch = "arm64"
 base = 4226049
 count = 4330000
-reason = "player index threaded through every system for N players (ADR-SIM-12)"
+reason = "player index threaded through every system for N players (ADR-SIM-21)"
 pr = 516
 
 [[accepted]]
@@ -152,7 +152,7 @@ case = "worst_minute"
 arch = "arm64"
 base = 1308122190
 count = 1336248000
-reason = "player index threaded through every system for N players (ADR-SIM-12)"
+reason = "player index threaded through every system for N players (ADR-SIM-21)"
 pr = 516
 
 [[accepted]]
@@ -161,5 +161,5 @@ case = "worst_minute_peak"
 arch = "arm64"
 base = 386434
 count = 395000
-reason = "player index threaded through every system for N players (ADR-SIM-12)"
+reason = "player index threaded through every system for N players (ADR-SIM-21)"
 pr = 516
