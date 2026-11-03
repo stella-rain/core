@@ -31,20 +31,20 @@ The same stage, seed and inputs must give the same state hash every tick, on x86
 - The crit roll takes no draw: it hashes `crit_seed`, the tick, `roll_key(id)`, hp and the hit
   point (`src/sim/combat.rs`). `State::roll_key` (`src/sim/entity.rs`) is `to_compact(id, id_gap)`
   (`src/id.rs`), read by the crit roll and the push-apart angle (`src/sim/push.rs`): a player's
-  slot as it is, every other entity `id_gap = MAX_PLAYERS - present` lower (the set bits: 2, 1, 0
-  for 1, 2, 3 players). A join or leave moves the gap at once: every live enemy's key shifts by
-  one per slot gained or lost, its next crit roll and push angle read the new key, later spawns
-  use the count then (ADR-SIM-22). The hash and savepoint write entity numbers as they are.
+  number of any generation maps to its slot, every other entity `id_gap = MAX_PLAYERS - present`
+  lower (2, 1, 0 for 1, 2, 3 players). A join or leave moves the gap at once: every live enemy's
+  key shifts by one per slot gained or lost, its next crit roll and push angle read the new key,
+  later spawns use the count then (ADR-SIM-22). The hash and savepoint write numbers as they are.
 - Collision is our own code (circle vs point, circle vs circle); no engine physics. Entities
   live in `Vec`s with stable IDs; never iterate a `HashMap` or `HashSet` in simulation code.
 - `overflow-checks = true` in every Cargo profile, release included. Where overflow is possible,
   use `saturating_*` or `wrapping_*`; any other overflow panics, the panic is caught at the gdext
   boundary and the run ends (fail closed).
 - One input per present slot per tick is the only external influence.
-- A state hash per tick covers the full state. It is FNV-1a 64 over an explicit byte encoding
-  that `core` writes itself; never `DefaultHasher` or a derived `Hash`. Its layout is in
-  `simulation.md`.
-- The bans on floats and hash-iteration types (ADR-SIM-15, ADR-SIM-17) are lints in `clippy.toml`.
+- A state hash per tick covers the full state: FNV-1a 64 over an explicit byte encoding that `core`
+  writes itself, never `DefaultHasher` or a derived `Hash`; prefix-free within a mode (a `timed`
+  run's hash ends with a tail a `stop` run's lacks). Layout: `state-hash.md`. The bans on floats
+  and hash-iteration types (ADR-SIM-15, ADR-SIM-17) are lints in `clippy.toml`.
 
 ## `sim_version` (ADR-REPL-12)
 

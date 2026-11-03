@@ -40,7 +40,8 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-7).
   `registry.rs`: the content-ID registry (ADR-CONT-12).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-16); each mode's content is bundled
-  in `modes/`.
+  in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
+  `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-21 point 4).
 - `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
   holds): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
   `content/run_stats.json` and `content/rewards.json` (ADR-CONT-11). `match_ups.rs` reads
@@ -70,5 +71,9 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - Caps, the grid, the push-apart, the view and the units stay in Rust. The test: a number whose
   change needs code review stays in Rust. A key's bounds are code (`validate_rules` in `rules.rs`; the two ranged
   token pools sum to at most `MAX_RANGED_ATTACKERS`).
+- `offer_timer_ticks` of `rules.json`: a `timed` offer's countdown, 1 to `MAX_OFFER_TIMER_TICKS`
+  (3,600 = 60 s), checked in `validate_rules`, 300 when absent, never read by a `stop` run. A key
+  added after bytes were published carries `#[serde(default)]`, so an older pack still reads; a
+  setup key also `skip_serializing_if` its default, so an older setup writes the same bytes.
 - `docs/tuning.md` (generated from `src/limits.rs`) lists caps and code numbers only; a key's
   bounds are the schema's.
