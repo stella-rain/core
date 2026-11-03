@@ -81,7 +81,7 @@ skipped by right. Fuzz, bench and workflow detail: `.claude/rules/benches-fuzz.m
   `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
 - Releases follow the `release-flow` skill. The version is `version` in `Cargo.toml` (`fuzz/Cargo.lock`
   agrees); Candidate generates the release notes from the commits since the last release (`.github/scripts/release.py`).
-- Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app can use it (ADR-REL-11). Zip deliveries (Windows PC only) are laid out from the `stella-rain` root.
+- Releases are tags; `app` pins a tag, so a schema change needs a core tag before the app can use it (ADR-REL-2). Zip deliveries (Windows PC only) are laid out from the `stella-rain` root.
 
 ## Overrides of global rules
 

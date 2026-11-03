@@ -6,7 +6,7 @@
 //!
 //! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-3, ADR-CONT-2).
 //!
-//! Asset sources (ADR-REL-10) join the entries when real assets exist.
+//! Asset sources (ADR-REL-1) join the entries when real assets exist.
 
 /// What an ID names. An ID is only valid where its kind is expected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

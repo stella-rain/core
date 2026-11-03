@@ -5,7 +5,7 @@ paths:
 
 # Workflows and scripts
 
-Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-12.
+Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
 
 ## `.github/workflows/`
 
@@ -27,7 +27,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-12.
   `deep` runs those long tests one at a time so their times stay comparable.
 - The weekly long fuzz run (`fuzz-long.yml`), the iOS Simulator tests (`ios-sim.yml`, runner
   `.github/scripts/ios-sim-runner.sh`) and the Android emulator tests (`android-emu.yml`, runner
-  `.github/scripts/android-emu-runner.sh`), all called by Candidate (ADR-REL-12 point 5); the emulator job is
+  `.github/scripts/android-emu-runner.sh`), all called by Candidate (ADR-REL-3 point 5); the emulator job is
   advisory (not in the `tag` job's needs).
 - Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`,
   `candidate-guard.yml`); script tests (`scripts.yml`).

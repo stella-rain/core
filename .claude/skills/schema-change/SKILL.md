@@ -54,7 +54,7 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 ## 5. Reach the app
 
-- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-11), in its own commit
+- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-2), in its own commit
   or PR that refers to the `core` change.
 - Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
   core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-1).
