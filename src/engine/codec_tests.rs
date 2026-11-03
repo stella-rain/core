@@ -643,7 +643,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         fields: [tick, rng, outcome, player, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, progress, stars, heal_pickups, expertise, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, stardust, regen, hp_pct, damage_pct, crit_seed, echoes],
         rebuilt: [scratch, kinds, move_index, match_ups, runes, stun]);
     each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.player,
-        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses]);
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.player.combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.player.skill.as_mut().unwrap(),
