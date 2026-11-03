@@ -12,7 +12,7 @@ globs:
 
 # The step log and the recorder
 
-Sources: ADR-REPL-7, ADR-REPL-10, ADR-SAVE-7, ADR-SAVE-8. File formats, hashes and the corpus: `replay.md`.
+Sources: ADR-REPL-12, ADR-REPL-16, ADR-SAVE-14, ADR-SAVE-16. File formats, hashes and the corpus: `replay.md`.
 
 ## What is where
 
@@ -56,7 +56,7 @@ Sources: ADR-REPL-7, ADR-REPL-10, ADR-SAVE-7, ADR-SAVE-8. File formats, hashes a
 - Slots 1 and 2 are passive in the rules (`simulation.md`): their inputs are logged and read
   back. The recorder and verifier refuse a hole; joining and leaving do not exist yet (JOIN and
   LEAVE above). The app never resumes a party run: `resume_*` for a party serve tests, replay
-  and "continue alone" (ADR-SAVE-8).
+  and "continue alone" (ADR-SAVE-16).
 
 ## Tests
 

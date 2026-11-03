@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decide which cases of a bench target the bench job compares with the base commit (ADR-SIM-10).
+"""Decide which cases of a bench target the bench job compares with the base commit (ADR-SIM-20 point 5).
 
 Reads tests/bench_pins.toml of the base and of the head. A case is comparable when it is in both
 files with equal `before`, `stage` and `input` digests (`after` is pinned only) and the target's

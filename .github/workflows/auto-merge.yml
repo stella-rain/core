@@ -3,7 +3,7 @@
 # the PR's head commit is green and every check in `require:` has succeeded, so a check whose
 # workflow has not started yet is never skipped. Drafts and PRs that touch .github/workflows/
 # (this file included) or a `protected:` path, the agent rules and the bench ledger and budgets (an
-# accepted rise or a raised budget is Kade's merge, ADR-SIM-8), are left to Kade (ADR-052).
+# accepted rise or a raised budget is Kade's merge, ADR-SIM-20 point 3), are left to Kade.
 # Add each new PR check's workflow name to `workflows:`, and its check names to `require:` if
 # they run on every pull request into main: a skipped or path-filtered check never succeeds
 # (`short fuzz run`, `check / CLAUDE.md and rules within limits`), and naming one would leave

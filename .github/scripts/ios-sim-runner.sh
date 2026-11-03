@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cargo runner for `aarch64-apple-ios-sim` (ios-sim.yml, ADR-039): runs a test binary inside the
+# Cargo runner for `aarch64-apple-ios-sim` (ios-sim.yml, ADR-PLAT-5): runs a test binary inside the
 # booted iOS Simulator. Usage, set by cargo: ios-sim-runner.sh <binary> [arguments...]
 #
 # The binary is a host path: a Simulator process runs on the Mac and sees its files, so the tests

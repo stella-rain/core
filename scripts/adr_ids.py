@@ -27,11 +27,6 @@ FIRST_NUMBER = {"SIM": 15, "CONT": 11, "REPL": 12, "BRDG": 10, "SAVE": 11, "REL"
 EXCLUDED = ("tests/corpus/", "tests/fixtures/", "scripts/adr_ids.txt", "scripts/adr_ids.py",
                      "scripts/test_adr_ids.py")
 
-# Paths the scan does not read yet: the files that only Kade merges. Emptied by the follow-up
-# change that moves their citations.
-PENDING = (".claude/", ".agents/", ".github/", "AGENTS.md", "CLAUDE.md", "benches/accepted.toml",
-           "benches/budgets.toml")
-
 # `ADR-SIM-19`, `ADR-SIM-19 point 4`, `ADR-SIM-19 points 4 and 5`; the same grammar as the app's
 # own checker. A legacy number is `ADR-020` or `ADR 020`.
 ID_RE = re.compile(r"ADR-([A-Z]+-[0-9]+)\b")
@@ -120,13 +115,19 @@ def render(ids):
     return "\n".join(lines) + "\n"
 
 
+# The bench ledger is append-only (bench_alarm.py compares whole entries), so the `reason` line of
+# an entry is a record and keeps the ID it was written with. Only those lines of that one file are
+# not read; the rest of the file is.
+RECORD_LINES = {"benches/accepted.toml": re.compile(r"^\s*reason\s*=")}
+
+
 def listed(path, entries):
     """An entry ending in `/` names a folder; any other entry names exactly one file."""
     return any(path.startswith(e) if e.endswith("/") else path == e for e in entries)
 
 
 def skipped(path):
-    return listed(path, EXCLUDED) or listed(path, PENDING)
+    return listed(path, EXCLUDED)
 
 
 def scan_text(path, text, ids):
@@ -134,7 +135,10 @@ def scan_text(path, text, ids):
     line is joined to the line it starts on."""
     findings = []
     lines = text.split("\n")
+    record = RECORD_LINES.get(path)
     for i, line in enumerate(lines):
+        if record and record.match(line):
+            continue
         joined = line
         if i + 1 < len(lines):
             nxt = COMMENT_PREFIX_RE.sub("", lines[i + 1], count=1)

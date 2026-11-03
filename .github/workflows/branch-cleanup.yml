@@ -1,4 +1,4 @@
-# Deletes merged `claude/*` branches still at their PR's head commit (ADR-053): the PRs Kade
+# Deletes merged `claude/*` branches still at their PR's head commit: the PRs Kade
 # merges by hand keep their branch. The reusable workflow in stella-rain/.github decides and
 # deletes; it reads its script from that repository's main.
 name: Branch cleanup

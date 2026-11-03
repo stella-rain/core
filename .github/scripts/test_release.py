@@ -295,7 +295,7 @@ class PackChanged(unittest.TestCase):
 
 class PackWarning(unittest.TestCase):
     LINE = ("content/pack.json changed since v0.0.3: publish a stella-rain/content release "
-            "from this tag before an app build pins it (ADR-080)")
+            "from this tag before an app build pins it (ADR-CONT-15)")
 
     def test_a_changed_pack_puts_the_warning_first(self):
         text = r.notes("v0.0.4-rc.1", SHA, "v0.0.3", [], pack_changed=True, rules=1)

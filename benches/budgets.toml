@@ -1,11 +1,11 @@
-# Instructions per tick, the most a bench may count (ADR-021: 4 ms of a 16.7 ms frame on the
-# reference phone; ADR-058: ~3.1 G instructions/s on the Lenovo Tab P11 = 12.4 M).
+# Instructions per tick, the most a bench may count (ADR-SIM-19 point 1: 4 ms of a 16.7 ms frame on the
+# reference phone; ~3.1 G instructions/s on the Lenovo Tab P11 = 12.4 M).
 # Each key is a bench target (`benches/<name>.rs`); the CI bench job builds and checks these.
 # DIR1 (DS103, DS50): the benches run at the derived enemy cap of 260 (crowd target 200, headroom
 # 30%), not 500, and the worst minute holds the crowd at the target of 200 with the elites in the
 # room up to the cap. Every budget is about 10% over what CI counted on that head, rounded up to
 # the next 100,000 (a single tick) or 100,000,000 (worst_minute), never over the 12.4 M frame
-# ceiling above (ADR-058). A change of the crowd target or the headroom re-baselines them.
+# ceiling above (ADR-SIM-19). A change of the crowd target or the headroom re-baselines them.
 # CI counts (arm64 / x86_64) on main at 30b12b8, with the budget before DIR1 in brackets:
 #   worst_tick         4,417,268 / 5,043,955   [12,400,000 / 11,900,000]
 #   hit_tick           4,039,499 / 4,330,119   [ 8,800,000 /  8,900,000]
