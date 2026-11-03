@@ -577,8 +577,7 @@ impl RunReplay {
         }
         let head: String = self.inputs.chars().take(4).collect();
         let present = *base64::decode(&head).ok()?.first()?;
-        let party = u8::try_from(present.count_ones()).ok()?;
-        (present != 0 && present == (1u8 << party) - 1).then_some(party)
+        StepLog::party_of(present)
     }
 
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
@@ -788,17 +787,18 @@ impl RunRecorder {
         self.engine.step(inputs);
         // The log holds each input as its block bytes read it back (a stick axis of -128 is
         // -127, a pick is never in the stream), so equal blocks are one run.
-        let held: Vec<Input> = inputs
-            .iter()
-            .map(|input| {
-                input_of_block(block_of(input), true).expect("a block of an input reads back")
-            })
-            .collect();
+        let held = |input: &Input| {
+            input_of_block(block_of(input), true).expect("a block of an input reads back")
+        };
         match self.records.last_mut() {
-            Some(Record::Ticks { run, inputs }) if *inputs == held => *run += 1,
+            Some(Record::Ticks { run, inputs: last })
+                if last.iter().zip(inputs).all(|(a, b)| *a == held(b)) =>
+            {
+                *run += 1;
+            }
             _ => self.records.push(Record::Ticks {
                 run: 1,
-                inputs: held,
+                inputs: inputs.iter().map(held).collect(),
             }),
         }
         if self.engine.tick() % CHECKPOINT_TICKS == 0 {
@@ -1098,12 +1098,9 @@ fn resimulate(
     }
 
     // The slots present must be a party from slot 0 (a hole is for joining and leaving).
-    let party = u8::try_from(log.present.count_ones()).unwrap_or(u8::MAX);
-    if log.present != (1u8 << party) - 1 {
-        return Err(RunReplayError::BadInputs(
-            "the party does not match the run",
-        ));
-    }
+    let party = StepLog::party_of(log.present).ok_or(RunReplayError::BadInputs(
+        "the party does not match the run",
+    ))?;
     let mut engine = Engine::start_party_with(&replay.setup, run_content, party)
         .map_err(RunReplayError::Setup)?;
     let mut reached = Vec::with_capacity(claimed.len());
@@ -1502,7 +1499,7 @@ mod party_size_tests {
         rec.step(&[Input::default(); 2]).unwrap();
         let mut replay = rec.replay();
         let bytes = base64::decode(&replay.inputs).unwrap();
-        for bad in [0u8, 0b010, 0b101, 0b1000] {
+        for bad in [0u8, 0b010, 0b101, 0b1000, 0b1111, 0xFF] {
             let mut edited = bytes.clone();
             edited[0] = bad;
             replay.inputs = base64::encode(&edited);

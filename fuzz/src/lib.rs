@@ -533,8 +533,9 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
     seeds
 }
 
-/// A solo run replay's commands in the order they were made (a party has no solo view): before each tick the commands that
-/// carry the tick before it, then its input; at the end the commands of the last tick.
+/// A solo run replay's commands in the order they were made (a party has no solo view and
+/// panics here): before each tick the commands that carry the tick before it, then its input;
+/// at the end the commands of the last tick.
 pub fn commands(run: &RunReplay) -> Vec<Command> {
     let inputs = run
         .unpack_inputs(MAX_TICKS)

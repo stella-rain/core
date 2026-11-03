@@ -765,17 +765,26 @@ fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
 #[test]
 fn the_party_cases_pass_the_replay_oracle() {
     let dir = root().join("tests/corpus/current/parties");
-    let mut seen = 0;
+    let mut sizes = Vec::new();
     for case in fs::read_dir(&dir).expect("the party corpus directory") {
-        let bytes = fs::read(case.unwrap().path().join("run.replay")).expect("run.replay");
+        let case = case.unwrap().path();
+        if !case.is_dir() {
+            continue;
+        }
+        let bytes = fs::read(case.join("run.replay")).expect("run.replay");
         // Verified, and re-recorded through the step-range walk to the same replay.
         assert!(
             replay_load(&bytes),
             "a party case does not pass replay_load"
         );
-        seen += 1;
+        let run = RunReplay::from_bytes(&bytes).unwrap();
+        let range = run.step_range(0, 0, u32::MAX).unwrap();
+        sizes.push(range.present.count_ones());
     }
-    assert!(seen >= 2, "the corpus holds an N=2 and an N=3 case");
+    assert!(
+        sizes.contains(&2) && sizes.contains(&3),
+        "the corpus holds an N=2 and an N=3 case: {sizes:?}"
+    );
 }
 
 #[test]

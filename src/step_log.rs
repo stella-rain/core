@@ -127,6 +127,13 @@ impl StepLog {
         }
     }
 
+    /// The party a `present` byte names: its popcount when it is the slots from slot 0 up to
+    /// slot 2 (`0b001`, `0b011`, `0b111`), else `None` (empty, a hole, a bit past slot 2).
+    pub(crate) fn party_of(present: u8) -> Option<u8> {
+        matches!(present, 0b001 | 0b011 | 0b111)
+            .then(|| u8::try_from(present.count_ones()).unwrap_or(u8::MAX))
+    }
+
     /// The number of PICKS records, the unit `MAX_COMMANDS` counts.
     pub(crate) fn picks_made(&self) -> u32 {
         let n = self
