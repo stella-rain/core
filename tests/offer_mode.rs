@@ -109,27 +109,14 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
     use stella_rain_core::rules::{MAX_OFFER_TIMER_TICKS, Rules};
     assert_eq!(Rules::bundled().offer_timer_ticks(), 300);
     assert_eq!(MAX_OFFER_TIMER_TICKS, 3600);
-    let bundled =
-        String::from_utf8(stella_rain_core::pack::ContentFiles::bundled_file("rules").to_vec())
+    let bundled: serde_json::Value =
+        serde_json::from_slice(stella_rain_core::pack::ContentFiles::bundled_file("rules"))
             .unwrap();
     let versions = stella_rain_core::version::Versions::CURRENT;
     let with = |n: u32| {
-        let text = if bundled.contains("offer_timer_ticks") {
-            let at = bundled.find("\"offer_timer_ticks\"").unwrap();
-            let end = bundled[at..].find(['\n', '}']).unwrap() + at;
-            format!(
-                "{}\"offer_timer_ticks\": {n}{}",
-                &bundled[..at],
-                &bundled[end..]
-            )
-        } else {
-            let close = bundled.rfind('}').unwrap();
-            format!(
-                "{},\n  \"offer_timer_ticks\": {n}\n}}",
-                bundled[..close].trim_end()
-            )
-        };
-        Rules::parse(text.as_bytes(), versions)
+        let mut v = bundled.clone();
+        v["offer_timer_ticks"] = serde_json::json!(n);
+        Rules::parse(v.to_string().as_bytes(), versions)
     };
     assert!(with(1).is_ok());
     assert!(with(3600).is_ok());

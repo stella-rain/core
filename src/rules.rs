@@ -4,8 +4,9 @@
 //! rules constants follow (CS1b-3): the main character's speed and hurt circle, the orbs' radius,
 //! the invulnerable ticks after a hit, aggro, the leash and the spawn margin, the ranged tokens,
 //! the orbiting agents' turn, where a horde boss arrives, the default experience, the size of an
-//! offer and the damage curve. `World` reads them once when a run is built. Caps, the grid, the
-//! push-apart, the view and the units stay in Rust. The cap is
+//! offer and the damage curve, and the table of how much of a player's damage applies for each
+//! party size (`party_damage_pct`, ADR-SIM-22). `World` reads them once when a run is built.
+//! Caps, the grid, the push-apart, the view and the units stay in Rust. The cap is
 //! `target * (100 + headroom) / 100`, rounded down, derived when a run is built and never stored
 //! (260 for the bundled file); the headroom is the room the specials (elites, escorts, a
 //! splitter's children, guardians, the boss's summons) spawn in while the waves are held at the
@@ -47,6 +48,16 @@ const DEFAULT_OFFER_TIMER_TICKS: u32 = 300;
 
 fn default_offer_timer_ticks() -> u32 {
     DEFAULT_OFFER_TIMER_TICKS
+}
+
+/// The most a party-size entry of `party_damage_pct` can be, in percent: a bigger party only
+/// scales a player's damage down, never up (ADR-SIM-22, ADR-CONT-13 point 4).
+pub const MAX_PARTY_DAMAGE_PCT: u32 = 100;
+/// The players a `party_damage_pct` list has an entry for.
+const PARTY_SIZES: usize = crate::id::MAX_PLAYERS as usize;
+
+fn default_party_damage_pct() -> Vec<u32> {
+    vec![MAX_PARTY_DAMAGE_PCT; PARTY_SIZES]
 }
 
 /// The rules file.
@@ -107,6 +118,11 @@ pub struct RulesFile {
     /// Absent: 300, so a pack published before the key existed still reads.
     #[serde(default = "default_offer_timer_ticks")]
     pub offer_timer_ticks: u32,
+    /// The percent of a player's damage that applies when 1, 2 or 3 players are present
+    /// (ADR-SIM-22): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.
+    /// Absent: `[100, 100, 100]`, so a pack published before the key existed still reads.
+    #[serde(default = "default_party_damage_pct")]
+    pub party_damage_pct: Vec<u32>,
 }
 
 /// A rules file that passed validation, and the SHA-256 of the bytes it came from.
@@ -251,6 +267,16 @@ impl Rules {
     /// Ticks a timed offer waits for a pick (ADR-SIM-21 point 4).
     pub fn offer_timer_ticks(&self) -> u32 {
         self.file.offer_timer_ticks
+    }
+
+    /// The percent of a player's damage that applies for 1, 2 and 3 players present
+    /// (ADR-SIM-22). The list has three entries once validated.
+    pub fn party_damage_pct(&self) -> [u32; PARTY_SIZES] {
+        let mut table = [MAX_PARTY_DAMAGE_PCT; PARTY_SIZES];
+        for (to, from) in table.iter_mut().zip(&self.file.party_damage_pct) {
+            *to = *from;
+        }
+        table
     }
 
     /// The defence that halves a hit, in stored units.
@@ -508,4 +534,23 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         1,
         i64::from(MAX_OFFER_TIMER_TICKS),
     );
+    if file.party_damage_pct.len() != PARTY_SIZES {
+        issues.push(Issue {
+            path: "$.party_damage_pct".into(),
+            message: format!(
+                "{PARTY_SIZES} entries (found {})",
+                file.party_damage_pct.len()
+            ),
+        });
+    } else {
+        for (i, pct) in file.party_damage_pct.iter().enumerate() {
+            within(
+                issues,
+                &format!("party_damage_pct[{i}]"),
+                i64::from(*pct),
+                1,
+                i64::from(MAX_PARTY_DAMAGE_PCT),
+            );
+        }
+    }
 }

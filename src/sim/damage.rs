@@ -30,13 +30,20 @@ pub(super) struct Landed {
     pub dead: bool,
 }
 
+/// `shown` at `pct` percent, truncated toward zero once, and at least 1 for a hit above 0
+/// (ADR-SIM-22 point 3).
+pub(super) fn party_scaled(pct: u32, shown: u32) -> u32 {
+    let scaled = u32::try_from(u64::from(shown) * u64::from(pct) / 100).unwrap_or(u32::MAX);
+    if shown > 0 { scaled.max(1) } else { 0 }
+}
+
 /// Lowers `target`'s hit points by a hit of `shown` damage, credits the kill to `me` when an
 /// enemy falls, and reports the `Hit`, the `Died` and the source's aggro. The caller has
 /// already checked the target stands and may be damaged.
 ///
-/// `shown` is what the `Hit` event, the aggro and the echo carry. `applied` is the only number
-/// that reaches the hit points: ADR-SIM-21's party factor goes on that one line, and is not
-/// applied yet, so the two are equal.
+/// `shown` is what the `Hit` event, the aggro and the echo's size carry. `applied` is the only
+/// number that reaches the hit points: a foe's is `shown` times the percent of the present party
+/// (ADR-SIM-22), read at this hit from `s.players`, once per hit; an ally's is `shown`.
 #[inline(always)]
 pub(super) fn land(
     stage: &World,
@@ -47,7 +54,12 @@ pub(super) fn land(
     how: Landing,
     events: &mut Vec<DomainEvent>,
 ) -> Landed {
-    let applied = shown;
+    let foe = !State::is_ally(target);
+    let applied = if foe {
+        party_scaled(stage.tuning.party_damage_pct[s.players.len() - 1], shown)
+    } else {
+        shown
+    };
     let hp = s.hp_mut(target);
     let before = *hp;
     *hp = hp.saturating_sub(applied);
@@ -57,7 +69,6 @@ pub(super) fn land(
             record_kill(s, i, me);
         }
     }
-    let foe = !State::is_ally(target);
     events.push(DomainEvent::Hit {
         source: how.source,
         target: how.id,

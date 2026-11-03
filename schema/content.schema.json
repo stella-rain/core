@@ -6974,6 +6974,20 @@
           "minimum": 0,
           "type": "integer"
         },
+        "party_damage_pct": {
+          "default": [
+            100,
+            100,
+            100
+          ],
+          "description": "The percent of a player's damage that applies when 1, 2 or 3 players are present\n(ADR-SIM-22): exactly 3 entries, each 1 to 100 (`MAX_PARTY_DAMAGE_PCT`), read at each hit.\nAbsent: `[100, 100, 100]`, so a pack published before the key existed still reads.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
         "player_radius": {
           "description": "The main character's hurt circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
           "format": "int32",

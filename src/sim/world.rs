@@ -360,6 +360,7 @@ pub(crate) struct Tuning {
     pub defence_k: u64,
     pub crit_damage_base_pct: u64,
     pub offer_timer_ticks: u32,
+    pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
 }
 
 impl Tuning {
@@ -390,6 +391,7 @@ impl Tuning {
             defence_k: u64::from(rules.defence_k()),
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
             offer_timer_ticks: rules.offer_timer_ticks(),
+            party_damage_pct: rules.party_damage_pct(),
         }
     }
 }
@@ -664,6 +666,22 @@ mod tests {
             .push(&kinds, &agent, AgentSource::Wave, false)
             .unwrap_err();
         assert!(refused.message.contains("65535"), "{refused:?}");
+    }
+
+    #[test]
+    fn the_party_damage_table_reaches_the_tuning() {
+        assert_eq!(
+            World::for_test(RunContent::bundled().trial().clone())
+                .tuning
+                .party_damage_pct,
+            [100, 100, 100]
+        );
+        let mut v: serde_json::Value =
+            serde_json::from_slice(crate::pack::ContentFiles::bundled_file("rules")).unwrap();
+        v["party_damage_pct"] = serde_json::json!([100, 60, 30]);
+        let rules =
+            Rules::parse(v.to_string().as_bytes(), crate::version::Versions::CURRENT).unwrap();
+        assert_eq!(Tuning::of(&rules).party_damage_pct, [100, 60, 30]);
     }
 
     fn agent_of(movement: serde_json::Value, rules: serde_json::Value) -> Agent {

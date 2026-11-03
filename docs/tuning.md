@@ -31,6 +31,7 @@
 | `MAX_BURST_DEPTH` | 5 | burst depth | ADR-SVC-7 |
 | `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-REPL-16 |
 | `MAX_OFFER_TIMER_TICKS` | 3600 | ticks | ADR-SIM-21 |
+| `MAX_PARTY_DAMAGE_PCT` | 100 | percent | ADR-SIM-22 |
 | `MAX_REWARDS` | 192 | rewards | ADR-SVC-7 |
 | `MAX_STACK` | 20 | stacks | ADR-SVC-7 |
 | `MAX_TIERS` | 16 | tiers | ADR-CONT-13 |

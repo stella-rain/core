@@ -286,6 +286,191 @@ fn a_kill_burst_lands_a_plain_hit_without_an_echo() {
     assert!(s.echoes.is_empty());
 }
 
+// --- the party factor (ADR-SIM-22) ------------------------------------------------------------
+
+/// A party of `n` with the table `[100, 50, 25]` and a plain enemy 0 of `hp` hit points.
+fn scaled(n: u8, hp: u32) -> (World, State) {
+    let (mut w, mut s) = bare(n);
+    w.tuning.party_damage_pct = [100, 50, 25];
+    s.enemies[0].hp = hp;
+    s.enemies[0].defence = 0;
+    (w, s)
+}
+
+#[test]
+fn the_bundled_table_changes_no_hit() {
+    for n in 1..=3 {
+        let (w, mut s) = bare(n);
+        s.enemies[0].hp = 1000;
+        s.enemies[0].defence = 0;
+        hit(&w, &mut s, 0, 0, 100);
+        assert_eq!(s.enemies[0].hp, 900, "{n} players");
+    }
+}
+
+#[test]
+fn one_hit_applies_the_factor_of_the_party_and_reports_the_raw_damage() {
+    for (n, left) in [(1, 900), (2, 950), (3, 975)] {
+        let (w, mut s) = scaled(n, 1000);
+        let aggro = s.aggro(Who::Player(slot(0)));
+        let ev = hit(&w, &mut s, 0, 0, 100);
+        assert_eq!(s.enemies[0].hp, left, "{n} players");
+        assert_eq!(hits(&ev)[0].0, 100);
+        let gained = 100 * w.tuning.aggro_per_damage;
+        assert_eq!(s.aggro(Who::Player(slot(0))), aggro + gained);
+    }
+}
+
+#[test]
+fn the_factor_truncates_once_and_a_hit_applies_at_least_one() {
+    for (n, shown, lowers) in [(3, 7, 1), (3, 99, 24), (3, 3, 1), (3, 1, 1), (2, 3, 1)] {
+        let (w, mut s) = scaled(n, 1000);
+        hit(&w, &mut s, 0, 0, shown);
+        assert_eq!(1000 - s.enemies[0].hp, lowers, "{shown} at {n}");
+    }
+    let (w, mut s) = scaled(3, 1000);
+    let mut ev = Vec::new();
+    let how = super::damage::Landing {
+        id: s.enemies[0].id,
+        source: slot(0).id(),
+        damage_type: None,
+        match_up: crate::attack::MatchUp::None,
+        rune: None,
+        crit: false,
+        echo: false,
+        buffed_by: None,
+    };
+    super::damage::land(&w, &mut s, slot(0), Who::Enemy(0), 0, how, &mut ev);
+    assert_eq!(s.enemies[0].hp, 1000, "nothing floors 0");
+}
+
+#[test]
+fn the_floor_kills_and_a_short_hit_does_not() {
+    let (w, mut s) = scaled(3, 1);
+    s.players[slot(0)].echo_hit_pct = 50;
+    let ev = hit(&w, &mut s, 1, 0, 1);
+    assert_eq!(s.enemies[0].hp, 0);
+    assert_eq!(deaths(&ev), vec![Some(slot(1).id())]);
+    let (w, mut s) = scaled(3, 30);
+    s.players[slot(0)].echo_hit_pct = 50;
+    let ev = hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 5);
+    assert!(deaths(&ev).is_empty());
+    assert_eq!(s.echoes.len(), 1);
+    assert_eq!(s.echoes[0].damage, 50, "the echo reads the shown damage");
+}
+
+#[test]
+fn the_boss_is_scaled_like_an_enemy() {
+    let e: Engine = time_limit_case::warmed_up().into_party(3);
+    let (w, s) = match e.run() {
+        Run::V2 { world, state, .. } => (world, state),
+        Run::V1 { .. } => panic!("the live rules"),
+    };
+    let (mut w, mut s) = (w.clone(), s.clone());
+    w.tuning.party_damage_pct = [100, 50, 25];
+    let b = s.boss.as_mut().expect("the trial has a boss");
+    b.hp = 10_000;
+    b.defence = 0;
+    b.invulnerable = 0;
+    let mut ev = Vec::new();
+    let sh = shot(&s, slot(0).id(), 0, 100);
+    super::damage(&w, &mut s, slot(0), sh, Who::Boss, &mut ev);
+    assert_eq!(s.boss.as_ref().map(|b| b.hp), Some(9_975));
+    assert_eq!(hits(&ev)[0].0, 100);
+}
+
+#[test]
+fn an_ally_is_never_scaled() {
+    let (w, mut s) = scaled(3, 1000);
+    s.companions.push(s.enemies[0].clone());
+    s.companions[0].hp = 5000;
+    let mut ev = Vec::new();
+    let how = super::damage::Landing {
+        id: s.companions[0].id,
+        source: s.enemies[0].id,
+        damage_type: None,
+        match_up: crate::attack::MatchUp::None,
+        rune: None,
+        crit: false,
+        echo: false,
+        buffed_by: None,
+    };
+    super::damage::land(&w, &mut s, slot(0), Who::Companion(0), 100, how, &mut ev);
+    assert_eq!(s.companions[0].hp, 4900);
+    assert_eq!(hits(&ev)[0].3, None);
+}
+
+#[test]
+fn the_next_hit_reads_the_party_after_a_leave_or_a_join() {
+    let (w, mut s) = scaled(3, 1000);
+    hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 975);
+    let before: Vec<u32> = s.enemies.iter().map(|e| e.hp).collect();
+    s.players.leave(slot(2));
+    assert_eq!(s.players.len(), 2);
+    assert_eq!(s.enemies.iter().map(|e| e.hp).collect::<Vec<_>>(), before);
+    hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 925);
+    s.players.leave(slot(1));
+    hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 825);
+    let template = s.players.template();
+    s.players.join(slot(1), &template, 1);
+    s.players.join(slot(2), &template, 2);
+    hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 800);
+}
+
+#[test]
+fn a_damage_over_time_tick_is_scaled_once_on_its_shown_damage() {
+    let (w, mut s) = scaled(3, 1000);
+    poisoned(&mut s, 2);
+    let mut ev = Vec::new();
+    super::entity::tick_dots(&w, &mut s, &mut ev);
+    let ev = only(ev, s.enemies[0].id);
+    let shown = hits(&ev)[0].0;
+    assert_eq!(shown, 30, "the shown damage is the unscaled tick");
+    assert_eq!(1000 - s.enemies[0].hp, (shown * 25 / 100).max(1));
+}
+
+#[test]
+fn an_echo_is_scaled_on_its_own_shown_damage() {
+    let (w, mut s) = scaled(2, 1000);
+    s.players[slot(0)].echo_hit_pct = 50;
+    hit(&w, &mut s, 0, 0, 100);
+    assert_eq!(s.enemies[0].hp, 950);
+    assert_eq!(s.echoes[0].damage, 50);
+    let mut ev = Vec::new();
+    super::combat::deal_echoes(&w, &mut s, &mut ev);
+    assert_eq!(hits(&ev)[0].0, 50);
+    assert_eq!(s.enemies[0].hp, 925);
+}
+
+#[test]
+fn a_kill_burst_shows_its_amount_and_applies_the_factor() {
+    let (w, mut s) = scaled(3, 0);
+    s.players[slot(0)].burst_pct = 5;
+    s.players[slot(0)].burst_radius = 100_000;
+    s.enemies[1].at = s.enemies[0].at;
+    s.enemies[0].max_hp = 1000;
+    s.enemies[1].hp = 500;
+    s.enemies[1].defence = 0;
+    let mut ev = Vec::new();
+    let mut n = 0;
+    super::combat::bursts(&w, &mut s, slot(0), &mut n, &mut ev);
+    let landed = hits(&only(ev, s.enemies[1].id));
+    assert_eq!(landed[0].0, 50);
+    assert_eq!(s.enemies[1].hp, 488);
+}
+
+#[test]
+fn the_identity_percent_returns_every_damage() {
+    for shown in [0, 1, 2, 99, 100, 101, u32::MAX] {
+        assert_eq!(super::damage::party_scaled(100, shown), shown);
+    }
+}
+
 /// The events that name `id` as their target.
 fn only(ev: Vec<DomainEvent>, id: EntityId) -> Vec<DomainEvent> {
     ev.into_iter()
