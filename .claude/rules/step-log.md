@@ -58,7 +58,12 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   read back, so an axis of -128 then -127 is one run. `choose(player, i)` of a player outside the
   party is `BadInputs("a player outside the party")`; `picks(&[Option<u32>; MAX_PLAYERS])` is one
   step with several picks, at least one among the present slots (a pick at an absent slot is
-  ignored).
+  ignored). In a `stop` run `step` refuses an input while an offer is open
+  (`RunReplayError::OfferOpen`); a `timed` run takes the picks of the inputs the engine accepts
+  first, records them as one PICKS step, clears them from the inputs and ticks on those, so a
+  TICKS block never holds a pick. The timer's own picks are derived, never recorded
+  (`OfferMode::Timed`, ADR-REPL-16 point 5); `resimulate` refuses a TICKS run over an open offer
+  in a `stop` run only.
 - `join(slot)` and `leave(slot)` call the engine and write a JOIN or LEAVE at the tick the run
   is on; a refusal (`PresenceRefused`, the end of the run, the cap) records nothing.
 - `replay_at` cuts the log with `StepLog::prefix` and reads nothing from the engine.
