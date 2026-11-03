@@ -44,6 +44,7 @@ fn setup(difficulty: &str) -> RunSetup {
         starting_rune: None,
         stat_priority: Vec::new(),
         pick_stats: false,
+        ..RunSetup::default()
     }
 }
 

@@ -32,6 +32,7 @@ fn setup(seed: u64) -> RunSetup {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     }
 }
 

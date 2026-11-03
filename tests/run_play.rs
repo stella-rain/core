@@ -11,7 +11,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, RunRecorder};
-use stella_rain_core::run_setup::RunSetup;
+use stella_rain_core::run_setup::{OfferMode, RunSetup};
 
 /// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
 /// `answer_all` does, between a tick and the next (and after the last).
@@ -124,10 +124,24 @@ pub enum Change {
     Leave(u8),
 }
 
-/// A party of `n` played from `setup` for up to `ticks` ticks, every offer answered by its slot;
-/// each of `changes` (world tick, change) is applied before that tick's step.
-pub fn play_party(setup: &RunSetup, n: u8, ticks: u32, changes: &[(u32, Change)]) -> RunRecorder {
+/// A party of `n` played from `setup` for up to `ticks` ticks, every offer answered by its slot
+/// (one pick at a time between ticks); each of `changes` (world tick, change) is applied before
+/// that tick's step. In a timed run no offer waits for a pick: slot 0 answers an offer (option 0)
+/// `answer_after` ticks after it opened, every second offer of its own, in the input of a tick;
+/// the other slots never answer, and an offer nobody answers is closed by the timer. `None`
+/// answers nothing.
+pub fn play_party(
+    setup: &RunSetup,
+    n: u8,
+    ticks: u32,
+    changes: &[(u32, Change)],
+    answer_after: Option<u32>,
+) -> RunRecorder {
+    let timed = setup.offer_mode == OfferMode::Timed;
     let mut rec = RunRecorder::start_party(setup, n).unwrap();
+    let slot0 = PlayerIdx::SOLO;
+    // The world tick slot 0's current offer opened on, and the offers it has met.
+    let (mut open_since, mut met): (Option<u32>, u32) = (None, 0);
     for t in 0..ticks {
         for (_, change) in changes.iter().filter(|(at, _)| *at == t) {
             match *change {
@@ -135,14 +149,43 @@ pub fn play_party(setup: &RunSetup, n: u8, ticks: u32, changes: &[(u32, Change)]
                 Change::Leave(s) => rec.leave(PlayerIdx::new(s).unwrap()).unwrap(),
             }
         }
-        answer_party_offers(&mut rec);
+        if !timed {
+            answer_party_offers(&mut rec);
+        }
         if rec.engine().outcome() != Outcome::Running {
             break;
         }
-        let inputs = party_inputs(&rec, t);
+        let mut inputs = party_inputs(&rec, t);
+        if timed {
+            if rec.engine().check_pick(slot0, 0).is_ok() {
+                let since = *open_since.get_or_insert_with(|| {
+                    met += 1;
+                    rec.engine().tick()
+                });
+                let waited = rec.engine().tick() - since;
+                if met % 2 == 1 && answer_after.is_some_and(|n| waited >= n) {
+                    inputs[0].pick = Some(0);
+                    open_since = None;
+                }
+            } else {
+                open_since = None;
+            }
+        }
         rec.step(&inputs).unwrap();
+        // An offer taken (by a pick or by the timer) ends the wait: the next one counts afresh.
+        if timed
+            && rec
+                .engine()
+                .events()
+                .iter()
+                .any(|ev| matches!(ev, stella_rain_core::event::DomainEvent::RewardTaken { .. }))
+        {
+            open_since = None;
+        }
     }
-    answer_party_offers(&mut rec);
+    if !timed {
+        answer_party_offers(&mut rec);
+    }
     rec
 }
 
@@ -155,6 +198,22 @@ pub struct PartyCase {
     pub ticks: u32,
     /// Joins and leaves, by world tick.
     pub changes: Vec<(u32, Change)>,
+    /// A timed case: the ticks slot 0 waits after an offer opens before it answers it (every
+    /// second one); `None` answers none and leaves them to the timer.
+    pub answer_after: Option<u32>,
+}
+
+impl PartyCase {
+    /// The recording of the case.
+    pub fn play(&self) -> RunRecorder {
+        play_party(
+            &self.setup,
+            self.party,
+            self.ticks,
+            &self.changes,
+            self.answer_after,
+        )
+    }
 }
 
 /// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
@@ -168,6 +227,10 @@ pub fn party_cases() -> Vec<PartyCase> {
         seed,
         ..trial_setup()
     };
+    let timed = |seed: u64| RunSetup {
+        offer_mode: OfferMode::Timed,
+        ..at("time_limit", seed)
+    };
     vec![
         PartyCase {
             name: "two_time_limit",
@@ -175,6 +238,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             party: 2,
             ticks: 3000,
             changes: vec![],
+            answer_after: None,
         },
         PartyCase {
             name: "three_tutorial",
@@ -182,6 +246,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             party: 3,
             ticks: 3000,
             changes: vec![],
+            answer_after: None,
         },
         PartyCase {
             name: "three_time_limit",
@@ -189,6 +254,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             party: 3,
             ticks: 3000,
             changes: vec![],
+            answer_after: None,
         },
         // A solo run that takes slot 1 at tick 600; slot 1 answers an offer after it.
         PartyCase {
@@ -197,6 +263,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             party: 1,
             ticks: 3000,
             changes: vec![(600, Change::Join(1))],
+            answer_after: None,
         },
         // A party of 3 that loses slot 1 (a hole, 0b101) and slot 2 (alone), then takes slot 2
         // back (0b101); slot 2 answers an offer inside the first hole window.
@@ -210,6 +277,27 @@ pub fn party_cases() -> Vec<PartyCase> {
                 (1500, Change::Leave(2)),
                 (2100, Change::Join(2)),
             ],
+            answer_after: None,
+        },
+        // A timed party of one: the world keeps running with an offer open; slot 0 answers every
+        // second offer 100 ticks after it opened and the timer closes the rest.
+        PartyCase {
+            name: "timed_one",
+            setup: timed(1),
+            party: 1,
+            ticks: 3000,
+            changes: vec![],
+            answer_after: Some(100),
+        },
+        // A timed party of two: slot 0 answers as above, slot 1 never does, so the timer
+        // closes every offer of slot 1.
+        PartyCase {
+            name: "timed_two",
+            setup: timed(1),
+            party: 2,
+            ticks: 3000,
+            changes: vec![],
+            answer_after: Some(100),
         },
     ]
 }

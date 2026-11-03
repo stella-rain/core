@@ -308,7 +308,13 @@ fn prefix_mismatch_a_prefix_that_is_not_this_savepoints_run_is_refused() {
     refuse(&recorder_with(&other_seed, Pack::bundled(), &play_run(300)).replay());
 
     let mut content = good.clone();
-    content.content_sha256 = format!("0{}", &good.content_sha256[1..]);
+    // Another first digit than the hash has (a pack whose hash starts with 0 stays itself).
+    let first = if good.content_sha256.starts_with('0') {
+        '1'
+    } else {
+        '0'
+    };
+    content.content_sha256 = format!("{first}{}", &good.content_sha256[1..]);
     refuse(&content);
 
     let idle_run = play_run_with(

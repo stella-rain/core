@@ -71,6 +71,8 @@ pub(crate) struct Build<'a> {
     pub setup: Option<&'a RunSetup>,
     /// The players in the party, 1 to `MAX_PLAYERS`; version 1 has one.
     pub party: u8,
+    /// Whether an open offer stops the world; a stage run alone is `Stop`.
+    pub offer_mode: crate::run_setup::OfferMode,
 }
 
 /// What a run takes from its difficulty, as plain values.
@@ -106,6 +108,12 @@ impl Run {
     }
 
     fn new_v1(b: Build<'_>) -> Result<Run, Issue> {
+        if b.offer_mode == crate::run_setup::OfferMode::Timed {
+            return Err(Issue {
+                path: "$.offer_mode".into(),
+                message: "timed offers need sim_version 2".into(),
+            });
+        }
         if b.party != 1 {
             return Err(Issue {
                 path: "$.party".into(),
@@ -178,6 +186,9 @@ impl Run {
         };
         let mut state = sim::initial_state(&world, b.content, pool, b.seed, b.kinds);
         state.horde = b.horde;
+        if b.offer_mode == crate::run_setup::OfferMode::Timed {
+            state.offer_timer = Some(sim::state::OfferTimer::default());
+        }
         // A run's setup loads the first player; per-player setup comes with recording parties.
         sim::set_policy(
             &mut state,
@@ -323,6 +334,10 @@ impl Run {
     pub(crate) fn leave(&mut self, me: PlayerIdx) {
         if let Run::V2 { state, .. } = self {
             state.players.leave(me);
+            // The leaver's offer closes with the slot.
+            if let Some(timer) = state.offer_timer.as_mut() {
+                timer.due[me.get()] = None;
+            }
         }
     }
 
@@ -333,6 +348,16 @@ impl Run {
             Run::V2 { state, .. } => {
                 state.players.is_present(player) && sim::offer_open_for(state, player)
             }
+        }
+    }
+
+    /// Whether an open offer stops the world: `Timed` iff the state holds the deadlines.
+    pub(crate) fn offer_mode(&self) -> crate::run_setup::OfferMode {
+        match self {
+            Run::V2 { state, .. } if state.offer_timer.is_some() => {
+                crate::run_setup::OfferMode::Timed
+            }
+            _ => crate::run_setup::OfferMode::Stop,
         }
     }
 

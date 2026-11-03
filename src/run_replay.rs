@@ -55,7 +55,7 @@ use crate::replay::{
     block_of, hash_from_hex, hash_to_hex, input_of_block, read_varint, unpack, write_varint,
 };
 use crate::run_content::RunContent;
-use crate::run_setup::{self, RunSetup};
+use crate::run_setup::{self, OfferMode, RunSetup};
 use crate::savepoint::{self, SavepointError};
 use crate::step_log::{MAX_PRESENCE_CHANGES, Record, StepLog, StepRange, read_step_range};
 use crate::validate;
@@ -812,10 +812,34 @@ impl RunRecorder {
                 ended_at: self.engine.tick(),
             });
         }
-        if self.engine.offer_open() {
+        let timed = self.engine.offer_mode() == OfferMode::Timed;
+        if self.engine.offer_open() && !timed {
             return Err(RunReplayError::OfferOpen {
                 tick: self.engine.tick(),
             });
+        }
+        // A timed run takes the picks of the inputs first (ADR-REPL-16): the ones the engine
+        // accepts are recorded as one PICKS step, the rest are ignored as the engine ignores
+        // them, and the tick runs on the inputs without picks, so the log holds no pick in a tick.
+        let mut cleared;
+        let mut inputs = inputs;
+        if timed {
+            let mask = self.engine.present();
+            let mut picks = [None; MAX_PLAYERS as usize];
+            cleared = *inputs;
+            for (slot, input) in cleared.iter_mut().enumerate() {
+                let accepted = PlayerIdx::new(u8::try_from(slot).unwrap_or(u8::MAX))
+                    .zip(input.pick)
+                    .filter(|(player, k)| {
+                        mask >> player.get() & 1 == 1 && self.engine.check_pick(*player, *k).is_ok()
+                    });
+                picks[slot] = accepted.map(|(_, k)| k);
+                input.pick = None;
+            }
+            if picks.iter().any(Option::is_some) {
+                self.picks(&picks)?;
+            }
+            inputs = &cleared;
         }
         // The inputs of the present slots, in slot order, in a fixed array: no allocation per tick.
         let mask = self.engine.present();
@@ -1205,7 +1229,7 @@ fn resimulate(
                             ended_at: engine.tick(),
                         });
                     }
-                    if engine.offer_open() {
+                    if engine.offer_open() && engine.offer_mode() == OfferMode::Stop {
                         return Err(RunReplayError::OfferOpen {
                             tick: engine.tick(),
                         });
@@ -1288,7 +1312,7 @@ fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunRep
             .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
         inputs[slot] = Input::picking(index);
     }
-    engine.step(&inputs);
+    engine.pick_step(&inputs);
     Ok(())
 }
 

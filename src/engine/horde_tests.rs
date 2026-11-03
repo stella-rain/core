@@ -47,6 +47,7 @@ fn engine_edited(
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     };
     Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
 }
@@ -323,6 +324,7 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     };
     let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
     e.run.player.hp = u32::MAX;
@@ -543,6 +545,7 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: difficulty.into(),
+        ..RunSetup::default()
     };
     let mode = TimeLimit::bundled();
     Engine::start_time_limit(&setup, RunContent::bundled(), mode).unwrap()

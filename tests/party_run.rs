@@ -4,7 +4,7 @@
 //! what their movement does to the hash.
 
 use crate::common::run::trial_setup;
-use crate::run_play::{party_cases, play_party};
+use crate::run_play::party_cases;
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
@@ -396,12 +396,14 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 5] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 7] = [
     ("two_time_limit", 3000, Outcome::Running, [69, 5, 0], 1200),
     ("three_time_limit", 3000, Outcome::Running, [72, 3, 0], 1230),
     ("three_tutorial", 862, Outcome::Cleared, [11, 1, 1], 0),
     ("join_two", 3000, Outcome::Running, [69, 1, 0], 1160),
     ("leave_hole", 3000, Outcome::Running, [69, 0, 3], 1220),
+    ("timed_one", 3000, Outcome::Running, [6, 0, 0], 910),
+    ("timed_two", 3000, Outcome::Running, [5, 0, 0], 1100),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
@@ -430,7 +432,7 @@ fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
 #[test]
 fn the_party_cases_are_what_the_table_says() {
     for case in party_cases() {
-        let rec = play_party(&case.setup, case.party, case.ticks, &case.changes);
+        let rec = case.play();
         let replay = rec.replay();
         let verified = verify_run(&replay.to_bytes()).unwrap();
         let got = (
@@ -443,7 +445,9 @@ fn the_party_cases_are_what_the_table_says() {
         let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
         assert_eq!(got, *want);
         let per = picks_per_slot(&replay);
-        if case.changes.is_empty() {
+        if case.changes.is_empty()
+            && case.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Stop
+        {
             assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
         }
         assert!(replay.ticks <= 3000);
@@ -457,7 +461,7 @@ fn the_party_case_files_are_the_recording_and_verify() {
     for case in party_cases() {
         let dir = parties_dir().join(case.name);
         let bytes = std::fs::read(dir.join("run.replay")).unwrap();
-        let fresh = play_party(&case.setup, case.party, case.ticks, &case.changes).replay();
+        let fresh = case.play().replay();
         assert_eq!(
             bytes,
             fresh.to_bytes(),
@@ -557,7 +561,7 @@ fn the_party_cases_resume_and_save_at_three_cuts() {
 fn the_change_cases_hold_what_they_are_for() {
     let find = |name: &str| {
         let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
-        play_party(&case.setup, case.party, case.ticks, &case.changes).replay()
+        case.play().replay()
     };
     // join_two: slot 1 answers an offer after its join at tick 600.
     let join = find("join_two");
@@ -597,4 +601,49 @@ fn the_change_cases_hold_what_they_are_for() {
     }
     assert_eq!(masks, [0b111, 0b101, 0b001, 0b101]);
     assert!(two >= 1, "a Picks step inside the hole holds two entries");
+}
+
+#[test]
+fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
+    use stella_rain_core::event::DomainEvent;
+    for case in party_cases()
+        .into_iter()
+        .filter(|c| c.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Timed)
+    {
+        let replay = case.play().replay();
+        let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+        let mut rec = RunRecorder::start_party(&case.setup, case.party).unwrap();
+        let mut taken = 0usize;
+        let mut count = |rec: &RunRecorder| {
+            taken += rec
+                .engine()
+                .events()
+                .iter()
+                .filter(|ev| matches!(ev, DomainEvent::RewardTaken { .. }))
+                .count();
+        };
+        for step in &range.steps {
+            match step {
+                RangeStep::Ticks { run, inputs } => {
+                    for _ in 0..*run {
+                        rec.step(&slots(rec.engine().present(), inputs)).unwrap();
+                        count(&rec);
+                    }
+                }
+                RangeStep::Picks { picks } => {
+                    rec.picks(&slots(rec.engine().present(), picks)).unwrap();
+                    count(&rec);
+                }
+                RangeStep::Join { .. } | RangeStep::Leave { .. } => unreachable!(),
+            }
+        }
+        let picked = picks_per_slot(&replay).iter().sum::<u32>() as usize;
+        assert!(picked >= 1, "{}: a pick closed an offer", case.name);
+        assert!(
+            taken > picked,
+            "{}: the timer closed an offer ({taken} taken, {picked} picked)",
+            case.name
+        );
+        assert_eq!(rec.replay().to_bytes(), replay.to_bytes(), "{}", case.name);
+    }
 }

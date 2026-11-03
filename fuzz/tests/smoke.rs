@@ -19,6 +19,7 @@ use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, pack_load, packs_load,
     party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder,
     savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
+    timed_recorder,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -852,4 +853,24 @@ fn a_party_savepoint_gets_past_the_loader() {
     // savepoint of a tick no prefix holds does not.
     assert!(savepoint_load(&party_recorder(None).save()), "party, whole");
     assert!(!savepoint_load(&party_recorder(Some(100)).save()));
+}
+
+#[test]
+fn a_timed_savepoint_and_a_forged_timed_setup() {
+    // The timed case saved with offers open and deadlines running loads.
+    for cut in stella_rain_core_fuzz::TIMED_CUTS {
+        let rec = timed_recorder(Some(cut));
+        assert!(savepoint_load(&rec.save()), "timed run, tick {cut}");
+    }
+    // A replay whose setup says timed under sim_version 1 is refused, without a panic.
+    let bytes = fs::read(root().join("tests/corpus/current/parties/timed_one/run.replay")).unwrap();
+    assert!(replay_load(&bytes));
+    let text = String::from_utf8(bytes).unwrap();
+    assert!(
+        text.contains("\"offer_mode\":\"timed\""),
+        "the case names its mode"
+    );
+    let forged = text.replace("\"sim_version\":2", "\"sim_version\":1");
+    assert_ne!(forged, text);
+    assert!(!replay_load(forged.as_bytes()));
 }

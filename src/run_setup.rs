@@ -53,6 +53,28 @@ pub struct CarriedStar {
     pub reward: ContentId,
 }
 
+/// Whether an open offer stops the world (ADR-SIM-21 point 4). A field of the run's setup, so a
+/// replay names its own mode (ADR-REPL-16 point 2); the countdown's length is the pack's
+/// `offer_timer_ticks`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OfferMode {
+    /// An open offer stops the world until a pick answers it: today's behaviour.
+    #[default]
+    Stop,
+    /// The world keeps running while an offer is open, a pick travels in the input of any
+    /// step, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a
+    /// pick of its first option, derived and not recorded (ADR-REPL-16 point 5). Needs
+    /// `sim_version` 2.
+    Timed,
+}
+
+impl OfferMode {
+    fn is_stop(&self) -> bool {
+        *self == OfferMode::Stop
+    }
+}
+
 /// What a run starts from: built by the app from local storage when a run starts, and stored
 /// in the run's replay (ADR-REPL-16).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
@@ -119,6 +141,10 @@ pub struct RunSetup {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
+    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`, so a setup
+    /// written before the mode existed reads as it always did.
+    #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
+    pub offer_mode: OfferMode,
 }
 
 /// The plainest setup: the trial mode with the giant sword, seed 0, the default perk set and
@@ -144,6 +170,7 @@ impl Default for RunSetup {
             starting_rune: None,
             stat_priority: Vec::new(),
             pick_stats: false,
+            offer_mode: OfferMode::Stop,
         }
     }
 }
@@ -216,6 +243,9 @@ struct RunSetupFile {
     /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pick_stats: bool,
+    /// Whether an open offer stops the world (ADR-SIM-21 point 4). Absent: `stop`.
+    #[serde(default)]
+    offer_mode: OfferMode,
     #[serde(default)]
     auto_combo: bool,
 }
@@ -256,6 +286,7 @@ impl TryFrom<RunSetupFile> for RunSetup {
             starting_rune: f.starting_rune,
             stat_priority: f.stat_priority,
             pick_stats: f.pick_stats,
+            offer_mode: f.offer_mode,
         })
     }
 }
@@ -491,6 +522,12 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
 pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> {
     validate(setup)?;
     let mut issues = Vec::new();
+    if setup.offer_mode == OfferMode::Timed && setup.sim_version < 2 {
+        issues.push(Issue {
+            path: "$.offer_mode".into(),
+            message: "timed offers need sim_version 2".into(),
+        });
+    }
     if content.perk_sets().index_of(&setup.perk_set).is_none() {
         issues.push(Issue {
             path: "$.perk_set".into(),

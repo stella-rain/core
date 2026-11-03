@@ -359,6 +359,7 @@ pub(crate) struct Tuning {
     pub offer_size: usize,
     pub defence_k: u64,
     pub crit_damage_base_pct: u64,
+    pub offer_timer_ticks: u32,
 }
 
 impl Tuning {
@@ -388,6 +389,7 @@ impl Tuning {
             offer_size: usize::from(rules.offer_size()),
             defence_k: u64::from(rules.defence_k()),
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
+            offer_timer_ticks: rules.offer_timer_ticks(),
         }
     }
 }

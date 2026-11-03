@@ -739,6 +739,7 @@ pub(super) fn engine() -> Engine {
         stat_priority: Vec::new(),
         pick_stats: false,
         difficulty: "normal".into(),
+        ..RunSetup::default()
     };
     Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
 }

@@ -38,6 +38,16 @@ pub const MAX_RULES_BYTES: usize = 4 * 1024;
 /// The least and the most the cap stands above the target, in percent (DS101: 125 to 130%).
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
 pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
+/// The most ticks a timed offer waits for a pick before the first option is taken: 60 s at 60
+/// ticks (ADR-SIM-21 point 4). A number in code, the bound of the pack's `offer_timer_ticks`
+/// (ADR-CONT-13 point 4).
+pub const MAX_OFFER_TIMER_TICKS: u32 = 3600;
+/// The countdown of a pack written before the key existed: 5 s at 60 ticks.
+const DEFAULT_OFFER_TIMER_TICKS: u32 = 300;
+
+fn default_offer_timer_ticks() -> u32 {
+    DEFAULT_OFFER_TIMER_TICKS
+}
 
 /// The rules file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -92,6 +102,11 @@ pub struct RulesFile {
     pub defence_k: u32,
     /// What a critical hit deals before any bonus, in percent: 100 to 1,000.
     pub crit_damage_base_pct: u32,
+    /// Ticks a timed run's open offer waits for a pick before its first option is taken
+    /// (ADR-SIM-21 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.
+    /// Absent: 300, so a pack published before the key existed still reads.
+    #[serde(default = "default_offer_timer_ticks")]
+    pub offer_timer_ticks: u32,
 }
 
 /// A rules file that passed validation, and the SHA-256 of the bytes it came from.
@@ -231,6 +246,11 @@ impl Rules {
     /// The base candidates of an offer (ADR-REPL-16).
     pub fn offer_size(&self) -> u8 {
         self.file.offer_size
+    }
+
+    /// Ticks a timed offer waits for a pick (ADR-SIM-21 point 4).
+    pub fn offer_timer_ticks(&self) -> u32 {
+        self.file.offer_timer_ticks
     }
 
     /// The defence that halves a hit, in stored units.
@@ -480,5 +500,12 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         i64::from(file.crit_damage_base_pct),
         100,
         1000,
+    );
+    within(
+        issues,
+        "offer_timer_ticks",
+        i64::from(file.offer_timer_ticks),
+        1,
+        i64::from(MAX_OFFER_TIMER_TICKS),
     );
 }

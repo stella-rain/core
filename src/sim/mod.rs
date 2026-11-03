@@ -444,6 +444,7 @@ fn unreserved_state(
         tick: 0,
         rng: Streams::new(seed),
         outcome: Outcome::Running,
+        offer_timer: None,
         players: Players::solo(
             PlayerState {
                 at: start,
@@ -698,6 +699,62 @@ fn open_offers_for(
     expertise::open_due(stage, expertise, s, me, events);
     levels::open_due(s, me, events);
     stars::open_due(stage, rewards, s, me, events, false);
+    sync_deadline(stage, s, me);
+}
+
+/// In a timed run, keeps `me`'s deadline in step with its offers (ADR-SIM-21 point 4): no offer
+/// open clears it, an offer open without one starts it, `offer_timer_ticks` after the tick the
+/// offer opened on, and an offer that stays open (a reroll) keeps the one it has. An offer opened
+/// by a pick, before the world's tick, counts from the tick the pick was taken on.
+fn sync_deadline(stage: &World, s: &mut State, me: PlayerIdx) {
+    let open = offer_open_for(s, me);
+    let tick = s.tick;
+    let Some(timer) = s.offer_timer.as_mut() else {
+        return;
+    };
+    let due = &mut timer.due[me.get()];
+    if !open {
+        *due = None;
+    } else if due.is_none() {
+        *due = Some(tick.saturating_add(stage.tuning.offer_timer_ticks));
+    }
+}
+
+/// In a timed run, closes every offer whose deadline has come by a pick of its first option
+/// (ADR-SIM-21 point 4): the events are those of a manual pick, nothing is recorded for it
+/// (ADR-REPL-16 point 5). A slot in slot order; the next offer due to it opens at once, as after
+/// a manual pick.
+pub(super) fn pick_due(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    if s.offer_timer.is_none() {
+        return;
+    }
+    let slots: Vec<PlayerIdx> = s.players.indices().collect();
+    for me in slots {
+        let due = s.offer_timer.as_ref().and_then(|t| t.due[me.get()]);
+        if !due.is_some_and(|d| d <= s.tick) || !offer_open_for(s, me) {
+            continue;
+        }
+        match offer_options(stage, rewards, expertise, s, me)
+            .first()
+            .copied()
+        {
+            Some(option) => choose(2, stage, rewards, expertise, s, me, option, events),
+            // An offer with no option at all (not reachable by construction) stays open: its
+            // deadline is dropped here so this loop ends, and the sync that follows starts a new
+            // countdown, so the offer is tried again one timer length later.
+            None => {
+                if let Some(t) = s.offer_timer.as_mut() {
+                    t.due[me.get()] = None;
+                }
+            }
+        }
+    }
 }
 
 /// The options of `me`'s open offer, in index order; empty without one.
@@ -746,6 +803,9 @@ pub(crate) fn choose(
         levels::choose(s, me, option, events);
     } else {
         stars::choose(stage, rewards, s, me, option, events);
+    }
+    if let Some(timer) = s.offer_timer.as_mut() {
+        timer.due[me.get()] = None;
     }
     open_offers_for(stage, rewards, expertise, s, me, events);
 }
