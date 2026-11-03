@@ -19,10 +19,10 @@ outcome changes follow the `schema-change` skill.
 
 - `engine/`: the engine (`Engine`): `mod.rs` starts (`start_party` and `start_party_with` take 1
   to 3 players, `start` is 1; another size is `Error::Invalid` at `$.party`, and `sim_version`
-  1 takes only 1, `run.rs`), steps (`step(&[Input])`: one input per present player, any other
-  length panics), chooses, spends and hashes; `snapshot.rs` builds the snapshot, `places` (ids,
-  kinds, positions per tick) and `tally` (the HUD tallies, `Counted` in `ledger.rs`, outside
-  the hashed state).
+  1 takes only 1, `run.rs`), steps (`step(&[Input; MAX_PLAYERS])`: one entry per slot, an absent
+  one ignored), joins and leaves a slot (`join`, `leave`, `present`, `PresenceError`), chooses,
+  spends and hashes; `snapshot.rs` builds the snapshot, `places` (ids, kinds, positions per tick)
+  and `tally` (the HUD tallies, `Counted` in `ledger.rs`, outside the hashed state).
 - `sim/`: the live rules, run for the newest `sim_version` (2, open while `DEVELOPMENT` is true,
   `src/version.rs`; ADR-REPL-13 points 2 and 3): an outcome change is a gate on the version, a full
   copy only for a rewrite (`determinism.md`). `state.rs` is the run's `State`; `world.rs` the
@@ -60,9 +60,9 @@ the four streams, `outcome`, `boss`, `companions`, `enemies`, `tasks`, `runs`, `
 the tuning percentages, `horde`, `crit_seed`, `echoes`), then the presence byte `players.mask()`
 (bit `i` is slot `i`, the step log's byte 0), then each present player's block in slot order
 (`hash_player`: `PlayerState`, `progress`, offer generator, `offers`, `expertise`, `stardust`,
-`regen`). An absent slot writes nothing; a hole mask (0b101) hashes and saves, but the recorder
-and verifier refuse a hole. Each impl destructures its type without `..`; a skipped field is `_`
-with `// not hashed: <why>` (`engine/hash_coverage_tests.rs`). The savepoint mirrors it:
+`regen`). An absent slot writes nothing; a hole mask (0b101) hashes and saves, and the step log
+reaches one by LEAVE (only a hole at tick 0 is refused). Each impl destructures its type without
+`..`; a skipped field is `_` with `// not hashed: <why>` (`engine/hash_coverage_tests.rs`). The savepoint mirrors it:
 `decode_over` (`src/sim/state_codec.rs`) refuses a mask without slot 0, past the last slot, or
 not the fresh engine's.
 
