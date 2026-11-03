@@ -21,6 +21,11 @@
 //! | 92 | 4 | `payload_len` |
 //! | 96 | 32 | `checksum`: SHA-256 of bytes `0..96`, then the payload |
 //!
+//! The payload (format 2) is the player stats record, 60 bytes (per slot 0 to 2 `damage_dealt`
+//! u64, `kills` u32, `support` u64), then the state, the ledger and the tallies (ADR-SAVE-7). The
+//! state holds the party: a presence byte and one block per present player (ADR-SAVE-8); a
+//! format 1 file is refused as `Format`.
+//!
 //! The checksum guards against damage, not against a forger: a file whose state, hash, checksum
 //! and prefix digest were all rewritten to agree is accepted, like the prefix itself, whose
 //! commands are unpacked but not replayed. The savepoint is the app's own slot, and a run that
@@ -48,8 +53,9 @@ use crate::version::{
 use super::{decode_state, encode_state};
 
 /// The version of the savepoint file layout. A change to the encoding bumps it, and the golden
-/// test refuses a change that does not.
-pub const SAVEPOINT_FORMAT: u32 = 1;
+/// test refuses a change that does not. Format 2 holds the party (a presence byte and a block per
+/// player, no entity-number gap) and the player stats record; format 1 files are refused.
+pub const SAVEPOINT_FORMAT: u32 = 2;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.
@@ -269,9 +275,9 @@ pub(crate) fn restore(
         }
         _ => return Err(SavepointError::PrefixMismatch),
     };
-    let (state, ledger, counted) =
+    let (state, ledger, counted, stats) =
         decode_state(&file.payload, &fresh).map_err(|_| SavepointError::Damaged)?;
-    let engine = fresh.with_saved(state, ledger, counted);
+    let engine = fresh.with_saved(state, ledger, counted, stats);
     if engine.tick() != head.tick {
         return Err(SavepointError::Damaged);
     }
@@ -391,7 +397,7 @@ mod tests {
         let bytes = sample().to_bytes();
         assert_eq!(bytes.len(), HEADER_LEN + 3);
         assert_eq!(&bytes[0..4], b"SRSV");
-        assert_eq!(&bytes[4..8], &1u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &2u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &SIM_VERSION.to_le_bytes());
         assert_eq!(&bytes[12..16], &SCHEMA_VERSION.to_le_bytes());
         assert_eq!(&bytes[16..48], &[0xA1; 32]);

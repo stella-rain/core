@@ -1,5 +1,7 @@
-//! The live state's hash and savepoint bytes, pinned before the state holds its players as a
-//! list (ADR-SIM-12): a refactor of the state moves neither at one player.
+//! The live state's hash and savepoint bytes, pinned. They were pinned before the state held its
+//! players as a list (ADR-SIM-12) and re-pinned once, when the hash and the savepoint moved to a
+//! presence byte and one block per player (ADR-SIM-3, ADR-SAVE-7): a refactor of the state moves
+//! neither at one player.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
 use crate::engine::Engine;
@@ -42,10 +44,10 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            15_108_713_697_578_387_562,
-            6_803_785_181_847_753_420,
-            14_234_592_711_951_511_813,
+            9_922_964_927_604_098_293,
+            4_281_613_554_806_908_225,
+            11_965_072_401_360_527_720,
         ],
-        "worst_case, hit_case, time_limit_case; never regenerated"
+        "worst_case, hit_case, time_limit_case; re-pinned once, for the per-player layout"
     );
 }

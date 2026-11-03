@@ -113,6 +113,8 @@ pub(crate) use attacks::phase;
 pub(crate) use world::{
     AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, RangedPool, World,
 };
+#[cfg(test)]
+mod codec_fields_tests;
 mod combat;
 mod dash;
 mod entity;
@@ -120,6 +122,8 @@ mod expertise;
 #[cfg(test)]
 mod frozen_tests;
 mod grid;
+#[cfg(test)]
+mod hash_fields_tests;
 #[cfg(test)]
 mod hash_layout_tests;
 mod heal;

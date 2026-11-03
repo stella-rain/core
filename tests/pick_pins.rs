@@ -1,7 +1,8 @@
 //! Pins what a choice does before it moves into the input (ADR-REPL-3): for corpus run cases
 //! that hold commands, the state hash, the number of events and the tick after each of the first
-//! commands. The constants were taken once and stay unchanged through the move of picks into
-//! `Input`.
+//! commands. The constants were taken once and stayed unchanged through the move of picks into
+//! `Input`; the hashes were re-pinned once, for the per-player hash layout (ADR-SIM-3), and the
+//! event counts and ticks, which say what the choices did, did not move.
 use crate::corpus::{apply, case_content, runs_dir};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::run_replay::RunReplay;
@@ -37,34 +38,34 @@ const PINS: [(&str, [Pin; 6]); 3] = [
     (
         "easy",
         [
-            (1933978024201087910, 1, 131),
-            (1487868923222751991, 2, 131),
-            (10705536155938927401, 1, 131),
-            (17684500445707244715, 1, 180),
-            (8909626012898947170, 1, 263),
-            (9388823688583554274, 1, 267),
+            (15088056578059988746, 1, 131),
+            (2565152698418978923, 2, 131),
+            (5884671321364980147, 1, 131),
+            (18191247334575400005, 1, 180),
+            (11458105588549784710, 1, 263),
+            (13134248338712789878, 1, 267),
         ],
     ),
     (
         "elites",
         [
-            (8969827991600578126, 1, 4161),
-            (12812949893835142647, 2, 4161),
-            (4592872326677725886, 1, 4161),
-            (10262401378563450959, 1, 4166),
-            (398116249341126454, 1, 4167),
-            (17297741677679038849, 1, 4571),
+            (15878028384449595788, 1, 4161),
+            (8824851563351547973, 2, 4161),
+            (11123160038185959134, 1, 4161),
+            (13175782734731607799, 1, 4166),
+            (3692340680101300552, 1, 4167),
+            (1427729788914567051, 1, 4571),
         ],
     ),
     (
         "rainy",
         [
-            (897167017184085048, 1, 297),
-            (11904550819520454996, 1, 364),
-            (9181289099137083804, 2, 364),
-            (3920342818534441417, 1, 364),
-            (14397456347246979235, 1, 542),
-            (7892114522913036254, 1, 545),
+            (664616534288299688, 1, 297),
+            (7151412866391759502, 1, 364),
+            (15711213776568434300, 2, 364),
+            (4027098685349898825, 1, 364),
+            (7589974340249661069, 1, 542),
+            (7970061417358312750, 1, 545),
         ],
     ),
 ];

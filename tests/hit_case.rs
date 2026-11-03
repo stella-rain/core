@@ -240,5 +240,5 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
     assert_eq!(hashes, PINNED_SPREAD, "{hashes:x?}");
 }
 
-const PINNED_CLUSTERED: [u64; 3] = [0xfc6d79094e9ba2ec, 0x4140aefa5bd33b0b, 0x41c58750ce40b74d];
-const PINNED_SPREAD: [u64; 3] = [0x234c6506597903e7, 0xbbb9a1d90af63429, 0xe50028091d835cbd];
+const PINNED_CLUSTERED: [u64; 3] = [0x74e1c4cc7ebe30fb, 0xc14ebe02e9fe8520, 0xd7ec72039174acee];
+const PINNED_SPREAD: [u64; 3] = [0x9af65ab78272a027, 0x781a1f8009d4d66d, 0x827d5dcc9c3df5c5];

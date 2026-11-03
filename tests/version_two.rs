@@ -1,18 +1,24 @@
 //! Version 2 is the open live version (ADR-REPL-9): a run of `sim_version` 2 runs the live
 //! rules, saves and restores as any run does, never crosses versions through a savepoint, and
-//! the frozen version 1 cases replay with the same hashes when their files say 2 (ADR-REPL-7).
+//! the frozen version 1 cases replay with the same events, outcomes and kills when their files say 2
+//! (ADR-REPL-7); the state hashes differ, the layouts do.
 
 use crate::common::run::{time_limit_setup, trial_setup};
-use crate::corpus::{check_case, check_run_case, current_dir};
-use crate::corpus_pins::check_frozen_tree;
+use crate::corpus::{apply as apply_command, current_dir};
+use crate::corpus_pins::{case_pack, check_frozen_tree, run_case_pack};
+use crate::gameplay_observables::rewrite_ids;
 use crate::run_play::play_run_from;
 use std::fs;
 use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::sha256;
+use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::pack::Pack;
-use stella_rain_core::run_replay::{Command, RunRecorder};
+use stella_rain_core::replay::Replay;
+use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::{HEADER_LEN, Savepoint, SavepointError};
+use stella_rain_core::validate::parse_and_validate;
 use stella_rain_core::version::{FIRST_SIM_VERSION, SIM_VERSION};
 
 const SIM_VERSION_AT: usize = 8;
@@ -145,78 +151,91 @@ fn the_current_corpus_is_at_the_open_version() {
     assert!(files > 0);
 }
 
-fn copy_tree(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for e in fs::read_dir(from).unwrap() {
-        let e = e.unwrap();
-        let target = to.join(e.file_name());
-        if e.path().is_dir() {
-            copy_tree(&e.path(), &target);
-        } else {
-            fs::copy(e.path(), target).unwrap();
+/// Steps `a` (version 1) and `b` (version 2) alike and compares what they show after every
+/// tick: the events (the version 2 numbers mapped back to the pre-reservation ones), the outcome
+/// and the kills. The state hashes differ by design: the layouts do.
+/// `events` without the players they name (`player`, `buffed_by`, `source`, `killer`), which only
+/// the newest rules fill.
+fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
+    let mut out = events.to_vec();
+    for event in &mut out {
+        match event {
+            DomainEvent::Hit {
+                player, buffed_by, ..
+            } => (*player, *buffed_by) = (None, None),
+            DomainEvent::Healed { source, .. } | DomainEvent::StatusApplied { source, .. } => {
+                *source = None;
+            }
+            DomainEvent::Died { killer, .. } => *killer = None,
+            _ => {}
         }
     }
+    out
 }
 
-/// `file` with its `"sim_version":1` written as 2 (compact JSON; one occurrence is the file's).
-fn bump(file: &Path) {
-    let text = fs::read_to_string(file).unwrap();
-    assert!(text.contains("\"sim_version\":1"), "{file:?}");
-    fs::write(
-        file,
-        text.replacen("\"sim_version\":1", "\"sim_version\":2", 1),
-    )
-    .unwrap();
+fn same_tick(a: &Engine, b: &Engine, what: &str) {
+    let tick = a.tick();
+    assert_eq!(b.tick(), tick, "{what}");
+    assert_eq!(
+        format!("{:?}", plain(a.events())),
+        rewrite_ids(&format!("{:?}", plain(b.events()))),
+        "{what}, tick {tick}: events"
+    );
+    assert_eq!(a.outcome(), b.outcome(), "{what}, tick {tick}: outcome");
+    assert_eq!(
+        a.tally().kills(),
+        b.tally().kills(),
+        "{what}, tick {tick}: kills"
+    );
 }
 
 #[test]
-fn the_frozen_v1_corpus_replays_with_the_same_hashes_at_version_2() {
+fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
     let frozen = current_dir().parent().unwrap().join("v1");
     check_frozen_tree(&frozen).unwrap();
-    let scratch =
-        crate::data_root::scratch_dir().join(format!("sr-version-two-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&scratch);
-    let copy = scratch.join("v1");
-    copy_tree(&frozen, &copy);
-    let diff = scratch.join("diff");
-    let mut failures = Vec::new();
-    for case in dirs(&copy.join("stages")) {
-        // The stage file keeps its bytes' layout: the version is the only edit.
-        let stage = case.join("stage.json");
-        let mut value: serde_json::Value =
-            serde_json::from_slice(&fs::read(&stage).unwrap()).unwrap();
-        value["sim_version"] = 2.into();
-        fs::write(&stage, serde_json::to_vec(&value).unwrap()).unwrap();
-        bump(&case.join("run.replay"));
-        failures.extend(check_case(&case, &diff).err());
+    let (mut stages, mut runs) = (0, 0);
+    for case in dirs(&frozen.join("stages")) {
+        let name = case.file_name().unwrap().to_string_lossy().into_owned();
+        let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
+        let mut newer = stage.clone();
+        newer.sim_version = 2;
+        let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+        let inputs = recorded.unpack_inputs(stage.length_ticks).unwrap();
+        let pack = case_pack(&case).unwrap();
+        let mut a = Engine::new_with(&stage, pack.content()).unwrap();
+        let mut b = Engine::new_with(&newer, pack.content()).unwrap();
+        for input in &inputs {
+            a.step(&[*input]);
+            b.step(&[*input]);
+            same_tick(&a, &b, &name);
+        }
+        assert_eq!(a.stardust(), b.stardust(), "{name}");
+        stages += 1;
     }
-    for case in dirs(&copy.join("runs")) {
-        bump(&case.join("run.replay"));
-        failures.extend(check_run_case(&case, &diff).err());
+    for case in dirs(&frozen.join("runs")) {
+        let name = case.file_name().unwrap().to_string_lossy().into_owned();
+        let bytes = fs::read(case.join("run.replay")).unwrap();
+        let recorded = RunReplay::from_bytes(&bytes).unwrap();
+        let pack = run_case_pack(&case, &bytes).unwrap();
+        let mut newer = recorded.setup.clone();
+        newer.sim_version = 2;
+        let mut a = Engine::start_with(&recorded.setup, pack.content()).unwrap();
+        let mut b = Engine::start_with(&newer, pack.content()).unwrap();
+        let commands = recorded.unpack_commands().unwrap();
+        let mut next = commands.iter().peekable();
+        for input in &recorded.unpack_inputs(u32::MAX).unwrap() {
+            while let Some(c) = next.next_if(|c| c.tick == a.tick()) {
+                apply_command(&mut a, c).unwrap();
+                apply_command(&mut b, c).unwrap();
+            }
+            a.step(&[*input]);
+            b.step(&[*input]);
+            same_tick(&a, &b, &name);
+        }
+        assert_eq!(a.stardust(), b.stardust(), "{name}");
+        runs += 1;
     }
-    let _ = fs::remove_dir_all(&scratch);
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    assert!(stages > 0 && runs > 0);
     // Nothing was written under the frozen tree.
     check_frozen_tree(&frozen).unwrap();
-}
-
-/// `before` and `after` of `tests/bench_pins.toml` at the bump's base: a version 2 run holds the
-/// same states as version 1, so no bless moves them.
-const STATES: [(&str, &str, &str); 6] = [
-    ("worst_tick", "21735fa3b620d3f0", "7e6786c603ce48dc"),
-    ("hit_tick", "c55604b22ad2cf8d", "fc6d79094e9ba2ec"),
-    ("hit_tick_spread", "19b64d73364321ee", "234c6506597903e7"),
-    ("time_limit_tick", "fc386858e6d3b4ac", "28fe9d13bb08ef77"),
-    ("worst_minute", "6201306870d81bd7", "2f8a159160af42dd"),
-    ("worst_minute_peak", "0242e84cedb6544c", "705d700709c5daed"),
-];
-
-#[test]
-fn the_bench_pins_hold_the_same_states_at_version_2() {
-    let pins: toml::Table = include_str!("bench_pins.toml").parse().unwrap();
-    for (id, before, after) in STATES {
-        let case = pins[id].as_table().unwrap();
-        assert_eq!(case["before"].as_str(), Some(before), "{id}");
-        assert_eq!(case["after"].as_str(), Some(after), "{id}");
-    }
 }

@@ -1,5 +1,5 @@
 //! The state holds its players as `players`, addressed by a `PlayerIdx` (ADR-SIM-12), and a system
-//! acts on the player it is given. At one player the bytes are the pins' (`players_pin_tests`).
+//! acts on the player it is given. The hash and the savepoint write one block per present player (`hash_fields_tests`).
 
 use super::state::{Career, MAX_PLAYERS, PlayerIdx, Players, State};
 use super::{Blame, Culprit, Shot, World, hurt_player, player};
@@ -72,7 +72,7 @@ fn a_solo_engine_has_one_player() {
 }
 
 #[test]
-fn a_second_player_is_a_tail_of_the_hash() {
+fn a_second_player_is_a_block_of_the_hash() {
     let e = worst_case::warmed_up();
     let (_, s) = live(&e);
     let s2 = two_players(s);
@@ -85,14 +85,6 @@ fn a_second_player_is_a_tail_of_the_hash() {
     hurt.players[p1()].hp -= 1;
     assert_ne!(hash_of(&hurt), hash_of(&s2));
     assert_eq!(hash_of(s), e.state_hash());
-}
-
-#[test]
-#[should_panic(expected = "one player")]
-fn a_state_of_two_players_is_not_a_savepoint() {
-    let e = worst_case::warmed_up();
-    let s2 = two_players(live(&e).1);
-    s2.encode(&mut Writer::new());
 }
 
 #[test]
@@ -202,16 +194,24 @@ fn a_party_without_slot_zero_is_refused() {
 }
 
 #[test]
-#[should_panic(expected = "prefix")]
-fn the_hash_refuses_a_party_with_a_hole() {
+fn a_party_with_a_hole_hashes_and_round_trips() {
+    use crate::savepoint::codec::Reader;
     let e = worst_case::warmed_up();
-    let mut s = live(&e).1.clone();
-    s.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&live(&e).1.players);
-    hash_of(&s);
+    let mut hole = live(&e).1.clone();
+    hole.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&live(&e).1.players);
+    let mut two = hole.clone();
+    two.players = Players::with_mask(0b011, ps(&e)).keeping_career_of(&live(&e).1.players);
+    assert_ne!(hash_of(&hole), hash_of(&two), "slot 2 is not slot 1");
+    let mut w = Writer::new();
+    hole.encode(&mut w);
+    let bytes = w.finish();
+    let back = State::decode_over(&mut Reader::new(&bytes), &hole).expect("a hole is a party");
+    assert_eq!(hash_of(&back), hash_of(&hole));
+    assert_eq!(back.players.mask(), 0b101);
 }
 
 #[test]
-fn the_hash_of_a_party_of_one_has_no_tail_and_two_players_differ() {
+fn the_hash_of_a_party_of_one_ends_with_its_presence_byte_and_two_players_differ() {
     let e = worst_case::warmed_up();
     let (_, s) = live(&e);
     assert_eq!(hash_of(s), e.state_hash());
@@ -398,7 +398,7 @@ mod careers {
     }
 
     #[test]
-    fn slots_1_and_2_are_in_the_hash_tail_in_slot_order() {
+    fn slots_1_and_2_are_in_the_hash_in_slot_order() {
         for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
             let none = party(mask);
             for slot in 1..top {
@@ -430,7 +430,7 @@ mod careers {
         let solo = party(0b001);
         let mut s = solo.clone();
         s.players.careers_mut_for_test()[1].progress = Some(progress());
-        assert_eq!(hash_of(&s), hash_of(&solo), "the tail adds nothing at N=1");
+        assert_eq!(hash_of(&s), hash_of(&solo), "an absent slot adds nothing");
         let at0 = with_career(solo, 0, Some(progress()));
         assert_ne!(hash_of(&at0), hash_of(&party(0b001)));
         assert_ne!(
@@ -599,7 +599,7 @@ mod offers {
     }
 
     #[test]
-    fn slots_1_and_2_offers_and_streams_are_in_the_tail_in_slot_order() {
+    fn slots_1_and_2_offers_and_streams_are_in_the_hash_in_slot_order() {
         for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
             let none = party(mask);
             for i in 1..top {
@@ -802,7 +802,7 @@ mod career_rest {
     }
 
     #[test]
-    fn slots_1_and_2_gauge_stardust_and_regen_are_in_the_tail_in_slot_order() {
+    fn slots_1_and_2_gauge_stardust_and_regen_are_in_the_hash_in_slot_order() {
         for (mask, top) in [(0b011u8, 2u8), (0b111, 3)] {
             let (_, none) = party(mask);
             for i in 1..top {

@@ -22,8 +22,6 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
 #[derive(Clone, Debug)]
 pub struct StateHasher {
     state: u64,
-    /// The `id_gap` the entity IDs are written through (`id::to_compact`); 0 writes them as they are.
-    id_gap: u32,
     /// The bytes written, for the tests of the encoding.
     #[cfg(test)]
     written: Vec<u8>,
@@ -39,19 +37,15 @@ impl StateHasher {
     pub fn new() -> Self {
         Self {
             state: OFFSET_BASIS,
-            id_gap: 0,
             #[cfg(test)]
             written: Vec::new(),
         }
     }
 
-    #[inline]
-    pub(crate) fn id_gap(&self) -> u32 {
-        self.id_gap
-    }
-
-    pub(crate) fn set_id_gap(&mut self, gap: u32) {
-        self.id_gap = gap;
+    /// Every byte written so far (tests of the layout read bytes, not only the digest).
+    #[cfg(test)]
+    pub(crate) fn trace(&self) -> &[u8] {
+        &self.written
     }
 
     pub fn write_bytes(&mut self, bytes: &[u8]) {
@@ -175,7 +169,7 @@ impl StableHash for crate::fixed::Point {
 
 impl StableHash for crate::id::EntityId {
     fn stable_hash(&self, h: &mut StateHasher) {
-        h.write_u32(crate::id::to_compact(*self, h.id_gap()));
+        h.write_u32(self.0);
     }
 }
 
@@ -290,18 +284,9 @@ mod tests {
     }
 
     #[test]
-    fn a_gap_maps_entity_ids_down_as_the_old_numbering_had_them() {
+    fn entity_ids_are_written_as_they_are() {
         use crate::id::EntityId;
-        let mut gapped = StateHasher::new();
-        gapped.set_id_gap(2);
-        let mut plain = StateHasher::new();
-        EntityId(0).stable_hash(&mut gapped);
-        Some(EntityId(3)).stable_hash(&mut gapped);
-        vec![(EntityId(4), 7u32)].stable_hash(&mut gapped);
-        EntityId(0).stable_hash(&mut plain);
-        Some(EntityId(1)).stable_hash(&mut plain);
-        vec![(EntityId(2), 7u32)].stable_hash(&mut plain);
-        assert_eq!(gapped.finish(), plain.finish());
-        assert_eq!(bytes_of(&EntityId(3)), [3, 0, 0, 0], "the default gap is 0");
+        assert_eq!(bytes_of(&EntityId(3)), [3, 0, 0, 0]);
+        assert_eq!(bytes_of(&Some(EntityId(0))), [1, 0, 0, 0, 0]);
     }
 }

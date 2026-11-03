@@ -1,7 +1,8 @@
 //! `encode_state` and `decode_state`: the whole run state as savepoint bytes, and back.
 //!
-//! The bytes are the `State`, the `RunLedger` and the `Counted`, in that order, with no header
-//! (the file's is the savepoint file's) and no trailing bytes. What the content and the setup
+//! The bytes are the player stats record (`STATS_RECORD_LEN`, fixed length), then the `State`, the
+//! `RunLedger` and the `Counted`, with no header (the file's is the savepoint file's) and no
+//! trailing bytes. What the content and the setup
 //! decide is not in them: `decode_state` takes it from a fresh engine of the same run, and
 //! checks every length and the content indices it lists against it (`check_indices`), so a
 //! stale file is refused, not indexed out of range on a later tick (ADR-SVC-1). It does not
@@ -10,39 +11,55 @@
 //! function to show whether a check is needed.
 
 use crate::engine::{Engine, Run, Saved};
-use crate::ledger::{Counted, RunLedger};
+use crate::ledger::{Counted, PlayerStats, RunLedger, STATS_RECORD_LEN};
 use crate::rewards::ORBIT_SET_BASE;
 use crate::run_content::RunContent;
 
 use super::{Decode, DecodeError, Encode, Reader, Writer};
 
-/// The state, the ledger and the tallies of `engine` as bytes.
+/// The player stats, the state, the ledger and the tallies of `engine` as bytes. The record
+/// comes first and has a fixed length, so `decode_state` takes it off before the version
+/// module's text reads the rest, and the frozen text of `state_codec!` is untouched.
 pub(crate) fn encode_state(engine: &Engine) -> Vec<u8> {
-    let (ledger, counted) = engine.saved_parts();
-    match engine.run() {
+    let (ledger, counted, stats) = engine.saved_parts();
+    let mut w = Writer::new();
+    stats.encode(&mut w);
+    let mut bytes = w.finish();
+    bytes.extend(match engine.run() {
         Run::V1 { state, .. } => v1::encode(state, ledger, counted),
         Run::V2 { state, .. } => v2::encode(state, ledger, counted),
-    }
+    });
+    bytes
 }
 
-/// The state, the ledger and the tallies in `bytes`, for a run of `fresh`'s content, read by the
-/// rules module of `fresh`'s version. `fresh` is an engine started from the same setup and
-/// content, untouched: everything the content and the setup decide comes from it, and every
-/// length and index in the bytes is checked against it.
+/// The player stats, state, ledger and tallies in `bytes`, for a run of `fresh`'s content, read
+/// by the rules module of `fresh`'s version. `fresh` is an engine started from the same setup
+/// and content, untouched: everything the content and the setup decide comes from it, and every
+/// length and index in the bytes is checked against it. The stats record is trusted like the
+/// replay prefix (ADR-SAVE-7), but a slot outside the party must be zero.
 pub(crate) fn decode_state(
     bytes: &[u8],
     fresh: &Engine,
-) -> Result<(Saved, RunLedger, Counted), DecodeError> {
-    let (fresh_ledger, fresh_counted) = fresh.saved_parts();
+) -> Result<(Saved, RunLedger, Counted, PlayerStats), DecodeError> {
+    let (fresh_ledger, fresh_counted, _) = fresh.saved_parts();
     let content = fresh.content();
+    let (record, rest) = bytes
+        .split_at_checked(STATS_RECORD_LEN)
+        .ok_or(DecodeError::Truncated)?;
+    // A run of version 1 has the party of one.
+    let mask = match fresh.run() {
+        Run::V1 { .. } => 0b001,
+        Run::V2 { state, .. } => state.players.mask(),
+    };
+    let stats = PlayerStats::decode_for(&mut Reader::new(record), mask)?;
     match fresh.run() {
         Run::V1 { world, state, .. } => {
-            v1::decode(bytes, world, content, (state, fresh_ledger, fresh_counted))
-                .map(|(s, l, c)| (Saved::V1(s), l, c))
+            v1::decode(rest, world, content, (state, fresh_ledger, fresh_counted))
+                .map(|(s, l, c)| (Saved::V1(s), l, c, stats))
         }
         Run::V2 { world, state } => {
-            v2::decode(bytes, world, content, (state, fresh_ledger, fresh_counted))
-                .map(|(s, l, c)| (Saved::V2(s), l, c))
+            v2::decode(rest, world, content, (state, fresh_ledger, fresh_counted))
+                .map(|(s, l, c)| (Saved::V2(s), l, c, stats))
         }
     }
 }
@@ -345,15 +362,17 @@ macro_rules! state_codec_v2 {
 
             check_shape(&state, &counted, fresh_state, fresh_counted)?;
             // The content-sized fields the bytes do not hold.
-            if let (Some(p), Some(f)) = (
-                state.players.career_mut(PlayerIdx::SOLO).progress.as_mut(),
-                fresh_state
-                    .players
-                    .career(PlayerIdx::SOLO)
-                    .progress
-                    .as_ref(),
-            ) {
-                p.stats = f.stats.clone();
+            for me in state.players.indices().collect::<Vec<_>>() {
+                if let (Some(p), Some(f)) = (
+                    state.players.career_mut(me).progress.as_mut(),
+                    fresh_state
+                        .players
+                        .career(PlayerIdx::SOLO)
+                        .progress
+                        .as_ref(),
+                ) {
+                    p.stats = f.stats.clone();
+                }
             }
             if let (Some(h), Some(f)) = (state.horde.as_mut(), fresh_state.horde.as_ref()) {
                 h.boss_ticks = f.boss_ticks.clone();
@@ -395,11 +414,6 @@ macro_rules! state_codec_v2 {
                 return Err(differs("spawned length differs from the content"));
             }
             same_presence(
-                &s.players.career(PlayerIdx::SOLO).progress,
-                &fresh.players.career(PlayerIdx::SOLO).progress,
-                "progress presence differs from the content",
-            )?;
-            same_presence(
                 &s.stars,
                 &fresh.stars,
                 "stars presence differs from the content",
@@ -410,57 +424,64 @@ macro_rules! state_codec_v2 {
                 "heal_pickups presence differs from the content",
             )?;
             same_presence(
-                &s.players.career(PlayerIdx::SOLO).expertise,
-                &fresh.players.career(PlayerIdx::SOLO).expertise,
-                "expertise presence differs from the content",
-            )?;
-            same_presence(
                 &s.horde,
                 &fresh.horde,
                 "horde presence differs from the content",
             )?;
-            same_presence(
-                &s.players.career(PlayerIdx::SOLO).stardust,
-                &fresh.players.career(PlayerIdx::SOLO).stardust,
-                "stardust presence differs from the content",
-            )?;
-            if let (Some(p), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).progress,
-                &fresh.players.career(PlayerIdx::SOLO).progress,
-            ) {
-                if p.spent.len() != f.stats.len() {
-                    return Err(differs("spent length differs from the content"));
-                }
-                if p.priority.len() != f.stats.len() {
-                    return Err(differs("priority length differs from the content"));
-                }
-            }
             if let (Some(a), Some(f)) = (&s.stars, &fresh.stars) {
                 if a.pool.len() != f.pool.len() {
                     return Err(differs("star pool length differs from the content"));
                 }
             }
-            // Slot 0's offers: the content-sized lists are the slot's.
-            if let (Some(a), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).offers,
-                &fresh.players.career(PlayerIdx::SOLO).offers,
-            ) {
-                if a.taken.len() != f.taken.len() {
-                    return Err(differs("star taken length differs from the content"));
+            for me in s.players.indices() {
+                same_presence(
+                    &s.players.career(me).progress,
+                    &fresh.players.career(PlayerIdx::SOLO).progress,
+                    "progress presence differs from the content",
+                )?;
+                same_presence(
+                    &s.players.career(me).expertise,
+                    &fresh.players.career(PlayerIdx::SOLO).expertise,
+                    "expertise presence differs from the content",
+                )?;
+                same_presence(
+                    &s.players.career(me).stardust,
+                    &fresh.players.career(PlayerIdx::SOLO).stardust,
+                    "stardust presence differs from the content",
+                )?;
+                if let (Some(p), Some(f)) = (
+                    &s.players.career(me).progress,
+                    &fresh.players.career(PlayerIdx::SOLO).progress,
+                ) {
+                    if p.spent.len() != f.stats.len() {
+                        return Err(differs("spent length differs from the content"));
+                    }
+                    if p.priority.len() != f.stats.len() {
+                        return Err(differs("priority length differs from the content"));
+                    }
                 }
-                if a.banished.len() != f.banished.len() {
-                    return Err(differs("star banished length differs from the content"));
+                // Slot 0's offers: the content-sized lists are the slot's.
+                if let (Some(a), Some(f)) = (
+                    &s.players.career(me).offers,
+                    &fresh.players.career(PlayerIdx::SOLO).offers,
+                ) {
+                    if a.taken.len() != f.taken.len() {
+                        return Err(differs("star taken length differs from the content"));
+                    }
+                    if a.banished.len() != f.banished.len() {
+                        return Err(differs("star banished length differs from the content"));
+                    }
+                    if a.set_counts.len() != f.set_counts.len() {
+                        return Err(differs("star set_counts length differs from the content"));
+                    }
                 }
-                if a.set_counts.len() != f.set_counts.len() {
-                    return Err(differs("star set_counts length differs from the content"));
-                }
-            }
-            if let (Some(a), Some(f)) = (
-                &s.players.career(PlayerIdx::SOLO).expertise,
-                &fresh.players.career(PlayerIdx::SOLO).expertise,
-            ) {
-                if a.taken.len() != f.taken.len() {
-                    return Err(differs("expertise taken length differs from the content"));
+                if let (Some(a), Some(f)) = (
+                    &s.players.career(me).expertise,
+                    &fresh.players.career(PlayerIdx::SOLO).expertise,
+                ) {
+                    if a.taken.len() != f.taken.len() {
+                        return Err(differs("expertise taken length differs from the content"));
+                    }
                 }
             }
             if let (Some(a), Some(f)) = (&s.horde, &fresh.horde) {
@@ -569,21 +590,23 @@ macro_rules! state_codec_v2 {
                     below(usize::from(*p), rewards, "star pool entry out of range")?;
                 }
             }
-            if let Some(o) = &s.players.career(PlayerIdx::SOLO).offers {
-                let offer = o.offer.iter().flat_map(|o| &o.candidates);
-                for c in offer {
-                    below(usize::from(*c), rewards, "offer candidate out of range")?;
+            for me in s.players.indices() {
+                if let Some(o) = &s.players.career(me).offers {
+                    let offer = o.offer.iter().flat_map(|o| &o.candidates);
+                    for c in offer {
+                        below(usize::from(*c), rewards, "offer candidate out of range")?;
+                    }
                 }
-            }
-            if let Some(g) = &s.players.career(PlayerIdx::SOLO).expertise {
-                if let Some(o) = &g.offer {
-                    if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
-                        for c in &o.candidates {
-                            below(
-                                usize::from(*c),
-                                g.taken.len(),
-                                "expertise candidate out of range",
-                            )?;
+                if let Some(g) = &s.players.career(me).expertise {
+                    if let Some(o) = &g.offer {
+                        if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
+                            for c in &o.candidates {
+                                below(
+                                    usize::from(*c),
+                                    g.taken.len(),
+                                    "expertise candidate out of range",
+                                )?;
+                            }
                         }
                     }
                 }
@@ -659,8 +682,8 @@ mod players_tests {
         };
         let had = before.players.career(PlayerIdx::SOLO).progress.clone();
         assert!(had.is_some(), "the case has levels");
-        let (saved, ledger, counted) = decode_state(&encode_state(&e), &fresh).unwrap();
-        let back = fresh.clone().with_saved(saved, ledger, counted);
+        let (saved, ledger, counted, stats) = decode_state(&encode_state(&e), &fresh).unwrap();
+        let back = fresh.clone().with_saved(saved, ledger, counted, stats);
         let Run::V2 { state: after, .. } = back.run() else {
             panic!("the live rules")
         };
@@ -743,8 +766,8 @@ mod offers_tests {
             };
             opened += 1;
             let bytes = encode_state(&e);
-            let (saved, ledger, counted) = decode_state(&bytes, &fresh).unwrap();
-            let back = fresh.clone().with_saved(saved, ledger, counted);
+            let (saved, ledger, counted, stats) = decode_state(&bytes, &fresh).unwrap();
+            let back = fresh.clone().with_saved(saved, ledger, counted, stats);
             let (Run::V2 { state: a, .. }, Run::V2 { state: b, .. }) = (e.run(), back.run()) else {
                 panic!("the live rules")
             };
@@ -812,7 +835,8 @@ mod career_rest_tests {
         ] {
             let fresh = Engine::new_with(&stage, e.content()).unwrap();
             // The cases earn nothing in their warm-up, so the values are set on a copy.
-            let (mut saved, ledger, counted) = decode_state(&encode_state(&e), &fresh).unwrap();
+            let (mut saved, ledger, counted, stats) =
+                decode_state(&encode_state(&e), &fresh).unwrap();
             let crate::engine::Saved::V2(state) = &mut saved else {
                 panic!("the live rules")
             };
@@ -828,10 +852,10 @@ mod career_rest_tests {
             }
             c.regen = 3;
             let (want_gauge, want_dust) = (c.expertise.clone(), c.stardust);
-            let set = fresh.clone().with_saved(saved, ledger, counted);
+            let set = fresh.clone().with_saved(saved, ledger, counted, stats);
             let bytes = encode_state(&set);
-            let (saved, ledger, counted) = decode_state(&bytes, &fresh).unwrap();
-            let back = fresh.clone().with_saved(saved, ledger, counted);
+            let (saved, ledger, counted, stats) = decode_state(&bytes, &fresh).unwrap();
+            let back = fresh.clone().with_saved(saved, ledger, counted, stats);
             let Run::V2 { state: b, .. } = back.run() else {
                 panic!("the live rules")
             };

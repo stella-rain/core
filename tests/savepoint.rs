@@ -477,7 +477,9 @@ mod golden {
     /// older build saved (header 1, schema 1 prefix) still restores
     /// (`a_savepoint_header_must_agree_with_its_prefix`). Old line:
     /// `aa70e16f9c1c228ce7ee88d15d384f017cfcb90dc863122cfe9196c9909b7619  2123`. From here a
-    /// pinned format is never re-pinned.
+    /// pinned format is never re-pinned. Format 2 has its own line in `v2.sha256` (the frozen
+    /// `trial` case's version 1 state under the format 2 header and the 60-byte stats record);
+    /// `v1.sha256` stays as history, format 1 files being refused.
     #[test]
     fn the_encoding_matches_its_pinned_format() {
         let (bytes, ..) = bytes();
@@ -530,4 +532,121 @@ mod golden {
         found.sort_unstable();
         assert_eq!(found, (1..=SAVEPOINT_FORMAT).collect::<Vec<_>>());
     }
+}
+
+// --- Format 2: the player stats record --------------------------------------------------------
+
+/// The record is 3 slots of `damage_dealt: u64`, `kills: u32`, `support: u64`, little-endian.
+const STATS_RECORD: usize = 60;
+
+fn record_of(stats: &stella_rain_core::ledger::PlayerStats) -> Vec<u8> {
+    let mut out = Vec::new();
+    for i in 0..3 {
+        let s = stats.slot(stella_rain_core::id::PlayerIdx::new(i).unwrap());
+        out.extend(s.damage_dealt.to_le_bytes());
+        out.extend(s.kills.to_le_bytes());
+        out.extend(s.support.to_le_bytes());
+    }
+    out
+}
+
+#[test]
+fn format_two_is_written_and_a_format_one_file_is_refused() {
+    let rec = run(300);
+    let good = rec.replay();
+    let bytes = rec.save();
+    assert_eq!(bytes[4..8], 2u32.to_le_bytes());
+    assert_eq!(SAVEPOINT_FORMAT, 2);
+    let mut old = bytes.clone();
+    put_u32(&mut old, 4, 1);
+    reseal(&mut old);
+    refused_bundled(&old, &good, SavepointError::Format, &good);
+}
+
+#[test]
+fn the_payload_starts_with_the_stats_record() {
+    let rec = run(600);
+    let stats = rec.engine().player_stats();
+    assert!(
+        stats
+            .slot(stella_rain_core::id::PlayerIdx::SOLO)
+            .damage_dealt
+            > 0
+    );
+    let bytes = rec.save();
+    let payload = &bytes[HEADER_LEN..];
+    assert_eq!(payload[..STATS_RECORD], record_of(stats)[..]);
+    assert_eq!(
+        payload[..8],
+        stats
+            .slot(stella_rain_core::id::PlayerIdx::SOLO)
+            .damage_dealt
+            .to_le_bytes()
+    );
+}
+
+#[test]
+fn a_restored_run_has_the_totals_it_was_saved_with() {
+    let all = play_run(900);
+    let (head, tail) = split(&all, 450);
+    let mut saver = recorder_with(&trial_setup(), Pack::bundled(), head);
+    let (bytes, prefix) = (saver.save(), saver.replay());
+    let mut restored = restore(&bytes, &prefix).unwrap();
+    assert_eq!(
+        restored.engine().player_stats(),
+        saver.engine().player_stats()
+    );
+    tail.iter().for_each(|c| {
+        apply(&mut saver, c);
+        apply(&mut restored, c);
+    });
+    assert_eq!(
+        restored.engine().player_stats(),
+        saver.engine().player_stats()
+    );
+    assert_eq!(restored.engine().state_hash(), saver.engine().state_hash());
+}
+
+#[test]
+fn an_edited_record_restores_with_the_edited_totals_and_saves_the_same_bytes() {
+    let rec = run(450);
+    let prefix = rec.replay();
+    let mut bytes = rec.save();
+    bytes[HEADER_LEN..HEADER_LEN + 8].copy_from_slice(&777u64.to_le_bytes());
+    reseal(&mut bytes);
+    let restored = restore(&bytes, &prefix).expect("the record is not hashed");
+    let slot0 = restored
+        .engine()
+        .player_stats()
+        .slot(stella_rain_core::id::PlayerIdx::SOLO);
+    assert_eq!(slot0.damage_dealt, 777);
+    assert_eq!(restored.save(), bytes);
+}
+
+#[test]
+fn a_record_for_a_player_who_is_not_in_the_party_is_damaged() {
+    let rec = run(450);
+    let prefix = rec.replay();
+    let mut bytes = rec.save();
+    // Slot 2's damage_dealt, 40 bytes into the record.
+    bytes[HEADER_LEN + 40] = 1;
+    reseal(&mut bytes);
+    refused_bundled(&bytes, &prefix, SavepointError::Damaged, &prefix);
+}
+
+#[test]
+fn a_version_one_run_saves_and_restores_a_zero_record() {
+    let mut setup = trial_setup();
+    setup.sim_version = 1;
+    let rec = recorder_with(&setup, Pack::bundled(), &play_run(450));
+    let (bytes, prefix) = (rec.save(), rec.replay());
+    assert_eq!(
+        bytes[HEADER_LEN..HEADER_LEN + STATS_RECORD],
+        [0u8; STATS_RECORD]
+    );
+    let restored = restore(&bytes, &prefix).unwrap();
+    assert_eq!(
+        restored.engine().player_stats(),
+        rec.engine().player_stats()
+    );
 }
