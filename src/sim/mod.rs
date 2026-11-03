@@ -53,7 +53,8 @@
 //! kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
 //! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
 //! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
-//! player who applied the stack last. Offers are per slot and the world stops while any is open.
+//! player who applied the stack last. Every such hit, and an echo, lowers the foe's hit points in
+//! `damage::land`. Offers are per slot and the world stops while any is open.
 //! The hash and format 1
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
@@ -1329,7 +1330,8 @@ fn enemy_grid(stage: &World, s: &mut State) -> Grid {
 /// match-up, reduced by its defence, reported, and credited to the shooter's aggro. Death is
 /// reported too. A combo step's hit adds expertise points (`expertise`), puts the
 /// damage-over-time runes' statuses on a target it leaves standing, and fires the on-hit runes
-/// that are ready (`runes`).
+/// that are ready (`runes`). The hit points, the kill credit, the events and the aggro are
+/// `damage::land`.
 fn damage(
     stage: &World,
     s: &mut State,
