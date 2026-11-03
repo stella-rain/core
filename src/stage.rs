@@ -1,4 +1,4 @@
-//! The stage file (ADR-CONT-11): data only, parsed strictly (ADR-CONT-11, ADR-SVC-7). Unknown fields are
+//! The stage file (ADR-CONT-1): data only, parsed strictly (ADR-CONT-1, ADR-SVC-7). Unknown fields are
 //! rejected everywhere. Field names follow ADR-SIM-4's shape and are placeholders until the
 //! freeze (ADR-REPL-12); the validator (budgets, registry, text) is separate.
 
@@ -591,7 +591,7 @@ pub struct CallElites {
     pub below_pct: Option<u8>,
 }
 
-/// A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-4).
+/// A breakable part with its own HP and hurt circle (ADR-CONT-7, ADR-SIM-4).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BossPart {

@@ -1,13 +1,13 @@
 //! The attack presets file (CS1b-1, DS20 item 2): the developer's attacks as content data, so
 //! that a preset is balanced by a content release and not by a code change (ADR-SIM-4: "Presets
-//! are content"). A preset is a registered preset ID (ADR-CONT-12) with its arguments and its
+//! are content"). A preset is a registered preset ID (ADR-CONT-2) with its arguments and its
 //! phases, written in the stage's own attack format (`AttackPhase`, with `{"arg": n}` for an
 //! argument). A stage names one by ID and arguments (`AttackRef::Preset`), or holds an inline
 //! copy; `presets.rs` takes one apart.
 //!
-//! The IDs stay in the registry (ADR-CONT-12): the file gives each registered preset its
+//! The IDs stay in the registry (ADR-CONT-2): the file gives each registered preset its
 //! definition and may not add an ID. Letting the pack introduce preset IDs is a later change, as
-//! ADR-CONT-12 point 7 says for weapons. `args` names each argument and must be as long as the
+//! ADR-CONT-2 point 7 says for weapons. `args` names each argument and must be as long as the
 //! registry's arity, which the phases must read exactly.
 //!
 //! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,

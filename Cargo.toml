@@ -37,10 +37,10 @@ bench = []
 # Content pack signature verification only (DS49, D-SIGN): detached minisign signature verification
 # with Ed25519. Pure Rust, zero external dependencies, outside the simulation path.
 minisign-verify = "0.3.0"
-# Share codes only (ADR-CONT-11): zlib compression with a limit on the decompressed size. Pure
+# Share codes only (ADR-CONT-1): zlib compression with a limit on the decompressed size. Pure
 # Rust, no `unsafe` (`forbid(unsafe_code)`), no floats; outside the simulation path.
 miniz_oxide = "0.8"
-# Files and their schema only (ADR-CONT-11): parsing stages, events and replays, and generating
+# Files and their schema only (ADR-CONT-1): parsing stages, events and replays, and generating
 # JSON Schema. Never in the simulation path; types use fixed-width integers only.
 # `raw_value` keeps each content file of a pack as the bytes it has there (core#148).
 schemars = "1"

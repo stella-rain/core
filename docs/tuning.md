@@ -34,11 +34,11 @@
 | `MAX_PARTY_DAMAGE_PCT` | 100 | percent | ADR-SIM-8 |
 | `MAX_REWARDS` | 192 | rewards | ADR-SVC-7 |
 | `MAX_STACK` | 20 | stacks | ADR-SVC-7 |
-| `MAX_TIERS` | 16 | tiers | ADR-CONT-13 |
-| `MAX_TIER_LEVEL` | 100 | level | ADR-CONT-13 |
-| `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-CONT-13 |
-| `MAX_DIFFICULTIES` | 8 | difficulties | ADR-CONT-11 |
-| `MAX_PCT` | 1000 | percent | ADR-CONT-11 |
+| `MAX_TIERS` | 16 | tiers | ADR-CONT-3 |
+| `MAX_TIER_LEVEL` | 100 | level | ADR-CONT-3 |
+| `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-CONT-3 |
+| `MAX_DIFFICULTIES` | 8 | difficulties | ADR-CONT-1 |
+| `MAX_PCT` | 1000 | percent | ADR-CONT-1 |
 | `MAX_COMMANDS` | 1000 | commands | ADR-REPL-16 |
 | `MAX_PRESENCE_CHANGES` | 64 | changes | ADR-REPL-16 |
 | `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-7 |
@@ -50,4 +50,4 @@
 | `MAX_WAVES` | 16 | waves | ADR-SVC-7 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-7 |
 
-The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-13).
+The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-3).

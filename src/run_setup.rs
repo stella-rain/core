@@ -1,5 +1,5 @@
 //! The run setup (ADR-REPL-16): what a run of the launch game starts from, and all it starts
-//! from. The mode, the weapon (a content ID, ADR-CONT-12) and its tree (ADR-REPL-16), and the seed of the
+//! from. The mode, the weapon (a content ID, ADR-CONT-2) and its tree (ADR-REPL-16), and the seed of the
 //! run's SplitMix64 (ADR-SIM-2). No expertise level: every run starts at level 0 (ADR-REPL-16).
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.

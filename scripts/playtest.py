@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# playtest: plays this checkout's content pack in a debug build of the side-by-side app (ADR-CONT-14).
+# playtest: plays this checkout's content pack in a debug build of the side-by-side app (ADR-CONT-4).
 #
 #   python scripts/playtest.py [--app ../app] [--profile test-env] [--build]
 #

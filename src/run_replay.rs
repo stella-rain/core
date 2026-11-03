@@ -33,9 +33,9 @@
 //! keeps its expected hashes in them, in place of a hash per tick.
 //!
 //! The content hash is the SHA-256 of the bytes of the content pack the run used (ADR-REPL-16,
-//! ADR-CONT-15), so any content update invalidates the replay rather than letting it drift, and a
+//! ADR-CONT-5), so any content update invalidates the replay rather than letting it drift, and a
 //! kept pack is found by it. The attack presets and the weapons are files of the pack
-//! (ADR-CONT-13, CS1b-1, WP1), so a change to a preset is a content release and a new hash.
+//! (ADR-CONT-3, CS1b-1, WP1), so a change to a preset is a content release and a new hash.
 //! What the rules do with the content is the `sim_version`'s, which the setup carries.
 
 use std::fmt;
@@ -92,7 +92,7 @@ pub struct RunReplay {
     /// What the run started from (ADR-REPL-16).
     pub setup: RunSetup,
     /// The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content
-    /// pack (`content_sha256_with`, ADR-CONT-15). Any other pack invalidates the replay.
+    /// pack (`content_sha256_with`, ADR-CONT-5). Any other pack invalidates the replay.
     pub content_sha256: String,
     /// Ticks recorded, at most the mode's length (a `time_limit` run's: its length, overtime and the Star-Hunter's extra time). A run that ended ends on the tick it ended.
     pub ticks: u32,
@@ -389,7 +389,7 @@ pub fn content_sha256(mode: &str) -> Option<[u8; 32]> {
 }
 
 /// The SHA-256 of the game content a run of `mode` uses with `content`. Content read from a
-/// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-REPL-16, ADR-CONT-15), whatever
+/// pack has the pack's hash, the SHA-256 of the pack file's bytes (ADR-REPL-16, ADR-CONT-5), whatever
 /// the mode. Content with any file replaced one by one has a hash derived from the mode's file,
 /// the attack presets file, and the bytes of the run stats, the rewards, the stage skills, the
 /// expertise, the match-ups, the runes and the perk sets, tagged and length-prefixed: never a pack's.
@@ -682,7 +682,7 @@ impl RunRecorder {
         RunRecorder::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `content` in place of the bundled files (ADR-CONT-11).
+    /// As `start`, with `content` in place of the bundled files (ADR-CONT-1).
     pub fn start_with(
         setup: &RunSetup,
         content: &RunContent,
@@ -729,7 +729,7 @@ impl RunRecorder {
     }
 
     /// As `start`, with the content of `pack` in place of the bundled pack: the replay records
-    /// the SHA-256 of the pack's bytes (ADR-REPL-16, ADR-CONT-15).
+    /// the SHA-256 of the pack's bytes (ADR-REPL-16, ADR-CONT-5).
     pub fn start_with_pack(setup: &RunSetup, pack: &Pack) -> Result<RunRecorder, RunReplayError> {
         RunRecorder::start_with(setup, pack.content())
     }

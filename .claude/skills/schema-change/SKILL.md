@@ -5,8 +5,8 @@ description: Change a Stella Rain stage, event or replay type, or anything that 
 
 # Schema change
 
-The Rust types in `stella-rain/core` are the only schema (ADR-CONT-11). Stages and replays already
-published in creators' repositories must keep loading and verifying forever (ADR-REPL-12, ADR-CONT-12).
+The Rust types in `stella-rain/core` are the only schema (ADR-CONT-1). Stages and replays already
+published in creators' repositories must keep loading and verifying forever (ADR-REPL-12, ADR-CONT-2).
 This file is identical in `app` and `core`; change both copies in the same task.
 
 ## 1. Classify the change
@@ -22,7 +22,7 @@ This file is identical in `app` and `core`; change both copies in the same task.
 Not sure whether outcomes change? Run the replay corpus: any hash difference in the frozen `v1/`
 corpus means a new `sim_version`, gated inside `sim` (ADR-REPL-13); only `current/` is regenerated.
 Determinism is never relaxed: the corpus must still match on x86_64 and arm64, and SplitMix64,
-FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-CONT-16).
+FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-CONT-6).
 
 ## 2. Test first
 
@@ -43,7 +43,7 @@ FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-CONT-16).
    untouched, and add a test for the new behaviour; the frozen corpus must pass unchanged (a copy only
    for a rewrite, ADR-REPL-13 point 3). New stages always get the latest version.
 4. Content ID: add it to the registry with the version that introduces it, its status
-   (active or deprecated) and its asset source (ADR-CONT-17). Deprecated IDs stay loadable.
+   (active or deprecated) and its asset source (ADR-CONT-7). Deprecated IDs stay loadable.
 5. Regenerate the JSON Schema and commit its diff with the change.
 6. If parsing changed, make sure the fuzz targets build and run them briefly.
 
@@ -57,7 +57,7 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 - Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-11), in its own commit
   or PR that refers to the `core` change.
 - Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
-  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-11).
+  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-1).
 - Work spanning both repositories is an epic issue in `app` with a sub-issue in `core`.
 
 ## 6. Commit

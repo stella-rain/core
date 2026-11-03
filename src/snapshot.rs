@@ -203,7 +203,7 @@ pub struct ProgressView {
     pub xp: u32,
     /// Experience the next level needs; 0 at the highest level.
     pub xp_next: u32,
-    /// Points spent on each run stat, in the run stats' order (ADR-CONT-11).
+    /// Points spent on each run stat, in the run stats' order (ADR-CONT-1).
     pub spent: Vec<u8>,
     /// The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and
     /// `Engine::choose` takes one of its options.
@@ -335,7 +335,7 @@ pub enum OfferOption {
 }
 
 /// What a reward is for, to show it by (ADR-REPL-16). Derived from the effect kinds of the
-/// reward in one exhaustive table, never stored in the content (ADR-CONT-13).
+/// reward in one exhaustive table, never stored in the content (ADR-CONT-3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Category {
     /// Damage dealt by the main character's attacks.

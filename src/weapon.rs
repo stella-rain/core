@@ -169,7 +169,7 @@ fn is_zero_u16(v: &u16) -> bool {
 }
 
 /// What a smash (a step reached by `smash`) does to every enemy it hits: one
-/// of a closed list built into `core`, its numbers in JSON (ADR-CONT-11).
+/// of a closed list built into `core`, its numbers in JSON (ADR-CONT-1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SmashEffect {

@@ -7,7 +7,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// A content ID from the registry (ADR-CONT-12): asset, palette, part, preset, status or pattern.
+/// A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.
 /// Lowercase `snake_case`, at most 32 characters; the validator checks the format and that the
 /// ID exists.
 //

@@ -1,4 +1,4 @@
-//! Share codes (ADR-SVC-13, ADR-CONT-11): a stage and its clear replay as text, for players without GitHub.
+//! Share codes (ADR-SVC-13, ADR-CONT-1): a stage and its clear replay as text, for players without GitHub.
 //! The two files go into one JSON object as strings, so their exact bytes survive (the replay
 //! names the SHA-256 of the stage file, and the content hash covers both, ADR-SVC-13). The object
 //! is compressed with zlib (the `miniz_oxide` crate) and base64-encoded.

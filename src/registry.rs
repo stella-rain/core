@@ -1,10 +1,10 @@
-//! The content-ID registry (ADR-CONT-12): every ID a stage may use, with the `sim_version` that
+//! The content-ID registry (ADR-CONT-2): every ID a stage may use, with the `sim_version` that
 //! introduced it. The validator rejects an ID that is missing, of the wrong kind, or newer than
 //! the stage (ADR-REPL-12, ADR-SVC-7). Every ID here is introduced in version 1, the frozen first
 //! version; the entries are placeholders until the registry file replaces
 //! them.
 //!
-//! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-13, ADR-CONT-12).
+//! An attack preset's arguments are bounded in code by its registry entry (ADR-CONT-3, ADR-CONT-2).
 //!
 //! Asset sources (ADR-REL-10) join the entries when real assets exist.
 
@@ -33,7 +33,7 @@ pub enum Kind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Availability {
     Active,
-    /// Still loads and plays; the editor stops offering it (ADR-CONT-12).
+    /// Still loads and plays; the editor stops offering it (ADR-CONT-2).
     Deprecated,
 }
 
@@ -52,7 +52,7 @@ pub struct Entry {
     pub introduced: u32,
     pub availability: Availability,
     /// Arguments an attack preset takes; 0 for every other kind. Preset arguments are bounded in
-    /// code (ADR-CONT-13, ADR-CONT-12).
+    /// code (ADR-CONT-3, ADR-CONT-2).
     pub args: u8,
     /// The name, minimum, and maximum of each argument an attack preset takes; empty for every other
     /// kind or arity-0 preset.
@@ -137,7 +137,7 @@ pub const ENTRIES: &[Entry] = &[
     entry("giant_sword_aab", Kind::Upgrade, 0),
 ];
 
-/// Lowercase `snake_case`, 1 to 32 characters (ADR-CONT-12). Stage-defined names, such as boss part
+/// Lowercase `snake_case`, 1 to 32 characters (ADR-CONT-2). Stage-defined names, such as boss part
 /// IDs, follow the same format.
 pub fn is_well_formed(id: &str) -> bool {
     let bytes = id.as_bytes();

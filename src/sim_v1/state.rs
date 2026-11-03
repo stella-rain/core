@@ -568,7 +568,7 @@ pub(crate) struct BossState {
     pub age: u32,
 }
 
-/// A breakable part of the boss, with its own hit points (ADR-CONT-17).
+/// A breakable part of the boss, with its own hit points (ADR-CONT-7).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PartState {

@@ -1,7 +1,7 @@
 //! Attack presets are content (CS1b-1): `content/attack_presets.json`, read through
 //! `attack_presets::AttackPresets` (ADR-SIM-4: "Presets are content"). A preset is the
 //! developer's attack, written in the same format as the attacks creators write inline, and
-//! registered as a content ID (ADR-CONT-12). A stage uses one by ID with arguments, or holds an
+//! registered as a content ID (ADR-CONT-2). A stage uses one by ID with arguments, or holds an
 //! inline copy. This module **takes a preset apart**: copies its definition inline with each
 //! argument written in as a constant; the stage then edits it freely and no longer depends on
 //! the ID. The engine runs a preset by that same expansion, with the presets of the run's own
@@ -58,7 +58,7 @@ pub(crate) fn holds_after_active(phases: &[AttackPhase]) -> bool {
         .is_some_and(|p| p.kind == PhaseKind::Recovery && p.spawn.is_empty())
 }
 
-/// The held-step checks that read a preset's phases (ADR-CONT-13 point 6, CS1b-1): what the
+/// The held-step checks that read a preset's phases (ADR-CONT-3 point 6, CS1b-1): what the
 /// stateless validator leaves to the content that runs the weapon. A held step's attack must
 /// end in a spawn-free recovery, and a hold's loop is all active phases, when either names a
 /// preset. Inline attacks are the validator's. Paths are from the weapon (`$.combo.main.attack`).

@@ -1,4 +1,4 @@
-//! The runes file (ADR-CONT-11: data picks, code acts): each rune's numbers. What a rune
+//! The runes file (ADR-CONT-1: data picks, code acts): each rune's numbers. What a rune
 //! does is code (`sim`'s runes); when it fires and how hard is this file's. An on-hit
 //! rune has a cooldown, a base damage and its own attack: phases as any attack's, whose hit
 //! boxes are centred on the point the combo step hit instead of on the main character.

@@ -1,4 +1,4 @@
-//! The content pack (ADR-CONT-15, core#148): the game's content as one JSON file, holding its
+//! The content pack (ADR-CONT-5, core#148): the game's content as one JSON file, holding its
 //! `schema_version`, the `sim_version` it needs and the content files (the run stats, the
 //! rewards, the stage skills, the expertise, the match-up table, the runes, the perk sets and the modes). Its
 //! hash is the SHA-256 of the file's bytes.
@@ -6,15 +6,15 @@
 //! A pack is untrusted (ADR-SVC-7), read from the network or from the cache alike: a size limit
 //! before parsing, the current versions only, strict parsing, budgets on the counts of its
 //! lists, then each file through its own parser, with the bounds that file already enforces
-//! (ADR-CONT-11). Anything else fails closed, with one message per problem and its path, never text
+//! (ADR-CONT-1). Anything else fails closed, with one message per problem and its path, never text
 //! from the pack.
 //!
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
 //! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
-//! pack's own (ADR-CONT-15, as the registry's IDs are for a stage, ADR-REPL-12). An ID the released
+//! pack's own (ADR-CONT-5, as the registry's IDs are for a stage, ADR-REPL-12). An ID the released
 //! content (the bundled pack) does not hold is new and is recorded at the pack's `sim_version`,
-//! and is refused when it is recorded lower (ADR-REPL-13, ADR-CONT-12). The registry's IDs a
+//! and is refused when it is recorded lower (ADR-REPL-13, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
 //! The content files have no versions of their own: the pack's header is the only one, and each
@@ -541,7 +541,7 @@ impl Pack {
         &self.content
     }
 
-    /// The bundled pack, `content/pack.json`: the default content of every run (ADR-CONT-15). It is
+    /// The bundled pack, `content/pack.json`: the default content of every run (ADR-CONT-5). It is
     /// our own file, tested to be what `ContentFiles::read_dir` of `content/` exports, so a failure to read it is a
     /// bug, and stops at the first use.
     pub fn bundled() -> &'static Pack {
@@ -678,7 +678,7 @@ struct WeaponLists {
 }
 
 /// The held-step checks that read a preset's phases, for every tree of the pack's weapons against
-/// the pack's own attack presets (ADR-CONT-13 point 6, CS1b-1): the weapons file alone cannot say.
+/// the pack's own attack presets (ADR-CONT-3 point 6, CS1b-1): the weapons file alone cannot say.
 fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<(), PackError> {
     let mut issues = Vec::new();
     for (w, entry) in weapons.list().iter().enumerate() {
@@ -935,7 +935,7 @@ fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
 
 /// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID
 /// the `released` entries (the bundled pack's) do not hold is new, and is recorded at the pack's
-/// own `sim_version` (ADR-REPL-13, ADR-CONT-12); a released ID keeps the version it was released at.
+/// own `sim_version` (ADR-REPL-13, ADR-CONT-2); a released ID keeps the version it was released at.
 fn check_ids(
     issues: &mut Vec<Issue>,
     at: &str,
@@ -1146,7 +1146,7 @@ fn stamp(released: &[IntroducedId], ids: Vec<&ContentId>, sim_version: u32) -> V
 }
 
 /// The table of `content`'s IDs: an ID the released table holds keeps the version it was
-/// released at, a new one is introduced in `sim_version` (ADR-CONT-12 point 6, ADR-REPL-13).
+/// released at, a new one is introduced in `sim_version` (ADR-CONT-2 point 6, ADR-REPL-13).
 fn introduced_at(content: &RunContent, sim_version: u32) -> Introduced {
     let released = released();
     let list = |released: &[IntroducedId], ids: Vec<&ContentId>| stamp(released, ids, sim_version);
@@ -1252,7 +1252,7 @@ const fn slot(name: &'static str, in_modes: bool, optional: bool) -> FileSlot {
 }
 
 /// The content files of a pack, as the bytes of the file on its own (a final newline included):
-/// what `content/` and `modes/` hold, and what a pack is made from and unpacked into (ADR-CONT-14).
+/// what `content/` and `modes/` hold, and what a pack is made from and unpacked into (ADR-CONT-4).
 #[derive(Clone, Debug, Default)]
 pub struct ContentFiles {
     files: BTreeMap<&'static str, Cow<'static, [u8]>>,
@@ -1551,7 +1551,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
     out
 }
 
-/// An error comparing two content directories with numbers-only comparison (RP2-1, ADR-CONT-14).
+/// An error comparing two content directories with numbers-only comparison (RP2-1, ADR-CONT-4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompareError {
     /// Command line usage / invalid directory error (exit status 2).

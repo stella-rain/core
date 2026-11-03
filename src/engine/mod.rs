@@ -1,7 +1,7 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
 //! (ADR-SIM-1, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
 //! between ticks (ADR-REPL-16: `choose`); everything else comes from the stage and its
-//! seed, or from a run setup, and from the run stats (ADR-CONT-11), so the state hash after each
+//! seed, or from a run setup, and from the run stats (ADR-CONT-1), so the state hash after each
 //! tick is the same on every platform (ADR-SIM-3).
 //!
 //! Rules are dispatched by the stage's `sim_version` (ADR-REPL-12, ADR-REPL-13 points 1 to 3): versions
@@ -114,7 +114,7 @@ pub enum PresenceError {
 /// A run of one stage.
 #[derive(Debug)]
 pub struct Engine {
-    /// The content files the run reads (ADR-CONT-11), fixed for the run.
+    /// The content files the run reads (ADR-CONT-1), fixed for the run.
     content: RunContent,
     run: Run,
     /// Events of the last tick; cleared when the next one starts.
@@ -248,7 +248,7 @@ impl Engine {
         Engine::new_with(stage, RunContent::bundled())
     }
 
-    /// As `new`, with `content` in place of the bundled files (ADR-CONT-11).
+    /// As `new`, with `content` in place of the bundled files (ADR-CONT-1).
     pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
         Engine::new_with_stats(stage, content, &[], false)
     }
@@ -294,7 +294,7 @@ impl Engine {
         Engine::start_with(setup, RunContent::bundled())
     }
 
-    /// As `start`, with `content` in place of the bundled files (ADR-CONT-11).
+    /// As `start`, with `content` in place of the bundled files (ADR-CONT-1).
     pub fn start_with(setup: &RunSetup, content: &RunContent) -> Result<Engine, Error> {
         Engine::start_party_with(setup, content, 1)
     }

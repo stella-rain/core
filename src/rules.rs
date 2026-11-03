@@ -41,7 +41,7 @@ pub const MIN_CAP_HEADROOM_PCT: u8 = 25;
 pub const MAX_CAP_HEADROOM_PCT: u8 = 30;
 /// The most ticks a timed offer waits for a pick before the first option is taken: 60 s at 60
 /// ticks (ADR-SIM-7 point 4). A number in code, the bound of the pack's `offer_timer_ticks`
-/// (ADR-CONT-13 point 4).
+/// (ADR-CONT-3 point 4).
 pub const MAX_OFFER_TIMER_TICKS: u32 = 3600;
 /// The countdown of a pack written before the key existed: 5 s at 60 ticks.
 const DEFAULT_OFFER_TIMER_TICKS: u32 = 300;
@@ -51,7 +51,7 @@ fn default_offer_timer_ticks() -> u32 {
 }
 
 /// The most a party-size entry of `party_damage_pct` can be, in percent: a bigger party only
-/// scales a player's damage down, never up (ADR-SIM-8, ADR-CONT-13 point 4).
+/// scales a player's damage down, never up (ADR-SIM-8, ADR-CONT-3 point 4).
 pub const MAX_PARTY_DAMAGE_PCT: u32 = 100;
 /// The players a `party_damage_pct` list has an entry for.
 const PARTY_SIZES: usize = crate::id::MAX_PLAYERS as usize;

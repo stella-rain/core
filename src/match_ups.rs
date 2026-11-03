@@ -1,4 +1,4 @@
-//! The match-up table (ADR-CONT-11): how much a hit's match-up changes its damage, one
+//! The match-up table (ADR-CONT-1): how much a hit's match-up changes its damage, one
 //! table for every target. A weak hit deals `weak_pct` percent more, a strong or resisted hit
 //! `strong_pct` or `resisted_pct` percent less; a hit with no match-up is unchanged. Which
 //! match-up a hit gets is code (`attack::Profile::match_up`); the percents are tuning values.

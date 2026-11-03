@@ -1,4 +1,4 @@
-//! The pack's `party_damage_pct` (ADR-SIM-8, ADR-CONT-13): a list of three percents, one for each
+//! The pack's `party_damage_pct` (ADR-SIM-8, ADR-CONT-3): a list of three percents, one for each
 //! party size, read at each hit of a player's damage. It loads, defaults and is bounded here;
 //! how `land` applies it is pinned in `src/sim/damage_tests.rs`.
 

@@ -17,7 +17,7 @@ paths:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
+Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-14.
 
 ## What is where
 
@@ -27,7 +27,7 @@ Sources: ADR-REPL-16, ADR-REPL-17, ADR-BRDG-12, ADR-CONT-16, ADR-SVC-13, ADR-SIM
 - The step log, the range reader and the recorder (`step_log.rs`, `RunRecorder`):
   `step-log.md`.
 - `share.rs`, `base64.rs`: share codes; `recording.rs`: the `record` feature's JSON Lines.
-  `content_hash.rs`: SHA-256 of the two file hashes (ADR-CONT-16).
+  `content_hash.rs`: SHA-256 of the two file hashes (ADR-CONT-6).
   `parsed_stage_hash.rs`: the blocklist's hash (ADR-SVC-13 point 4), pinned in `tests/parsed_stage_hash.rs`.
 - `stage-verify` (`src/bin/stage_verify.rs`): re-simulates a replay, checks the clear and hash.
 

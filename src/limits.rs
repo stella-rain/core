@@ -1,9 +1,9 @@
-//! Tuning limits catalogue and single source of truth for runtime checks (ADR-SIM-5, ADR-CONT-13).
+//! Tuning limits catalogue and single source of truth for runtime checks (ADR-SIM-5, ADR-CONT-3).
 //!
 //! Values here define the simulation's authoritative runtime limits, file budgets, and tuning
 //! caps. `content-pack catalogue` generates `docs/tuning.md` from the catalogue table below.
 //! It lists caps and code numbers only; the numbers a designer tunes are `content/rules.json`
-//! keys (ADR-CONT-13).
+//! keys (ADR-CONT-3).
 
 /// An entry in the tuning limits catalogue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +59,7 @@ pub const PUSH_CANDIDATES: usize = 32;
 pub const PUSH_NEIGHBOURS: usize = 6;
 pub const PUSH_CROWDED_OVER_PX: i64 = 1;
 
-// The leash: the cap stays code, its numbers are content (ADR-CONT-13)
+// The leash: the cap stays code, its numbers are content (ADR-CONT-3)
 pub const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 
 // Reward effects (ADR-SIM-5, ADR-SVC-7, ADR-REPL-16)
@@ -162,11 +162,11 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_PARTY_DAMAGE_PCT", "100", "percent", "ADR-SIM-8"),
     LimitEntry::new("MAX_REWARDS", "192", "rewards", "ADR-SVC-7"),
     LimitEntry::new("MAX_STACK", "20", "stacks", "ADR-SVC-7"),
-    LimitEntry::new("MAX_TIERS", "16", "tiers", "ADR-CONT-13"),
-    LimitEntry::new("MAX_TIER_LEVEL", "100", "level", "ADR-CONT-13"),
-    LimitEntry::new("MAX_RARITY_WEIGHT", "10000", "weight", "ADR-CONT-13"),
-    LimitEntry::new("MAX_DIFFICULTIES", "8", "difficulties", "ADR-CONT-11"),
-    LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-CONT-11"),
+    LimitEntry::new("MAX_TIERS", "16", "tiers", "ADR-CONT-3"),
+    LimitEntry::new("MAX_TIER_LEVEL", "100", "level", "ADR-CONT-3"),
+    LimitEntry::new("MAX_RARITY_WEIGHT", "10000", "weight", "ADR-CONT-3"),
+    LimitEntry::new("MAX_DIFFICULTIES", "8", "difficulties", "ADR-CONT-1"),
+    LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-CONT-1"),
     LimitEntry::new("MAX_COMMANDS", "1000", "commands", "ADR-REPL-16"),
     LimitEntry::new("MAX_PRESENCE_CHANGES", "64", "changes", "ADR-REPL-16"),
     LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-SVC-7"),
@@ -195,7 +195,7 @@ pub fn tuning_catalogue_markdown() -> String {
     }
     s.push_str(
         "\nThe numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) \
-         are content, not listed here: see content/rules.json (ADR-CONT-13).\n",
+         are content, not listed here: see content/rules.json (ADR-CONT-3).\n",
     );
     s
 }
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn the_catalogue_points_to_rules_json() {
-        assert!(tuning_catalogue_markdown().ends_with("see content/rules.json (ADR-CONT-13).\n"));
+        assert!(tuning_catalogue_markdown().ends_with("see content/rules.json (ADR-CONT-3).\n"));
     }
 
     #[test]

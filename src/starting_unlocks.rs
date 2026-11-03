@@ -1,4 +1,4 @@
-//! The starting unlocks (DS5 Q10, ADR-CONT-15, ADR-SAVE-11): the weapons, perk sets,
+//! The starting unlocks (DS5 Q10, ADR-CONT-5, ADR-SAVE-11): the weapons, perk sets,
 //! stage skills and runes a new save begins with. The pack lists them; the app seeds a new save
 //! from the pack, so changing them is a content release, and a save that exists keeps what it
 //! has. The simulation never reads this file: no outcome depends on it.

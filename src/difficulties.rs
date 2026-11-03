@@ -1,4 +1,4 @@
-//! Difficulties (ADR-CONT-11: data picks, code acts): `easy`, `normal`, `hard` and `rainy`,
+//! Difficulties (ADR-CONT-1: data picks, code acts): `easy`, `normal`, `hard` and `rainy`,
 //! each a content ID with the percent its enemies' hit points and damage are scaled by, the
 //! range of rarities its drops may have and, optionally, its own length, boss times, level table and
 //! Stardust time factor tiers (counted by `sim::stardust`) for the mode it is
@@ -9,8 +9,8 @@
 //! difficulties with unique, well-formed IDs, percents from 1 to `MAX_PCT`, a rarity range that
 //! does not run backwards, a length with its boss times (both or neither) that obey the mode
 //! file's rules, and a level table the stage's own rules accept. IDs are the file's own: the pack
-//! records the `sim_version` that introduced each (ADR-CONT-15), and a released ID is never renamed
-//! or removed (ADR-CONT-12).
+//! records the `sim_version` that introduced each (ADR-CONT-5), and a released ID is never renamed
+//! or removed (ADR-CONT-2).
 //! Each difficulty also names the Rune Shards a clear pays (`rune_shards`, 0 to
 //! `MAX_RUNE_SHARDS`) and, optionally, the earlier difficulty whose clear opens it
 //! (`opens_after`). The simulation never reads either; the app and the settlement do.

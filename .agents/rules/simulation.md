@@ -12,7 +12,7 @@ globs:
 
 # Simulation code
 
-Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-SIM-7, ADR-REPL-13, ADR-REPL-16, ADR-CONT-13. See `determinism.md`;
+Sources: ADR-SIM-1, ADR-SIM-3, ADR-SIM-4, ADR-SIM-5, ADR-SIM-7, ADR-REPL-13, ADR-REPL-16, ADR-CONT-3. See `determinism.md`;
 outcome changes follow the `schema-change` skill.
 
 ## What is where
@@ -55,7 +55,7 @@ outcome changes follow the `schema-change` skill.
   player fields `None`; `Run::V1` (`engine/run.rs`) drains frozen events through it. A live
   event change edits the adapter, never `sim_v1` (`sim_v1_imports_nothing_from_the_live_event`).
 - `trig.rs`: the sine table. `presets.rs`: takes an attack preset (`content/attack_presets.json`,
-  ADR-CONT-13 point 6) apart into attack phases. `inline.rs`: `InlineVec<T, N>`, a bounded list, no heap.
+  ADR-CONT-3 point 6) apart into attack phases. `inline.rs`: `InlineVec<T, N>`, a bounded list, no heap.
   `hash.rs`: the FNV-1a 64 hasher.
 - The state hash, the savepoint's mirror of it and the entity numbers: `state-hash.md`.
 
@@ -67,7 +67,7 @@ outcome changes follow the `schema-change` skill.
   per-tick `Vec` goes into `Scratch`, a bounded per-entity list into `InlineVec`.
 - The caps (enemies, zones, orbs), push-apart and collision cost are set by ADR-SIM-5; see `benches-fuzz.md`.
 - A new constant in `sim/` is code only when changing it needs code review: a cap, the grid, the
-  push-apart, the view or a unit (ADR-CONT-13). A designer-facing number is a `rules.json` key
+  push-apart, the view or a unit (ADR-CONT-3). A designer-facing number is a `rules.json` key
   read from `Tuning`. Code to content is a pack-hash change alone; content to code is a rules
   change, gated on `sim_version` if an outcome moves (ADR-REPL-13 point 2). Never put a cap or a feel
   number in `limits.rs` and `rules.json` both.

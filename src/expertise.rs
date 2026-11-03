@@ -1,4 +1,4 @@
-//! Expertise (ADR-CONT-11): one level inside one run, for the one weapon, with no highest
+//! Expertise (ADR-CONT-1): one level inside one run, for the one weapon, with no highest
 //! level. This is its content: the points levels 1 to 10 each need, the growth factor for every
 //! level after and the most a level needs, and for each weapon its three styles (a path: the
 //! style, then two upgrades and a capstone, at the levels of the mode's level table,

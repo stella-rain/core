@@ -1,4 +1,4 @@
-//! Rewards (ADR-REPL-16, ADR-CONT-11): what an offer from a falling star holds. Each has a
+//! Rewards (ADR-REPL-16, ADR-CONT-1): what an offer from a falling star holds. Each has a
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
@@ -362,7 +362,7 @@ fn is_default_weight(w: &u16) -> bool {
 
 /// One reward an offer can hold. In a file it is written with an `effects` list of 1 to
 /// `MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the
-/// reward itself, which reads as a list of one (ADR-CONT-12).
+/// reward itself, which reads as a list of one (ADR-CONT-2).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "RawReward")]
 #[schemars(with = "RawReward")]

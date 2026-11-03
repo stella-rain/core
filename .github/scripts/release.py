@@ -33,7 +33,7 @@ Usage (run inside the repository; commands that list branches ask origin):
                                       N being SIM_VERSION in src/version.rs at COMMIT (refuses when
                                       it cannot be read); LOG_FILE holds one commit per line
                                       since PREVIOUS; starts with a warning when content/pack.json
-                                      differs from PREVIOUS's (ADR-CONT-15: a content release must follow)
+                                      differs from PREVIOUS's (ADR-CONT-5: a content release must follow)
   release.py previous                 the latest release tag, or nothing
 
 Exit status: 0 done; 1 refused (the reason on standard error); 2 usage.
@@ -213,7 +213,7 @@ def check_promote(rc, tags, version_at_rc):
 
 
 def pack_changed(prev_bytes, head_bytes):
-    """ADR-CONT-15: a core release that changes content/pack.json gets a content release
+    """ADR-CONT-5: a core release that changes content/pack.json gets a content release
     before an app build ships. A file is None when missing, so a pack the previous tag lacks counts
     as changed."""
     return prev_bytes != head_bytes
@@ -232,7 +232,7 @@ def notes(rc, commit, prev, log, pack_changed=False, *, rules):
     lines = []
     if pack_changed and prev:
         lines += [f"content/pack.json changed since {prev}: publish a stella-rain/content release "
-                  "from this tag before an app build pins it (ADR-CONT-15)", ""]
+                  "from this tag before an app build pins it (ADR-CONT-5)", ""]
     lines += [f"# core {final} \u00b7 rules v{rules}", "", f"Commit `{commit}` on `main`, tested as `{rc}`.", "",
              "## Assets", "",
              "- `stage-verify` for Linux x86_64 and arm64, Windows x86_64 and macOS arm64.",

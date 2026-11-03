@@ -1560,7 +1560,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// Validates an attack reference: either a preset with arguments or an inline attack.
-    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-13, ADR-CONT-12).
+    /// A preset's arguments are bounded in code by its registry entry (ADR-CONT-3, ADR-CONT-2).
     fn attack_ref(&mut self, a: &AttackRef) {
         match a {
             AttackRef::Preset { id, args } => {

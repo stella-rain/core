@@ -502,7 +502,7 @@ impl World {
             }
         }
         let weapon = content.weapons().resolve(main).cloned();
-        // A stage's own weapon is judged by the content that runs it (ADR-CONT-13 point 6): the
+        // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
             if let Some(found) = crate::presets::hold_problems(w, content.attack_presets())

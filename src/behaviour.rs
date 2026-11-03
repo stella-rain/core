@@ -2,7 +2,7 @@
 //! selectors, actions and skills they are built from.
 //!
 //! Every variant here is a content ID (its serialised name) and will be recorded in the
-//! registry with the `sim_version` that introduced it (ADR-CONT-12). Names and fields are
+//! registry with the `sim_version` that introduced it (ADR-CONT-2). Names and fields are
 //! placeholders until the freeze (ADR-REPL-12).
 
 use schemars::JsonSchema;
@@ -16,7 +16,7 @@ use crate::id::ContentId;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Agent {
-    /// Asset ID of the sprite (ADR-CONT-17).
+    /// Asset ID of the sprite (ADR-CONT-7).
     pub base: ContentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
@@ -79,7 +79,7 @@ pub struct Elite {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Mimic {
-    /// Asset ID of the sprite it is drawn as while disguised (ADR-CONT-17).
+    /// Asset ID of the sprite it is drawn as while disguised (ADR-CONT-7).
     pub disguise: ContentId,
     /// 1 to `MAX_LEN`.
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_LEN))]

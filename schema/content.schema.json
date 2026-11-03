@@ -114,7 +114,7 @@
       "properties": {
         "base": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite (ADR-CONT-17)."
+          "description": "Asset ID of the sprite (ADR-CONT-7)."
         },
         "defence": {
           "description": "Reduces every hit it takes to `K / (K + defence)` of it; 0 when absent.",
@@ -742,7 +742,7 @@
     },
     "BossPart": {
       "additionalProperties": false,
-      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-17, ADR-SIM-4).",
+      "description": "A breakable part with its own HP and hurt circle (ADR-CONT-7, ADR-SIM-4).",
       "properties": {
         "asset": {
           "$ref": "#/$defs/ContentId",
@@ -1386,7 +1386,7 @@
       "type": "object"
     },
     "ContentId": {
-      "description": "A content ID from the registry (ADR-CONT-12): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "description": "A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
     "Countdown": {
@@ -3292,7 +3292,7 @@
     },
     "EliteType": {
       "additionalProperties": false,
-      "description": "An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite. A grade is a type; later kinds of elite add entries.",
+      "description": "An elite type: a content ID (ADR-CONT-2) and the enemy it spawns, with what a kill of\nit gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the\nenemy must be an elite. A grade is a type; later kinds of elite add entries.",
       "properties": {
         "enemy": {
           "$ref": "#/$defs/Agent",
@@ -5034,7 +5034,7 @@
       "properties": {
         "disguise": {
           "$ref": "#/$defs/ContentId",
-          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-CONT-17)."
+          "description": "Asset ID of the sprite it is drawn as while disguised (ADR-CONT-7)."
         },
         "reveal_radius": {
           "description": "1 to `MAX_LEN`.",
@@ -6318,7 +6318,7 @@
           "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-16)."
         },
         "spent": {
-          "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-11).",
+          "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-1).",
           "items": {
             "format": "uint8",
             "maximum": 255,
@@ -6521,7 +6521,7 @@
     },
     "Reward": {
       "additionalProperties": false,
-      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-CONT-12).",
+      "description": "One reward an offer can hold. In a file it is written with an `effects` list of 1 to\n`MAX_REWARD_EFFECTS` entries, or in the released form, with one effect's fields on the\nreward itself, which reads as a list of one (ADR-CONT-2).",
       "properties": {
         "amount": {
           "default": null,
@@ -7140,7 +7140,7 @@
           "type": "string"
         },
         "content_sha256": {
-          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-CONT-15). Any other pack invalidates the replay.",
+          "description": "The SHA-256 of the game content the run used, lowercase hex: of the bytes of its content\npack (`content_sha256_with`, ADR-CONT-5). Any other pack invalidates the replay.",
           "type": "string"
         },
         "final_hash": {
@@ -7909,7 +7909,7 @@
       "type": "object"
     },
     "SmashEffect": {
-      "description": "What a smash (a step reached by `smash`) does to every enemy it hits: one\nof a closed list built into `core`, its numbers in JSON (ADR-CONT-11).",
+      "description": "What a smash (a step reached by `smash`) does to every enemy it hits: one\nof a closed list built into `core`, its numbers in JSON (ADR-CONT-1).",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -8297,7 +8297,7 @@
         },
         "icon": {
           "$ref": "#/$defs/ContentId",
-          "description": "The asset the skill button draws (ADR-CONT-12): an asset ID of the registry."
+          "description": "The asset the skill button draws (ADR-CONT-2): an asset ID of the registry."
         },
         "id": {
           "$ref": "#/$defs/ContentId",

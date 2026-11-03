@@ -1,4 +1,4 @@
-//! The six regular enemy roles of the `time_limit` mode (R2, ADR-CONT-12): placeholder
+//! The six regular enemy roles of the `time_limit` mode (R2, ADR-CONT-2): placeholder
 //! content, each a wave of the bundled schedule with its own ID. The roles' rules are the ones
 //! `tests/enemy_roles.rs` covers; these tests read the bundled file, so they check the content.
 //! Every number is a tuning value.

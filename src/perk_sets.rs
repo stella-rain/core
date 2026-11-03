@@ -1,4 +1,4 @@
-//! Perk sets (ADR-CONT-11: data picks, code acts): a small bundle of
+//! Perk sets (ADR-CONT-1: data picks, code acts): a small bundle of
 //! effects, like a class, that a run applies from tick 0 for its whole length. Each set is a
 //! content ID with a title and a short list of effects, each effect one kind of the closed list
 //! built in here (`PerkEffect`) and an amount. Which set a player has open is the save's
@@ -8,8 +8,8 @@
 //! strict parsing, the current versions only, and every field bounded: 1 to `MAX_PERK_SETS`
 //! sets with unique, well-formed IDs, at most `MAX_PERK_EFFECTS` effects in a set, each kind
 //! once, and each amount from 1 to its kind's cap. Set IDs are the file's own: the pack records
-//! the `sim_version` that introduced each (ADR-CONT-15), and a released ID is never renamed or
-//! removed (ADR-CONT-12).
+//! the `sim_version` that introduced each (ADR-CONT-5), and a released ID is never renamed or
+//! removed (ADR-CONT-2).
 //! The bundled file, `content/perk_sets.json`, is the default; the SHA-256 of whatever bytes a
 //! run used is part of its content hash, so a run replay verifies only with the same file.
 

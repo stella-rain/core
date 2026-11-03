@@ -48,7 +48,7 @@ const CLEAR_STAGE: &[u8] = include_bytes!("../../tests/corpus/current/stages/cle
 /// The stage parser and validator (ADR-SVC-7). A stage that loads can be saved
 /// again, which is what the editor does, and loads again as the same stage. The same bytes are
 /// also read as run stats, as rewards, as stage skills, as expertise, as the match-up table, as
-/// runes and as attack presets (ADR-CONT-11, CS1b-1), content
+/// runes and as attack presets (ADR-CONT-1, CS1b-1), content
 /// that may come from outside the app: they parse without a panic, and files that load hash the
 /// same twice.
 pub fn stage_parse(data: &[u8]) -> bool {
@@ -668,7 +668,7 @@ fn check_code(code: &str) -> bool {
     true
 }
 
-/// The content pack loader (ADR-SVC-7, ADR-CONT-15): a pack that loads loads again as the same pack,
+/// The content pack loader (ADR-SVC-7, ADR-CONT-5): a pack that loads loads again as the same pack,
 /// its hash is the SHA-256 of its bytes, it saves (compactly) to a pack of the same content,
 /// and its content starts a run of each mode that survives `RUN_TICKS` ticks of any input
 /// without a panic (ADR-SIM-3). The bytes are the pack and, read over and over, the inputs.

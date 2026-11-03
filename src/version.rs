@@ -134,7 +134,7 @@ pub(crate) fn read_current_in<T: serde::de::DeserializeOwned>(
 }
 
 /// Reads a content file: it has no versions of its own and is read at the versions of the pack
-/// that holds it (ADR-CONT-15), checked here so that a future migration has them (ADR-REPL-12 point 1). The size limit first, then the versions, then the strict parse.
+/// that holds it (ADR-CONT-5), checked here so that a future migration has them (ADR-REPL-12 point 1). The size limit first, then the versions, then the strict parse.
 pub(crate) fn read_member<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     limit: usize,

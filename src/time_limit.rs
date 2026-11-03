@@ -165,7 +165,7 @@ pub struct EliteWeight {
     pub weight: u32,
 }
 
-/// An elite type: a content ID (ADR-CONT-12) and the enemy it spawns, with what a kill of
+/// An elite type: a content ID (ADR-CONT-2) and the enemy it spawns, with what a kill of
 /// it gives, as the fields of a wave of the schedule do. The sprite is the enemy's `base`; the
 /// enemy must be an elite. A grade is a type; later kinds of elite add entries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

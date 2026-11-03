@@ -18,10 +18,10 @@ proves a stage can be cleared. Crate `stella-rain-core` (`stella_rain_core`), MI
   and arm64 (ADR-SIM-1, ADR-SIM-3). Details in `.claude/rules/determinism.md`, `simulation.md`.
 - Stage files are untrusted: size limit before parsing, strict parsing, budgets, runtime
   clamps, fail closed (ADR-SVC-7).
-- The Rust types here are the only schema; JSON Schema is generated from them (ADR-CONT-11).
+- The Rust types here are the only schema; JSON Schema is generated from them (ADR-CONT-1).
   Any change to stage, event or replay types, or to a simulation outcome, follows the
   `schema-change` skill.
-- Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never renamed or removed, only deprecated (ADR-CONT-12).
+- Released content IDs (assets, palettes, parts, blocks, skills, attack patterns) are never renamed or removed, only deprecated (ADR-CONT-2).
 - An open ADR PR is the current plan: build on it, raise a departure with Kade rather than depart silently.
 - Design: standard practice first; give Kade options, trade-offs, a pick; better ideas as options.
 

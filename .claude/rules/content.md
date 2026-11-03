@@ -27,7 +27,7 @@ paths:
 
 # Types, validator and content
 
-Sources: ADR-CONT-11, ADR-CONT-12, ADR-CONT-13, ADR-CONT-15, ADR-CONT-16, ADR-SVC-7, ADR-REPL-12,
+Sources: ADR-CONT-1, ADR-CONT-2, ADR-CONT-3, ADR-CONT-5, ADR-CONT-6, ADR-SVC-7, ADR-REPL-12,
 ADR-REPL-13, ADR-REPL-16.
 A change to a type, an event or a content ID starts with the `schema-change` skill.
 
@@ -38,33 +38,33 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `snapshot.rs` (ADR-REPL-12, ADR-SIM-4, ADR-REPL-16). `serde`, `serde_json` and `schemars` parse and
   describe them, outside the simulation path.
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-7).
-  `registry.rs`: the content-ID registry (ADR-CONT-12).
+  `registry.rs`: the content-ID registry (ADR-CONT-2).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-16); each mode's content is bundled
   in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
   `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-7 point 4).
 - `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
   holds): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
-  `content/run_stats.json` and `content/rewards.json` (ADR-CONT-11). `match_ups.rs` reads
+  `content/run_stats.json` and `content/rewards.json` (ADR-CONT-1). `match_ups.rs` reads
   `content/match_ups.json`; `rune.rs` is the closed list of runes and `runes.rs` reads
   `content/runes.json`, the same way.
-- `run_content.rs`: a run's content, read once (ADR-CONT-11): rules, run stats, rewards,
+- `run_content.rs`: a run's content, read once (ADR-CONT-1): rules, run stats, rewards,
   expertise, match-ups, runes, stage skills, the attack presets and the `trial` and
   `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
-  (ADR-REPL-16, ADR-CONT-16). The engine, the recorder and the verifier read the same value.
+  (ADR-REPL-16, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
-  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-7, ADR-CONT-16).
+  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-7, ADR-CONT-6).
   `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR
   writes `Pack::BUNDLED`; DIR builds from `DIR/*.json` and `DIR/../modes`).
 - `content/`: `pack.json` is a copy byte for byte of a `stella-rain/content` release
-  (ADR-CONT-15); `rules.json`, `run_stats.json`, `rewards.json`, `stage_skills.json`,
+  (ADR-CONT-5); `rules.json`, `run_stats.json`, `rewards.json`, `stage_skills.json`,
   `expertise.json`, `match_ups.json` and `runes.json` come out of `Pack::BUNDLED`
-  (`ContentFiles::bundled_file`). `attack_presets.json` (the attack presets, ADR-CONT-13 point 6) is a
+  (`ContentFiles::bundled_file`). `attack_presets.json` (the attack presets, ADR-CONT-3 point 6) is a
   required member of the pack, read by `attack_presets.rs`; a check that needs a preset's
   phases runs at pack load and in `World::new`.
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
   `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
 
-## Content or code (ADR-CONT-13)
+## Content or code (ADR-CONT-3)
 
 - A number a designer tunes for feel or balance is content: a strict, bounded, schema-generated key
   of `rules.json`, read once into `Tuning`. A `tune/` PR changes it: a new pack hash, no new `sim_version`.

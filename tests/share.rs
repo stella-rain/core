@@ -1,4 +1,4 @@
-//! Share codes (ADR-SVC-13, ADR-CONT-11): exact bytes in, exact bytes out, and nothing a hostile code
+//! Share codes (ADR-SVC-13, ADR-CONT-1): exact bytes in, exact bytes out, and nothing a hostile code
 //! can do to blow up memory (ADR-SVC-7).
 
 use crate::common;

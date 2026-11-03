@@ -1,4 +1,4 @@
-//! The stage, event and replay types (ADR-CONT-11): files round-trip, unknown fields are rejected, and
+//! The stage, event and replay types (ADR-CONT-1): files round-trip, unknown fields are rejected, and
 //! the input record says nothing about the device.
 
 use stella_rain_core::event::DomainEvent;

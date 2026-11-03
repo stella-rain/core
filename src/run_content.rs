@@ -1,4 +1,4 @@
-//! The game content a run reads besides its mode's stage (ADR-CONT-11): the run stats a point
+//! The game content a run reads besides its mode's stage (ADR-CONT-1): the run stats a point
 //! raises, the rewards an offer holds and the stage skills those name, the
 //! expertise levels, the match-up table, the runes and the perk
 //! sets and the difficulties. One value, so
@@ -56,7 +56,7 @@ pub struct RunContent {
     tutorial: Stage,
     tutorial_bytes: Vec<u8>,
     /// The SHA-256 of the pack these files were read from: the content hash of a run
-    /// (ADR-REPL-16, ADR-CONT-15). `None` once any file is replaced: the run's hash is then derived
+    /// (ADR-REPL-16, ADR-CONT-5). `None` once any file is replaced: the run's hash is then derived
     /// from the files (`run_replay::content_sha256_with`).
     pack_sha256: Option<[u8; 32]>,
 }
