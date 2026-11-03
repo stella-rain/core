@@ -134,7 +134,7 @@ case = "worst_tick"
 arch = "x86_64"
 base = 4852942
 count = 4959000
-reason = "player index threaded through every system for N players (ADR-SIM-21)"
+reason = "player index threaded through every system for N players (ADR-SIM-12)"
 pr = 516
 
 [[accepted]]
@@ -143,7 +143,7 @@ case = "worst_tick"
 arch = "arm64"
 base = 4226049
 count = 4330000
-reason = "player index threaded through every system for N players (ADR-SIM-21)"
+reason = "player index threaded through every system for N players (ADR-SIM-12)"
 pr = 516
 
 [[accepted]]
@@ -152,7 +152,7 @@ case = "worst_minute"
 arch = "arm64"
 base = 1308122190
 count = 1336248000
-reason = "player index threaded through every system for N players (ADR-SIM-21)"
+reason = "player index threaded through every system for N players (ADR-SIM-12)"
 pr = 516
 
 [[accepted]]
@@ -161,5 +161,5 @@ case = "worst_minute_peak"
 arch = "arm64"
 base = 386434
 count = 395000
-reason = "player index threaded through every system for N players (ADR-SIM-21)"
+reason = "player index threaded through every system for N players (ADR-SIM-12)"
 pr = 516
