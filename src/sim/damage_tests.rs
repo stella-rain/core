@@ -50,7 +50,10 @@ fn hit(w: &World, s: &mut State, me: u8, at: usize, damage: u32) -> Vec<DomainEv
     ev
 }
 
-fn hits(ev: &[DomainEvent]) -> Vec<(u32, bool, bool, Option<EntityId>, Option<EntityId>)> {
+/// A `Hit`'s damage, crit, echo, player and buffer.
+type Seen = (u32, bool, bool, Option<EntityId>, Option<EntityId>);
+
+fn hits(ev: &[DomainEvent]) -> Vec<Seen> {
     ev.iter()
         .filter_map(|e| match e {
             DomainEvent::Hit {
@@ -121,7 +124,7 @@ fn a_hit_that_leaves_the_foe_standing_queues_one_echo() {
 fn defence_reduces_the_damage_that_lands() {
     let (w, mut s) = bare(1);
     s.enemies[0].hp = 1000;
-    s.enemies[0].defence = w.tuning.defence_k as u32;
+    s.enemies[0].defence = u32::try_from(w.tuning.defence_k).expect("a small k");
     let ev = hit(&w, &mut s, 0, 0, 100);
     assert_eq!(hits(&ev)[0].0, 50);
     assert_eq!(s.enemies[0].hp, 950);
