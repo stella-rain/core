@@ -32,7 +32,7 @@ FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-CONT-6).
 - A pack-only change (numbers, or an ID that only composes existing rules): tests for the new behaviour; the
   frozen `v1/` corpus unchanged and `current/` regenerated, passing on both architectures.
 - If the change adds size or count (more entities, a longer list), adjust the budget in both the
-  validator and the runtime clamp (ADR-SVC-7), with a test at the limit and one past it.
+  validator and the runtime clamp (ADR-SVC-1), with a test at the limit and one past it.
 
 ## 3. Change `core`
 

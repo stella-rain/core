@@ -1,6 +1,6 @@
 //! The content-ID registry (ADR-CONT-2): every ID a stage may use, with the `sim_version` that
 //! introduced it. The validator rejects an ID that is missing, of the wrong kind, or newer than
-//! the stage (ADR-REPL-1, ADR-SVC-7). Every ID here is introduced in version 1, the frozen first
+//! the stage (ADR-REPL-1, ADR-SVC-1). Every ID here is introduced in version 1, the frozen first
 //! version; the entries are placeholders until the registry file replaces
 //! them.
 //!

@@ -34,7 +34,7 @@
 //! `rand` drawing from the run's SplitMix64 in that order. Arithmetic saturates, and dividing by
 //! zero gives 0. Counts, ticks and speeds that an expression computes are clamped.
 //!
-//! Dynamic budgets (ADR-SVC-7): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
+//! Dynamic budgets (ADR-SVC-1): at most `MAX_ATTACK_TASKS` attacks at once, and every tick at most
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Orbs and zones are capped as everywhere else.
 

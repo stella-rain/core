@@ -1,5 +1,5 @@
 //! The run setup (ADR-REPL-5): a run starts from the setup alone, and the setup is untrusted
-//! (ADR-SVC-7).
+//! (ADR-SVC-1).
 
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;

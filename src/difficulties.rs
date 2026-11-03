@@ -4,7 +4,7 @@
 //! Stardust time factor tiers (counted by `sim::stardust`) for the mode it is
 //! played in. A setup names one (`RunSetup::difficulty`).
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every field bounded: 1 to `MAX_DIFFICULTIES`
 //! difficulties with unique, well-formed IDs, percents from 1 to `MAX_PCT`, a rarity range that
 //! does not run backwards, a length with its boss times (both or neither) that obey the mode
@@ -30,14 +30,14 @@ use crate::time_limit::{MAX_BOSS_TIMES, MAX_LENGTH_TICKS};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest difficulties file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest difficulties file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_DIFFICULTIES_BYTES: usize = 8 * 1024;
 /// The most difficulties a file lists (4 today).
 pub const MAX_DIFFICULTIES: usize = 8;
 /// The largest percent of any kind: hit points and damage (32-bit values saturate
 /// rather than wrap, `scale_pct`).
 pub const MAX_PCT: u32 = 1_000;
-/// The most Rune Shards a clear of one difficulty may pay (30 today; a tuning value, ADR-SVC-7
+/// The most Rune Shards a clear of one difficulty may pay (30 today; a tuning value, ADR-SVC-1
 /// decides that a bound exists).
 pub const MAX_RUNE_SHARDS: u32 = 1_000;
 /// The difficulty of a setup that names none: a setup written before difficulties existed.

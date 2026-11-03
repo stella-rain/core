@@ -1,5 +1,5 @@
 //! The stage skills file: content of its own beside the rewards file that
-//! names its skills, read from JSON as untrusted bytes (ADR-SVC-7): a size limit before parsing,
+//! names its skills, read from JSON as untrusted bytes (ADR-SVC-1): a size limit before parsing,
 //! strict parsing, the current versions only and every field bounded. A skill has an icon, a
 //! title and a description, and each level a cooldown and a list of effects, at most one of
 //! each building block and at most `MAX_SKILL_EFFECTS`.

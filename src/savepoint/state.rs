@@ -5,7 +5,7 @@
 //! trailing bytes. What the content and the setup
 //! decide is not in them: `decode_state` takes it from a fresh engine of the same run, and
 //! checks every length and the content indices it lists against it (`check_indices`), so a
-//! stale file is refused, not indexed out of range on a later tick (ADR-SVC-7). It does not
+//! stale file is refused, not indexed out of range on a later tick (ADR-SVC-1). It does not
 //! check that the values are ones a run can reach (a boss phase past its last, a stat point
 //! past its limit): that is for the savepoint file's hash and for the fuzz target on this
 //! function to show whether a check is needed.

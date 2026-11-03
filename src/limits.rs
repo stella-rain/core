@@ -62,7 +62,7 @@ pub const PUSH_CROWDED_OVER_PX: i64 = 1;
 // The leash: the cap stays code, its numbers are content (ADR-CONT-3)
 pub const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
 
-// Reward effects (ADR-SIM-5, ADR-SVC-7, ADR-REPL-5)
+// Reward effects (ADR-SIM-5, ADR-SVC-1, ADR-REPL-5)
 pub const MAX_ECHOES_PER_TICK: usize = 64;
 pub const MAX_BURSTS_PER_TICK: usize = 8;
 pub const MAX_REWARD_EFFECTS: usize = 4;
@@ -78,7 +78,7 @@ pub const MAX_RARITY_WEIGHT: u16 = 10_000;
 pub const MAX_DIFFICULTIES: usize = 8;
 pub const MAX_PCT: u32 = 1_000;
 
-// Run replay and setup (ADR-REPL-5, ADR-SVC-7)
+// Run replay and setup (ADR-REPL-5, ADR-SVC-1)
 pub const MAX_COMMANDS: u32 = 1_000;
 pub const MAX_PRESENCE_CHANGES: u32 = 64;
 pub const MAX_RUN_REPLAY_BYTES: usize = 1_048_576;
@@ -88,7 +88,7 @@ pub const MAX_CARRIED_STARS: usize = 5;
 pub const MAX_LUMINE: u8 = 10;
 pub const MAX_STARS_ON_MAP: u16 = 64;
 
-// Time limit (ADR-SVC-7)
+// Time limit (ADR-SVC-1)
 pub const MAX_WAVES: usize = 16;
 pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
 
@@ -101,7 +101,7 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MIN_CAP_HEADROOM_PCT", "25", "percent", "ADR-SIM-5"),
     LimitEntry::new("MAX_CAP_HEADROOM_PCT", "30", "percent", "ADR-SIM-5"),
     LimitEntry::new("MAX_CROWD_TARGET", "400", "enemies", "ADR-SIM-5"),
-    LimitEntry::new("MAX_RULES_BYTES", "4096", "bytes", "ADR-SVC-7"),
+    LimitEntry::new("MAX_RULES_BYTES", "4096", "bytes", "ADR-SVC-1"),
     LimitEntry::new("MAX_ZONES_ALIVE", "128", "zones alive at once", "ADR-SIM-5"),
     LimitEntry::new(
         "MAX_RANGED_ATTACKERS",
@@ -155,13 +155,13 @@ pub const LIMITS: &[LimitEntry] = &[
     ),
     LimitEntry::new("MAX_ECHOES_PER_TICK", "64", "echoes per tick", "ADR-SIM-5"),
     LimitEntry::new("MAX_BURSTS_PER_TICK", "8", "bursts per tick", "ADR-SIM-5"),
-    LimitEntry::new("MAX_REWARD_EFFECTS", "4", "effects per reward", "ADR-SVC-7"),
-    LimitEntry::new("MAX_BURST_DEPTH", "5", "burst depth", "ADR-SVC-7"),
+    LimitEntry::new("MAX_REWARD_EFFECTS", "4", "effects per reward", "ADR-SVC-1"),
+    LimitEntry::new("MAX_BURST_DEPTH", "5", "burst depth", "ADR-SVC-1"),
     LimitEntry::new("MAX_OFFER_CANDIDATES", "4", "candidates", "ADR-REPL-5"),
     LimitEntry::new("MAX_OFFER_TIMER_TICKS", "3600", "ticks", "ADR-SIM-7"),
     LimitEntry::new("MAX_PARTY_DAMAGE_PCT", "100", "percent", "ADR-SIM-8"),
-    LimitEntry::new("MAX_REWARDS", "192", "rewards", "ADR-SVC-7"),
-    LimitEntry::new("MAX_STACK", "20", "stacks", "ADR-SVC-7"),
+    LimitEntry::new("MAX_REWARDS", "192", "rewards", "ADR-SVC-1"),
+    LimitEntry::new("MAX_STACK", "20", "stacks", "ADR-SVC-1"),
     LimitEntry::new("MAX_TIERS", "16", "tiers", "ADR-CONT-3"),
     LimitEntry::new("MAX_TIER_LEVEL", "100", "level", "ADR-CONT-3"),
     LimitEntry::new("MAX_RARITY_WEIGHT", "10000", "weight", "ADR-CONT-3"),
@@ -169,14 +169,14 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_PCT", "1000", "percent", "ADR-CONT-1"),
     LimitEntry::new("MAX_COMMANDS", "1000", "commands", "ADR-REPL-5"),
     LimitEntry::new("MAX_PRESENCE_CHANGES", "64", "changes", "ADR-REPL-5"),
-    LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-SVC-7"),
-    LimitEntry::new("MAX_SETUP_BYTES", "4096", "bytes", "ADR-SVC-7"),
+    LimitEntry::new("MAX_RUN_REPLAY_BYTES", "1048576", "bytes", "ADR-SVC-1"),
+    LimitEntry::new("MAX_SETUP_BYTES", "4096", "bytes", "ADR-SVC-1"),
     LimitEntry::new("MAX_EXTRA_REROLLS", "20", "rerolls", "ADR-REPL-5"),
     LimitEntry::new("MAX_CARRIED_STARS", "5", "stars", "ADR-REPL-5"),
     LimitEntry::new("MAX_LUMINE", "10", "level", "ADR-REPL-5"),
     LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-REPL-5"),
-    LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-7"),
-    LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-7"),
+    LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-1"),
+    LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
 ];
 
 /// Formats the limits catalogue as a GitHub-flavored Markdown table for `docs/tuning.md`.

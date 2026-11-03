@@ -1,4 +1,4 @@
-//! The worst case of melee hit boxes and zones against the crowd within the caps of ADR-SVC-7
+//! The worst case of melee hit boxes and zones against the crowd within the caps of ADR-SVC-1
 //! (core BR1b). Shared by `benches/hit_tick.rs`, which counts its instructions, and
 //! `tests/hit_case.rs`, which checks that the measured tick has the load it claims. It takes the
 //! place of the main character's bullet collision case (BR1b): no orb is alive.

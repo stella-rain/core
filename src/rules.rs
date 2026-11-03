@@ -15,7 +15,7 @@
 //! Unlike `stardust`, the simulation reads this file, so the pack must hold it (a required slot)
 //! and the derived content hash covers it: a replay never depends on the client's build.
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing, strict
 //! parsing, the current versions only, and every number bounded. The pack's own target must keep
 //! its derived cap within `limits::MAX_ENEMY_CAP` (ADR-SIM-5): a pack over the ceiling is
 //! refused. An override is bounded by its own file (1 to `limits::MAX_CROWD_TARGET`) and clamped
@@ -34,7 +34,7 @@ use crate::validate::limits::{MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_RADIUS
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest rules file read (a placeholder; ADR-SVC-7 decides that a limit exists).
+/// The largest rules file read (a placeholder; ADR-SVC-1 decides that a limit exists).
 pub const MAX_RULES_BYTES: usize = 4 * 1024;
 /// The least and the most the cap stands above the target, in percent (DS101: 125 to 130%).
 pub const MIN_CAP_HEADROOM_PCT: u8 = 25;

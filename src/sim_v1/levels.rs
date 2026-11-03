@@ -22,7 +22,7 @@ use crate::run_stats::{self, RunStats, StatEffect};
 use crate::sim_v1::state::{AgentSource, PlayerState, Progress, State};
 use crate::snapshot::{OfferOption, StatOfferView};
 
-/// The highest level; past it experience is no longer counted (ADR-SVC-7: it bounds the points).
+/// The highest level; past it experience is no longer counted (ADR-SVC-1: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
 
 /// The experience level `level` needs to reach the next; 0 at `MAX_LEVEL` or without levels.

@@ -1,5 +1,5 @@
-//! The stage validator (ADR-SVC-7): a byte-size limit before parsing, strict parsing, registry
-//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-7 and ADR-SIM-4.
+//! The stage validator (ADR-SVC-1): a byte-size limit before parsing, strict parsing, registry
+//! lookups with the introducing `sim_version`, and the static budgets of ADR-SVC-1 and ADR-SIM-4.
 //! The app and `stage-verify` call the same code, and an invalid stage is not playable (fail
 //! closed).
 //!
@@ -32,7 +32,7 @@ use crate::trig;
 use crate::version::{self, ReadError};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
 
-/// Limits a stage must keep. The first block is ADR-SVC-7, the second ADR-SIM-4, the rest the
+/// Limits a stage must keep. The first block is ADR-SVC-1, the second ADR-SIM-4, the rest the
 /// loadout and numeric ranges that ADR-SIM-3 ask for.
 pub mod limits {
     pub const MAX_STAGE_BYTES: usize = 256 * 1024;
@@ -43,7 +43,7 @@ pub mod limits {
     pub const MAX_PHASES: usize = 8;
     pub const MAX_TITLE_CHARS: usize = 60;
     pub const MAX_DESCRIPTION_CHARS: usize = 500;
-    /// Stage IDs are slugs (ADR-SVC-13).
+    /// Stage IDs are slugs (ADR-SVC-7).
     pub const MAX_STAGE_ID_CHARS: usize = 40;
 
     pub const MAX_RULES: usize = 8;
@@ -103,7 +103,7 @@ pub mod limits {
     /// The expertise points an enemy or the boss gives for a hit and for a kill.
     pub const MAX_EXPERTISE_PER_HIT: u32 = 1000;
     pub const MAX_EXPERTISE_PER_KILL: u32 = 100_000;
-    /// Stardust (ADR-SVC-7), held times 10: the base an enemy or the boss earns for a kill
+    /// Stardust (ADR-SVC-1), held times 10: the base an enemy or the boss earns for a kill
     /// (the bundled boss's is 2,000), the percent of a time factor tier (as
     /// `difficulties::MAX_PCT`), the tiers of a time factor table, and the run's total, at which the counter saturates. At the largest base and percent a
     /// kill earns 1,000,000, so the total is reached in ten kills and never wraps a `u32`.
@@ -117,7 +117,7 @@ pub mod limits {
     pub const MAX_DROP_PER_MILLE: u16 = 1000;
     pub const MAX_PITY: u16 = 1000;
     pub const MAX_STARS_ON_MAP: u16 = 64;
-    /// The most pickups of healing on the map at once: a hard cap (ADR-SVC-7).
+    /// The most pickups of healing on the map at once: a hard cap (ADR-SVC-1).
     pub const MAX_HEAL_PICKUPS: u16 = 16;
     /// The most a boss kill heals, in percent of the most hit points.
     pub const MAX_HEAL_PCT: u16 = 100;

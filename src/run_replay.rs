@@ -14,7 +14,7 @@
 //! `choose`; 1 was `spend`, removed with DS18 and refused) and the index (LEB128). A command carries the number of ticks completed
 //! when it applied, so several commands between the same two ticks have deltas of 0.
 //!
-//! Replays are untrusted (ADR-SVC-7): a size limit before parsing, strict parsing, no more ticks
+//! Replays are untrusted (ADR-SVC-1): a size limit before parsing, strict parsing, no more ticks
 //! than the mode is long and no more than `MAX_COMMANDS` commands. Re-simulation steps tick by
 //! tick; before each tick it applies the commands carrying the current tick, in order, and fails
 //! closed on an unknown kind, a command the engine refuses (a choice with no offer open or
@@ -73,7 +73,7 @@ use crate::version::{
 /// a crafted file, which `tests/command_cap.rs` pins at twice the measure or more.
 pub const MAX_COMMANDS: u32 = 1000;
 
-/// A run replay file is at most this big (ADR-SVC-7). Placeholder (R2): 1 MiB, because a
+/// A run replay file is at most this big (ADR-SVC-1). Placeholder (R2): 1 MiB, because a
 /// 20-minute `time_limit` run with a bot is about 300 KB and the longest (43 minutes with
 /// overtime and the Star-Hunter's time) about 510 KB. A run replay is shared as a file, never as
 /// a share code (`share`).
@@ -175,7 +175,7 @@ pub enum RunReplayError {
         line: usize,
         column: usize,
     },
-    /// The setup is not valid (ADR-SVC-7).
+    /// The setup is not valid (ADR-SVC-1).
     Setup(validate::Error),
     /// The content hash is not this game's content for the setup's mode and content files.
     ContentChanged,
@@ -480,7 +480,7 @@ impl RunReplay {
     }
 
     /// Parses a run replay file: the size limit first, then the versions alone (the setup's),
-    /// then the strict parse (ADR-REPL-1, ADR-SVC-7). A file for a newer version is `Newer` even if
+    /// then the strict parse (ADR-REPL-1, ADR-SVC-1). A file for a newer version is `Newer` even if
     /// it has fields this version rejects; a file that is not JSON, has no versions, or fails the
     /// strict parse at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<RunReplay, RunReplayError> {

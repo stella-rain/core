@@ -1,6 +1,6 @@
 //! The named stars' reward kinds that do not change combat (core#NS2a, app#336): `pickup_radius_pct`,
 //! `skill_cooldown_pct`, `heal_per_kills`, `offer_candidates`, and the reward-given `rerolls`
-//! and `banishes`. A kind is bounded like the others (ADR-SVC-7): its amount, and for
+//! and `banishes`. A kind is bounded like the others (ADR-SVC-1): its amount, and for
 //! `heal_per_kills` its `kills`, and no other effect takes `kills`.
 
 use crate::common;

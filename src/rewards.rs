@@ -12,7 +12,7 @@
 //! offers once the Main holds every rune. In a bundle with other effects (a named star's) it is
 //! one entry of a reward that has its limit, and a reward holds at most one.
 //!
-//! The file is untrusted (ADR-SVC-7), as the run stats are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-1), as the run stats are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. Reward IDs are the file's own,
 //! unique within it; a run setup's star pool names them. A reward's skill must be in the stage
 //! skills file the rewards are read with. The bundled file, `content/rewards.json`, is the
@@ -36,7 +36,7 @@ use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 use std::sync::Arc;
 
-/// The largest rewards file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest rewards file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_REWARDS_BYTES: usize = 64 * 1024;
 /// The most rewards a file lists.
 pub const MAX_REWARDS: usize = 192;
@@ -44,7 +44,7 @@ pub const MAX_REWARDS: usize = 192;
 pub const MAX_AMOUNT: u32 = 100;
 /// The largest amount of one type bonus reward, in percent: twice `MAX_AMOUNT`, so that the
 /// supernova row (128, D6c) fits. The bonuses that apply to an attack's type saturate at the
-/// match-up file's `max_type_bonus_pct` (a placeholder bound, ADR-SVC-7).
+/// match-up file's `max_type_bonus_pct` (a placeholder bound, ADR-SVC-1).
 pub const MAX_TYPE_BONUS_AMOUNT: u32 = 200;
 /// The largest amount of hit points: 5,000 shown hit points, scaled; Vigour (Supernova)
 /// gives 1,600 shown.
@@ -64,11 +64,11 @@ pub const MAX_ORBIT_TURN: i32 = 15 * PER_DEGREE;
 pub const MAX_ORBIT_COOLDOWN_TICKS: u32 = 3_600;
 /// The most a combo step's hit box is widened, in percent: twice as large. It bounds one range
 /// reward's amount and holds what the range rewards and the expertise range options add up to
-/// (ADR-SVC-7).
+/// (ADR-SVC-1).
 pub const MAX_RANGE_PCT: u32 = 100;
 /// The ceiling of Rune Haste, in percent: the most the rewards file's `max_rune_haste_pct` may
 /// name, and so the most one reward gives and the picks add up to, a cooldown or tick interval
-/// then being a ninth as long, and never less than a tick (ADR-SVC-7). The
+/// then being a ninth as long, and never less than a tick (ADR-SVC-1). The
 /// file's cap (500 in the bundle, app#298) is the number; this is the bound on it.
 pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
 /// The cap of a rewards file that names none: the cap before it was content (app#298 raised
@@ -76,9 +76,9 @@ pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
 pub const DEFAULT_MAX_RUNE_HASTE_PCT: u32 = 300;
 /// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
-/// attack's type saturate (ADR-SVC-7).
+/// attack's type saturate (ADR-SVC-1).
 pub const MAX_TYPE_BONUS_PCT: u32 = 1_000;
-/// The most one reward widens the pickup circle, in percent (a placeholder bound, ADR-SVC-7).
+/// The most one reward widens the pickup circle, in percent (a placeholder bound, ADR-SVC-1).
 pub const MAX_PICKUP_RADIUS_PCT: u32 = 200;
 /// The most the picks of a run widen it: four times the stage's circle in all.
 pub const MAX_PICKUP_RADIUS_TOTAL_PCT: u32 = 300;
@@ -91,11 +91,11 @@ pub const MAX_HEAL_KILLS: u32 = 100;
 /// The most rerolls or banishes one reward gives.
 pub const MAX_COUNTER_AMOUNT: u32 = 10;
 /// The most candidates an offer holds once offer-candidate rewards are taken: the base offer
-/// shows 3, and each such reward adds 1 (a placeholder bound, ADR-SVC-7).
+/// shows 3, and each such reward adds 1 (a placeholder bound, ADR-SVC-1).
 pub const MAX_OFFER_CANDIDATES: usize = 4;
 
 /// The most one reward adds to the chance of a critical hit, in percent (a placeholder bound,
-/// ADR-SVC-7).
+/// ADR-SVC-1).
 pub const MAX_CRIT_CHANCE_PCT: u32 = 50;
 /// The most the picks of a run add up to: a hit is a crit three times in four at the most.
 pub const MAX_CRIT_CHANCE_TOTAL_PCT: u32 = 75;
@@ -343,11 +343,11 @@ pub struct EffectEntry {
 
 /// The most effects one reward holds.
 pub const MAX_REWARD_EFFECTS: usize = 4;
-/// The most named rewards a file lists (a placeholder bound, ADR-SVC-7).
+/// The most named rewards a file lists (a placeholder bound, ADR-SVC-1).
 pub const MAX_NAMED_REWARDS: usize = 32;
 /// The weight a reward has when its file gives none.
 pub const DEFAULT_WEIGHT: u16 = 100;
-/// The largest draw weight; the smallest is 1 (a placeholder bound, ADR-SVC-7).
+/// The largest draw weight; the smallest is 1 (a placeholder bound, ADR-SVC-1).
 pub const MAX_WEIGHT: u16 = 1_000;
 /// The fewest times an unnamed reward stacks: ordinary rewards stack.
 pub const MIN_UNNAMED_LIMIT: u8 = 2;
@@ -800,7 +800,7 @@ pub(crate) fn validate_entry(
 }
 
 /// The caps over the entries of one reward: what a kind's entries add up to stays within the
-/// kind's largest amount, as the picks of a run do (ADR-SVC-7), and a reward holds one orbit and
+/// kind's largest amount, as the picks of a run do (ADR-SVC-1), and a reward holds one orbit and
 /// one random rune.
 pub(crate) fn validate_bundle(
     effects: &[EffectEntry],

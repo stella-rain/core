@@ -4,7 +4,7 @@
 //! built in here (`PerkEffect`) and an amount. Which set a player has open is the save's
 //! business, never `core`'s.
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every field bounded: 1 to `MAX_PERK_SETS`
 //! sets with unique, well-formed IDs, at most `MAX_PERK_EFFECTS` effects in a set, each kind
 //! once, and each amount from 1 to its kind's cap. Set IDs are the file's own: the pack records
@@ -26,7 +26,7 @@ use crate::validate::limits::DAMAGE_SCALE;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest perk sets file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest perk sets file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_PERK_SETS_BYTES: usize = 8 * 1024;
 /// The most sets a file lists (4 today).
 pub const MAX_PERK_SETS: usize = 16;

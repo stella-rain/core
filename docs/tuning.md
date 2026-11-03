@@ -8,7 +8,7 @@
 | `MIN_CAP_HEADROOM_PCT` | 25 | percent | ADR-SIM-5 |
 | `MAX_CAP_HEADROOM_PCT` | 30 | percent | ADR-SIM-5 |
 | `MAX_CROWD_TARGET` | 400 | enemies | ADR-SIM-5 |
-| `MAX_RULES_BYTES` | 4096 | bytes | ADR-SVC-7 |
+| `MAX_RULES_BYTES` | 4096 | bytes | ADR-SVC-1 |
 | `MAX_ZONES_ALIVE` | 128 | zones alive at once | ADR-SIM-5 |
 | `MAX_RANGED_ATTACKERS` | 4 | regular ranged attackers | ADR-SIM-5 |
 | `VIEW_HALF_WIDTH` | 420 | px | ADR-SIM-5 |
@@ -27,13 +27,13 @@
 | `MAX_LEASH_MOVES_PER_TICK` | 16 | moves per tick | ADR-SIM-5 |
 | `MAX_ECHOES_PER_TICK` | 64 | echoes per tick | ADR-SIM-5 |
 | `MAX_BURSTS_PER_TICK` | 8 | bursts per tick | ADR-SIM-5 |
-| `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-SVC-7 |
-| `MAX_BURST_DEPTH` | 5 | burst depth | ADR-SVC-7 |
+| `MAX_REWARD_EFFECTS` | 4 | effects per reward | ADR-SVC-1 |
+| `MAX_BURST_DEPTH` | 5 | burst depth | ADR-SVC-1 |
 | `MAX_OFFER_CANDIDATES` | 4 | candidates | ADR-REPL-5 |
 | `MAX_OFFER_TIMER_TICKS` | 3600 | ticks | ADR-SIM-7 |
 | `MAX_PARTY_DAMAGE_PCT` | 100 | percent | ADR-SIM-8 |
-| `MAX_REWARDS` | 192 | rewards | ADR-SVC-7 |
-| `MAX_STACK` | 20 | stacks | ADR-SVC-7 |
+| `MAX_REWARDS` | 192 | rewards | ADR-SVC-1 |
+| `MAX_STACK` | 20 | stacks | ADR-SVC-1 |
 | `MAX_TIERS` | 16 | tiers | ADR-CONT-3 |
 | `MAX_TIER_LEVEL` | 100 | level | ADR-CONT-3 |
 | `MAX_RARITY_WEIGHT` | 10000 | weight | ADR-CONT-3 |
@@ -41,13 +41,13 @@
 | `MAX_PCT` | 1000 | percent | ADR-CONT-1 |
 | `MAX_COMMANDS` | 1000 | commands | ADR-REPL-5 |
 | `MAX_PRESENCE_CHANGES` | 64 | changes | ADR-REPL-5 |
-| `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-7 |
-| `MAX_SETUP_BYTES` | 4096 | bytes | ADR-SVC-7 |
+| `MAX_RUN_REPLAY_BYTES` | 1048576 | bytes | ADR-SVC-1 |
+| `MAX_SETUP_BYTES` | 4096 | bytes | ADR-SVC-1 |
 | `MAX_EXTRA_REROLLS` | 20 | rerolls | ADR-REPL-5 |
 | `MAX_CARRIED_STARS` | 5 | stars | ADR-REPL-5 |
 | `MAX_LUMINE` | 10 | level | ADR-REPL-5 |
 | `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-5 |
-| `MAX_WAVES` | 16 | waves | ADR-SVC-7 |
-| `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-7 |
+| `MAX_WAVES` | 16 | waves | ADR-SVC-1 |
+| `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-1 |
 
 The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-3).

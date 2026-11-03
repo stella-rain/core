@@ -4,7 +4,7 @@
 //! The mode's content is bundled in `core` (`modes/`), so replaying a run never needs the
 //! player's save data or a stage file.
 //!
-//! A setup is untrusted (ADR-SVC-7): a size limit before parsing, strict parsing, the current
+//! A setup is untrusted (ADR-SVC-1): a size limit before parsing, strict parsing, the current
 //! versions only, and IDs that exist with the right kind and no newer than the setup's
 //! `sim_version`. Anything else fails closed, with one message per problem and its path, never
 //! text from the file.
@@ -178,7 +178,7 @@ impl Default for RunSetup {
 /// A setup as a file holds it: a `RunSetup` plus `auto_combo`, a field the game dropped (DS5 Q1):
 /// auto mode is only the player's switch, recorded as input. A setup or replay written before
 /// that carries `"auto_combo": false`, which is ignored; `true` asked for a run that no longer
-/// exists, so it is refused (ADR-SVC-7).
+/// exists, so it is refused (ADR-SVC-1).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RunSetupFile {

@@ -9,7 +9,7 @@
 //! and `range`, 1 to `MAX_ASSIST_RANGE`, within which they pick their targets; both are
 //! required on it and refused on every other rune.
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, every on-hit rune of the closed list once, and
 //! bounds under hard caps: a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS`, a
 //! damage of 1 to `MAX_DAMAGE`, and an attack of 1 to `MAX_RUNE_PHASES` phases, checked as any
@@ -38,7 +38,7 @@ use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest runes file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest runes file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_RUNES_BYTES: usize = 8 * 1024;
 /// The longest cooldown of an on-hit rune: a minute.
 pub const MAX_RUNE_COOLDOWN_TICKS: u32 = 3_600;

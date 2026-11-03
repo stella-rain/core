@@ -1,5 +1,5 @@
 //! The simulation engine: runs a validated stage tick by tick to a clear or a fail
-//! (ADR-SIM-1, ADR-SVC-13). The only external influence is one `Input` per tick and the commands
+//! (ADR-SIM-1, ADR-SVC-7). The only external influence is one `Input` per tick and the commands
 //! between ticks (ADR-REPL-5: `choose`); everything else comes from the stage and its
 //! seed, or from a run setup, and from the run stats (ADR-CONT-1), so the state hash after each
 //! tick is the same on every platform (ADR-SIM-3).
@@ -54,7 +54,7 @@ pub enum Outcome {
     Failed,
 }
 
-/// How much of each dynamic budget (ADR-SVC-7) a tick used: the most it reached during the tick.
+/// How much of each dynamic budget (ADR-SVC-1) a tick used: the most it reached during the tick.
 /// A read-out for tests and benchmarks, not part of the state: nothing here is hashed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Load {
@@ -241,7 +241,7 @@ impl Engine {
         }
     }
 
-    /// Starts a run. The stage is validated first (ADR-SVC-7), so the rules below only ever see
+    /// Starts a run. The stage is validated first (ADR-SVC-1), so the rules below only ever see
     /// stages inside the budgets.
     /// A stage with levels raises the bundled run stats, in their order.
     pub fn new(stage: &Stage) -> Result<Engine, Error> {
@@ -702,7 +702,7 @@ impl Engine {
         self.run.caps()
     }
 
-    /// How much of each dynamic budget the last tick used (ADR-SVC-7).
+    /// How much of each dynamic budget the last tick used (ADR-SVC-1).
     pub fn load(&self) -> Load {
         self.load
     }

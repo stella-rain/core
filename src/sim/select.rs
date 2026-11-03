@@ -71,7 +71,7 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// Aim assist's target: among the boss, its unbroken parts and the live enemies whose
 /// circle reaches within `range` of the main character, the boss or a part first, then an
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
-/// over the enemies, at most the enemy cap (ADR-SVC-7).
+/// over the enemies, at most the enemy cap (ADR-SVC-1).
 pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
     let from = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let mut best: Option<(u8, u64, EntityId)> = None;

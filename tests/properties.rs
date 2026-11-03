@@ -147,7 +147,7 @@ proptest! {
     }
 }
 
-// --- Positions stay in bounds (ADR-SVC-7) ------------------------------------------------------
+// --- Positions stay in bounds (ADR-SVC-1) ------------------------------------------------------
 
 fn within(map: MapView, x: i32, y: i32, margin: i32) -> bool {
     (-margin..=map.width.0 + margin).contains(&x) && (-margin..=map.height.0 + margin).contains(&y)

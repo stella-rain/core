@@ -1,7 +1,7 @@
 //! The numbers of the game design pass of app#298 (Kade's picks of 2026-10-21, "C spiky"), as
 //! the bundled content holds them: the runes, the star rewards and their caps, and the first
 //! match-up profiles. Each is data in `content/` or `modes/`; none is a constant in code beyond
-//! the ceiling the content may not pass (ADR-SVC-7).
+//! the ceiling the content may not pass (ADR-SVC-1).
 
 use std::collections::BTreeSet;
 use stella_rain_core::version::Versions;

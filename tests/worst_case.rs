@@ -1,4 +1,4 @@
-//! The worst-case tick (ADR-SVC-7, ADR-SIM-3): the stage of `bench_fixtures::worst_case` holds every dynamic
+//! The worst-case tick (ADR-SVC-1, ADR-SIM-3): the stage of `bench_fixtures::worst_case` holds every dynamic
 //! cap at once, on the tick the benchmark counts and on the ticks after it. A benchmark of a
 //! tick that does not would pass without measuring the worst case. Every attacker also holds an
 //! active hit box. The main character holds every rune at full Rune Haste, its combo

@@ -1,12 +1,12 @@
-//! Share codes (ADR-SVC-13, ADR-CONT-1): a stage and its clear replay as text, for players without GitHub.
+//! Share codes (ADR-SVC-7, ADR-CONT-1): a stage and its clear replay as text, for players without GitHub.
 //! The two files go into one JSON object as strings, so their exact bytes survive (the replay
-//! names the SHA-256 of the stage file, and the content hash covers both, ADR-SVC-13). The object
+//! names the SHA-256 of the stage file, and the content hash covers both, ADR-SVC-7). The object
 //! is compressed with zlib (the `miniz_oxide` crate) and base64-encoded.
 //!
 //! A code never holds a run's replay (ADR-REPL-5): that is a file, up to `MAX_RUN_REPLAY_BYTES`,
 //! and a code carrying one is refused (`ShareError::RunReplay`).
 //!
-//! A code is untrusted (ADR-SVC-7). Its length is limited before anything is decoded, the
+//! A code is untrusted (ADR-SVC-1). Its length is limited before anything is decoded, the
 //! decompressed size is limited while decompressing, so a small code cannot expand into a
 //! large file, and the two files inside must each be within their own limits.
 

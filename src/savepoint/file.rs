@@ -31,7 +31,7 @@
 //! commands are unpacked but not replayed. The savepoint is the app's own slot, and a run that
 //! does not reproduce still fails at the final verification.
 //!
-//! The file is untrusted (ADR-SVC-7): the header is read and checked field by field before the
+//! The file is untrusted (ADR-SVC-1): the header is read and checked field by field before the
 //! payload is touched, and `payload_len` is compared, never used to allocate.
 
 use std::fmt;

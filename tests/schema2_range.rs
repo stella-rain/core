@@ -1,6 +1,6 @@
 //! The range reader of the step log (ADR-REPL-5): the steps of world ticks `a..b`, cut from the
 //! corpus cases of both schemas, refused like the full decoder refuses, and never sized by the
-//! claimed tick count (ADR-SVC-7).
+//! claimed tick count (ADR-SVC-1).
 
 use crate::alloc::{live_bytes, peak_bytes, reset_peak};
 use crate::common::schema_1_form;

@@ -1,5 +1,5 @@
 //! The runes file (ADR-CONT-1): each on-hit rune's numbers, read from
-//! JSON as untrusted bytes (ADR-SVC-7). Every on-hit rune of the closed list has its entry, once:
+//! JSON as untrusted bytes (ADR-SVC-1). Every on-hit rune of the closed list has its entry, once:
 //! a cooldown of 1 to `MAX_RUNE_COOLDOWN_TICKS` ticks, a base damage of 1 to `MAX_DAMAGE`, and
 //! its attack, at most `MAX_RUNE_PHASES` phases whose hit boxes land around the hit point,
 //! over before the cooldown is, spawning no orbs. Explosion, thunder, boomerang and homing

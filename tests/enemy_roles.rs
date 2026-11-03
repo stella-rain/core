@@ -1,6 +1,6 @@
 //! Regular enemy roles (R1): a tank's slow `follow` (its `speed`), an exploder's `near_target`
 //! burst that can `self_destruct`, and a splitter's half-HP split (`hp_below` and `summon`, under
-//! the cap of ADR-SVC-7). Small stages whose numbers are worked out by hand, as `tests/agents.rs`.
+//! the cap of ADR-SVC-1). Small stages whose numbers are worked out by hand, as `tests/agents.rs`.
 
 use crate::common::*;
 use serde_json::{Value, json};
@@ -13,7 +13,7 @@ use stella_rain_core::stage::Stage;
 /// The main character's start (`tests/agents.rs`).
 const PLAYER_X: i32 = 46_080;
 const PLAYER_Y: i32 = 147_456;
-/// The largest length a field may hold (`MAX_LEN`, ADR-SVC-7).
+/// The largest length a field may hold (`MAX_LEN`, ADR-SVC-1).
 const MAX_LEN: i32 = 262_144;
 
 // --- Builders --------------------------------------------------------------------------------
@@ -270,7 +270,7 @@ fn a_near_target_distance_is_bounded_to_one_to_the_map_length() {
     assert!(Engine::new(&exploder(MAX_LEN, false)).is_ok());
 }
 
-// --- Splitter: a split at half HP, under the cap (ADR-SVC-7, ADR-SIM-4) --------------------------
+// --- Splitter: a split at half HP, under the cap (ADR-SVC-1, ADR-SIM-4) --------------------------
 
 #[test]
 fn a_splitter_splits_once_on_the_tick_after_it_drops_below_half() {

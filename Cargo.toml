@@ -46,7 +46,7 @@ miniz_oxide = "0.8"
 schemars = "1"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
-# Only for `content_hash` (ADR-SVC-13) and `parsed_stage_hash` (ADR-SVC-13): a fixed standard, so a
+# Only for `content_hash` (ADR-SVC-7) and `parsed_stage_hash` (ADR-SVC-7): a fixed standard, so a
 # crate cannot change its output.
 # Never used in the simulation path; the PRNG and the state hash are written in `core`.
 sha2 = { version = "0.11.0", default-features = false }

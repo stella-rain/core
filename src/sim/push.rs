@@ -52,7 +52,7 @@ pub(super) fn push_radius(hurt: Fx) -> i32 {
 
 /// The integer square root of a non-negative `d2`, rounded down. A 32-bit root is cheaper and
 /// `u32::isqrt(v) == u64::isqrt(v)` for every `v <= u32::MAX`; above that the 64-bit root is
-/// taken, so radii from an untrusted stage of any size stay exact (ADR-SVC-7).
+/// taken, so radii from an untrusted stage of any size stay exact (ADR-SVC-1).
 fn root(d2: i64) -> i64 {
     match u32::try_from(d2) {
         Ok(v) => i64::from(v.isqrt()),

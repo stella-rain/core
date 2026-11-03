@@ -2,7 +2,7 @@
 //! content pack built for its own core minor. The compatibility key lives here, not in the pack's
 //! bytes, so a core release never moves the pack hash.
 //!
-//! The manifest is untrusted (ADR-SVC-7), read from the network or from the cache alike: a size
+//! The manifest is untrusted (ADR-SVC-1), read from the network or from the cache alike: a size
 //! limit before parsing, `schema` 1 only, strict parsing (unknown fields refused, a channel key
 //! twice refused), budgets on the channels, then each channel's fields checked. Anything else
 //! fails closed, with a number or an index and never text from the manifest.

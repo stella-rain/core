@@ -1,6 +1,6 @@
 //! The `time_limit` mode file (core#212 step a): a run length, boss times, a mid-boss pool, a
 //! final boss, an overtime limit, the Star-Hunter's extra time and the map, read from JSON as
-//! untrusted bytes (ADR-SVC-7). Every time is in ticks (60 a second).
+//! untrusted bytes (ADR-SVC-1). Every time is in ticks (60 a second).
 
 use crate::common;
 use serde_json::{Value, json};

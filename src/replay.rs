@@ -3,7 +3,7 @@
 //!
 //! A `.replay` file is one JSON object: the versions, the seed, the SHA-256 of the exact stage
 //! file, the number of ticks, the final state hash, and the per-tick inputs packed and
-//! base64-encoded. Replays are untrusted (ADR-SVC-7): a size limit, strict parsing, and no more
+//! base64-encoded. Replays are untrusted (ADR-SVC-1): a size limit, strict parsing, and no more
 //! inputs than the stage has ticks. The checks are in `Replay::from_bytes`, `unpack_inputs`
 //! and `verify`.
 //!
@@ -28,7 +28,7 @@ use crate::version::{
     self, FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, ReplayLoadError, SCHEMA_VERSION, Versions,
 };
 
-/// A stage's clear replay file is at most this big (ADR-SVC-7). Even a maximum-length replay
+/// A stage's clear replay file is at most this big (ADR-SVC-1). Even a maximum-length replay
 /// whose inputs never repeat fits. It is also what a share code may carry (`share`). A run's
 /// replay has its own, larger cap: `run_replay::MAX_RUN_REPLAY_BYTES`.
 pub const MAX_STAGE_REPLAY_BYTES: usize = 256 * 1024;
@@ -189,9 +189,9 @@ impl std::error::Error for ReplayError {}
 pub struct Verified {
     pub ticks: u32,
     pub final_hash: u64,
-    /// The stage content hash of ADR-SVC-13, for the catalog and the blocklist.
+    /// The stage content hash of ADR-SVC-7, for the catalog and the blocklist.
     pub content_hash: [u8; 32],
-    /// The parsed-stage hash of ADR-SVC-13, which the blocklist blocks a stage by.
+    /// The parsed-stage hash of ADR-SVC-7, which the blocklist blocks a stage by.
     pub parsed_stage_hash: [u8; 32],
 }
 
@@ -245,7 +245,7 @@ pub fn hashes_to_bytes(hashes: &[u64]) -> Vec<u8> {
 }
 
 /// The inverse of `hashes_to_bytes`. The size is checked first, then the length, and nothing is
-/// allocated before both pass; the file is untrusted (ADR-SVC-7).
+/// allocated before both pass; the file is untrusted (ADR-SVC-1).
 pub fn hashes_from_bytes(bytes: &[u8]) -> Result<Vec<u64>, HashesError> {
     let size = bytes.len();
     if size > MAX_HASHES_BYTES {
@@ -265,7 +265,7 @@ pub fn hashes_from_bytes(bytes: &[u8]) -> Result<Vec<u64>, HashesError> {
 
 impl Replay {
     /// The file's bytes: compact JSON and a newline. These exact bytes are what the content
-    /// hash covers (ADR-SVC-13).
+    /// hash covers (ADR-SVC-7).
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = serde_json::to_vec(self).expect("a replay serialises");
         bytes.push(b'\n');
@@ -273,7 +273,7 @@ impl Replay {
     }
 
     /// Parses a replay file: the size limit first, then the versions alone, then the strict
-    /// parse (ADR-REPL-1, ADR-SVC-7). A file for a newer version is `Newer` even if it has fields
+    /// parse (ADR-REPL-1, ADR-SVC-1). A file for a newer version is `Newer` even if it has fields
     /// this version rejects; a file that is not JSON, has no versions, or fails the strict parse
     /// at a version this game reads is `Damaged`, never `Older`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Replay, ReplayError> {
@@ -494,7 +494,7 @@ pub fn record(stage_bytes: &[u8], inputs: &[Input]) -> Result<Replay, ReplayErro
 }
 
 /// Checks that the replay is for this stage and clears it with the replay's final hash
-/// (ADR-REPL-6, ADR-SVC-13). The whole of both files is untrusted.
+/// (ADR-REPL-6, ADR-SVC-7). The whole of both files is untrusted.
 pub fn verify(stage_bytes: &[u8], replay_bytes: &[u8]) -> Result<Verified, ReplayError> {
     verify_inner(stage_bytes, replay_bytes, None)
 }

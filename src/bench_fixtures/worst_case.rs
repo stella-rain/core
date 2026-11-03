@@ -1,4 +1,4 @@
-//! The worst-case tick (ADR-SVC-7, ADR-SIM-3). Shared by `benches/worst_tick.rs`, which counts its
+//! The worst-case tick (ADR-SVC-1, ADR-SIM-3). Shared by `benches/worst_tick.rs`, which counts its
 //! instructions, and `tests/worst_case.rs`, which checks that it really reaches every dynamic
 //! cap: a benchmark of a tick that does not would pass without measuring the worst case.
 

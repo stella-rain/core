@@ -1,6 +1,6 @@
 //! Expertise content (ADR-CONT-1): the thresholds of levels 1 to 10, the growth factor
 //! and its maximum, each weapon's three styles and common pool, read from
-//! JSON as untrusted bytes (ADR-SVC-7). Nothing reads it yet; these tests hold its bounds: the
+//! JSON as untrusted bytes (ADR-SVC-1). Nothing reads it yet; these tests hold its bounds: the
 //! thresholds rise strictly, the factor is above 1, no pool is empty, every weapon has three
 //! complete styles, and every number is capped.
 

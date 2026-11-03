@@ -1,4 +1,4 @@
-//! The fuzz targets on stable (ADR-SVC-7), every PR: each target reaches the code behind its first
+//! The fuzz targets on stable (ADR-SVC-1), every PR: each target reaches the code behind its first
 //! gate on a real stage, replay, run replay, share code, run setup and content pack, rejects
 //! garbage, and survives a deterministic sweep over those files: every prefix, and a flipped
 //! byte at a regular step. Crashes that a real fuzz run found are kept in

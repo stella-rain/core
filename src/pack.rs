@@ -3,7 +3,7 @@
 //! rewards, the stage skills, the expertise, the match-up table, the runes, the perk sets and the modes). Its
 //! hash is the SHA-256 of the file's bytes.
 //!
-//! A pack is untrusted (ADR-SVC-7), read from the network or from the cache alike: a size limit
+//! A pack is untrusted (ADR-SVC-1), read from the network or from the cache alike: a size limit
 //! before parsing, the current versions only, strict parsing, budgets on the counts of its
 //! lists, then each file through its own parser, with the bounds that file already enforces
 //! (ADR-CONT-1). Anything else fails closed, with one message per problem and its path, never text
@@ -60,7 +60,7 @@ use crate::version::{self, ReadError, SCHEMA_VERSION, SIM_VERSION, Versions};
 use crate::weapons::{Weapons, WeaponsFile};
 
 // The count budgets: about four times today's counts, rounded up to a multiple of 8 and held
-// to the file's own cap where that is lower (tuning values; ADR-SVC-7 decides that they exist).
+// to the file's own cap where that is lower (tuning values; ADR-SVC-1 decides that they exist).
 // They are checked on the pack before any file is read.
 
 /// The most run stats (5 today; the file's own cap is 32).
@@ -404,7 +404,7 @@ pub struct Pack {
 }
 
 impl Pack {
-    /// The largest pack read (a tuning value; ADR-SVC-7 decides that one exists): about 30 times
+    /// The largest pack read (a tuning value; ADR-SVC-1 decides that one exists): about 30 times
     /// today's 36 KB of content.
     pub const MAX_BYTES: usize = 1024 * 1024;
 

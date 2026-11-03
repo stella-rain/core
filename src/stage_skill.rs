@@ -8,7 +8,7 @@
 //! `MAX_SKILL_EFFECTS`. A new block is a code change and a new `sim_version`. A skill's look is
 //! content too: its icon, title and description.
 //!
-//! The file is untrusted (ADR-SVC-7), as the rewards are: a size limit before parsing, strict
+//! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded; the bounds are tuning values.
 //! The bundled file, `content/stage_skills.json`, is the default; the SHA-256 of whatever bytes
 //! a run used is part of its content hash.

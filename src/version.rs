@@ -99,7 +99,7 @@ fn parse_error(e: serde_json::Error) -> ReadError {
 }
 
 /// Reads a versioned file (a pack, a stage or a run setup): the size limit first, then the
-/// versions alone, then the strict parse (ADR-REPL-1, ADR-SVC-7). The versions are read before the
+/// versions alone, then the strict parse (ADR-REPL-1, ADR-SVC-1). The versions are read before the
 /// rest because a file for a newer game may have fields this one rejects, and that file is
 /// "needs a newer version", not a parse error.
 pub(crate) fn read_current<T: serde::de::DeserializeOwned>(
@@ -179,7 +179,7 @@ fn damaged(e: serde_json::Error) -> ReplayLoadError {
 }
 
 /// Reads a replay file: the size limit first, then the versions alone (`header`), then the
-/// strict parse (ADR-REPL-1, ADR-SVC-7). `current` is the newest pair this game reads; either number
+/// strict parse (ADR-REPL-1, ADR-SVC-1). `current` is the newest pair this game reads; either number
 /// above it is `Newer`, whatever else the file holds. A schema in `oldest_schema..=current.schema`
 /// with a sim version in `oldest..=current.sim_version` is parsed as it is (this is how a schema 1
 /// and a schema 2 file both load, ADR-REPL-2 point 4); anything below that is migrated by a

@@ -27,7 +27,7 @@ paths:
 
 # Types, validator and content
 
-Sources: ADR-CONT-1, ADR-CONT-2, ADR-CONT-3, ADR-CONT-5, ADR-CONT-6, ADR-SVC-7, ADR-REPL-1,
+Sources: ADR-CONT-1, ADR-CONT-2, ADR-CONT-3, ADR-CONT-5, ADR-CONT-6, ADR-SVC-1, ADR-REPL-1,
 ADR-REPL-2, ADR-REPL-5.
 A change to a type, an event or a content ID starts with the `schema-change` skill.
 
@@ -37,7 +37,7 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
   `snapshot.rs` (ADR-REPL-1, ADR-SIM-4, ADR-REPL-5). `serde`, `serde_json` and `schemars` parse and
   describe them, outside the simulation path.
-- `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-7).
+- `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-1).
   `registry.rs`: the content-ID registry (ADR-CONT-2).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-5); each mode's content is bundled
   in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
@@ -52,7 +52,7 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
   (ADR-REPL-5, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
-  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-7, ADR-CONT-6).
+  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-6).
   `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR
   writes `Pack::BUNDLED`; DIR builds from `DIR/*.json` and `DIR/../modes`).
 - `content/`: `pack.json` is a copy byte for byte of a `stella-rain/content` release

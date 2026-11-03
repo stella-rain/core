@@ -1,4 +1,4 @@
-//! The stage file (ADR-CONT-1): data only, parsed strictly (ADR-CONT-1, ADR-SVC-7). Unknown fields are
+//! The stage file (ADR-CONT-1): data only, parsed strictly (ADR-CONT-1, ADR-SVC-1). Unknown fields are
 //! rejected everywhere. Field names follow ADR-SIM-4's shape and are placeholders until the
 //! freeze (ADR-REPL-1); the validator (budgets, registry, text) is separate.
 
@@ -113,7 +113,7 @@ pub struct StardustTier {
 
 /// Why a Stardust tier table is not valid, if it is not: 1 to `limits::MAX_STARDUST_TIERS`
 /// tiers, the first at tick 0, the ticks rising strictly, each percent from 1 to
-/// `limits::MAX_STARDUST_PCT` (ADR-SVC-7).
+/// `limits::MAX_STARDUST_PCT` (ADR-SVC-1).
 pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
     use crate::validate::limits::{MAX_STARDUST_PCT, MAX_STARDUST_TIERS};
     if tiers.is_empty() || tiers.len() > MAX_STARDUST_TIERS {
@@ -136,7 +136,7 @@ pub fn stardust_tiers_problem(tiers: &[StardustTier]) -> Option<String> {
 }
 
 /// The highest level a level table may name: the last level whose threshold the expertise file
-/// lists (ADR-SVC-7).
+/// lists (ADR-SVC-1).
 pub const MAX_STYLE_LEVEL: u32 = 10;
 
 /// The expertise levels of a run's style path: the level of the style choice, of

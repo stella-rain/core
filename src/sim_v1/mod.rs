@@ -83,7 +83,7 @@
 //! Not yet in this version: summons by companions.
 //! Rule conditions, selectors and actions beyond the ones in `agents` and `select` never fire.
 //!
-//! Dynamic budgets (ADR-SVC-7): at most `World::enemy_cap` enemies (the crowd target and the
+//! Dynamic budgets (ADR-SVC-1): at most `World::enemy_cap` enemies (the crowd target and the
 //! pack's headroom, 260 for the bundled pack, derived when the run is built and at most
 //! `limits::MAX_ENEMY_CAP`, DS103), the stage's elite cap of
 //! them elites (at most `MAX_ELITES_ALIVE`), `MAX_ZONES_ALIVE` zones, `MAX_ORBS_ALIVE` orbs,

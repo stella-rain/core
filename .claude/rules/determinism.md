@@ -75,6 +75,6 @@ The same stage, seed and inputs must give the same state hash every tick, on x86
   mismatch reports the first diverging tick. The Android device run is a release gate (ADR-SIM-3 point 4).
 - `proptest` invariants (`tests/properties.rs`, `PROPTEST_CASES=2000`): same input, same hash;
   HP rises only by a heal; statuses expire; positions stay in bounds.
-- Budgets (ADR-SVC-7): the validator and runtime clamps; test at the limit and one past it.
+- Budgets (ADR-SVC-1): the validator and runtime clamps; test at the limit and one past it.
 - A new dependency in the simulation path is checked for floats, hash ordering and
   platform-dependent behaviour first, and named in the commit body.

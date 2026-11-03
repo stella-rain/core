@@ -1,5 +1,5 @@
 //! The perk sets file (ADR-CONT-1): each set a content ID, a title and a
-//! short list of effects from a closed list, read from JSON as untrusted bytes (ADR-SVC-7).
+//! short list of effects from a closed list, read from JSON as untrusted bytes (ADR-SVC-1).
 //! The bundled file is the default; other bytes run the same way and change the run's content
 //! hash.
 

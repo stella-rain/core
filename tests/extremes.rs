@@ -12,7 +12,7 @@ use stella_rain_core::stage::Stage;
 
 const OX: i32 = 46_080;
 const OY: i32 = 50_000;
-/// The length of a stage: five minutes of ticks (ADR-SVC-7).
+/// The length of a stage: five minutes of ticks (ADR-SVC-1).
 const FULL_LENGTH: u32 = 18_000;
 /// Long enough for several rounds of every attack and the orbs and zones they start.
 const SHORT_RUN: u32 = 600;
@@ -199,7 +199,7 @@ fn every_slot_at_once_survives_the_whole_stage() {
 }
 
 /// Everything extreme except the orbs' speed and aim, so that orbs do stay in the field
-/// and the caps (ADR-SVC-7) and the emitter budget are what holds the load.
+/// and the caps (ADR-SVC-1) and the emitter budget are what holds the load.
 fn busy(extreme: &Value) -> Stage {
     let mut stage = stage(&|k| {
         if k == "speed" || k == "aimed_offset" {

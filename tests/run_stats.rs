@@ -1,5 +1,5 @@
 //! Run stats (ADR-REPL-5, ADR-CONT-1): the stats a stat point raises are content, read from JSON
-//! as untrusted bytes (ADR-SVC-7): a size limit before parsing, strict parsing, the current
+//! as untrusted bytes (ADR-SVC-1): a size limit before parsing, strict parsing, the current
 //! versions only and every field bounded. The bundled file is the default; other bytes (a
 //! server's, later) run the same way and change the run's content hash.
 
@@ -329,7 +329,7 @@ fn the_attack_speed_cap_is_the_files_and_the_code_ceiling_bounds_it() {
 #[test]
 fn the_stun_rules_are_bounded_and_the_bundled_ones_are_the_placeholders() {
     // The immunity after a stun and the elite's share of it, run rules
-    // in the run stats file (ADR-CONT-1), both bounded (ADR-SVC-7).
+    // in the run stats file (ADR-CONT-1), both bounded (ADR-SVC-1).
     let bundled = RunStats::bundled().stun();
     assert_eq!((bundled.immune_ticks, bundled.elite_pct), (60, 50));
     assert!(parse(&with_stun(json!({ "immune_ticks": 0, "elite_pct": 0 }))).is_ok());

@@ -17,7 +17,7 @@ globs:
 
 # Replays, hashes and the tests
 
-Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, ADR-SAVE-4.
+Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, ADR-SAVE-4.
 
 ## What is where
 
@@ -28,7 +28,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-13, ADR-SIM-3, 
   `step-log.md`.
 - `share.rs`, `base64.rs`: share codes; `recording.rs`: the `record` feature's JSON Lines.
   `content_hash.rs`: SHA-256 of the two file hashes (ADR-CONT-6).
-  `parsed_stage_hash.rs`: the blocklist's hash (ADR-SVC-13 point 4), pinned in `tests/parsed_stage_hash.rs`.
+  `parsed_stage_hash.rs`: the blocklist's hash (ADR-SVC-7 point 4), pinned in `tests/parsed_stage_hash.rs`.
 - `stage-verify` (`src/bin/stage_verify.rs`): re-simulates a replay, checks the clear and hash.
 
 ## Tests

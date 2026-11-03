@@ -1,4 +1,4 @@
-//! The stage content hash (ADR-SVC-13).
+//! The stage content hash (ADR-SVC-7).
 //!
 //! `SHA-256( SHA-256(stage_bytes) ‖ SHA-256(replay_bytes) )` over the exact bytes of the stage
 //! and replay files at the tag. Players' caches, the catalog and the moderation blocklist store

@@ -1,4 +1,4 @@
-//! The validator (ADR-SVC-7): every budget is tested at its limit and one past it, registry IDs
+//! The validator (ADR-SVC-1): every budget is tested at its limit and one past it, registry IDs
 //! must exist for the stage's `sim_version`, and errors say where without repeating the file.
 
 use serde_json::{Value, json};

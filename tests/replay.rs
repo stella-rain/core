@@ -1,5 +1,5 @@
 //! Replays (ADR-REPL-6, ADR-BRDG-3): the packed input encoding, recording, verification and the
-//! checks on untrusted replay files (ADR-SVC-7).
+//! checks on untrusted replay files (ADR-SVC-1).
 
 use crate::common;
 

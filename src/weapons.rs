@@ -5,7 +5,7 @@
 //! (`WeaponRef::Preset`), or holds an inline weapon. The attack presets are content too
 //! (ADR-CONT-3, CS1b-1, `attack_presets.rs`).
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most `MAX_WEAPONS`
 //! weapons with unique registered IDs, at most `MAX_TREES` trees each with unique well-formed
 //! IDs, and each tree checked as a stage's inline weapon is (`validate::validate_weapon_preset`).
@@ -24,7 +24,7 @@ use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
 use crate::weapon::{Weapon, WeaponRef};
 
-/// The largest weapons file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest weapons file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_WEAPONS_BYTES: usize = 512 * 1024;
 /// The most weapons the file lists (1 today; a tuning value).
 pub const MAX_WEAPONS: usize = 16;
@@ -102,7 +102,7 @@ impl Weapons {
             .flat_map(|w| w.trees.iter().map(|t| &t.id))
     }
 
-    /// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-SVC-7: fail
+    /// What is wrong with naming `tree` for the weapon `weapon`, if anything (ADR-SVC-1: fail
     /// closed, and never echo the file's text): not a well-formed ID, or not one of the
     /// weapon's trees. A weapon with no definition is left to the weapon's own check.
     pub fn tree_problem(&self, weapon: &str, tree: &str) -> Option<&'static str> {

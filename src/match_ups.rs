@@ -5,7 +5,7 @@
 //! The same rules hold the most the type bonuses add to one attack, `max_type_bonus_pct`
 //!.
 //!
-//! The file is untrusted (ADR-SVC-7), as every content file is: a size limit before parsing,
+//! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, each percent at most `MAX_MATCH_UP_PCT` and the
 //! type bonus limit 1 to `MAX_TYPE_BONUS_PCT`.
 //! The bundled file, `content/match_ups.json`, is the default; the SHA-256 of whatever bytes a
@@ -21,7 +21,7 @@ use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
-/// The largest match-up file read (a tuning value; ADR-SVC-7 decides that one exists).
+/// The largest match-up file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_MATCH_UPS_BYTES: usize = 1024;
 /// The most any match-up changes a hit, in percent: a strong or resisted hit at the cap deals
 /// nothing before the floor of 1, a weak one twice its damage.

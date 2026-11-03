@@ -1,4 +1,4 @@
-//! The simulation engine (ADR-SIM-1, ADR-SVC-13) at version 1. Small stages are built here so that
+//! The simulation engine (ADR-SIM-1, ADR-SVC-7) at version 1. Small stages are built here so that
 //! every expected tick can be worked out by hand from the rules in `sim`; the fixture
 //! stage pins the hash every platform must reproduce (ADR-SIM-3).
 
@@ -292,7 +292,7 @@ fn a_stage_with_nothing_to_beat_clears_at_once() {
     assert_eq!((e.tick(), e.outcome()), (1, Outcome::Cleared));
 }
 
-// --- Waves and the runtime caps (ADR-SVC-7) ----------------------------------------------------
+// --- Waves and the runtime caps (ADR-SVC-1) ----------------------------------------------------
 
 #[test]
 fn waves_spawn_on_schedule_in_entity_id_order() {

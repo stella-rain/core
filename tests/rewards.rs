@@ -1,5 +1,5 @@
 //! Rewards (ADR-REPL-5, ADR-CONT-1): what an offer holds is content, read from JSON as untrusted
-//! bytes (ADR-SVC-7): a size limit before parsing, strict parsing, the current versions only and
+//! bytes (ADR-SVC-1): a size limit before parsing, strict parsing, the current versions only and
 //! every field bounded. The bundled file is the default; other bytes run the same way and
 //! change the run's content hash.
 

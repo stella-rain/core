@@ -1,6 +1,6 @@
 //! The run replay (ADR-REPL-5): a run recorded as its setup, the content hash, one input per
 //! tick and one stream of commands between ticks (`choose` and `spend`), re-simulated from the
-//! file alone and refused, failing closed, whenever the file and the run disagree (ADR-SVC-7).
+//! file alone and refused, failing closed, whenever the file and the run disagree (ADR-SVC-1).
 
 use serde_json::{Value, json};
 use stella_rain_core::base64;
@@ -519,7 +519,7 @@ fn a_replay_file_reads_back_as_the_replay() {
 
 #[test]
 fn a_file_over_the_limit_is_not_parsed() {
-    // A run replay is a file, up to 1 MiB (ADR-SVC-7); it never goes in a share code.
+    // A run replay is a file, up to 1 MiB (ADR-SVC-1); it never goes in a share code.
     assert_eq!(MAX_RUN_REPLAY_BYTES, 1024 * 1024);
     let big = vec![b' '; MAX_RUN_REPLAY_BYTES + 1];
     assert_eq!(
