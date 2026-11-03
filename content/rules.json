@@ -23,5 +23,6 @@
   "offer_size": 3,
   "defence_k": 10000,
   "crit_damage_base_pct": 200,
-  "offer_timer_ticks": 300
+  "offer_timer_ticks": 300,
+  "party_damage_pct": [100, 100, 100]
 }
