@@ -5,8 +5,8 @@ description: Change a Stella Rain stage, event or replay type, or anything that 
 
 # Schema change
 
-The Rust types in `stella-rain/core` are the only schema (ADR-CONT-1). Stages and replays already
-published in creators' repositories must keep loading and verifying forever (ADR-REPL-7, ADR-CONT-2).
+The Rust types in `stella-rain/core` are the only schema (ADR-CONT-11). Stages and replays already
+published in creators' repositories must keep loading and verifying forever (ADR-REPL-12, ADR-CONT-12).
 This file is identical in `app` and `core`; change both copies in the same task.
 
 ## 1. Classify the change
@@ -14,15 +14,15 @@ This file is identical in `app` and `core`; change both copies in the same task.
 | Change | Bump | What else |
 |---|---|---|
 | File structure of stages, events or recordings: a field added, removed, renamed or retyped | `schema_version` | Forward migration on load |
-| Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new `sim_version`: a gate in the rules module, a full copy only for a rewrite (ADR-REPL-7) |
+| Anything that can alter an outcome: rules, numbers, RNG use, math, what a content ID does | `sim_version` | A new `sim_version`: a gate in the rules module, a full copy only for a rewrite (ADR-REPL-13) |
 | New content ID (asset, palette, part, block, targeting, skill, attack pattern) | none | Registry entry; permanent once released |
 | Rename or remove a released content ID | not allowed | Deprecate it instead |
 | Refactor, docs, comments | none | The replay corpus proves the hashes are unchanged |
 
 Not sure whether outcomes change? Run the replay corpus: any hash difference in the frozen `v1/`
-corpus means a new `sim_version`, gated inside `sim` (ADR-REPL-7); only `current/` is regenerated.
+corpus means a new `sim_version`, gated inside `sim` (ADR-REPL-13); only `current/` is regenerated.
 Determinism is never relaxed: the corpus must still match on x86_64 and arm64, and SplitMix64,
-FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6).
+FNV-1a 64 and the content hash stay fixed (ADR-SIM-17, ADR-SIM-16, ADR-CONT-16).
 
 ## 2. Test first
 
@@ -32,7 +32,7 @@ FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6).
 - A pack-only change (numbers, or an ID that only composes existing rules): tests for the new behaviour; the
   frozen `v1/` corpus unchanged and `current/` regenerated, passing on both architectures.
 - If the change adds size or count (more entities, a longer list), adjust the budget in both the
-  validator and the runtime clamp (ADR-SVC-1), with a test at the limit and one past it.
+  validator and the runtime clamp (ADR-SVC-7), with a test at the limit and one past it.
 
 ## 3. Change `core`
 
@@ -41,9 +41,9 @@ FNV-1a 64 and the content hash stay fixed (ADR-SIM-3, ADR-SIM-2, ADR-SVC-6).
    disk are never rewritten in place.
 3. `sim_version`: bump it, branch on it where behaviour differs, leave the older branch
    untouched, and add a test for the new behaviour; the frozen corpus must pass unchanged (a copy only
-   for a rewrite, ADR-REPL-7 point 3). New stages always get the latest version.
+   for a rewrite, ADR-REPL-13 point 3). New stages always get the latest version.
 4. Content ID: add it to the registry with the version that introduces it, its status
-   (active or deprecated) and its asset source (ADR-REL-1). Deprecated IDs stay loadable.
+   (active or deprecated) and its asset source (ADR-CONT-17). Deprecated IDs stay loadable.
 5. Regenerate the JSON Schema and commit its diff with the change.
 6. If parsing changed, make sure the fuzz targets build and run them briefly.
 
@@ -54,10 +54,10 @@ corpus. Name any that could not run: `NOT VERIFIED: <gate>: <reason>`.
 
 ## 5. Reach the app
 
-- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-9), in its own commit
+- Tag a `core` release; `app` pins the new tag in its `Cargo.toml` (ADR-REL-11), in its own commit
   or PR that refers to the `core` change.
 - Editor fields come from the generated JSON Schema; never hand-edit a copy. Validation is
-  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-1).
+  core's alone: GDScript calls it through gdext and never validates against the schema (ADR-CONT-11).
 - Work spanning both repositories is an epic issue in `app` with a sub-issue in `core`.
 
 ## 6. Commit

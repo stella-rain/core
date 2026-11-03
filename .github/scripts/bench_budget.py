@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fail when a bench counts more instructions than its budget for the job's architecture.
 
-Reads the iai-callgrind output the bench job tees to a file and benches/budgets.toml (ADR-SIM-7:
-an absolute ceiling beside the relative limit of bench_alarm.py, ADR-SIM-8). Only benches named in the budgets file are
+Reads the iai-callgrind output the bench job tees to a file and benches/budgets.toml (ADR-SIM-20 point 1:
+an absolute ceiling beside the relative limit of bench_alarm.py, ADR-SIM-20 point 2). Only benches named in the budgets file are
 checked; a budgeted bench missing from the output, or an unknown arch, fails. With `--bench <name>`
 (repeatable; a shard of the bench job) only those budgets are checked, and "missing" applies to them only.
 """

@@ -1,8 +1,7 @@
 # Fails if a tracked file is an environment, key or keystore file, or a text file holds a
 # private key block, an AWS access key ID or a GitHub token; findings name the file, line and
 # kind, never the value. The reusable workflow in stella-rain/.github reads its script from
-# that repository's main. It runs on every PR, so auto-merge's `require:` names its check
-# (ADR-052).
+# that repository's main. It runs on every PR, so auto-merge's `require:` names its check.
 name: Repository check
 
 on:

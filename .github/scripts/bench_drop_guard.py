@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail the bench job when a measured profile counts the drop of a bench fixture (ADR-SIM-8).
+"""Fail the bench job when a measured profile counts the drop of a bench fixture (ADR-SIM-20).
 
 iai-callgrind 0.16 collects only inside `__iai_callgrind_wrapper_mod::<bench fn>`; the teardown runs
 outside it. So the drop glue of a fixture is counted when the bench function itself drops it: a
