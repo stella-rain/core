@@ -1008,3 +1008,38 @@ fn an_offer_names_its_named_candidate_and_only_that_one() {
         ]
     );
 }
+
+#[test]
+fn every_bundled_mode_takes_a_star_a_sword_step_away_without_moving() {
+    // A star lands where its enemy fell, about one sword step (96 pixels) from a player who
+    // stands and swings; a pickup circle smaller than that leaves every star on the map until
+    // the player walks over it. 96 pixels is a placeholder (Kade, 2026-11-05).
+    use stella_rain_core::fixed::UNITS_PER_PX;
+    use stella_rain_core::pack::Pack;
+    let step = 96 * UNITS_PER_PX;
+    let content = Pack::bundled().content();
+    let modes = [
+        ("time_limit", Some(content.time_limit().stars()), None),
+        (
+            "trial",
+            Pack::bundled().trial().stars.as_ref(),
+            Pack::bundled().trial().heal.as_ref(),
+        ),
+        ("tutorial", content.tutorial().stars.as_ref(), None),
+    ];
+    for (mode, stars, heal) in modes {
+        let stars = stars.unwrap_or_else(|| panic!("{mode} has stars"));
+        assert!(
+            stars.pickup_radius.0 >= step,
+            "{mode}: star pickup radius {} px is under a sword step",
+            stars.pickup_radius.0 / UNITS_PER_PX
+        );
+        if let Some(heal) = heal {
+            assert!(
+                heal.pickup_radius.0 >= step,
+                "{mode}: heal pickup radius {} px is under a sword step",
+                heal.pickup_radius.0 / UNITS_PER_PX
+            );
+        }
+    }
+}
