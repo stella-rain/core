@@ -740,6 +740,51 @@ fn open_offers(
     for me in s.players.indices() {
         open_offers_for(stage, rewards, expertise, s, me, events);
     }
+    if !s.players.is_solo() {
+        take_downed(stage, rewards, expertise, s, events);
+    }
+}
+
+/// A downed player takes option 0 of every offer on the tick it opens (ADR-SIM-7 point 4): the
+/// events of a manual pick, nothing recorded (ADR-REPL-5 point 5). Each pick opens the next offer
+/// due, so a whole queue goes on one tick. A party only.
+#[cold]
+fn take_downed(
+    stage: &World,
+    rewards: &Rewards,
+    expertise: &Expertise,
+    s: &mut State,
+    events: &mut Vec<DomainEvent>,
+) {
+    let slots: Vec<PlayerIdx> = s.players.indices().collect();
+    for me in slots {
+        if !s.players[me].is_downed() {
+            continue;
+        }
+        while offer_open_for(s, me) {
+            let Some(option) = offer_options(stage, rewards, expertise, s, me)
+                .first()
+                .copied()
+            else {
+                break;
+            };
+            choose(2, stage, rewards, expertise, s, me, option, events);
+        }
+    }
+}
+
+/// An out player has no offers (ADR-SIM-7 point 4): what is queued for it is forgotten.
+fn drop_offers(s: &mut State, me: PlayerIdx) {
+    let career = s.players.career_mut(me);
+    if let Some(progress) = career.progress.as_mut() {
+        progress.offers_due = 0;
+    }
+    if let Some(offers) = career.offers.as_mut() {
+        offers.due.clear();
+    }
+    if let Some(expertise) = career.expertise.as_mut() {
+        expertise.offered = expertise.level;
+    }
 }
 
 #[cfg(test)]
@@ -762,6 +807,11 @@ fn open_offers_for(
     me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
 ) {
+    if s.players[me].out {
+        drop_offers(s, me);
+        sync_deadline(stage, s, me);
+        return;
+    }
     stars::open_due(stage, rewards, s, me, events, true);
     expertise::open_due(stage, expertise, s, me, events);
     levels::open_due(s, me, events);
@@ -1773,16 +1823,7 @@ pub(crate) fn tick_down_and_revive(
             s.players[me].out = true;
             s.players[me].revive_hold = 0;
             events.push(DomainEvent::PlayerOut { player: me });
-            let career = s.players.career_mut(me);
-            if let Some(progress) = career.progress.as_mut() {
-                progress.offers_due = 0;
-            }
-            if let Some(offers) = career.offers.as_mut() {
-                offers.due.clear();
-            }
-            if let Some(expertise) = career.expertise.as_mut() {
-                expertise.offered = expertise.level;
-            }
+            drop_offers(s, me);
             continue;
         }
 
