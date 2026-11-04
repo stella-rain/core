@@ -144,6 +144,8 @@ mod damage_tests;
 mod orbit;
 #[cfg(test)]
 mod party_act_tests;
+#[cfg(test)]
+mod party_fix_tests;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;

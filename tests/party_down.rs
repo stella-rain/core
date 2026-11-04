@@ -259,3 +259,91 @@ fn down_and_revive_events_and_snapshot_views() {
     let back: DownView = serde_json::from_str(&json).unwrap();
     assert_eq!(down_view, back);
 }
+
+/// Steps the lethal setup until slot 1 is down, collecting every event; slot 0 dashes away first.
+fn run_until_down(e: &mut Engine, events: &mut Vec<DomainEvent>) {
+    let mut p0_dash = Input {
+        move_x: 100,
+        evade: true,
+        ..Input::default()
+    };
+    let idle = Input::default();
+    while e.snapshot().players[1].hp > 0 && e.tick() < 60 {
+        e.step(&[p0_dash, idle, idle]);
+        events.extend_from_slice(e.events());
+        p0_dash.evade = false;
+        p0_dash.move_x = 0;
+    }
+}
+
+fn count_of(events: &[DomainEvent], wanted: &DomainEvent) -> usize {
+    events.iter().filter(|e| *e == wanted).count()
+}
+
+/// F. The down, revive and out events come from a live run, each once (ADR-SIM-7). Guards rules
+/// that are built.
+#[test]
+fn live_run_emits_down_revive_and_out_events_once() {
+    let (setup, content) = lethal_setup(50_000, 15);
+    let idle = Input::default();
+    let downed = DomainEvent::PlayerDowned { player: slot(1) };
+    let revived = DomainEvent::PlayerRevived {
+        player: slot(1),
+        reviver: slot(0),
+    };
+    let out = DomainEvent::PlayerOut { player: slot(1) };
+
+    let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
+    let mut events = Vec::new();
+    run_until_down(&mut e, &mut events);
+    assert_eq!(count_of(&events, &downed), 1);
+    assert_eq!(e.snapshot().players[1].hp, 0);
+    // Holding interact for 180 ticks revives, once, on the tick hp becomes 30%.
+    let hold = Input {
+        interact: true,
+        ..Input::default()
+    };
+    for i in 0..180 {
+        e.step(&[hold, idle, idle]);
+        let revived_now = count_of(e.events(), &revived);
+        assert_eq!(revived_now, usize::from(i == 179), "tick {i} of the hold");
+        events.extend_from_slice(e.events());
+    }
+    assert_eq!(e.snapshot().players[1].hp, 15_000);
+    assert_eq!(count_of(&events, &revived), 1);
+    assert_eq!(count_of(&events, &out), 0);
+
+    // The out flow: down again, never revived.
+    let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
+    let mut events = Vec::new();
+    run_until_down(&mut e, &mut events);
+    for _ in 0..1199 {
+        e.step(&[idle, idle, idle]);
+        events.extend_from_slice(e.events());
+    }
+    assert_eq!(count_of(&events, &out), 0);
+    e.step(&[idle, idle, idle]);
+    events.extend_from_slice(e.events());
+    assert_eq!(count_of(&events, &out), 1);
+    assert_eq!(count_of(&events, &downed), 1);
+    assert!(e.snapshot().players[1].out);
+}
+
+/// G. One out, the other up: the run keeps going (ADR-SIM-7). Guards a built rule.
+#[test]
+fn one_out_and_one_up_keeps_running() {
+    let (setup, content) = lethal_setup(50_000, 15);
+    let idle = Input::default();
+    let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
+    let mut events = Vec::new();
+    run_until_down(&mut e, &mut events);
+    while !e.snapshot().players[1].out && e.tick() < 2000 {
+        e.step(&[idle, idle, idle]);
+    }
+    assert!(e.snapshot().players[1].out);
+    assert!(e.snapshot().players[0].hp > 0);
+    for _ in 0..60 {
+        e.step(&[idle, idle, idle]);
+        assert_eq!(e.outcome(), Outcome::Running);
+    }
+}

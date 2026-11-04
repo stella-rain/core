@@ -322,6 +322,19 @@ fn one_hit_applies_the_factor_of_the_party_and_reports_the_raw_damage() {
 }
 
 #[test]
+fn a_downed_or_out_player_still_counts_for_the_party_factor() {
+    // Two present players: a hit of 100 loses 50 whether slot 1 is up, downed or out (ADR-SIM-8
+    // point 1).
+    for (hp, out) in [(100, false), (0, false), (0, true)] {
+        let (w, mut s) = scaled(2, 1000);
+        s.players[slot(1)].hp = hp;
+        s.players[slot(1)].out = out;
+        hit(&w, &mut s, 0, 0, 100);
+        assert_eq!(s.enemies[0].hp, 950, "slot 1 hp {hp} out {out}");
+    }
+}
+
+#[test]
 fn the_factor_truncates_once_and_a_hit_applies_at_least_one() {
     for (n, shown, lowers) in [(3, 7, 1), (3, 99, 24), (3, 3, 1), (3, 1, 1), (2, 3, 1)] {
         let (w, mut s) = scaled(n, 1000);
