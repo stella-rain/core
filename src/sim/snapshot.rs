@@ -307,7 +307,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             runs.into_iter().map(view).collect()
         },
         statuses: status_views(&s.players[me].statuses, false),
-        down: if s.players[me].is_downed() {
+        down: if !s.players.is_solo() && s.players[me].is_downed() {
             Some(DownView {
                 ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
                 revive_hold: s.players[me].revive_hold,
