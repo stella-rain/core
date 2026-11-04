@@ -269,41 +269,47 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
 }
 
-/// An attack launched by a player who holds a type bonus allocates nothing (T1b): the bonus
-/// is copied into the attack run, not boxed. The dense minute's player holds one from its first
-/// star; a tick that launches an attack (a combo step) and kills nothing, spawns or loses no
-/// elite and opens no offer allocates and frees nothing.
+/// The dense minute's plain ticks allocate nothing (T1b): attacks launched with a type bonus
+/// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
+/// and rule firings. A tick that spawns or loses an elite, opens an offer or does anything else
+/// outside this list is left out: it builds an entity or an offer, which is by design.
 #[test]
-fn an_attack_launched_with_a_type_bonus_allocates_nothing() {
+fn the_dense_minutes_plain_ticks_allocate_nothing() {
     use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
     let mut run = bench_fixtures::worst_minute();
-    let mut checked = 0;
+    let (mut launched, mut defeated) = (0, 0);
     for tick in 0..MINUTE_TICKS {
         let counts = counted3(|| run.play(1));
         let events = run.engine.events();
-        let launched = events
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::ComboStep { .. }));
-        let busy = events.iter().any(|ev| {
+        let plain = events.iter().all(|ev| {
             matches!(
                 ev,
-                DomainEvent::Died { .. }
-                    | DomainEvent::EliteSpawned { .. }
-                    | DomainEvent::EliteLeft { .. }
-                    | DomainEvent::OfferOpened { .. }
-                    | DomainEvent::ExpertiseOfferOpened { .. }
+                DomainEvent::ComboStep { .. }
+                    | DomainEvent::ComboReset { .. }
+                    | DomainEvent::Telegraph { .. }
+                    | DomainEvent::RuleFired { .. }
+                    | DomainEvent::Hit { .. }
+                    | DomainEvent::Died { .. }
+                    | DomainEvent::EnemyRelocated { .. }
             )
         });
-        if launched && !busy {
-            checked += 1;
-            assert_eq!(
-                counts,
-                pin(0, 0, 0),
-                "minute tick {tick}: (allocs, reallocs, frees)"
-            );
+        if !plain {
+            continue;
         }
+        launched += usize::from(
+            events
+                .iter()
+                .any(|e| matches!(e, DomainEvent::ComboStep { .. })),
+        );
+        defeated += usize::from(events.iter().any(|e| matches!(e, DomainEvent::Died { .. })));
+        assert_eq!(
+            counts,
+            pin(0, 0, 0),
+            "minute tick {tick}: (allocs, reallocs, frees)"
+        );
     }
-    assert!(checked > 100, "only {checked} launch ticks reached");
+    assert!(launched > 100, "only {launched} launch ticks reached");
+    assert!(defeated > 50, "only {defeated} ticks with a defeat reached");
 }
 
 /// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
