@@ -1,4 +1,5 @@
-//! Stardust: every kill by the player earns its base Stardust (times 10, from the
+//! Stardust: every kill earns, for each player that is up (ADR-SIM-7 point 5; a downed or out
+//! player earns none and keeps what it has), its base Stardust (times 10, from the
 //! wave, elite type or boss that made the enemy) times the time factor at the kill tick, in
 //! integer percent truncated toward zero, added to the run's counter, which saturates at
 //! `MAX_RUN_STARDUST`. The factor is the percent of the last tier of the stage's table that
@@ -38,6 +39,9 @@ fn earn(stage: &World, s: &mut State, me: PlayerIdx, base: u32) {
 
 /// The enemies at 0 hp, before they are removed.
 pub(super) fn credit_defeated(stage: &World, s: &mut State, me: PlayerIdx) {
+    if !s.players[me].is_up() {
+        return;
+    }
     if s.players.career(me).stardust.is_none() {
         return;
     }
@@ -66,6 +70,9 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, me: PlayerIdx) {
 
 /// The boss has just died.
 pub(super) fn boss_killed(stage: &World, s: &mut State, me: PlayerIdx) {
+    if !s.players[me].is_up() {
+        return;
+    }
     if let Some(base) = s.boss_def(stage).and_then(|b| b.stardust) {
         earn(stage, s, me, base);
     }
