@@ -575,3 +575,18 @@ fn a_combo_run_belongs_to_any_present_player() {
     run.owner = EntityId(s.companions.first().map_or(7, |c| c.id.0));
     assert!(!attacks::is_combo(&s, &run), "a companion's");
 }
+
+#[test]
+fn up_means_is_up_not_just_hit_points() {
+    let (_, mut s) = party([px(100, 100); 3]);
+    // Out with hit points left (an out flag set by some other path) is not up.
+    s.players[slot(1)].out = true;
+    s.players[slot(1)].hp = s.players[slot(0)].hp.max(1);
+    assert!(s.players[slot(1)].hp > 0);
+    assert_eq!((s.players.up_mask(), s.players.targets()), (0b101, 0b101));
+    // Downed (no hit points, not out) is not up either.
+    s.players[slot(2)].hp = 0;
+    assert!(s.players[slot(2)].is_downed());
+    assert_eq!(s.players.up_mask(), 0b001);
+    assert_eq!(nearest(&s, 0), 0);
+}
