@@ -6,7 +6,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{OfferMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::DownView;
 use stella_rain_core::time_limit::TimeLimit;

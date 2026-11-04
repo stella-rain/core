@@ -1415,8 +1415,8 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     s.enemies.retain(|e| e.hp > 0);
     s.scratch.killers.clear();
     if boss_alive && s.boss.as_ref().is_some_and(|b| b.hp == 0) {
+        stars::boss_killed(stage, s);
         for me in s.players.indices() {
-            stars::boss_killed(stage, s, me);
             heal::boss_killed(stage, s, me, events);
             stardust::boss_killed(stage, s, me);
         }

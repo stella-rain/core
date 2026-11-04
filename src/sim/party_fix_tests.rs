@@ -519,9 +519,7 @@ fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
 
 /// What a boss kill does to the offers due, as `collide` calls it.
 fn kill_boss(w: &World, s: &mut State) {
-    for me in s.players.indices().collect::<Vec<_>>() {
-        super::stars::boss_killed(w, s, me);
-    }
+    super::stars::boss_killed(w, s);
 }
 
 fn boss_dues(s: &State, i: u8) -> Vec<Due> {
