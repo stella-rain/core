@@ -33,7 +33,6 @@ use crate::engine::Outcome;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentKey, AgentSource, State};
 use crate::stage::{Side, ViewEdge};
 
@@ -116,10 +115,16 @@ pub(super) fn final_boss_dead(s: &State) -> bool {
 /// Where a boss arrives: above the party (ADR-SIM-7), at the mid x of the players the world
 /// reads and the y of the top-most, held on the map.
 pub(super) fn arrival_point(stage: &World, players: &super::state::Players) -> Point {
-    let at = players[PlayerIdx::SOLO].at;
+    let (mut lo, mut hi, mut top) = (i32::MAX, i32::MIN, i32::MAX);
+    for me in super::Players::slots(players.targets()) {
+        let at = players[me].at;
+        lo = lo.min(at.x.0);
+        hi = hi.max(at.x.0);
+        top = top.min(at.y.0);
+    }
     stage.map().clamp(Point {
-        x: at.x,
-        y: at.y.saturating_add(Fx(-stage.tuning.boss_arrival_above)),
+        x: Fx(lo + (hi - lo) / 2),
+        y: Fx(top).saturating_add(Fx(-stage.tuning.boss_arrival_above)),
     })
 }
 

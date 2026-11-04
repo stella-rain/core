@@ -6,7 +6,7 @@
 //! an enemy's `nearest_ally` is the nearest of them. Enemies are the enemies and the boss.
 
 use super::World;
-use crate::sim::state::PlayerIdx;
+use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use std::cmp::Reverse;
 
 use crate::behaviour::Selector;
@@ -16,6 +16,47 @@ use crate::sim::state::State;
 
 use super::entity::Who;
 use super::overlaps;
+
+/// A copy of the places, slots and aggro of the players the world reads (`Players::targets`):
+/// positions, hit points and aggro do not change while the agents act, so the agent step takes
+/// it once. With one player every use reads that one place, no loop (ADR-SIM-6).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Up {
+    pub(super) n: usize,
+    pub(super) at: [Point; MAX_PLAYERS as usize],
+    pub(super) aggro: [u32; MAX_PLAYERS as usize],
+    pub(super) slot: [PlayerIdx; MAX_PLAYERS as usize],
+}
+
+impl Up {
+    pub(super) fn of(players: &Players) -> Up {
+        let mut up = Up {
+            n: 0,
+            at: [Point::default(); MAX_PLAYERS as usize],
+            aggro: [0; MAX_PLAYERS as usize],
+            slot: [PlayerIdx::SOLO; MAX_PLAYERS as usize],
+        };
+        for me in Players::slots(players.targets()) {
+            let k = up.n;
+            (up.at[k], up.aggro[k], up.slot[k]) = (players[me].at, players[me].aggro, me);
+            up.n += 1;
+        }
+        up
+    }
+
+    /// The least squared distance from `from` to one of them.
+    #[inline]
+    pub(super) fn least_d2(&self, from: Point) -> u64 {
+        if self.n == 1 {
+            return dist2(from, self.at[0]);
+        }
+        self.at[..self.n]
+            .iter()
+            .map(|&p| dist2(from, p))
+            .min()
+            .unwrap_or(u64::MAX)
+    }
+}
 
 fn dist2(a: Point, b: Point) -> u64 {
     let dx = i64::from(a.x.0) - i64::from(b.x.0);

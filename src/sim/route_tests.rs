@@ -3,9 +3,10 @@
 //! and owner-keyed rules read the player they name. A downed or out player is present (the
 //! party factor) but not up.
 
-use super::attacks::{in_view, least_d2};
+use super::attacks::in_view;
 use super::horde::arrival_point;
 use super::leash;
+use super::select::Up;
 use super::state::{PlayerIdx, Players, State};
 use super::{Area, World, edge_point, view_centre};
 use crate::engine::{Engine, Run};
@@ -132,7 +133,7 @@ fn the_leash_reaches_and_lands_around_the_box() {
     assert!(w.defs.get(s.enemies[0].def).leash, "a roaming enemy");
     s.enemies[0].elite = None;
     s.enemies[0].leave = None;
-    let mut run = |s: &State, x: i32| {
+    let run = |s: &State, x: i32| {
         let mut s = s.clone();
         s.enemies[0].at = px(x, 2000);
         let mut events = Vec::new();
@@ -228,7 +229,7 @@ fn the_tokens_see_the_view_of_the_box_and_the_nearest_up_player() {
     ])
     .expect("three");
     // Slots at x 1000 and 1000 and 2000: the least distance is to the nearer player.
-    let d = |s: &State, x| least_d2(&s.players, px(x, 2000));
+    let d = |s: &State, x| i64::try_from(Up::of(&s.players).least_d2(px(x, 2000))).unwrap();
     assert_eq!(d(&s, 2100), i64::from(Fx::px(100).0).pow(2));
     assert_eq!(d(&s, 1300), i64::from(Fx::px(300).0).pow(2));
     down(&mut s, 2);

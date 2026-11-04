@@ -66,17 +66,24 @@ pub(super) fn land_point_in(
     dx: i64,
     dy: i64,
 ) -> Point {
-    land_point(stage, map, area.centre, dx, dy)
+    land_rect(stage, map, area.centre, (area.half_x, area.half_y), dx, dy)
 }
 
-/// The landing point on the land rectangle around `centre`, falling back to the opposite side
+/// The landing point for a box of no extent (a single player; the tests' form), on the land
+/// rectangle around `centre`, falling back to the opposite side
 /// when the mirrored side is off the map, and clamped to the map border if neither fits.
+#[cfg(test)]
 pub(super) fn land_point(stage: &World, map: &Map, centre: Point, dx: i64, dy: i64) -> Point {
+    land_rect(stage, map, centre, (0, 0), dx, dy)
+}
+
+/// `land_point` with the land rectangle grown by `grow` (the box's half extents) on each axis.
+fn land_rect(stage: &World, map: &Map, centre: Point, grow: (i64, i64), dx: i64, dy: i64) -> Point {
     let (lx, ly) = (
-        i64::from(stage.tuning.leash_land_x.0),
-        i64::from(stage.tuning.leash_land_y.0),
+        i64::from(stage.tuning.leash_land_x.0) + grow.0,
+        i64::from(stage.tuning.leash_land_y.0) + grow.1,
     );
-    let (ox, oy) = landing_offset(stage, dx, dy);
+    let (ox, oy) = landing_offset(lx, ly, dx, dy);
     let (ax, ay) = (dx.abs(), dy.abs());
     let i = if lx * ay <= ly * ax {
         if ox > 0 { 1 } else { 3 }
@@ -102,11 +109,7 @@ pub(super) fn land_point(stage: &World, map: &Map, centre: Point, dx: i64, dy: i
 /// The offset from the view's centre to the landing point of an enemy at (`dx`, `dy`) from it,
 /// outside the reach rectangle: mirrored, and scaled along the enemy's own direction until it
 /// meets the landing rectangle. Integer division truncates toward zero.
-fn landing_offset(stage: &World, dx: i64, dy: i64) -> (i32, i32) {
-    let (lx, ly) = (
-        i64::from(stage.tuning.leash_land_x.0),
-        i64::from(stage.tuning.leash_land_y.0),
-    );
+fn landing_offset(lx: i64, ly: i64, dx: i64, dy: i64) -> (i32, i32) {
     let (ax, ay) = (dx.abs(), dy.abs());
     // The vertical side is reached first when `lx / ax <= ly / ay`; the divisor of the branch
     // taken is never 0, since the trigger excludes dx = dy = 0 and a zero axis picks the other.

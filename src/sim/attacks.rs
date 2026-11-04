@@ -129,17 +129,8 @@ pub(super) fn in_view(e: Point, area: super::Area) -> bool {
         i64::from(e.x.0) - i64::from(centre.x.0),
         i64::from(e.y.0) - i64::from(centre.y.0),
     );
-    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0)
-}
-
-/// The least squared distance from `e` to a player the world reads (`Players::targets`).
-pub(super) fn least_d2(players: &super::Players, e: Point) -> i64 {
-    let player = players[PlayerIdx::SOLO].at;
-    let (dx, dy) = (
-        i64::from(e.x.0) - i64::from(player.x.0),
-        i64::from(e.y.0) - i64::from(player.y.0),
-    );
-    dx * dx + dy * dy
+    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) + area.half_x
+        && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0) + area.half_y
 }
 
 /// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
@@ -167,6 +158,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State, area: super::Area) {
     const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
+    let up = super::select::Up::of(&s.players);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
         // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
@@ -177,7 +169,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State, area: super::Area) {
         {
             continue;
         }
-        let d = least_d2(&s.players, e.at);
+        let d = i64::try_from(up.least_d2(e.at)).unwrap_or(i64::MAX);
         for (rule, pool) in def.ranged_pools.iter().enumerate() {
             let Some(pool) = *pool else { continue };
             let p = pool.index();
