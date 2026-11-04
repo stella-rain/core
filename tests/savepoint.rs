@@ -305,7 +305,20 @@ fn prefix_mismatch_a_prefix_that_is_not_this_savepoints_run_is_refused() {
         seed: trial_setup().seed + 1,
         ..trial_setup()
     };
-    refuse(&recorder_with(&other_seed, Pack::bundled(), &play_run(300)).replay());
+    // The script's picks answer the offers of its own seed (the 64 px circle takes a star by tick
+    // 297); another seed's run answers whatever offer is open with the first option instead.
+    let mut other = RunRecorder::start_with_pack(&other_seed, Pack::bundled()).unwrap();
+    for c in play_run(300) {
+        if let Command::Step(input) = c {
+            if other.engine().offer_open() {
+                other.choose(PlayerIdx::SOLO, 0).unwrap();
+            }
+            other
+                .step(&[input, Default::default(), Default::default()])
+                .unwrap();
+        }
+    }
+    refuse(&other.replay());
 
     let mut content = good.clone();
     // Another first digit than the hash has (a pack whose hash starts with 0 stays itself).

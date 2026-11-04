@@ -116,12 +116,30 @@ fn ranges(ticks: u32, seed: u64) -> Vec<(u32, u32)> {
 
 #[test]
 fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
+    let mut same_runs = 0;
     for name in names() {
         let two = replay("current", &name);
         let one = replay("v1", &name);
         assert_eq!(one.setup.schema_version, 1, "{name}");
         let ticks = two.ticks;
         let full = read_step_range(&raw_of(&two), ticks, MAX, 0, ticks).unwrap();
+        // The frozen file holds the run as version 1 recorded it. Where the current run is
+        // another one (the 64 px pickup circle moved its picks and inputs), the cross-schema
+        // equality has nothing to compare; the frozen file is then read against its own whole
+        // log, so that every case is still read at both schemas.
+        let old_full = one.step_range(0, one.ticks, MAX).unwrap();
+        let same_run = one.ticks == ticks && old_full == full;
+        same_runs += usize::from(same_run);
+        if !same_run {
+            for (a, b) in ranges(one.ticks, 0x2545_f491_4f6c_dd1d) {
+                let old = one.step_range(a, b, MAX).unwrap();
+                assert_eq!(
+                    expand(&old.steps),
+                    oracle(&old_full, one.ticks, a, b),
+                    "{name} {a}..{b} at schema 1, against its own log"
+                );
+            }
+        }
         for (a, b) in ranges(ticks, 0x2545_f491_4f6c_dd1d) {
             let got = two.step_range(a, b, MAX).unwrap();
             assert_eq!(
@@ -130,11 +148,19 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
                 "{name} {a}..{b}"
             );
             // The rule is on ticks, not on how the file is stored.
-            let old = one.step_range(a, b, MAX).unwrap();
-            assert_eq!(old, got, "{name} {a}..{b} at schema 1");
+            if same_run {
+                let old = one.step_range(a, b, MAX).unwrap();
+                assert_eq!(old, got, "{name} {a}..{b} at schema 1");
+            }
         }
         assert_eq!(two.step_range(0, ticks, MAX).unwrap(), full, "{name}");
     }
+    // Not vacuous: the cases whose run the 64 px circle did not move still hold the same run in
+    // both schemas, and those are compared one against the other.
+    assert!(
+        same_runs >= 4,
+        "only {same_runs} cases hold one run in both schemas"
+    );
 }
 
 #[test]

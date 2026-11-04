@@ -231,7 +231,10 @@ fn launch(
     if (0..n).any(|k| attacks::busy(s, player, MISSILE_SLOT.saturating_add(k))) {
         return false;
     }
-    let targets = select::assist_targets(stage, s, me, range, usize::from(n));
+    // The buffers wait in the tick's scratch; `start_rune` below needs `s` whole.
+    let mut kept = std::mem::take(&mut s.scratch.assist_kept);
+    let mut targets = std::mem::take(&mut s.scratch.assist_targets);
+    select::assist_targets(stage, s, me, range, usize::from(n), &mut kept, &mut targets);
     let (from, facing) = (s.players[me].at, s.players[me].facing);
     for k in 0..n {
         let target = match targets.len() {
@@ -251,6 +254,8 @@ fn launch(
             }
         }
     }
+    s.scratch.assist_kept = kept;
+    s.scratch.assist_targets = targets;
     true
 }
 

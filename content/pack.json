@@ -4673,7 +4673,7 @@
     "drop_per_mille": 500,
     "pity": 2,
     "cap": 16,
-    "pickup_radius": 6144,
+    "pickup_radius": 16384,
     "rerolls": 2,
     "banishes": 1,
     "tiers": [
@@ -4712,7 +4712,7 @@
     "drop_one_in": 150,
     "amount": 30000,
     "cap": 5,
-    "pickup_radius": 6144
+    "pickup_radius": 16384
   },
   "elite_cap": 4,
   "level_table": {
@@ -6020,7 +6020,7 @@
     "drop_per_mille": 500,
     "pity": 2,
     "cap": 16,
-    "pickup_radius": 6144,
+    "pickup_radius": 16384,
     "rerolls": 2,
     "banishes": 1,
     "tiers": [
@@ -6411,7 +6411,7 @@
     "drop_per_mille": 500,
     "pity": 2,
     "cap": 16,
-    "pickup_radius": 6144,
+    "pickup_radius": 16384,
     "rerolls": 2,
     "banishes": 1,
     "tiers": [

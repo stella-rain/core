@@ -611,7 +611,7 @@ fn launch(
     // The main character's type bonuses, held to the content's limit.
     let held = &s.players[me].type_bonus_pct;
     let type_bonus_pct = (owner == Who::Player(me) && held.iter().any(|pct| *pct > 0))
-        .then(|| Box::new(capped_type_bonus(&s.match_ups, held)));
+        .then(|| capped_type_bonus(&s.match_ups, held));
     let facing = self::aim(s, s.at(owner), aim);
     let spot = uses_spot(&world.attacks[usize::from(attack.0)].phases).then(|| match aim {
         Aim::Entity(target) => s.find(target).map_or_else(|| s.at(owner), |w| s.at(w)),
@@ -766,7 +766,7 @@ pub(super) fn phase_damage(world: &World, r: &AttackRun) -> u32 {
         r.base,
         r.damage_pct,
         r.atk_up_pct,
-        r.type_bonus_pct.as_deref(),
+        r.type_bonus_pct.as_ref(),
         world.tuning.defence_k,
     )
 }

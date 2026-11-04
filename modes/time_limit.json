@@ -1294,7 +1294,7 @@
     "drop_per_mille": 500,
     "pity": 2,
     "cap": 16,
-    "pickup_radius": 6144,
+    "pickup_radius": 16384,
     "rerolls": 2,
     "banishes": 1,
     "tiers": [

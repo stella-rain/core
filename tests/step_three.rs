@@ -94,8 +94,14 @@ fn a_solo_run_is_the_same_run() {
 
 #[test]
 fn an_absent_slots_input_is_ignored_in_a_party() {
-    let mut plain = Engine::start_party(&trial_setup(), 2).unwrap();
-    let mut noisy = Engine::start_party(&trial_setup(), 2).unwrap();
+    // Seed 7, the first of 1 to 299 whose party plays 300 ticks before its first offer: the trial
+    // seed's first star is taken at tick 270 with the 64 px circle (504 with seed 7).
+    let setup = stella_rain_core::run_setup::RunSetup {
+        seed: 7,
+        ..trial_setup()
+    };
+    let mut plain = Engine::start_party(&setup, 2).unwrap();
+    let mut noisy = Engine::start_party(&setup, 2).unwrap();
     let mut t = 0;
     while !plain.offer_open() && t < 5400 {
         let (a, b) = (run_input(&plain, t), input_of(1, t));
