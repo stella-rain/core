@@ -1735,9 +1735,17 @@ fn hurt_player(
     }
 }
 
-/// `me` holds interact within reach of a downed teammate: it is rooted for this tick's update.
-fn near_downed(_s: &State, _inputs: &[Input; MAX_PLAYERS as usize], _me: PlayerIdx) -> bool {
-    false
+/// `me` is up, holds interact and stands within `REVIVE_RANGE` of a downed teammate (the test the
+/// reviver search uses): it is rooted for this tick's update (ADR-SIM-7). Every such player is
+/// rooted, not only the one whose hold counts. A party of one never calls it.
+fn near_downed(s: &State, inputs: &[Input; MAX_PLAYERS as usize], me: PlayerIdx) -> bool {
+    s.players[me].is_up()
+        && inputs[me.get()].interact
+        && s.players.indices().any(|other| {
+            other != me
+                && s.players[other].is_downed()
+                && overlaps(s.players[me].at, REVIVE_RANGE.0, s.players[other].at, 0)
+        })
 }
 
 /// Advances down timer and checks teammate revive hold for downed party players (ADR-SIM-7).

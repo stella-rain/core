@@ -91,7 +91,7 @@ pub(super) fn update(
     s: &mut State,
     me: PlayerIdx,
     input: Input,
-    _rooted: bool,
+    rooted: bool,
     events: &mut Vec<DomainEvent>,
 ) {
     // The held buttons follow the input of every present player, so a button held through a
@@ -111,6 +111,25 @@ pub(super) fn update(
     if !s.players[me].is_up() {
         return;
     }
+    // A rooted reviver stands still and does not attack, evade or use a skill; `assist` is a
+    // switch and stays. A charge or hold would release an attack when `main` reads as let go.
+    let (input, pressed) = if rooted {
+        break_charge(stage, s, me, events);
+        let acts = input::MAIN | input::SMASH | input::EVADE | input::SKILL;
+        let still = Input {
+            move_x: 0,
+            move_y: 0,
+            main: false,
+            smash: false,
+            evade: false,
+            skill: false,
+            auto: false,
+            ..input
+        };
+        (still, pressed & !acts)
+    } else {
+        (input, pressed)
+    };
     let p = &mut s.players[me];
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
