@@ -802,8 +802,8 @@ fn an_elite_spawned_event_names_its_asset_without_allocating() {
 }
 
 /// A steady tick of a party of three: the up-player snapshot, the box and the target roll are
-/// plain values, no heap (ADR-SIM-6). Slot 0's weapon taps every other tick, as in the steady
-/// window above.
+/// plain values, no heap (ADR-SIM-6). Every slot's weapon taps every other tick (slots 1 and 2 act
+/// since ADR-SIM-7), one of them a tick apart.
 #[test]
 fn a_steady_party_tick_allocates_and_frees_nothing() {
     let setup = stella_rain_core::run_setup::RunSetup {
@@ -816,14 +816,26 @@ fn a_steady_party_tick_allocates_and_frees_nothing() {
         main: tick % 2 == 0,
         ..Input::default()
     };
+    let inputs = |tick: u32| {
+        [
+            tap(tick),
+            Input {
+                move_x: 40,
+                ..tap(tick + 1)
+            },
+            Input {
+                move_y: -40,
+                evade: tick % 90 < 3,
+                ..tap(tick)
+            },
+        ]
+    };
     for tick in 1..=1200 {
-        engine.step(&[tap(tick), Default::default(), Default::default()]);
+        engine.step(&inputs(tick));
     }
     let mut per_tick = Vec::new();
     for tick in 1201..1261 {
-        per_tick.push(counted(|| {
-            engine.step(&[tap(tick), Default::default(), Default::default()])
-        }));
+        per_tick.push(counted(|| engine.step(&inputs(tick))));
     }
     let at = nonzero(&per_tick, 1201);
     assert!(

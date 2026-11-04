@@ -34,8 +34,8 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
 use crate::rewards::Rewards;
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
+use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
 use crate::trig::SCALE;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 use crate::weapon::{Charge, Hold, SmashEffect, Step, Weapon};
@@ -91,14 +91,15 @@ pub(super) fn update(
     s: &mut State,
     me: PlayerIdx,
     input: Input,
+    rooted: bool,
     events: &mut Vec<DomainEvent>,
 ) {
-    if !s.players[me].is_up() {
-        return;
-    }
+    // The held buttons follow the input of every present player, so a button held through a
+    // down is never a fresh press at the revive.
     let held = input::held_buttons(input);
     let pressed = held & !s.players[me].held;
     s.players[me].held = held;
+    // The timers run for a downed or out player too.
     let p = &mut s.players[me];
     p.invulnerable = p.invulnerable.saturating_sub(1);
     for t in &mut p.evade_recovering {
@@ -107,6 +108,28 @@ pub(super) fn update(
     p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     skill::tick(s, me);
+    if !s.players[me].is_up() {
+        return;
+    }
+    // A rooted reviver stands still and does not attack, evade or use a skill; `assist` is a
+    // switch and stays. A charge or hold would release an attack when `main` reads as let go.
+    let (input, pressed) = if rooted {
+        break_charge(stage, s, me, events);
+        let acts = input::MAIN | input::SMASH | input::EVADE | input::SKILL;
+        let still = Input {
+            move_x: 0,
+            move_y: 0,
+            main: false,
+            smash: false,
+            evade: false,
+            skill: false,
+            auto: false,
+            ..input
+        };
+        (still, pressed & !acts)
+    } else {
+        (input, pressed)
+    };
     let p = &mut s.players[me];
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
@@ -140,7 +163,73 @@ pub(super) fn update(
     }
 }
 
-fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
+/// The distance between the farthest two up players past which the soft tether pulls (ADR-SIM-5's
+/// view, 840 px wide).
+pub(super) const TETHER_RANGE: Fx = Fx(2 * super::VIEW_HALF_WIDTH.0);
+
+/// The share of the overshoot pulled back each tick: a placeholder the bot playtest tunes.
+pub(super) const TETHER_PULL_DIV: i64 = 8;
+
+/// The soft tether (ADR-SIM-7), after `schedule::steps::tether` checks it can act.
+///
+/// Over the up players (at most `MAX_PLAYERS`): when the farthest pair is more than
+/// `TETHER_RANGE` apart, every up player at the greatest distance from the bounding box's centre
+/// that is not dashing moves toward it by `TETHER_PULL_DIV`ths of the overshoot. A dash is never
+/// blocked (it is skipped), a downed or out player is neither measured nor pulled. Doubled
+/// coordinates keep the centre exact; `i128` holds the squares of a wide map.
+pub(super) fn tether(stage: &World, s: &mut State) {
+    let mut who = [PlayerIdx::SOLO; MAX_PLAYERS as usize];
+    let mut at = [(0_i128, 0_i128); MAX_PLAYERS as usize];
+    let mut n = 0;
+    for me in s.players.indices() {
+        let p = &s.players[me];
+        if p.is_up() {
+            who[n] = me;
+            at[n] = (i128::from(p.at.x.0), i128::from(p.at.y.0));
+            n += 1;
+        }
+    }
+    if n < 2 {
+        return;
+    }
+    let (who, at) = (&who[..n], &at[..n]);
+    let mut far = 0_i128;
+    let (mut lo, mut hi) = (at[0], at[0]);
+    for (i, &(ax, ay)) in at.iter().enumerate() {
+        lo = (lo.0.min(ax), lo.1.min(ay));
+        hi = (hi.0.max(ax), hi.1.max(ay));
+        for &(bx, by) in &at[i + 1..] {
+            far = far.max((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
+        }
+    }
+    let range = i128::from(TETHER_RANGE.0);
+    if far <= range * range {
+        return;
+    }
+    // The pull is a share of the farthest pair's overshoot.
+    let overshoot = far.isqrt() - range;
+    let pull = overshoot / i128::from(TETHER_PULL_DIV);
+    let (cx, cy) = (lo.0 + hi.0, lo.1 + hi.1);
+    let offset = |&(x, y): &(i128, i128)| (cx - 2 * x, cy - 2 * y);
+    let dist2 = |(x, y): (i128, i128)| x * x + y * y;
+    let top = at.iter().map(|a| dist2(offset(a))).max().unwrap_or(0);
+    for (me, a) in who.iter().zip(at) {
+        let v = offset(a);
+        if dist2(v) != top || s.players[*me].dash.is_some() {
+            continue;
+        }
+        let len2 = dist2(v).isqrt();
+        if len2 == 0 {
+            continue;
+        }
+        let step = pull.min(len2 / 2);
+        let dx = i64::try_from(v.0 * step / len2).unwrap_or(0);
+        let dy = i64::try_from(v.1 * step / len2).unwrap_or(0);
+        move_by(stage, &mut s.players[*me], dx, dy);
+    }
+}
+
+pub(super) fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
     // Both are within a speed cap or an evade's distance, which the validator bounds.
     p.at = stage.map().clamp(Point {
         x: p.at.x.saturating_add(Fx::from_wide(dx)),
@@ -799,6 +888,18 @@ fn release(
         level: u8::try_from(level).unwrap_or(u8::MAX),
         perfect,
     });
+}
+
+/// A player going down stops what it was doing: the dash ends, the combo run ends, a charge or
+/// hold breaks and the buffer clears (ADR-SIM-7). Party only.
+pub(super) fn stand_down(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    s.players[me].dash = None;
+    cancel(stage, s, me, events);
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer.

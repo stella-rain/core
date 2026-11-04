@@ -20,6 +20,7 @@
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
+//! | `tether` | with two or more up players, when the farthest two are more than `TETHER_RANGE` apart, each up player farthest from the bounding box's centre that is not dashing is pulled toward it by an eighth of the overshoot, so a dash is never blocked; downed and out players are neither measured nor pulled (ADR-SIM-7, `player`) |
 //! | `player_update` | the main character turns to its stick, picks a target while aim assist or auto mode is on (`select`), recovers evade charges, evades, uses its stage skill (`skill`), walks its combo, then dashes or moves (`player`) |
 //! | `runes_fly` | thrown runes' hit boxes (boomerang) fly a step, after the main character has moved (`runes`) |
 //! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (`orbit`) |
@@ -141,6 +142,8 @@ pub(crate) use offer_rating::offer_ratings;
 #[cfg(test)]
 mod damage_tests;
 mod orbit;
+#[cfg(test)]
+mod party_act_tests;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
@@ -164,6 +167,8 @@ pub(crate) mod state;
 mod state_codec;
 mod state_hash;
 mod stun;
+#[cfg(test)]
+mod tether_tests;
 mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
@@ -1719,6 +1724,8 @@ fn hurt_player(
         p.down_ticks = 0;
         p.revive_hold = 0;
         events.push(DomainEvent::PlayerDowned { player: me });
+        // A dash, charge, hold or combo step does not wait for the revive.
+        player::stand_down(stage, s, me, events);
         if offer_open_for(s, me) {
             if let Some(timer) = s.offer_timer.as_mut() {
                 timer.due[me.get()] = Some(s.tick);
@@ -1729,6 +1736,19 @@ fn hurt_player(
     if b.breaks_charge {
         player::break_charge(stage, s, me, events);
     }
+}
+
+/// `me` is up, holds interact and stands within `REVIVE_RANGE` of a downed teammate (the test the
+/// reviver search uses): it is rooted for this tick's update (ADR-SIM-7). Every such player is
+/// rooted, not only the one whose hold counts. A party of one never calls it.
+fn near_downed(s: &State, inputs: &[Input; MAX_PLAYERS as usize], me: PlayerIdx) -> bool {
+    s.players[me].is_up()
+        && inputs[me.get()].interact
+        && s.players.indices().any(|other| {
+            other != me
+                && s.players[other].is_downed()
+                && overlaps(s.players[me].at, REVIVE_RANGE.0, s.players[other].at, 0)
+        })
 }
 
 /// Advances down timer and checks teammate revive hold for downed party players (ADR-SIM-7).
@@ -1909,9 +1929,9 @@ fn hit_companions_side(
 
 /// The main character's death wins over a clear on the same tick. In a party, the run continues
 /// while any player is up (ADR-SIM-7).
-fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let failed = if s.players.len() == 1 {
-        s.players[me].hp == 0
+        s.players[PlayerIdx::SOLO].hp == 0
     } else {
         !s.players.any_up()
     };
