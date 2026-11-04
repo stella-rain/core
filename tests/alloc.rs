@@ -202,15 +202,20 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. EVENT-ARC: a
 /// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0. `worst_tick` 786 -> 3 allocs, the frees unchanged: its
 /// allocations were the `ContentId` strings of the entities' assets and statuses, now shared.
-/// `worst_minute` (427 allocs, 2 reallocs, 426 frees, the same on three runs) covers the whole
-/// minute, with its wave spawns, death bursts and offers, which `Run::play` chooses.
+/// `worst_minute` covers the whole minute, with its wave spawns, death bursts and offers, which
+/// `Run::play` chooses. PICKUP-64: stars are taken from 64 px, so the player holds a type bonus
+/// and meets more defeats in the minute; that took it to 1,570 allocs (the boxed type bonus of
+/// each launch, and two `Vec`s per defeat and per aim assist's targets), and the three are in
+/// `Scratch` or inline now: 427 allocs, 2 reallocs, 426 frees -> 13, 0, 8 (the expertise offers'
+/// `Vec`s, a hooked orb's hook and path, the boss's and a shrine's entity), and `worst_tick`
+/// 3 -> 1 (aim assist's two). `worst_minute_peak` stays 0, 0, 0 on its new tick.
 /// The cases are built by `bench_fixtures`, outside the count.
 pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
-    ("worst_tick", pin(3, 0, 3)),
+    ("worst_tick", pin(1, 0, 1)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute", pin(427, 2, 426)),
+    ("worst_minute", pin(13, 0, 8)),
     ("worst_minute_peak", pin(0, 0, 0)),
 ];
 
