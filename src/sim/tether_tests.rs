@@ -141,7 +141,7 @@ fn reference(at: &[Point], me: usize) -> (i64, i64) {
     if far <= range * range {
         return (0, 0);
     }
-    let step = (far.isqrt() - range) / 8;
+    let step = (far.isqrt() - range) / i128::from(TETHER_PULL_DIV);
     let v = |p: &Point| (c2x - 2 * i128::from(p.x.0), c2y - 2 * i128::from(p.y.0));
     let d2 = |p: &Point| {
         let (x, y) = v(p);
