@@ -72,16 +72,19 @@ pub fn first_point_tick() -> u32 {
 }
 
 /// The scripted input of slot `slot` (1 or 2) of a party at `tick`: distinct patterns, so a
-/// log carries each slot. Slots 1 and 2 are passive in the rules for now.
+/// log carries each slot. Slots 1 and 2 also press `main` (`tick % 40 < 5`), so that their attacks
+/// are exercised (ADR-SIM-7).
 pub fn scripted_input(slot: u8, tick: u32) -> Input {
     match slot {
         1 => Input {
             move_y: 50,
+            main: tick % 40 < 5,
             skill: tick % 90 < 30,
             ..Input::default()
         },
         _ => Input {
             move_x: -30,
+            main: tick % 40 < 5,
             evade: tick % 120 < 10,
             ..Input::default()
         },
