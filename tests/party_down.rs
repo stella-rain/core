@@ -338,3 +338,19 @@ fn one_out_and_one_up_keeps_running() {
         assert_eq!(e.outcome(), Outcome::Running);
     }
 }
+
+/// H. A solo run's failing tick shows no `down` view: it is for a party only (ADR-SIM-7).
+#[test]
+fn a_solo_run_that_fails_shows_no_down_view() {
+    let (setup, content) = lethal_setup(50_000, 15);
+    let mut e = Engine::start_party_with(&setup, &content, 1).unwrap();
+    let idle = Input::default();
+    while e.outcome() == Outcome::Running && e.tick() < 120 {
+        e.step(&[idle, idle, idle]);
+    }
+    assert_eq!(e.outcome(), Outcome::Failed);
+    let snap = e.snapshot();
+    assert_eq!(snap.players[0].hp, 0);
+    assert!(snap.players[0].down.is_none());
+    assert!(!snap.players[0].out);
+}
