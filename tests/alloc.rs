@@ -800,3 +800,34 @@ fn a_stage_skill_used_event_names_its_skill_without_allocating() {
 fn an_elite_spawned_event_names_its_asset_without_allocating() {
     assert_producer("EliteSpawned", &elite_rows(), pin(1, 0, 0));
 }
+
+/// A steady tick of a party of three: the up-player snapshot, the box and the target roll are
+/// plain values, no heap (ADR-SIM-6). Slot 0's weapon taps every other tick, as in the steady
+/// window above.
+#[test]
+fn a_steady_party_tick_allocates_and_frees_nothing() {
+    let setup = stella_rain_core::run_setup::RunSetup {
+        seed: 20_261_104,
+        pick_stats: true,
+        ..Default::default()
+    };
+    let mut engine = Engine::start_party(&setup, 3).unwrap();
+    let tap = |tick: u32| Input {
+        main: tick % 2 == 0,
+        ..Input::default()
+    };
+    for tick in 1..=1200 {
+        engine.step(&[tap(tick), Default::default(), Default::default()]);
+    }
+    let mut per_tick = Vec::new();
+    for tick in 1201..1261 {
+        per_tick.push(counted(|| {
+            engine.step(&[tap(tick), Default::default(), Default::default()])
+        }));
+    }
+    let at = nonzero(&per_tick, 1201);
+    assert!(
+        at.is_empty(),
+        "(tick, allocs, frees) in a party's ticks: {at:?}"
+    );
+}

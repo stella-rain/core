@@ -411,7 +411,7 @@ fn the_random_switch_reaches_both_up_players_and_is_a_pure_roll() {
     s.tick = 4000;
     let mut hits = [0u32; 2];
     let mut off_nearest = 0;
-    for key in 0..1000 {
+    for key in 0..2000 {
         // The enemy stands at x = 10, nearest to slot 0.
         let p = pick(&s, 10, key, true);
         hits[usize::from(p)] += 1;
@@ -423,11 +423,12 @@ fn the_random_switch_reaches_both_up_players_and_is_a_pure_roll() {
         );
         assert_eq!(pick(&s, 10, key, false), 0, "no roll: the nearest");
     }
+    // 30 percent of the keys roll, half of them to the player that is not the nearest.
     assert!(
-        hits[0] >= 200 && hits[1] >= 200,
+        hits[0] >= 200 && (200..400).contains(&hits[1]),
         "both are reached: {hits:?}"
     );
-    assert!(off_nearest < 1000);
+    assert_eq!(off_nearest, hits[1]);
 }
 
 #[test]

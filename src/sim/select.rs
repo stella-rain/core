@@ -12,6 +12,7 @@ use std::cmp::Reverse;
 use crate::behaviour::Selector;
 use crate::fixed::Point;
 use crate::id::EntityId;
+use crate::rng::SplitMix64;
 use crate::sim::state::State;
 
 use super::entity::Who;
@@ -83,9 +84,13 @@ fn dist2(a: Point, b: Point) -> u64 {
 /// some, then the nearest, ties to the lowest slot. `random` marks an enemy no aggro drives that
 /// may switch target now and then (see `rolled`).
 pub(super) fn chase(s: &State, up: &Up, from: Point, key: u32, random: bool) -> PlayerIdx {
-    let _ = (s, key, random);
     if up.n == 1 {
         return up.slot[0];
+    }
+    if random && up.aggro[..up.n].iter().all(|&a| a == 0) {
+        if let Some(k) = rolled(s, key, up.n) {
+            return up.slot[k];
+        }
     }
     // Slots run lowest first, so a strict `<` keeps the lowest of equals.
     let mut best = 0;
@@ -97,6 +102,27 @@ pub(super) fn chase(s: &State, up: &Up, from: Point, key: u32, random: bool) -> 
         }
     }
     up.slot[best]
+}
+
+/// How long an enemy keeps a randomly chosen target (3 s), staggered by the enemy's key.
+/// Placeholder values for the bot playtest to tune.
+const TARGET_EPOCH_TICKS: u32 = 180;
+/// The percent of epochs in which an enemy that no aggro drives switches to a random up player.
+const RANDOM_TARGET_PCT: u64 = 30;
+/// Keeps the target roll apart from the crit roll's hash of the same seed.
+const TARGET_ROLL_TAG: u64 = 0x7a5b_3c9d_1e47_f2a1;
+
+/// The random switch (ADR-SIM-7 point 6): none, or the index among the `n` up players that the
+/// enemy with roll key `key` takes for the epoch it is in. A hash of the run's seed, the epoch and
+/// the key, as the crit roll is: it takes no draw from any stream, so no stream moves in any
+/// mode and a run with one player up never reaches it.
+fn rolled(s: &State, key: u32, n: usize) -> Option<usize> {
+    let epoch = s.tick.saturating_add(key % TARGET_EPOCH_TICKS) / TARGET_EPOCH_TICKS;
+    let mut h = s.crit_seed ^ TARGET_ROLL_TAG;
+    for part in [epoch, key] {
+        h = SplitMix64::new(h ^ u64::from(part)).next_u64();
+    }
+    (h % 100 < RANDOM_TARGET_PCT).then(|| usize::try_from((h >> 32) % n as u64).unwrap_or(0))
 }
 
 /// The player `me`, an agent or the boss, goes for: a companion follows the lowest up slot; an
