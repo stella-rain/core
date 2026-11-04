@@ -206,7 +206,10 @@ fn tick_names(src: &str) -> Vec<&str> {
 
 #[test]
 fn the_two_schedules_name_the_same_steps_in_the_same_order() {
-    let live = tick_names(include_str!("../sim/schedule.rs"));
+    // A step only the live rules have (a party's soft tether, which solo skips: ADR-SIM-7)
+    // is left out; the frozen schedule never gains one.
+    let mut live = tick_names(include_str!("../sim/schedule.rs"));
+    live.retain(|name| *name != "tether");
     let frozen = tick_names(include_str!("../sim_v1/schedule.rs"));
     assert!(live.len() > 10);
     assert_eq!(live, frozen);
