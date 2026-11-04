@@ -1,7 +1,7 @@
 //! Experience, levels and stat points (ADR-REPL-5; DS18), in a stage with `levels`.
 //!
-//! Defeated enemies give their wave's experience as they are removed in the collisions. Each
-//! level reached raises a run stat (ADR-CONT-1) by its step, and adds the step to its effect's
+//! Defeated enemies give their wave's experience, to the players who are up, as they are removed
+//! in the collisions. Each level reached raises a run stat (ADR-CONT-1) by its step, and adds the step to its effect's
 //! total, in one of two ways. By default the first stat of the run's priority below its limit
 //! rises at once, with no pause (`StatRaised`). With `pick_stats` the level queues a stat offer
 //! instead: it opens in `open_offers` after the boss and expertise offers, and `Engine::choose`
@@ -54,9 +54,9 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
             _ => stage.tuning.default_xp,
         })
         .fold(0u32, u32::saturating_add);
-    // Every present player earns it, each raised by its own `XpPct`.
+    // Every player that is up earns it, each raised by its own `XpPct` (ADR-SIM-7 point 5).
     for me in s.players.indices() {
-        if s.players.career(me).progress.is_some() {
+        if s.players[me].is_up() && s.players.career(me).progress.is_some() {
             gain(stage, s, me, xp, events);
         }
     }

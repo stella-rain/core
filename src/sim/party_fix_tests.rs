@@ -409,41 +409,37 @@ fn level_up_state(n: u8) -> (World, State) {
 }
 
 #[test]
-fn a_level_up_with_max_hp_first_does_not_lift_a_downed_player() {
+fn a_kill_with_max_hp_first_does_not_lift_or_raise_a_downed_player() {
     let (w, mut s) = level_up_state(2);
     s.players[slot(1)].hp = 0;
     s.players[slot(1)].max_hp = 100;
     let up = s.players[slot(0)].max_hp;
     let mut ev = Vec::new();
     super::levels::credit_defeated(&w, &mut s, &mut ev);
-    assert!(
-        ev.iter()
-            .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
-    );
+    assert!(leveled(&ev) > 0);
     assert_eq!(s.players[slot(1)].hp, 0);
-    assert!(s.players[slot(1)].max_hp > 100, "the most still rises");
+    assert_eq!(
+        s.players[slot(1)].max_hp,
+        100,
+        "a downed player earns no level"
+    );
     assert!(s.players[slot(0)].max_hp > up);
     assert_eq!(s.players[slot(0)].hp, s.players[slot(0)].max_hp);
 }
 
-/// DS-0386: a solo run, or a party of one, follows the same rule at 0 hit points.
+/// A solo run, or a party of one, follows the same rule at 0 hit points: no level, and the run
+/// fails on that tick.
 #[test]
-fn a_solo_player_at_zero_hit_points_is_not_lifted_by_a_level_up() {
-    for timed in [false, true] {
-        let (w, mut s) = level_up_state(1);
-        s.players[slot(0)].hp = 0;
-        s.players[slot(0)].max_hp = 100;
-        let mut ev = Vec::new();
-        super::levels::credit_defeated(&w, &mut s, &mut ev);
-        assert!(
-            ev.iter()
-                .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
-        );
-        assert_eq!(s.players[slot(0)].hp, 0, "timed {timed}");
-        assert!(s.players[slot(0)].max_hp > 100);
-        decide_outcome(&w, &mut s, &mut ev);
-        assert_eq!(s.outcome, Outcome::Failed);
-    }
+fn a_solo_player_at_zero_hit_points_earns_no_level_and_the_run_fails() {
+    let (w, mut s) = level_up_state(1);
+    s.players[slot(0)].hp = 0;
+    s.players[slot(0)].max_hp = 100;
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(leveled(&ev), 0);
+    assert_eq!((s.players[slot(0)].hp, s.players[slot(0)].max_hp), (0, 100));
+    decide_outcome(&w, &mut s, &mut ev);
+    assert_eq!(s.outcome, Outcome::Failed);
 }
 
 #[test]
