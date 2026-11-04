@@ -8,7 +8,8 @@
 //! takes one of the stats below their limit, in the run stats file's order, with no reroll, skip
 //! or banish. With every stat at its limit a level gives and opens nothing. What a total does:
 //! `MaxHp` that many more hit points at most and
-//! as many healed at once; `AttackPct` that percent more damage; `AttackSpeedPct` that percent
+//! as many healed at once, unless the player is at 0 hit points (a revive alone gets it up);
+//! `AttackPct` that percent more damage; `AttackSpeedPct` that percent
 //! faster combo steps (`attacks::faster`); `EvadePct` that percent shorter evade cooldowns, at
 //! least 1 tick; `SpeedPct` that
 //! percent more speed; `XpPct` that percent more experience from each tick's kills. A reward
@@ -222,7 +223,7 @@ pub(crate) fn offer_view(s: &State, me: PlayerIdx) -> Option<StatOfferView> {
 }
 
 /// Adds `amount` to the total of `effect`; `MaxHp` also raises the most hit points and heals
-/// as many.
+/// as many, unless the player is at 0 hit points.
 pub(super) fn add_effect(
     p: &mut Progress,
     player: &mut PlayerState,
@@ -233,7 +234,11 @@ pub(super) fn add_effect(
     *total = total.saturating_add(amount);
     if effect == StatEffect::MaxHp {
         player.max_hp = player.max_hp.saturating_add(amount);
-        player.hp = player.hp.saturating_add(amount).min(player.max_hp);
+        // Only a player that is up is healed: a player at 0 hit points gets up by a revive alone
+        // (ADR-SIM-7), in a solo run too.
+        if player.hp > 0 {
+            player.hp = player.hp.saturating_add(amount).min(player.max_hp);
+        }
     }
 }
 
