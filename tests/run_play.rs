@@ -80,7 +80,9 @@ const SCRIPT_NEAR: i64 = 32 * 256;
 /// slot that only walked one way would stand at the map's edge and earn nothing.
 pub fn scripted_input(engine: &Engine, slot: u8, tick: u32) -> Input {
     let s = engine.snapshot();
-    let me = s.players[usize::from(slot)].at;
+    // The snapshot lists the present players in slot order, so a hole shifts the index.
+    let place = (engine.present() & ((1 << slot) - 1)).count_ones() as usize;
+    let me = s.players[place].at;
     let d2 = |at: stella_rain_core::fixed::Point| {
         let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
         x * x + y * y
@@ -272,7 +274,7 @@ pub fn party_cases() -> Vec<PartyCase> {
         },
         PartyCase {
             name: "three_tutorial",
-            setup: at("tutorial", 4),
+            setup: at("tutorial", 76),
             party: 3,
             ticks: 3000,
             changes: vec![],
