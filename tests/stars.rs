@@ -1011,12 +1011,13 @@ fn an_offer_names_its_named_candidate_and_only_that_one() {
 
 #[test]
 fn every_bundled_mode_takes_a_star_a_sword_step_away_without_moving() {
-    // A star lands where its enemy fell, about one sword step (96 pixels) from a player who
-    // stands and swings; a pickup circle smaller than that leaves every star on the map until
-    // the player walks over it. 96 pixels is a placeholder (Kade, 2026-11-05).
+    // A star lands where its enemy fell, inside the hit circle that killed it: up to 64 pixels
+    // from a player who stands and swings the main combo (its largest step). A pickup circle
+    // smaller than that leaves the stars on the map until the player walks over them. 64 pixels
+    // is also `limits::MAX_PICKUP_RADIUS` (Kade, 2026-11-05).
     use stella_rain_core::fixed::UNITS_PER_PX;
     use stella_rain_core::pack::Pack;
-    let step = 96 * UNITS_PER_PX;
+    let step = 64 * UNITS_PER_PX;
     let content = Pack::bundled().content();
     let modes = [
         ("time_limit", Some(content.time_limit().stars()), None),
