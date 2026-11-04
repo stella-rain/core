@@ -397,8 +397,8 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 7] = [
-    ("two_time_limit", 3000, Outcome::Running, [72, 7, 0], 1220),
-    ("three_time_limit", 3000, Outcome::Running, [57, 7, 7], 1090),
+    ("two_time_limit", 3000, Outcome::Running, [69, 7, 0], 1190),
+    ("three_time_limit", 3000, Outcome::Running, [56, 7, 7], 1080),
     ("three_tutorial", 1017, Outcome::Cleared, [8, 1, 4], 0),
     ("join_two", 3000, Outcome::Running, [72, 4, 0], 1230),
     ("leave_hole", 3000, Outcome::Running, [59, 1, 12], 1200),
