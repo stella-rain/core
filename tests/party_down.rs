@@ -18,7 +18,7 @@ fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).unwrap()
 }
 
-fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
+fn lethal_setup_waves(damage: u32, interval: u32, second_wave: bool) -> (RunSetup, RunContent) {
     let mut v: serde_json::Value =
         serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = json!(damage);
@@ -26,7 +26,7 @@ fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
 
     let mut tlv: serde_json::Value =
         serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
-    tlv["waves"] = json!([{
+    let mut waves = vec![json!({
         "at_tick": 1,
         "enemy": {
             "base": "bat", "hp": 9_000_000, "radius": 2048,
@@ -34,6 +34,7 @@ fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
             "rules": [{
                 "when": { "type": "always" },
                 "target": "nearest_ally",
+                "once": true,
                 "do": {
                     "type": "attack",
                     "attack": {
@@ -42,8 +43,34 @@ fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
                 }
             }]
         },
-        "spawn": { "x": 0, "y": 0 }
-    }]);
+        "spawn": { "x": 524032, "y": 524288 },
+        "count": 1,
+        "every_ticks": 0
+    })];
+    if second_wave {
+        waves.push(json!({
+            "at_tick": 60,
+            "enemy": {
+                "base": "bat", "hp": 9_000_000, "radius": 2048,
+                "movement": { "type": "straight", "vx": 0, "vy": 0 },
+                "rules": [{
+                    "when": { "type": "always" },
+                    "target": "nearest_ally",
+                    "once": true,
+                    "do": {
+                        "type": "attack",
+                        "attack": {
+                            "preset": { "id": "aimed_single", "args": [interval] }
+                        }
+                    }
+                }]
+            },
+            "spawn": { "x": 536576, "y": 524288 },
+            "count": 1,
+            "every_ticks": 0
+        }));
+    }
+    tlv["waves"] = json!(waves);
     let mode = TimeLimit::parse(tlv.to_string().as_bytes(), Versions::CURRENT).unwrap();
     let content = RunContent::bundled()
         .clone()
@@ -55,6 +82,10 @@ fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
         ..Default::default()
     };
     (setup, content)
+}
+
+fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
+    lethal_setup_waves(damage, interval, false)
 }
 
 /// A. Down state and out timer (ADR-SIM-7, ADR-SIM-8).
@@ -172,7 +203,7 @@ fn open_timed_offer_auto_picks_on_down() {
 /// D. Wipe in decide_outcome (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn wipe_in_decide_outcome() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup_waves(50_000, 15, true);
 
     // Solo: 0 HP fails immediately.
     let mut e_solo = Engine::start_party_with(&setup, &content, 1).unwrap();
@@ -199,14 +230,7 @@ fn wipe_in_decide_outcome() {
 
     // When all players are down/out (!any_up()), the run fails on that tick.
     while e_party.outcome() == Outcome::Running && e_party.tick() < 120 {
-        e_party.step(&[
-            Input {
-                move_x: -100,
-                ..Input::default()
-            },
-            idle,
-            idle,
-        ]);
+        e_party.step(&[idle, idle, idle]);
     }
     assert_eq!(e_party.outcome(), Outcome::Failed);
 }

@@ -24,7 +24,9 @@ fn dist2(a: Point, b: Point) -> u64 {
 }
 
 fn allies(s: &State) -> impl Iterator<Item = Who> + '_ {
-    std::iter::once(Who::Player(PlayerIdx::SOLO)) // N=1: M-DOWN-PARTY
+    s.players
+        .indices()
+        .map(Who::Player)
         .chain((0..s.companions.len()).map(Who::Companion))
         .filter(|w| s.is_alive(*w))
 }
@@ -44,8 +46,10 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
     match selector {
         Selector::Myself => Some(me),
         Selector::Player => s
-            .is_alive(Who::Player(PlayerIdx::SOLO)) // N=1: M-DOWN-PARTY
-            .then_some(Who::Player(PlayerIdx::SOLO)), // N=1: M-DOWN-PARTY
+            .players
+            .indices()
+            .map(Who::Player)
+            .find(|w| s.is_alive(*w)),
         Selector::NearestEnemy => enemies(s).min_by_key(by_distance),
         Selector::BossFirst => match s.boss {
             Some(_) if s.is_alive(Who::Boss) => Some(Who::Boss),

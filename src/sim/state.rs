@@ -646,7 +646,7 @@ impl Players {
     /// Whether any player in the party is alive and not out (ADR-SIM-7).
     #[inline]
     pub(crate) fn any_up(&self) -> bool {
-        self.iter().any(PlayerState::is_up)
+        self.up_count() > 0
     }
 
     /// How many players in the party are alive and not out (ADR-SIM-7).
@@ -821,13 +821,13 @@ impl PlayerState {
     /// Alive and not out (ADR-SIM-7).
     #[inline]
     pub fn is_up(&self) -> bool {
-        self.hp > 0 && !self.out
+        self.hp > 0 && !self.is_out()
     }
 
     /// At 0 HP and not yet permanently out (ADR-SIM-7).
     #[inline]
     pub fn is_downed(&self) -> bool {
-        self.hp == 0 && !self.out
+        self.hp == 0 && !self.is_out()
     }
 
     /// Permanently out for the run (ADR-SIM-7).
