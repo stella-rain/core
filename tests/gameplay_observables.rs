@@ -260,7 +260,7 @@ const PINS: &[(&str, &str)] = &[
     ("stages/clear", "7782fe5452336015"),
     ("stages/dash", "e9238f744eb6a7d7"),
     ("stages/evade", "b94267dd6ef7be31"),
-    ("stages/fail", "f266fb627097150d"),
+    ("stages/fail", "116526feb458d0ba"),
     ("stages/landscape", "af19216aa444cb8c"),
     ("stages/leash_edge", "42fde0a34a5740dd"),
     ("stages/melee", "bae175d2a4c88db4"),
