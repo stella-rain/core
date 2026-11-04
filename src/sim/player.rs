@@ -163,7 +163,17 @@ pub(super) fn update(
     }
 }
 
-fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
+/// The distance between the farthest two up players past which the soft tether pulls (ADR-SIM-5's
+/// view, 840 px wide).
+pub(super) const TETHER_RANGE: Fx = Fx(2 * super::VIEW_HALF_WIDTH.0);
+
+/// The share of the overshoot pulled back each tick: a placeholder the bot playtest tunes.
+pub(super) const TETHER_PULL_DIV: i64 = 8;
+
+/// The soft tether (ADR-SIM-7): see `schedule::steps::tether`.
+pub(super) fn tether(_stage: &World, _s: &mut State) {}
+
+pub(super) fn move_by(stage: &World, p: &mut PlayerState, dx: i64, dy: i64) {
     // Both are within a speed cap or an evade's distance, which the validator bounds.
     p.at = stage.map().clamp(Point {
         x: p.at.x.saturating_add(Fx::from_wide(dx)),
