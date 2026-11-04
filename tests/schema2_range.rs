@@ -116,6 +116,7 @@ fn ranges(ticks: u32, seed: u64) -> Vec<(u32, u32)> {
 
 #[test]
 fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
+    let mut same_runs = 0;
     for name in names() {
         let two = replay("current", &name);
         let one = replay("v1", &name);
@@ -128,6 +129,7 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
         // log, so that every case is still read at both schemas.
         let old_full = one.step_range(0, one.ticks, MAX).unwrap();
         let same_run = one.ticks == ticks && old_full == full;
+        same_runs += usize::from(same_run);
         if !same_run {
             for (a, b) in ranges(one.ticks, 0x2545_f491_4f6c_dd1d) {
                 let old = one.step_range(a, b, MAX).unwrap();
@@ -153,6 +155,12 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
         }
         assert_eq!(two.step_range(0, ticks, MAX).unwrap(), full, "{name}");
     }
+    // Not vacuous: the cases whose run the 64 px circle did not move still hold the same run in
+    // both schemas, and those are compared one against the other.
+    assert!(
+        same_runs >= 4,
+        "only {same_runs} cases hold one run in both schemas"
+    );
 }
 
 #[test]

@@ -256,9 +256,10 @@ pub(super) fn assist_target(
     best.map(|(_, _, id)| id)
 }
 
-/// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
-/// aim, left in `targets` (`kept` is its working list; both come from the scratch). One pass over the enemies, each set against at most `n` kept. Its own walk, so
-/// that aim assist's stays as the tick-cost gate measures it (ADR-SIM-5).
+/// Aim assist's first `n` targets, in its order (`assist_target`'s first): the aim of homing
+/// missiles. `kept` is the working list and `targets` the result; both are cleared on entry and
+/// come from the scratch. One pass over the enemies, each set against at most `n` kept. Its own
+/// walk, so that aim assist's stays as the tick-cost gate measures it (ADR-SIM-5).
 pub(super) fn assist_targets(
     stage: &World,
     s: &State,
