@@ -11,6 +11,7 @@ use crate::id::EntityId;
 use crate::input::Input;
 use crate::rewards::Rarity;
 use crate::run_setup::{OfferMode, RunSetup};
+use crate::run_stats::StatEffect;
 use crate::snapshot::OfferKind;
 
 pub(super) fn slot(i: u8) -> PlayerIdx {
@@ -300,4 +301,184 @@ fn an_offer_open_when_a_player_goes_down_closes_on_that_tick() {
         count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
         1
     );
+}
+
+// --- no hit points while downed (ADR-SIM-7) -----------------------------------------------------
+
+/// The place of the MaxHp stat among the run stats.
+fn max_hp_stat(s: &State, me: PlayerIdx) -> usize {
+    let p = s.players.career(me).progress.as_ref().unwrap();
+    p.stats
+        .iter()
+        .position(|r| r.effect == StatEffect::MaxHp)
+        .expect("a MaxHp stat")
+}
+
+fn add_max_hp(s: &mut State, me: PlayerIdx, amount: u32) {
+    let (player, career) = s.players.both_mut(me);
+    super::levels::add_effect(
+        career.progress.as_mut().unwrap(),
+        player,
+        StatEffect::MaxHp,
+        amount,
+    );
+}
+
+#[test]
+fn max_hp_raises_the_most_and_heals_only_a_player_that_is_up() {
+    let (_, mut s) = party(3);
+    s.players[slot(0)].max_hp = 100;
+    s.players[slot(0)].hp = 50;
+    add_max_hp(&mut s, slot(0), 20);
+    assert_eq!(
+        (s.players[slot(0)].hp, s.players[slot(0)].max_hp),
+        (70, 120)
+    );
+
+    for (i, is_out) in [(1, false), (2, true)] {
+        s.players[slot(i)].max_hp = 100;
+        s.players[slot(i)].hp = 0;
+        s.players[slot(i)].out = is_out;
+        add_max_hp(&mut s, slot(i), 20);
+        assert_eq!((s.players[slot(i)].hp, s.players[slot(i)].max_hp), (0, 120));
+    }
+    assert!(s.players[slot(1)].is_downed());
+}
+
+#[test]
+fn a_stat_offer_of_max_hp_taken_while_downed_leaves_the_player_down() {
+    let mut e = engine(2, false);
+    let s = st(&mut e);
+    down(s, 1);
+    s.players[slot(1)].max_hp = 100;
+    let at = max_hp_stat(s, slot(1));
+    s.players
+        .career_mut(slot(1))
+        .progress
+        .as_mut()
+        .unwrap()
+        .offer_open = true;
+    let option = crate::snapshot::OfferOption::Take {
+        candidate: u8::try_from(at).unwrap(),
+    };
+    let mut ev = Vec::new();
+    super::levels::choose(s, slot(1), option, &mut ev);
+    assert!(
+        ev.iter()
+            .any(|e| matches!(e, DomainEvent::StatRaised { .. }))
+    );
+    assert_eq!(s.players[slot(1)].hp, 0);
+    assert!(s.players[slot(1)].max_hp > 100);
+    assert!(s.players[slot(1)].is_downed());
+    // Nobody got up: with slot 0 down too the run fails.
+    down(s, 0);
+    let (w, _) = party(2);
+    decide_outcome(&w, s, &mut ev);
+    assert_eq!(s.outcome, Outcome::Failed);
+}
+
+/// A state with one enemy at 0 hit points that gives a great deal of experience, and the run's
+/// stats spent by priority with MaxHp first.
+fn level_up_state(n: u8) -> (World, State) {
+    let mut e = engine(n, false);
+    for _ in 0..1200 {
+        if !st(&mut e).enemies.is_empty() {
+            break;
+        }
+        e.step(&idle());
+    }
+    let Run::V2 { world, state } = e.run() else {
+        panic!("the live rules")
+    };
+    let (mut world, mut s) = (world.clone(), state.clone());
+    assert!(!s.enemies.is_empty(), "an enemy to defeat");
+    s.enemies[0].hp = 0;
+    s.enemies[0].burst = false;
+    world.tuning.default_xp = 1_000_000;
+    for w in &mut world.stage.waves {
+        w.xp = Some(1_000_000);
+    }
+    for i in s.players.indices().collect::<Vec<_>>() {
+        let at = max_hp_stat(&s, i);
+        let p = s.players.career_mut(i).progress.as_mut().unwrap();
+        p.pick_stats = false;
+        p.priority = vec![u8::try_from(at).unwrap()];
+    }
+    (world, s)
+}
+
+#[test]
+fn a_level_up_with_max_hp_first_does_not_lift_a_downed_player() {
+    let (w, mut s) = level_up_state(2);
+    s.players[slot(1)].hp = 0;
+    s.players[slot(1)].max_hp = 100;
+    let up = s.players[slot(0)].max_hp;
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(
+        ev.iter()
+            .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
+    );
+    assert_eq!(s.players[slot(1)].hp, 0);
+    assert!(s.players[slot(1)].max_hp > 100, "the most still rises");
+    assert!(s.players[slot(0)].max_hp > up);
+    assert_eq!(s.players[slot(0)].hp, s.players[slot(0)].max_hp);
+}
+
+/// DS-0386: a solo run, or a party of one, follows the same rule at 0 hit points.
+#[test]
+fn a_solo_player_at_zero_hit_points_is_not_lifted_by_a_level_up() {
+    for timed in [false, true] {
+        let (w, mut s) = level_up_state(1);
+        s.players[slot(0)].hp = 0;
+        s.players[slot(0)].max_hp = 100;
+        let mut ev = Vec::new();
+        super::levels::credit_defeated(&w, &mut s, &mut ev);
+        assert!(
+            ev.iter()
+                .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
+        );
+        assert_eq!(s.players[slot(0)].hp, 0, "timed {timed}");
+        assert!(s.players[slot(0)].max_hp > 100);
+        decide_outcome(&w, &mut s, &mut ev);
+        assert_eq!(s.outcome, Outcome::Failed);
+    }
+}
+
+#[test]
+fn a_revive_after_a_max_hp_raise_while_downed_uses_the_raised_most() {
+    let (w, mut s) = party(2);
+    s.players[slot(1)].max_hp = 100;
+    down(&mut s, 1);
+    add_max_hp(&mut s, slot(1), 20);
+    s.players[slot(1)].revive_hold = 179;
+    s.players[slot(0)].at = s.players[slot(1)].at;
+    let mut inputs = idle();
+    inputs[0].interact = true;
+    let mut ev = Vec::new();
+    tick_down_and_revive(&w, &mut s, &inputs, &mut ev);
+    assert_eq!(s.players[slot(1)].hp, 120 * 30 / 100);
+}
+
+/// Guards: nothing else lifts a player from 0 hit points.
+#[test]
+fn a_downed_player_gets_no_boss_heal_pickup_or_regeneration() {
+    let (w, mut s) = party(2);
+    down(&mut s, 1);
+    assert!(w.heal.is_some(), "the bundled stage heals");
+    let mut ev = Vec::new();
+    super::heal::boss_killed(&w, &mut s, slot(1), &mut ev);
+    let at = s.players[slot(1)].at;
+    let id = EntityId(s.next_id);
+    s.next_id += 1;
+    s.heal_pickups
+        .as_mut()
+        .expect("pickups")
+        .push(super::state::HealPickup { id, at });
+    super::heal::pick_up(&w, &mut s, slot(1), &mut ev);
+    s.players.career_mut(slot(1)).regen = 5;
+    s.tick = 600;
+    super::loadout::regen(&mut s, slot(1));
+    assert_eq!(s.players[slot(1)].hp, 0);
+    assert!(!ev.iter().any(|e| matches!(e, DomainEvent::Healed { .. })));
 }
