@@ -242,7 +242,7 @@ pub fn party_cases() -> Vec<PartyCase> {
         },
         PartyCase {
             name: "three_tutorial",
-            setup: at("tutorial", 67),
+            setup: at("tutorial", 4),
             party: 3,
             ticks: 3000,
             changes: vec![],
@@ -250,7 +250,7 @@ pub fn party_cases() -> Vec<PartyCase> {
         },
         PartyCase {
             name: "three_time_limit",
-            setup: at("time_limit", 22),
+            setup: at("time_limit", 4),
             party: 3,
             ticks: 3000,
             changes: vec![],

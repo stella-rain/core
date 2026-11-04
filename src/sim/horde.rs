@@ -33,7 +33,6 @@ use crate::engine::Outcome;
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentKey, AgentSource, State};
 use crate::stage::{Side, ViewEdge};
 
@@ -79,13 +78,7 @@ pub(crate) fn spawn_boss(stage: &World, s: &mut State) {
     }
 
     let spawn = stage.boss(boss).boss.spawn;
-    let to = stage.map().clamp(Point {
-        x: s.players[PlayerIdx::SOLO].at.x, // N=1: M-DOWN-PARTY
-        y: s.players[PlayerIdx::SOLO] // N=1: M-DOWN-PARTY
-            .at
-            .y
-            .saturating_add(Fx(-stage.tuning.boss_arrival_above)),
-    });
+    let to = arrival_point(stage, &s.players);
     let arrival = Arrival {
         at: to,
         // How far the definition's points move for this arrival (`boss::boss_point`).
@@ -117,6 +110,22 @@ pub(super) fn final_boss_dead(s: &State) -> bool {
         .as_ref()
         .is_some_and(|h| h.spawned as usize == h.boss_ticks.len())
         && s.boss.as_ref().is_some_and(|b| b.hp == 0)
+}
+
+/// Where a boss arrives: above the party (ADR-SIM-7), at the mid x of the players the world
+/// reads and the y of the top-most, held on the map.
+pub(super) fn arrival_point(stage: &World, players: &super::state::Players) -> Point {
+    let (mut lo, mut hi, mut top) = (i32::MAX, i32::MIN, i32::MAX);
+    for me in super::Players::slots(players.targets()) {
+        let at = players[me].at;
+        lo = lo.min(at.x.0);
+        hi = hi.max(at.x.0);
+        top = top.min(at.y.0);
+    }
+    stage.map().clamp(Point {
+        x: Fx(lo + (hi - lo) / 2),
+        y: Fx(top).saturating_add(Fx(-stage.tuning.boss_arrival_above)),
+    })
 }
 
 /// Brings the elite of this tick's minute, if it is one (see the module).
@@ -152,7 +161,12 @@ pub(super) fn spawn_elite(stage: &World, s: &mut State, events: &mut Vec<DomainE
         side: Side::Any,
         along: None,
     };
-    let at = super::edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.horde, any); // N=1: M-DOWN-PARTY
+    let at = super::edge_point(
+        stage,
+        super::Area::of_view(&stage.map(), &s.players),
+        &mut s.rng.horde,
+        any,
+    );
     let id = EntityId(s.next_id);
     let key = AgentKey {
         source: AgentSource::Wave,

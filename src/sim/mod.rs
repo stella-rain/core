@@ -149,6 +149,8 @@ mod players_tests;
 mod push;
 #[cfg(test)]
 mod rejoin_tests;
+#[cfg(test)]
+mod route_tests;
 mod runes;
 mod schedule;
 mod scratch;
@@ -239,6 +241,52 @@ pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
     Point {
         x: axis(at.x, map.width, VIEW_HALF_WIDTH),
         y: axis(at.y, map.height, VIEW_HALF_HEIGHT),
+    }
+}
+
+/// The bounding box of the view centres of the players the world reads (`Players::targets`):
+/// its centre and half extents. One player gives that player's view centre and half extents 0,
+/// so every use equals the single-player rule (ADR-SIM-7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Area {
+    pub(crate) centre: Point,
+    pub(crate) half_x: i64,
+    pub(crate) half_y: i64,
+}
+
+impl Area {
+    pub(crate) fn of_view(map: &crate::stage::Map, players: &Players) -> Area {
+        let mask = players.targets();
+        // One player (nearly every run): its view centre, no box.
+        if mask & mask.wrapping_sub(1) == 0 {
+            let me = Players::slots(mask).next().unwrap_or(PlayerIdx::SOLO);
+            return Area::at(view_centre(map, players[me].at));
+        }
+        let (mut lo, mut hi) = ((i32::MAX, i32::MAX), (i32::MIN, i32::MIN));
+        for me in Players::slots(mask) {
+            let c = view_centre(map, players[me].at);
+            lo = (lo.0.min(c.x.0), lo.1.min(c.y.0));
+            hi = (hi.0.max(c.x.0), hi.1.max(c.y.0));
+        }
+        let mid = |lo: i32, hi: i32| lo + (hi - lo) / 2;
+        let centre = Point {
+            x: Fx(mid(lo.0, hi.0)),
+            y: Fx(mid(lo.1, hi.1)),
+        };
+        Area {
+            centre,
+            half_x: i64::from(hi.0 - centre.x.0),
+            half_y: i64::from(hi.1 - centre.y.0),
+        }
+    }
+
+    /// The area of a single point: no extent.
+    pub(crate) fn at(centre: Point) -> Area {
+        Area {
+            centre,
+            half_x: 0,
+            half_y: 0,
+        }
     }
 }
 
@@ -830,6 +878,8 @@ fn spawn_waves(stage: &World, s: &mut State) {
     if stage.director {
         return spawn_waves_directed(stage, s);
     }
+    // The party's box, built on the first due wave of the tick: players do not move meanwhile.
+    let mut area = None;
     for (i, wave) in stage.waves.iter().enumerate() {
         let spawned = s.spawned[i];
         if spawned >= wave.count {
@@ -839,7 +889,7 @@ fn spawn_waves(stage: &World, s: &mut State) {
         if u64::from(s.tick) < due {
             continue;
         }
-        spawn_wave(stage, s, i);
+        spawn_wave(stage, s, i, &mut area);
     }
 }
 
@@ -885,6 +935,7 @@ fn spawn_waves_directed(stage: &World, s: &mut State) {
             spawn[p] = false;
         }
     }
+    let mut area = None;
     for p in 0..n {
         let i = due[p];
         if !spawn[p] {
@@ -894,12 +945,12 @@ fn spawn_waves_directed(stage: &World, s: &mut State) {
             s.scratch.held_spawns = s.scratch.held_spawns.saturating_add(1);
             continue;
         }
-        spawn_wave(stage, s, i);
+        spawn_wave(stage, s, i, &mut area);
     }
 }
 
 /// One spawn of wave `i`: counted as spawned, placed, and refused only by the caps.
-fn spawn_wave(stage: &World, s: &mut State, i: usize) {
+fn spawn_wave(stage: &World, s: &mut State, i: usize, area: &mut Option<Area>) {
     let wave = &stage.waves[i];
     s.spawned[i] += 1;
     let key = AgentKey {
@@ -908,10 +959,18 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         rule: 0,
     };
     let at = match (wave.edge, wave.spawn) {
-        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge), // N=1: M-DOWN-PARTY
+        (Some(edge), _) => {
+            let area = *area.get_or_insert_with(|| Area::of_view(&stage.map(), &s.players));
+            edge_point(stage, area, &mut s.rng.spawn, edge)
+        }
         (None, Some(p)) => p,
-        // The validator refuses a wave with neither.
-        (None, None) => s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
+        // The validator refuses a wave with neither: the lowest up player's place.
+        (None, None) => {
+            s.players[Players::slots(s.players.targets())
+                .next()
+                .unwrap_or(PlayerIdx::SOLO)]
+            .at
+        }
     };
     spawn_enemy(stage, s, key, at);
 }
@@ -1058,19 +1117,14 @@ fn usable_side(parts: &[Option<(i64, i64)>; 4], i: usize) -> usize {
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
 /// over the on-map parts of all four sides, each corner on one side only (`any_parts`); a side with no
 /// `along` is one draw along its part; with `along` there is no draw.
-pub(super) fn edge_point(
-    stage: &World,
-    from: Point,
-    rng: &mut SplitMix64,
-    edge: ViewEdge,
-) -> Point {
+pub(super) fn edge_point(stage: &World, area: Area, rng: &mut SplitMix64, edge: ViewEdge) -> Point {
     let map = stage.map();
     let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
-    let centre = view_centre(&map, from);
+    let centre = area.centre;
     let (px, py) = (i64::from(centre.x.0), i64::from(centre.y.0));
     let (ex, ey) = (
-        i64::from(stage.tuning.spawn_edge_x.0),
-        i64::from(stage.tuning.spawn_edge_y.0),
+        i64::from(stage.tuning.spawn_edge_x.0) + area.half_x,
+        i64::from(stage.tuning.spawn_edge_y.0) + area.half_y,
     );
     let sides = rect_sides(px, py, ex, ey);
     let parts = sides.map(|side| side.on_map(w, h));

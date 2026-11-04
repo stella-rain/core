@@ -19,16 +19,16 @@
 use super::{MAX_LEASH_MOVES_PER_TICK, World};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::State;
 use crate::stage::Map;
 
 /// Moves the enemies the leash catches; returns how many moved.
 pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) -> u32 {
     let map = stage.map();
-    let centre = super::view_centre(&map, s.players[PlayerIdx::SOLO].at); // N=1: M-DOWN-PARTY
-    let reach_x = i64::from(stage.tuning.leash_reach_x.0);
-    let reach_y = i64::from(stage.tuning.leash_reach_y.0);
+    let area = super::Area::of_view(&map, &s.players);
+    let centre = area.centre;
+    let reach_x = i64::from(stage.tuning.leash_reach_x.0) + area.half_x;
+    let reach_y = i64::from(stage.tuning.leash_reach_y.0) + area.half_y;
     let mut moved = 0;
     for i in 0..s.enemies.len() {
         if moved == MAX_LEASH_MOVES_PER_TICK {
@@ -46,7 +46,7 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
         {
             continue;
         }
-        let to = land_point(stage, &map, centre, dx, dy);
+        let to = land_point_in(stage, &map, area, dx, dy);
         let e = &mut s.enemies[i];
         e.at = to;
         e.order = None;
@@ -57,14 +57,33 @@ pub(super) fn relocate(stage: &World, s: &mut State, events: &mut Vec<DomainEven
     moved
 }
 
-/// The landing point on the land rectangle around `centre`, falling back to the opposite side
+/// `land_point` for the party's box (ADR-SIM-7): the land rectangle grows by the box's half
+/// extents.
+pub(super) fn land_point_in(
+    stage: &World,
+    map: &Map,
+    area: super::Area,
+    dx: i64,
+    dy: i64,
+) -> Point {
+    land_rect(stage, map, area.centre, (area.half_x, area.half_y), dx, dy)
+}
+
+/// The landing point for a box of no extent (a single player; the tests' form), on the land
+/// rectangle around `centre`, falling back to the opposite side
 /// when the mirrored side is off the map, and clamped to the map border if neither fits.
+#[cfg(test)]
 pub(super) fn land_point(stage: &World, map: &Map, centre: Point, dx: i64, dy: i64) -> Point {
+    land_rect(stage, map, centre, (0, 0), dx, dy)
+}
+
+/// `land_point` with the land rectangle grown by `grow` (the box's half extents) on each axis.
+fn land_rect(stage: &World, map: &Map, centre: Point, grow: (i64, i64), dx: i64, dy: i64) -> Point {
     let (lx, ly) = (
-        i64::from(stage.tuning.leash_land_x.0),
-        i64::from(stage.tuning.leash_land_y.0),
+        i64::from(stage.tuning.leash_land_x.0) + grow.0,
+        i64::from(stage.tuning.leash_land_y.0) + grow.1,
     );
-    let (ox, oy) = landing_offset(stage, dx, dy);
+    let (ox, oy) = landing_offset(lx, ly, dx, dy);
     let (ax, ay) = (dx.abs(), dy.abs());
     let i = if lx * ay <= ly * ax {
         if ox > 0 { 1 } else { 3 }
@@ -90,11 +109,7 @@ pub(super) fn land_point(stage: &World, map: &Map, centre: Point, dx: i64, dy: i
 /// The offset from the view's centre to the landing point of an enemy at (`dx`, `dy`) from it,
 /// outside the reach rectangle: mirrored, and scaled along the enemy's own direction until it
 /// meets the landing rectangle. Integer division truncates toward zero.
-fn landing_offset(stage: &World, dx: i64, dy: i64) -> (i32, i32) {
-    let (lx, ly) = (
-        i64::from(stage.tuning.leash_land_x.0),
-        i64::from(stage.tuning.leash_land_y.0),
-    );
+fn landing_offset(lx: i64, ly: i64, dx: i64, dy: i64) -> (i32, i32) {
     let (ax, ay) = (dx.abs(), dy.abs());
     // The vertical side is reached first when `lx / ax <= ly / ay`; the divisor of the branch
     // taken is never 0, since the trigger excludes dx = dy = 0 and a zero axis picks the other.

@@ -115,7 +115,9 @@ pub(super) fn update(
     // The validator lets only defined presets through.
     let main = stage.weapon();
     s.players[me].target = match main {
-        Some(m) if input.assist || input.auto => select::assist_target(stage, s, m.assist_range.0),
+        Some(m) if input.assist || input.auto => {
+            select::assist_target(stage, s, me, m.assist_range.0)
+        }
         _ => None,
     };
     if pressed & input::EVADE != 0 && s.players[me].evade_ready() > 0 {

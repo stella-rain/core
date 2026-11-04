@@ -219,7 +219,7 @@ impl State {
     /// Adds to an ally's aggro (ADR-SIM-4), up to a cap. Others have none to raise.
     pub(super) fn raise_aggro(&mut self, id: EntityId, amount: u32) {
         let slot = match self.find_ally(id) {
-            Some(Who::Player(PlayerIdx::SOLO)) => &mut self.players[PlayerIdx::SOLO].aggro, // N=1: M-DOWN-PARTY
+            Some(Who::Player(me)) => &mut self.players[me].aggro,
             Some(Who::Companion(i)) => &mut self.companions[i].aggro,
             _ => return,
         };
@@ -518,8 +518,12 @@ pub(super) fn tick_statuses_and_aggro(
         list.retain(|st| st.dot.is_some() || st.remaining > 0);
         dots
     }
-    let mut dots = age(&mut s.players[PlayerIdx::SOLO].statuses); // N=1: M-DOWN-PARTY
-    s.players[PlayerIdx::SOLO].aggro = s.players[PlayerIdx::SOLO].aggro.saturating_sub(aggro_decay); // N=1: M-DOWN-PARTY
+    // Every present player ages, up or not: a downed player's clocks run.
+    let mut dots = false;
+    for me in s.players.indices() {
+        dots |= age(&mut s.players[me].statuses);
+        s.players[me].aggro = s.players[me].aggro.saturating_sub(aggro_decay);
+    }
     if let Some(b) = &mut s.boss {
         dots |= age(&mut b.statuses);
         for part in &mut b.parts {

@@ -123,12 +123,14 @@ pub(super) fn ranged_may_start(world: &World, s: &State, id: EntityId, pool: Ran
 
 /// Whether `e` stands inside the view rectangle around `centre` (the camera's, from
 /// `view_centre`), edges included.
-fn in_view(e: Point, centre: Point) -> bool {
+pub(super) fn in_view(e: Point, area: super::Area) -> bool {
+    let centre = area.centre;
     let (dx, dy) = (
         i64::from(e.x.0) - i64::from(centre.x.0),
         i64::from(e.y.0) - i64::from(centre.y.0),
     );
-    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0)
+    dx.abs() <= i64::from(VIEW_HALF_WIDTH.0) + area.half_x
+        && dy.abs() <= i64::from(VIEW_HALF_HEIGHT.0) + area.half_y
 }
 
 /// Gives each pool's free tokens to the nearest ready regular enemies in view (RA1, DS82): at
@@ -137,7 +139,7 @@ fn in_view(e: Point, centre: Point) -> bool {
 /// charges are left, its condition and selector hold now) and no attack of theirs running (RA-STUN);
 /// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
 /// worked out from the state each tick. No random number is drawn.
-pub(super) fn grant_ranged(world: &World, s: &mut State, me: PlayerIdx) {
+pub(super) fn grant_ranged(world: &World, s: &mut State, up: &super::select::Up) {
     for g in &mut s.scratch.ranged_grants {
         g.clear();
     }
@@ -156,23 +158,18 @@ pub(super) fn grant_ranged(world: &World, s: &mut State, me: PlayerIdx) {
     const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
-    let player = s.players[me].at;
-    let centre = super::view_centre(&world.map(), player);
+    let area = super::Area::of_view(&world.map(), &s.players);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
         // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
         if def.ranged_pools.is_empty()
             || e.hp == 0
-            || !in_view(e.at, centre)
+            || !in_view(e.at, area)
             || super::stun::stunned(&e.statuses)
         {
             continue;
         }
-        let (dx, dy) = (
-            i64::from(e.at.x.0) - i64::from(player.x.0),
-            i64::from(e.at.y.0) - i64::from(player.y.0),
-        );
-        let d = dx * dx + dy * dy;
+        let d = i64::try_from(up.least_d2(e.at)).unwrap_or(i64::MAX);
         for (rule, pool) in def.ranged_pools.iter().enumerate() {
             let Some(pool) = *pool else { continue };
             let p = pool.index();
@@ -312,10 +309,15 @@ pub(super) fn start_with(
     if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
     }
+    // The player whose type bonuses apply: the owner, when a player owns it.
+    let me = match owner {
+        Who::Player(me) => me,
+        _ => PlayerIdx::SOLO,
+    };
     launch(
         world,
         s,
-        PlayerIdx::SOLO, // N=1: M-DOWN-PARTY
+        me,
         Launch {
             owner,
             slot,
@@ -809,7 +811,8 @@ pub(super) fn capped_type_bonus(
 
 /// Whether run `r` is the main character's combo step, A or B.
 pub(super) fn is_combo(s: &State, r: &AttackRun) -> bool {
-    r.owner == s.players.id(PlayerIdx::SOLO) && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
+    r.slot == super::player::COMBO_SLOT
+        && (r.owner == s.players.id(PlayerIdx::SOLO) || s.players.of_id(r.owner).is_some())
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
