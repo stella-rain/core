@@ -492,6 +492,18 @@ impl Run {
         }
     }
 
+    /// The Stardust of the player in `player`; `None` for a slot that is not present. Version 1
+    /// has slot 0 only.
+    pub(crate) fn stardust_of(&self, player: PlayerIdx) -> Option<u32> {
+        match self {
+            Run::V1 { .. } => (player == PlayerIdx::SOLO).then(|| self.stardust()),
+            Run::V2 { state, .. } => state
+                .players
+                .is_present(player)
+                .then(|| state.players.career(player).stardust.unwrap_or(0)),
+        }
+    }
+
     pub(crate) fn outcome(&self) -> Outcome {
         match self {
             Run::V1 { state, .. } => state.outcome,

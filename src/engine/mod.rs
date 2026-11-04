@@ -665,6 +665,13 @@ impl Engine {
         self.run.stardust()
     }
 
+    /// The Stardust the player in `player` has earned, times 10 (ADR-SAVE-6 point 2): `None` for
+    /// a slot that is not present. A version 1 run answers slot 0 with `stardust` and `None` for
+    /// the others.
+    pub fn stardust_of(&self, player: PlayerIdx) -> Option<u32> {
+        self.run.stardust_of(player)
+    }
+
     pub fn outcome(&self) -> Outcome {
         self.run.outcome()
     }
