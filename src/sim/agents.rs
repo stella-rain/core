@@ -96,7 +96,8 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
 pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Before any rule fires: the ranged tokens go to the nearest ready enemies in view (RA1).
-    // Places, hit points and aggro do not change while the agents act: one copy for all.
+    // Places and hit points do not change while the agents act: one copy for all. Aggro an
+    // agent's own action raises counts from the next tick.
     let up = Up::of(&s.players);
     super::attacks::grant_ranged(stage, s, &up);
     // One player up (nearly every run) is its own loop: no branch per agent (ADR-SIM-6).

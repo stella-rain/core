@@ -19,8 +19,8 @@ use super::entity::Who;
 use super::overlaps;
 
 /// A copy of the places, slots and aggro of the players the world reads (`Players::targets`):
-/// positions, hit points and aggro do not change while the agents act, so the agent step takes
-/// it once. With one player every use reads that one place, no loop (ADR-SIM-6).
+/// positions and hit points do not change while the agents act (aggro an action raises counts
+/// from the next tick), so the agent step takes it once. With one player every use reads that one place, no loop (ADR-SIM-6).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Up {
     pub(super) n: usize,
