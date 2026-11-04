@@ -497,6 +497,11 @@ fn weights(top: Rarity) -> RarityWeights {
 /// difficulty's range is every rarity; the players are at `levels`.
 fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
     let (mut w, mut s) = party(n);
+    set_tiers(&mut w, &mut s, levels);
+    (w, s)
+}
+
+fn set_tiers(w: &mut World, s: &mut State, levels: [u32; 3]) {
     let stars = w.stage.stars.as_mut().expect("stars");
     stars.tiers = [(1, Rarity::Uncommon), (5, Rarity::Rare), (7, Rarity::Epic)]
         .into_iter()
@@ -510,7 +515,6 @@ fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
     for i in s.players.indices().collect::<Vec<_>>() {
         s.players.career_mut(i).progress.as_mut().unwrap().level = levels[i.get()];
     }
-    (w, s)
 }
 
 /// What a boss kill does to the offers due, as `collide` calls it.
@@ -856,4 +860,73 @@ fn the_stardust_counter_still_saturates() {
     s.players.career_mut(slot(0)).stardust = Some(max - 1);
     credit_all(&w, &mut s, false);
     assert_eq!(dust(&s, 0), max);
+}
+
+// --- the star tier of the shared drop ------------------------------------------------------
+
+/// One non-elite kill that always drops a star, with the players at `levels`; returns the
+/// rarity of the star dropped.
+fn dropped(n: u8, levels: [u32; 3], elite: bool, f: impl Fn(&mut State)) -> Rarity {
+    let (mut w, mut s) = level_up_state(n);
+    set_tiers(&mut w, &mut s, levels);
+    let cfg = w.stage.stars.as_mut().unwrap();
+    cfg.drop_per_mille = 1000;
+    cfg.pity = 0;
+    if elite {
+        s.enemies[0].elite = Some(crate::sim::state::EliteState {
+            home: Default::default(),
+            called: false,
+            boss_call: Default::default(),
+            disguised: false,
+        });
+    }
+    f(&mut s);
+    let mut ev = Vec::new();
+    super::stars::drop_from_defeated(&w, &mut s, &mut ev);
+    let rarities: Vec<Rarity> = ev
+        .iter()
+        .filter_map(|e| match e {
+            DomainEvent::StarDropped { rarity, .. } => Some(*rarity),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(rarities.len(), 1, "one star drops");
+    rarities[0]
+}
+
+#[test]
+fn the_star_tier_is_the_highest_level_among_the_players_that_are_up() {
+    let l = [3, 7, 5];
+    assert_eq!(dropped(3, l, false, |_| {}), Rarity::Epic);
+    assert_eq!(dropped(3, l, false, |s| down(s, 1)), Rarity::Rare);
+    assert_eq!(dropped(3, l, false, |s| out(s, 1)), Rarity::Rare);
+}
+
+#[test]
+fn one_player_up_draws_its_own_tier() {
+    let l = [3, 7, 5];
+    let r = dropped(3, l, false, |s| {
+        down(s, 1);
+        out(s, 2);
+    });
+    assert_eq!(r, Rarity::Uncommon);
+}
+
+#[test]
+fn nobody_up_draws_from_the_highest_present_level() {
+    let l = [3, 7, 5];
+    let r = dropped(3, l, false, |s| {
+        down(s, 0);
+        down(s, 1);
+        out(s, 2);
+    });
+    assert_eq!(r, Rarity::Epic);
+    assert_eq!(dropped(1, [7, 1, 1], false, |s| down(s, 0)), Rarity::Epic);
+}
+
+#[test]
+fn an_elite_draws_from_the_tier_above_the_up_level() {
+    let l = [3, 7, 5];
+    assert_eq!(dropped(3, l, true, |s| down(s, 1)), Rarity::Epic);
+    assert_eq!(dropped(3, l, true, |_| {}), Rarity::Epic);
 }
