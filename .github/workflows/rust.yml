@@ -220,9 +220,8 @@ jobs:
           - arch: windows-x86_64
             runner: windows-latest
             debug: false
-          - arch: macos-arm64
-            runner: macos-latest
-            debug: false
+          # macos-arm64 (runner: macos-latest, debug: false) is off for now: no macOS runner picked
+          # up the job on 2026-11-04. Put this entry back to turn it on again.
     steps:
       - uses: actions/checkout@v7
         with:
