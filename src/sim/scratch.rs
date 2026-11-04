@@ -6,6 +6,7 @@ use super::grid::Grid;
 use super::hit_boxes::Swing;
 use super::push::Body;
 use super::state::PlayerIdx;
+use crate::fixed::Point;
 use crate::id::EntityId;
 
 /// Makes room in `v` for `capacity` items in all, whatever it holds now: a vector is reserved
@@ -50,6 +51,15 @@ pub(crate) struct Scratch {
     /// read as the hit lands (ADR-SIM-7). Not hashed: enemy indices
     /// are stable from the first hit to that removal (ADR-SIM-3).
     pub(super) killers: Vec<Option<PlayerIdx>>,
+    /// The Stardust base of each defeated enemy of the tick (`stardust::credit_defeated`).
+    pub(super) bases: Vec<u32>,
+    /// Where each enemy defeated this tick fell and whether it was an elite
+    /// (`stars::drop_from_defeated`).
+    pub(super) fallen: Vec<(Point, bool)>,
+    /// Aim assist's candidates kept in order, and the targets picked from them
+    /// (`select::assist_targets`).
+    pub(super) assist_kept: Vec<(u8, u64, EntityId)>,
+    pub(super) assist_targets: Vec<EntityId>,
     /// Whether each orb of the tick was used up.
     pub(super) consumed: Vec<bool>,
     /// The enemies granted a ranged token this tick, by `RangedPool` (RA1): worked out from the
@@ -92,7 +102,9 @@ impl Scratch {
     /// - `hit_lists`: `MAX_ATTACK_TASKS` lists of one entry per enemy and a few more.
     /// - `swings`: a hit box per run and per zone; `consumed`: one per orb;
     ///   `ranged_grants`: `MAX_RANGED_ATTACKERS` ids in each pool;
-    ///   `shrine_ids`: one id per enemy.
+    ///   `shrine_ids`: one id per enemy;
+    ///   `bases`, `fallen`: one entry per enemy; `assist_kept`, `assist_targets`: the most homing
+    ///   missiles a rune throws, and one more kept while a candidate is inserted.
     pub(super) fn reserve(&mut self, enemies: usize, width: i32, height: i32) {
         self.reserved = Some(Reserved {
             enemies,
@@ -104,6 +116,11 @@ impl Scratch {
         reserve_to(&mut self.found, enemies);
         reserve_to(&mut self.shrine_ids, enemies);
         reserve_to(&mut self.killers, enemies);
+        reserve_to(&mut self.bases, enemies);
+        reserve_to(&mut self.fallen, enemies);
+        let missiles = crate::runes::MAX_HOMING_MISSILES as usize;
+        reserve_to(&mut self.assist_kept, missiles + 1);
+        reserve_to(&mut self.assist_targets, missiles);
         reserve_to(&mut self.found_bits, enemies.div_ceil(64));
         self.grid.reserve(enemies, width, height);
         while self.hit_lists.len() < HIT_LISTS {

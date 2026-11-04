@@ -257,7 +257,7 @@ pub(super) fn assist_target(
 }
 
 /// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
-///. One pass over the enemies, each set against at most `n` kept. Its own walk, so
+/// aim, left in `targets` (`kept` is its working list; both come from the scratch). One pass over the enemies, each set against at most `n` kept. Its own walk, so
 /// that aim assist's stays as the tick-cost gate measures it (ADR-SIM-5).
 pub(super) fn assist_targets(
     stage: &World,
@@ -265,9 +265,12 @@ pub(super) fn assist_targets(
     me: PlayerIdx,
     range: i32,
     n: usize,
-) -> Vec<EntityId> {
+    kept: &mut Vec<(u8, u64, EntityId)>,
+    targets: &mut Vec<EntityId>,
+) {
     let from = s.players[me].at;
-    let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
+    kept.clear();
+    targets.clear();
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
         if !overlaps(from, range, at, radius) {
             return;
@@ -296,5 +299,5 @@ pub(super) fn assist_targets(
             consider(class, e.at, stage.defs.agent(e.def).radius.0, e.id);
         }
     }
-    kept.into_iter().map(|(_, _, id)| id).collect()
+    targets.extend(kept.iter().map(|&(_, _, id)| id));
 }
