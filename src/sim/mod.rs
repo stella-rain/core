@@ -740,10 +740,13 @@ fn open_offers(
     for me in s.players.indices() {
         open_offers_for(stage, rewards, expertise, s, me, events);
     }
-    if !s.players.is_solo() {
+    if !s.players.is_solo() && s.players.indices().any(|me| s.players[me].is_downed()) {
         take_downed(stage, rewards, expertise, s, events);
     }
 }
+
+/// The most offers a downed player takes on one tick: more than a queue can hold.
+const MAX_AUTO_PICKS: u32 = 256;
 
 /// A downed player takes option 0 of every offer on the tick it opens (ADR-SIM-7 point 4): the
 /// events of a manual pick, nothing recorded (ADR-REPL-5 point 5). Each pick opens the next offer
@@ -761,7 +764,11 @@ fn take_downed(
         if !s.players[me].is_downed() {
             continue;
         }
-        while offer_open_for(s, me) {
+        // Bounded, so a pick that closes nothing cannot hold the tick (fail closed).
+        for _ in 0..MAX_AUTO_PICKS {
+            if !offer_open_for(s, me) {
+                break;
+            }
             let Some(option) = offer_options(stage, rewards, expertise, s, me)
                 .first()
                 .copied()

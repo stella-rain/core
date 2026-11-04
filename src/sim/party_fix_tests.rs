@@ -621,3 +621,25 @@ fn a_players_boss_candidates_come_from_its_own_stream() {
     };
     assert_eq!(candidates(3), candidates(2));
 }
+
+/// The step itself reaches `take_downed`: a downed player's star offer never stays open past
+/// the tick.
+#[test]
+fn a_step_takes_a_downed_players_offer_in_a_stop_run() {
+    let mut e = engine(2, false);
+    down(st(&mut e), 1);
+    st(&mut e)
+        .players
+        .career_mut(slot(1))
+        .offers
+        .as_mut()
+        .unwrap()
+        .due
+        .push(star_due());
+    e.step(&idle());
+    assert!(!offer_open_for(st(&mut e), slot(1)));
+    assert_eq!(
+        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
+        1
+    );
+}
