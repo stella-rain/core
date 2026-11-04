@@ -308,6 +308,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 runs.into_iter().map(view).collect()
             },
             statuses: status_views(&s.player.statuses, false),
+            down: None,
+            out: false,
         }],
         entities,
         zones: s

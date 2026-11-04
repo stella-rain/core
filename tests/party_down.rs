@@ -199,7 +199,14 @@ fn wipe_in_decide_outcome() {
 
     // When all players are down/out (!any_up()), the run fails on that tick.
     while e_party.outcome() == Outcome::Running && e_party.tick() < 120 {
-        e_party.step(&[Input { move_x: -100, ..Input::default() }, idle, idle]);
+        e_party.step(&[
+            Input {
+                move_x: -100,
+                ..Input::default()
+            },
+            idle,
+            idle,
+        ]);
     }
     assert_eq!(e_party.outcome(), Outcome::Failed);
 }
