@@ -14,8 +14,9 @@
 #   time_limit_tick      639,222 /   736,729   [ 1,800,000 /  1,600,000]
 #   worst_minute   1,338,452,898 / 1,489,452,678   [4,600,000,000 / 5,100,000,000]
 #   worst_minute_peak    379,517 /   421,351   [ 1,300,000 /  1,400,000]
+# worst_minute_peak re-counted at dac74ab (64 px pickup, core#556): 436,434 / 483,106, budget before 400,000 / 500,000.
 # worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,301 to
-# 10,900), worst_minute_peak its heaviest tick by load (tick 9,834, `tests/worst_minute.rs`).
+# 10,900), worst_minute_peak its heaviest tick by load (tick 10,714, `tests/worst_minute.rs`).
 [worst_tick]
 arm64 = 4_600_000
 x86_64 = 5_300_000
@@ -33,5 +34,5 @@ arm64 = 1_400_000_000
 x86_64 = 1_600_000_000
 
 [worst_minute_peak]
-arm64 = 400_000
-x86_64 = 500_000
+arm64 = 500_000
+x86_64 = 600_000
