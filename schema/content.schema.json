@@ -1904,6 +1904,91 @@
         },
         {
           "additionalProperties": false,
+          "description": "A party player reached 0 hit points and went down (ADR-SIM-7).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "PlayerDowned",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A downed player was revived by `reviver` (ADR-SIM-7).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "reviver": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player",
+                "reviver"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "PlayerRevived",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A downed player's out timer expired (ADR-SIM-7).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "PlayerOut",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "`target` regained `amount` hit points.",
           "properties": {
             "data": {
@@ -3129,6 +3214,27 @@
           "type": "object"
         }
       ]
+    },
+    "DownView": {
+      "additionalProperties": false,
+      "description": "The downed state of a party player (ADR-SIM-7).",
+      "properties": {
+        "revive_hold": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ticks_left": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ticks_left",
+        "revive_hold"
+      ],
+      "type": "object"
     },
     "EffectEntry": {
       "additionalProperties": false,
@@ -6015,6 +6121,15 @@
       ],
       "type": "object"
     },
+    "PlayerIdx": {
+      "description": "Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the\ncompanions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into\nthe players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-6).",
+      "enum": [
+        "first",
+        "second",
+        "third"
+      ],
+      "type": "string"
+    },
     "PlayerView": {
       "additionalProperties": false,
       "properties": {
@@ -6079,6 +6194,17 @@
           "minimum": 0,
           "type": "integer"
         },
+        "down": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DownView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Downed state when the player has 0 HP in a party (ADR-SIM-7)."
+        },
         "echo_hit_pct": {
           "format": "uint32",
           "minimum": 0,
@@ -6130,6 +6256,10 @@
             "$ref": "#/$defs/OrbitView"
           },
           "type": "array"
+        },
+        "out": {
+          "description": "Out state when a downed player's out timer expired (ADR-SIM-7).",
+          "type": "boolean"
         },
         "pickup_radius_pct": {
           "description": "What the pickup radius rewards taken add up to, in percent, before the clamp at\n`MAX_PICKUP_RADIUS_TOTAL_PCT`: the pickup circle of stars and heal pickups is that\nmuch wider.",
