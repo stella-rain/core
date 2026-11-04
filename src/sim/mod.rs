@@ -20,6 +20,7 @@
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
+//! | `tether` | with two or more up players, when the farthest two are more than `TETHER_RANGE` apart, each up player farthest from the bounding box's centre that is not dashing is pulled toward it by an eighth of the overshoot, so a dash is never blocked; downed and out players are neither measured nor pulled (ADR-SIM-7, `player`) |
 //! | `player_update` | the main character turns to its stick, picks a target while aim assist or auto mode is on (`select`), recovers evade charges, evades, uses its stage skill (`skill`), walks its combo, then dashes or moves (`player`) |
 //! | `runes_fly` | thrown runes' hit boxes (boomerang) fly a step, after the main character has moved (`runes`) |
 //! | `orbits` | each orbit starts a round of its orbs' attacks when its cooldown and the round before are over, and turns them (`orbit`) |
@@ -166,6 +167,8 @@ pub(crate) mod state;
 mod state_codec;
 mod state_hash;
 mod stun;
+#[cfg(test)]
+mod tether_tests;
 mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};

@@ -131,6 +131,14 @@ pub(super) mod steps {
     }
 
     #[inline(never)]
+    pub(super) fn tether(c: &mut Ctx) {
+        if c.s.players.is_solo() || c.s.players.up_mask().count_ones() < 2 {
+            return;
+        }
+        player::tether(c.world, c.s);
+    }
+
+    #[inline(never)]
     pub(super) fn player_update(c: &mut Ctx) {
         crate::sim::tick_down_and_revive(c.world, c.s, c.inputs, c.events);
         if c.s.players.is_solo() {
@@ -290,6 +298,7 @@ pub(super) const TICK: &[(&str, Step)] = steps![
     statuses_and_aggro,
     runes_tick,
     advance_runs,
+    tether,
     player_update,
     runes_fly,
     orbits,

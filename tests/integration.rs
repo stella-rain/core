@@ -97,6 +97,7 @@ mod party_damage;
 mod party_down;
 mod party_join;
 mod party_run;
+mod party_tether;
 mod perk_sets;
 mod phases;
 mod pick_input;
