@@ -666,6 +666,19 @@ impl Players {
         self.generations[me.get()] = generation;
     }
 
+    /// The slots that are present and up (alive, not out), bit `i` for slot `i` (ADR-SIM-7).
+    #[inline]
+    pub(crate) fn up_mask(&self) -> u8 {
+        self.present & 1
+    }
+
+    /// The slots the world's targeting and bounds read: the up players, or every present slot
+    /// when none is up (the tick a party wipes; the run fails at that tick's outcome).
+    #[inline]
+    pub(crate) fn targets(&self) -> u8 {
+        self.present & 1
+    }
+
     /// Whether any player in the party is alive and not out (ADR-SIM-7).
     #[inline]
     pub(crate) fn any_up(&self) -> bool {

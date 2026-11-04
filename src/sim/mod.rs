@@ -149,6 +149,8 @@ mod players_tests;
 mod push;
 #[cfg(test)]
 mod rejoin_tests;
+#[cfg(test)]
+mod route_tests;
 mod runes;
 mod schedule;
 mod scratch;
@@ -239,6 +241,28 @@ pub(crate) fn view_centre(map: &crate::stage::Map, at: Point) -> Point {
     Point {
         x: axis(at.x, map.width, VIEW_HALF_WIDTH),
         y: axis(at.y, map.height, VIEW_HALF_HEIGHT),
+    }
+}
+
+/// The bounding box of the view centres of the players the world reads (`Players::targets`):
+/// its centre and half extents. One player gives that player's view centre and half extents 0,
+/// so every use equals the single-player rule (ADR-SIM-7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Area {
+    pub(crate) centre: Point,
+    pub(crate) half_x: i64,
+    pub(crate) half_y: i64,
+}
+
+impl Area {
+    pub(crate) fn of_view(map: &crate::stage::Map, players: &Players) -> Area {
+        let c = view_centre(map, players[PlayerIdx::SOLO].at);
+        let _ = players;
+        Area {
+            centre: c,
+            half_x: 0,
+            half_y: 0,
+        }
     }
 }
 
@@ -908,7 +932,12 @@ fn spawn_wave(stage: &World, s: &mut State, i: usize) {
         rule: 0,
     };
     let at = match (wave.edge, wave.spawn) {
-        (Some(edge), _) => edge_point(stage, s.players[PlayerIdx::SOLO].at, &mut s.rng.spawn, edge), // N=1: M-DOWN-PARTY
+        (Some(edge), _) => edge_point(
+            stage,
+            Area::of_view(&stage.map(), &s.players),
+            &mut s.rng.spawn,
+            edge,
+        ),
         (None, Some(p)) => p,
         // The validator refuses a wave with neither.
         (None, None) => s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
@@ -1058,15 +1087,10 @@ fn usable_side(parts: &[Option<(i64, i64)>; 4], i: usize) -> usize {
 /// neither on the map the side itself is used and the point moved onto the map. `any` is one draw
 /// over the on-map parts of all four sides, each corner on one side only (`any_parts`); a side with no
 /// `along` is one draw along its part; with `along` there is no draw.
-pub(super) fn edge_point(
-    stage: &World,
-    from: Point,
-    rng: &mut SplitMix64,
-    edge: ViewEdge,
-) -> Point {
+pub(super) fn edge_point(stage: &World, area: Area, rng: &mut SplitMix64, edge: ViewEdge) -> Point {
     let map = stage.map();
     let (w, h) = (i64::from(map.width.0), i64::from(map.height.0));
-    let centre = view_centre(&map, from);
+    let centre = area.centre;
     let (px, py) = (i64::from(centre.x.0), i64::from(centre.y.0));
     let (ex, ey) = (
         i64::from(stage.tuning.spawn_edge_x.0),
