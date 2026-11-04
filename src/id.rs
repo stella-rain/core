@@ -146,7 +146,10 @@ pub(crate) fn to_compact(id: EntityId, gap: u32) -> u32 {
 /// Which player: the place in `State::players`. Player `i` is entity `i`; the boss and the
 /// companions come after the players. An enum of the `MAX_PLAYERS` places, so that an index into
 /// the players' array needs no bounds check (a tick indexes it thousands of times, ADR-SIM-6).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum PlayerIdx {
     First,
     Second,

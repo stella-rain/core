@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::attack::{DamageType, MatchUp};
 use crate::fixed::Point;
-use crate::id::{ContentId, EntityId};
+use crate::id::{ContentId, EntityId, PlayerIdx};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
@@ -99,6 +99,19 @@ pub enum DomainEvent {
         hp_left: u32,
         /// What hurt it.
         source: HitSource,
+    },
+    /// A party player reached 0 hit points and went down (ADR-SIM-7).
+    PlayerDowned {
+        player: PlayerIdx,
+    },
+    /// A downed player was revived by `reviver` (ADR-SIM-7).
+    PlayerRevived {
+        player: PlayerIdx,
+        reviver: PlayerIdx,
+    },
+    /// A downed player's out timer expired (ADR-SIM-7).
+    PlayerOut {
+        player: PlayerIdx,
     },
     /// `target` regained `amount` hit points.
     Healed {

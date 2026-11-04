@@ -1681,3 +1681,34 @@ fn lookups_follow_the_mask_in_a_hole() {
     ));
     assert!(s.find_ally(EntityId(1)).is_none());
 }
+
+/// Up, downed and out helper state coverage (ADR-SIM-7).
+#[test]
+fn player_state_up_down_out_helpers() {
+    use crate::id::PlayerIdx as P;
+    let mut e = Engine::start(&crate::run_setup::RunSetup::default()).unwrap();
+    e.join(P::Second).unwrap();
+    let mut s = live(&e).1.clone();
+    assert_eq!(s.players.up_count(), 2);
+    assert!(s.players.any_up());
+    assert!(s.players[P::First].is_up());
+    assert!(!s.players[P::First].is_downed());
+    assert!(!s.players[P::First].is_out());
+
+    s.players[P::First].hp = 0;
+    assert_eq!(s.players.up_count(), 1);
+    assert!(s.players.any_up());
+    assert!(!s.players[P::First].is_up());
+    assert!(s.players[P::First].is_downed());
+    assert!(!s.players[P::First].is_out());
+
+    s.players[P::First].out = true;
+    assert_eq!(s.players.up_count(), 1);
+    assert!(!s.players[P::First].is_up());
+    assert!(!s.players[P::First].is_downed());
+    assert!(s.players[P::First].is_out());
+
+    s.players[P::Second].out = true;
+    assert_eq!(s.players.up_count(), 0);
+    assert!(!s.players.any_up());
+}

@@ -771,6 +771,9 @@ impl StableHash for PlayerState {
             runes,
             aggro,
             statuses,
+            down_ticks,
+            revive_hold,
+            out,
         } = self;
         at.stable_hash(h);
         hp.stable_hash(h);
@@ -806,6 +809,9 @@ impl StableHash for PlayerState {
         runes.stable_hash(h);
         aggro.stable_hash(h);
         statuses.stable_hash(h);
+        down_ticks.stable_hash(h);
+        revive_hold.stable_hash(h);
+        out.stable_hash(h);
     }
 }
 

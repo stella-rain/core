@@ -93,6 +93,9 @@ pub(super) fn update(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
+    if !s.players[me].is_up() {
+        return;
+    }
     let held = input::held_buttons(input);
     let pressed = held & !s.players[me].held;
     s.players[me].held = held;

@@ -1005,3 +1005,36 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         content: []);
     p.assert_clean();
 }
+
+#[test]
+fn live_player_state_down_and_out_fields_move_the_hash() {
+    use crate::bench_fixtures::worst_case;
+    use crate::hash::{StableHash, StateHasher};
+    use crate::id::PlayerIdx;
+    use crate::sim::state::PlayerState;
+
+    fn hash_player(p: &PlayerState) -> u64 {
+        let mut h = StateHasher::new();
+        p.stable_hash(&mut h);
+        h.finish()
+    }
+
+    let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+    let Run::V2 { state, .. } = e.run() else {
+        panic!("the live rules");
+    };
+    let base = state.players[PlayerIdx::SOLO].clone();
+    let h0 = hash_player(&base);
+
+    let mut p = base.clone();
+    p.down_ticks = 1;
+    assert_ne!(hash_player(&p), h0, "down_ticks moves the hash");
+
+    let mut p = base.clone();
+    p.revive_hold = 1;
+    assert_ne!(hash_player(&p), h0, "revive_hold moves the hash");
+
+    let mut p = base.clone();
+    p.out = true;
+    assert_ne!(hash_player(&p), h0, "out moves the hash");
+}

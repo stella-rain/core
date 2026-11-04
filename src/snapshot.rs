@@ -558,6 +558,20 @@ pub struct PlayerView {
     /// Its statuses, sorted by ID: the timed buffs and debuffs it holds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
+    /// Downed state when the player has 0 HP in a party (ADR-SIM-7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub down: Option<DownView>,
+    /// Out state when a downed player's out timer expired (ADR-SIM-7).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub out: bool,
+}
+
+/// The downed state of a party player (ADR-SIM-7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DownView {
+    pub ticks_left: u32,
+    pub revive_hold: u32,
 }
 
 /// The type bonus the main character holds for one damage type: the one-type

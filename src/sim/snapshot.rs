@@ -13,13 +13,13 @@ use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_BURST_DEPTH;
 use crate::run_content::RunContent;
 use crate::snapshot::{
-    AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, EntityKind, EntityView,
-    EvadeView, ExpertiseView, Facing, HealPickupView, HoldView, MapView, OrbView, OrbitView,
-    PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot, StarView,
-    StatusView, TypeBonusView, ZoneView,
+    AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
+    EntityView, EvadeView, ExpertiseView, Facing, HealPickupView, HoldView, MapView, OrbView,
+    OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView, Snapshot,
+    StarView, StatusView, TypeBonusView, ZoneView,
 };
 
-use super::state::{AgentState, AttackRun, ShrineState, State, StatusState};
+use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, StatusState};
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
     combo_view, constellation_views, expertise_offer_view, expertise_styles_view, hold_view,
@@ -307,6 +307,15 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             runs.into_iter().map(view).collect()
         },
         statuses: status_views(&s.players[me].statuses, false),
+        down: if s.players[me].is_downed() {
+            Some(DownView {
+                ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
+                revive_hold: s.players[me].revive_hold,
+            })
+        } else {
+            None
+        },
+        out: s.players[me].out,
     };
     Snapshot {
         tick: s.tick,

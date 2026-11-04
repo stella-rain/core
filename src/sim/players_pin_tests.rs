@@ -45,10 +45,10 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            346_310_145_254_604_747,
-            10_897_851_609_281_870_437,
-            10_653_070_658_940_593_071,
+            12_205_802_175_880_574_818,
+            13_524_412_158_178_660_459,
+            9_343_876_635_178_825_984,
         ],
-        "worst_case, hit_case, time_limit_case; re-pinned for the per-player layout and again for the slot generations"
+        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields"
     );
 }

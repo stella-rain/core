@@ -185,8 +185,9 @@ use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::sim::state::AgentState;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, Offers, PartState, PlayerState,
-    Progress, Pull, Smash, StarField, StatRule, State, Streams,
+    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, OUT_TIMER_TICKS, Offers, PartState,
+    PlayerState, Progress, Pull, REVIVE_HOLD_TICKS, REVIVE_HP_PCT, REVIVE_RANGE, Smash, StarField,
+    StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
@@ -498,6 +499,9 @@ fn unreserved_state(
                 runes: Vec::new(),
                 aggro: 0,
                 statuses: Default::default(),
+                down_ticks: 0,
+                revive_hold: 0,
+                out: false,
             },
             Career::new(
                 seed,
@@ -1640,7 +1644,9 @@ fn hurt_player(
         stage.tuning.defence_k,
     );
     let dealt = skill::absorb(s, me, dealt);
+    let party_len = s.players.len();
     let p = &mut s.players[me];
+    let before_hp = p.hp;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
     events.push(DomainEvent::PlayerHit {
@@ -1655,9 +1661,83 @@ fn hurt_player(
             .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
         },
     });
+    if before_hp > 0 && p.hp == 0 && !p.out && party_len > 1 {
+        p.down_ticks = 0;
+        p.revive_hold = 0;
+        events.push(DomainEvent::PlayerDowned { player: me });
+        if offer_open_for(s, me) {
+            if let Some(timer) = s.offer_timer.as_mut() {
+                timer.due[me.get()] = Some(s.tick);
+            }
+        }
+    }
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
         player::break_charge(stage, s, me, events);
+    }
+}
+
+/// Advances down timer and checks teammate revive hold for downed party players (ADR-SIM-7).
+pub(crate) fn tick_down_and_revive(
+    stage: &World,
+    s: &mut State,
+    inputs: &[Input; MAX_PLAYERS as usize],
+    events: &mut Vec<DomainEvent>,
+) {
+    if s.players.len() <= 1 {
+        return;
+    }
+    let slots: Vec<PlayerIdx> = s.players.indices().collect();
+    for me in slots {
+        if !s.players[me].is_downed() {
+            continue;
+        }
+        s.players[me].down_ticks = s.players[me].down_ticks.saturating_add(1);
+        if s.players[me].down_ticks >= OUT_TIMER_TICKS {
+            s.players[me].out = true;
+            s.players[me].revive_hold = 0;
+            events.push(DomainEvent::PlayerOut { player: me });
+            let career = s.players.career_mut(me);
+            if let Some(progress) = career.progress.as_mut() {
+                progress.offers_due = 0;
+            }
+            if let Some(offers) = career.offers.as_mut() {
+                offers.due.clear();
+            }
+            if let Some(expertise) = career.expertise.as_mut() {
+                expertise.offered = expertise.level;
+            }
+            continue;
+        }
+
+        let me_at = s.players[me].at;
+        let mut reviver = None;
+        for other in s.players.indices() {
+            if other != me
+                && s.players[other].is_up()
+                && inputs[other.get()].interact
+                && overlaps(s.players[other].at, REVIVE_RANGE.0, me_at, 0)
+            {
+                reviver = Some(other);
+                break;
+            }
+        }
+
+        if let Some(reviver) = reviver {
+            s.players[me].revive_hold = s.players[me].revive_hold.saturating_add(1);
+            if s.players[me].revive_hold >= REVIVE_HOLD_TICKS {
+                s.players[me].hp = (s.players[me].max_hp * REVIVE_HP_PCT / 100).max(1);
+                s.players[me].invulnerable = stage.tuning.hit_invulnerable_ticks;
+                s.players[me].down_ticks = 0;
+                s.players[me].revive_hold = 0;
+                events.push(DomainEvent::PlayerRevived {
+                    player: me,
+                    reviver,
+                });
+            }
+        } else {
+            s.players[me].revive_hold = 0;
+        }
     }
 }
 
@@ -1773,9 +1853,15 @@ fn hit_companions_side(
     false
 }
 
-/// The main character's death wins over a clear on the same tick.
+/// The main character's death wins over a clear on the same tick. In a party, the run continues
+/// while any player is up (ADR-SIM-7).
 fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
-    if s.players[me].hp == 0 {
+    let failed = if s.players.len() == 1 {
+        s.players[me].hp == 0
+    } else {
+        !s.players.any_up()
+    };
+    if failed {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);
         return;

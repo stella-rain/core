@@ -94,6 +94,7 @@ mod pack;
 mod packs;
 mod parsed_stage_hash;
 mod party_damage;
+mod party_down;
 mod party_join;
 mod party_run;
 mod perk_sets;

@@ -685,3 +685,36 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn live_player_state_down_and_out_fields_move_the_encoding() {
+    use crate::bench_fixtures::worst_case;
+    use crate::id::PlayerIdx;
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    use crate::sim::state::PlayerState;
+
+    let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+    let Run::V2 { state, .. } = e.run() else {
+        panic!("the live rules");
+    };
+    let base = state.players[PlayerIdx::SOLO].clone();
+    let b0 = to_bytes(&base);
+
+    let mut p = base.clone();
+    p.down_ticks = 1;
+    assert_ne!(to_bytes(&p), b0, "down_ticks moves the encoding");
+    let back: PlayerState = from_bytes(&to_bytes(&p)).unwrap();
+    assert_eq!(back.down_ticks, 1);
+
+    let mut p = base.clone();
+    p.revive_hold = 1;
+    assert_ne!(to_bytes(&p), b0, "revive_hold moves the encoding");
+    let back: PlayerState = from_bytes(&to_bytes(&p)).unwrap();
+    assert_eq!(back.revive_hold, 1);
+
+    let mut p = base.clone();
+    p.out = true;
+    assert_ne!(to_bytes(&p), b0, "out moves the encoding");
+    let back: PlayerState = from_bytes(&to_bytes(&p)).unwrap();
+    assert!(back.out);
+}

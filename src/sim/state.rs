@@ -24,6 +24,15 @@ use std::sync::LazyLock;
 /// Firings or casts left when there is no limit.
 pub(crate) const UNLIMITED: u32 = u32::MAX;
 
+/// The ticks a player stays downed before becoming out for the run (ADR-SIM-7).
+pub(crate) const OUT_TIMER_TICKS: u32 = 1200;
+/// The ticks a teammate in range must hold interact to revive (ADR-SIM-7).
+pub(crate) const REVIVE_HOLD_TICKS: u32 = 180;
+/// Hit points restored on revive, in percent of max HP (ADR-SIM-7).
+pub(crate) const REVIVE_HP_PCT: u32 = 30;
+/// The interaction radius within which a teammate can revive (ADR-SIM-7).
+pub(crate) const REVIVE_RANGE: Fx = Fx(12_288);
+
 /// The run's generators, one per purpose, so a change to one kind of draw leaves the others
 /// where they were (ADR-SIM-2). Each is `rng::derive(seed, tag)`; the hash writes them in this
 /// order. The offer generator is per player slot, in `Career::offer` (ADR-SIM-7): the hash and
@@ -610,10 +619,33 @@ impl Players {
     /// The `PlayerIdx` of each player of the party, in slot order. It holds a copy of the mask,
     /// not the party, so a loop over it may borrow the state mutably.
     pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
-        let present = self.present;
-        (0..MAX_PLAYERS)
-            .filter(move |i| present >> i & 1 == 1)
-            .filter_map(PlayerIdx::new)
+        // Walks the set bits lowest first: slot order, no scan of the absent slots. `present`
+        // never holds a bit at or past `MAX_PLAYERS` (the savepoint refuses such a mask).
+        let mut rest = self.present;
+        std::iter::from_fn(move || {
+            if rest == 0 {
+                return None;
+            }
+            let i = u8::try_from(rest.trailing_zeros()).ok();
+            rest &= rest - 1;
+            i.and_then(PlayerIdx::new)
+        })
+    }
+
+    /// The `PlayerIdx` of each party player after slot 0, in slot order: nothing in a party of one.
+    /// Slot 0 is always in the party (the savepoint refuses a mask without it), so
+    /// `once(SOLO).chain(after_first())` is `indices()` without a test of slot 0.
+    #[inline]
+    pub(crate) fn after_first(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
+        let mut rest = self.present & !1;
+        std::iter::from_fn(move || {
+            if rest == 0 {
+                return None;
+            }
+            let i = u8::try_from(rest.trailing_zeros()).ok();
+            rest &= rest - 1;
+            i.and_then(PlayerIdx::new)
+        })
     }
 
     /// The entity number of slot `me` (ADR-SIM-7): the number its shots, hits and dots carry.
@@ -632,6 +664,18 @@ impl Players {
     #[cfg(test)]
     pub(crate) fn set_generation_for_test(&mut self, me: PlayerIdx, generation: u8) {
         self.generations[me.get()] = generation;
+    }
+
+    /// Whether any player in the party is alive and not out (ADR-SIM-7).
+    #[inline]
+    pub(crate) fn any_up(&self) -> bool {
+        self.up_count() > 0
+    }
+
+    /// How many players in the party are alive and not out (ADR-SIM-7).
+    #[inline]
+    pub(crate) fn up_count(&self) -> usize {
+        self.iter().filter(|p| p.is_up()).count()
     }
 
     /// The generation of every slot, in slot order (the hash and the savepoint write them).
@@ -788,9 +832,33 @@ pub(crate) struct PlayerState {
     pub runes: Vec<HeldRune>,
     pub aggro: u32,
     pub statuses: Statuses,
+    /// Ticks elapsed since downed (0 while up or out, ADR-SIM-7).
+    pub down_ticks: u32,
+    /// Ticks accumulated toward revive while interact is held in range (0 while up or out, ADR-SIM-7).
+    pub revive_hold: u32,
+    /// Whether the player is permanently out for the run (ADR-SIM-7).
+    pub out: bool,
 }
 
 impl PlayerState {
+    /// Alive and not out (ADR-SIM-7).
+    #[inline]
+    pub fn is_up(&self) -> bool {
+        self.hp > 0 && !self.is_out()
+    }
+
+    /// At 0 HP and not yet permanently out (ADR-SIM-7).
+    #[inline]
+    pub fn is_downed(&self) -> bool {
+        self.hp == 0 && !self.is_out()
+    }
+
+    /// Permanently out for the run (ADR-SIM-7).
+    #[inline]
+    pub fn is_out(&self) -> bool {
+        self.out
+    }
+
     /// The evade's charges ready: held and not recovering.
     pub fn evade_ready(&self) -> u8 {
         // There are never more timers than charges, and charges are at most 3.

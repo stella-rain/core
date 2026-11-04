@@ -1142,6 +1142,9 @@ impl Encode for PlayerState {
             runes,
             aggro,
             statuses,
+            down_ticks,
+            revive_hold,
+            out,
         } = self;
         at.encode(w);
         hp.encode(w);
@@ -1177,6 +1180,9 @@ impl Encode for PlayerState {
         runes.encode(w);
         aggro.encode(w);
         statuses.encode(w);
+        down_ticks.encode(w);
+        revive_hold.encode(w);
+        out.encode(w);
     }
 }
 
@@ -1220,6 +1226,9 @@ impl Decode for PlayerState {
             runes: decode_vec(r, cap_u32(crate::rune::MAX_RUNES))?,
             aggro: Decode::decode(r)?,
             statuses: Decode::decode(r)?,
+            down_ticks: Decode::decode(r)?,
+            revive_hold: Decode::decode(r)?,
+            out: Decode::decode(r)?,
         })
     }
 }
