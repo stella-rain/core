@@ -619,10 +619,33 @@ impl Players {
     /// The `PlayerIdx` of each player of the party, in slot order. It holds a copy of the mask,
     /// not the party, so a loop over it may borrow the state mutably.
     pub(crate) fn indices(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
-        let present = self.present;
-        (0..MAX_PLAYERS)
-            .filter(move |i| present >> i & 1 == 1)
-            .filter_map(PlayerIdx::new)
+        // Walks the set bits lowest first: slot order, no scan of the absent slots. `present`
+        // never holds a bit at or past `MAX_PLAYERS` (the savepoint refuses such a mask).
+        let mut rest = self.present;
+        std::iter::from_fn(move || {
+            if rest == 0 {
+                return None;
+            }
+            let i = u8::try_from(rest.trailing_zeros()).ok();
+            rest &= rest - 1;
+            i.and_then(PlayerIdx::new)
+        })
+    }
+
+    /// The `PlayerIdx` of each party player after slot 0, in slot order: nothing in a party of one.
+    /// Slot 0 is always in the party (the savepoint refuses a mask without it), so
+    /// `once(SOLO).chain(after_first())` is `indices()` without a test of slot 0.
+    #[inline]
+    pub(crate) fn after_first(&self) -> impl Iterator<Item = PlayerIdx> + use<> {
+        let mut rest = self.present & !1;
+        std::iter::from_fn(move || {
+            if rest == 0 {
+                return None;
+            }
+            let i = u8::try_from(rest.trailing_zeros()).ok();
+            rest &= rest - 1;
+            i.and_then(PlayerIdx::new)
+        })
     }
 
     /// The entity number of slot `me` (ADR-SIM-7): the number its shots, hits and dots carry.
