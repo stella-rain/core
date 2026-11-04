@@ -148,7 +148,9 @@ pub(super) mod steps {
         // Slot order, each player's whole update before the next one's (ADR-SIM-7 point 6).
         for me in c.s.players.indices() {
             let input = c.input(me);
-            player::update(c.world, c.rewards, c.s, me, input, false, c.events);
+            // After `tick_down_and_revive`: a revive finished this tick frees its reviver.
+            let rooted = crate::sim::near_downed(c.s, c.inputs, me);
+            player::update(c.world, c.rewards, c.s, me, input, rooted, c.events);
         }
     }
 

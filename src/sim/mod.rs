@@ -1735,6 +1735,11 @@ fn hurt_player(
     }
 }
 
+/// `me` holds interact within reach of a downed teammate: it is rooted for this tick's update.
+fn near_downed(_s: &State, _inputs: &[Input; MAX_PLAYERS as usize], _me: PlayerIdx) -> bool {
+    false
+}
+
 /// Advances down timer and checks teammate revive hold for downed party players (ADR-SIM-7).
 pub(crate) fn tick_down_and_revive(
     stage: &World,

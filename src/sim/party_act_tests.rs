@@ -390,3 +390,134 @@ fn an_out_player_takes_the_timers_only_path() {
     assert_eq!(s.players[slot(1)].invulnerable, 5);
     assert!(!s.runs.iter().any(|r| r.owner == s.players.id(slot(1))));
 }
+
+// The rooted reviver (ADR-SIM-7): a player holding interact within `REVIVE_RANGE` of a downed
+// teammate cannot move, attack or evade.
+
+/// Slot 1 downed 30 px to the right of slot 0, which holds interact and every action.
+fn reviver(extra: u8) -> (Engine, [Input; 3]) {
+    let mut e = start(extra);
+    live_mut(&mut e).1.players[slot(1)].at = px(2030, 2000);
+    down(&mut e, 1);
+    let mut inputs = idle();
+    inputs[0] = Input {
+        interact: true,
+        move_x: 127,
+        main: true,
+        evade: true,
+        skill: true,
+        ..Input::default()
+    };
+    (e, inputs)
+}
+
+fn hold_of(e: &Engine) -> u32 {
+    state(e).players[slot(1)].revive_hold
+}
+
+#[test]
+fn a_reviver_in_range_holding_interact_is_rooted() {
+    let (mut e, inputs) = reviver(2);
+    live_mut(&mut e).1.players[slot(0)].skill = Some(super::state::SkillSlot {
+        index: 0,
+        level: 1,
+        cooldown_left: 0,
+    });
+    step(&mut e, 10, &inputs);
+    let s = state(&e);
+    let p = &s.players[slot(0)];
+    assert_eq!(p.at, px(2000, 2000));
+    assert!(p.dash.is_none());
+    assert!(!s.runs.iter().any(|r| r.owner == s.players.id(slot(0))));
+    assert_eq!(p.skill.map(|k| k.cooldown_left), Some(0), "no skill used");
+    assert_eq!(hold_of(&e), 10);
+}
+
+#[test]
+fn letting_go_of_interact_frees_the_player_that_tick() {
+    let (mut e, mut inputs) = reviver(2);
+    step(&mut e, 10, &inputs);
+    inputs[0].interact = false;
+    inputs[0].main = false;
+    inputs[0].evade = false;
+    inputs[0].skill = false;
+    step(&mut e, 1, &inputs);
+    assert_eq!(state(&e).players[slot(0)].at, px(2003, 2000));
+    assert_eq!(hold_of(&e), 0);
+}
+
+#[test]
+fn out_of_range_is_not_rooted() {
+    let (mut e, mut inputs) = reviver(2);
+    live_mut(&mut e).1.players[slot(1)].at = px(2100, 2000);
+    inputs[0].main = false;
+    inputs[0].evade = false;
+    inputs[0].skill = false;
+    step(&mut e, 10, &inputs);
+    assert_eq!(state(&e).players[slot(0)].at, px(2030, 2000));
+    assert_eq!(hold_of(&e), 0);
+}
+
+#[test]
+fn a_charge_in_progress_breaks_once_and_releases_nothing() {
+    let (mut e, mut inputs) = reviver(2);
+    inputs[0].evade = false;
+    inputs[0].skill = false;
+    live_mut(&mut e).1.players[slot(0)].combo.charge = Some(5);
+    let mut broken = 0;
+    for _ in 0..5 {
+        step(&mut e, 1, &inputs);
+        broken += e
+            .events()
+            .iter()
+            .filter(|ev| matches!(ev, DomainEvent::ChargeBroken))
+            .count();
+    }
+    let s = state(&e);
+    assert_eq!(broken, 1);
+    assert!(s.players[slot(0)].combo.charge.is_none());
+    assert!(!s.runs.iter().any(|r| r.owner == s.players.id(slot(0))));
+}
+
+#[test]
+fn every_reviver_in_range_is_rooted_and_one_hold_counts() {
+    let (mut e, inputs) = reviver(3);
+    let mut inputs = inputs;
+    inputs[2] = inputs[0];
+    live_mut(&mut e).1.players[slot(2)].at = px(2030, 2020);
+    step(&mut e, 5, &inputs);
+    let s = state(&e);
+    assert_eq!(s.players[slot(0)].at, px(2000, 2000));
+    assert_eq!(s.players[slot(2)].at, px(2030, 2020));
+    assert_eq!(hold_of(&e), 5);
+}
+
+#[test]
+fn the_reviver_is_free_on_the_tick_the_revive_completes() {
+    let (mut e, mut inputs) = reviver(2);
+    inputs[0].main = false;
+    inputs[0].evade = false;
+    inputs[0].skill = false;
+    live_mut(&mut e).1.players[slot(1)].revive_hold = 179;
+    step(&mut e, 1, &inputs);
+    assert!(state(&e).players[slot(1)].is_up());
+    assert_eq!(state(&e).players[slot(0)].at, px(2003, 2000));
+}
+
+#[test]
+fn solo_and_out_teammates_do_not_root() {
+    let mut solo = start(1);
+    let mut inputs = idle();
+    inputs[0].interact = true;
+    inputs[0].move_x = 127;
+    step(&mut solo, 10, &inputs);
+    assert_eq!(state(&solo).players[slot(0)].at, px(2030, 2000));
+
+    let (mut e, mut inputs) = reviver(2);
+    inputs[0].main = false;
+    inputs[0].evade = false;
+    inputs[0].skill = false;
+    live_mut(&mut e).1.players[slot(1)].out = true;
+    step(&mut e, 10, &inputs);
+    assert_eq!(state(&e).players[slot(0)].at, px(2030, 2000));
+}
