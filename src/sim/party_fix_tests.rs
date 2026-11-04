@@ -13,6 +13,7 @@ use crate::rewards::Rarity;
 use crate::run_setup::{OfferMode, RunSetup};
 use crate::run_stats::StatEffect;
 use crate::snapshot::OfferKind;
+use crate::stage::{RarityWeights, Tier};
 
 pub(super) fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).expect("a slot")
@@ -481,4 +482,144 @@ fn a_downed_player_gets_no_boss_heal_pickup_or_regeneration() {
     super::loadout::regen(&mut s, slot(1));
     assert_eq!(s.players[slot(1)].hp, 0);
     assert!(!ev.iter().any(|e| matches!(e, DomainEvent::Healed { .. })));
+}
+
+// --- the boss kill (ADR-SIM-7 point 5, ADR-SIM-8) ----------------------------------------------
+
+fn weights(top: Rarity) -> RarityWeights {
+    let mut w = RarityWeights::default();
+    match top {
+        Rarity::Uncommon => w.uncommon = 1,
+        Rarity::Rare => w.rare = 1,
+        Rarity::Epic => w.epic = 1,
+        _ => w.common = 1,
+    }
+    w
+}
+
+/// Tiers from levels 1, 5 and 7 whose highest rarities are Uncommon, Rare and Epic; the
+/// difficulty's range is every rarity; the players are at `levels`.
+fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
+    let (mut w, mut s) = party(n);
+    let stars = w.stage.stars.as_mut().expect("stars");
+    stars.tiers = [(1, Rarity::Uncommon), (5, Rarity::Rare), (7, Rarity::Epic)]
+        .into_iter()
+        .map(|(from_level, top)| Tier {
+            from_level,
+            weights: weights(top),
+            random_rune_weight: None,
+        })
+        .collect();
+    s.stars.as_mut().expect("stars").rarity = (Rarity::Common, Rarity::Supernova);
+    for i in s.players.indices().collect::<Vec<_>>() {
+        s.players.career_mut(i).progress.as_mut().unwrap().level = levels[i.get()];
+    }
+    (w, s)
+}
+
+/// What a boss kill does to the offers due, as `collide` calls it.
+fn kill_boss(w: &World, s: &mut State) {
+    for me in s.players.indices().collect::<Vec<_>>() {
+        super::stars::boss_killed(w, s, me);
+    }
+}
+
+fn boss_dues(s: &State, i: u8) -> Vec<Due> {
+    let due = &s.players.career(slot(i)).offers.as_ref().unwrap().due;
+    due.iter()
+        .copied()
+        .filter(|d| d.kind == OfferKind::Boss)
+        .collect()
+}
+
+fn boss(rarity: Rarity) -> Vec<Due> {
+    vec![Due {
+        kind: OfferKind::Boss,
+        rarity,
+    }]
+}
+
+#[test]
+fn a_boss_kill_offers_every_up_player_the_top_of_the_highest_level() {
+    let (w, mut s) = tiered(3, [3, 7, 5]);
+    kill_boss(&w, &mut s);
+    for i in 0..3 {
+        assert_eq!(boss_dues(&s, i), boss(Rarity::Epic), "slot {i}");
+    }
+}
+
+#[test]
+fn a_downed_or_out_player_gets_no_boss_offer_and_does_not_set_the_rarity() {
+    for is_out in [false, true] {
+        let (w, mut s) = tiered(3, [3, 7, 5]);
+        if is_out {
+            out(&mut s, 1);
+        } else {
+            down(&mut s, 1);
+        }
+        kill_boss(&w, &mut s);
+        assert_eq!(boss_dues(&s, 0), boss(Rarity::Rare), "out {is_out}");
+        assert_eq!(boss_dues(&s, 2), boss(Rarity::Rare), "out {is_out}");
+        assert!(boss_dues(&s, 1).is_empty(), "out {is_out}");
+    }
+}
+
+#[test]
+fn one_player_up_gets_its_own_tier_and_nobody_up_gets_nothing() {
+    let (w, mut s) = tiered(3, [3, 7, 5]);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    kill_boss(&w, &mut s);
+    assert_eq!(boss_dues(&s, 0), boss(Rarity::Uncommon));
+    assert!(boss_dues(&s, 1).is_empty() && boss_dues(&s, 2).is_empty());
+
+    let (w, mut s) = tiered(3, [3, 7, 5]);
+    for i in 0..3 {
+        down(&mut s, i);
+    }
+    kill_boss(&w, &mut s);
+    assert!((0..3).all(|i| boss_dues(&s, i).is_empty()));
+}
+
+/// DS-0386: a solo player at 0 hit points on the kill tick gets no boss offer.
+#[test]
+fn a_solo_player_at_zero_hit_points_gets_no_boss_offer() {
+    let (w, mut s) = tiered(1, [7, 1, 1]);
+    kill_boss(&w, &mut s);
+    assert_eq!(boss_dues(&s, 0), boss(Rarity::Epic));
+    let (w, mut s) = tiered(1, [7, 1, 1]);
+    down(&mut s, 0);
+    kill_boss(&w, &mut s);
+    assert!(boss_dues(&s, 0).is_empty());
+}
+
+#[test]
+fn the_boss_rarity_is_held_inside_the_difficulty_range() {
+    let (w, mut s) = tiered(2, [7, 7, 1]);
+    s.stars.as_mut().unwrap().rarity = (Rarity::Common, Rarity::Rare);
+    kill_boss(&w, &mut s);
+    assert_eq!(boss_dues(&s, 0), boss(Rarity::Rare));
+    assert_eq!(boss_dues(&s, 1), boss(Rarity::Rare));
+}
+
+#[test]
+fn a_players_boss_candidates_come_from_its_own_stream() {
+    let candidates = |n: u8| {
+        let mut e = engine(n, false);
+        let Run::V2 { world, state } = e.run_mut() else {
+            panic!("the live rules")
+        };
+        kill_boss(world, state);
+        e.open_offers_for_test();
+        let offer = st(&mut e)
+            .players
+            .career(slot(0))
+            .offers
+            .as_ref()
+            .unwrap()
+            .offer
+            .clone();
+        offer.expect("an offer").candidates
+    };
+    assert_eq!(candidates(3), candidates(2));
 }
