@@ -699,7 +699,9 @@ fn spawns_and_relocations(
 fn no_bundled_mode_spawn_is_relocated_on_its_spawn_tick() {
     type Case = (&'static str, RunSetup, u32, usize);
     let cases: [Case; 3] = [
-        ("trial", trial_setup(), 5_400, 16),
+        // 13: the bot takes the stars the 64 px circle reaches and fails at tick 1204 (it lasted
+        // to 1553 and 16 spawns with the 24 px circle).
+        ("trial", trial_setup(), 5_400, 13),
         (
             "tutorial",
             RunSetup {
