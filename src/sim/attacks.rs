@@ -309,10 +309,15 @@ pub(super) fn start_with(
     if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
     }
+    // The player whose type bonuses apply: the owner, when a player owns it.
+    let me = match owner {
+        Who::Player(me) => me,
+        _ => PlayerIdx::SOLO,
+    };
     launch(
         world,
         s,
-        PlayerIdx::SOLO, // N=1: M-DOWN-PARTY
+        me,
         Launch {
             owner,
             slot,
@@ -806,7 +811,7 @@ pub(super) fn capped_type_bonus(
 
 /// Whether run `r` is the main character's combo step, A or B.
 pub(super) fn is_combo(s: &State, r: &AttackRun) -> bool {
-    r.owner == s.players.id(PlayerIdx::SOLO) && r.slot == super::player::COMBO_SLOT // N=1: M-DOWN-PARTY
+    r.slot == super::player::COMBO_SLOT && s.players.of_id(r.owner).is_some()
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
