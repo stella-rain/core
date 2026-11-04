@@ -643,3 +643,115 @@ fn a_step_takes_a_downed_players_offer_in_a_stop_run() {
         1
     );
 }
+
+// --- experience, Stardust and the star tier of the players that are up (ADR-SIM-7 point 5) -----
+
+/// Slot 0 up, slot 1 downed, slot 2 out, with a kill present.
+fn one_up_one_downed_one_out() -> (World, State) {
+    let (w, mut s) = level_up_state(3);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    (w, s)
+}
+
+fn level(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).progress.as_ref().unwrap().level
+}
+
+fn xp(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).progress.as_ref().unwrap().xp
+}
+
+fn leveled(ev: &[DomainEvent]) -> usize {
+    ev.iter()
+        .filter(|e| matches!(e, DomainEvent::LeveledUp { .. }))
+        .count()
+}
+
+#[test]
+fn experience_goes_to_the_players_that_are_up_only() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+    assert_eq!(leveled(&ev), (level(&s, 0) - 1) as usize);
+    for i in [1, 2] {
+        assert_eq!((level(&s, i), xp(&s, i)), (1, 0), "slot {i}");
+        assert_eq!(
+            s.players
+                .career(slot(i))
+                .progress
+                .as_ref()
+                .unwrap()
+                .offers_due,
+            0
+        );
+    }
+}
+
+#[test]
+fn a_downed_player_queues_no_stat_offer_from_a_kill() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    for i in s.players.indices().collect::<Vec<_>>() {
+        s.players
+            .career_mut(i)
+            .progress
+            .as_mut()
+            .unwrap()
+            .pick_stats = true;
+    }
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    let due = |i| {
+        s.players
+            .career(slot(i))
+            .progress
+            .as_ref()
+            .unwrap()
+            .offers_due
+    };
+    assert!(due(0) > 0);
+    assert_eq!((due(1), due(2)), (0, 0));
+}
+
+#[test]
+fn every_player_that_is_up_gets_the_same_experience() {
+    let (w, mut s) = level_up_state(3);
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+    assert_eq!(level(&s, 0), level(&s, 1));
+    assert_eq!(level(&s, 1), level(&s, 2));
+}
+
+#[test]
+fn a_revived_player_earns_from_the_next_kill() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(level(&s, 1), 1);
+    s.players[slot(1)].hp = 10;
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 1) > 1);
+}
+
+#[test]
+fn nobody_up_earns_no_experience_and_a_solo_player_at_zero_hit_points_neither() {
+    let (w, mut s) = level_up_state(3);
+    down(&mut s, 0);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(leveled(&ev), 0);
+    assert!((0..3).all(|i| (level(&s, i), xp(&s, i)) == (1, 0)));
+
+    let (w, mut s) = level_up_state(1);
+    down(&mut s, 0);
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!((leveled(&ev), level(&s, 0), xp(&s, 0)), (0, 1, 0));
+
+    let (w, mut s) = level_up_state(1);
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+}
