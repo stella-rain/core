@@ -23,12 +23,28 @@ fn dist2(a: Point, b: Point) -> u64 {
     (dx * dx + dy * dy).unsigned_abs()
 }
 
-fn allies(s: &State) -> impl Iterator<Item = Who> + '_ {
-    std::iter::once(PlayerIdx::SOLO)
-        .chain(s.players.after_first())
-        .map(Who::Player)
-        .chain((0..s.companions.len()).map(Who::Companion))
-        .filter(|w| s.is_alive(*w))
+/// The live ally `by` ranks lowest (the first of equals), or `None`; `skip` is left out. Visits the
+/// main character, the other players, then the companions: a plain loop, since every ally
+/// selection of every agent of a tick runs through here (ADR-SIM-6).
+fn best_ally<K: Ord>(s: &State, skip: Option<Who>, by: impl Fn(Who) -> K) -> Option<Who> {
+    let mut best: Option<(K, Who)> = None;
+    let mut visit = |w: Who| {
+        if Some(w) == skip || !s.is_alive(w) {
+            return;
+        }
+        let key = by(w);
+        if best.as_ref().is_none_or(|(k, _)| key < *k) {
+            best = Some((key, w));
+        }
+    };
+    visit(Who::Player(PlayerIdx::SOLO));
+    for i in s.players.after_first() {
+        visit(Who::Player(i));
+    }
+    for i in 0..s.companions.len() {
+        visit(Who::Companion(i));
+    }
+    best.map(|(_, w)| w)
 }
 
 fn enemies(s: &State) -> impl Iterator<Item = Who> + '_ {
@@ -55,13 +71,13 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
             _ => enemies(s).min_by_key(by_distance),
         },
         // Never itself: its own distance is 0, which would always win.
-        Selector::NearestAlly => allies(s).filter(|w| *w != me).min_by_key(by_distance),
+        Selector::NearestAlly => best_ally(s, Some(me), |w| by_distance(&w)),
         Selector::LowestHpAlly => {
-            allies(s).min_by_key(|w| (s.hp(*w), dist2(from, s.at(*w)), s.id_of(*w)))
+            best_ally(s, None, |w| (s.hp(w), dist2(from, s.at(w)), s.id_of(w)))
         }
-        Selector::HighestAggroAlly => {
-            allies(s).min_by_key(|w| (Reverse(s.aggro(*w)), dist2(from, s.at(*w)), s.id_of(*w)))
-        }
+        Selector::HighestAggroAlly => best_ally(s, None, |w| {
+            (Reverse(s.aggro(w)), dist2(from, s.at(w)), s.id_of(w))
+        }),
         // A part of the boss that has not broken yet.
         Selector::Part(id) => {
             let index = s.boss.as_ref()?.parts.iter().position(|p| p.name == *id)?;
