@@ -1721,6 +1721,8 @@ fn hurt_player(
         p.down_ticks = 0;
         p.revive_hold = 0;
         events.push(DomainEvent::PlayerDowned { player: me });
+        // A dash, charge, hold or combo step does not wait for the revive.
+        player::stand_down(stage, s, me, events);
         if offer_open_for(s, me) {
             if let Some(timer) = s.offer_timer.as_mut() {
                 timer.due[me.get()] = Some(s.tick);
@@ -1911,9 +1913,9 @@ fn hit_companions_side(
 
 /// The main character's death wins over a clear on the same tick. In a party, the run continues
 /// while any player is up (ADR-SIM-7).
-fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let failed = if s.players.len() == 1 {
-        s.players[me].hp == 0
+        s.players[PlayerIdx::SOLO].hp == 0
     } else {
         !s.players.any_up()
     };

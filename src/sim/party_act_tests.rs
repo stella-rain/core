@@ -39,6 +39,7 @@ fn start(n: u8) -> Engine {
         facing: None,
     });
     s.enemies.clear();
+    s.companions.clear();
     for i in s.players.indices().collect::<Vec<_>>() {
         s.players[i].at = px(2000, 2000);
     }
@@ -66,7 +67,9 @@ fn idle() -> [Input; 3] {
 fn step(e: &mut Engine, n: u32, inputs: &[Input; 3]) {
     for _ in 0..n {
         e.step(inputs);
-        live_mut(e).1.enemies.clear();
+        let s = live_mut(e).1;
+        s.enemies.clear();
+        s.companions.clear();
     }
 }
 

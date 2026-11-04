@@ -679,6 +679,12 @@ impl Players {
         up
     }
 
+    /// Only slot 0 is present: nearly every run, and the path every per-player step keeps cheap.
+    #[inline]
+    pub(crate) fn is_solo(&self) -> bool {
+        self.present == Self::SOLO_MASK
+    }
+
     /// The slots the world's targeting and bounds read: the up players, or every present slot
     /// when none is up (the tick a party wipes; the run fails at that tick's outcome).
     #[inline]

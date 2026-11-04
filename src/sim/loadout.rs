@@ -125,7 +125,8 @@ pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
 /// A second has passed: the main character gets its regeneration back, never beyond the most.
 pub(super) fn regen(s: &mut State, me: PlayerIdx) {
     let regen = s.players.career(me).regen;
-    if regen > 0 && s.tick % REGEN_TICKS == 0 {
+    // Regeneration on a downed player would raise it from 0 and revive it.
+    if regen > 0 && s.players[me].is_up() && s.tick % REGEN_TICKS == 0 {
         s.players[me].hp = s.players[me]
             .hp
             .saturating_add(regen)
