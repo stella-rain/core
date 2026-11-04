@@ -1853,9 +1853,15 @@ fn hit_companions_side(
     false
 }
 
-/// The main character's death wins over a clear on the same tick.
+/// The main character's death wins over a clear on the same tick. In a party, the run continues
+/// while any player is up (ADR-SIM-7).
 fn decide_outcome(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
-    if s.players[me].hp == 0 {
+    let failed = if s.players.len() == 1 {
+        s.players[me].hp == 0
+    } else {
+        !s.players.any_up()
+    };
+    if failed {
         s.outcome = Outcome::Failed;
         events.push(DomainEvent::StageFailed);
         return;
