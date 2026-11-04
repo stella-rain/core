@@ -96,15 +96,24 @@ pub(super) fn agent_mut(s: &mut State, who: Who) -> &mut AgentState {
 /// Every agent moves, then acts, in entity-ID order. Agents summoned this tick start next tick.
 pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Before any rule fires: the ranged tokens go to the nearest ready enemies in view (RA1).
-    let area = super::Area::of_view(&stage.map(), &s.players);
-    super::attacks::grant_ranged(stage, s, area);
     // Places, hit points and aggro do not change while the agents act: one copy for all.
     let up = Up::of(&s.players);
-    for i in 0..s.companions.len() {
-        act_one(stage, s, &up, Who::Companion(i), events);
-    }
-    for i in 0..s.enemies.len() {
-        act_one(stage, s, &up, Who::Enemy(i), events);
+    super::attacks::grant_ranged(stage, s, &up);
+    // One player up (nearly every run) is its own loop: no branch per agent (ADR-SIM-6).
+    if up.n == 1 {
+        for i in 0..s.companions.len() {
+            act_one::<true>(stage, s, &up, Who::Companion(i), events);
+        }
+        for i in 0..s.enemies.len() {
+            act_one::<true>(stage, s, &up, Who::Enemy(i), events);
+        }
+    } else {
+        for i in 0..s.companions.len() {
+            act_one::<false>(stage, s, &up, Who::Companion(i), events);
+        }
+        for i in 0..s.enemies.len() {
+            act_one::<false>(stage, s, &up, Who::Enemy(i), events);
+        }
     }
     // After the agents, so the guardians that appear start next tick, as summoned ones do.
     shrines(stage, s, events);
@@ -248,7 +257,13 @@ fn leave(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     );
 }
 
-fn act_one(stage: &World, s: &mut State, up: &Up, me: Who, events: &mut Vec<DomainEvent>) {
+fn act_one<const ONE: bool>(
+    stage: &World,
+    s: &mut State,
+    up: &Up,
+    me: Who,
+    events: &mut Vec<DomainEvent>,
+) {
     let def = stage.defs.agent(agent(s, me).def);
     {
         let a = agent_mut(s, me);
@@ -268,7 +283,7 @@ fn act_one(stage: &World, s: &mut State, up: &Up, me: Who, events: &mut Vec<Doma
     if super::stun::stunned(&agent(s, me).statuses) {
         return;
     }
-    move_agent(stage, s, up, me, def);
+    move_agent::<ONE>(stage, s, up, me, def);
     if waits(s, up, me, def) {
         return;
     }
@@ -299,6 +314,7 @@ fn reveal(s: &mut State, up: &Up, me: Who, def: &Agent, events: &mut Vec<DomainE
 /// main character is: the range does not apply to it then. The fight starts after the act loop,
 /// so the first pulse is the tick after the touch; the fight ends in that same step, after the act
 /// loop, so the last pulse can be on the tick the shrine is cleared or leaves and none follows.
+#[inline(always)]
 fn waits(s: &State, up: &Up, me: Who, def: &Agent) -> bool {
     if let Some(sh) = agent(s, me).shrine.as_ref() {
         return sh.fight.is_none();
@@ -458,9 +474,9 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
 /// next tick (ADR-SIM-5). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
-fn move_agent(stage: &World, s: &mut State, up: &Up, me: Who, def: &Agent) {
+fn move_agent<const ONE: bool>(stage: &World, s: &mut State, up: &Up, me: Who, def: &Agent) {
     let map = stage.map();
-    let player_at = target_at(s, up, me);
+    let player_at = if ONE { up.at[0] } else { target_at(s, up, me) };
     let attacking = super::attacks::move_pct(stage, s, s.id_of(me));
     if attacking == 0 {
         return;

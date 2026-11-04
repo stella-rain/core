@@ -258,7 +258,7 @@ impl Area {
     pub(crate) fn of_view(map: &crate::stage::Map, players: &Players) -> Area {
         let mask = players.targets();
         // One player (nearly every run): its view centre, no box.
-        if mask.count_ones() == 1 {
+        if mask & (mask - 1) == 0 {
             let me = Players::slots(mask).next().unwrap_or(PlayerIdx::SOLO);
             return Area::at(view_centre(map, players[me].at));
         }

@@ -36,7 +36,13 @@ impl Up {
             aggro: [0; MAX_PLAYERS as usize],
             slot: [PlayerIdx::SOLO; MAX_PLAYERS as usize],
         };
-        for me in Players::slots(players.targets()) {
+        let mask = players.targets();
+        if mask == 1 {
+            let p = &players[PlayerIdx::SOLO];
+            (up.n, up.at[0], up.aggro[0]) = (1, p.at, p.aggro);
+            return up;
+        }
+        for me in Players::slots(mask) {
             let k = up.n;
             (up.at[k], up.aggro[k], up.slot[k]) = (players[me].at, players[me].aggro, me);
             up.n += 1;

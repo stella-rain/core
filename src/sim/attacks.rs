@@ -139,7 +139,7 @@ pub(super) fn in_view(e: Point, area: super::Area) -> bool {
 /// charges are left, its condition and selector hold now) and no attack of theirs running (RA-STUN);
 /// the nearest come first, by squared distance, ties by entity ID. The grants are scratch,
 /// worked out from the state each tick. No random number is drawn.
-pub(super) fn grant_ranged(world: &World, s: &mut State, area: super::Area) {
+pub(super) fn grant_ranged(world: &World, s: &mut State, up: &super::select::Up) {
     for g in &mut s.scratch.ranged_grants {
         g.clear();
     }
@@ -158,7 +158,7 @@ pub(super) fn grant_ranged(world: &World, s: &mut State, area: super::Area) {
     const MOST: usize = MAX_RANGED_ATTACKERS as usize;
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
-    let up = super::select::Up::of(&s.players);
+    let area = super::Area::of_view(&world.map(), &s.players);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
         // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
@@ -811,7 +811,8 @@ pub(super) fn capped_type_bonus(
 
 /// Whether run `r` is the main character's combo step, A or B.
 pub(super) fn is_combo(s: &State, r: &AttackRun) -> bool {
-    r.slot == super::player::COMBO_SLOT && s.players.of_id(r.owner).is_some()
+    r.slot == super::player::COMBO_SLOT
+        && (r.owner == s.players.id(PlayerIdx::SOLO) || s.players.of_id(r.owner).is_some())
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase

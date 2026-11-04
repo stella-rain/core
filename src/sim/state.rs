@@ -683,6 +683,10 @@ impl Players {
     /// when none is up (the tick a party wipes; the run fails at that tick's outcome).
     #[inline]
     pub(crate) fn targets(&self) -> u8 {
+        // A party of one, nearly every run: slot 0 is the target up or down.
+        if self.present == Self::SOLO_MASK {
+            return Self::SOLO_MASK;
+        }
         match self.up_mask() {
             0 => self.present,
             up => up,
