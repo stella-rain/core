@@ -185,9 +185,9 @@ use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::sim::state::AgentState;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, Offers, PartState, PlayerState,
-    Progress, Pull, Smash, StarField, StatRule, State, Streams, OUT_TIMER_TICKS, REVIVE_HOLD_TICKS,
-    REVIVE_HP_PCT, REVIVE_RANGE,
+    AgentKey, AgentSource, BossState, Career, Dir, MoveOrder, OUT_TIMER_TICKS, Offers, PartState,
+    PlayerState, Progress, Pull, REVIVE_HOLD_TICKS, REVIVE_HP_PCT, REVIVE_RANGE, Smash, StarField,
+    StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::snapshot::{EntityKind, OfferOption};
