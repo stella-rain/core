@@ -1585,8 +1585,8 @@ pub(crate) struct AttackRun {
     /// The attacker's type bonus for each damage type, by its place in `DamageType::ALL`, in
     /// percent, each at most the match-up file's `max_type_bonus_pct`, fixed when the attack
     /// starts: the main character's, once it holds any; none for every other
-    /// attacker. Boxed, so that a run without one stays as small as it was.
-    pub type_bonus_pct: Option<Box<[u32; DamageType::ALL.len()]>>,
+    /// attacker. Held inline: boxing it allocated on every launch (T1b).
+    pub type_bonus_pct: Option<[u32; DamageType::ALL.len()]>,
     /// `phase_time` of the attack's first tick, for the nodes its phases spawn.
     pub age: u32,
     /// Who the current active phase has hit, and on which tick last, sorted by entity ID;

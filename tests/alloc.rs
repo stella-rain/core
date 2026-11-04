@@ -271,8 +271,8 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 
 /// An attack launched by a player who holds a type bonus allocates nothing (T1b): the bonus
 /// is copied into the attack run, not boxed. The dense minute's player holds one from its first
-/// star; a tick that launches an attack (a combo step) and kills nothing, spawns nothing and
-/// opens no offer allocates and frees nothing.
+/// star; a tick that launches an attack (a combo step) and kills nothing, spawns or loses no
+/// elite and opens no offer allocates and frees nothing.
 #[test]
 fn an_attack_launched_with_a_type_bonus_allocates_nothing() {
     use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
@@ -289,13 +289,18 @@ fn an_attack_launched_with_a_type_bonus_allocates_nothing() {
                 ev,
                 DomainEvent::Died { .. }
                     | DomainEvent::EliteSpawned { .. }
+                    | DomainEvent::EliteLeft { .. }
                     | DomainEvent::OfferOpened { .. }
                     | DomainEvent::ExpertiseOfferOpened { .. }
             )
         });
         if launched && !busy {
             checked += 1;
-            assert_eq!(counts, pin(0, 0, 0), "minute tick {tick}: (allocs, reallocs, frees)");
+            assert_eq!(
+                counts,
+                pin(0, 0, 0),
+                "minute tick {tick}: (allocs, reallocs, frees)"
+            );
         }
     }
     assert!(checked > 100, "only {checked} launch ticks reached");
