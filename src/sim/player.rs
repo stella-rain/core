@@ -91,6 +91,7 @@ pub(super) fn update(
     s: &mut State,
     me: PlayerIdx,
     input: Input,
+    _rooted: bool,
     events: &mut Vec<DomainEvent>,
 ) {
     if !s.players[me].is_up() {

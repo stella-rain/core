@@ -107,9 +107,10 @@ fn a_system_acts_on_the_player_it_is_given() {
         &mut solo,
         PlayerIdx::SOLO,
         input,
+        false,
         &mut events,
     );
-    player::update(world, rewards, &mut s2, p1(), input, &mut events);
+    player::update(world, rewards, &mut s2, p1(), input, false, &mut events);
     assert_eq!(s2.players[PlayerIdx::SOLO], before0);
     assert_eq!(s2.players[p1()].at, solo.players[PlayerIdx::SOLO].at);
     assert_ne!(s2.players[p1()].at, before0.at);

@@ -57,8 +57,8 @@ impl<'a> Ctx<'a> {
     }
 
     /// The input of slot `me`, the player the per-player steps act for.
-    pub(super) fn input(&self) -> Input {
-        self.inputs[self.me.get()]
+    pub(super) fn input(&self, me: PlayerIdx) -> Input {
+        self.inputs[me.get()]
     }
 }
 
@@ -117,7 +117,15 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn player_update(c: &mut Ctx) {
         crate::sim::tick_down_and_revive(c.world, c.s, c.inputs, c.events);
-        player::update(c.world, c.rewards, c.s, c.me, c.input(), c.events);
+        player::update(
+            c.world,
+            c.rewards,
+            c.s,
+            c.me,
+            c.input(c.me),
+            false,
+            c.events,
+        );
     }
 
     #[inline(never)]

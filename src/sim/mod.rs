@@ -141,6 +141,8 @@ pub(crate) use offer_rating::offer_ratings;
 #[cfg(test)]
 mod damage_tests;
 mod orbit;
+#[cfg(test)]
+mod party_act_tests;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
