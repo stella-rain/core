@@ -42,22 +42,26 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, me: PlayerIdx) {
         return;
     }
     let summon_base = stage.stardust.as_ref().and_then(|f| f.summon_base);
-    let bases: Vec<u32> = s
-        .enemies
-        .iter()
-        .filter(|e| e.hp == 0 && !e.burst)
-        .filter_map(|e| match e.key.source {
-            AgentSource::Wave => usize::try_from(e.key.index)
-                .ok()
-                .and_then(|i| stage.waves.get(i))
-                .and_then(|w| w.stardust),
-            AgentSource::Summoned | AgentSource::BossRule => summon_base,
-            _ => None,
-        })
-        .collect();
-    for base in bases {
+    // The bases wait in the tick's scratch: `earn` needs `s` whole.
+    let mut bases = std::mem::take(&mut s.scratch.bases);
+    bases.clear();
+    bases.extend(
+        s.enemies
+            .iter()
+            .filter(|e| e.hp == 0 && !e.burst)
+            .filter_map(|e| match e.key.source {
+                AgentSource::Wave => usize::try_from(e.key.index)
+                    .ok()
+                    .and_then(|i| stage.waves.get(i))
+                    .and_then(|w| w.stardust),
+                AgentSource::Summoned | AgentSource::BossRule => summon_base,
+                _ => None,
+            }),
+    );
+    for &base in &bases {
         earn(stage, s, me, base);
     }
+    s.scratch.bases = bases;
 }
 
 /// The boss has just died.

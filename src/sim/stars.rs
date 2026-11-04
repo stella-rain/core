@@ -82,22 +82,25 @@ pub(super) fn drop_from_defeated(stage: &World, s: &mut State, events: &mut Vec<
         .position(|t| std::ptr::eq(t, tier))
         .and_then(|i| cfg.tiers.get(i + 1))
         .unwrap_or(tier);
-    let fallen: Vec<_> = s
-        .enemies
-        .iter()
-        .filter(|e| e.hp == 0 && !e.burst)
-        .map(|e| (e.at, e.elite.is_some()))
-        .collect();
     let State {
         rng,
         stars,
         next_id,
+        enemies,
+        scratch,
         ..
     } = s;
     let Some(f) = stars.as_mut() else {
         return;
     };
-    for (at, elite) in fallen {
+    scratch.fallen.clear();
+    scratch.fallen.extend(
+        enemies
+            .iter()
+            .filter(|e| e.hp == 0 && !e.burst)
+            .map(|e| (e.at, e.elite.is_some())),
+    );
+    for &(at, elite) in &scratch.fallen {
         if f.on_map.len() >= cap {
             continue;
         }

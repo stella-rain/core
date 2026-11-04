@@ -397,13 +397,13 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 7] = [
-    ("two_time_limit", 3000, Outcome::Running, [69, 7, 0], 1190),
-    ("three_time_limit", 3000, Outcome::Running, [56, 7, 7], 1080),
-    ("three_tutorial", 1017, Outcome::Cleared, [8, 1, 4], 0),
-    ("join_two", 3000, Outcome::Running, [72, 4, 0], 1230),
-    ("leave_hole", 3000, Outcome::Running, [59, 1, 12], 1200),
-    ("timed_one", 3000, Outcome::Running, [6, 0, 0], 910),
-    ("timed_two", 3000, Outcome::Running, [4, 0, 0], 1100),
+    ("two_time_limit", 3000, Outcome::Running, [78, 3, 0], 1300),
+    ("three_time_limit", 3000, Outcome::Running, [77, 2, 1], 1220),
+    ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
+    ("join_two", 3000, Outcome::Running, [71, 1, 0], 1120),
+    ("leave_hole", 3000, Outcome::Running, [69, 1, 5], 1280),
+    ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
+    ("timed_two", 3000, Outcome::Running, [8, 0, 0], 1140),
 ];
 
 fn parties_dir() -> std::path::PathBuf {

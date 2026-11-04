@@ -537,11 +537,13 @@ fn aim_assist_starts_from_the_player_it_is_for() {
         Some(s.enemies[0].id)
     );
     assert_eq!(select::assist_target(&world, &s, slot(0), range), None);
-    assert_eq!(
-        select::assist_targets(&world, &s, slot(1), range, 3),
-        vec![s.enemies[0].id]
-    );
-    assert!(select::assist_targets(&world, &s, slot(0), range, 3).is_empty());
+    let targets = |me: u8| {
+        let (mut kept, mut out) = (Vec::new(), Vec::new());
+        select::assist_targets(&world, &s, slot(me), range, 3, &mut kept, &mut out);
+        out
+    };
+    assert_eq!(targets(1), vec![s.enemies[0].id]);
+    assert!(targets(0).is_empty());
 }
 
 #[test]

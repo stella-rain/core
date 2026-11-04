@@ -1542,6 +1542,10 @@ pub(crate) fn elites_time_limit() -> (String, RunContent) {
         .find(|t| t["id"] == "elite_leader")
         .unwrap();
     leader["enemy"]["elite"]["aura"]["damage_percent"] = json!(100);
+    // The 24-pixel star pickup circle the script was written against: the bundled 64 pixels
+    // takes the stars its kills drop, and the stronger main character clears the run instead
+    // of ending it by the overtime.
+    v["stars"]["pickup_radius"] = json!(6_144);
     // Compact: pretty-printed, the mode file passes the 128 KiB limit (Z3b content).
     let json = serde_json::to_string(&v).unwrap() + "\n";
     let content = RunContent::bundled()

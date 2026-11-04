@@ -19,7 +19,9 @@ pub(super) fn p1() -> PlayerIdx {
 /// An engine and the input that plays it.
 type Case = (Engine, fn(u32) -> Input);
 
-/// An engine with an offer open, from the first of the walks that reaches one.
+/// An engine with an offer open, from the first of the walks that reaches one. 1500 ticks: with
+/// the 64-pixel pickup circle the worst minute's warm-up takes its stars before the walk, and
+/// its first offer after it opens 1293 ticks in.
 pub(super) fn with_offer() -> Engine {
     let cases: [Case; 5] = [
         (
@@ -35,7 +37,7 @@ pub(super) fn with_offer() -> Engine {
         (time_limit_case::warmed_up(), time_limit_case::input),
     ];
     for (mut e, input) in cases {
-        for _ in 0..600 {
+        for _ in 0..1500 {
             if e.offer_open() {
                 return e;
             }
