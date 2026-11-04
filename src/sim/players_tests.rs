@@ -1431,9 +1431,7 @@ mod route {
         let e = worst_case::warmed_up().into_party(3);
         let (w, s) = live(&e);
         let (w, mut s) = (w.clone(), s.clone());
-        for me in s.players.indices() {
-            super::super::stars::boss_killed(&w, &mut s, me);
-        }
+        super::super::stars::boss_killed(&w, &mut s);
         for i in 0..3 {
             let due = &s.players.career(slot(i)).offers.as_ref().unwrap().due;
             assert_eq!(

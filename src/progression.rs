@@ -14,7 +14,7 @@
 //! simulation reads nothing from this module, so no state hash depends on it.
 
 use crate::engine::{Engine, Outcome};
-use crate::id::ContentId;
+use crate::id::{ContentId, PlayerIdx};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
 use crate::validate::limits::MAX_RUN_STARDUST;
@@ -49,6 +49,17 @@ impl RunResult {
             difficulty: setup.difficulty.clone(),
             outcome,
             stardust_tenths: engine.stardust(),
+        })
+    }
+
+    /// The result of the player in slot `player`: the run's outcome and that player's own
+    /// Stardust (ADR-SAVE-6 point 2). `None` while the run goes on and for a slot that is not
+    /// present. A downed or out player's result is the run's, as for a clear or a wipe.
+    pub fn from_run_for(setup: &RunSetup, engine: &Engine, player: PlayerIdx) -> Option<RunResult> {
+        let stardust_tenths = engine.stardust_of(player)?;
+        Some(RunResult {
+            stardust_tenths,
+            ..RunResult::from_run(setup, engine)?
         })
     }
 }

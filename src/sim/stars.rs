@@ -9,8 +9,9 @@
 //! next tier up, or from the last tier. Then the main character takes every star inside its
 //! pickup circle, in the order they dropped.
 //!
-//! A boss kill makes the boss offer due, ahead of the stars taken that tick, at the highest
-//! rarity of the drop table's tier for the player's level after this tick's experience. It
+//! A boss kill makes the boss offer due to every player that is up, ahead of the stars taken that
+//! tick, at one rarity for the party: the highest of the drop table's tier for the highest level
+//! among those players after this tick's experience. A downed or out player gets none. It
 //! opens even though the kill clears the stage, and the stars' offers due then open after it.
 //!
 //! At the end of a tick the run survives or clears, the first offer due opens, after the boss offer and
@@ -29,7 +30,7 @@
 //! hash and the savepoint write the run's part with the shared fields and each present player's
 //! in its block.
 //! Offers are per slot: a star taken is due to the player that took it, the boss's offer to every
-//! present player at that player's own tier, and each offer draws from its slot's generator. The
+//! player that is up at one rarity, and each offer draws from its slot's generator. The
 //! drops on the map are shared, and a drop's tier is the highest level among the present players.
 
 use super::World;
@@ -152,9 +153,23 @@ fn tier_of(cfg: &Stars, level: u32) -> Option<&Tier> {
         .or(cfg.tiers.first())
 }
 
-/// The boss died this tick: `me`'s offer is due first, at the highest rarity of `me`'s tier.
-pub(super) fn boss_killed(stage: &World, s: &mut State, me: PlayerIdx) {
-    let level = level_of(s, me);
+/// The highest level among the present players that are up; `None` when none is.
+fn top_up_level(s: &State) -> Option<u32> {
+    s.players
+        .indices()
+        .filter(|&me| s.players[me].is_up())
+        .map(|me| level_of(s, me))
+        .max()
+}
+
+/// The boss died this tick: every present player that is up has its offer due first, at one
+/// rarity for all, the highest of the drop table's tier for the highest level among them. A
+/// downed or out player gets none and sets nothing; nobody up, nothing is due (ADR-SIM-7
+/// point 5). A solo player at 0 hit points is not up.
+pub(super) fn boss_killed(stage: &World, s: &mut State) {
+    let Some(level) = top_up_level(s) else {
+        return;
+    };
     let Some(rarity) = stage
         .stars
         .as_ref()
@@ -163,11 +178,19 @@ pub(super) fn boss_killed(stage: &World, s: &mut State, me: PlayerIdx) {
     else {
         return;
     };
-    if let (Some(f), Some(o)) = (s.stars.as_ref(), s.players.career_mut(me).offers.as_mut()) {
-        // Inside the difficulty's range.
-        let rarity = rarity.clamp(f.rarity.0, f.rarity.1);
-        let kind = OfferKind::Boss;
-        o.due.insert(0, Due { kind, rarity });
+    let Some(range) = s.stars.as_ref().map(|f| f.rarity) else {
+        return;
+    };
+    // Inside the difficulty's range.
+    let rarity = rarity.clamp(range.0, range.1);
+    for me in s.players.indices().collect::<Vec<_>>() {
+        if !s.players[me].is_up() {
+            continue;
+        }
+        if let Some(o) = s.players.career_mut(me).offers.as_mut() {
+            let kind = OfferKind::Boss;
+            o.due.insert(0, Due { kind, rarity });
+        }
     }
 }
 
@@ -866,7 +889,7 @@ mod tests {
             1,
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
-        boss_killed(&stage, &mut s, PlayerIdx::SOLO);
+        boss_killed(&stage, &mut s);
         let due = &s
             .players
             .career(PlayerIdx::SOLO)
