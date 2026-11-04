@@ -269,6 +269,38 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
 }
 
+/// An attack launched by a player who holds a type bonus allocates nothing (T1b): the bonus
+/// is copied into the attack run, not boxed. The dense minute's player holds one from its first
+/// star; a tick that launches an attack (a combo step) and kills nothing, spawns nothing and
+/// opens no offer allocates and frees nothing.
+#[test]
+fn an_attack_launched_with_a_type_bonus_allocates_nothing() {
+    use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
+    let mut run = bench_fixtures::worst_minute();
+    let mut checked = 0;
+    for tick in 0..MINUTE_TICKS {
+        let counts = counted3(|| run.play(1));
+        let events = run.engine.events();
+        let launched = events
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::ComboStep { .. }));
+        let busy = events.iter().any(|ev| {
+            matches!(
+                ev,
+                DomainEvent::Died { .. }
+                    | DomainEvent::EliteSpawned { .. }
+                    | DomainEvent::OfferOpened { .. }
+                    | DomainEvent::ExpertiseOfferOpened { .. }
+            )
+        });
+        if launched && !busy {
+            checked += 1;
+            assert_eq!(counts, pin(0, 0, 0), "minute tick {tick}: (allocs, reallocs, frees)");
+        }
+    }
+    assert!(checked > 100, "only {checked} launch ticks reached");
+}
+
 /// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
 /// ADR-SIM-5 point 4): every per-enemy buffer is reserved to the run's cap when the engine
 /// is built, so no tick of the climb grows one.
