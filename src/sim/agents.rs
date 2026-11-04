@@ -9,7 +9,6 @@ use crate::behaviour::{Agent, BossCall, Condition, Guardians, Movement, Rule};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
-use crate::sim::state::PlayerIdx;
 use crate::sim::state::{
     AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
     ShrineState, State, Statuses, UNLIMITED,
@@ -18,7 +17,7 @@ use crate::trig;
 
 use super::act::perform;
 use super::entity::{Who, speed_pct};
-use super::select::select;
+use super::select::{Up, select, target_at};
 
 /// A following agent moves at most this far a tick: 4 pixels.
 const FOLLOW_SPEED: i64 = Fx::px(4).0 as i64;
@@ -99,11 +98,13 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Before any rule fires: the ranged tokens go to the nearest ready enemies in view (RA1).
     let area = super::Area::of_view(&stage.map(), &s.players);
     super::attacks::grant_ranged(stage, s, area);
+    // Places, hit points and aggro do not change while the agents act: one copy for all.
+    let up = Up::of(&s.players);
     for i in 0..s.companions.len() {
-        act_one(stage, s, Who::Companion(i), events);
+        act_one(stage, s, &up, Who::Companion(i), events);
     }
     for i in 0..s.enemies.len() {
-        act_one(stage, s, Who::Enemy(i), events);
+        act_one(stage, s, &up, Who::Enemy(i), events);
     }
     // After the agents, so the guardians that appear start next tick, as summoned ones do.
     shrines(stage, s, events);
@@ -145,12 +146,7 @@ fn shrines(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         };
         let fight = e.shrine.as_ref().and_then(|sh| sh.fight);
         let Some(fight) = fight else {
-            if !super::overlaps(
-                e.at,
-                def.radius.0,
-                s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
-                stage.tuning.player_radius,
-            ) {
+            if !Up::of(&s.players).within(e.at, def.radius.0, stage.tuning.player_radius) {
                 continue;
             }
             let (home, wave) = (e.at, e.key.index);
@@ -252,7 +248,7 @@ fn leave(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     );
 }
 
-fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>) {
+fn act_one(stage: &World, s: &mut State, up: &Up, me: Who, events: &mut Vec<DomainEvent>) {
     let def = stage.defs.agent(agent(s, me).def);
     {
         let a = agent_mut(s, me);
@@ -264,7 +260,7 @@ fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
     // A disguised mimic does nothing but wait to be revealed; the tick it reveals it does not
     // act either, so it acts from the next tick.
     if agent(s, me).hidden() {
-        reveal(s, me, def, events);
+        reveal(s, up, me, def, events);
         return;
     }
     // A stunned enemy does nothing while the stun lasts: no movement and no
@@ -272,8 +268,8 @@ fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
     if super::stun::stunned(&agent(s, me).statuses) {
         return;
     }
-    move_agent(stage, s, me, def);
-    if waits(s, me, def) {
+    move_agent(stage, s, up, me, def);
+    if waits(s, up, me, def) {
         return;
     }
     fire_first_rule(stage, s, me, &def.rules, events);
@@ -281,15 +277,14 @@ fn act_one(stage: &World, s: &mut State, me: Who, events: &mut Vec<DomainEvent>)
 
 /// A disguised mimic reveals the first tick the main character's centre is within its reveal
 /// radius (the edge counts), for good. A mimic that reveals after the boss's call joins it.
-fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
+fn reveal(s: &mut State, up: &Up, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
     let Some(mimic) = def.elite.as_ref().and_then(|e| e.mimic.as_ref()) else {
         return;
     };
-    let player = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let called = s.boss.as_ref().and_then(|b| b.elites_called) == Some(true);
     let id = s.id_of(me);
     let a = agent_mut(s, me);
-    if !super::overlaps(a.at, mimic.reveal_radius.0, player, 0) {
+    if !up.within(a.at, mimic.reveal_radius.0, 0) {
         return;
     }
     if let Some(el) = a.elite.as_mut() {
@@ -304,20 +299,14 @@ fn reveal(s: &mut State, me: Who, def: &Agent, events: &mut Vec<DomainEvent>) {
 /// main character is: the range does not apply to it then. The fight starts after the act loop,
 /// so the first pulse is the tick after the touch; the fight ends in that same step, after the act
 /// loop, so the last pulse can be on the tick the shrine is cleared or leaves and none follows.
-fn waits(s: &State, me: Who, def: &Agent) -> bool {
+fn waits(s: &State, up: &Up, me: Who, def: &Agent) -> bool {
     if let Some(sh) = agent(s, me).shrine.as_ref() {
         return sh.fight.is_none();
     }
     let (Some(elite), Some(st)) = (def.elite.as_ref(), agent(s, me).elite) else {
         return false;
     };
-    !st.called
-        && !super::overlaps(
-            agent(s, me).at,
-            elite.range.0,
-            s.players[PlayerIdx::SOLO].at, // N=1: M-DOWN-PARTY
-            0,
-        )
+    !st.called && !up.within(agent(s, me).at, elite.range.0, 0)
 }
 
 /// The rule states of `me`: an agent's, or the boss's for the phase it is in.
@@ -410,7 +399,8 @@ pub(super) fn condition_holds(s: &State, me: Who, cond: &Condition) -> bool {
         }
         Condition::TimeAbove { ticks } => time_since_start(s, me) > *ticks,
         Condition::NearTarget { distance } => {
-            super::overlaps(s.at(me), distance.0, s.players[PlayerIdx::SOLO].at, 0) // N=1: M-DOWN-PARTY
+            let up = Up::of(&s.players);
+            super::overlaps(s.at(me), distance.0, target_at(s, &up, me), 0)
         }
         Condition::PartBroken { part } => match &s.boss {
             Some(boss) => boss
@@ -468,9 +458,9 @@ fn step_toward(from: Point, to: Point, most: i64) -> Point {
 /// pixels a tick (`Orbit`: its orbit step plus 4 pixels), so that a push carries over to the
 /// next tick (ADR-SIM-5). An enemy that the last push-apart found crowded does not take that step;
 /// `Straight` and a `move_to` order are not held back.
-fn move_agent(stage: &World, s: &mut State, me: Who, def: &Agent) {
+fn move_agent(stage: &World, s: &mut State, up: &Up, me: Who, def: &Agent) {
     let map = stage.map();
-    let player_at = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
+    let player_at = target_at(s, up, me);
     let attacking = super::attacks::move_pct(stage, s, s.id_of(me));
     if attacking == 0 {
         return;

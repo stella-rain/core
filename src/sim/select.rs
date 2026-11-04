@@ -44,6 +44,13 @@ impl Up {
         up
     }
 
+    /// Whether a circle of `radius` at `at` reaches a circle of `other` at any of them.
+    pub(super) fn within(&self, at: Point, radius: i32, other: i32) -> bool {
+        self.at[..self.n]
+            .iter()
+            .any(|&p| overlaps(at, radius, p, other))
+    }
+
     /// The least squared distance from `from` to one of them.
     #[inline]
     pub(super) fn least_d2(&self, from: Point) -> u64 {
@@ -65,9 +72,52 @@ fn dist2(a: Point, b: Point) -> u64 {
 }
 
 /// The player an enemy, a companion or the boss at `from` goes for (ADR-SIM-7 point 6).
+///
+/// Over the players the world reads: the one that is alone; else the most aggro where any holds
+/// some, then the nearest, ties to the lowest slot. `random` marks an enemy no aggro drives that
+/// may switch target now and then (see `rolled`).
 pub(super) fn chase(s: &State, up: &Up, from: Point, key: u32, random: bool) -> PlayerIdx {
-    let _ = (s, from, key, random);
-    up.slot[0]
+    let _ = (s, key, random);
+    if up.n == 1 {
+        return up.slot[0];
+    }
+    // Slots run lowest first, so a strict `<` keeps the lowest of equals.
+    let mut best = 0;
+    let mut best_key = (Reverse(up.aggro[0]), dist2(from, up.at[0]));
+    for k in 1..up.n {
+        let key = (Reverse(up.aggro[k]), dist2(from, up.at[k]));
+        if key < best_key {
+            (best, best_key) = (k, key);
+        }
+    }
+    up.slot[best]
+}
+
+/// The player `me`, an agent or the boss, goes for: a companion follows the lowest up slot; an
+/// enemy and the boss take the chase target (ADR-SIM-7 point 6).
+pub(super) fn target_of(s: &State, up: &Up, me: Who) -> PlayerIdx {
+    if up.n == 1 || matches!(me, Who::Companion(_)) {
+        return up.slot[0];
+    }
+    chase(s, up, s.at(me), s.roll_key(s.id_of(me)), true)
+}
+
+/// The place of `target_of`: one load for a single up player.
+#[inline]
+pub(super) fn target_at(s: &State, up: &Up, me: Who) -> Point {
+    if up.n == 1 {
+        return up.at[0];
+    }
+    s.players[target_of(s, up, me)].at
+}
+
+/// The order key of an ally after its distance: a player's slot, any other entity's number, so a
+/// rejoined slot (a higher generation) keeps the place of its slot among equals (ADR-SIM-7).
+fn ally_tie(s: &State, w: Who) -> u32 {
+    match w {
+        Who::Player(i) => u32::try_from(i.get()).unwrap_or(u32::MAX),
+        other => s.id_of(other).0,
+    }
 }
 
 /// The live ally `by` ranks lowest (the first of equals), or `None`; `skip` is left out. Visits the
@@ -118,12 +168,12 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
             _ => enemies(s).min_by_key(by_distance),
         },
         // Never itself: its own distance is 0, which would always win.
-        Selector::NearestAlly => best_ally(s, Some(me), |w| by_distance(&w)),
+        Selector::NearestAlly => best_ally(s, Some(me), |w| (dist2(from, s.at(w)), ally_tie(s, w))),
         Selector::LowestHpAlly => {
-            best_ally(s, None, |w| (s.hp(w), dist2(from, s.at(w)), s.id_of(w)))
+            best_ally(s, None, |w| (s.hp(w), dist2(from, s.at(w)), ally_tie(s, w)))
         }
         Selector::HighestAggroAlly => best_ally(s, None, |w| {
-            (Reverse(s.aggro(w)), dist2(from, s.at(w)), s.id_of(w))
+            (Reverse(s.aggro(w)), dist2(from, s.at(w)), ally_tie(s, w))
         }),
         // A part of the boss that has not broken yet.
         Selector::Part(id) => {
