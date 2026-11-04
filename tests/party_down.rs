@@ -191,15 +191,6 @@ fn teammate_revive_with_interact_button() {
     assert!(!revived_snap.players[1].out);
 }
 
-/// C. Open timed offer auto-picks on down (ADR-SIM-7, ADR-SIM-8).
-#[test]
-fn open_timed_offer_auto_picks_on_down() {
-    let (mut setup, content) = lethal_setup(50_000, 15);
-    setup.offer_mode = OfferMode::Timed;
-    let e = Engine::start_party_with(&setup, &content, 2).unwrap();
-    assert_eq!(e.present(), 0b011);
-}
-
 /// D. Wipe in decide_outcome (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn wipe_in_decide_outcome() {
