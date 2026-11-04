@@ -71,21 +71,53 @@ pub fn first_point_tick() -> u32 {
     panic!("the script gains no level before tick {STEER_FROM}");
 }
 
-/// The scripted input of slot `slot` (1 or 2) of a party at `tick`: distinct patterns, so a
-/// log carries each slot. Slots 1 and 2 are passive in the rules for now.
-pub fn scripted_input(slot: u8, tick: u32) -> Input {
-    match slot {
-        1 => Input {
-            move_y: 50,
-            skill: tick % 90 < 30,
-            ..Input::default()
-        },
-        _ => Input {
-            move_x: -30,
-            evade: tick % 120 < 10,
-            ..Input::default()
-        },
+/// How near (1/256 pixel) a scripted slot walks up to the enemy it hunts: 32 pixels.
+const SCRIPT_NEAR: i64 = 32 * 256;
+
+/// The scripted input of slot `slot` (1 or 2) of a party at `tick`: distinct patterns, so a log
+/// carries each slot. Like slot 0's script they walk to the nearest star (slot 1) or enemy
+/// and press `main` (`tick % 40 < 5`), so that their attacks are exercised (ADR-SIM-7); a
+/// slot that only walked one way would stand at the map's edge and earn nothing.
+pub fn scripted_input(engine: &Engine, slot: u8, tick: u32) -> Input {
+    let s = engine.snapshot();
+    // The snapshot lists the present players in slot order, so a hole shifts the index.
+    let place = (engine.present() & ((1 << slot) - 1)).count_ones() as usize;
+    let me = s.players[place].at;
+    let d2 = |at: stella_rain_core::fixed::Point| {
+        let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
+        x * x + y * y
+    };
+    let toward = |d: i32| match d {
+        d if d > 256 => 127,
+        d if d < -256 => -127,
+        _ => 0,
+    };
+    let star = s.stars.iter().map(|st| st.at).min_by_key(|at| d2(*at));
+    let enemy = s
+        .entities
+        .iter()
+        .filter(|v| v.kind == stella_rain_core::snapshot::EntityKind::Enemy)
+        .map(|v| v.at)
+        .min_by_key(|at| d2(*at));
+    let goal = if slot == 1 {
+        star.or(enemy)
+    } else {
+        enemy.or(star)
+    };
+    let mut input = Input {
+        main: tick % 40 < 5,
+        ..Input::default()
+    };
+    if let Some(at) = goal.filter(|at| d2(*at) > SCRIPT_NEAR * SCRIPT_NEAR) {
+        input.move_x = toward(at.x.0 - me.x.0);
+        input.move_y = toward(at.y.0 - me.y.0);
     }
+    if slot == 1 {
+        input.skill = tick % 90 < 30;
+    } else {
+        input.evade = tick % 120 < 10;
+    }
+    input
 }
 
 /// The inputs of a party of `n` at `tick`: slot 0 played by the zone bot, the others scripted.
@@ -95,7 +127,7 @@ pub fn party_inputs(rec: &RunRecorder, tick: u32) -> [Input; 3] {
     for s in (0..3u8).filter(|s| present >> s & 1 == 1) {
         inputs[usize::from(s)] = match s {
             0 => run_input(rec.engine(), tick),
-            _ => scripted_input(s, tick),
+            _ => scripted_input(rec.engine(), s, tick),
         };
     }
     inputs
@@ -242,7 +274,7 @@ pub fn party_cases() -> Vec<PartyCase> {
         },
         PartyCase {
             name: "three_tutorial",
-            setup: at("tutorial", 4),
+            setup: at("tutorial", 76),
             party: 3,
             ticks: 3000,
             changes: vec![],

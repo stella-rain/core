@@ -186,7 +186,7 @@ fn teammate_revive_with_interact_button() {
     }
     let revived_snap = e.snapshot();
     assert_eq!(revived_snap.players[1].hp, 15_000); // 30% of 50,000
-    assert_eq!(revived_snap.players[1].invulnerable, 60);
+    assert_eq!(revived_snap.players[1].invulnerable, 59); // the revive precedes the timers (ADR-SIM-7)
     assert!(revived_snap.players[1].down.is_none());
     assert!(!revived_snap.players[1].out);
 }

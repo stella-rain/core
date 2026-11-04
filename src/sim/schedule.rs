@@ -22,8 +22,6 @@ pub(super) struct Ctx<'a> {
     pub(super) rewards: &'a Rewards,
     pub(super) expertise: &'a Expertise,
     pub(super) s: &'a mut State,
-    /// The player the tick's per-player steps act for: the only one, until a run holds a party.
-    pub(super) me: PlayerIdx,
     /// One input per slot, present or not, indexed by `PlayerIdx`.
     pub(super) inputs: &'a [Input; MAX_PLAYERS as usize],
     pub(super) events: &'a mut Vec<DomainEvent>,
@@ -48,7 +46,6 @@ impl<'a> Ctx<'a> {
             rewards,
             expertise,
             s,
-            me: PlayerIdx::SOLO,
             inputs,
             events,
             load,
@@ -57,9 +54,18 @@ impl<'a> Ctx<'a> {
     }
 
     /// The input of slot `me`, the player the per-player steps act for.
-    pub(super) fn input(&self) -> Input {
-        self.inputs[self.me.get()]
+    pub(super) fn input(&self, me: PlayerIdx) -> Input {
+        self.inputs[me.get()]
     }
+}
+
+/// Some present player holds a rune. A party of one tests slot 0 alone.
+#[inline]
+fn holds_rune(s: &State) -> bool {
+    if s.players.is_solo() {
+        return !s.players[PlayerIdx::SOLO].runes.is_empty();
+    }
+    s.players.iter().any(|p| !p.runes.is_empty())
 }
 
 /// One step of a tick.
@@ -81,7 +87,12 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn regen(c: &mut Ctx) {
-        loadout::regen(c.s, c.me);
+        if c.s.players.is_solo() {
+            return loadout::regen(c.s, PlayerIdx::SOLO);
+        }
+        for me in c.s.players.indices() {
+            loadout::regen(c.s, me);
+        }
     }
 
     #[inline(never)]
@@ -106,7 +117,12 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn runes_tick(c: &mut Ctx) {
-        runes::tick(c.s, c.me);
+        if c.s.players.is_solo() {
+            return runes::tick(c.s, PlayerIdx::SOLO);
+        }
+        for me in c.s.players.indices() {
+            runes::tick(c.s, me);
+        }
     }
 
     #[inline(never)]
@@ -117,19 +133,45 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn player_update(c: &mut Ctx) {
         crate::sim::tick_down_and_revive(c.world, c.s, c.inputs, c.events);
-        player::update(c.world, c.rewards, c.s, c.me, c.input(), c.events);
+        if c.s.players.is_solo() {
+            let input = c.input(PlayerIdx::SOLO);
+            return player::update(
+                c.world,
+                c.rewards,
+                c.s,
+                PlayerIdx::SOLO,
+                input,
+                false,
+                c.events,
+            );
+        }
+        // Slot order, each player's whole update before the next one's (ADR-SIM-7 point 6).
+        for me in c.s.players.indices() {
+            let input = c.input(me);
+            // After `tick_down_and_revive`: a revive finished this tick frees its reviver.
+            let rooted = crate::sim::near_downed(c.s, c.inputs, me);
+            player::update(c.world, c.rewards, c.s, me, input, rooted, c.events);
+        }
     }
 
     #[inline(never)]
     pub(super) fn runes_fly(c: &mut Ctx) {
-        if !c.s.players[c.me].runes.is_empty() {
+        if holds_rune(c.s) {
             runes::fly(c.world, c.s);
         }
     }
 
     #[inline(never)]
     pub(super) fn orbits(c: &mut Ctx) {
-        orbit::act(c.world, c.rewards, c.s, c.me, c.events);
+        if c.s.players.is_solo() {
+            return orbit::act(c.world, c.rewards, c.s, PlayerIdx::SOLO, c.events);
+        }
+        for me in c.s.players.indices() {
+            // A downed or out player's orbs do not attack.
+            if c.s.players[me].is_up() {
+                orbit::act(c.world, c.rewards, c.s, me, c.events);
+            }
+        }
     }
 
     #[inline(never)]
@@ -159,12 +201,17 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn skill_pull(c: &mut Ctx) {
-        skill::pull(c.world, c.s, c.me);
+        if c.s.players.is_solo() {
+            return skill::pull(c.world, c.s, PlayerIdx::SOLO);
+        }
+        for me in c.s.players.indices() {
+            skill::pull(c.world, c.s, me);
+        }
     }
 
     #[inline(never)]
     pub(super) fn runes_steer(c: &mut Ctx) {
-        if !c.s.players[c.me].runes.is_empty() {
+        if holds_rune(c.s) {
             runes::steer(c.world, c.s);
         }
     }
@@ -208,7 +255,7 @@ pub(super) mod steps {
 
     #[inline(never)]
     pub(super) fn decide_outcome(c: &mut Ctx) {
-        super::decide_outcome(c.world, c.s, c.me, c.events);
+        super::decide_outcome(c.world, c.s, c.events);
     }
 
     #[inline(never)]

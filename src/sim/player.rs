@@ -91,14 +91,15 @@ pub(super) fn update(
     s: &mut State,
     me: PlayerIdx,
     input: Input,
+    rooted: bool,
     events: &mut Vec<DomainEvent>,
 ) {
-    if !s.players[me].is_up() {
-        return;
-    }
+    // The held buttons follow the input of every present player, so a button held through a
+    // down is never a fresh press at the revive.
     let held = input::held_buttons(input);
     let pressed = held & !s.players[me].held;
     s.players[me].held = held;
+    // The timers run for a downed or out player too.
     let p = &mut s.players[me];
     p.invulnerable = p.invulnerable.saturating_sub(1);
     for t in &mut p.evade_recovering {
@@ -107,6 +108,28 @@ pub(super) fn update(
     p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     skill::tick(s, me);
+    if !s.players[me].is_up() {
+        return;
+    }
+    // A rooted reviver stands still and does not attack, evade or use a skill; `assist` is a
+    // switch and stays. A charge or hold would release an attack when `main` reads as let go.
+    let (input, pressed) = if rooted {
+        break_charge(stage, s, me, events);
+        let acts = input::MAIN | input::SMASH | input::EVADE | input::SKILL;
+        let still = Input {
+            move_x: 0,
+            move_y: 0,
+            main: false,
+            smash: false,
+            evade: false,
+            skill: false,
+            auto: false,
+            ..input
+        };
+        (still, pressed & !acts)
+    } else {
+        (input, pressed)
+    };
     let p = &mut s.players[me];
     let (x, y) = (input.move_x.max(-STICK_MAX), input.move_y.max(-STICK_MAX));
     if let Some(dir) = stick_direction(x, y) {
@@ -799,6 +822,18 @@ fn release(
         level: u8::try_from(level).unwrap_or(u8::MAX),
         perfect,
     });
+}
+
+/// A player going down stops what it was doing: the dash ends, the combo run ends, a charge or
+/// hold breaks and the buffer clears (ADR-SIM-7). Party only.
+pub(super) fn stand_down(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    s.players[me].dash = None;
+    cancel(stage, s, me, events);
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer.
