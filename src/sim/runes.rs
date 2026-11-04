@@ -231,7 +231,7 @@ fn launch(
     if (0..n).any(|k| attacks::busy(s, player, MISSILE_SLOT.saturating_add(k))) {
         return false;
     }
-    let targets = select::assist_targets(stage, s, range, usize::from(n));
+    let targets = select::assist_targets(stage, s, me, range, usize::from(n));
     let (from, facing) = (s.players[me].at, s.players[me].facing);
     for k in 0..n {
         let target = match targets.len() {

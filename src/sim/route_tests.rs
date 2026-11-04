@@ -235,3 +235,342 @@ fn the_tokens_see_the_view_of_the_box_and_the_nearest_up_player() {
     down(&mut s, 2);
     assert_eq!(d(&s, 2100), i64::from(Fx::px(1100).0).pow(2));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Targeting (ADR-SIM-7 point 6): the most aggro among the up players, else the nearest, ties to
+// the lowest slot; an enemy that no aggro drives now and then takes a random up player.
+// ---------------------------------------------------------------------------------------------
+
+use super::agents;
+use super::attacks;
+use super::entity::Who;
+use super::select::{self, chase};
+use crate::behaviour::Selector;
+use crate::id::EntityId;
+use crate::input::Input;
+use crate::pack::ContentFiles;
+use crate::run_content::RunContent;
+use crate::time_limit::TimeLimit;
+use crate::version::Versions;
+use serde_json::json;
+
+/// The slot `chase` picks at `from`, with no random switch.
+fn nearest(s: &State, x: i32) -> u8 {
+    let up = Up::of(&s.players);
+    chase(s, &up, px(x, 0), 0, false).get().try_into().unwrap()
+}
+
+/// A party whose players stand on the x axis at the given px, with no aggro.
+fn line(xs: [i32; 3]) -> State {
+    let (_, mut s) = party([px(0, 0); 3]);
+    s.companions.clear();
+    for (i, x) in xs.into_iter().enumerate() {
+        let p = &mut s.players[slot(u8::try_from(i).unwrap())];
+        p.at = px(x, 0);
+        p.aggro = 0;
+    }
+    s
+}
+
+#[test]
+fn the_chase_target_is_the_nearest_up_player_ties_to_the_lowest_slot() {
+    let s = line([100, 400, 5000]);
+    assert_eq!(nearest(&s, 0), 0);
+    assert_eq!(nearest(&s, 300), 1, "100 against 200");
+    assert_eq!(nearest(&s, 250), 0, "an equal distance: the lowest slot");
+}
+
+#[test]
+fn a_rejoined_slot_keeps_its_place_in_a_tie() {
+    let mut s = line([9000, 100, 300]);
+    s.players.set_generation_for_test(slot(1), 1);
+    assert_eq!(nearest(&s, 200), 1);
+    let enemy = Who::Enemy(0);
+    s.enemies[0].at = px(200, 0);
+    let pick = select::select(&s, enemy, &Selector::NearestAlly);
+    assert_eq!(
+        pick,
+        Some(Who::Player(slot(1))),
+        "the slot, not the generation's number"
+    );
+}
+
+#[test]
+fn a_downed_player_is_never_the_target_and_a_wipe_falls_back_to_the_lowest_slot() {
+    let mut s = line([100, 400, 5000]);
+    down(&mut s, 0);
+    assert_eq!(nearest(&s, 0), 1);
+    out(&mut s, 1);
+    assert_eq!(nearest(&s, 0), 2);
+    down(&mut s, 2);
+    assert_eq!(nearest(&s, 0), 0, "no one up: the lowest present slot");
+}
+
+#[test]
+fn the_most_aggro_among_the_up_players_decides() {
+    let mut s = line([100, 400, 5000]);
+    s.players[slot(1)].aggro = 500;
+    assert_eq!(nearest(&s, 0), 1);
+    s.players[slot(0)].aggro = 500;
+    assert_eq!(nearest(&s, 0), 0, "equal aggro: the nearer");
+    s.players[slot(2)].aggro = 900;
+    down(&mut s, 2);
+    assert_eq!(nearest(&s, 0), 0, "a downed player's aggro is ignored");
+}
+
+fn engine_with_follow_enemy() -> Engine {
+    let mut tl: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
+    tl["waves"] = json!([{
+        "at_tick": 1,
+        "enemy": {
+            "base": "bat", "hp": 9_000_000, "radius": 2048,
+            "movement": { "type": "follow", "distance": 0, "speed": 1024 },
+            "rules": []
+        },
+        "spawn": { "x": 524032, "y": 524288 },
+        "count": 1,
+        "every_ticks": 0
+    }]);
+    let mode = TimeLimit::parse(tl.to_string().as_bytes(), Versions::CURRENT).unwrap();
+    let content = RunContent::bundled().clone().with_time_limit(mode);
+    let setup = RunSetup {
+        mode: crate::id::ContentId::from("time_limit"),
+        seed: 42,
+        ..Default::default()
+    };
+    let mut e = Engine::start_party_with(&setup, &content, 3).unwrap();
+    for _ in 0..3 {
+        e.step(&[Input::default(), Input::default(), Input::default()]);
+    }
+    e
+}
+
+#[test]
+fn a_following_enemy_walks_to_the_player_that_is_up() {
+    let e = engine_with_follow_enemy();
+    let Run::V2 { world, state } = e.run() else {
+        panic!("the live rules")
+    };
+    let (world, mut s) = (world.clone(), state.clone());
+    assert_eq!(s.enemies.len(), 1);
+    let home = s.enemies[0].at;
+    // Slot 0 is downed far to the right, slot 1 stands straight below the enemy.
+    s.players[slot(0)].at = Point {
+        x: home.x.saturating_add(Fx::px(1000)),
+        y: home.y,
+    };
+    s.players[slot(1)].at = Point {
+        x: home.x,
+        y: home.y.saturating_add(Fx::px(100)),
+    };
+    s.players[slot(2)].at = s.players[slot(1)].at;
+    down(&mut s, 0);
+    let mut events = Vec::new();
+    agents::act(&world, &mut s, &mut events);
+    let now = s.enemies[0].at;
+    assert!(now.y.0 > home.y.0, "it walks toward slot 1");
+    assert_eq!(now.x, home.x, "and not toward the downed slot 0");
+}
+
+#[test]
+fn near_target_reads_the_chase_target() {
+    let mut s = line([0, 1000, 9000]);
+    let near = crate::behaviour::Condition::NearTarget {
+        distance: Fx::px(100),
+    };
+    let holds = |s: &State| agents::condition_holds(s, Who::Enemy(0), &near);
+    s.enemies[0].at = px(950, 0);
+    assert!(holds(&s), "50 px from slot 1, its nearest");
+    // The enemy stands by slot 0, but slot 1 holds the aggro: its target is far.
+    s.enemies[0].at = px(20, 0);
+    assert!(holds(&s));
+    s.players[slot(1)].aggro = 10;
+    assert!(!holds(&s), "near only the player that is not its target");
+}
+
+// ---- the random switch -------------------------------------------------------------------
+
+fn two_up() -> State {
+    let mut s = line([0, 300, 9000]);
+    down(&mut s, 2);
+    s
+}
+
+fn pick(s: &State, from_x: i32, key: u32, random: bool) -> u8 {
+    let up = Up::of(&s.players);
+    chase(s, &up, px(from_x, 0), key, random)
+        .get()
+        .try_into()
+        .unwrap()
+}
+
+#[test]
+fn the_random_switch_reaches_both_up_players_and_is_a_pure_roll() {
+    let mut s = two_up();
+    s.tick = 4000;
+    let mut hits = [0u32; 2];
+    let mut off_nearest = 0;
+    for key in 0..1000 {
+        // The enemy stands at x = 10, nearest to slot 0.
+        let p = pick(&s, 10, key, true);
+        hits[usize::from(p)] += 1;
+        off_nearest += u32::from(p != 0);
+        assert_eq!(
+            p,
+            pick(&s, 10, key, true),
+            "the same arguments, the same slot"
+        );
+        assert_eq!(pick(&s, 10, key, false), 0, "no roll: the nearest");
+    }
+    assert!(
+        hits[0] >= 200 && hits[1] >= 200,
+        "both are reached: {hits:?}"
+    );
+    assert!(off_nearest < 1000);
+}
+
+#[test]
+fn an_enemy_keeps_its_random_target_for_the_epoch() {
+    let mut s = two_up();
+    let key = 7u32;
+    // The epoch starts where (tick + key % 180) is a multiple of 180.
+    let start = 180 * 10 - key % 180;
+    let seen = |s: &mut State, tick: u32| {
+        s.tick = tick;
+        pick(s, 10, key, true)
+    };
+    let first = seen(&mut s, start);
+    for t in start..start + 180 {
+        assert_eq!(seen(&mut s, t), first, "tick {t}");
+    }
+    // Some later epoch differs for this key (a 30% roll over two players).
+    assert!((1..200).any(|k| seen(&mut s, start + 180 * k) != first));
+}
+
+#[test]
+fn aggro_or_a_single_up_player_stops_the_switch() {
+    let mut s = two_up();
+    s.tick = 4000;
+    s.players[slot(1)].aggro = 5;
+    for key in 0..200 {
+        assert_eq!(pick(&s, 10, key, true), 1, "the most aggro holds the enemy");
+    }
+    s.players[slot(1)].aggro = 0;
+    down(&mut s, 1);
+    for key in 0..200 {
+        assert_eq!(pick(&s, 10, key, true), 0, "one player up");
+    }
+}
+
+#[test]
+fn the_roll_adds_no_draw_and_follows_the_seed() {
+    let mut s = two_up();
+    let before = s.rng.clone();
+    for t in 0..1000 {
+        s.tick = t;
+        pick(&s, 10, t, true);
+    }
+    assert_eq!(s.rng, before, "no stream moved");
+    let run = |seed: u64| {
+        let mut s = two_up();
+        s.crit_seed = seed;
+        (0..600)
+            .map(|t| {
+                s.tick = t;
+                pick(&s, 10, 3, true)
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(run(5), run(5));
+    assert_ne!(run(5), run(6), "a different seed differs somewhere");
+}
+
+// ---- owner-keyed -----------------------------------------------------------------------------
+
+#[test]
+fn aggro_is_raised_for_any_present_slot_and_ignores_an_absent_one() {
+    let mut s = line([0, 0, 0]);
+    for generation in [0u8, 1] {
+        s.players.set_generation_for_test(slot(2), generation);
+        s.players[slot(2)].aggro = 0;
+        s.raise_aggro(s.players.id(slot(2)), 40);
+        assert_eq!(s.players[slot(2)].aggro, 40);
+    }
+    s.raise_aggro(s.players.id(slot(2)), u32::MAX);
+    assert_eq!(s.players[slot(2)].aggro, super::MAX_AGGRO);
+    // A number that is no present slot's changes nothing.
+    let stale = slot(1).id_at(9);
+    let snapshot: Vec<u32> = s.players.iter().map(|p| p.aggro).collect();
+    s.raise_aggro(stale, 10);
+    assert_eq!(
+        s.players.iter().map(|p| p.aggro).collect::<Vec<_>>(),
+        snapshot
+    );
+}
+
+#[test]
+fn every_present_player_fades_and_ages() {
+    let mut s = line([0, 0, 0]);
+    down(&mut s, 1);
+    for i in 0..3 {
+        s.players[slot(i)].aggro = 500;
+    }
+    let mut events = Vec::new();
+    super::entity::tick_statuses_and_aggro(&mut s, 100, &mut events);
+    for i in 0..3 {
+        assert_eq!(s.players[slot(i)].aggro, 400, "slot {i}");
+    }
+}
+
+#[test]
+fn aim_assist_starts_from_the_player_it_is_for() {
+    let (world, mut s) = party([px(0, 0), px(3000, 0), px(0, 0)]);
+    let range = 200 * 256;
+    s.boss = None;
+    s.enemies.truncate(1);
+    s.enemies[0].at = px(3050, 0);
+    s.enemies[0].hp = s.enemies[0].max_hp.max(1);
+    assert_eq!(
+        select::assist_target(&world, &s, slot(1), range),
+        Some(s.enemies[0].id)
+    );
+    assert_eq!(select::assist_target(&world, &s, slot(0), range), None);
+    assert_eq!(
+        select::assist_targets(&world, &s, slot(1), range, 3),
+        vec![s.enemies[0].id]
+    );
+    assert!(select::assist_targets(&world, &s, slot(0), range, 3).is_empty());
+}
+
+#[test]
+fn a_combo_run_belongs_to_any_present_player() {
+    let mut e = Engine::start_party(
+        &RunSetup {
+            seed: 3,
+            pick_stats: true,
+            ..RunSetup::default()
+        },
+        3,
+    )
+    .unwrap();
+    let main = Input {
+        main: true,
+        ..Input::default()
+    };
+    while !matches!(e.run(), Run::V2 { state, .. } if !state.runs.is_empty()) {
+        e.step(&[main, Input::default(), Input::default()]);
+    }
+    let Run::V2 { state, .. } = e.run() else {
+        unreachable!()
+    };
+    let s = state.clone();
+    let mut run = s.runs[0].clone();
+    run.slot = super::player::COMBO_SLOT;
+    run.owner = s.players.id(slot(2));
+    assert!(attacks::is_combo(&s, &run));
+    run.owner = s.players.id(slot(0));
+    assert!(attacks::is_combo(&s, &run));
+    run.owner = EntityId(s.companions.first().map_or(7, |c| c.id.0));
+    assert!(!attacks::is_combo(&s, &run), "a companion's");
+}

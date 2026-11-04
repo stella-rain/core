@@ -64,6 +64,12 @@ fn dist2(a: Point, b: Point) -> u64 {
     (dx * dx + dy * dy).unsigned_abs()
 }
 
+/// The player an enemy, a companion or the boss at `from` goes for (ADR-SIM-7 point 6).
+pub(super) fn chase(s: &State, up: &Up, from: Point, key: u32, random: bool) -> PlayerIdx {
+    let _ = (s, from, key, random);
+    up.slot[0]
+}
+
 /// The live ally `by` ranks lowest (the first of equals), or `None`; `skip` is left out. Visits the
 /// main character, the other players, then the companions: a plain loop, since every ally
 /// selection of every agent of a tick runs through here (ADR-SIM-6).
@@ -132,7 +138,13 @@ pub(super) fn select(s: &State, me: Who, selector: &Selector) -> Option<Who> {
 /// circle reaches within `range` of the main character, the boss or a part first, then an
 /// elite, then any other enemy; within a class the nearest, then the lower entity ID. One pass
 /// over the enemies, at most the enemy cap (ADR-SVC-1).
-pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<EntityId> {
+pub(super) fn assist_target(
+    stage: &World,
+    s: &State,
+    me: PlayerIdx,
+    range: i32,
+) -> Option<EntityId> {
+    let _ = me;
     let from = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let mut best: Option<(u8, u64, EntityId)> = None;
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
@@ -166,7 +178,14 @@ pub(super) fn assist_target(stage: &World, s: &State, range: i32) -> Option<Enti
 /// Aim assist's first `n` targets, in its order (`assist_target`'s first): homing missiles'
 ///. One pass over the enemies, each set against at most `n` kept. Its own walk, so
 /// that aim assist's stays as the tick-cost gate measures it (ADR-SIM-5).
-pub(super) fn assist_targets(stage: &World, s: &State, range: i32, n: usize) -> Vec<EntityId> {
+pub(super) fn assist_targets(
+    stage: &World,
+    s: &State,
+    me: PlayerIdx,
+    range: i32,
+    n: usize,
+) -> Vec<EntityId> {
+    let _ = me;
     let from = s.players[PlayerIdx::SOLO].at; // N=1: M-DOWN-PARTY
     let mut kept: Vec<(u8, u64, EntityId)> = Vec::with_capacity(n.saturating_add(1));
     let mut consider = |class: u8, at: Point, radius: i32, id: EntityId| {
