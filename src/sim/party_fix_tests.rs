@@ -751,3 +751,109 @@ fn nobody_up_earns_no_experience_and_a_solo_player_at_zero_hit_points_neither() 
     super::levels::credit_defeated(&w, &mut s, &mut ev);
     assert!(level(&s, 0) > 1);
 }
+
+// --- Stardust ------------------------------------------------------------------------------
+
+/// `level_up_state(n)` with a Stardust table (factor 100 percent), a base of 10 for every wave,
+/// every slot counting from 0, and a boss on the field whose kill is worth 25.
+fn stardust_state(n: u8) -> (World, State) {
+    let (mut w, mut s) = level_up_state(n);
+    w.stage.stardust = Some(crate::stage::StardustFactor {
+        tiers: vec![crate::stage::StardustTier {
+            start_tick: 0,
+            pct: 100,
+        }],
+        summon_base: None,
+    });
+    for wave in &mut w.stage.waves {
+        wave.stardust = Some(10);
+    }
+    for b in &mut w.bosses {
+        b.boss.stardust = Some(25);
+    }
+    for i in s.players.indices().collect::<Vec<_>>() {
+        s.players.career_mut(i).stardust = Some(0);
+    }
+    if let Some(h) = s.horde.as_mut() {
+        h.boss_ticks[0] = s.tick + 1;
+    }
+    super::horde::spawn_boss(&w, &mut s);
+    assert!(s.boss.is_some(), "a boss to defeat");
+    (w, s)
+}
+
+fn dust(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).stardust.unwrap()
+}
+
+fn credit_all(w: &World, s: &mut State, boss: bool) {
+    for me in s.players.indices().collect::<Vec<_>>() {
+        if boss {
+            super::stardust::boss_killed(w, s, me);
+        } else {
+            super::stardust::credit_defeated(w, s, me);
+        }
+    }
+}
+
+#[test]
+fn stardust_goes_to_the_players_that_are_up_only() {
+    let (w, mut s) = stardust_state(3);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (10, 0, 0));
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (35, 0, 0));
+}
+
+#[test]
+fn every_player_that_is_up_gets_the_whole_stardust() {
+    let (w, mut s) = stardust_state(3);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (35, 35, 35));
+}
+
+#[test]
+fn a_revived_player_earns_stardust_and_what_it_earned_before_going_down_is_kept() {
+    let (w, mut s) = stardust_state(2);
+    credit_all(&w, &mut s, false);
+    down(&mut s, 1);
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1)), (20, 10));
+    s.players[slot(1)].hp = 10;
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1)), (30, 20));
+}
+
+#[test]
+fn nobody_up_earns_no_stardust_and_solo_follows_the_same_rule() {
+    let (w, mut s) = stardust_state(3);
+    down(&mut s, 0);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (0, 0, 0));
+
+    let (w, mut s) = stardust_state(1);
+    down(&mut s, 0);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!(dust(&s, 0), 0);
+
+    let (w, mut s) = stardust_state(1);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!(dust(&s, 0), 35);
+}
+
+#[test]
+fn the_stardust_counter_still_saturates() {
+    let max = crate::validate::limits::MAX_RUN_STARDUST;
+    let (w, mut s) = stardust_state(2);
+    s.players.career_mut(slot(0)).stardust = Some(max - 1);
+    credit_all(&w, &mut s, false);
+    assert_eq!(dust(&s, 0), max);
+}
