@@ -202,16 +202,69 @@ fn every_bench_names_the_teardown() {
     assert!(errors.is_empty(), "{}", errors.join("\n"));
 }
 
-#[test]
-fn bench_files_are_the_budget_keys() {
+/// The bench targets that have a file in `benches/` but no key in `benches/budgets.toml` yet
+/// (ADR-SIM-6): CI builds and counts only the budgeted ones, so these run locally until a
+/// budget is added. Adding the budget removes the name here; the guard below fails until it does.
+pub(crate) const UNBUDGETED: [&str; 0] = [];
+
+/// The names of `unbudgeted` that are also budget `keys`.
+fn listed_and_budgeted(unbudgeted: &[&str], keys: &[&str]) -> Vec<String> {
+    unbudgeted
+        .iter()
+        .filter(|name| keys.contains(name))
+        .map(|name| (*name).to_owned())
+        .collect()
+}
+
+fn budget_keys() -> Vec<String> {
     let budgets = fs::read_to_string(benches_dir().join("budgets.toml")).expect("budgets.toml");
     let mut keys = table_keys(&budgets);
     keys.sort();
+    keys
+}
+
+#[test]
+fn bench_files_are_the_budget_keys() {
+    let mut expected = budget_keys();
+    expected.extend(UNBUDGETED.iter().map(|name| (*name).to_owned()));
+    expected.sort();
     let files: Vec<String> = bench_files()
         .into_iter()
         .map(|(name, _)| name.trim_end_matches(".rs").to_owned())
         .collect();
-    assert_eq!(files, keys, "benches/*.rs and the budgets.toml keys differ");
+    assert_eq!(
+        files, expected,
+        "benches/*.rs differ from the budgets.toml keys and UNBUDGETED"
+    );
+}
+
+#[test]
+fn unbudgeted_names_are_not_budget_keys() {
+    let keys = budget_keys();
+    let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+    let both = listed_and_budgeted(&UNBUDGETED, &keys);
+    assert!(
+        both.is_empty(),
+        "{}",
+        both.iter()
+            .map(|name| format!("remove `{name}` from UNBUDGETED: it has a budget"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn every_unbudgeted_name_has_a_bench_file() {
+    let files: Vec<String> = bench_files()
+        .into_iter()
+        .map(|(name, _)| name.trim_end_matches(".rs").to_owned())
+        .collect();
+    for name in UNBUDGETED {
+        assert!(
+            files.iter().any(|f| f == name),
+            "UNBUDGETED names `{name}` but benches/{name}.rs does not exist"
+        );
+    }
 }
 
 #[test]
