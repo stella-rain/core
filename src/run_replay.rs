@@ -960,7 +960,7 @@ impl RunRecorder {
 
     /// One step that does not advance the world: the equipment action of each slot (`None` for
     /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8); an action at
-    /// an absent slot is ignored. Refused, recording nothing, when the replay already holds
+    /// an absent slot is ignored. Refused, recording nothing, after the run ended or when the replay already holds
     /// `MAX_ACTION_STEPS` steps of actions or the engine refuses an action (`check_action`).
     pub fn actions(
         &mut self,
@@ -971,6 +971,11 @@ impl RunRecorder {
             return Err(RunReplayError::BadInputs(
                 "a step of actions holds an action",
             ));
+        }
+        if self.engine.outcome() != Outcome::Running {
+            return Err(RunReplayError::InputsAfterEnd {
+                ended_at: self.engine.tick(),
+            });
         }
         if self.actions_made >= MAX_ACTION_STEPS {
             return Err(RunReplayError::TooManyActions {

@@ -236,18 +236,17 @@ impl StepLog {
         if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
-        if self.actions_made() > 0 {
-            return Err(RunReplayError::BadInputs(
-                "a log with equipment actions has no solo view",
-            ));
-        }
         let mut tick = 0u32;
         let mut commands = Vec::new();
         for record in &self.records {
             match record {
                 Record::Ticks { run, .. } => tick = tick.saturating_add(*run),
                 Record::Join { .. } | Record::Leave { .. } => {}
-                Record::Actions { .. } => unreachable!("refused above"),
+                Record::Actions { .. } => {
+                    return Err(RunReplayError::BadInputs(
+                        "a log with equipment actions has no solo view",
+                    ));
+                }
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -268,11 +267,6 @@ impl StepLog {
         if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
-        if self.actions_made() > 0 {
-            return Err(RunReplayError::BadInputs(
-                "a log with equipment actions has no solo view",
-            ));
-        }
         let mut inputs = Vec::new();
         let mut commands = Vec::new();
         for record in &self.records {
@@ -281,7 +275,11 @@ impl StepLog {
                     inputs.extend(std::iter::repeat_n(held[0], *run as usize));
                 }
                 Record::Join { .. } | Record::Leave { .. } => {}
-                Record::Actions { .. } => unreachable!("refused above"),
+                Record::Actions { .. } => {
+                    return Err(RunReplayError::BadInputs(
+                        "a log with equipment actions has no solo view",
+                    ));
+                }
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
