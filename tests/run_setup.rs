@@ -837,3 +837,23 @@ fn the_checked_in_schema_names_the_new_fields() {
     assert!(text.contains("\"offers\""));
     assert!(text.contains("\"equipment\""));
 }
+
+#[test]
+fn an_equipment_setup_is_refused_at_start_until_the_rules_land() {
+    let gate = issue("$.build_mode", "equipment mode is not built yet");
+    let valid = equipment();
+    // Content-free validation accepts it; the start refuses it.
+    assert_eq!(run_setup::validate(&valid), Ok(()));
+    assert_eq!(found_in(&valid), [gate.clone()]);
+    assert_eq!(issues(Engine::start(&valid).err().unwrap()), [gate]);
+    // Any other issue is reported alone.
+    assert_eq!(
+        found_in(&star_setup(0, "max_hp_common")),
+        [issue(
+            "$.lumine_star",
+            "costs 1 Lumine, more than the level of 0"
+        )]
+    );
+    // An offers setup is unaffected.
+    assert!(Engine::start(&RunSetup::default()).is_ok());
+}
