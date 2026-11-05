@@ -48,3 +48,55 @@ fn the_packed_stream_never_holds_an_action() {
     };
     assert_eq!(pack_inputs(&[with]), pack_inputs(&[Input::default()]));
 }
+
+mod recorder {
+    use super::REPLACE37;
+    use stella_rain_core::input::{EquipAction, Input};
+    use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
+    use stella_rain_core::run_setup::RunSetup;
+
+    fn start() -> RunRecorder {
+        RunRecorder::start(&RunSetup::default()).unwrap()
+    }
+
+    #[test]
+    fn a_refused_action_records_nothing() {
+        let mut rec = start();
+        let before = rec.replay();
+        let err = rec.actions(&[Some(REPLACE37), None, None]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "an equipment action on tick 0 is not built yet"
+        );
+        assert!(matches!(err, RunReplayError::ActionRefused { tick: 0, .. }));
+        assert_eq!(rec.replay(), before);
+        assert_eq!(before.ticks, 0);
+        rec.step(&[Input::default(); 3]).unwrap();
+    }
+
+    #[test]
+    fn a_step_of_actions_holds_an_action() {
+        let mut rec = start();
+        let why = RunReplayError::BadInputs("a step of actions holds an action");
+        assert_eq!(rec.actions(&[None, None, None]), Err(why.clone()));
+        // An absent slot's entry is ignored.
+        assert_eq!(rec.actions(&[None, Some(REPLACE37), None]), Err(why));
+    }
+
+    #[test]
+    fn a_refused_action_in_a_step_is_ignored_like_a_refused_pick() {
+        let acting = Input {
+            action: Some(EquipAction::Extract { item: 1 }),
+            ..Input::default()
+        };
+        let mut with = start();
+        let mut idle = start();
+        for _ in 0..10 {
+            with.step(&[acting, Input::default(), Input::default()])
+                .unwrap();
+            idle.step(&[Input::default(); 3]).unwrap();
+        }
+        assert_eq!(with.replay(), idle.replay());
+        verify_run(&with.replay().to_bytes()).unwrap();
+    }
+}

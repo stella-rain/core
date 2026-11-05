@@ -46,9 +46,9 @@ use sha2::{Digest, Sha256};
 
 use crate::base64;
 use crate::content_hash::to_hex;
-use crate::engine::{ChoiceError, Engine, Outcome, PresenceError};
+use crate::engine::{ActionError, ChoiceError, Engine, Outcome, PresenceError};
 use crate::id::{MAX_PLAYERS, PlayerIdx};
-use crate::input::Input;
+use crate::input::{EquipAction, Input};
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
 use crate::replay::{
@@ -209,6 +209,11 @@ pub enum RunReplayError {
         tick: u32,
         error: ChoiceError,
     },
+    /// An equipment action on this tick was refused by the engine.
+    ActionRefused {
+        tick: u32,
+        error: ActionError,
+    },
     /// A join or leave on this tick was refused by the engine.
     PresenceRefused {
         tick: u32,
@@ -311,6 +316,16 @@ impl fmt::Display for RunReplayError {
                     "a choice on tick {tick} is in a run of sim_version {sim_version}, \
                      which this game does not run"
                 ),
+            },
+            RunReplayError::ActionRefused { tick, error } => match error {
+                ActionError::NoPlayer { player } => write!(
+                    f,
+                    "an equipment action on tick {tick} names player {} outside the party",
+                    player.get()
+                ),
+                ActionError::NotBuilt => {
+                    write!(f, "an equipment action on tick {tick} is not built yet")
+                }
             },
             RunReplayError::PresenceRefused { tick, error } => match error {
                 PresenceError::Occupied { slot } => write!(
@@ -921,6 +936,15 @@ impl RunRecorder {
         Ok(())
     }
 
+    /// One step that does not advance the world: the equipment action of each slot (`None` for
+    /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8).
+    pub fn actions(
+        &mut self,
+        _actions: &[Option<EquipAction>; MAX_PLAYERS as usize],
+    ) -> Result<(), RunReplayError> {
+        Ok(())
+    }
+
     /// Slot `slot` joins the party before the next step (`Engine::join`): a JOIN record at the
     /// tick the run is on. Refused, recording nothing, after the run ended, past
     /// `MAX_PRESENCE_CHANGES`, or when the engine refuses.
@@ -1359,8 +1383,10 @@ fn dense<T: Copy>(mask: u8, all: &[T; MAX_PLAYERS as usize]) -> Vec<T> {
 
 #[cfg(test)]
 mod tests {
+    use super::{ActionError, RunReplayError};
     use super::{RunRecorder, hash_content, verify_run};
     use crate::engine::Engine;
+    use crate::input::EquipAction;
     use crate::input::Input;
     use crate::run_setup::RunSetup;
 
@@ -1641,6 +1667,39 @@ mod tests {
         let verified = verify_run(&replay.to_bytes()).unwrap();
         assert_eq!(verified.ticks, 130);
         assert_eq!(verified.final_hash, hash);
+    }
+
+    #[test]
+    fn a_replay_with_an_action_step_loads_and_ranges_but_does_not_verify() {
+        use crate::pack::Pack;
+        use crate::run_replay::Record;
+        use crate::step_log::RangeStep;
+        let mut rec = RunRecorder::start(&RunSetup::default()).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
+        rec.records.push(Record::Actions {
+            actions: vec![Some(EquipAction::Extract { item: 0 })],
+        });
+        let replay = rec.replay();
+        let refused = RunReplayError::ActionRefused {
+            tick: 1,
+            error: ActionError::NotBuilt,
+        };
+        assert_eq!(
+            refused.to_string(),
+            "an equipment action on tick 1 is not built yet"
+        );
+        assert_eq!(verify_run(&replay.to_bytes()).unwrap_err(), refused);
+        let range = replay.step_range(0, 1, 1_000_000).unwrap();
+        assert!(
+            range
+                .steps
+                .iter()
+                .any(|s| matches!(s, RangeStep::Actions { .. }))
+        );
+        assert_eq!(
+            RunRecorder::resume_with_pack(&replay, Pack::bundled()).err(),
+            Some(refused)
+        );
     }
 }
 
