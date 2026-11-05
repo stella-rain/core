@@ -86,3 +86,37 @@ class Cli(unittest.TestCase):
         r = cli(stdin=self.STDIN)
         self.assertEqual((r.stdout, r.returncode), ("", 1))
         self.assertIn("usage", r.stderr)
+
+
+class Workflow(unittest.TestCase):
+    """content-publish.yml calls the script and carries VERSION into the commit and the PR."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(WORKFLOW, encoding="utf-8") as f:
+            cls.text = f.read()
+        cls.lines = cls.text.splitlines()
+
+    def test_calls_the_script(self):
+        self.assertIn("content_version.py", self.text)
+
+    def test_reads_every_final_tag_page_by_page(self):
+        line = next((l for l in self.lines if "matching-refs/tags/v" in l), "")
+        self.assertIn("gh api", line)
+        self.assertIn("--paginate", line)
+
+    def test_script_comes_from_the_workflows_own_commit(self):
+        self.assertIn("ref: ${{ github.sha }}", self.text)
+        self.assertIn("sparse-checkout: .github/scripts/content_version.py", self.text)
+
+    def test_version_is_part_of_the_diff_and_the_commit(self):
+        diff = next((l for l in self.lines if "git diff --quiet HEAD --" in l), "")
+        add = next((l for l in self.lines if l.strip().startswith("git add ")), "")
+        self.assertIn("VERSION", diff)
+        self.assertIn("VERSION", add)
+
+    def test_commit_and_pr_name_the_value(self):
+        self.assertGreaterEqual(self.text.count("$CONTENT_VERSION"), 3)
+
+    def test_permissions_stay_empty(self):
+        self.assertIn("\npermissions: {}\n", self.text)
