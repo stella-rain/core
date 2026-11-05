@@ -562,7 +562,8 @@ fn an_offers_setup_writes_neither_new_key() {
 #[test]
 fn a_setup_file_written_before_the_fields_keeps_its_keys() {
     for name in ["trial", "trial_loadout", "trial_upgrades"] {
-        let path = format!("tests/fixtures/run_setup/{name}.json");
+        let path =
+            crate::data_root::data_root().join(format!("tests/fixtures/run_setup/{name}.json"));
         let text = std::fs::read(&path).unwrap();
         let parsed = run_setup::parse_and_validate(&text).unwrap();
         assert_eq!(parsed.build_mode, BuildMode::Offers, "{name}");
@@ -659,28 +660,28 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
             offer_mode: OfferMode::Timed,
             ..equipment()
         }),
-        [timed.clone()]
+        vec![timed.clone()]
     );
     assert_eq!(
         one(RunSetup {
             carried: vec![star.clone()],
             ..equipment()
         }),
-        [carried.clone()]
+        vec![carried.clone()]
     );
     assert_eq!(
         one(RunSetup {
             extra_rerolls: 2,
             ..equipment()
         }),
-        [rerolls.clone()]
+        vec![rerolls.clone()]
     );
     assert_eq!(
         one(RunSetup {
             pick_stats: true,
             ..equipment()
         }),
-        [stats.clone()]
+        vec![stats.clone()]
     );
     assert_eq!(
         one(RunSetup {
@@ -840,7 +841,9 @@ fn start_agrees_with_validate_in_on_the_lumine_star() {
 
 #[test]
 fn the_checked_in_schema_names_the_new_fields() {
-    let text = std::fs::read_to_string("schema/content.schema.json").unwrap();
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
     assert!(text.contains("\"build_mode\""));
     assert!(text.contains("\"lumine_star\""));
     assert!(text.contains("\"offers\""));
@@ -853,7 +856,7 @@ fn an_equipment_setup_is_refused_at_start_until_the_rules_land() {
     let valid = equipment();
     // Content-free validation accepts it; the start refuses it.
     assert_eq!(run_setup::validate(&valid), Ok(()));
-    assert_eq!(found_in(&valid), [gate.clone()]);
+    assert_eq!(found_in(&valid), vec![gate.clone()]);
     assert_eq!(issues(Engine::start(&valid).err().unwrap()), [gate]);
     // Any other issue is reported alone.
     assert_eq!(
