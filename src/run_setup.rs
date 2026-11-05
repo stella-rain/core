@@ -533,6 +533,45 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
             );
         }
     }
+    if setup.build_mode == BuildMode::Equipment {
+        if setup.sim_version < 2 {
+            issue(
+                "$.build_mode".into(),
+                "equipment mode needs sim_version 2".into(),
+            );
+        }
+        if setup.offer_mode == OfferMode::Timed {
+            issue(
+                "$.offer_mode".into(),
+                "not set in equipment mode: nothing is offered".into(),
+            );
+        }
+        if !setup.carried.is_empty() {
+            issue(
+                "$.carried".into(),
+                "none in equipment mode: the Lumine star is the one star a run starts with".into(),
+            );
+        }
+        if setup.extra_rerolls > 0 {
+            issue(
+                "$.extra_rerolls".into(),
+                "none in equipment mode: there are no rerolls".into(),
+            );
+        }
+        if setup.pick_stats {
+            issue(
+                "$.pick_stats".into(),
+                "off in equipment mode: level stats follow the stat priority list".into(),
+            );
+        }
+    }
+    if let Some(star) = &setup.lumine_star {
+        if !registry::is_well_formed(star.as_str()) {
+            issue("$.lumine_star".into(), ill_formed.into());
+        } else if setup.build_mode == BuildMode::Offers {
+            issue("$.lumine_star".into(), "needs equipment mode".into());
+        }
+    }
     if setup.lumine > MAX_LUMINE {
         issue(
             "$.lumine".into(),
