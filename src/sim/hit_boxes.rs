@@ -873,4 +873,244 @@ mod party_tests {
         );
         assert_eq!(hurt_in(&ev), 1);
     }
+
+    // A run end made during the pass (a player downed, a hold broken, a stun) must not shift the
+    // places the swings hold into `s.runs` (ADR-SIM-7).
+
+    const FOE: EntityId = EntityId(900);
+
+    /// A run of `owner` in `slot`, cloned from a real one, pushed; its place.
+    fn add_run(
+        s: &mut State,
+        template: &crate::sim::state::AttackRun,
+        owner: EntityId,
+        slot: u8,
+    ) -> usize {
+        let mut run = template.clone();
+        run.owner = owner;
+        run.slot = slot;
+        run.hits = Vec::new();
+        s.runs.push(run);
+        s.runs.len() - 1
+    }
+
+    fn at_place(mut w: Swing, place: usize, slot: u8) -> Swing {
+        w.source = Source::Run(place);
+        w.slot = slot;
+        w
+    }
+
+    fn pass(w: &World, s: &mut State, swings: &[Swing]) -> Vec<DomainEvent> {
+        let mut ev = Vec::new();
+        let (mut bits, mut found) = (Vec::new(), Vec::new());
+        land(w, s, &mut None, swings, (&mut bits, &mut found), &mut ev);
+        ev
+    }
+
+    fn hit_ids(s: &State, place: usize) -> Vec<EntityId> {
+        s.runs[place].hits.iter().map(|h| h.0).collect()
+    }
+
+    fn downed(ev: &[DomainEvent]) -> usize {
+        ev.iter()
+            .filter(|e| matches!(e, DomainEvent::PlayerDowned { .. }))
+            .count()
+    }
+
+    /// A party where players 1 and 2 stand together far from player 0, and player 1 goes down
+    /// on one hit. The runs: slot 1's combo run, then `foes` enemy runs.
+    fn downing(foes: usize) -> (World, State) {
+        let (w, mut s) = party();
+        let template = s.runs[0].clone();
+        s.runs.clear();
+        s.players[slot(2)].at = s.players[slot(1)].at;
+        s.players[slot(1)].hp = 1;
+        add_run(
+            &mut s,
+            &template,
+            slot(1).id(),
+            crate::sim::player::COMBO_SLOT,
+        );
+        for k in 0..foes {
+            add_run(&mut s, &template, EntityId(900 + k as u32), 0);
+        }
+        (w, s)
+    }
+
+    fn over(s: &State, i: u8, w: &World, owner: EntityId, place: usize) -> Swing {
+        at_place(
+            swing(s.players[slot(i)].at, w.tuning.player_radius, false, owner),
+            place,
+            0,
+        )
+    }
+
+    #[test]
+    fn a_player_downed_mid_swing_leaves_the_rest_of_the_swing_its_run() {
+        let (w, mut s) = downing(1);
+        let one = over(&s, 1, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(s.players[slot(1)].hp, 0);
+        assert_eq!(downed(&ev), 1);
+        assert_eq!(hurt_in(&ev), 2, "players 1 and 2 are each hurt once");
+        assert_eq!(s.runs.len(), 1, "the downed player's combo run is gone");
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+    }
+
+    #[test]
+    fn a_later_swing_writes_to_its_own_run_after_a_down() {
+        let (w, mut s) = downing(2);
+        let before = s.players[slot(0)].hp;
+        let swings = [over(&s, 1, &w, FOE, 1), over(&s, 0, &w, FOE, 2)];
+        let ev = pass(&w, &mut s, &swings);
+        assert_eq!(downed(&ev), 1);
+        assert!(
+            s.players[slot(0)].hp < before,
+            "the second swing hurts player 0"
+        );
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+        assert_eq!(hit_ids(&s, 1), vec![slot(0).id()]);
+    }
+
+    #[test]
+    fn a_down_does_not_move_a_hit_into_another_runs_list() {
+        let (w, mut s) = downing(3);
+        // The second foe has hit player 0 already; the third has hit nobody.
+        s.runs[2].hits.push((slot(0).id(), 0));
+        let swings = [over(&s, 1, &w, FOE, 1), over(&s, 0, &w, FOE, 2)];
+        pass(&w, &mut s, &swings);
+        assert_eq!(s.runs.len(), 3);
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+        assert_eq!(
+            hit_ids(&s, 1),
+            vec![slot(0).id()],
+            "its own list, from before"
+        );
+        assert!(
+            hit_ids(&s, 2).is_empty(),
+            "the third foe's list is untouched"
+        );
+    }
+
+    #[test]
+    fn a_beam_that_downs_a_player_leaves_the_swings_their_runs() {
+        let (w, mut s) = downing(1);
+        let mid = s.players[slot(1)].at;
+        s.players[slot(2)].at = Point {
+            x: Fx(mid.x.0 + 4_000_000),
+            y: mid.y,
+        };
+        let link = |slot| crate::sim::state::OrbLink {
+            group: 1,
+            slot,
+            of: 2,
+            width: Fx::px(40),
+            damage: 10,
+            rehit_ticks: 30,
+            last_hit: None,
+        };
+        let end = |dx, k| {
+            let at = Point {
+                x: Fx(mid.x.0 + dx),
+                y: mid.y,
+            };
+            orb(at, FOE, Some(link(k)))
+        };
+        s.orbs = vec![end(-Fx::px(100).0, 0), end(Fx::px(100).0, 1)];
+        s.next_orb_group = 2;
+        s.tick = 100;
+        let one = over(&s, 2, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(s.players[slot(1)].hp, 0, "the beam downs player 1");
+        assert_eq!(downed(&ev), 1);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(hit_ids(&s, 0), vec![slot(2).id()]);
+    }
+
+    /// A single player, with a run of its own at place 0 and one foe run after it.
+    fn solo() -> (World, State) {
+        let e = worst_case::warmed_up();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules");
+        };
+        let mut s = state.clone();
+        assert_eq!(s.players.len(), 1);
+        let template = s.runs[0].clone();
+        s.runs.clear();
+        let p = &mut s.players[PlayerIdx::SOLO];
+        p.hp = p.max_hp;
+        p.invulnerable = 0;
+        s.companions.clear();
+        let me = slot(0).id();
+        add_run(&mut s, &template, me, crate::sim::player::COMBO_SLOT);
+        (world.clone(), s)
+    }
+
+    #[test]
+    fn a_hold_broken_by_the_swing_leaves_the_swings_their_runs() {
+        let (mut w, mut s) = solo();
+        // A second hit on the same player in the pass: the swing after the break is judged
+        // against its own run.
+        w.tuning.hit_invulnerable_ticks = 0;
+        let template = s.runs[0].clone();
+        add_run(&mut s, &template, FOE, 0);
+        add_run(&mut s, &template, EntityId(901), 0);
+        s.players[PlayerIdx::SOLO].combo.hold = Some(3);
+        let mut first = over(&s, 0, &w, FOE, 1);
+        first.breaks_charge = true;
+        let second = over(&s, 0, &w, EntityId(901), 2);
+        let ev = pass(&w, &mut s, &[first, second]);
+        assert_eq!(s.players[PlayerIdx::SOLO].combo.hold, None);
+        assert!(ev.iter().any(|e| matches!(e, DomainEvent::HoldBroken)));
+        assert_eq!(s.runs.len(), 2, "the held step's run ended after the pass");
+        assert!(
+            s.runs
+                .iter()
+                .all(|r| r.slot != crate::sim::player::COMBO_SLOT)
+        );
+        assert_eq!(hit_ids(&s, 0), vec![slot(0).id()]);
+        assert_eq!(hit_ids(&s, 1), vec![slot(0).id()]);
+    }
+
+    #[test]
+    fn a_stun_leaves_the_later_swing_its_run() {
+        let (w, mut s) = solo();
+        let template = s.runs[0].clone();
+        let x = (0..s.enemies.len())
+            .find(|&i| w.defs.agent(s.enemies[i].def).elite.is_none())
+            .expect("a regular enemy");
+        s.enemies[x].hp = u32::MAX / 2;
+        s.enemies[x].stun_immune = 0;
+        let xid = s.enemies[x].id;
+        add_run(&mut s, &template, xid, 0);
+        add_run(&mut s, &template, FOE, 0);
+        let me = slot(0).id();
+        let mut stun = at_place(swing(s.enemies[x].at, 1_000, true, me), 0, 0);
+        stun.combo = true;
+        stun.smash = Some(Smash::Stun { ticks: 30 });
+        let foe = over(&s, 0, &w, FOE, 2);
+        pass(&w, &mut s, &[stun, foe]);
+        assert!(
+            s.runs.iter().all(|r| r.owner != xid),
+            "the stunned enemy's run ended after the pass"
+        );
+        let foe_run = s.runs.iter().find(|r| r.owner == FOE).expect("its run");
+        assert_eq!(
+            foe_run.hits.iter().map(|h| h.0).collect::<Vec<_>>(),
+            vec![me]
+        );
+    }
+
+    #[test]
+    fn a_pass_with_no_run_end_changes_no_run() {
+        let (w, mut s) = downing(1);
+        s.players[slot(1)].hp = s.players[slot(1)].max_hp;
+        let one = over(&s, 1, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(downed(&ev), 0);
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(hit_ids(&s, 1), vec![slot(1).id(), slot(2).id()]);
+        assert!(hit_ids(&s, 0).is_empty());
+    }
 }
