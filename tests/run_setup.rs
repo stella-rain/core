@@ -828,3 +828,12 @@ fn start_agrees_with_validate_in_on_the_lumine_star() {
         assert_eq!(issues(Engine::start(&setup).err().unwrap()), expected);
     }
 }
+
+#[test]
+fn the_checked_in_schema_names_the_new_fields() {
+    let text = std::fs::read_to_string("schema/content.schema.json").unwrap();
+    assert!(text.contains("\"build_mode\""));
+    assert!(text.contains("\"lumine_star\""));
+    assert!(text.contains("\"offers\""));
+    assert!(text.contains("\"equipment\""));
+}
