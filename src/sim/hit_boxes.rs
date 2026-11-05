@@ -1198,4 +1198,14 @@ mod party_tests {
         assert_eq!(s.runs[0].owner, EntityId(901));
         assert_eq!(s.scratch.ends_pinned, None);
     }
+
+    #[test]
+    fn the_same_end_asked_twice_is_kept_once() {
+        let (_, mut s) = downing(1);
+        let end = RunEnd::All(FOE);
+        s.scratch.push_end(end);
+        s.scratch.push_end(end);
+        s.scratch.push_end(RunEnd::All(EntityId(901)));
+        assert_eq!(s.scratch.ends_pending.len(), 2);
+    }
 }

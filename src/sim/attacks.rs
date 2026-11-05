@@ -731,7 +731,7 @@ pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
 pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
     // Inside the hit pass the end waits for the last swing (ADR-SIM-7).
     if s.scratch.ends_pinned.is_some() {
-        s.scratch.ends_pending.push(RunEnd::Slot(owner, slot));
+        s.scratch.push_end(RunEnd::Slot(owner, slot));
         return;
     }
     retain_runs(s, |r| r.owner != owner || r.slot != slot);
@@ -764,7 +764,7 @@ pub(super) fn hold_ready(world: &World, s: &State, owner: EntityId, slot: u8) ->
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
     if s.scratch.ends_pinned.is_some() {
-        s.scratch.ends_pending.push(RunEnd::All(owner));
+        s.scratch.push_end(RunEnd::All(owner));
         return;
     }
     retain_runs(s, |r| r.owner != owner);

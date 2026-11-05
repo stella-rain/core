@@ -24,7 +24,7 @@ struct Reserved {
 }
 
 /// A run end asked for while the hit pass holds the places of `State::runs` (ADR-SIM-7).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RunEnd {
     /// The run of this owner in this slot.
     Slot(EntityId, u8),
@@ -153,6 +153,14 @@ impl Scratch {
         reserve_to(&mut self.consumed, super::MAX_ORBS_ALIVE as usize);
         for pool in &mut self.ranged_grants {
             reserve_to(pool, super::MAX_RANGED_ATTACKERS as usize);
+        }
+    }
+
+    /// Records a run end the hit pass defers, once however often it is asked for: a swing
+    /// after another stuns the same enemy again, and the list stays within its reserve.
+    pub(super) fn push_end(&mut self, end: RunEnd) {
+        if !self.ends_pending.contains(&end) {
+            self.ends_pending.push(end);
         }
     }
 
