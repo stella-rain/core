@@ -312,3 +312,22 @@ fn a_one_byte_change_to_the_real_manifest_is_refused() {
         Err(TrustError::Signature)
     );
 }
+
+#[test]
+fn the_previous_key_is_no_longer_trusted() {
+    use stella_rain_core::pack::trust::{TrustError, verify_packs};
+    assert_eq!(
+        verify_packs(REAL_MANIFEST, REAL_SIG),
+        Err(TrustError::UnknownKey)
+    );
+    assert!(verify_with_old_key(REAL_MANIFEST, REAL_SIG).is_ok());
+}
+
+#[test]
+fn slot_one_cannot_trust_the_previous_key() {
+    use stella_rain_core::pack::trust::{KEY_IDS, PUBLIC_KEYS, TrustError, verify_packs_with_keys};
+    assert_eq!(
+        verify_packs_with_keys(REAL_MANIFEST, REAL_SIG, &KEY_IDS, &PUBLIC_KEYS),
+        Err(TrustError::UnknownKey)
+    );
+}
