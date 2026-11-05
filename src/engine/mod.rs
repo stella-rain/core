@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::event::DomainEvent;
 use crate::id::{ContentId, PlayerIdx};
+use crate::input::EquipAction;
 use crate::input::Input;
 use crate::kinds::KindTable;
 use crate::ledger::{Counted, PlayerStats, RunLedger};
@@ -41,6 +42,15 @@ pub enum ChoiceError {
     /// The run's `sim_version` is not one this game runs (ADR-REPL-2 points 1 to 3). `Engine::new`
     /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
     Unsupported { sim_version: u32 },
+}
+
+/// Why `Engine::check_action` refused an equipment action (ADR-SIM-7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActionError {
+    /// `player` is not in the run's party.
+    NoPlayer { player: PlayerIdx },
+    /// No rule accepts this action yet.
+    NotBuilt,
 }
 
 /// How a run stands.
@@ -551,6 +561,16 @@ impl Engine {
         self.pick_option(player, index).map(|_| ())
     }
 
+    /// Whether `player` could make the equipment action `action` in a step (ADR-SIM-7).
+    /// Read-only. `NoPlayer` for a slot outside the party, else `NotBuilt` for every action, in
+    /// every mode and `sim_version`: `NotBuilt` goes when the first equipment rule lands, each
+    /// rule replacing its own arm (equip and replace, extract and craft, the tree pick). The
+    /// match has one arm per variant so a new rule edits one line.
+    pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
+        let _ = (player, action);
+        Ok(())
+    }
+
     /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
     /// categories, the expected gain in the Main weapon's damage in basis points, the set tier
     /// the pick reaches and the stats it moves, before and after. Empty for a player outside
@@ -768,6 +788,8 @@ pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), 
     Ok(())
 }
 
+#[cfg(test)]
+mod action_tests;
 #[cfg(test)]
 mod codec_tests;
 #[cfg(test)]
