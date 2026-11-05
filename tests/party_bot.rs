@@ -194,6 +194,9 @@ impl PartyBot {
         };
         let ratings = engine.offer_ratings(player);
         if ratings.is_empty() {
+            if options == 0 {
+                return None;
+            }
             return Some(
                 u32::try_from(mix(self.seed, slot, u64::from(tick)) % u64::from(options)).unwrap(),
             );
@@ -301,6 +304,10 @@ impl RigRun {
             .step_range(0, replay.ticks, u32::MAX)
             .expect("a recorded step log");
         let slots: Vec<usize> = (0..3).filter(|s| range.present >> s & 1 == 1).collect();
+        assert!(
+            range.present == (1u8 << slots.len()) - 1,
+            "a rig run holds a party from slot 0 with no hole"
+        );
         let spread = |dense: &[_]| {
             let mut out = [None; 3];
             for (s, v) in slots.iter().zip(dense) {
