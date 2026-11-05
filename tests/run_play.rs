@@ -5,7 +5,7 @@
 
 use crate::common;
 use crate::common::run::{STEER_FROM, answer_all, trial_setup};
-use crate::party_bot::PartyBot;
+use crate::party_bot::{PartyBot, RigParty};
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
@@ -350,5 +350,13 @@ pub fn party_cases() -> Vec<PartyCase> {
             answer_after: Some(100),
             bot: None,
         },
+        // The rig cases: every slot played by a `PartyBot`, a player goes down and is revived by
+        // a teammate holding `interact`. The seeds are the first of a search (`search_rig_seeds`
+        // in `party_bot.rs`): world seeds 1..=300 x bot seeds 1..=20, `time_limit`, normal, 3000
+        // ticks, in that scan order; a run under 3000 ticks and 64 KiB with a down and a revive of
+        // a downed player, no out before the first revive, and slots 1 and 2 answering at least
+        // two offers together. For three, also a revive made by a slot other than 0.
+        RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
+        RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]
 }
