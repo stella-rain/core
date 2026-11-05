@@ -59,7 +59,7 @@ fn mode() -> TimeLimit {
     TimeLimit::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the dense mode")
 }
 
-fn content() -> RunContent {
+pub(crate) fn content() -> RunContent {
     let mut v: serde_json::Value =
         serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
