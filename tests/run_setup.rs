@@ -7,7 +7,7 @@ use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
-    self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
+    self, BuildMode, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -537,4 +537,335 @@ fn a_setup_at_version_0_is_refused() {
             })
         );
     }
+}
+
+// The build mode and the Lumine star (ADR-SIM-7 points 4 and 7, ADR-SAVE-7 points 3 and 9).
+
+const REQUIRED: &str =
+    r#""schema_version":2,"sim_version":2,"mode":"trial","weapon":"giant_sword","seed":1"#;
+
+fn parse(extra: &str) -> Result<RunSetup, Error> {
+    let text = format!("{{{REQUIRED}{extra}}}");
+    run_setup::parse_and_validate(text.as_bytes())
+}
+
+#[test]
+fn an_offers_setup_writes_neither_new_key() {
+    let s = RunSetup::default();
+    assert_eq!(s.build_mode, BuildMode::Offers);
+    assert_eq!(s.lumine_star, None);
+    let text = serde_json::to_string(&s).unwrap();
+    assert!(!text.contains("build_mode"), "{text}");
+    assert!(!text.contains("lumine_star"), "{text}");
+}
+
+#[test]
+fn a_setup_file_written_before_the_fields_keeps_its_keys() {
+    for name in ["trial", "trial_loadout", "trial_upgrades"] {
+        let path =
+            crate::data_root::data_root().join(format!("tests/fixtures/run_setup/{name}.json"));
+        let text = std::fs::read(&path).unwrap();
+        let parsed = run_setup::parse_and_validate(&text).unwrap();
+        assert_eq!(parsed.build_mode, BuildMode::Offers, "{name}");
+        let written: serde_json::Value = serde_json::to_value(&parsed).unwrap();
+        let again = run_setup::parse_and_validate(&serde_json::to_vec(&parsed).unwrap());
+        assert_eq!(again, Ok(parsed), "{name}");
+        for key in written.as_object().unwrap().keys() {
+            assert!(
+                key != "build_mode" && key != "lumine_star",
+                "{name}: new key {key}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_build_mode_and_the_lumine_star_round_trip() {
+    let equipment = parse(r#","build_mode":"equipment""#).unwrap();
+    assert_eq!(equipment.build_mode, BuildMode::Equipment);
+    let text = serde_json::to_string(&equipment).unwrap();
+    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+
+    let offers = parse(r#","build_mode":"offers""#).unwrap();
+    assert_eq!(offers.build_mode, BuildMode::Offers);
+    assert!(
+        !serde_json::to_string(&offers)
+            .unwrap()
+            .contains("build_mode")
+    );
+
+    assert!(parse(r#","build_mode":"cards""#).is_err());
+
+    let star = RunSetup {
+        build_mode: BuildMode::Equipment,
+        lumine: 1,
+        lumine_star: Some("max_hp_common".into()),
+        ..RunSetup::default()
+    };
+    let text = serde_json::to_string(&star).unwrap();
+    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+    assert!(text.contains(r#""lumine_star":"max_hp_common""#), "{text}");
+    assert_eq!(serde_json::from_str::<RunSetup>(&text).unwrap(), star);
+}
+
+fn equipment() -> RunSetup {
+    RunSetup {
+        build_mode: BuildMode::Equipment,
+        ..RunSetup::default()
+    }
+}
+
+fn found(setup: &RunSetup) -> Vec<Issue> {
+    issues(run_setup::validate(setup).unwrap_err())
+}
+
+#[test]
+fn equipment_mode_needs_sim_version_2() {
+    let old = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        ..equipment()
+    };
+    assert_eq!(
+        found(&old),
+        [issue("$.build_mode", "equipment mode needs sim_version 2")]
+    );
+}
+
+#[test]
+fn equipment_mode_refuses_what_offers_mode_uses() {
+    use stella_rain_core::run_setup::{CarriedStar, OfferMode};
+    let timed = issue(
+        "$.offer_mode",
+        "not set in equipment mode: nothing is offered",
+    );
+    let carried = issue(
+        "$.carried",
+        "none in equipment mode: the Lumine star is the one star a run starts with",
+    );
+    let rerolls = issue(
+        "$.extra_rerolls",
+        "none in equipment mode: there are no rerolls",
+    );
+    let stats = issue(
+        "$.pick_stats",
+        "off in equipment mode: level stats follow the stat priority list",
+    );
+    let star = CarriedStar {
+        reward: "max_hp_common".into(),
+    };
+    let one = |s: RunSetup| found(&s);
+    assert_eq!(
+        one(RunSetup {
+            offer_mode: OfferMode::Timed,
+            ..equipment()
+        }),
+        vec![timed.clone()]
+    );
+    assert_eq!(
+        one(RunSetup {
+            carried: vec![star.clone()],
+            ..equipment()
+        }),
+        vec![carried.clone()]
+    );
+    assert_eq!(
+        one(RunSetup {
+            extra_rerolls: 2,
+            ..equipment()
+        }),
+        vec![rerolls.clone()]
+    );
+    assert_eq!(
+        one(RunSetup {
+            pick_stats: true,
+            ..equipment()
+        }),
+        vec![stats.clone()]
+    );
+    assert_eq!(
+        one(RunSetup {
+            offer_mode: OfferMode::Timed,
+            carried: vec![star],
+            extra_rerolls: 2,
+            pick_stats: true,
+            ..equipment()
+        }),
+        [timed, carried, rerolls, stats]
+    );
+    // `stop` is the default and reads as absent; a plain equipment setup is valid.
+    let plain = RunSetup {
+        offer_mode: OfferMode::Stop,
+        lumine: 10,
+        ..equipment()
+    };
+    assert_eq!(run_setup::validate(&plain), Ok(()));
+}
+
+#[test]
+fn a_lumine_star_needs_equipment_mode_and_a_well_formed_id() {
+    let named = |s: &str| Some(s.into());
+    assert_eq!(
+        found(&RunSetup {
+            lumine_star: named("max_hp_common"),
+            ..RunSetup::default()
+        }),
+        [issue("$.lumine_star", "needs equipment mode")]
+    );
+    assert_eq!(
+        found(&RunSetup {
+            lumine_star: named("Bad Id"),
+            ..equipment()
+        }),
+        [issue(
+            "$.lumine_star",
+            "not a valid ID (lowercase snake_case, at most 32 characters)"
+        )]
+    );
+}
+
+fn star_setup(lumine: u8, star: &str) -> RunSetup {
+    RunSetup {
+        lumine,
+        lumine_star: Some(star.into()),
+        ..equipment()
+    }
+}
+
+/// `validate_in` without the not-built gate (removed with the first rule that reads the mode).
+fn content_check(setup: &RunSetup) -> Result<(), Error> {
+    match run_setup::validate_in(setup, RunContent::bundled()) {
+        Err(Error::Invalid(found))
+            if found == [issue("$.build_mode", "equipment mode is not built yet")] =>
+        {
+            Ok(())
+        }
+        other => other,
+    }
+}
+
+fn found_in(setup: &RunSetup) -> Vec<Issue> {
+    issues(run_setup::validate_in(setup, RunContent::bundled()).unwrap_err())
+}
+
+#[test]
+fn the_lumine_level_caps_the_stars_rarity() {
+    let ok = content_check;
+    assert_eq!(ok(&star_setup(1, "max_hp_common")), Ok(()));
+    assert_eq!(
+        found_in(&star_setup(0, "max_hp_common")),
+        [issue(
+            "$.lumine_star",
+            "costs 1 Lumine, more than the level of 0"
+        )]
+    );
+    for (rarity, cost) in [
+        ("common", 1u8),
+        ("uncommon", 2),
+        ("rare", 3),
+        ("epic", 4),
+        ("legendary", 6),
+        ("supernova", 10),
+    ] {
+        let id = format!("max_hp_{rarity}");
+        assert_eq!(ok(&star_setup(cost, &id)), Ok(()), "{id} at {cost}");
+        assert_eq!(
+            found_in(&star_setup(cost - 1, &id)),
+            [issue(
+                "$.lumine_star",
+                &format!("costs {cost} Lumine, more than the level of {}", cost - 1)
+            )],
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn the_lumine_star_is_a_star_of_the_pool_and_never_a_rune() {
+    assert_eq!(
+        found_in(&star_setup(10, "no_such_reward")),
+        [issue(
+            "$.lumine_star",
+            "no such reward in the run's rewards file"
+        )]
+    );
+    let rune = RunContent::bundled()
+        .rewards()
+        .rewards()
+        .iter()
+        .find(|r| r.is_random_rune())
+        .expect("a random rune reward")
+        .id
+        .clone();
+    assert_eq!(
+        found_in(&star_setup(10, rune.as_str())),
+        [issue("$.lumine_star", "a rune is not a Lumine star")]
+    );
+    let pooled = |star: &str| RunSetup {
+        star_pool: Some(vec!["max_hp_common".into()]),
+        ..star_setup(10, star)
+    };
+    assert_eq!(
+        found_in(&pooled("attack_common")),
+        [issue("$.lumine_star", "not in the star pool")]
+    );
+    assert_eq!(content_check(&pooled("max_hp_common")), Ok(()));
+    // A pool entry unknown to the rewards file is refused as before.
+    let bad_pool = RunSetup {
+        star_pool: Some(vec!["no_such_reward".into()]),
+        ..equipment()
+    };
+    assert_eq!(
+        found_in(&bad_pool),
+        [issue(
+            "$.star_pool[0]",
+            "no such reward in the run's rewards file"
+        )]
+    );
+}
+
+#[test]
+fn start_agrees_with_validate_in_on_the_lumine_star() {
+    for setup in [
+        star_setup(0, "max_hp_common"),
+        star_setup(10, "no_such_reward"),
+        RunSetup {
+            lumine_star: Some("max_hp_common".into()),
+            ..RunSetup::default()
+        },
+    ] {
+        let expected = found_in(&setup);
+        assert_eq!(issues(Engine::start(&setup).err().unwrap()), expected);
+    }
+}
+
+#[test]
+fn the_checked_in_schema_names_the_new_fields() {
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
+    assert!(text.contains("\"build_mode\""));
+    assert!(text.contains("\"lumine_star\""));
+    assert!(text.contains("\"offers\""));
+    assert!(text.contains("\"equipment\""));
+}
+
+#[test]
+fn an_equipment_setup_is_refused_at_start_until_the_rules_land() {
+    let gate = issue("$.build_mode", "equipment mode is not built yet");
+    let valid = equipment();
+    // Content-free validation accepts it; the start refuses it.
+    assert_eq!(run_setup::validate(&valid), Ok(()));
+    assert_eq!(found_in(&valid), vec![gate.clone()]);
+    assert_eq!(issues(Engine::start(&valid).err().unwrap()), [gate]);
+    // Any other issue is reported alone.
+    assert_eq!(
+        found_in(&star_setup(0, "max_hp_common")),
+        [issue(
+            "$.lumine_star",
+            "costs 1 Lumine, more than the level of 0"
+        )]
+    );
+    // An offers setup is unaffected.
+    assert!(Engine::start(&RunSetup::default()).is_ok());
 }

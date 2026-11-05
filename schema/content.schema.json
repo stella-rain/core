@@ -826,6 +826,21 @@
       },
       "type": "object"
     },
+    "BuildMode": {
+      "description": "How a run builds its character: from offers (today) or from stars that drop, are crafted and\nare equipped (ADR-SIM-7 points 4 and 7). A field of the run's setup, one value for the whole\nparty; needs `sim_version` 2 for equipment.",
+      "oneOf": [
+        {
+          "const": "offers",
+          "description": "The run builds from offers: today's behaviour.",
+          "type": "string"
+        },
+        {
+          "const": "equipment",
+          "description": "The run builds from stars that drop, are crafted and are equipped.",
+          "type": "string"
+        }
+      ]
+    },
     "CallElites": {
       "additionalProperties": false,
       "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
@@ -7307,8 +7322,12 @@
       "additionalProperties": false,
       "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-5).",
       "properties": {
+        "build_mode": {
+          "$ref": "#/$defs/BuildMode",
+          "description": "How the run builds its character (ADR-SIM-7 points 4 and 7): the whole party's, one value\nuntil a per-party setup exists. Absent: `offers`, so a setup written before the mode\nexisted reads as it always did."
+        },
         "carried": {
-          "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.",
+          "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.\nNone in equipment mode.",
           "items": {
             "$ref": "#/$defs/CarriedStar"
           },
@@ -7320,18 +7339,29 @@
           "description": "The difficulty the run is played on, by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
         },
         "extra_rerolls": {
-          "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.",
+          "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in\nequipment mode.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
           "type": "integer"
         },
         "lumine": {
-          "description": "The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.",
+          "description": "The level of the Lumine upgrade, at most `MAX_LUMINE`: in equipment mode the cap of the\nLumine star's rarity (ADR-SAVE-7 point 9), in offers mode the budget of `carried`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
           "type": "integer"
+        },
+        "lumine_star": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0\n(the rule is not built yet). Its rarity is capped by `lumine`. Only in equipment mode."
         },
         "mode": {
           "$ref": "#/$defs/ContentId",
@@ -7339,7 +7369,7 @@
         },
         "offer_mode": {
           "$ref": "#/$defs/OfferMode",
-          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did."
+          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did. Never `timed` in equipment\nmode: nothing is offered."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",
@@ -7347,7 +7377,7 @@
           "description": "The perk set the run applies from tick 0, by the ID of the run's perk\nsets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`."
         },
         "pick_stats": {
-          "description": "Each level reached opens an offer of the stats below their limit, answered through\n`Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.",
+          "description": "Each level reached opens an offer of the stats below their limit, answered through\n`Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in\nequipment mode.",
           "type": "boolean"
         },
         "rune_pool": {
@@ -7374,7 +7404,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice\nin the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.",
+          "description": "The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards\nan offer may hold, and in equipment mode the stars drops roll from, crafting draws from\nand the Lumine star is picked from; each at most once. Absent: every reward in the file.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
