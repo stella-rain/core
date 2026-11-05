@@ -205,7 +205,7 @@ fn every_bench_names_the_teardown() {
 /// The bench targets that have a file in `benches/` but no key in `benches/budgets.toml` yet
 /// (ADR-SIM-6): CI builds and counts only the budgeted ones, so these run locally until a
 /// budget is added. Adding the budget removes the name here; the guard below fails until it does.
-pub(crate) const UNBUDGETED: [&str; 0] = [];
+pub(crate) const UNBUDGETED: [&str; 2] = ["worst_tick_3p", "rollback"];
 
 /// The names of `unbudgeted` that are also budget `keys`.
 fn listed_and_budgeted(unbudgeted: &[&str], keys: &[&str]) -> Vec<String> {
