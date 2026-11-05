@@ -667,6 +667,37 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             None => cost += u32::from(rewards.lumine_cost(reward.rarity)),
         }
     }
+    if let Some(star) = &setup.lumine_star {
+        let message = match rewards.index_of(star) {
+            None => Some("no such reward in the run's rewards file".to_string()),
+            Some(at) => {
+                let reward = &rewards.rewards()[at];
+                let lumine_cost = rewards.lumine_cost(reward.rarity);
+                if reward.is_random_rune() {
+                    Some("a rune is not a Lumine star".to_string())
+                } else if setup
+                    .star_pool
+                    .as_ref()
+                    .is_some_and(|pool| !pool.contains(star))
+                {
+                    Some("not in the star pool".to_string())
+                } else if lumine_cost > setup.lumine {
+                    Some(format!(
+                        "costs {lumine_cost} Lumine, more than the level of {}",
+                        setup.lumine
+                    ))
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(message) = message {
+            issues.push(Issue {
+                path: "$.lumine_star".into(),
+                message,
+            });
+        }
+    }
     if issues.is_empty() && cost > u32::from(setup.lumine) {
         issues.push(Issue {
             path: "$.carried".into(),
