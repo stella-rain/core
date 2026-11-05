@@ -218,6 +218,7 @@ fn a_solo_run_that_joins_and_leaves_verifies() {
         .steps
         .iter()
         .map(|s| match s {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { .. } => "t",
             RangeStep::Picks { .. } => "p",
             RangeStep::Join { .. } => "j",

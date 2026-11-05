@@ -12,7 +12,7 @@
 //! of the mask in force; slot 0 never leaves; at most `MAX_PRESENCE_CHANGES` of them. The runs
 //! sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
 
-use crate::input::Input;
+use crate::input::{EquipAction, Input};
 use crate::replay::{block_of, input_of_block, read_varint, write_varint};
 use crate::run_replay::{CommandKind, MAX_COMMANDS, RunReplayError, TickCommand};
 
@@ -20,6 +20,7 @@ const TICKS: u8 = 0;
 const PICKS: u8 = 1;
 const JOIN: u8 = 2;
 const LEAVE: u8 = 3;
+const ACTIONS: u8 = 4;
 
 /// The most JOIN and LEAVE records a log holds: a guard against a crafted file, as
 /// `MAX_COMMANDS` is for PICKS. No measure of real use exists yet.
@@ -39,6 +40,9 @@ pub(crate) enum Record {
     Ticks { run: u32, inputs: Vec<Input> },
     /// One step that does not advance the world: the pick of each present slot, if any.
     Picks { picks: Vec<Option<u32>> },
+    /// One step that does not advance the world: the equipment action of each present slot,
+    /// if any.
+    Actions { actions: Vec<Option<EquipAction>> },
     /// Slot `slot` (1 or 2) joins before the next record.
     Join { slot: u8 },
     /// Slot `slot` (1 or 2) leaves before the next record.
@@ -82,6 +86,12 @@ impl StepLog {
                 }
                 Record::Join { slot } => out.extend([JOIN, *slot]),
                 Record::Leave { slot } => out.extend([LEAVE, *slot]),
+                Record::Actions { actions } => {
+                    out.push(ACTIONS);
+                    for action in actions {
+                        write_action(&mut out, *action);
+                    }
+                }
                 Record::Picks { picks } => {
                     out.push(PICKS);
                     for pick in picks {
@@ -171,6 +181,16 @@ impl StepLog {
         u32::try_from(n).unwrap_or(u32::MAX)
     }
 
+    /// The number of ACTIONS records, the unit `MAX_ACTION_STEPS` counts.
+    pub(crate) fn actions_made(&self) -> u32 {
+        let n = self
+            .records
+            .iter()
+            .filter(|r| matches!(r, Record::Actions { .. }))
+            .count();
+        u32::try_from(n).unwrap_or(u32::MAX)
+    }
+
     /// The log cut at world tick `ticks`: a TICKS run clipped to the room left, a PICKS step
     /// kept while the world tick it follows is at most `ticks`. A `ticks` past the end keeps
     /// everything.
@@ -186,7 +206,10 @@ impl StepLog {
                         records.push(Record::Ticks { run: take, inputs });
                     }
                 }
-                Record::Picks { .. } | Record::Join { .. } | Record::Leave { .. } => {
+                Record::Picks { .. }
+                | Record::Actions { .. }
+                | Record::Join { .. }
+                | Record::Leave { .. } => {
                     if world <= ticks {
                         records.push(record);
                     }
@@ -210,7 +233,7 @@ impl StepLog {
         for record in &self.records {
             match record {
                 Record::Ticks { run, .. } => tick = tick.saturating_add(*run),
-                Record::Join { .. } | Record::Leave { .. } => {}
+                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {}
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -238,7 +261,7 @@ impl StepLog {
                 Record::Ticks { run, inputs: held } => {
                     inputs.extend(std::iter::repeat_n(held[0], *run as usize));
                 }
-                Record::Join { .. } | Record::Leave { .. } => {}
+                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {}
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -261,6 +284,9 @@ pub enum RangeStep {
     Ticks { run: u32, inputs: Vec<Input> },
     /// One step that does not advance the world: the pick of each present slot, if any.
     Picks { picks: Vec<Option<u32>> },
+    /// One step that does not advance the world: the equipment action of each present slot, if
+    /// any (ADR-REPL-5 point 8).
+    Actions { actions: Vec<Option<EquipAction>> },
     /// Slot `slot` joins before the next step.
     Join { slot: u8 },
     /// Slot `slot` leaves before the next step.
@@ -365,6 +391,14 @@ impl RangeSink {
 }
 
 impl Sink for RangeSink {
+    fn actions(&mut self, at: u32, actions: &[Option<EquipAction>]) {
+        if self.inside(at) {
+            self.steps.push(RangeStep::Actions {
+                actions: actions.to_vec(),
+            });
+        }
+    }
+
     fn start(&mut self, present: u8) {
         self.mask_at_first = present;
     }
@@ -425,9 +459,26 @@ impl StepLog {
                     world += run;
                 }
                 Record::Picks { picks } => sink.picks(world, picks),
+                Record::Actions { actions } => sink.actions(world, actions),
             }
         }
         Ok(sink.finish(self.present))
+    }
+}
+
+/// The bytes of one ACTIONS entry: `0x00` for none, else a kind byte and its varint operands.
+fn write_action(out: &mut Vec<u8>, action: Option<EquipAction>) {
+    let (kind, operands): (u8, &[u32]) = match &action {
+        None => return out.push(0),
+        Some(EquipAction::Equip { item, slot }) => (1, &[*item, *slot]),
+        Some(EquipAction::Replace { item, slot }) => (2, &[*item, *slot]),
+        Some(EquipAction::Extract { item }) => (3, &[*item]),
+        Some(EquipAction::Craft { star }) => (4, &[*star]),
+        Some(EquipAction::TreePick { option }) => (5, &[*option]),
+    };
+    out.push(kind);
+    for operand in operands {
+        write_varint(out, *operand);
     }
 }
 
@@ -443,6 +494,8 @@ trait Sink {
     fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]);
     /// One PICKS step after `at` world ticks.
     fn picks(&mut self, at: u32, picks: &[Option<u32>]);
+    /// One ACTIONS step after `at` world ticks.
+    fn actions(&mut self, _at: u32, _actions: &[Option<EquipAction>]) {}
 }
 
 /// The sink of `decode`: every record, pushed.
@@ -470,6 +523,12 @@ impl Sink for LastMask {
 }
 
 impl Sink for Collect {
+    fn actions(&mut self, _at: u32, actions: &[Option<EquipAction>]) {
+        self.records.push(Record::Actions {
+            actions: actions.to_vec(),
+        });
+    }
+
     fn join(&mut self, _at: u32, slot: u8, _mask: u8) {
         self.records.push(Record::Join { slot });
     }
@@ -1226,8 +1285,8 @@ mod tests {
                         out.push(Entry::Picks(picks.clone()));
                     }
                 }
-                Record::Join { .. } | Record::Leave { .. } => {
-                    unreachable!("these logs hold no join or leave")
+                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {
+                    unreachable!("these logs hold no join, leave or action")
                 }
             }
         }
@@ -1244,8 +1303,8 @@ mod tests {
                     }
                 }
                 RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
-                RangeStep::Join { .. } | RangeStep::Leave { .. } => {
-                    unreachable!("these logs hold no join or leave")
+                RangeStep::Join { .. } | RangeStep::Leave { .. } | RangeStep::Actions { .. } => {
+                    unreachable!("these logs hold no join, leave or action")
                 }
             }
         }
@@ -1473,6 +1532,9 @@ mod tests {
                     Record::Picks { picks } => RangeStep::Picks {
                         picks: picks.clone(),
                     },
+                    Record::Actions { actions } => RangeStep::Actions {
+                        actions: actions.clone(),
+                    },
                     Record::Join { slot } => RangeStep::Join { slot: *slot },
                     Record::Leave { slot } => RangeStep::Leave { slot: *slot },
                 })
@@ -1672,5 +1734,191 @@ mod tests {
         assert_eq!(at("01 02 01", 0), Some(0b011));
         assert_eq!(at("01 02 00", 0), None);
         assert_eq!(at("", 0), None);
+    }
+
+    // --- Equipment actions (ADR-REPL-5 point 8, ADR-SIM-7) ---------------------------------
+
+    use crate::input::EquipAction;
+
+    const SOLO_ACTIONS: &str = "01 00 01 02 00 00 04 02 03 07 00 01 00 00 00";
+
+    fn replace_3_7() -> EquipAction {
+        EquipAction::Replace { item: 3, slot: 7 }
+    }
+
+    fn solo_actions_log() -> StepLog {
+        StepLog {
+            present: 0b1,
+            records: vec![
+                Record::Ticks {
+                    run: 1,
+                    inputs: vec![main_held()],
+                },
+                Record::Actions {
+                    actions: vec![Some(replace_3_7())],
+                },
+                Record::Ticks {
+                    run: 1,
+                    inputs: vec![Input::default()],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn an_actions_record_decodes_and_encodes_back() {
+        assert_eq!(decode(SOLO_ACTIONS, 2), Ok(solo_actions_log()));
+        assert_eq!(solo_actions_log().encode(), hex(SOLO_ACTIONS));
+        let party = StepLog {
+            present: 0b11,
+            records: vec![Record::Actions {
+                actions: vec![None, Some(EquipAction::TreePick { option: 4 })],
+            }],
+        };
+        assert_eq!(decode("03 04 00 05 04", 0), Ok(party.clone()));
+        assert_eq!(party.encode(), hex("03 04 00 05 04"));
+    }
+
+    #[test]
+    fn every_action_kind_round_trips() {
+        let all = [
+            EquipAction::Equip { item: 1, slot: 300 },
+            EquipAction::Replace { item: 0, slot: 2 },
+            EquipAction::Extract { item: 128 },
+            EquipAction::Craft { star: u32::MAX },
+            EquipAction::TreePick { option: 0 },
+        ];
+        for action in all {
+            let log = StepLog {
+                present: 0b1,
+                records: vec![Record::Actions {
+                    actions: vec![Some(action)],
+                }],
+            };
+            assert_eq!(StepLog::decode(&log.encode(), 0, 0), Ok(log));
+        }
+    }
+
+    #[test]
+    fn a_bad_actions_record_is_refused_with_its_phrase() {
+        assert_eq!(bad_inputs("01 04 00", 0), "a record has no action");
+        assert_eq!(bad_inputs("01 04 06 00", 0), "an action kind is unknown");
+        assert_eq!(bad_inputs("01 04 04", 0), "ends in the middle of a record");
+        assert_eq!(bad_inputs("03 04 00", 0), "ends in the middle of a record");
+        assert_eq!(bad_inputs("01 05", 0), "an unknown record");
+    }
+
+    #[test]
+    fn equal_runs_around_an_actions_record_are_allowed() {
+        let with = "01 00 01 00 00 00 04 03 00 00 01 00 00 00";
+        let log = decode(with, 2).unwrap();
+        assert_eq!(log.records.len(), 3);
+        assert_eq!(
+            bad_inputs("01 00 01 00 00 00 00 01 00 00 00", 2),
+            "a run repeats the input of the run before"
+        );
+    }
+
+    #[test]
+    fn the_record_bytes_are_assigned_once() {
+        let pick = decode("01 01 01 00 00 01 00 00 00", 1);
+        assert!(pick.is_ok());
+        for byte in 5..=255u8 {
+            let bytes = [1, byte];
+            assert_eq!(
+                StepLog::decode(&bytes, 0, 0),
+                Err(RunReplayError::BadInputs("an unknown record")),
+                "{byte}"
+            );
+        }
+    }
+
+    #[test]
+    fn actions_in_a_range_follow_the_rule_of_picks() {
+        let steps = |a, b| range(SOLO_ACTIONS, 2, a, b).unwrap().steps;
+        let first = RangeStep::Ticks {
+            run: 1,
+            inputs: vec![main_held()],
+        };
+        let actions = RangeStep::Actions {
+            actions: vec![Some(replace_3_7())],
+        };
+        let second = RangeStep::Ticks {
+            run: 1,
+            inputs: vec![Input::default()],
+        };
+        assert_eq!(
+            steps(0, 2),
+            [first.clone(), actions.clone(), second.clone()]
+        );
+        assert_eq!(steps(1, 2), [actions.clone(), second]);
+        assert_eq!(steps(0, 1), [first]);
+        assert_eq!(steps(2, 2), []);
+        let last = "01 00 02 02 00 00 04 03 00";
+        assert_eq!(range(last, 2, 0, 2).unwrap().steps.len(), 2);
+        assert_eq!(range(last, 2, 1, 2).unwrap().steps.len(), 2);
+        assert_eq!(range(last, 2, 0, 1).unwrap().steps.len(), 1);
+        // The decoded log's range is the reader's.
+        assert_eq!(solo_actions_log().range(0, 2), range(SOLO_ACTIONS, 2, 0, 2));
+    }
+
+    #[test]
+    fn a_prefix_keeps_the_actions_after_its_tick() {
+        let at = |t| solo_actions_log().prefix(t).records.len();
+        assert_eq!(at(1), 2);
+        assert_eq!(at(0), 0);
+        assert!(
+            !solo_actions_log()
+                .prefix(0)
+                .records
+                .iter()
+                .any(|r| matches!(r, Record::Actions { .. }))
+        );
+        assert!(
+            solo_actions_log()
+                .prefix(1)
+                .records
+                .iter()
+                .any(|r| matches!(r, Record::Actions { .. }))
+        );
+    }
+
+    #[test]
+    fn a_log_with_actions_has_no_solo_view() {
+        let why = RunReplayError::BadInputs("a log with equipment actions has no solo view");
+        assert_eq!(solo_actions_log().solo_commands(), Err(why.clone()));
+        assert_eq!(solo_actions_log().to_solo(), Err(why));
+    }
+
+    fn actions_log(actions: u32, picks: u32) -> Vec<u8> {
+        let mut bytes = vec![1];
+        for _ in 0..picks {
+            bytes.extend([1, 1, 0]);
+        }
+        for _ in 0..actions {
+            bytes.extend([4, 3, 0]);
+        }
+        bytes
+    }
+
+    #[test]
+    fn the_action_steps_are_capped_apart_from_the_picks() {
+        let max = crate::run_replay::MAX_ACTION_STEPS;
+        assert_eq!(max, 4096);
+        assert!(StepLog::decode(&actions_log(max, 0), 0, 0).is_ok());
+        assert_eq!(
+            StepLog::decode(&actions_log(max + 1, 0), 0, 0),
+            Err(RunReplayError::TooManyActions { limit: max })
+        );
+        assert!(StepLog::decode(&actions_log(max, MAX_COMMANDS), 0, 0).is_ok());
+        assert_eq!(
+            StepLog::decode(&actions_log(0, MAX_COMMANDS + 1), 0, 0),
+            Err(RunReplayError::TooManyCommands {
+                limit: MAX_COMMANDS
+            })
+        );
+        let log = StepLog::decode(&actions_log(3, 2), 0, 0).unwrap();
+        assert_eq!(log.actions_made(), 3);
+        assert_eq!(log.picks_made(), 2);
     }
 }

@@ -318,6 +318,7 @@ impl RigRun {
         let (mut ticks, mut picks) = (Vec::new(), Vec::new());
         for step in &range.steps {
             match step {
+                RangeStep::Actions { .. } => unreachable!("no equipment action here"),
                 RangeStep::Ticks { run, inputs } => {
                     let mut all = [Input::default(); 3];
                     for (s, input) in slots.iter().zip(inputs) {

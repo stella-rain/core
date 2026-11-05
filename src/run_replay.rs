@@ -73,6 +73,12 @@ use crate::version::{
 /// a crafted file, which `tests/command_cap.rs` pins at twice the measure or more.
 pub const MAX_COMMANDS: u32 = 1000;
 
+/// A step log holds at most this many ACTIONS records (equipment actions, ADR-REPL-5 point 8),
+/// counted apart from `MAX_COMMANDS`: a run with equipment holds no offers. Placeholder: a
+/// tuning value, far above any hand-played count and well inside `MAX_RUN_REPLAY_BYTES`; it is
+/// to be measured from a bot's counts.
+pub const MAX_ACTION_STEPS: u32 = 4096;
+
 /// A run replay file is at most this big (ADR-SVC-1). Placeholder (R2): 1 MiB, because a
 /// 20-minute `time_limit` run with a bot is about 300 KB and the longest (43 minutes with
 /// overtime and the Star-Hunter's time) about 510 KB. A run replay is shared as a file, never as
@@ -192,6 +198,10 @@ pub enum RunReplayError {
     TooManyCommands {
         limit: u32,
     },
+    /// More equipment action steps than `MAX_ACTION_STEPS`.
+    TooManyActions {
+        limit: u32,
+    },
     /// The `final_hash` field is not 16 lowercase hex digits.
     BadHash,
     /// A choice carrying this tick was refused by the engine.
@@ -280,6 +290,9 @@ impl fmt::Display for RunReplayError {
             }
             RunReplayError::TooManyCommands { limit } => {
                 write!(f, "the replay has more than {limit} commands")
+            }
+            RunReplayError::TooManyActions { limit } => {
+                write!(f, "the replay has more than {limit} equipment action steps")
             }
             RunReplayError::BadHash => f.write_str("the replay's final hash is not 16 hex digits"),
             RunReplayError::ChoiceRefused { tick, error } => match error {
@@ -1278,6 +1291,7 @@ fn resimulate(
                 };
                 done.map_err(|error| RunReplayError::PresenceRefused { tick, error })?;
             }
+            Record::Actions { .. } => {}
             Record::Picks { picks: chosen } => {
                 apply_picks(&mut engine, chosen)?;
                 picks += u32::try_from(chosen.iter().flatten().count()).unwrap_or(u32::MAX);

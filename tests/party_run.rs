@@ -341,6 +341,7 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
     assert_eq!(range.present, 0b1);
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     rec.step(&slots(rec.engine().present(), inputs)).unwrap();
@@ -426,6 +427,7 @@ fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
     let mut mask = range.present;
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Picks { picks } => {
                 for (s, p) in (0..3).filter(|s| mask >> s & 1 == 1).zip(picks) {
                     per[s] += u32::from(p.is_some());
@@ -520,6 +522,7 @@ fn recorder_at(recorded: &RunReplay, party: u8, cut: u32) -> RunRecorder {
 fn drive(rec: &mut RunRecorder, range: &StepRange) {
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     rec.step(&slots(rec.engine().present(), inputs)).unwrap();
@@ -540,6 +543,7 @@ fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     let (mut other, mut any) = (None, None);
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, .. } => world += run,
             RangeStep::Picks { picks } if world + 1 < recorded.ticks => {
                 any.get_or_insert(world);
@@ -623,6 +627,7 @@ fn the_change_cases_hold_what_they_are_for() {
     let (mut world, mut masks, mut two) = (0u32, vec![range.present], 0);
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, .. } => world += run,
             RangeStep::Join { slot } => masks.push(masks.last().unwrap() | 1 << slot),
             RangeStep::Leave { slot } => masks.push(masks.last().unwrap() & !(1 << slot)),
@@ -658,6 +663,7 @@ fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
         };
         for step in &range.steps {
             match step {
+                RangeStep::Actions { .. } => unreachable!("no equipment action here"),
                 RangeStep::Ticks { run, inputs } => {
                     for _ in 0..*run {
                         rec.step(&slots(rec.engine().present(), inputs)).unwrap();

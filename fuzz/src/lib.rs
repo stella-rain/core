@@ -353,6 +353,7 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
         .expect("a verified run starts");
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     let all = slots(recorder.engine().present(), inputs);
@@ -398,6 +399,7 @@ fn party_cuts() -> [u32; 2] {
     let mut world = 0;
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, .. } => world += run,
             RangeStep::Picks { picks } if picks[1..].iter().any(Option::is_some) => {
                 return [150, world];
@@ -884,6 +886,7 @@ fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry>
     let mut world = 0u32;
     for step in &full.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 for t in world..world + run {
                     if a <= t && t < b {
@@ -917,6 +920,7 @@ fn expand_range(range: &StepRange) -> Vec<RangeEntry> {
     let mut out = Vec::new();
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 out.extend((0..*run).map(|_| RangeEntry::Tick(inputs.clone())));
             }
