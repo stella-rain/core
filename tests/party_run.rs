@@ -413,8 +413,8 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 9] = [
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [4, 4, 0], 1084, 1264, "3cf3a2cf1017f590"),
-    ("three_revive", [9, 8, 0], 994, 1174, "dbd98b5443bf10ee"),
+    ("two_revive", [4, 4, 0], 1084, 1264, "ca1dbdcd746ec072"),
+    ("three_revive", [9, 8, 0], 994, 1174, "ed614eb994885884"),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
