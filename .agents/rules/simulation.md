@@ -38,10 +38,9 @@ outcome changes follow the `schema-change` skill.
   (`sync_deadline`, `pick_due`). `offer_rating.rs` rates the candidates of an open star or boss
   offer: `Engine::offer_ratings(player)` returns an `OfferRating` each (categories, `dps_bp`,
   `set_tier`, the stat changes); read-only, nothing hashed, saved or recorded.
-- `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot. Slots 1 and
-  2 are passive in the rules: `Ctx.me` is `PlayerIdx::SOLO` (`schedule.rs`); their inputs are
-  logged and read back, the world does not read them. They act through offers and picks. A
-  player's number is `generation << 24 | slot`; a rejoin gets a new generation (`state-hash.md`).
+- `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot. Every present
+  slot acts in slot order (`player_update` in `schedule.rs`; down, revive, tether and rewards:
+  `party-play.md`). A player's number is `generation << 24 | slot`; a rejoin gets a new generation (`state-hash.md`).
 - `sim_v1/`: the frozen rules of `sim_version` 1. It owns its `World`, `State`, snapshot view
   and events; a change to its behaviour is refused. It is edited only to keep compiling against
   a live type it still imports (fixed point, `id`, `rune`, `rewards`, `rng`,
@@ -71,3 +70,7 @@ outcome changes follow the `schema-change` skill.
   read from `Tuning`. Code to content is a pack-hash change alone; content to code is a rules
   change, gated on `sim_version` if an outcome moves (ADR-REPL-2 point 2). Never put a cap or a feel
   number in `limits.rs` and `rules.json` both.
+- A run end made inside the hit pass is deferred: `end_run` and `end_runs_of` only record it in
+  `Scratch::ends_pending` while `ends_pinned` is set; `hit_boxes::land` lands every swing, then
+  `apply_ends` ends the runs in order and rebuilds the move index once. A caller in the pass
+  uses those two, never `retain_runs`, which debug-asserts it is not called there.
