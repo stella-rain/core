@@ -159,22 +159,7 @@ pub(super) fn resolve(
             break_orbs(stage, s, me, &swings, events);
         }
     }
-    if s.next_orb_group > 0 {
-        // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
-        // the lowest slot first.
-        for me in s.players.indices() {
-            cage_beams(stage, s, me, events);
-        }
-    }
-    for w in &swings {
-        if w.friendly {
-            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
-            hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
-        } else {
-            hit_players_side(stage, s, w, events);
-            hit_companions_side(stage, s, w, events);
-        }
-    }
+    land(stage, s, grid, &swings, (&mut bits, &mut found), events);
     if swings.iter().any(|w| w.once) {
         super::attacks::retain_runs(s, |r| r.homing.is_none() || r.hits.is_empty());
         s.move_index.rebuild(stage, &s.runs);
@@ -182,6 +167,34 @@ pub(super) fn resolve(
     s.scratch.swings = swings;
     s.scratch.found = found;
     s.scratch.found_bits = bits;
+}
+
+/// The cage beams, then every swing, one after another over the runs the pass collected them
+/// from.
+fn land(
+    stage: &World,
+    s: &mut State,
+    grid: &mut Option<Grid>,
+    swings: &[Swing],
+    (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
+    events: &mut Vec<DomainEvent>,
+) {
+    if s.next_orb_group > 0 {
+        // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
+        // the lowest slot first.
+        for me in s.players.indices() {
+            cage_beams(stage, s, me, events);
+        }
+    }
+    for w in swings {
+        if w.friendly {
+            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
+            hit_enemy_side(stage, s, grid, w, (bits, found), events);
+        } else {
+            hit_players_side(stage, s, w, events);
+            hit_companions_side(stage, s, w, events);
+        }
+    }
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
