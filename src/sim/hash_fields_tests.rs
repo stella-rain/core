@@ -59,6 +59,7 @@ fn block(s: &State, i: PlayerIdx) -> Vec<u8> {
     c.expertise.stable_hash(&mut h);
     c.stardust.stable_hash(&mut h);
     c.regen.stable_hash(&mut h);
+    c.equipment.stable_hash(&mut h);
     h.trace().to_vec()
 }
 
@@ -193,6 +194,7 @@ fn every_field_is_listed(c: &Career, o: &Offers) {
         expertise: _, // moves: `players_tests::career_rest`
         stardust: _,  // moves: `stardust`
         regen: _,     // moves: `regen`
+        equipment: _, // moves: the `equipment` edits below
     } = c;
     let Offers {
         due: _,              // moves: `due`
@@ -299,4 +301,104 @@ fn the_shared_star_field_moves_the_hash_and_the_encoding() {
     s.stars.as_mut().expect("the worst case has stars").misses += 1;
     assert_ne!(hash_of(&s), h0);
     assert_ne!(encoded(&s), b0);
+}
+
+// ---- The equipment of every present slot ----
+
+use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
+use crate::rune::Rune;
+
+fn full_equipment() -> Equipment {
+    Equipment {
+        inventory: vec![Held::Star(2), Held::Rune(Rune::Bleed)],
+        slots: vec![EquipSlot {
+            kind: SlotKind::Category(0),
+            held: Some(Held::Star(1)),
+            level: 2,
+            expertise: 7,
+        }],
+        lumine: Some(EquipSlot {
+            kind: SlotKind::Lumine,
+            held: Some(Held::Star(3)),
+            level: 1,
+            expertise: 0,
+        }),
+        starlight: 10,
+        tree_points: 4,
+    }
+}
+
+#[test]
+fn every_equipment_field_moves_the_hash_and_the_encoding() {
+    let mut base = party(&warm(), 0b111);
+    for me in base.players.indices().collect::<Vec<_>>() {
+        base.players.career_mut(me).equipment = full_equipment();
+    }
+    type Edit = fn(&mut Equipment);
+    let edits: [(&str, Edit); 12] = [
+        ("inventory star", |e| e.inventory.push(Held::Star(3))),
+        ("inventory rune", |e| {
+            e.inventory.push(Held::Rune(Rune::Burn))
+        }),
+        ("inventory item", |e| e.inventory[0] = Held::Star(5)),
+        ("slot pushed", |e| {
+            e.slots.push(EquipSlot {
+                kind: SlotKind::Category(1),
+                held: None,
+                level: 0,
+                expertise: 0,
+            });
+        }),
+        ("slot kind", |e| e.slots[0].kind = SlotKind::Rune),
+        ("slot held", |e| e.slots[0].held = None),
+        ("slot level", |e| e.slots[0].level += 1),
+        ("slot expertise", |e| e.slots[0].expertise += 1),
+        ("lumine", |e| e.lumine = None),
+        ("lumine level", |e| e.lumine.as_mut().unwrap().level += 1),
+        ("starlight", |e| e.starlight += 1),
+        ("tree_points", |e| e.tree_points += 1),
+    ];
+    let (h0, b0) = (hash_of(&base), encoded(&base));
+    assert_ne!(
+        h0,
+        hash_of(&party(&warm(), 0b111)),
+        "a full equipment is not an empty one"
+    );
+    for me in base.players.indices() {
+        for (name, edit) in edits {
+            let mut s = base.clone();
+            edit(&mut s.players.career_mut(me).equipment);
+            assert_ne!(hash_of(&s), h0, "{name} of slot {}: the hash", me.get());
+            assert_ne!(encoded(&s), b0, "{name} of slot {}: the encoding", me.get());
+        }
+    }
+}
+
+#[test]
+fn an_offers_run_carries_empty_equipment() {
+    for mask in [0b001u8, 0b111] {
+        let s = party(&warm(), mask);
+        for me in s.players.indices() {
+            assert_eq!(s.players.career(me).equipment, Equipment::default());
+            assert!(s.players.career(me).equipment.lumine.is_none());
+        }
+    }
+}
+
+/// The empty equipment is 17 zero bytes at the end of a solo `stop` run's savepoint, and
+/// `starlight` and `tree_points` are the last two little-endian words.
+#[test]
+fn the_equipment_ends_the_block_and_is_17_bytes_when_empty() {
+    let base = warm();
+    let n = encoded(&base).len();
+    let at = |edit: fn(&mut Equipment)| {
+        let mut s = base.clone();
+        edit(&mut s.players.career_mut(PlayerIdx::SOLO).equipment);
+        let (a, b) = (encoded(&base), encoded(&s));
+        assert_eq!(a.len(), b.len());
+        (0..a.len()).filter(|&i| a[i] != b[i]).collect::<Vec<_>>()
+    };
+    assert_eq!(at(|e| e.starlight = 1), [n - 8]);
+    assert_eq!(at(|e| e.tree_points = 1), [n - 4]);
+    assert!(encoded(&base)[n - 17..].iter().all(|&b| b == 0));
 }

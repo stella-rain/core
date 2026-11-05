@@ -121,6 +121,7 @@ mod combat;
 mod damage;
 mod dash;
 mod entity;
+pub(crate) mod equipment;
 mod expertise;
 #[cfg(test)]
 mod frozen_tests;
@@ -567,6 +568,7 @@ fn unreserved_state(
                 offers,
                 expertise::initial(stage, content.expertise()),
                 stage.stardust.as_ref().map(|_| 0),
+                equipment::Equipment::default(),
             ),
         ),
         boss,

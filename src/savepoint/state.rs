@@ -449,6 +449,11 @@ macro_rules! state_codec_v2 {
                     &fresh.players.career(PlayerIdx::SOLO).stardust,
                     "stardust presence differs from the content",
                 )?;
+                same_presence(
+                    &s.players.career(me).equipment.lumine,
+                    &fresh.players.career(PlayerIdx::SOLO).equipment.lumine,
+                    "lumine presence differs from the setup",
+                )?;
                 if let (Some(p), Some(f)) = (
                     &s.players.career(me).progress,
                     &fresh.players.career(PlayerIdx::SOLO).progress,
@@ -662,6 +667,32 @@ mod players_tests {
         ok.players = Players::of(vec![first.clone(), first]).unwrap();
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
     }
+    #[test]
+    fn a_lumine_slot_the_setup_does_not_name_is_refused() {
+        use crate::savepoint::DecodeError;
+        use crate::sim::equipment::{EquipSlot, Held, SlotKind};
+
+        let e = worst_case::warmed_up();
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let counted = e.saved_parts().1;
+        assert_eq!(check_shape(state, counted, state, counted), Ok(()));
+        let mut bad = state.clone();
+        bad.players.career_mut(PlayerIdx::SOLO).equipment.lumine = Some(EquipSlot {
+            kind: SlotKind::Lumine,
+            held: Some(Held::Star(0)),
+            level: 1,
+            expertise: 0,
+        });
+        assert_eq!(
+            check_shape(&bad, counted, state, counted),
+            Err(DecodeError::Invalid(
+                "lumine presence differs from the setup"
+            ))
+        );
+    }
+
     #[test]
     fn slot_0s_career_round_trips_and_its_presence_is_checked() {
         use crate::bench_fixtures::time_limit_case;

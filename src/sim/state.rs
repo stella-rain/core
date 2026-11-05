@@ -16,6 +16,7 @@ use crate::rng::{
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
+use crate::sim::equipment::Equipment;
 use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
 use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
 use crate::validate::{self};
@@ -356,6 +357,8 @@ pub(crate) struct Career {
     /// Hit points the main character regenerates each second (a perk): set at the start
     /// and raised by rewards.
     pub regen: u32,
+    /// The star equipment: empty in an offers run (ADR-SIM-3 point 2).
+    pub equipment: Equipment,
 }
 
 /// The offer generator's tag of slot `me`.
@@ -377,6 +380,7 @@ impl Career {
         offers: Option<Offers>,
         expertise: Option<ExpertiseGauge>,
         stardust: Option<u32>,
+        equipment: Equipment,
     ) -> Career {
         Career {
             progress,
@@ -385,6 +389,7 @@ impl Career {
             expertise,
             stardust,
             regen: 0,
+            equipment,
         }
     }
 }
@@ -399,6 +404,7 @@ impl Default for Career {
             expertise: None,
             stardust: None,
             regen: 0,
+            equipment: Equipment::default(),
         }
     }
 }
@@ -462,6 +468,7 @@ impl Players {
                 c0.offers.clone(),
                 c0.expertise.clone(),
                 c0.stardust,
+                c0.equipment.clone(),
             );
         }
         out
@@ -493,6 +500,7 @@ impl Players {
             c0.offers.clone(),
             c0.expertise.clone(),
             c0.stardust,
+            c0.equipment.clone(),
         );
         self.present |= 1 << me.get();
     }
