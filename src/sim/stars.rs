@@ -459,8 +459,8 @@ pub(super) struct Taken {
 /// `build.rs`), then does the pick's own grants (`grant`: a skill, an orbit, an evade charge,
 /// rerolls and banishes, a rune drawn). For a member of a set it counts the set's members held
 /// and grants each tier newly reached once; the build has them as the chain of
-/// `constellations::tier_delta`, so the full tier replaces the small one. A pick from an open offer and a star the run starts with
-/// (ADR-REPL-5) go through here alike.
+/// `constellations::tier_delta`, so the full tier replaces the small one. A pick from an open
+/// offer and a star the run starts with (ADR-REPL-5) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &World,
