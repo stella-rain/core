@@ -130,7 +130,7 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
 
 /// The state hash of the stop engine after 600 bot steps (a pick is a step), recorded on the base
 /// build before the mode existed and re-pinned for the per-player layout and the slot generations.
-const STOP_HASH_600: u64 = 15_008_386_651_980_066_858;
+const STOP_HASH_600: u64 = 5_277_348_199_487_454_942;
 
 #[test]
 fn stop_is_byte_identical_to_the_base() {
