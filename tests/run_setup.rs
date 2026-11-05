@@ -7,7 +7,7 @@ use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
-    self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
+    self, BuildMode, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -537,4 +537,75 @@ fn a_setup_at_version_0_is_refused() {
             })
         );
     }
+}
+
+// The build mode and the Lumine star (ADR-SIM-7 points 4 and 7, ADR-SAVE-7 points 3 and 9).
+
+const REQUIRED: &str =
+    r#""schema_version":2,"sim_version":2,"mode":"trial","weapon":"giant_sword","seed":1"#;
+
+fn parse(extra: &str) -> Result<RunSetup, Error> {
+    let text = format!("{{{REQUIRED}{extra}}}");
+    run_setup::parse_and_validate(text.as_bytes())
+}
+
+#[test]
+fn an_offers_setup_writes_neither_new_key() {
+    let s = RunSetup::default();
+    assert_eq!(s.build_mode, BuildMode::Offers);
+    assert_eq!(s.lumine_star, None);
+    let text = serde_json::to_string(&s).unwrap();
+    assert!(!text.contains("build_mode"), "{text}");
+    assert!(!text.contains("lumine_star"), "{text}");
+}
+
+#[test]
+fn a_setup_file_written_before_the_fields_keeps_its_keys() {
+    for name in ["trial", "trial_loadout", "trial_upgrades"] {
+        let path = format!("tests/fixtures/run_setup/{name}.json");
+        let text = std::fs::read(&path).unwrap();
+        let parsed = run_setup::parse_and_validate(&text).unwrap();
+        assert_eq!(parsed.build_mode, BuildMode::Offers, "{name}");
+        let written: serde_json::Value = serde_json::to_value(&parsed).unwrap();
+        let again = run_setup::parse_and_validate(&serde_json::to_vec(&parsed).unwrap());
+        assert_eq!(again, Ok(parsed), "{name}");
+        let original: serde_json::Value = serde_json::from_slice(&text).unwrap();
+        let keys = |v: &serde_json::Value| -> Vec<String> {
+            v.as_object().unwrap().keys().cloned().collect()
+        };
+        let written_keys = keys(&written);
+        for key in &written_keys {
+            // `auto_combo` is dropped on read; every other key was in the file.
+            assert!(original.get(key).is_some(), "{name}: new key {key}");
+        }
+    }
+}
+
+#[test]
+fn the_build_mode_and_the_lumine_star_round_trip() {
+    let equipment = parse(r#","build_mode":"equipment""#).unwrap();
+    assert_eq!(equipment.build_mode, BuildMode::Equipment);
+    let text = serde_json::to_string(&equipment).unwrap();
+    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+
+    let offers = parse(r#","build_mode":"offers""#).unwrap();
+    assert_eq!(offers.build_mode, BuildMode::Offers);
+    assert!(
+        !serde_json::to_string(&offers)
+            .unwrap()
+            .contains("build_mode")
+    );
+
+    assert!(parse(r#","build_mode":"cards""#).is_err());
+
+    let star = RunSetup {
+        build_mode: BuildMode::Equipment,
+        lumine: 1,
+        lumine_star: Some("max_hp_common".into()),
+        ..RunSetup::default()
+    };
+    let text = serde_json::to_string(&star).unwrap();
+    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+    assert!(text.contains(r#""lumine_star":"max_hp_common""#), "{text}");
+    assert_eq!(serde_json::from_str::<RunSetup>(&text).unwrap(), star);
 }

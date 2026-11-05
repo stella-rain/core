@@ -75,6 +75,19 @@ impl OfferMode {
     }
 }
 
+/// How a run builds its character: from offers (today) or from stars that drop, are crafted and
+/// are equipped (ADR-SIM-7 points 4 and 7). A field of the run's setup, one value for the whole
+/// party; needs `sim_version` 2 for equipment.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildMode {
+    /// The run builds from offers: today's behaviour.
+    #[default]
+    Offers,
+    /// The run builds from stars that drop, are crafted and are equipped.
+    Equipment,
+}
+
 /// What a run starts from: built by the app from local storage when a run starts, and stored
 /// in the run's replay (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
@@ -145,6 +158,12 @@ pub struct RunSetup {
     /// written before the mode existed reads as it always did.
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,
+    /// How the run builds its character (ADR-SIM-7 point 4). Absent: `offers`.
+    #[serde(default)]
+    pub build_mode: BuildMode,
+    /// The one star of the Lumine slot (ADR-SAVE-7 point 3): a reward ID of the run's rewards file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lumine_star: Option<ContentId>,
 }
 
 /// The plainest setup: the trial mode with the giant sword, seed 0, the default perk set and
@@ -171,6 +190,8 @@ impl Default for RunSetup {
             stat_priority: Vec::new(),
             pick_stats: false,
             offer_mode: OfferMode::Stop,
+            build_mode: BuildMode::Offers,
+            lumine_star: None,
         }
     }
 }
@@ -246,6 +267,12 @@ struct RunSetupFile {
     /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`.
     #[serde(default)]
     offer_mode: OfferMode,
+    /// How the run builds its character. Absent: `offers`.
+    #[serde(default)]
+    build_mode: BuildMode,
+    /// The one star of the Lumine slot.
+    #[serde(default)]
+    lumine_star: Option<ContentId>,
     #[serde(default)]
     auto_combo: bool,
 }
@@ -287,6 +314,8 @@ impl TryFrom<RunSetupFile> for RunSetup {
             stat_priority: f.stat_priority,
             pick_stats: f.pick_stats,
             offer_mode: f.offer_mode,
+            build_mode: f.build_mode,
+            lumine_star: f.lumine_star,
         })
     }
 }
