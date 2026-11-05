@@ -110,6 +110,7 @@ mod agents;
 mod attack_table;
 mod attacks;
 mod boss;
+mod build;
 #[cfg(test)]
 mod build_pin_tests;
 mod world;

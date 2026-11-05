@@ -4,6 +4,7 @@
 //! recomputed. They pass before and after the move; the expected values are worked out from the
 //! file below, not copied from a run.
 
+use super::build::Build;
 use super::state::{Career, Offers, PlayerIdx, PlayerState, Progress, StarField, State};
 use super::{World, initial_state, levels, orbit, player, runes, skill, stars};
 use crate::attack::DamageType;
@@ -565,6 +566,131 @@ fn take_equals_the_one_way_reference() {
     }
     let in_order: Vec<u16> = (0..23).collect();
     agree(&stage, &own, &in_order, 23);
+}
+
+/// The derived fields of the player, `extra_candidates` and the stars' share of the totals and
+/// `regen` equal the build of the stars held.
+fn assert_build_is_held(stage: &World, rewards: &Rewards, s: &State, base: &Base, why: &str) {
+    let career = s.players.career(PlayerIdx::SOLO);
+    let p = &s.players[PlayerIdx::SOLO];
+    let o = career.offers.as_ref().expect("offers");
+    let b = Build::of(stage, rewards, &o.taken);
+    let totals = &career.progress.as_ref().expect("progress").totals;
+    let mut stats = [0; StatEffect::ALL.len()];
+    for (i, stat) in stats.iter_mut().enumerate() {
+        *stat = totals[i] - base.totals[i];
+    }
+    let got = Build {
+        range_pct: p.range_pct,
+        pickup_radius_pct: p.pickup_radius_pct,
+        skill_cooldown_pct: p.skill_cooldown_pct,
+        kill_heal: p.kill_heal,
+        kill_heal_every: p.kill_heal_every,
+        crit_chance_pct: p.crit_chance_pct,
+        crit_damage_pct: p.crit_damage_pct,
+        echo_hit_pct: p.echo_hit_pct,
+        burst_pct: p.burst_pct,
+        burst_radius: p.burst_radius,
+        burst_depth: p.burst_depth,
+        burst_depth_extra: p.burst_depth_extra,
+        rune_haste_pct: p.rune_haste_pct,
+        regen: career.regen - base.regen,
+        type_bonus_pct: p.type_bonus_pct,
+        extra_candidates: o.extra_candidates,
+        stats,
+    };
+    assert_eq!(got, b, "{why}");
+}
+
+#[test]
+fn the_derived_fields_equal_the_build_of_what_is_held() {
+    let stage = stage();
+    assert_eq!(
+        Build::of(&stage, &hand(), &[]),
+        Build::default(),
+        "nothing held, nothing built"
+    );
+    let own = hand();
+    let bundled = RunContent::bundled().rewards();
+    let n = u16::try_from(bundled.rewards().len()).unwrap();
+    let in_order: Vec<u16> = (0..23).collect();
+    let runs: Vec<(&Rewards, u16, Vec<u16>)> = vec![
+        (&own, 23, in_order),
+        (&own, 23, shuffled(&own, 4)),
+        (&own, 23, shuffled(&own, 5)),
+        (bundled, n, shuffled(bundled, 1)),
+        (bundled, n, shuffled(bundled, 2)),
+    ];
+    for (rewards, n, picks) in runs {
+        let mut s = start(&stage, n);
+        let base = base_of(&s);
+        for i in picks {
+            take_for(&stage, rewards, &mut s, PlayerIdx::SOLO, i);
+            assert_build_is_held(&stage, rewards, &s, &base, &format!("after place {i}"));
+        }
+    }
+}
+
+/// Four stars taken in every order leave the same state.
+#[test]
+fn the_order_of_the_picks_does_not_change_the_build() {
+    let stage = stage();
+    let rewards = hand();
+    let four = [CRIT, HEAL_A, BURST_A, N1];
+    let mut orders: Vec<Vec<u16>> = vec![Vec::new()];
+    for _ in 0..four.len() {
+        let mut next_orders = Vec::new();
+        for o in &orders {
+            for p in four.iter().filter(|p| !o.contains(*p)) {
+                let mut next = o.clone();
+                next.push(*p);
+                next_orders.push(next);
+            }
+        }
+        orders = next_orders;
+    }
+    assert_eq!(orders.len(), 24);
+    let mut first: Option<Snap> = None;
+    for order in orders {
+        let mut s = start(&stage, 23);
+        let base = base_of(&s);
+        for i in order {
+            take_for(&stage, &rewards, &mut s, PlayerIdx::SOLO, i);
+        }
+        let got = snap(&s, &base);
+        assert_build_is_held(&stage, &rewards, &s, &base, "the four");
+        assert_eq!(*first.get_or_insert(got.clone()), got);
+    }
+}
+
+/// The build of a set's tiers is the chain of deltas: the second tier's heal does not raise an
+/// amount, so its shorter interval does not enter; its burst adds the difference.
+#[test]
+fn the_build_of_the_tiers_is_the_chain_of_deltas() {
+    let stage = stage();
+    let rewards = hand();
+    let held = |places: &[u16]| {
+        let mut h = vec![0u8; 23];
+        for p in places {
+            h[usize::from(*p)] += 1;
+        }
+        h
+    };
+    let one = Build::of(&stage, &rewards, &held(&[N1]));
+    let two = Build::of(&stage, &rewards, &held(&[N1, N2]));
+    assert_eq!(two, Build::of(&stage, &rewards, &held(&[N2, N1])));
+    assert_eq!(one, Build::of(&stage, &rewards, &held(&[N2])));
+    assert_eq!((one.kill_heal, one.kill_heal_every), (100, 10));
+    assert_eq!((two.kill_heal, two.kill_heal_every), (100, 10));
+    assert_eq!(
+        (one.burst_pct, one.burst_radius, one.burst_depth),
+        (10, 40, 1)
+    );
+    assert_eq!(
+        (two.burst_pct, two.burst_radius, two.burst_depth),
+        (15, 90, 1)
+    );
+    assert_eq!(two.stats[StatEffect::AttackPct as usize], 2);
 }
 
 /// A verbatim copy of `take` and `apply_effects` as they were before the build was recomputed
