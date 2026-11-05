@@ -107,7 +107,7 @@ class Workflow(unittest.TestCase):
 
     def test_script_comes_from_the_workflows_own_commit(self):
         self.assertIn("ref: ${{ github.sha }}", self.text)
-        self.assertIn("sparse-checkout: .github/scripts/content_version.py", self.text)
+        self.assertIn("sparse-checkout: .github/scripts\n", self.text)  # a directory: cone mode
 
     def test_version_is_part_of_the_diff_and_the_commit(self):
         diff = next((l for l in self.lines if "git diff --quiet HEAD --" in l), "")
