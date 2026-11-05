@@ -1445,6 +1445,8 @@ impl Encode for Career {
             stardust: _,
             // not hashed/saved here: written by `State`.
             regen: _,
+            // not saved yet.
+            equipment: _,
         } = self;
         progress.encode(w);
     }
@@ -1887,6 +1889,7 @@ impl State {
                 expertise,
                 stardust,
                 regen,
+                equipment: _,
             } = players.career(me);
             progress.encode(w);
             offer.encode(w);
@@ -1997,6 +2000,7 @@ impl State {
                 expertise: Decode::decode(r)?,
                 stardust: Decode::decode(r)?,
                 regen: Decode::decode(r)?,
+                equipment: Default::default(),
             };
             if career.offers.is_some() != state.stars.is_some() {
                 return Err(DecodeError::Invalid(

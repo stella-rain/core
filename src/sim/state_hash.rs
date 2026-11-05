@@ -1112,6 +1112,7 @@ fn hash_player(players: &Players, me: PlayerIdx, h: &mut StateHasher) {
         expertise,
         stardust,
         regen,
+        equipment: _,
     } = players.career(me);
     progress.stable_hash(h);
     offer.state().stable_hash(h);

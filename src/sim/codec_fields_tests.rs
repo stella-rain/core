@@ -216,3 +216,115 @@ fn a_next_id_among_the_players_generations_is_refused() {
 fn the_fresh_state_is_a_party_of_one() {
     assert_eq!(fresh_engine_state().players.mask(), 0b001);
 }
+
+// ---- The equipment ----
+
+use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
+use crate::limits::{MAX_EQUIP_SLOTS, MAX_INVENTORY, MAX_SLOT_LEVEL};
+use crate::rune::Rune;
+
+fn slot(kind: SlotKind, held: Option<Held>, level: u8, expertise: u32) -> EquipSlot {
+    EquipSlot {
+        kind,
+        held,
+        level,
+        expertise,
+    }
+}
+
+fn with(e: Equipment) -> State {
+    let mut s = warm();
+    s.players.career_mut(PlayerIdx::SOLO).equipment = e;
+    s
+}
+
+fn lumine_slot() -> EquipSlot {
+    slot(SlotKind::Lumine, Some(Held::Star(3)), 1, 0)
+}
+
+fn invalid(e: Equipment) {
+    let s = with(e);
+    match decoded(&to_bytes(&s), &warm()) {
+        Err(DecodeError::Invalid(_)) => {}
+        other => panic!("{:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn equipment_round_trips_and_the_bounds_are_refused() {
+    let full = Equipment {
+        inventory: vec![
+            Held::Star(1),
+            Held::Rune(Rune::Thunder),
+            Held::Star(u16::MAX),
+        ],
+        slots: vec![
+            slot(SlotKind::Category(0), Some(Held::Star(2)), 3, 40),
+            slot(SlotKind::Category(2), None, 0, 0),
+            slot(
+                SlotKind::Rune,
+                Some(Held::Rune(Rune::Burn)),
+                MAX_SLOT_LEVEL,
+                u32::MAX,
+            ),
+        ],
+        lumine: Some(lumine_slot()),
+        starlight: u32::MAX,
+        tree_points: 7,
+    };
+    let s = with(full.clone());
+    let bytes = to_bytes(&s);
+    let back = decoded(&bytes, &warm()).expect("decodes");
+    assert_eq!(back.players.career(PlayerIdx::SOLO).equipment, full);
+    assert_eq!(to_bytes(&back), bytes);
+    assert_eq!(hash_of(&back), hash_of(&s));
+
+    let held = |n| vec![Held::Star(0); n];
+    assert!(
+        decoded(
+            &to_bytes(&with(Equipment {
+                inventory: held(MAX_INVENTORY),
+                ..Default::default()
+            })),
+            &warm()
+        )
+        .is_ok()
+    );
+    invalid(Equipment {
+        inventory: held(MAX_INVENTORY + 1),
+        ..Default::default()
+    });
+    invalid(Equipment {
+        slots: vec![slot(SlotKind::Rune, None, 0, 0); MAX_EQUIP_SLOTS + 1],
+        ..Default::default()
+    });
+    invalid(Equipment {
+        slots: vec![slot(SlotKind::Rune, None, MAX_SLOT_LEVEL + 1, 0)],
+        ..Default::default()
+    });
+    invalid(Equipment {
+        slots: vec![lumine_slot()],
+        ..Default::default()
+    });
+    invalid(Equipment {
+        lumine: Some(slot(SlotKind::Category(0), None, 1, 0)),
+        ..Default::default()
+    });
+    invalid(Equipment {
+        lumine: Some(slot(SlotKind::Lumine, None, MAX_SLOT_LEVEL + 1, 0)),
+        ..Default::default()
+    });
+
+    // A tag byte that is not listed: the inventory's first item's tag.
+    let mut forged = to_bytes(&with(Equipment {
+        inventory: vec![Held::Star(1)],
+        ..Default::default()
+    }));
+    let at = forged.len() - 16;
+    assert_eq!(forged[at], 0, "the star's tag");
+    forged[at] = 9;
+    assert!(matches!(
+        decoded(&forged, &warm()),
+        Err(DecodeError::Invalid(_))
+    ));
+}

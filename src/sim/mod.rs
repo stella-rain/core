@@ -121,6 +121,8 @@ mod combat;
 mod damage;
 mod dash;
 mod entity;
+#[allow(dead_code)] // used once the hash and the codec write it
+mod equipment;
 mod expertise;
 #[cfg(test)]
 mod frozen_tests;
@@ -567,6 +569,7 @@ fn unreserved_state(
                 offers,
                 expertise::initial(stage, content.expertise()),
                 stage.stardust.as_ref().map(|_| 0),
+                equipment::Equipment::default(),
             ),
         ),
         boss,

@@ -86,6 +86,12 @@ pub const MAX_SETUP_BYTES: usize = 4_096;
 pub const MAX_EXTRA_REROLLS: u8 = 20;
 pub const MAX_CARRIED_STARS: usize = 5;
 pub const MAX_LUMINE: u8 = 10;
+/// Held stars and runes per player: a bound no run reaches (ADR-SIM-5 point 8).
+pub const MAX_INVENTORY: usize = 1024;
+/// Equipment slots per player.
+pub const MAX_EQUIP_SLOTS: usize = 32;
+/// The level cap of an equipment slot.
+pub const MAX_SLOT_LEVEL: u8 = 10;
 pub const MAX_STARS_ON_MAP: u16 = 64;
 
 // Time limit (ADR-SVC-1)
