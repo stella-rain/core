@@ -3,13 +3,16 @@
 //! Integer arithmetic only; every choice is a pure function of the seed, the engine, the slot
 //! and the tick, so a clone of the engine can be driven again from any tick.
 
+use stella_rain_core::RangeStep;
 use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::RunReplay;
+use stella_rain_core::run_setup::{OfferMode, RunSetup};
 use stella_rain_core::snapshot::EntityKind;
 
+use crate::common::run::trial_setup;
 use crate::run_play::PartyCase;
 
 /// How near (1/256 pixel) the bot's revive walk gets before it holds `interact`: 40 pixels,
@@ -213,8 +216,16 @@ pub struct RigParty {
 
 impl RigParty {
     /// A party of `n` (1 to 3) on the `time_limit` mode, normal difficulty, 3000 ticks.
-    pub fn new(_n: u8) -> RigParty {
-        todo!("RigParty::new")
+    pub fn new(n: u8) -> RigParty {
+        assert!((1..=3).contains(&n), "a party of 1 to 3, not {n}");
+        RigParty {
+            n,
+            mode: "time_limit".into(),
+            seed: trial_setup().seed,
+            difficulty: "normal".into(),
+            ticks: 3000,
+            bot_seed: 0,
+        }
     }
 
     pub fn mode(mut self, mode: &str) -> RigParty {
@@ -244,8 +255,28 @@ impl RigParty {
     }
 
     /// The corpus case `name`: a `stop` run, no joins or leaves, no timed answers.
-    pub fn case(&self, _name: &'static str) -> PartyCase {
-        todo!("RigParty::case")
+    pub fn case(&self, name: &'static str) -> PartyCase {
+        let setup = RunSetup {
+            mode: self.mode.as_str().into(),
+            seed: self.seed,
+            difficulty: self.difficulty.as_str().into(),
+            ..trial_setup()
+        };
+        assert!(
+            setup.offer_mode == OfferMode::Stop,
+            "a timed bot case is not built"
+        );
+        PartyCase {
+            name,
+            setup,
+            party: self.n,
+            ticks: self.ticks,
+            changes: vec![],
+            answer_after: None,
+            bot: Some(PartyBot {
+                seed: self.bot_seed,
+            }),
+        }
     }
 }
 
@@ -263,27 +294,85 @@ pub struct RigRun {
 
 impl RigRun {
     /// Reads `replay`'s step log; panics on a join or a leave (a rig case holds none).
-    pub fn of(_replay: &RunReplay) -> RigRun {
-        todo!("RigRun::of")
+    pub fn of(replay: &RunReplay) -> RigRun {
+        let range = replay
+            .step_range(0, replay.ticks, u32::MAX)
+            .expect("a recorded step log");
+        let slots: Vec<usize> = (0..3).filter(|s| range.present >> s & 1 == 1).collect();
+        let spread = |dense: &[_]| {
+            let mut out = [None; 3];
+            for (s, v) in slots.iter().zip(dense) {
+                out[*s] = *v;
+            }
+            out
+        };
+        let (mut ticks, mut picks) = (Vec::new(), Vec::new());
+        for step in &range.steps {
+            match step {
+                RangeStep::Ticks { run, inputs } => {
+                    let mut all = [Input::default(); 3];
+                    for (s, input) in slots.iter().zip(inputs) {
+                        all[*s] = *input;
+                    }
+                    ticks.extend((0..*run).map(|_| all));
+                }
+                RangeStep::Picks { picks: dense } => {
+                    let world = u32::try_from(ticks.len()).expect("fewer ticks than u32");
+                    picks.push((world, spread(dense)));
+                }
+                RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                    panic!("a rig run holds no join or leave")
+                }
+            }
+        }
+        RigRun {
+            n: u8::try_from(slots.len()).unwrap(),
+            ticks,
+            picks,
+        }
     }
 
     /// Applies world ticks `from..to` to `engine`, with the picks that come before each of
     /// them, as `Engine::step` takes them; for `to == ticks.len()` also the picks after the last.
-    pub fn play_onto(&self, _engine: &mut Engine, _from: u32, _to: u32) {
-        todo!("RigRun::play_onto")
+    pub fn play_onto(&self, engine: &mut Engine, from: u32, to: u32) {
+        let len = u32::try_from(self.ticks.len()).expect("fewer ticks than u32");
+        assert!(
+            from <= to && to <= len,
+            "window {from}..{to} of {len} ticks"
+        );
+        let picks_at = |world: u32, engine: &mut Engine| {
+            for (_, picks) in self.picks.iter().filter(|(at, _)| *at == world) {
+                assert!(
+                    engine.offer_open(),
+                    "a pick at tick {world} with no offer open"
+                );
+                let mut inputs = [Input::default(); 3];
+                for (input, pick) in inputs.iter_mut().zip(picks) {
+                    if let Some(k) = pick {
+                        *input = Input::picking(*k);
+                    }
+                }
+                engine.step(&inputs);
+            }
+        };
+        for t in from..to {
+            picks_at(t, engine);
+            engine.step(&self.ticks[t as usize]);
+        }
+        if to == len {
+            picks_at(len, engine);
+        }
     }
 }
 
 #[cfg(test)]
 mod decisions {
     use super::*;
-    use crate::common::run::trial_setup;
     use crate::run_play::scripted_input;
     use crate::zone_bot::run_input;
     use stella_rain_core::engine::ChoiceError;
     use stella_rain_core::fixed::Fx;
     use stella_rain_core::id::PlayerIdx;
-    use stella_rain_core::run_setup::RunSetup;
 
     fn at(x_px: i32, y_px: i32) -> Point {
         Point {
@@ -581,7 +670,6 @@ mod rig {
     use crate::run_play::{Change, party_cases};
     use stella_rain_core::pack::Pack;
     use stella_rain_core::run_replay::{CHECKPOINT_TICKS, verify_run};
-    use stella_rain_core::run_setup::OfferMode;
 
     #[test]
     #[should_panic(expected = "1 to 3")]
