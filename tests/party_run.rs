@@ -396,7 +396,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 7] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 9] = [
     ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
     ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
     ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
@@ -404,6 +404,16 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 7] = [
     ("leave_hole", 3000, Outcome::Running, [69, 1, 5], 1280),
     ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
     ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
+    ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
+    ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
+];
+
+/// What the rig cases hold of downs and revives: per case the counts of `PlayerDowned`,
+/// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
+/// engine's tick count after the step), and the final hash. From the seed search, not edited.
+const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
+    ("two_revive", [4, 4, 0], 1084, 1264, "3cf3a2cf1017f590"),
+    ("three_revive", [9, 8, 0], 994, 1174, "dbd98b5443bf10ee"),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
@@ -454,6 +464,30 @@ fn the_party_cases_are_what_the_table_says() {
         assert!(replay.to_bytes().len() < 64 * 1024);
     }
     assert_eq!(party_cases().len(), TABLE.len());
+}
+
+#[test]
+fn the_rig_cases_go_down_and_are_revived() {
+    use crate::party_bot::RigRun;
+    for (name, counts, first_down, first_revive, hash) in RIG_EVENTS {
+        let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
+        let replay = case.play().replay();
+        assert_eq!(replay.final_hash, hash, "{name}");
+        let tally = RigRun::of(&replay).tally(&replay);
+        assert!(tally.downed >= 1 && tally.revived >= 1, "{name}");
+        assert_eq!(
+            [tally.downed, tally.revived, tally.out],
+            counts,
+            "{name}: downed, revived, out"
+        );
+        assert_eq!(tally.first_down, Some(first_down), "{name}");
+        assert_eq!(tally.first_revive, Some(first_revive), "{name}");
+        assert!(tally.revived_were_down, "{name}: a revive follows a down");
+        assert!(tally.revived_have_hp, "{name}: a revived player has hp");
+        if name == "three_revive" {
+            assert!(tally.revivers.iter().any(|r| *r != 0), "{name}");
+        }
+    }
 }
 
 #[test]
