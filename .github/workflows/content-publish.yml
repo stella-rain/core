@@ -4,6 +4,8 @@
 # Triggers: a published release (prereleases are skipped), a manual run with a `ref`, and the
 # end of Promote: Promote creates the release with GITHUB_TOKEN, which starts no `release` run,
 # so its completion publishes the latest release.
+# The pull request also sets content's `VERSION`: kept when it is above content's latest final
+# `v*` tag (a release is pending), else that tag's next patch (`content_version.py`).
 # The content pull request is opened with the bridge App's token (as auto-merge.yml's reusable
 # workflow obtains it); Kade merges it, then makes the content release.
 # `core-version` is the release tag (`v0.0.15`, as content's AGENTS.md has it) or, for a ref that
@@ -107,6 +109,15 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
+      # The script comes from the workflow's own commit: the ref being published may be an old
+      # tag that does not have it.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: .github/scripts
+          path: workflow-scripts
+          persist-credentials: false
+
       - name: Push the branch and open or update the content pull request
         working-directory: content
         env:
@@ -119,13 +130,23 @@ jobs:
           set -euo pipefail
           git checkout -B "$BRANCH"
           cp "$RUNNER_TEMP/out/pack.json" "$RUNNER_TEMP/out/core-version" .
-          if git diff --quiet HEAD -- pack.json core-version; then
-            echo "content already holds this pack and core-version: nothing to publish" >> "$GITHUB_STEP_SUMMARY"
+          # A failed `gh api` or script fails the step (set -e on an assignment), never an empty value.
+          tags=$(gh api --paginate "repos/$GITHUB_REPOSITORY_OWNER/content/git/matching-refs/tags/v" --jq '.[].ref')
+          old_version=$(tr -d '[:space:]' < VERSION)
+          CONTENT_VERSION=$(printf '%s\n' "$tags" | python3 "$GITHUB_WORKSPACE/workflow-scripts/.github/scripts/content_version.py" VERSION)
+          printf '%s\n' "$CONTENT_VERSION" > VERSION
+          if [ "$CONTENT_VERSION" = "$old_version" ]; then
+            how="kept: a release is pending"
+          else
+            how="the next patch after the latest release"
+          fi
+          if git diff --quiet HEAD -- pack.json core-version VERSION; then
+            echo "content already holds this pack.json, core-version and VERSION: nothing to publish" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          git add pack.json core-version
+          git add pack.json core-version VERSION
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -q -m "Publish core $VERSION" -m "pack.json is core's \`content-pack export\` at $REF; core-version names that ref."
+            commit -q -m "Publish core $VERSION" -m "pack.json is core's \`content-pack export\` at $REF; core-version names that ref. VERSION is $CONTENT_VERSION ($how)."
           # The branch is the bot's own: it is rebuilt from main on each run.
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY_OWNER}/content.git" "HEAD:refs/heads/$BRANCH"
           {
@@ -133,6 +154,7 @@ jobs:
             echo
             echo "- \`pack.json\`: \`content-pack export\` at \`$REF\`."
             echo "- \`core-version\`: \`$VERSION\`."
+            echo "- \`VERSION\`: \`$CONTENT_VERSION\` ($how)."
             echo
             echo "Do not edit this branch by hand: content is publish-only, and the next publish rebuilds it."
           } > "$RUNNER_TEMP/body.md"
