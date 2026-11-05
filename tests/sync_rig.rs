@@ -144,7 +144,7 @@ fn sync_test(
             e.player_stats(),
             "clone at boundary {t}"
         );
-        if checks.contains(&t) && t % STRIDE == 0 {
+        if checks.contains(&t) && t.rem_euclid(STRIDE) == 0 {
             for d in depths.clone().filter(|d| *d <= t) {
                 window(&mut report, &ring, resim, t, d);
             }
