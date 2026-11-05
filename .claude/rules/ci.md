@@ -5,7 +5,7 @@ paths:
 
 # Workflows and scripts
 
-Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
+Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3, ADR-REL-6.
 
 ## `.github/workflows/`
 
@@ -27,8 +27,12 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3.
   `deep` runs those long tests one at a time so their times stay comparable.
 - The weekly long fuzz run (`fuzz-long.yml`), the iOS Simulator tests (`ios-sim.yml`, runner
   `.github/scripts/ios-sim-runner.sh`) and the Android emulator tests (`android-emu.yml`, runner
-  `.github/scripts/android-emu-runner.sh`), all called by Candidate (ADR-REL-3 point 5); the emulator job is
-  advisory (not in the `tag` job's needs).
+  `.github/scripts/android-emu-runner.sh`), all called by Candidate (ADR-REL-3 point 5). ADR-REL-6 point 1
+  makes the emulator a Candidate gate, but the job is advisory today: `android-emulator` is not in the `tag` job's `needs` in
+  `candidate.yml`, so a red emulator shows on the run and does not stop the rc.
+- The device corpus (the Android phones, the iPhone; `docs/device-gates.md`) is not a Candidate check: ADR-REL-6 points 2 and 3
+  run it after Promote on the released tag for each `0.N.0` release or on request. The iPhone run is by hand on Kade's Mac; no
+  workflow opens the device-check issue yet (ADR-REL-6 point 4).
 - Candidate, Promote and Candidate guard (`candidate.yml`, `promote.yml`,
   `candidate-guard.yml`); script tests (`scripts.yml`).
 - Promote ends with its `notify` job: after a final release (not a prerelease or draft) it sends
