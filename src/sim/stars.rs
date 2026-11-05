@@ -135,13 +135,17 @@ fn level_of(s: &State, me: PlayerIdx) -> u32 {
         .map_or(1, |p| p.level)
 }
 
-/// The highest level among the present players: what a drop on the shared map is drawn for.
+/// The highest level among the players that are up: what a drop on the shared map is drawn for
+/// (ADR-SIM-7 point 5). When none is up (the tick the run fails), the highest among the present
+/// ones, as targeting does.
 fn top_level(s: &State) -> u32 {
-    s.players
-        .indices()
-        .map(|me| level_of(s, me))
-        .max()
-        .unwrap_or(1)
+    top_up_level(s).unwrap_or_else(|| {
+        s.players
+            .indices()
+            .map(|me| level_of(s, me))
+            .max()
+            .unwrap_or(1)
+    })
 }
 
 /// The drop table's tier for `level`.

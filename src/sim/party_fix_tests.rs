@@ -872,6 +872,7 @@ fn dropped(n: u8, levels: [u32; 3], elite: bool, f: impl Fn(&mut State)) -> Rari
     let cfg = w.stage.stars.as_mut().unwrap();
     cfg.drop_per_mille = 1000;
     cfg.pity = 0;
+    s.enemies[0].elite = None;
     if elite {
         s.enemies[0].elite = Some(crate::sim::state::EliteState {
             home: Default::default(),
