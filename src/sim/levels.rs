@@ -1,9 +1,9 @@
 //! Experience, levels and stat points (ADR-REPL-5; DS18), in a stage with `levels`.
 //!
 //! Defeated enemies give their wave's experience, to the players who are up, as they are removed
-//! in the collisions. Each level reached raises a run stat (ADR-CONT-1) by its step, and adds the step to its effect's
-//! total, in one of two ways. By default the first stat of the run's priority below its limit
-//! rises at once, with no pause (`StatRaised`). With `pick_stats` the level queues a stat offer
+//! in the collisions. Each level reached raises a run stat (ADR-CONT-1) by its step, and adds
+//! the step to its effect's total, in one of two ways. By default the first stat of the run's
+//! priority below its limit rises at once, with no pause (`StatRaised`). With `pick_stats` the level queues a stat offer
 //! instead: it opens in `open_offers` after the boss and expertise offers, and `Engine::choose`
 //! takes one of the stats below their limit, in the run stats file's order, with no reroll, skip
 //! or banish. With every stat at its limit a level gives and opens nothing. What a total does:
