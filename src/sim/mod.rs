@@ -110,6 +110,8 @@ mod agents;
 mod attack_table;
 mod attacks;
 mod boss;
+#[cfg(test)]
+mod build_pin_tests;
 mod world;
 pub(crate) use attacks::phase;
 pub(crate) use world::{
