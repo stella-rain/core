@@ -1,4 +1,4 @@
-//! The six bench cases (`bench_fixtures`, ADR-SIM-5) build the engine the benches count. Their
+//! The eight bench cases (`bench_fixtures`, ADR-SIM-5) build the engine the benches count. Their
 //! pins live in `tests/bench_pins.toml`: the state hash before and after the measured tick(s),
 //! and a digest of the case's stage and of its measured input, so that BS2d's bench job can tell
 //! a case it may compare (the same `before`, `stage` and `input`) from one that changed. A pin
@@ -15,11 +15,13 @@
 use std::fmt::Write as _;
 
 use sha2::{Digest, Sha256};
+use stella_rain_core::bench_fixtures::party_case::{self, PEAK_TICK_3P, ROLLBACK_TICKS};
 use stella_rain_core::bench_fixtures::worst_minute_case::{
     MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at, worst_minute_window,
 };
 use stella_rain_core::bench_fixtures::{self, Case, hit_case, time_limit_case, worst_case};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
@@ -52,6 +54,10 @@ const HEADER: &str = "\
 enum Kind {
     Tick(fn() -> Case, fn() -> Stage),
     Run(fn() -> Run, u32),
+    /// One tick of a three-player engine (`party_case::tick`).
+    Party(fn() -> party_case::Case, fn() -> Stage),
+    /// The saved engine of the rollback bench (`party_case::rollback`).
+    Rollback(fn() -> Engine),
 }
 
 struct Spec {
@@ -63,7 +69,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 6] {
+fn specs() -> [Spec; 8] {
     [
         Spec {
             id: "worst_tick",
@@ -100,6 +106,18 @@ fn specs() -> [Spec; 6] {
             bench: "worst_minute_peak",
             mode: "time_limit",
             kind: Kind::Run(bench_fixtures::worst_minute_peak, 1),
+        },
+        Spec {
+            id: "worst_tick_3p",
+            bench: "worst_tick_3p",
+            mode: "time_limit",
+            kind: Kind::Party(party_case::worst_tick_3p, worst_case::stage),
+        },
+        Spec {
+            id: "rollback",
+            bench: "rollback",
+            mode: "time_limit",
+            kind: Kind::Rollback(party_case::saved),
         },
     ]
 }
@@ -157,7 +175,11 @@ fn content_hash(engine: &Engine, mode: &str) -> [u8; 32] {
 
 /// The digest of a minute case's input: the start tick, the tick count, the option an open offer
 /// takes and every `Input` the script gives for the ticks `start..start + ticks`.
-fn minute_input_digest(start: u32, ticks: u32, script: impl Fn(u32) -> Input) -> String {
+fn minute_input_digest<I: serde::Serialize>(
+    start: u32,
+    ticks: u32,
+    script: impl Fn(u32) -> I,
+) -> String {
     let mut played = Vec::new();
     for tick in start..start + ticks {
         serde_json::to_writer(&mut played, &script(tick)).expect("the input serializes");
@@ -195,6 +217,32 @@ fn measure(spec: &Spec) -> Pins {
             let input_json = serde_json::to_vec(&tick_input).expect("the input serializes");
             input = digest(&[b"stella-rain/bench-input/v2\n", &input_json]);
             engine.step(&[tick_input, Default::default(), Default::default()]);
+            after = hash_hex(engine.state_hash());
+        }
+        Kind::Party(case, stage_of) => {
+            let party_case::Case { mut engine, inputs } = case();
+            before = hash_hex(engine.state_hash());
+            let stage_json = serde_json::to_vec(&stage_of()).expect("the stage serializes");
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &stage_json,
+                &content_hash(&engine, spec.mode),
+            ]);
+            let input_json = serde_json::to_vec(&inputs).expect("the inputs serialize");
+            input = digest(&[b"stella-rain/bench-input/v2\n", &input_json]);
+            engine.step(&inputs);
+            after = hash_hex(engine.state_hash());
+        }
+        Kind::Rollback(saved) => {
+            let saved = saved();
+            before = hash_hex(saved.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&saved, spec.mode),
+            ]);
+            input = minute_input_digest(saved.tick(), ROLLBACK_TICKS, party_case::minute_inputs);
+            let (engine, saved) = party_case::rollback(saved);
+            std::mem::forget(saved);
             after = hash_hex(engine.state_hash());
         }
         Kind::Run(run, ticks) => {
@@ -305,7 +353,71 @@ fn the_worst_minute_peak_tick_is_the_benches_case() {
     check("worst_minute_peak");
 }
 
-/// Asserts that `file` holds exactly the benches' cases, each with a bench of `budgets.toml`.
+#[test]
+fn the_worst_tick_3p_is_the_benches_case() {
+    check("worst_tick_3p");
+}
+
+#[test]
+fn the_rollback_is_the_benches_case() {
+    check("rollback");
+}
+
+fn hits_by(engine: &Engine, slot: u8) -> usize {
+    use stella_rain_core::event::DomainEvent;
+    let id = PlayerIdx::new(slot).expect("a slot").id();
+    engine
+        .events()
+        .iter()
+        .filter(|ev| matches!(ev, DomainEvent::Hit { player: Some(p), .. } if *p == id))
+        .count()
+}
+
+/// The three-player tick: all three present, slots 1 and 2 land their hits, and the crowd, the
+/// zones and the orbs are at the caps `tests/worst_case.rs` checks for the solo case.
+#[test]
+fn the_party_tick_reaches_the_caps_with_every_slot_hitting() {
+    let case = party_case::worst_tick_3p();
+    assert_eq!(case.engine.players(), 3);
+    assert_eq!(case.engine.present(), 0b111);
+    let engine = party_case::tick(case);
+    for slot in [1, 2] {
+        assert!(hits_by(&engine, slot) >= 260, "slot {slot} hits");
+    }
+    let load = engine.load();
+    assert_eq!((load.enemies, load.zones, load.orbs), (260, 128, 32));
+}
+
+/// Rolling back leaves the saved engine as it was, and the 8 ticks are the ones an engine
+/// advanced from the same state plays.
+#[test]
+fn the_rollback_restores_and_plays_eight_ticks() {
+    let saved = party_case::saved();
+    assert_eq!(saved.players(), 3);
+    assert_eq!(saved.tick(), PEAK_TICK_3P);
+    assert!(!saved.offer_open());
+    let before = saved.state_hash();
+    let (played, saved) = party_case::rollback(saved);
+    assert_eq!(saved.state_hash(), before);
+    assert_eq!(played.tick(), PEAK_TICK_3P + ROLLBACK_TICKS);
+    let mut direct = party_case::saved();
+    for _ in 0..ROLLBACK_TICKS {
+        while direct.offer_open() {
+            direct.step(&[Input::picking(0); 3]);
+        }
+        direct.step(&party_case::minute_inputs(direct.tick()));
+    }
+    assert_eq!(played.state_hash(), direct.state_hash());
+}
+
+/// The scan of the 3-player dense minute finds the peak the rollback starts at.
+#[test]
+fn the_party_peak_is_where_the_scan_finds_it() {
+    assert_eq!(party_case::window(), (MINUTE_START, PEAK_TICK_3P));
+}
+
+/// Asserts that `file` holds exactly the benches' cases, each with a bench of `budgets.toml` or
+/// in `UNBUDGETED`.
 fn assert_case_set(file: &toml::Table) {
     let mut in_file: Vec<&str> = file.keys().map(String::as_str).collect();
     let mut in_code: Vec<&str> = specs().iter().map(|spec| spec.id).collect();
@@ -319,8 +431,9 @@ fn assert_case_set(file: &toml::Table) {
     let budgets: toml::Table = BUDGETS.parse().expect("benches/budgets.toml is TOML");
     for spec in specs() {
         assert!(
-            budgets.contains_key(spec.bench),
-            "{}: bench = \"{}\" is not a key of benches/budgets.toml",
+            budgets.contains_key(spec.bench)
+                || crate::bench_teardown::UNBUDGETED.contains(&spec.bench),
+            "{}: bench = \"{}\" is not a key of benches/budgets.toml or in UNBUDGETED",
             spec.id,
             spec.bench
         );
