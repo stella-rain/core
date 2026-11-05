@@ -7,7 +7,10 @@ use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
+use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::snapshot::EntityKind;
+
+use crate::run_play::PartyCase;
 
 /// How near (1/256 pixel) the bot's revive walk gets before it holds `interact`: 40 pixels,
 /// inside the revive range (48 pixels) with room for the 2 pixels a player moves in a tick.
@@ -193,6 +196,81 @@ impl PartyBot {
         let best = ratings.iter().map(|r| r.dps_bp.unwrap_or(0)).max()?;
         let at = ratings.iter().position(|r| r.dps_bp.unwrap_or(0) == best)?;
         u32::try_from(at).ok()
+    }
+}
+
+/// A test-only party of 1 to 3 for `run_play::PartyCase`, every slot played by a `PartyBot`.
+/// Not the recorded `PartySetup` type of ADR-REPL-5: that one is one `RunSetup` per player.
+#[derive(Clone, Debug)]
+pub struct RigParty {
+    n: u8,
+    mode: String,
+    seed: u64,
+    difficulty: String,
+    ticks: u32,
+    bot_seed: u64,
+}
+
+impl RigParty {
+    /// A party of `n` (1 to 3) on the `time_limit` mode, normal difficulty, 3000 ticks.
+    pub fn new(_n: u8) -> RigParty {
+        todo!("RigParty::new")
+    }
+
+    pub fn mode(mut self, mode: &str) -> RigParty {
+        self.mode = mode.into();
+        self
+    }
+
+    /// The world seed of the run's setup.
+    pub fn seed(mut self, seed: u64) -> RigParty {
+        self.seed = seed;
+        self
+    }
+
+    pub fn difficulty(mut self, difficulty: &str) -> RigParty {
+        self.difficulty = difficulty.into();
+        self
+    }
+
+    pub fn ticks(mut self, ticks: u32) -> RigParty {
+        self.ticks = ticks;
+        self
+    }
+
+    pub fn bot_seed(mut self, bot_seed: u64) -> RigParty {
+        self.bot_seed = bot_seed;
+        self
+    }
+
+    /// The corpus case `name`: a `stop` run, no joins or leaves, no timed answers.
+    pub fn case(&self, _name: &'static str) -> PartyCase {
+        todo!("RigParty::case")
+    }
+}
+
+/// A recorded rig run as plain data: the input of every slot at every world tick, and the
+/// picks between ticks. Replayable on a bare `Engine`, or on a clone of one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RigRun {
+    pub n: u8,
+    /// The recorded input of every slot at world tick `t` (index `t`); an absent slot's is the
+    /// default.
+    pub ticks: Vec<[Input; 3]>,
+    /// The `Picks` steps in order, each with the world tick it comes before.
+    pub picks: Vec<(u32, [Option<u32>; 3])>,
+}
+
+impl RigRun {
+    /// Reads `replay`'s step log; panics on a join or a leave (a rig case holds none).
+    pub fn of(_replay: &RunReplay) -> RigRun {
+        todo!("RigRun::of")
+    }
+
+    /// Applies world ticks `from..to` to `engine`, with the picks that come before each of
+    /// them, as `Engine::step` takes them; for `to == ticks.len()` also the picks after the last.
+    pub fn play_onto(&self, _engine: &mut Engine, _from: u32, _to: u32) {
+        todo!("RigRun::play_onto")
     }
 }
 
@@ -494,5 +572,153 @@ mod decisions {
                 assert!(e.check_pick(player, got).is_ok());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod rig {
+    use super::*;
+    use crate::run_play::{Change, party_cases};
+    use stella_rain_core::pack::Pack;
+    use stella_rain_core::run_replay::{CHECKPOINT_TICKS, verify_run};
+    use stella_rain_core::run_setup::OfferMode;
+
+    #[test]
+    #[should_panic(expected = "1 to 3")]
+    fn a_party_of_none_is_refused() {
+        let _ = RigParty::new(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "1 to 3")]
+    fn a_party_of_four_is_refused() {
+        let _ = RigParty::new(4);
+    }
+
+    #[test]
+    fn the_builder_makes_the_case_it_is_told() {
+        for n in 1..=3u8 {
+            let case = RigParty::new(n).seed(9).bot_seed(5).case("x");
+            assert_eq!(case.name, "x");
+            assert_eq!(case.party, n);
+            assert_eq!(case.setup.mode, "time_limit".into());
+            assert_eq!(case.setup.seed, 9);
+            assert_eq!(case.setup.difficulty, "normal".into());
+            assert_eq!(case.setup.offer_mode, OfferMode::Stop);
+            assert_eq!(case.ticks, 3000);
+            assert_eq!(case.bot, Some(PartyBot { seed: 5 }));
+            assert!(case.changes.is_empty());
+            assert_eq!(case.answer_after, None);
+        }
+        let case = RigParty::new(2)
+            .mode("tutorial")
+            .difficulty("hard")
+            .ticks(120)
+            .case("y");
+        assert_eq!(case.ticks, 120);
+        assert_eq!(case.setup.mode, "tutorial".into());
+        assert_eq!(case.setup.difficulty, "hard".into());
+    }
+
+    #[test]
+    fn a_case_plays_records_and_verifies() {
+        for n in 1..=3u8 {
+            let rec = RigParty::new(n)
+                .seed(1)
+                .bot_seed(1)
+                .ticks(600)
+                .case("x")
+                .play();
+            assert!(rec.engine().tick() <= 600);
+            let replay = rec.replay();
+            verify_run(&replay.to_bytes()).unwrap();
+            let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+            assert_eq!(range.present, (1u8 << n) - 1);
+        }
+    }
+
+    #[test]
+    fn the_same_inputs_give_the_same_bytes_and_another_bot_seed_another_run() {
+        let bytes = |bot| {
+            RigParty::new(2)
+                .seed(3)
+                .bot_seed(bot)
+                .case("x")
+                .play()
+                .replay()
+        };
+        assert_eq!(bytes(1).to_bytes(), bytes(1).to_bytes());
+        assert_ne!(bytes(1).inputs, bytes(2).inputs);
+    }
+
+    fn fresh(replay: &RunReplay, n: u8) -> Engine {
+        Engine::start_party_with(&replay.setup, Pack::bundled().content(), n).unwrap()
+    }
+
+    fn hash_of(replay: &RunReplay) -> u64 {
+        u64::from_str_radix(&replay.final_hash, 16).unwrap()
+    }
+
+    #[test]
+    fn a_rig_run_replays_onto_an_engine_to_the_recorded_hashes() {
+        for n in [2u8, 3] {
+            let replay = RigParty::new(n)
+                .seed(1)
+                .bot_seed(1)
+                .case("x")
+                .play()
+                .replay();
+            let run = RigRun::of(&replay);
+            assert_eq!(run.n, n);
+            assert_eq!(run.ticks.len(), replay.ticks as usize);
+            let mut e = fresh(&replay, n);
+            let step = CHECKPOINT_TICKS;
+            let mut at = 0;
+            while at < replay.ticks {
+                let to = (at + step).min(replay.ticks);
+                run.play_onto(&mut e, at, to);
+                if to % step == 0 {
+                    let k = (to / step - 1) as usize;
+                    let want =
+                        u64::from_str_radix(&replay.checkpoints[16 * k..16 * k + 16], 16).unwrap();
+                    // A pick that comes before the next tick is not applied yet: the checkpoint
+                    // is taken right after the tick.
+                    assert_eq!(e.state_hash(), want, "n {n} tick {to}");
+                }
+                at = to;
+            }
+            assert_eq!(e.state_hash(), hash_of(&replay), "n {n}");
+        }
+    }
+
+    #[test]
+    fn windows_and_clones_reach_the_same_hash() {
+        let replay = RigParty::new(3)
+            .seed(1)
+            .bot_seed(2)
+            .case("x")
+            .play()
+            .replay();
+        let run = RigRun::of(&replay);
+        let len = u32::try_from(run.ticks.len()).unwrap();
+        for k in [1, 59, 60, 1500] {
+            let mut e = fresh(&replay, 3);
+            run.play_onto(&mut e, 0, k);
+            let mut copy = e.clone();
+            run.play_onto(&mut e, k, len);
+            assert_eq!(e.state_hash(), hash_of(&replay), "window at {k}");
+            run.play_onto(&mut copy, k, len);
+            assert_eq!(copy.state_hash(), hash_of(&replay), "clone at {k}");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "join")]
+    fn a_join_in_the_log_is_refused() {
+        let case = party_cases()
+            .into_iter()
+            .find(|c| c.changes.iter().any(|(_, c)| matches!(c, Change::Join(_))))
+            .unwrap();
+        let _ = RigRun::of(&case.play().replay());
     }
 }
