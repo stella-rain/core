@@ -143,14 +143,82 @@ fn sync_test(
             e.player_stats(),
             "clone at boundary {t}"
         );
+        if checks.contains(&t) && t % STRIDE == 0 {
+            for d in depths.clone().filter(|d| *d <= t) {
+                window(&mut report, &ring, resim, t, d);
+            }
+        }
         if t == len {
             break;
         }
         rig.play_onto(&mut e, t, t + 1);
         report.hashes.push(e.state_hash());
     }
-    let _ = (resim, depths, checks, STRIDE);
     report
+}
+
+/// One rollback: the ring's clone of boundary `at - depth` stepped by `resim` up to boundary
+/// `at`, the hash compared after every tick, and at the end of an equal window everything else
+/// the engine holds that the hash does not.
+fn window(report: &mut Report, ring: &Ring, resim: &RigRun, at: u32, depth: u32) {
+    let from = at - depth;
+    let mut c = ring.at(from).expect("the ring holds the window").clone();
+    report.windows += 1;
+    report.on_offer += u32::from(c.offer_open());
+    let len = u32::try_from(resim.ticks.len()).unwrap();
+    report.picks_replayed += u32::try_from(
+        resim
+            .picks
+            .iter()
+            .filter(|(key, _)| (from..at).contains(key) || (at == len && *key == len))
+            .count(),
+    )
+    .unwrap();
+    for k in from..at {
+        resim.play_with(&mut c, k, k + 1, |e| {
+            report.revives += u32::try_from(
+                e.events()
+                    .iter()
+                    .filter(|ev| matches!(ev, DomainEvent::PlayerRevived { .. }))
+                    .count(),
+            )
+            .unwrap();
+        });
+        report.resimulated += 1;
+        let (expected, got) = (report.hashes[k as usize + 1], c.state_hash());
+        if expected != got {
+            report.desyncs.push(Desync {
+                tick: k + 1,
+                depth,
+                at,
+                expected,
+                got,
+            });
+            return;
+        }
+    }
+    let forward = ring.at(at).expect("the ring holds the boundary");
+    assert_eq!(c.tick(), forward.tick(), "tick: depth {depth} at {at}");
+    assert_eq!(
+        c.outcome(),
+        forward.outcome(),
+        "outcome: depth {depth} at {at}"
+    );
+    assert_eq!(
+        c.ledger(),
+        forward.ledger(),
+        "ledger: depth {depth} at {at}"
+    );
+    assert_eq!(
+        c.player_stats(),
+        forward.player_stats(),
+        "player stats: depth {depth} at {at}"
+    );
+    assert_eq!(
+        c.events(),
+        forward.events(),
+        "events: depth {depth} at {at}"
+    );
 }
 
 #[test]
