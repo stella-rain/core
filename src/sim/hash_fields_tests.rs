@@ -59,6 +59,7 @@ fn block(s: &State, i: PlayerIdx) -> Vec<u8> {
     c.expertise.stable_hash(&mut h);
     c.stardust.stable_hash(&mut h);
     c.regen.stable_hash(&mut h);
+    c.equipment.stable_hash(&mut h);
     h.trace().to_vec()
 }
 

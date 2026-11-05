@@ -58,6 +58,7 @@ fn block(s: &State, i: PlayerIdx) -> Vec<u8> {
     out.extend(to_bytes(&c.expertise));
     out.extend(to_bytes(&c.stardust));
     out.extend(to_bytes(&c.regen));
+    out.extend(to_bytes(&c.equipment));
     out
 }
 

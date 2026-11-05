@@ -121,7 +121,6 @@ mod combat;
 mod damage;
 mod dash;
 mod entity;
-#[allow(dead_code)] // used once the hash and the codec write it
 mod equipment;
 mod expertise;
 #[cfg(test)]

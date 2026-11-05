@@ -449,6 +449,11 @@ macro_rules! state_codec_v2 {
                     &fresh.players.career(PlayerIdx::SOLO).stardust,
                     "stardust presence differs from the content",
                 )?;
+                same_presence(
+                    &s.players.career(me).equipment.lumine,
+                    &fresh.players.career(PlayerIdx::SOLO).equipment.lumine,
+                    "lumine presence differs from the setup",
+                )?;
                 if let (Some(p), Some(f)) = (
                     &s.players.career(me).progress,
                     &fresh.players.career(PlayerIdx::SOLO).progress,

@@ -16,6 +16,7 @@ use crate::sim::RangedPool;
 use crate::sim::state::PlayerIdx;
 use crate::snapshot::{ExpertiseOfferKind, OfferKind};
 
+use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::state::*;
 
 // ---- Attacks, orbs and zones ----
@@ -1102,7 +1103,7 @@ impl State {
 }
 
 /// Slot `me`'s block: the player, the career's progress, the offer generator's state, the
-/// offers, the expertise gauge, the Stardust and the regeneration.
+/// offers, the expertise gauge, the Stardust, the regeneration and the equipment.
 fn hash_player(players: &Players, me: PlayerIdx, h: &mut StateHasher) {
     players[me].stable_hash(h);
     let Career {
@@ -1112,7 +1113,7 @@ fn hash_player(players: &Players, me: PlayerIdx, h: &mut StateHasher) {
         expertise,
         stardust,
         regen,
-        equipment: _,
+        equipment,
     } = players.career(me);
     progress.stable_hash(h);
     offer.state().stable_hash(h);
@@ -1120,6 +1121,7 @@ fn hash_player(players: &Players, me: PlayerIdx, h: &mut StateHasher) {
     expertise.stable_hash(h);
     stardust.stable_hash(h);
     regen.stable_hash(h);
+    equipment.stable_hash(h);
 }
 
 impl StableHash for Outcome {
@@ -1195,4 +1197,66 @@ fn hash_streams(rng: &Streams, h: &mut StateHasher) {
     rng.attack.state().stable_hash(h);
     rng.loot.state().stable_hash(h);
     rng.horde.state().stable_hash(h);
+}
+
+// ---- Equipment (ADR-SIM-3 point 2) ----
+
+impl StableHash for Held {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            Held::Star(place) => {
+                hash_enum!(h, 0);
+                place.stable_hash(h);
+            }
+            Held::Rune(rune) => {
+                hash_enum!(h, 1);
+                rune.stable_hash(h);
+            }
+        }
+    }
+}
+
+impl StableHash for SlotKind {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            SlotKind::Category(index) => {
+                hash_enum!(h, 0);
+                index.stable_hash(h);
+            }
+            SlotKind::Rune => hash_enum!(h, 1),
+            SlotKind::Lumine => hash_enum!(h, 2),
+        }
+    }
+}
+
+impl StableHash for EquipSlot {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let EquipSlot {
+            kind,
+            held,
+            level,
+            expertise,
+        } = self;
+        kind.stable_hash(h);
+        held.stable_hash(h);
+        level.stable_hash(h);
+        expertise.stable_hash(h);
+    }
+}
+
+impl StableHash for Equipment {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Equipment {
+            inventory,
+            slots,
+            lumine,
+            starlight,
+            tree_points,
+        } = self;
+        inventory.stable_hash(h);
+        slots.stable_hash(h);
+        lumine.stable_hash(h);
+        starlight.stable_hash(h);
+        tree_points.stable_hash(h);
+    }
 }
