@@ -46,6 +46,7 @@ fn expand(steps: &[RangeStep]) -> Vec<Entry> {
     let mut out = Vec::new();
     for step in steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 out.extend((0..*run).map(|_| Entry::Tick(inputs.clone())));
             }
@@ -66,6 +67,7 @@ fn oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<Entry> {
     let mut world = 0u32;
     for step in &full.steps {
         match step {
+            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
             RangeStep::Ticks { run, inputs } => {
                 for t in world..world + run {
                     if a <= t && t < b {

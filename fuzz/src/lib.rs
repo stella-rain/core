@@ -14,7 +14,7 @@ use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::{ContentId, PlayerIdx};
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::pack::{Pack, PackFile};
 use stella_rain_core::packs::{Packs, PacksError};
@@ -226,6 +226,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
             pick: None,
+            action: None,
             interact: false,
         })
         .collect()
@@ -352,6 +353,7 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
         .expect("a verified run starts");
     for step in &range.steps {
         match step {
+            RangeStep::Actions { .. } => panic!("a verified run holds no equipment action"),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     let all = slots(recorder.engine().present(), inputs);
@@ -401,7 +403,10 @@ fn party_cuts() -> [u32; 2] {
             RangeStep::Picks { picks } if picks[1..].iter().any(Option::is_some) => {
                 return [150, world];
             }
-            RangeStep::Picks { .. } | RangeStep::Join { .. } | RangeStep::Leave { .. } => {}
+            RangeStep::Picks { .. }
+            | RangeStep::Actions { .. }
+            | RangeStep::Join { .. }
+            | RangeStep::Leave { .. } => {}
         }
     }
     panic!("a pick by slot 1 or 2");
@@ -870,12 +875,13 @@ pub fn step_log_range_input(ticks: u32, a: u32, b: u32, log: &[u8]) -> Vec<u8> {
 enum RangeEntry {
     Tick(Vec<Input>),
     Picks(Vec<Option<u32>>),
+    Actions(Vec<Option<EquipAction>>),
     Join(u8),
     Leave(u8),
 }
 
 /// The whole log expanded to one entry per tick, cut to `a..b` by the written rule and not by the
-/// reader's code: a tick `t` is in iff `a <= t < b`; a PICKS after `p` ticks is in iff
+/// reader's code: a tick `t` is in iff `a <= t < b`; a PICKS or ACTIONS after `p` ticks is in iff
 /// `a <= p < b`, or `b == ticks` and `p == ticks` and the range is not empty; a JOIN or LEAVE
 /// goes by the same rule as a PICKS.
 fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry> {
@@ -895,6 +901,12 @@ fn range_oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<RangeEntry>
                 let inside = (a <= world && world < b) || (a < b && b == ticks && world == ticks);
                 if inside {
                     out.push(RangeEntry::Picks(picks.clone()));
+                }
+            }
+            RangeStep::Actions { actions } => {
+                let inside = (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                if inside {
+                    out.push(RangeEntry::Actions(actions.clone()));
                 }
             }
             RangeStep::Join { slot } | RangeStep::Leave { slot } => {
@@ -920,6 +932,7 @@ fn expand_range(range: &StepRange) -> Vec<RangeEntry> {
                 out.extend((0..*run).map(|_| RangeEntry::Tick(inputs.clone())));
             }
             RangeStep::Picks { picks } => out.push(RangeEntry::Picks(picks.clone())),
+            RangeStep::Actions { actions } => out.push(RangeEntry::Actions(actions.clone())),
             RangeStep::Join { slot } => out.push(RangeEntry::Join(*slot)),
             RangeStep::Leave { slot } => out.push(RangeEntry::Leave(*slot)),
         }

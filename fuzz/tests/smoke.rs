@@ -354,7 +354,7 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             ));
         }
     }
-    let forged: [(&str, u32, &[u8]); 7] = [
+    let forged: [(&str, u32, &[u8]); 11] = [
         // A join, a leave, then a double join and a leave of slot 0, which are refused.
         (
             "forged-join",
@@ -392,6 +392,26 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             1,
             &[0x01, 0x07, 0x01, 0x00, 0x00, 0x00],
         ),
+        // A Replace(3, 7) between two runs; a party of 2 with a TreePick(4) by slot 1; an
+        // ACTIONS record with no action; one with an unknown kind.
+        (
+            "forged-actions",
+            2,
+            &[
+                0x01, 0x00, 0x01, 0x02, 0x00, 0x00, 0x04, 0x02, 0x03, 0x07, 0x00, 0x01, 0x00, 0x00,
+                0x00,
+            ],
+        ),
+        (
+            "forged-actions-party",
+            2,
+            &[
+                0x03, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x05, 0x04, 0x00,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ],
+        ),
+        ("forged-actions-none", 0, &[0x01, 0x04, 0x00]),
+        ("forged-actions-kind", 0, &[0x01, 0x04, 0x06, 0x00]),
     ];
     for (name, ticks, log) in forged {
         seeds.push((name.to_owned(), step_log_range_input(ticks, 0, ticks, log)));
@@ -683,7 +703,14 @@ fn a_real_log_range_gets_past_the_scanner() {
     let seeds = step_log_range_seeds();
     assert!(seeds.len() >= 9 * 5 + 3);
     for (name, bytes) in &seeds {
-        let real = !name.starts_with("forged-unknown") && !name.starts_with("forged-refused");
+        let real = ![
+            "forged-unknown",
+            "forged-refused",
+            "forged-actions-none",
+            "forged-actions-kind",
+        ]
+        .iter()
+        .any(|refused| name.starts_with(refused));
         assert_eq!(step_log_range(bytes), real, "{name}");
     }
 }
@@ -706,6 +733,74 @@ fn a_step_log_range_seed_framing_round_trips() {
     assert_eq!(&bytes[4..8], &2u32.to_le_bytes());
     assert_eq!(&bytes[8..12], &5u32.to_le_bytes());
     assert_eq!(&bytes[12..], &[0x01, 0x00]);
+}
+
+#[test]
+fn the_equipment_action_seeds_are_there_and_read_as_they_should() {
+    let seeds = step_log_range_seeds();
+    for (name, past_the_scanner) in [
+        ("forged-actions", true),
+        ("forged-actions-party", true),
+        ("forged-actions-none", false),
+        ("forged-actions-kind", false),
+    ] {
+        let (_, bytes) = seeds
+            .iter()
+            .find(|(n, _)| n == name)
+            .unwrap_or_else(|| panic!("no seed {name}"));
+        assert_eq!(step_log_range(bytes), past_the_scanner, "{name}");
+    }
+}
+
+/// The committed regression of `replay_load` for an equipment action: the `runs/tutorial` run
+/// replay with a Replace(0, 0) step inserted at tick 0, so it loads and ranges but does not
+/// verify.
+fn equipment_action_replay() -> Vec<u8> {
+    let path = root().join("tests/corpus/current/runs/tutorial/run.replay");
+    let mut run = RunReplay::from_bytes(&fs::read(path).expect("run.replay")).expect("a run");
+    let mut log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+    log.splice(1..1, [0x04, 0x02, 0x00, 0x00]);
+    run.inputs = stella_rain_core::base64::encode(&log);
+    run.to_bytes()
+}
+
+fn equipment_action_regression() -> PathBuf {
+    root()
+        .join("fuzz")
+        .join("regressions")
+        .join("replay_load")
+        .join("equipment-action.replay")
+}
+
+#[test]
+fn the_equipment_action_regression_is_the_derived_file() {
+    let committed = fs::read(equipment_action_regression()).expect("the regression");
+    assert_eq!(committed, equipment_action_replay());
+}
+
+#[test]
+fn a_replay_with_an_equipment_action_loads_ranges_and_is_refused() {
+    let bytes = equipment_action_replay();
+    replay_load(&bytes);
+    let run = RunReplay::from_bytes(&bytes).expect("it loads");
+    let range = run.step_range(0, run.ticks, 10_000_000).expect("it ranges");
+    assert!(matches!(
+        range.steps.first(),
+        Some(stella_rain_core::RangeStep::Actions { .. })
+    ));
+    assert!(matches!(
+        stella_rain_core::run_replay::verify_run(&bytes),
+        Err(RunReplayError::ActionRefused { tick: 0, .. })
+    ));
+}
+
+/// Writes the regression file of `replay_load` for an equipment action; run once, the output is
+/// committed.
+#[test]
+#[ignore = "writes a file in fuzz/regressions"]
+fn write_equipment_action_regression() {
+    fs::write(equipment_action_regression(), equipment_action_replay())
+        .expect("the regression file");
 }
 
 /// Writes the seeds of `step_log_range` to the folder `STEP_LOG_RANGE_SEEDS_DIR` names, for a

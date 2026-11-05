@@ -3873,6 +3873,143 @@
       ],
       "type": "object"
     },
+    "EquipAction": {
+      "description": "An equipment action a player makes on a step (ADR-SIM-7). Every operand is an index; what an\ninventory index, a slot index, a star-pool index and a style-path option index count is the\nengine's rule to define, and the type bounds none of them.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Put the inventory item `item` into the empty slot `slot`.",
+          "properties": {
+            "equip": {
+              "additionalProperties": false,
+              "properties": {
+                "item": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "slot": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item",
+                "slot"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "equip"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Put the inventory item `item` into the occupied slot `slot`.",
+          "properties": {
+            "replace": {
+              "additionalProperties": false,
+              "properties": {
+                "item": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "slot": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item",
+                "slot"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "replace"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Extract the inventory item `item`.",
+          "properties": {
+            "extract": {
+              "additionalProperties": false,
+              "properties": {
+                "item": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "extract"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Craft with the star at index `star` of the setup's star pool.",
+          "properties": {
+            "craft": {
+              "additionalProperties": false,
+              "properties": {
+                "star": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "star"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "craft"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Take option `option` on the weapon's in-run style path.",
+          "properties": {
+            "tree_pick": {
+              "additionalProperties": false,
+              "properties": {
+                "option": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "option"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "tree_pick"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Evade": {
       "additionalProperties": false,
       "description": "A dash with invulnerability, on charges. A press with a charge ready\ndashes `distance` over `ticks`, along the movement direction, or along the facing when the\nstick is centred; the stick is ignored until the dash ends, and a press during it with a\ncharge ready starts the next dash at once. Invulnerability counts from the press, and so\ndoes the cooldown of the charge it spent: each spent charge recovers on its own timer.",
@@ -4787,6 +4924,17 @@
     "Input": {
       "additionalProperties": false,
       "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquipAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An equipment action made on this step. It is recorded as an ACTIONS step, never inside a\nTICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: no\nrule accepts an action yet."
+        },
         "assist": {
           "description": "Aim assist is on for this tick, a switch: a combo step faces the target.",
           "type": "boolean"

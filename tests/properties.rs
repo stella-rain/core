@@ -87,6 +87,7 @@ fn input() -> impl Strategy<Value = Input> {
                 assist,
                 auto,
                 pick: None,
+                action: None,
                 interact: false,
             },
         )

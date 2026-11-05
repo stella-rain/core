@@ -88,6 +88,7 @@ fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
         assist: true,
         auto: false,
         pick: None,
+        action: None,
         interact: false,
     };
     let value = serde_json::to_value(input).unwrap();

@@ -58,6 +58,7 @@ mod enemy_damage;
 mod enemy_role_content;
 mod enemy_roles;
 mod engine;
+mod equipment_input;
 mod evade;
 mod expertise;
 mod expertise_gauge;
