@@ -34,6 +34,7 @@ use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
+use super::scratch::{RunEnd, Scratch};
 use super::{Blame, Culprit, Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
@@ -179,6 +180,9 @@ fn land(
     (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
     events: &mut Vec<DomainEvent>,
 ) {
+    // A run that ends in the pass (a player down, a hold broken, a stun) is ended after the
+    // last swing, so the places the swings hold stay valid (ADR-SIM-7).
+    s.scratch.ends_pinned = Some(s.runs.len());
     if s.next_orb_group > 0 {
         // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
         // the lowest slot first.
@@ -195,6 +199,35 @@ fn land(
             hit_companions_side(stage, s, w, events);
         }
     }
+    apply_ends(stage, s);
+}
+
+/// Ends the runs that ended during the pass, in the order they were asked for, among the runs
+/// that existed when it began: a run a hit started in the pass is not touched.
+fn apply_ends(stage: &World, s: &mut State) {
+    let pinned = s.scratch.ends_pinned.take().unwrap_or(s.runs.len());
+    if s.scratch.ends_pending.is_empty() {
+        return;
+    }
+    let ends = std::mem::take(&mut s.scratch.ends_pending);
+    let mut at = 0;
+    s.runs.retain_mut(|r| {
+        let place = at;
+        at += 1;
+        let ended = place < pinned
+            && ends.iter().any(|e| match *e {
+                RunEnd::Slot(owner, slot) => r.owner == owner && r.slot == slot,
+                RunEnd::All(owner) => r.owner == owner,
+            });
+        if ended {
+            Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
+        }
+        !ended
+    });
+    s.move_index.rebuild(stage, &s.runs);
+    let mut ends = ends;
+    ends.clear();
+    s.scratch.ends_pending = ends;
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
@@ -931,8 +964,8 @@ mod party_tests {
             slot(1).id(),
             crate::sim::player::COMBO_SLOT,
         );
-        for k in 0..foes {
-            add_run(&mut s, &template, EntityId(900 + k as u32), 0);
+        for id in (900..).take(foes) {
+            add_run(&mut s, &template, EntityId(id), 0);
         }
         (w, s)
     }
@@ -1064,11 +1097,7 @@ mod party_tests {
         assert_eq!(s.players[PlayerIdx::SOLO].combo.hold, None);
         assert!(ev.iter().any(|e| matches!(e, DomainEvent::HoldBroken)));
         assert_eq!(s.runs.len(), 2, "the held step's run ended after the pass");
-        assert!(
-            s.runs
-                .iter()
-                .all(|r| r.slot != crate::sim::player::COMBO_SLOT)
-        );
+        assert!(s.runs.iter().all(|r| r.owner != slot(0).id()));
         assert_eq!(hit_ids(&s, 0), vec![slot(0).id()]);
         assert_eq!(hit_ids(&s, 1), vec![slot(0).id()]);
     }
@@ -1112,5 +1141,61 @@ mod party_tests {
         assert_eq!(s.runs.len(), 2);
         assert_eq!(hit_ids(&s, 1), vec![slot(1).id(), slot(2).id()]);
         assert!(hit_ids(&s, 0).is_empty());
+    }
+
+    #[test]
+    fn the_ends_are_applied_once_and_leave_the_scratch_clean() {
+        let (w, mut s) = downing(1);
+        let owner = slot(1).id();
+        s.move_index.lower(owner, 50);
+        // A list with a room only this run's hit list has, so the pool shows it came back.
+        s.runs[0].hits = Vec::with_capacity(5);
+        s.runs[0].hits.push((slot(2).id(), 0));
+        let one = over(&s, 1, &w, FOE, 1);
+        pass(&w, &mut s, &[one]);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(
+            s.move_index.get(owner),
+            100,
+            "the index is rebuilt without it"
+        );
+        assert_eq!(s.scratch.ends_pinned, None);
+        assert!(s.scratch.ends_pending.is_empty());
+        assert!(
+            s.scratch.hit_lists.iter().any(|l| l.capacity() == 5),
+            "its hit list is kept"
+        );
+    }
+
+    #[test]
+    fn a_run_started_in_the_pass_survives_an_end_for_its_owner_and_slot() {
+        let (w, mut s) = downing(1);
+        let template = s.runs[1].clone();
+        let owner = slot(1).id();
+        s.scratch.ends_pinned = Some(s.runs.len());
+        // The run that existed ends; the one the pass started afterwards, same owner and slot,
+        // stays.
+        s.scratch
+            .ends_pending
+            .push(RunEnd::Slot(owner, crate::sim::player::COMBO_SLOT));
+        add_run(&mut s, &template, owner, crate::sim::player::COMBO_SLOT);
+        apply_ends(&w, &mut s);
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(s.runs[0].owner, FOE);
+        assert_eq!(s.runs[1].owner, owner);
+    }
+
+    #[test]
+    fn two_pending_ends_both_apply() {
+        let (w, mut s) = downing(2);
+        s.scratch.ends_pinned = Some(s.runs.len());
+        s.scratch
+            .ends_pending
+            .push(RunEnd::Slot(slot(1).id(), crate::sim::player::COMBO_SLOT));
+        s.scratch.ends_pending.push(RunEnd::All(EntityId(900)));
+        apply_ends(&w, &mut s);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(s.runs[0].owner, EntityId(901));
+        assert_eq!(s.scratch.ends_pinned, None);
     }
 }

@@ -38,6 +38,7 @@
 //! `MAX_EMITTER_STEPS_PER_TICK` node steps across all of them, after which the rest wait for
 //! the next tick, in order. Orbs and zones are capped as everywhere else.
 
+use super::scratch::RunEnd;
 use crate::sim::state::PlayerIdx;
 use std::ops::Deref;
 
@@ -712,6 +713,10 @@ pub(super) fn advance_runs(world: &World, s: &mut State, events: &mut Vec<Domain
 
 /// Keeps the runs `keep` accepts; the hit lists of the others are kept for later runs.
 pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
+    debug_assert!(
+        s.scratch.ends_pinned.is_none(),
+        "a run end inside the hit pass is deferred"
+    );
     s.runs.retain_mut(|r| {
         let kept = keep(r);
         if !kept {
@@ -724,6 +729,11 @@ pub(super) fn retain_runs(s: &mut State, keep: impl Fn(&AttackRun) -> bool) {
 /// Ends `owner`'s run in `slot`, if any: an evade cancels the main character's combo step, and
 /// a follow-up press its recovery. Orbs it spawned fly on.
 pub(super) fn end_run(world: &World, s: &mut State, owner: EntityId, slot: u8) {
+    // Inside the hit pass the end waits for the last swing (ADR-SIM-7).
+    if s.scratch.ends_pinned.is_some() {
+        s.scratch.ends_pending.push(RunEnd::Slot(owner, slot));
+        return;
+    }
     retain_runs(s, |r| r.owner != owner || r.slot != slot);
     s.move_index.rebuild(world, &s.runs);
 }
@@ -753,6 +763,10 @@ pub(super) fn hold_ready(world: &World, s: &State, owner: EntityId, slot: u8) ->
 
 /// Ends every run of `owner` (a boss leaving the phase that started them).
 pub(super) fn end_runs_of(world: &World, s: &mut State, owner: EntityId) {
+    if s.scratch.ends_pinned.is_some() {
+        s.scratch.ends_pending.push(RunEnd::All(owner));
+        return;
+    }
     retain_runs(s, |r| r.owner != owner);
     s.move_index.rebuild(world, &s.runs);
 }
