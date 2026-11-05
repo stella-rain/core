@@ -701,6 +701,8 @@ pub struct RunRecorder {
     records: Vec<Record>,
     /// The number of `Record::Picks` in `records`: what `MAX_COMMANDS` counts.
     picks_made: u32,
+    /// The number of `Record::Actions` in `records`: what `MAX_ACTION_STEPS` counts.
+    actions_made: u32,
     checkpoints: Vec<u64>,
 }
 
@@ -743,6 +745,7 @@ impl RunRecorder {
             present: (1u8 << party) - 1,
             records: Vec::new(),
             picks_made: 0,
+            actions_made: 0,
             checkpoints: Vec::new(),
         })
     }
@@ -794,6 +797,7 @@ impl RunRecorder {
             engine,
             present: run.log.present,
             picks_made: run.log.picks_made(),
+            actions_made: run.log.actions_made(),
             records: run.log.records,
             checkpoints: run.checkpoints,
         })
@@ -823,6 +827,7 @@ impl RunRecorder {
             engine,
             present: history.log.present,
             picks_made: history.log.picks_made(),
+            actions_made: history.log.actions_made(),
             records: history.log.records,
             checkpoints: history.claimed,
         })
@@ -852,12 +857,10 @@ impl RunRecorder {
         // A timed run takes the picks of the inputs first (ADR-REPL-5): the ones the engine
         // accepts are recorded as one PICKS step, the rest are ignored as the engine ignores
         // them, and the tick runs on the inputs without picks, so the log holds no pick in a tick.
-        let mut cleared;
-        let mut inputs = inputs;
+        let mut cleared = *inputs;
         if timed {
             let mask = self.engine.present();
             let mut picks = [None; MAX_PLAYERS as usize];
-            cleared = *inputs;
             for (slot, input) in cleared.iter_mut().enumerate() {
                 let accepted = PlayerIdx::new(u8::try_from(slot).unwrap_or(u8::MAX))
                     .zip(input.pick)
@@ -870,8 +873,27 @@ impl RunRecorder {
             if picks.iter().any(Option::is_some) {
                 self.picks(&picks)?;
             }
-            inputs = &cleared;
         }
+        // The actions the engine accepts are recorded as one ACTIONS step, the rest are ignored
+        // as a refused pick is; the tick runs on inputs without actions, so the log holds none
+        // in a TICKS block.
+        if cleared.iter().any(|input| input.action.is_some()) {
+            let mask = self.engine.present();
+            let mut actions = [None; MAX_PLAYERS as usize];
+            for (slot, input) in cleared.iter_mut().enumerate() {
+                actions[slot] = PlayerIdx::new(u8::try_from(slot).unwrap_or(u8::MAX))
+                    .zip(input.action.take())
+                    .filter(|(player, action)| {
+                        mask >> player.get() & 1 == 1
+                            && self.engine.check_action(*player, *action).is_ok()
+                    })
+                    .map(|(_, action)| action);
+            }
+            if actions.iter().any(Option::is_some) {
+                self.actions(&actions)?;
+            }
+        }
+        let inputs = &cleared;
         // The inputs of the present slots, in slot order, in a fixed array: no allocation per tick.
         let mask = self.engine.present();
         let mut kept = [Input::default(); MAX_PLAYERS as usize];
@@ -937,11 +959,27 @@ impl RunRecorder {
     }
 
     /// One step that does not advance the world: the equipment action of each slot (`None` for
-    /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8).
+    /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8); an action at
+    /// an absent slot is ignored. Refused, recording nothing, when the replay already holds
+    /// `MAX_ACTION_STEPS` steps of actions or the engine refuses an action (`check_action`).
     pub fn actions(
         &mut self,
-        _actions: &[Option<EquipAction>; MAX_PLAYERS as usize],
+        actions: &[Option<EquipAction>; MAX_PLAYERS as usize],
     ) -> Result<(), RunReplayError> {
+        let dense = dense(self.engine.present(), actions);
+        if dense.iter().all(Option::is_none) {
+            return Err(RunReplayError::BadInputs(
+                "a step of actions holds an action",
+            ));
+        }
+        if self.actions_made >= MAX_ACTION_STEPS {
+            return Err(RunReplayError::TooManyActions {
+                limit: MAX_ACTION_STEPS,
+            });
+        }
+        check_actions(&self.engine, &dense)?;
+        self.records.push(Record::Actions { actions: dense });
+        self.actions_made += 1;
         Ok(())
     }
 
@@ -1315,7 +1353,12 @@ fn resimulate(
                 };
                 done.map_err(|error| RunReplayError::PresenceRefused { tick, error })?;
             }
-            Record::Actions { .. } => {}
+            Record::Actions { actions } => {
+                // No rule accepts an action yet, so a step that holds one is refused; a step that
+                // holds none is a damaged log.
+                check_actions(&engine, actions)?;
+                return Err(RunReplayError::BadInputs("a record has no action"));
+            }
             Record::Picks { picks: chosen } => {
                 apply_picks(&mut engine, chosen)?;
                 picks += u32::try_from(chosen.iter().flatten().count()).unwrap_or(u32::MAX);
@@ -1370,6 +1413,25 @@ fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; MAX_PLAYERS as usize] 
         }
     }
     all
+}
+
+/// Asks `engine` about each action of one dense ACTIONS step, in slot order: the first refusal
+/// is `ActionRefused` at the engine's tick. Nothing is applied: no rule accepts one yet.
+fn check_actions(engine: &Engine, dense: &[Option<EquipAction>]) -> Result<(), RunReplayError> {
+    let slots = (0..MAX_PLAYERS)
+        .filter_map(PlayerIdx::new)
+        .filter(|player| engine.present() >> player.get() & 1 == 1);
+    for (player, action) in slots.zip(dense) {
+        if let Some(action) = action {
+            engine.check_action(player, *action).map_err(|error| {
+                RunReplayError::ActionRefused {
+                    tick: engine.tick(),
+                    error,
+                }
+            })?;
+        }
+    }
+    Ok(())
 }
 
 /// The entries of the slots of `mask` out of one entry per slot: the dense record.
