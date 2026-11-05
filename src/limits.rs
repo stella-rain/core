@@ -180,6 +180,9 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_EXTRA_REROLLS", "20", "rerolls", "ADR-REPL-5"),
     LimitEntry::new("MAX_CARRIED_STARS", "5", "stars", "ADR-REPL-5"),
     LimitEntry::new("MAX_LUMINE", "10", "level", "ADR-REPL-5"),
+    LimitEntry::new("MAX_INVENTORY", "1024", "held stars and runes", "ADR-SIM-5"),
+    LimitEntry::new("MAX_EQUIP_SLOTS", "32", "slots per player", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SLOT_LEVEL", "10", "level", "ADR-SIM-5"),
     LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-REPL-5"),
     LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-1"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
@@ -302,6 +305,9 @@ mod tests {
         assert_eq!(MAX_EXTRA_REROLLS, crate::run_setup::MAX_EXTRA_REROLLS);
         assert_eq!(MAX_CARRIED_STARS, crate::run_setup::MAX_CARRIED_STARS);
         assert_eq!(MAX_LUMINE, crate::run_setup::MAX_LUMINE);
+        assert_eq!(MAX_INVENTORY, 1024);
+        assert_eq!(MAX_EQUIP_SLOTS, 32);
+        assert_eq!(MAX_SLOT_LEVEL, 10);
         assert_eq!(MAX_STARS_ON_MAP, crate::validate::limits::MAX_STARS_ON_MAP);
         assert_eq!(MAX_WAVES, crate::time_limit::MAX_WAVES);
         assert_eq!(
