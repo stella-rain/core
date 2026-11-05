@@ -4,7 +4,9 @@
 
 use super::attacks;
 use super::entity::Who;
-use super::state::{Aim, AttackTask, Dir, Frame, OrbState, Origin, PlayerIdx, State, ZoneState};
+use super::state::{
+    Aim, AttackTask, Dir, Frame, OrbState, Origin, Path, PlayerIdx, State, ZoneState,
+};
 use super::world::ProgramIndex;
 use crate::attack::ZoneShape;
 use crate::engine::{Engine, Run};
@@ -102,7 +104,7 @@ fn task(owner: EntityId) -> AttackTask {
     AttackTask {
         owner,
         program: ProgramIndex(0),
-        base: Vec::new(),
+        base: Path::new(),
         origin: Origin::Owner,
         aim: Aim::Fixed(Dir { x: 0, y: 256 }),
         friendly: true,
