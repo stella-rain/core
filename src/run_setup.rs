@@ -69,6 +69,12 @@ pub enum OfferMode {
     Timed,
 }
 
+impl BuildMode {
+    fn is_offers(&self) -> bool {
+        *self == BuildMode::Offers
+    }
+}
+
 impl OfferMode {
     fn is_stop(&self) -> bool {
         *self == OfferMode::Stop
@@ -159,7 +165,7 @@ pub struct RunSetup {
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,
     /// How the run builds its character (ADR-SIM-7 point 4). Absent: `offers`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BuildMode::is_offers")]
     pub build_mode: BuildMode,
     /// The one star of the Lumine slot (ADR-SAVE-7 point 3): a reward ID of the run's rewards file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
