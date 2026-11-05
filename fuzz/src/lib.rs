@@ -226,6 +226,7 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
             pick: None,
+            action: None,
             interact: false,
         })
         .collect()

@@ -9,6 +9,24 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// An equipment action a player makes on a step (ADR-SIM-7). Every operand is an index; what an
+/// inventory index, a slot index, a star-pool index and a style-path option index count is the
+/// engine's rule to define, and the type bounds none of them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum EquipAction {
+    /// Put the inventory item `item` into the empty slot `slot`.
+    Equip { item: u32, slot: u32 },
+    /// Put the inventory item `item` into the occupied slot `slot`.
+    Replace { item: u32, slot: u32 },
+    /// Extract the inventory item `item`.
+    Extract { item: u32 },
+    /// Craft with the star at index `star` of the setup's star pool.
+    Craft { star: u32 },
+    /// Take option `option` on the weapon's in-run style path.
+    TreePick { option: u32 },
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Input {
@@ -39,6 +57,11 @@ pub struct Input {
     /// schema 1 stream cannot carry it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interact: bool,
+    /// An equipment action made on this step. It is recorded as an ACTIONS step, never inside a
+    /// TICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: no
+    /// rule accepts an action yet.
+    #[serde(default)]
+    pub action: Option<EquipAction>,
 }
 
 impl Input {
@@ -55,6 +78,7 @@ impl Input {
             auto: false,
             pick: Some(index),
             interact: false,
+            action: None,
         }
     }
 }
