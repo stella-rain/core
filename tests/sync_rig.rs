@@ -124,8 +124,33 @@ fn sync_test(
     depths: RangeInclusive<u32>,
     checks: RangeInclusive<u32>,
 ) -> Report {
-    let _ = (rig, resim, setup, depths, checks, Ring::new, STRIDE);
-    Report::default()
+    let len = u32::try_from(rig.ticks.len()).unwrap();
+    let mut e = Engine::start_party_with(setup, RunContent::bundled(), rig.n).unwrap();
+    let mut ring = Ring::new();
+    let mut report = Report {
+        hashes: vec![e.state_hash()],
+        ..Report::default()
+    };
+    for t in 0..=len {
+        ring.push(t, &e);
+        let saved = ring.at(t).unwrap();
+        assert_eq!(saved.state_hash(), e.state_hash(), "clone at boundary {t}");
+        assert_eq!(saved.tick(), e.tick(), "clone at boundary {t}");
+        assert_eq!(saved.outcome(), e.outcome(), "clone at boundary {t}");
+        assert_eq!(saved.ledger(), e.ledger(), "clone at boundary {t}");
+        assert_eq!(
+            saved.player_stats(),
+            e.player_stats(),
+            "clone at boundary {t}"
+        );
+        if t == len {
+            break;
+        }
+        rig.play_onto(&mut e, t, t + 1);
+        report.hashes.push(e.state_hash());
+    }
+    let _ = (resim, depths, checks, STRIDE);
+    report
 }
 
 #[test]
