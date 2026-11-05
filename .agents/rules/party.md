@@ -12,12 +12,13 @@ globs:
 # Parties, joining and leaving
 
 Sources: ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-6. The log bytes and the recorder:
-`step-log.md`; the hash and `id_gap`: `simulation.md`, `determinism.md`.
+`step-log.md`; the hash and `id_gap`: `simulation.md`, `determinism.md`; the party in play:
+`party-play.md`.
 
 ## Parties
 
-- Slots 1 and 2 are passive in the rules (`simulation.md`): their inputs are logged and read
-  back. `Engine::join(slot)` makes the joiner the run's starting player at slot 0's place, at
+- Slots 1 and 2 move, attack, orbit and regenerate like slot 0 (`party-play.md`: acting, down,
+  tether, rewards). `Engine::join(slot)` makes the joiner the run's starting player at slot 0's place, at
   level 1, with no event; `leave(slot)` keeps the leaver's in-flight attacks and closes its open
   offer. Slot 0 never leaves, so a hole (`0b101`) arises only by LEAVE. A `sim_version` 1 run
   refuses both (`PresenceError::SoloRules`).
