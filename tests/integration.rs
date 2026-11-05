@@ -150,6 +150,7 @@ mod starting_unlocks;
 mod statuses;
 mod step_three;
 mod stun;
+mod sync_rig;
 mod tally;
 mod text_table;
 mod thunder;
