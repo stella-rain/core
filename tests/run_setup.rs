@@ -731,13 +731,25 @@ fn star_setup(lumine: u8, star: &str) -> RunSetup {
     }
 }
 
+/// `validate_in` without the not-built gate (removed with the first rule that reads the mode).
+fn content_check(setup: &RunSetup) -> Result<(), Error> {
+    match run_setup::validate_in(setup, RunContent::bundled()) {
+        Err(Error::Invalid(found))
+            if found == [issue("$.build_mode", "equipment mode is not built yet")] =>
+        {
+            Ok(())
+        }
+        other => other,
+    }
+}
+
 fn found_in(setup: &RunSetup) -> Vec<Issue> {
     issues(run_setup::validate_in(setup, RunContent::bundled()).unwrap_err())
 }
 
 #[test]
 fn the_lumine_level_caps_the_stars_rarity() {
-    let ok = |s: &RunSetup| run_setup::validate_in(s, RunContent::bundled());
+    let ok = content_check;
     assert_eq!(ok(&star_setup(1, "max_hp_common")), Ok(()));
     assert_eq!(
         found_in(&star_setup(0, "max_hp_common")),
@@ -796,10 +808,7 @@ fn the_lumine_star_is_a_star_of_the_pool_and_never_a_rune() {
         found_in(&pooled("attack_common")),
         [issue("$.lumine_star", "not in the star pool")]
     );
-    assert_eq!(
-        run_setup::validate_in(&pooled("max_hp_common"), RunContent::bundled()),
-        Ok(())
-    );
+    assert_eq!(content_check(&pooled("max_hp_common")), Ok(()));
     // A pool entry unknown to the rewards file is refused as before.
     let bad_pool = RunSetup {
         star_pool: Some(vec!["no_such_reward".into()]),

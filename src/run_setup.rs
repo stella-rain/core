@@ -722,6 +722,14 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             ),
         });
     }
+    // No rule reads the build mode yet, so a run in equipment mode would play as an offers run.
+    // Refused at start, last and alone, until the first rule that reads it lands.
+    if issues.is_empty() && setup.build_mode == BuildMode::Equipment {
+        issues.push(Issue {
+            path: "$.build_mode".into(),
+            message: "equipment mode is not built yet".into(),
+        });
+    }
     if issues.is_empty() {
         Ok(())
     } else {
@@ -1016,7 +1024,14 @@ mod tests {
             lumine_star: Some("max_hp_common".into()),
             ..RunSetup::default()
         };
-        assert_eq!(validate_in(&setup, RunContent::bundled()), Ok(()));
+        // Only the not-built gate refuses it.
+        assert_eq!(
+            validate_in(&setup, RunContent::bundled()),
+            Err(Error::Invalid(vec![Issue {
+                path: "$.build_mode".into(),
+                message: "equipment mode is not built yet".into(),
+            }]))
+        );
         let text = serde_json::to_string(&setup).unwrap();
         assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
         assert!(text.contains(r#""lumine_star":"max_hp_common""#), "{text}");
