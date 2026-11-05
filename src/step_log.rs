@@ -508,7 +508,7 @@ fn read_action(bytes: &[u8], pos: &mut usize) -> Result<Option<EquipAction>, Run
     let cut = bad("ends in the middle of a record");
     let kind = *bytes.get(*pos).ok_or(cut.clone())?;
     *pos += 1;
-    let mut operand = |pos: &mut usize| {
+    let operand = |pos: &mut usize| {
         read_varint(bytes, pos).map_err(|why| {
             if why == "ends in the middle of a number" {
                 cut.clone()

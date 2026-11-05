@@ -412,7 +412,8 @@ impl Engine {
     /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
     /// offer, the events are the picks' and the tick does not advance; a player with no offer
     /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
-    /// offer open `pick` is not read (ADR-REPL-5).
+    /// offer open `pick` is not read (ADR-REPL-5). `action` is never read: no rule accepts an
+    /// equipment action yet (`check_action`).
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -461,7 +462,7 @@ impl Engine {
     }
 
     /// Takes only the picks of `inputs`, never ticking the world: a recorded PICKS step
-    /// (ADR-REPL-5), the same in both modes.
+    /// (ADR-REPL-5), the same in both modes. `action` is not read.
     pub(crate) fn pick_step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -567,8 +568,14 @@ impl Engine {
     /// rule replacing its own arm (equip and replace, extract and craft, the tree pick). The
     /// match has one arm per variant so a new rule edits one line.
     pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
-        let _ = (player, action);
-        Ok(())
+        if self.present() >> player.get() & 1 == 0 {
+            return Err(ActionError::NoPlayer { player });
+        }
+        match action {
+            EquipAction::Equip { .. } | EquipAction::Replace { .. } => Err(ActionError::NotBuilt),
+            EquipAction::Extract { .. } | EquipAction::Craft { .. } => Err(ActionError::NotBuilt),
+            EquipAction::TreePick { .. } => Err(ActionError::NotBuilt),
+        }
     }
 
     /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
