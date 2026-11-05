@@ -331,3 +331,91 @@ fn slot_one_cannot_trust_the_previous_key() {
         Err(TrustError::UnknownKey)
     );
 }
+
+const V008_MANIFEST: &[u8] = include_bytes!("fixtures/pack_signing/packs-v0.0.8.json");
+const V008_SIG: &[u8] = include_bytes!("fixtures/pack_signing/packs-v0.0.8.json.minisig");
+
+/// The key id of the shipped pack-signing key, written out apart from `KEY_IDS`.
+const NEW_KEY_ID: [u8; 8] = [0x5d, 0x95, 0x0a, 0xf2, 0x58, 0x53, 0x62, 0x72];
+
+#[test]
+fn v0_0_8_signature_has_the_prehashed_algorithm_and_the_shipped_key_id() {
+    let text = std::str::from_utf8(V008_SIG).unwrap();
+    let bytes = stella_rain_core::base64::decode(text.lines().nth(1).unwrap()).unwrap();
+    assert_eq!(bytes.len(), 74);
+    assert_eq!(&bytes[0..2], b"ED");
+    assert_eq!(bytes[2..10], NEW_KEY_ID);
+    assert_eq!(bytes[2..10], stella_rain_core::pack::trust::KEY_IDS[0]);
+    assert_eq!(
+        text.lines().nth(2).unwrap(),
+        "trusted comment: timestamp:1793881803\tfile:packs.json\thashed"
+    );
+}
+
+#[test]
+fn the_real_pack_signature_of_content_v0_0_8_verifies() {
+    let packs = stella_rain_core::pack::trust::verify_packs(V008_MANIFEST, V008_SIG)
+        .expect("real signature verifies under the shipped key");
+    assert_eq!(packs.seq(), 3);
+    assert_eq!(packs.channels().count(), 3);
+    assert_eq!(packs.channel("0.1").unwrap().tag(), "v0.0.6");
+    assert_eq!(packs.channel("0.2").unwrap().tag(), "v0.0.7");
+    let newest = packs.channel("0.3").expect("channel 0.3");
+    assert_eq!(newest.tag(), "v0.0.8");
+    assert_eq!(
+        newest.url(),
+        "https://github.com/stella-rain/content/releases/download/v0.0.8/pack.json"
+    );
+    assert!(newest.text_sha256().is_none());
+    assert_eq!(hex(newest.pack_sha256()), V008_PACK_SHA256);
+}
+
+const V008_PACK_SHA256: &str = "448465b818fac6a33c49ca36f818a71d6fb97303bfb8d1f74c28b4dc7f96e60d";
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn a_one_byte_change_to_the_v0_0_8_manifest_or_signature_is_refused() {
+    use stella_rain_core::pack::trust::{TrustError, verify_packs};
+    let mut manifest = V008_MANIFEST.to_vec();
+    let at = manifest.windows(7).position(|w| w == b"\"seq\": ").unwrap() + 7;
+    manifest[at] ^= 1;
+    assert_eq!(
+        verify_packs(&manifest, V008_SIG),
+        Err(TrustError::Signature)
+    );
+
+    let text = std::str::from_utf8(V008_SIG).unwrap();
+    for (line, index) in [(3usize, 0usize), (1, 20)] {
+        let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+        let mut bytes = std::mem::take(&mut lines[line]).into_bytes();
+        bytes[index] = if bytes[index] == b'A' { b'B' } else { b'A' };
+        lines[line] = String::from_utf8(bytes).unwrap();
+        assert_eq!(
+            verify_packs(V008_MANIFEST, lines.join("\n").as_bytes()),
+            Err(TrustError::Signature),
+            "line {line}"
+        );
+    }
+}
+
+#[test]
+fn the_v0_0_8_pair_is_not_trusted_under_the_previous_key() {
+    use stella_rain_core::pack::trust::{TrustError, verify_packs};
+    assert_eq!(
+        verify_with_old_key(V008_MANIFEST, V008_SIG),
+        Err(TrustError::UnknownKey)
+    );
+    assert!(verify_packs(V008_MANIFEST, V008_SIG).is_ok());
+}
+
+#[test]
+fn slot_one_alone_does_not_verify_the_v0_0_8_pair() {
+    use stella_rain_core::pack::trust::{KEY_IDS, PUBLIC_KEYS, TrustError, verify_packs_with_keys};
+    assert_eq!(
+        verify_packs_with_keys(V008_MANIFEST, V008_SIG, &[KEY_IDS[1]], &[PUBLIC_KEYS[1]]),
+        Err(TrustError::UnknownKey)
+    );
+}
