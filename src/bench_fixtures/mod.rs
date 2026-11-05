@@ -7,6 +7,7 @@
 //! Behind the `bench` feature; not part of the library's API.
 
 pub mod hit_case;
+pub mod party_case;
 pub mod time_limit_case;
 pub mod worst_case;
 pub mod worst_minute_case;
