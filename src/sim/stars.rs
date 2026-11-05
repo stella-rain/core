@@ -24,6 +24,10 @@
 //! once (`super::choose`). Every draw is from the player's offer generator (`Career::offer`, slot 0's
 //! is `TAG_OFFER`), in this order.
 //!
+//! A reward's effects are two kinds: the build (what the stars held add up to, `build.rs`: a
+//! function of the counts held, written when a star is taken) and the grants of the pick itself
+//! (`grant`, which depend on its moment).
+//!
 //! The star field is two parts: the run's (`StarField`: the stars on the map, the pity, the
 //! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: the
 //! offers due and open, the rerolls and banishes left, and what the offers have used). The
@@ -34,14 +38,11 @@
 //! drops on the map are shared, and a drop's tier is the highest level among the present players.
 
 use super::World;
-use crate::attack::DamageType;
 use crate::constellations;
 use crate::event::DomainEvent;
 use crate::id::{ContentId, EntityId};
 use crate::rewards::{
-    EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
-    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, ORBIT_SET_BASE, Rarity,
-    RewardEffect, Rewards,
+    EffectEntry, MAX_OFFER_CANDIDATES, ORBIT_SET_BASE, Rarity, RewardEffect, Rewards,
 };
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
@@ -55,7 +56,8 @@ use crate::snapshot::{
 use crate::stage::{RarityWeights, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
-use super::{levels, orbit, overlaps, player, runes, skill, widened};
+use super::build::Build;
+use super::{orbit, overlaps, player, runes, skill, widened};
 
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
@@ -452,11 +454,13 @@ pub(super) struct Taken {
     pub tiers: Vec<(usize, u8)>,
 }
 
-/// Takes the reward at `i` of the file: counts it toward its stack limit and does what it does,
-/// then, for a member of a set, counts the set's members held and applies each tier newly
-/// reached once: the difference from the tier before (`constellations::tier_delta`), so the full
-/// tier replaces the small one. A pick from an open offer and a star the run starts with
-/// (ADR-REPL-5) go through here alike.
+/// Takes the reward at `i` of the file: counts it toward its stack limit and writes the change in
+/// the build, which is `Build::of` the stars held before and after (the sums, caps and totals,
+/// `build.rs`), then does the pick's own grants (`grant`: a skill, an orbit, an evade charge,
+/// rerolls and banishes, a rune drawn). For a member of a set it counts the set's members held
+/// and grants each tier newly reached once; the build has them as the chain of
+/// `constellations::tier_delta`, so the full tier replaces the small one. A pick from an open
+/// offer and a star the run starts with (ADR-REPL-5) go through here alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn take(
     stage: &World,
@@ -470,20 +474,12 @@ pub(super) fn take(
     i: u16,
 ) -> Taken {
     let at = usize::from(i);
+    let before = Build::of(stage, rewards, &o.taken);
     o.taken[at] = o.taken[at].saturating_add(1);
     let reward = &rewards.rewards()[at];
-    let rune = apply_effects(
-        stage,
-        rewards,
-        rng,
-        progress,
-        player,
-        regen,
-        f,
-        o,
-        i,
-        &reward.effects,
-    );
+    let after = Build::of(stage, rewards, &o.taken);
+    Build::write(&before, &after, player, progress, regen, o);
+    let rune = grant(stage, rewards, rng, player, f, o, i, &reward.effects);
     let mut tiers = Vec::new();
     let sets = rewards.constellations();
     if let Some(set) = sets.set_of(&reward.id) {
@@ -504,9 +500,7 @@ pub(super) fn take(
                 let delta = constellations::tier_delta(lower, tier);
                 // A tier's orbit is keyed on its set (`Rewards::orbit_def`).
                 let key = ORBIT_SET_BASE + u16::try_from(set).unwrap_or(0);
-                apply_effects(
-                    stage, rewards, rng, progress, player, regen, f, o, key, &delta,
-                );
+                grant(stage, rewards, rng, player, f, o, key, &delta);
                 tiers.push((set, u8::try_from(t + 1).unwrap_or(u8::MAX)));
             }
         }
@@ -514,16 +508,16 @@ pub(super) fn take(
     Taken { rune, tiers }
 }
 
-/// Does what `effects` do, once: the effects of the reward at `i` of the file (an orbit keys on
-/// that place), or of a constellation's tier.
+/// Does what `effects` do besides the build (`Build`): the grants of the pick itself, once. The
+/// effects of the reward at `i` of the file (an orbit keys on that place), or of a constellation's
+/// tier. Each depends on the moment of the pick (the skill slot, the orbit order and its run
+/// state, the evade charge held, a draw) and so is not a function of the stars held.
 #[allow(clippy::too_many_arguments)]
-fn apply_effects(
+fn grant(
     stage: &World,
     rewards: &Rewards,
     rng: &mut SplitMix64,
-    progress: &mut Option<Progress>,
     player: &mut PlayerState,
-    regen: &mut u32,
     f: &StarField,
     o: &mut Offers,
     i: u16,
@@ -545,88 +539,31 @@ fn apply_effects(
             }
             RewardEffect::EvadeCharge => player::add_evade_charges(stage, player, amount),
             RewardEffect::Orbit => orbit::take(player, i, amount),
-            RewardEffect::RangePct => player.range_pct = player.range_pct.saturating_add(amount),
-            RewardEffect::PickupRadiusPct => {
-                player.pickup_radius_pct = player.pickup_radius_pct.saturating_add(amount)
-            }
-            RewardEffect::SkillCooldownPct => {
-                player.skill_cooldown_pct = player.skill_cooldown_pct.saturating_add(amount)
-            }
-            RewardEffect::HealPerKills => {
-                // Every pick adds its amount and heals at the shortest interval among them.
-                let every = entry.kills.unwrap_or(0).max(1);
-                player.kill_heal = player.kill_heal.saturating_add(amount);
-                player.kill_heal_every = match player.kill_heal_every {
-                    0 => every,
-                    held => held.min(every),
-                };
-            }
-            RewardEffect::CritChancePct => {
-                player.crit_chance_pct = player
-                    .crit_chance_pct
-                    .saturating_add(amount)
-                    .min(MAX_CRIT_CHANCE_TOTAL_PCT)
-            }
-            RewardEffect::CritDamagePct => {
-                player.crit_damage_pct = player
-                    .crit_damage_pct
-                    .saturating_add(amount)
-                    .min(MAX_CRIT_DAMAGE_TOTAL_PCT)
-            }
-            RewardEffect::EchoHitPct => {
-                player.echo_hit_pct = player
-                    .echo_hit_pct
-                    .saturating_add(amount)
-                    .min(MAX_ECHO_HIT_PCT)
-            }
-            RewardEffect::KillBurst => {
-                let (radius, depth) = (entry.radius.unwrap_or(0), entry.depth.unwrap_or(0));
-                player.burst_pct = player.burst_pct.saturating_add(amount).min(MAX_BURST_PCT);
-                player.burst_radius = player
-                    .burst_radius
-                    .saturating_add(radius)
-                    .min(MAX_BURST_RADIUS_PX);
-                player.burst_depth = player.burst_depth.max(depth).min(MAX_BURST_DEPTH);
-            }
-            RewardEffect::BurstDepth => {
-                player.burst_depth_extra = player
-                    .burst_depth_extra
-                    .saturating_add(amount)
-                    .min(MAX_BURST_DEPTH)
-            }
-            RewardEffect::Regen => *regen = regen.saturating_add(amount),
-            // The perks' counters (`loadout::perk`), added to for the rest of the run.
-            RewardEffect::OfferCandidates => {
-                let room =
-                    u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size).unwrap_or(u8::MAX);
-                let more = u8::try_from(amount).unwrap_or(u8::MAX);
-                o.extra_candidates = o.extra_candidates.saturating_add(more).min(room);
-            }
             RewardEffect::Rerolls => o.rerolls_left = o.rerolls_left.saturating_add(amount),
             RewardEffect::Banishes => o.banishes_left = o.banishes_left.saturating_add(amount),
-            RewardEffect::RuneHaste => {
-                player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
-            }
             RewardEffect::RandomRune => rune = runes::draw(rng, player, f.rune_pool),
-            RewardEffect::TypeBonusPct
+            // The build's (`Build::add`), written before the grants.
+            RewardEffect::MaxHp
+            | RewardEffect::AttackPct
+            | RewardEffect::AttackSpeedPct
+            | RewardEffect::EvadePct
+            | RewardEffect::SpeedPct
+            | RewardEffect::XpPct
+            | RewardEffect::RangePct
+            | RewardEffect::TypeBonusPct
             | RewardEffect::AttackTypeBonusPct
-            | RewardEffect::ElementBonusPct => {
-                for (ty, pct) in DamageType::ALL.iter().zip(&mut player.type_bonus_pct) {
-                    let applies = match entry.effect {
-                        RewardEffect::AttackTypeBonusPct => ty.is_physical(),
-                        RewardEffect::ElementBonusPct => !ty.is_physical(),
-                        _ => entry.damage_type == Some(*ty),
-                    };
-                    if applies {
-                        *pct = pct.saturating_add(amount);
-                    }
-                }
-            }
-            effect => {
-                if let (Some(effect), Some(p)) = (effect.stat(), progress.as_mut()) {
-                    levels::add_effect(p, player, effect, amount);
-                }
-            }
+            | RewardEffect::ElementBonusPct
+            | RewardEffect::RuneHaste
+            | RewardEffect::Regen
+            | RewardEffect::PickupRadiusPct
+            | RewardEffect::SkillCooldownPct
+            | RewardEffect::HealPerKills
+            | RewardEffect::OfferCandidates
+            | RewardEffect::CritChancePct
+            | RewardEffect::CritDamagePct
+            | RewardEffect::EchoHitPct
+            | RewardEffect::KillBurst
+            | RewardEffect::BurstDepth => {}
         }
     }
     rune
