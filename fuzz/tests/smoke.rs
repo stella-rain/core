@@ -764,11 +764,17 @@ fn equipment_action_replay() -> Vec<u8> {
     run.to_bytes()
 }
 
-const EQUIPMENT_ACTION_REGRESSION: &str = "fuzz/regressions/replay_load/equipment-action.replay";
+fn equipment_action_regression() -> PathBuf {
+    root()
+        .join("fuzz")
+        .join("regressions")
+        .join("replay_load")
+        .join("equipment-action.replay")
+}
 
 #[test]
 fn the_equipment_action_regression_is_the_derived_file() {
-    let committed = fs::read(root().join(EQUIPMENT_ACTION_REGRESSION)).expect("the regression");
+    let committed = fs::read(equipment_action_regression()).expect("the regression");
     assert_eq!(committed, equipment_action_replay());
 }
 
@@ -793,11 +799,8 @@ fn a_replay_with_an_equipment_action_loads_ranges_and_is_refused() {
 #[test]
 #[ignore = "writes a file in fuzz/regressions"]
 fn write_equipment_action_regression() {
-    fs::write(
-        root().join(EQUIPMENT_ACTION_REGRESSION),
-        equipment_action_replay(),
-    )
-    .expect("the regression file");
+    fs::write(equipment_action_regression(), equipment_action_replay())
+        .expect("the regression file");
 }
 
 /// Writes the seeds of `step_log_range` to the folder `STEP_LOG_RANGE_SEEDS_DIR` names, for a
