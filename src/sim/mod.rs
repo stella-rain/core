@@ -50,8 +50,8 @@
 //! In a stage with levels, defeated enemies give their experience as they are removed in
 //! `collide`, and each level-up raises a stat or opens a stat offer (`levels`). The progress is
 //! per player slot (`Players.careers`), and so are the expertise gauge, the Stardust and the
-//! regeneration (`Career`). Experience and Stardust are shared: every present player earns each
-//! kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
+//! regeneration (`Career`). Experience and Stardust are shared: every player that is up earns
+//! each kill's, XP raised by that player's own `XpPct`. A kill's burst, kill-heal and expertise go to
 //! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
 //! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
 //! player who applied the stack last. Every such hit, and an echo, lowers the foe's hit points in
@@ -1408,7 +1408,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
         combat::bursts(stage, s, me, &mut gone_off, events);
     }
     levels::credit_defeated(stage, s, events);
-    // Stardust is shared: every present player earns every kill's base.
+    // Stardust is shared: every player that is up earns every kill's base.
     for me in s.players.indices() {
         stardust::credit_defeated(stage, s, me);
     }

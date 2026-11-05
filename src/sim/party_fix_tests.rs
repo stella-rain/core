@@ -409,41 +409,37 @@ fn level_up_state(n: u8) -> (World, State) {
 }
 
 #[test]
-fn a_level_up_with_max_hp_first_does_not_lift_a_downed_player() {
+fn a_kill_with_max_hp_first_does_not_lift_or_raise_a_downed_player() {
     let (w, mut s) = level_up_state(2);
     s.players[slot(1)].hp = 0;
     s.players[slot(1)].max_hp = 100;
     let up = s.players[slot(0)].max_hp;
     let mut ev = Vec::new();
     super::levels::credit_defeated(&w, &mut s, &mut ev);
-    assert!(
-        ev.iter()
-            .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
-    );
+    assert!(leveled(&ev) > 0);
     assert_eq!(s.players[slot(1)].hp, 0);
-    assert!(s.players[slot(1)].max_hp > 100, "the most still rises");
+    assert_eq!(
+        s.players[slot(1)].max_hp,
+        100,
+        "a downed player earns no level"
+    );
     assert!(s.players[slot(0)].max_hp > up);
     assert_eq!(s.players[slot(0)].hp, s.players[slot(0)].max_hp);
 }
 
-/// DS-0386: a solo run, or a party of one, follows the same rule at 0 hit points.
+/// A solo run, or a party of one, follows the same rule at 0 hit points: no level, and the run
+/// fails on that tick.
 #[test]
-fn a_solo_player_at_zero_hit_points_is_not_lifted_by_a_level_up() {
-    for timed in [false, true] {
-        let (w, mut s) = level_up_state(1);
-        s.players[slot(0)].hp = 0;
-        s.players[slot(0)].max_hp = 100;
-        let mut ev = Vec::new();
-        super::levels::credit_defeated(&w, &mut s, &mut ev);
-        assert!(
-            ev.iter()
-                .any(|e| matches!(e, DomainEvent::LeveledUp { .. }))
-        );
-        assert_eq!(s.players[slot(0)].hp, 0, "timed {timed}");
-        assert!(s.players[slot(0)].max_hp > 100);
-        decide_outcome(&w, &mut s, &mut ev);
-        assert_eq!(s.outcome, Outcome::Failed);
-    }
+fn a_solo_player_at_zero_hit_points_earns_no_level_and_the_run_fails() {
+    let (w, mut s) = level_up_state(1);
+    s.players[slot(0)].hp = 0;
+    s.players[slot(0)].max_hp = 100;
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(leveled(&ev), 0);
+    assert_eq!((s.players[slot(0)].hp, s.players[slot(0)].max_hp), (0, 100));
+    decide_outcome(&w, &mut s, &mut ev);
+    assert_eq!(s.outcome, Outcome::Failed);
 }
 
 #[test]
@@ -501,6 +497,11 @@ fn weights(top: Rarity) -> RarityWeights {
 /// difficulty's range is every rarity; the players are at `levels`.
 fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
     let (mut w, mut s) = party(n);
+    set_tiers(&mut w, &mut s, levels);
+    (w, s)
+}
+
+fn set_tiers(w: &mut World, s: &mut State, levels: [u32; 3]) {
     let stars = w.stage.stars.as_mut().expect("stars");
     stars.tiers = [(1, Rarity::Uncommon), (5, Rarity::Rare), (7, Rarity::Epic)]
         .into_iter()
@@ -514,7 +515,6 @@ fn tiered(n: u8, levels: [u32; 3]) -> (World, State) {
     for i in s.players.indices().collect::<Vec<_>>() {
         s.players.career_mut(i).progress.as_mut().unwrap().level = levels[i.get()];
     }
-    (w, s)
 }
 
 /// What a boss kill does to the offers due, as `collide` calls it.
@@ -642,4 +642,292 @@ fn a_step_takes_a_downed_players_offer_in_a_stop_run() {
         count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
         1
     );
+}
+
+// --- experience, Stardust and the star tier of the players that are up (ADR-SIM-7 point 5) -----
+
+/// Slot 0 up, slot 1 downed, slot 2 out, with a kill present.
+fn one_up_one_downed_one_out() -> (World, State) {
+    let (w, mut s) = level_up_state(3);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    (w, s)
+}
+
+fn level(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).progress.as_ref().unwrap().level
+}
+
+fn xp(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).progress.as_ref().unwrap().xp
+}
+
+fn leveled(ev: &[DomainEvent]) -> usize {
+    ev.iter()
+        .filter(|e| matches!(e, DomainEvent::LeveledUp { .. }))
+        .count()
+}
+
+#[test]
+fn experience_goes_to_the_players_that_are_up_only() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+    assert_eq!(leveled(&ev), (level(&s, 0) - 1) as usize);
+    for i in [1, 2] {
+        assert_eq!((level(&s, i), xp(&s, i)), (1, 0), "slot {i}");
+        assert_eq!(
+            s.players
+                .career(slot(i))
+                .progress
+                .as_ref()
+                .unwrap()
+                .offers_due,
+            0
+        );
+    }
+}
+
+#[test]
+fn a_downed_player_queues_no_stat_offer_from_a_kill() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    for i in s.players.indices().collect::<Vec<_>>() {
+        s.players
+            .career_mut(i)
+            .progress
+            .as_mut()
+            .unwrap()
+            .pick_stats = true;
+    }
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    let due = |i| {
+        s.players
+            .career(slot(i))
+            .progress
+            .as_ref()
+            .unwrap()
+            .offers_due
+    };
+    assert!(due(0) > 0);
+    assert_eq!((due(1), due(2)), (0, 0));
+}
+
+#[test]
+fn every_player_that_is_up_gets_the_same_experience() {
+    let (w, mut s) = level_up_state(3);
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+    assert_eq!(level(&s, 0), level(&s, 1));
+    assert_eq!(level(&s, 1), level(&s, 2));
+}
+
+#[test]
+fn a_revived_player_earns_from_the_next_kill() {
+    let (w, mut s) = one_up_one_downed_one_out();
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(level(&s, 1), 1);
+    s.players[slot(1)].hp = 10;
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 1) > 1);
+}
+
+#[test]
+fn nobody_up_earns_no_experience_and_a_solo_player_at_zero_hit_points_neither() {
+    let (w, mut s) = level_up_state(3);
+    down(&mut s, 0);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    let mut ev = Vec::new();
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!(leveled(&ev), 0);
+    assert!((0..3).all(|i| (level(&s, i), xp(&s, i)) == (1, 0)));
+
+    let (w, mut s) = level_up_state(1);
+    down(&mut s, 0);
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert_eq!((leveled(&ev), level(&s, 0), xp(&s, 0)), (0, 1, 0));
+
+    let (w, mut s) = level_up_state(1);
+    super::levels::credit_defeated(&w, &mut s, &mut ev);
+    assert!(level(&s, 0) > 1);
+}
+
+// --- Stardust ------------------------------------------------------------------------------
+
+/// `level_up_state(n)` with a Stardust table (factor 100 percent), a base of 10 for every wave,
+/// every slot counting from 0, and a boss on the field whose kill is worth 25.
+fn stardust_state(n: u8) -> (World, State) {
+    let (mut w, mut s) = level_up_state(n);
+    w.stage.stardust = Some(crate::stage::StardustFactor {
+        tiers: vec![crate::stage::StardustTier {
+            start_tick: 0,
+            pct: 100,
+        }],
+        summon_base: None,
+    });
+    for wave in &mut w.stage.waves {
+        wave.stardust = Some(10);
+    }
+    for b in &mut w.bosses {
+        b.boss.stardust = Some(25);
+    }
+    for i in s.players.indices().collect::<Vec<_>>() {
+        s.players.career_mut(i).stardust = Some(0);
+    }
+    if let Some(h) = s.horde.as_mut() {
+        h.boss_ticks[0] = s.tick + 1;
+    }
+    super::horde::spawn_boss(&w, &mut s);
+    assert!(s.boss.is_some(), "a boss to defeat");
+    (w, s)
+}
+
+fn dust(s: &State, i: u8) -> u32 {
+    s.players.career(slot(i)).stardust.unwrap()
+}
+
+fn credit_all(w: &World, s: &mut State, boss: bool) {
+    for me in s.players.indices().collect::<Vec<_>>() {
+        if boss {
+            super::stardust::boss_killed(w, s, me);
+        } else {
+            super::stardust::credit_defeated(w, s, me);
+        }
+    }
+}
+
+#[test]
+fn stardust_goes_to_the_players_that_are_up_only() {
+    let (w, mut s) = stardust_state(3);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (10, 0, 0));
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (35, 0, 0));
+}
+
+#[test]
+fn every_player_that_is_up_gets_the_whole_stardust() {
+    let (w, mut s) = stardust_state(3);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (35, 35, 35));
+}
+
+#[test]
+fn a_revived_player_earns_stardust_and_what_it_earned_before_going_down_is_kept() {
+    let (w, mut s) = stardust_state(2);
+    credit_all(&w, &mut s, false);
+    down(&mut s, 1);
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1)), (20, 10));
+    s.players[slot(1)].hp = 10;
+    credit_all(&w, &mut s, false);
+    assert_eq!((dust(&s, 0), dust(&s, 1)), (30, 20));
+}
+
+#[test]
+fn nobody_up_earns_no_stardust_and_solo_follows_the_same_rule() {
+    let (w, mut s) = stardust_state(3);
+    down(&mut s, 0);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!((dust(&s, 0), dust(&s, 1), dust(&s, 2)), (0, 0, 0));
+
+    let (w, mut s) = stardust_state(1);
+    down(&mut s, 0);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!(dust(&s, 0), 0);
+
+    let (w, mut s) = stardust_state(1);
+    credit_all(&w, &mut s, false);
+    credit_all(&w, &mut s, true);
+    assert_eq!(dust(&s, 0), 35);
+}
+
+#[test]
+fn the_stardust_counter_still_saturates() {
+    let max = crate::validate::limits::MAX_RUN_STARDUST;
+    let (w, mut s) = stardust_state(2);
+    s.players.career_mut(slot(0)).stardust = Some(max - 1);
+    credit_all(&w, &mut s, false);
+    assert_eq!(dust(&s, 0), max);
+}
+
+// --- the star tier of the shared drop ------------------------------------------------------
+
+/// One non-elite kill that always drops a star, with the players at `levels`; returns the
+/// rarity of the star dropped.
+fn dropped(n: u8, levels: [u32; 3], elite: bool, f: impl Fn(&mut State)) -> Rarity {
+    let (mut w, mut s) = level_up_state(n);
+    set_tiers(&mut w, &mut s, levels);
+    let cfg = w.stage.stars.as_mut().unwrap();
+    cfg.drop_per_mille = 1000;
+    cfg.pity = 0;
+    s.enemies[0].elite = None;
+    if elite {
+        s.enemies[0].elite = Some(crate::sim::state::EliteState {
+            home: Default::default(),
+            called: false,
+            boss_call: Default::default(),
+            disguised: false,
+        });
+    }
+    f(&mut s);
+    let mut ev = Vec::new();
+    super::stars::drop_from_defeated(&w, &mut s, &mut ev);
+    let rarities: Vec<Rarity> = ev
+        .iter()
+        .filter_map(|e| match e {
+            DomainEvent::StarDropped { rarity, .. } => Some(*rarity),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(rarities.len(), 1, "one star drops");
+    rarities[0]
+}
+
+#[test]
+fn the_star_tier_is_the_highest_level_among_the_players_that_are_up() {
+    let l = [3, 7, 5];
+    assert_eq!(dropped(3, l, false, |_| {}), Rarity::Epic);
+    assert_eq!(dropped(3, l, false, |s| down(s, 1)), Rarity::Rare);
+    assert_eq!(dropped(3, l, false, |s| out(s, 1)), Rarity::Rare);
+}
+
+#[test]
+fn one_player_up_draws_its_own_tier() {
+    let l = [3, 7, 5];
+    let r = dropped(3, l, false, |s| {
+        down(s, 1);
+        out(s, 2);
+    });
+    assert_eq!(r, Rarity::Uncommon);
+}
+
+#[test]
+fn nobody_up_draws_from_the_highest_present_level() {
+    let l = [3, 7, 5];
+    let r = dropped(3, l, false, |s| {
+        down(s, 0);
+        down(s, 1);
+        out(s, 2);
+    });
+    assert_eq!(r, Rarity::Epic);
+    assert_eq!(dropped(1, [7, 1, 1], false, |s| down(s, 0)), Rarity::Epic);
+}
+
+#[test]
+fn an_elite_draws_from_the_tier_above_the_up_level() {
+    let l = [3, 7, 5];
+    assert_eq!(dropped(3, l, true, |s| down(s, 1)), Rarity::Epic);
+    assert_eq!(dropped(3, l, true, |_| {}), Rarity::Epic);
 }
