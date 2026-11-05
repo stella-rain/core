@@ -3,9 +3,11 @@
 //! Integer arithmetic only; every choice is a pure function of the seed, the engine, the slot
 //! and the tick, so a clone of the engine can be driven again from any tick.
 
-use stella_rain_core::engine::Engine;
+use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::fixed::Point;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
+use stella_rain_core::snapshot::EntityKind;
 
 /// How near (1/256 pixel) the bot's revive walk gets before it holds `interact`: 40 pixels,
 /// inside the revive range (48 pixels) with room for the 2 pixels a player moves in a tick.
@@ -43,9 +45,58 @@ pub struct Sight {
     pub enemy: Option<Point>,
 }
 
-/// What `slot` of `engine` sees.
-pub fn sight(_engine: &Engine, _slot: u8) -> Sight {
-    Sight::default()
+/// The squared distance (1/256 pixel) between two points.
+fn d2(a: Point, b: Point) -> i64 {
+    let (x, y) = (i64::from(a.x.0 - b.x.0), i64::from(a.y.0 - b.y.0));
+    x * x + y * y
+}
+
+/// An axis toward `d`, with a dead zone of one pixel.
+fn toward(d: i32) -> i8 {
+    match d {
+        d if d > 256 => 127,
+        d if d < -256 => -127,
+        _ => 0,
+    }
+}
+
+/// What `slot` of `engine` sees. The snapshot lists the present players in slot order, so a
+/// hole shifts the index.
+pub fn sight(engine: &Engine, slot: u8) -> Sight {
+    let snap = engine.snapshot();
+    let present = engine.present();
+    let place = |s: u8| (present & ((1 << s) - 1)).count_ones() as usize;
+    let me = snap.players[place(slot)].at;
+    let (mut downed, mut up_mates) = (Vec::new(), Vec::new());
+    for s in (0..3u8).filter(|s| *s != slot && present >> s & 1 == 1) {
+        let p = &snap.players[place(s)];
+        if p.out {
+            continue;
+        }
+        if p.down.is_some() {
+            downed.push((s, p.at));
+        } else if p.hp > 0 {
+            up_mates.push((s, p.at));
+        }
+    }
+    let mine = &snap.players[place(slot)];
+    Sight {
+        me,
+        up: mine.hp > 0 && !mine.out && mine.down.is_none(),
+        downed,
+        up_mates,
+        star: snap
+            .stars
+            .iter()
+            .map(|st| st.at)
+            .min_by_key(|at| d2(*at, me)),
+        enemy: snap
+            .entities
+            .iter()
+            .filter(|v| v.kind == EntityKind::Enemy)
+            .map(|v| v.at)
+            .min_by_key(|at| d2(*at, me)),
+    }
 }
 
 impl PartyBot {
@@ -64,9 +115,58 @@ impl PartyBot {
         mix(self.seed, slot, 3) % 90
     }
 
-    /// The buttons of a slot that sees `s` at `tick`.
-    pub fn decide(&self, _s: &Sight, _slot: u8, _tick: u32) -> Input {
-        Input::default()
+    /// The buttons of a slot that sees `s` at `tick`: nothing when it is not up; else it walks
+    /// to the downed teammate it is the nearest up slot to (ties to the lower slot) and holds
+    /// `interact` inside `HOLD_AT`, standing still and not attacking; else a collector goes to
+    /// the nearest star and a fighter to the nearest enemy until within `NEAR`, then to the other.
+    /// `main` and `skill` follow the slot's cadences; it never evades, which would leave the
+    /// revive range.
+    pub fn decide(&self, s: &Sight, slot: u8, tick: u32) -> Input {
+        if !s.up {
+            return Input::default();
+        }
+        let t = u64::from(tick);
+        let mut input = Input {
+            main: (t + self.phase(slot)) % 40 < 5,
+            skill: (t + self.skill_phase(slot)) % 90 < 30,
+            ..Input::default()
+        };
+        // The downed teammate this slot is the nearest up slot to, the nearest such to it.
+        let revive = s
+            .downed
+            .iter()
+            .filter(|(_, at)| {
+                let mine = d2(s.me, *at);
+                s.up_mates
+                    .iter()
+                    .all(|(m, mat)| (d2(*mat, *at), *m) > (mine, slot))
+            })
+            .min_by_key(|(d, at)| (d2(s.me, *at), *d));
+        if let Some((_, at)) = revive {
+            if d2(s.me, *at) <= HOLD_AT * HOLD_AT {
+                return Input {
+                    interact: true,
+                    ..Input::default()
+                };
+            }
+            input.move_x = toward(at.x.0 - s.me.x.0);
+            input.move_y = toward(at.y.0 - s.me.y.0);
+            return input;
+        }
+        let (first, second) = if self.role(slot) == 1 {
+            (s.star, s.enemy)
+        } else {
+            (s.enemy, s.star)
+        };
+        let goal = [first, second]
+            .into_iter()
+            .flatten()
+            .find(|at| d2(*at, s.me) > NEAR * NEAR);
+        if let Some(at) = goal {
+            input.move_x = toward(at.x.0 - s.me.x.0);
+            input.move_y = toward(at.y.0 - s.me.y.0);
+        }
+        input
     }
 
     /// The buttons of `slot` at `tick`.
@@ -74,9 +174,25 @@ impl PartyBot {
         self.decide(&sight(engine, slot), slot, tick)
     }
 
-    /// The option `slot` takes from its open offer; `None` with no offer.
-    pub fn pick(&self, _engine: &Engine, _slot: u8, _tick: u32) -> Option<u32> {
-        None
+    /// The option `slot` takes from its open offer; `None` with no offer. A star or boss offer:
+    /// the candidate with the largest `dps_bp` (none counts as 0), ties to the lowest index; a
+    /// stat or expertise offer: an option chosen by the seed, the slot and the tick. Always a
+    /// take, never a reroll, a skip or a banish.
+    pub fn pick(&self, engine: &Engine, slot: u8, tick: u32) -> Option<u32> {
+        let player = PlayerIdx::new(slot)?;
+        let options = match engine.check_pick(player, u32::MAX) {
+            Err(ChoiceError::OutOfRange { options, .. }) => options,
+            _ => return None,
+        };
+        let ratings = engine.offer_ratings(player);
+        if ratings.is_empty() {
+            return Some(
+                u32::try_from(mix(self.seed, slot, u64::from(tick)) % u64::from(options)).unwrap(),
+            );
+        }
+        let best = ratings.iter().map(|r| r.dps_bp.unwrap_or(0)).max()?;
+        let at = ratings.iter().position(|r| r.dps_bp.unwrap_or(0) == best)?;
+        u32::try_from(at).ok()
     }
 }
 
@@ -304,10 +420,12 @@ mod decisions {
         assert!(s1.downed.is_empty());
     }
 
+    type Held = Option<(Engine, u8)>;
+
     /// Steps `e` until the first offer of each kind has opened (answering the others with
     /// option 0 by the holder): the engine at the first star or boss offer and at the first stat
     /// or expertise offer, with the slot that holds each.
-    fn first_offers(mut e: Engine, n: u8) -> (Option<(Engine, u8)>, Option<(Engine, u8)>) {
+    fn first_offers(mut e: Engine, n: u8) -> (Held, Held) {
         let (mut star, mut stat) = (None, None);
         for t in 0..4000 {
             if e.offer_open() {
@@ -355,13 +473,14 @@ mod decisions {
             .unwrap();
         let got = b.pick(&e, holder, e.tick()).expect("an offer is open");
         assert_eq!(got as usize, want);
-        assert!(got as usize <= ratings.len() - 1);
+        assert!((got as usize) < ratings.len());
         assert!(e.check_pick(PlayerIdx::new(holder).unwrap(), got).is_ok());
         // The other slot has no offer.
         let other = 1 - holder;
         assert_eq!(b.pick(&e, other, e.tick()), None);
 
-        if let Some((e, holder)) = stat {
+        let (e, holder) = stat.expect("a stat offer opens");
+        {
             let player = PlayerIdx::new(holder).unwrap();
             let Err(ChoiceError::OutOfRange { options, .. }) = e.check_pick(player, u32::MAX)
             else {
