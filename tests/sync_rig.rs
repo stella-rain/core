@@ -377,9 +377,10 @@ fn steered(input: Input) -> Input {
 /// `rig.picks` with the option it is altered to (the old option plus one, modulo the offer's
 /// options). Found by scanning, not committed: ticks `k >= 100` upward for the first one whose
 /// altered step changes the hash after it, and the picks in order for the first in a slot whose
-/// offer has two or more options and whose altered hash differs. The pins are placeholders `0`
-/// until the scan is run.
-const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 0, 0, 0), ("three_revive", 0, 0, 0)];
+/// offer has two or more options and whose altered hash differs. The scan ran over ticks 100 up
+/// (both cases change at once, at 100) and over `rig.picks` from index 0 (a 10-option level-up
+/// offer in slot 0 at ticks 108 and 106, option 0 taken, 1 chosen instead).
+const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 100, 0, 1), ("three_revive", 100, 0, 1)];
 
 fn neg_case(name: &str) -> (Case, u32, usize, u32) {
     let (_, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
@@ -462,8 +463,8 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
             Err(ChoiceError::OutOfRange { options, .. }) if options >= 2
         ));
 
-        let h = sync_test(rig, rig, setup, 1..=1, 0..=0).hashes;
-        let h2 = sync_test(&altered, &altered, setup, 1..=1, 0..=0).hashes;
+        let h = hashes_to(rig, setup, p + 1);
+        let h2 = hashes_to(&altered, setup, p + 1);
         assert_eq!(
             h2[..=p as usize],
             h[..=p as usize],
