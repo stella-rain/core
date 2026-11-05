@@ -14,8 +14,9 @@ use crate::party_bot::RigRun;
 use crate::run_play::party_cases;
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
-use stella_rain_core::engine::Engine;
+use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::event::DomainEvent;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::hash_from_hex;
 use stella_rain_core::run_content::RunContent;
@@ -341,5 +342,146 @@ fn the_rig_cases_hold_a_revive() {
                 .count();
         });
         assert!(revives > 0, "{}", case.name);
+    }
+}
+
+/// A copy of `rig` with the input of `slot` at world tick `tick` changed by `f`.
+fn with_input(rig: &RigRun, tick: u32, slot: usize, f: impl Fn(Input) -> Input) -> RigRun {
+    let mut out = rig.clone();
+    let input = &mut out.ticks[tick as usize][slot];
+    *input = f(*input);
+    out
+}
+
+/// A copy of `rig` with the first pick of `rig.picks[index]` set to `option`; returns the slot.
+fn with_pick(rig: &RigRun, index: usize, option: u32) -> (RigRun, usize) {
+    let mut out = rig.clone();
+    let slot = out.picks[index]
+        .1
+        .iter()
+        .position(Option::is_some)
+        .expect("a pick step holds a pick");
+    out.picks[index].1[slot] = Some(option);
+    (out, slot)
+}
+
+/// The slot-0 steer an altered input takes: full right, or full left where it was full right.
+fn steered(input: Input) -> Input {
+    Input {
+        move_x: if input.move_x == 127 { -127 } else { 127 },
+        ..input
+    }
+}
+
+/// Per case: the input tick `k` (slot 0's steer is altered), and the index of the pick in
+/// `rig.picks` with the option it is altered to (the old option plus one, modulo the offer's
+/// options). Found by scanning, not committed: ticks `k >= 100` upward for the first one whose
+/// altered step changes the hash after it, and the picks in order for the first in a slot whose
+/// offer has two or more options and whose altered hash differs. The pins are placeholders `0`
+/// until the scan is run.
+const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 0, 0, 0), ("three_revive", 0, 0, 0)];
+
+fn neg_case(name: &str) -> (Case, u32, usize, u32) {
+    let (_, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
+    let case = cases().into_iter().find(|c| c.name == name).unwrap();
+    (case, k, i, alt)
+}
+
+/// The hash at boundaries 0 to `upto` of `rig` played forward. An altered run is played only as
+/// far as the alteration is looked at: past it, the recorded picks no longer fit its offers.
+fn hashes_to(rig: &RigRun, setup: &RunSetup, upto: u32) -> Vec<u64> {
+    let mut e = Engine::start_party_with(setup, RunContent::bundled(), rig.n).unwrap();
+    let mut out = vec![e.state_hash()];
+    for t in 0..upto {
+        rig.play_onto(&mut e, t, t + 1);
+        out.push(e.state_hash());
+    }
+    out
+}
+
+fn desync_boundaries(report: &Report) -> Vec<u32> {
+    report.desyncs.iter().map(|d| d.at).collect()
+}
+
+#[test]
+fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
+    for name in RIG_CASES {
+        let (case, k, ..) = neg_case(name);
+        let (rig, setup, len) = (&case.rig, &case.replay.setup, case.len());
+        let altered = with_input(rig, k, 0, steered);
+        let h = hashes_to(rig, setup, k + 1);
+        let h2 = hashes_to(&altered, setup, k + 1);
+        assert_eq!(
+            h2[..=k as usize],
+            h[..=k as usize],
+            "{name}: equal up to {k}"
+        );
+        assert_ne!(
+            h2[k as usize + 1],
+            h[k as usize + 1],
+            "{name}: the step changes the hash"
+        );
+
+        let report = sync_test(rig, &altered, setup, 8..=8, 0..=len);
+        let want: Vec<u32> = (k + 1..=(k + 8).min(len)).collect();
+        assert_eq!(desync_boundaries(&report), want, "{name}");
+        assert!(
+            report
+                .desyncs
+                .iter()
+                .all(|d| d.tick == k + 1 && d.depth == 8),
+            "{name}: {:?}",
+            report.desyncs
+        );
+
+        let all = sync_test(rig, &altered, setup, 1..=8, 0..=len);
+        let first = &all.desyncs[0];
+        assert_eq!(
+            (first.tick, first.depth, first.at),
+            (k + 1, 1, k + 1),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
+    for name in RIG_CASES {
+        let (case, _, i, alt) = neg_case(name);
+        let (rig, setup, len) = (&case.rig, &case.replay.setup, case.len());
+        let p = rig.picks[i].0;
+        let (altered, slot) = with_pick(rig, i, alt);
+        assert_ne!(altered.picks[i], rig.picks[i], "{name}: the pick changes");
+        // The alternative is a legal option of the offer open at that boundary.
+        let mut e = Engine::start_party_with(setup, RunContent::bundled(), rig.n).unwrap();
+        rig.play_onto(&mut e, 0, p);
+        let player = PlayerIdx::new(u8::try_from(slot).unwrap()).unwrap();
+        assert_eq!(e.check_pick(player, alt), Ok(()), "{name}: a legal option");
+        assert!(matches!(
+            e.check_pick(player, u32::MAX),
+            Err(ChoiceError::OutOfRange { options, .. }) if options >= 2
+        ));
+
+        let h = sync_test(rig, rig, setup, 1..=1, 0..=0).hashes;
+        let h2 = sync_test(&altered, &altered, setup, 1..=1, 0..=0).hashes;
+        assert_eq!(
+            h2[..=p as usize],
+            h[..=p as usize],
+            "{name}: equal up to {p}"
+        );
+        assert_ne!(
+            h2[p as usize + 1],
+            h[p as usize + 1],
+            "{name}: the pick changes the hash"
+        );
+
+        let report = sync_test(rig, &altered, setup, 8..=8, 0..=len);
+        let want: Vec<u32> = (p + 1..=(p + 8).min(len)).collect();
+        assert_eq!(desync_boundaries(&report), want, "{name}");
+        assert!(
+            report.desyncs.iter().all(|d| d.tick == p + 1),
+            "{name}: {:?}",
+            report.desyncs
+        );
     }
 }
