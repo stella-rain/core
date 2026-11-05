@@ -55,3 +55,17 @@ before = "a38bb72398a326c6"
 after = "f862ce8e6daa2da7"
 stage = "0a04cebb783f4749"
 input = "4f39ec612666549a"
+
+[worst_tick_3p]
+bench = "worst_tick_3p"
+before = "ab5133a0e42fcee0"
+after = "c45bb0e4e7277ade"
+stage = "c6af66ac0059b347"
+input = "ce2422ff60f961b0"
+
+[rollback]
+bench = "rollback"
+before = "f78f477ca68c82d7"
+after = "91cc38e2790253e9"
+stage = "0a04cebb783f4749"
+input = "f4ae51ae7ab18ba7"

@@ -109,6 +109,14 @@ harness = false
 name = "worst_minute_peak"
 harness = false
 
+[[bench]]
+name = "worst_tick_3p"
+harness = false
+
+[[bench]]
+name = "rollback"
+harness = false
+
 # Overflow behaves the same in every profile (ADR-SIM-3): it panics unless the code says
 # `wrapping_*` or `saturating_*`. Release and bench would otherwise wrap silently.
 # Debug builds (and the test profile, which inherits from dev) optimise a little: a whole

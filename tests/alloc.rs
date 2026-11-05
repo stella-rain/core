@@ -219,6 +219,50 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
     ("worst_minute_peak", pin(0, 0, 0)),
 ];
 
+/// The allocator calls of the two party benches (`benches/worst_tick_3p.rs`, `benches/rollback.rs`),
+/// by case: today's counts, not zero. The three-player tick allocates as the solo one does; the
+/// rollback is the clone's allocations plus the 8 ticks'. The rule of `BENCH_TICK_ALLOCS` holds:
+/// a count that falls is re-pinned lower, one that rises is a regression. A separate const so
+/// that `tests/bench_region.rs` keeps zipping the six solo cases.
+pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 2] = [
+    ("worst_tick_3p", pin(2, 0, 2)),
+    ("rollback", pin(1694, 13, 8)),
+];
+
+fn party_pinned(case: &str) -> Allocs {
+    PARTY_BENCH_ALLOCS
+        .iter()
+        .find(|(name, _)| *name == case)
+        .unwrap()
+        .1
+}
+
+#[test]
+fn the_party_worst_tick_allocates_as_pinned() {
+    let case = bench_fixtures::party_case::worst_tick_3p();
+    let mut out = None;
+    let counts = counted3(|| out = Some(bench_fixtures::party_case::tick(case)));
+    std::mem::forget(out);
+    assert_eq!(
+        counts,
+        party_pinned("worst_tick_3p"),
+        "worst_tick_3p: (allocs, reallocs, frees)"
+    );
+}
+
+#[test]
+fn the_rollback_allocates_as_pinned() {
+    let saved = bench_fixtures::party_case::saved();
+    let mut out = None;
+    let counts = counted3(|| out = Some(bench_fixtures::party_case::rollback(saved)));
+    std::mem::forget(out);
+    assert_eq!(
+        counts,
+        party_pinned("rollback"),
+        "rollback: (allocs, reallocs, frees)"
+    );
+}
+
 fn pinned(case: &str) -> Allocs {
     BENCH_TICK_ALLOCS
         .iter()
