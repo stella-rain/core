@@ -11,10 +11,18 @@
 //! two records (before the first, after the last): the records after one hold a block per slot
 //! of the mask in force; slot 0 never leaves; at most `MAX_PRESENCE_CHANGES` of them. The runs
 //! sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
+//!
+//! `0x04` ACTIONS (ADR-REPL-5 point 8): one step that does not advance the world, one entry per
+//! present slot in slot order, at least one not `0x00`. An entry is `0x00` (no action) or a kind
+//! byte and its operands, each a LEB128 varint `u32`: `0x01` Equip (item, slot), `0x02` Replace
+//! (item, slot), `0x03` Extract (item), `0x04` Craft (star), `0x05` TreePick (option). An unknown
+//! kind is refused; at most `MAX_ACTION_STEPS` ACTIONS records, counted apart from PICKS. A log
+//! with one has no solo view. Record bytes `0x05` to `0xFF` are unknown; `0x01` is never given
+//! another meaning (a retired kind keeps its byte reserved).
 
 use crate::input::{EquipAction, Input};
 use crate::replay::{block_of, input_of_block, read_varint, write_varint};
-use crate::run_replay::{CommandKind, MAX_COMMANDS, RunReplayError, TickCommand};
+use crate::run_replay::{CommandKind, MAX_ACTION_STEPS, MAX_COMMANDS, RunReplayError, TickCommand};
 
 const TICKS: u8 = 0;
 const PICKS: u8 = 1;
@@ -228,12 +236,18 @@ impl StepLog {
         if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
+        if self.actions_made() > 0 {
+            return Err(RunReplayError::BadInputs(
+                "a log with equipment actions has no solo view",
+            ));
+        }
         let mut tick = 0u32;
         let mut commands = Vec::new();
         for record in &self.records {
             match record {
                 Record::Ticks { run, .. } => tick = tick.saturating_add(*run),
-                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {}
+                Record::Join { .. } | Record::Leave { .. } => {}
+                Record::Actions { .. } => unreachable!("refused above"),
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -254,6 +268,11 @@ impl StepLog {
         if self.present != 0b1 || self.has_changes() {
             return Err(RunReplayError::BadInputs("a party has no solo view"));
         }
+        if self.actions_made() > 0 {
+            return Err(RunReplayError::BadInputs(
+                "a log with equipment actions has no solo view",
+            ));
+        }
         let mut inputs = Vec::new();
         let mut commands = Vec::new();
         for record in &self.records {
@@ -261,7 +280,8 @@ impl StepLog {
                 Record::Ticks { run, inputs: held } => {
                     inputs.extend(std::iter::repeat_n(held[0], *run as usize));
                 }
-                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {}
+                Record::Join { .. } | Record::Leave { .. } => {}
+                Record::Actions { .. } => unreachable!("refused above"),
                 Record::Picks { picks } => {
                     if let Some(index) = picks[0] {
                         commands.push(TickCommand {
@@ -482,6 +502,44 @@ fn write_action(out: &mut Vec<u8>, action: Option<EquipAction>) {
     }
 }
 
+/// Reads one ACTIONS entry at `pos`: `0x00` for none, else a kind byte and its varint operands.
+fn read_action(bytes: &[u8], pos: &mut usize) -> Result<Option<EquipAction>, RunReplayError> {
+    let bad = RunReplayError::BadInputs;
+    let cut = bad("ends in the middle of a record");
+    let kind = *bytes.get(*pos).ok_or(cut.clone())?;
+    *pos += 1;
+    let mut operand = |pos: &mut usize| {
+        read_varint(bytes, pos).map_err(|why| {
+            if why == "ends in the middle of a number" {
+                cut.clone()
+            } else {
+                bad(why)
+            }
+        })
+    };
+    Ok(Some(match kind {
+        0 => return Ok(None),
+        1 => EquipAction::Equip {
+            item: operand(pos)?,
+            slot: operand(pos)?,
+        },
+        2 => EquipAction::Replace {
+            item: operand(pos)?,
+            slot: operand(pos)?,
+        },
+        3 => EquipAction::Extract {
+            item: operand(pos)?,
+        },
+        4 => EquipAction::Craft {
+            star: operand(pos)?,
+        },
+        5 => EquipAction::TreePick {
+            option: operand(pos)?,
+        },
+        _ => return Err(bad("an action kind is unknown")),
+    }))
+}
+
 /// What the scanner reports for each record, by reference: nothing is allocated for it.
 trait Sink {
     /// The `present` byte, before any record.
@@ -583,6 +641,8 @@ fn scan(
     let mut pos = 1;
     let mut world = 0u32;
     let mut picks_seen = 0u32;
+    let mut actions_seen = 0u32;
+    let mut actions: Vec<Option<EquipAction>> = Vec::with_capacity(players);
     // The inputs of the record before, when it was a TICKS record.
     let mut before: Vec<Input> = Vec::with_capacity(players);
     let mut after_ticks = false;
@@ -638,6 +698,23 @@ fn scan(
                 }
                 picks_seen += 1;
                 sink.picks(world, &picks);
+                after_ticks = false;
+            }
+            ACTIONS => {
+                if actions_seen >= MAX_ACTION_STEPS {
+                    return Err(RunReplayError::TooManyActions {
+                        limit: MAX_ACTION_STEPS,
+                    });
+                }
+                actions.clear();
+                for _ in 0..players {
+                    actions.push(read_action(bytes, &mut pos)?);
+                }
+                if actions.iter().all(Option::is_none) {
+                    return Err(bad("a record has no action"));
+                }
+                actions_seen += 1;
+                sink.actions(world, &actions);
                 after_ticks = false;
             }
             JOIN | LEAVE => {
@@ -1600,7 +1677,7 @@ mod tests {
                 1,
                 "ends in the middle of a record",
             ),
-            ("01 04 00", 0, "an unknown record"),
+            ("01 05 00", 0, "an unknown record"),
             ("01 02 00", 0, "a join of a slot that is present"),
             (
                 "03 00 01 02 00 00 00 00 00 00 01 02 00 00 00 00 00",
