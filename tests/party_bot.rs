@@ -5,9 +5,11 @@
 
 use stella_rain_core::RangeStep;
 use stella_rain_core::engine::{ChoiceError, Engine};
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
+use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::run_setup::{OfferMode, RunSetup};
 use stella_rain_core::snapshot::EntityKind;
@@ -335,12 +337,23 @@ impl RigRun {
     /// Applies world ticks `from..to` to `engine`, with the picks that come before each of
     /// them, as `Engine::step` takes them; for `to == ticks.len()` also the picks after the last.
     pub fn play_onto(&self, engine: &mut Engine, from: u32, to: u32) {
+        self.play_with(engine, from, to, |_| {});
+    }
+
+    /// `play_onto`, calling `after` with the engine after every step (a tick or a pick).
+    pub fn play_with(
+        &self,
+        engine: &mut Engine,
+        from: u32,
+        to: u32,
+        mut after: impl FnMut(&Engine),
+    ) {
         let len = u32::try_from(self.ticks.len()).expect("fewer ticks than u32");
         assert!(
             from <= to && to <= len,
             "window {from}..{to} of {len} ticks"
         );
-        let picks_at = |world: u32, engine: &mut Engine| {
+        let picks_at = |world: u32, engine: &mut Engine, after: &mut dyn FnMut(&Engine)| {
             for (_, picks) in self.picks.iter().filter(|(at, _)| *at == world) {
                 assert!(
                     engine.offer_open(),
@@ -353,14 +366,97 @@ impl RigRun {
                     }
                 }
                 engine.step(&inputs);
+                after(engine);
             }
         };
         for t in from..to {
-            picks_at(t, engine);
+            picks_at(t, engine, &mut after);
             engine.step(&self.ticks[t as usize]);
+            after(engine);
         }
         if to == len {
-            picks_at(len, engine);
+            picks_at(len, engine, &mut after);
+        }
+    }
+
+    /// How many picks each slot made.
+    pub fn picks_per_slot(&self) -> [u32; 3] {
+        let mut per = [0u32; 3];
+        for (_, picks) in &self.picks {
+            for (n, pick) in per.iter_mut().zip(picks) {
+                *n += u32::from(pick.is_some());
+            }
+        }
+        per
+    }
+
+    /// The downs, revives and outs of the whole run, replayed from a fresh engine.
+    pub fn tally(&self, replay: &RunReplay) -> RigTally {
+        let mut engine =
+            Engine::start_party_with(&replay.setup, Pack::bundled().content(), self.n).unwrap();
+        let mut t = RigTally::default();
+        let mut down = [false; 3];
+        let len = u32::try_from(self.ticks.len()).unwrap();
+        self.play_with(&mut engine, 0, len, |e| {
+            let tick = e.tick();
+            for event in e.events() {
+                match event {
+                    DomainEvent::PlayerDowned { player } => {
+                        t.downed += 1;
+                        t.first_down.get_or_insert(tick);
+                        down[player.get()] = true;
+                    }
+                    DomainEvent::PlayerRevived { player, reviver } => {
+                        t.revived += 1;
+                        t.first_revive.get_or_insert(tick);
+                        t.revivers.push(u8::try_from(reviver.get()).unwrap());
+                        t.revived_were_down &= down[player.get()];
+                        down[player.get()] = false;
+                        // 30% of max hit points, at once.
+                        t.revived_have_hp &= e.snapshot().players[player.get()].hp > 0;
+                    }
+                    DomainEvent::PlayerOut { .. } => {
+                        t.out += 1;
+                        t.first_out.get_or_insert(tick);
+                    }
+                    _ => {}
+                }
+            }
+        });
+        t
+    }
+}
+
+/// The downs, revives and outs of a rig run (ADR-SIM-7, ADR-SIM-8). Ticks are the engine's
+/// tick count after the step the event came in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RigTally {
+    pub downed: u32,
+    pub revived: u32,
+    pub out: u32,
+    pub first_down: Option<u32>,
+    pub first_revive: Option<u32>,
+    pub first_out: Option<u32>,
+    /// The slot that made each revive, in order.
+    pub revivers: Vec<u8>,
+    /// Every revived player had been downed before.
+    pub revived_were_down: bool,
+    /// Every revived player has hit points on the snapshot right after.
+    pub revived_have_hp: bool,
+}
+
+impl Default for RigTally {
+    fn default() -> RigTally {
+        RigTally {
+            downed: 0,
+            revived: 0,
+            out: 0,
+            first_down: None,
+            first_revive: None,
+            first_out: None,
+            revivers: Vec::new(),
+            revived_were_down: true,
+            revived_have_hp: true,
         }
     }
 }
@@ -808,5 +904,68 @@ mod rig {
             .find(|c| c.changes.iter().any(|(_, c)| matches!(c, Change::Join(_))))
             .unwrap();
         let _ = RigRun::of(&case.play().replay());
+    }
+}
+
+/// The seed search for the rig cases of the corpus. Run it by hand:
+/// `cargo test --locked --test integration search_rig_seeds -- --ignored --nocapture`.
+#[cfg(test)]
+mod search {
+    use super::*;
+    use stella_rain_core::run_replay::verify_run;
+
+    /// The world seeds and bot seeds scanned.
+    const WORLD_SEEDS: std::ops::RangeInclusive<u64> = 1..=300;
+    const BOT_SEEDS: std::ops::RangeInclusive<u64> = 1..=20;
+
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_rig_seeds() {
+        for n in [2u8, 3] {
+            let mut found = 0;
+            for seed in WORLD_SEEDS {
+                for bot_seed in BOT_SEEDS {
+                    let case = RigParty::new(n).seed(seed).bot_seed(bot_seed).case("x");
+                    let replay = case.play().replay();
+                    let bytes = replay.to_bytes();
+                    let run = RigRun::of(&replay);
+                    let tally = run.tally(&replay);
+                    let per = run.picks_per_slot();
+                    let ok = replay.ticks <= 3000
+                        && bytes.len() < 64 * 1024
+                        && tally.downed >= 1
+                        && tally.revived >= 1
+                        && tally.revived_were_down
+                        && tally.revived_have_hp
+                        && tally
+                            .first_out
+                            .is_none_or(|out| tally.first_revive.is_some_and(|r| r < out))
+                        && per[1] + per[2] >= 2
+                        && (n == 2 || tally.revivers.iter().any(|r| *r != 0));
+                    if !ok {
+                        continue;
+                    }
+                    found += 1;
+                    let v = verify_run(&bytes).unwrap();
+                    println!(
+                        "N={n} seed={seed} bot_seed={bot_seed} ticks={} outcome={:?} \
+                         downed={} revived={} out={} first_down={:?} first_revive={:?} \
+                         revivers={:?} picks={per:?} stardust={} bytes={} final_hash={}",
+                        replay.ticks,
+                        v.outcome,
+                        tally.downed,
+                        tally.revived,
+                        tally.out,
+                        tally.first_down,
+                        tally.first_revive,
+                        tally.revivers,
+                        v.stardust,
+                        bytes.len(),
+                        replay.final_hash,
+                    );
+                }
+            }
+            println!("N={n}: {found} candidates");
+        }
     }
 }
