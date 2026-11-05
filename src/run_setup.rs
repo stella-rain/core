@@ -166,7 +166,7 @@ pub struct RunSetup {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
     /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup
-    /// written before the mode existed reads as it always did. Not set (`timed`) in equipment
+    /// written before the mode existed reads as it always did. Never `timed` in equipment
     /// mode: nothing is offered.
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,

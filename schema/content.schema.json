@@ -7369,7 +7369,7 @@
         },
         "offer_mode": {
           "$ref": "#/$defs/OfferMode",
-          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did. Not set (`timed`) in equipment\nmode: nothing is offered."
+          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did. Never `timed` in equipment\nmode: nothing is offered."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",
