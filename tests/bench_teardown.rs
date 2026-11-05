@@ -213,3 +213,13 @@ fn bench_files_are_the_budget_keys() {
         .collect();
     assert_eq!(files, keys, "benches/*.rs and the budgets.toml keys differ");
 }
+
+#[test]
+fn listed_and_budgeted_names_the_overlap() {
+    assert_eq!(listed_and_budgeted(&["a"], &["a", "b"]), vec!["a"]);
+}
+
+#[test]
+fn listed_and_budgeted_is_empty_without_overlap() {
+    assert_eq!(listed_and_budgeted(&["a"], &["b"]), Vec::<String>::new());
+}
