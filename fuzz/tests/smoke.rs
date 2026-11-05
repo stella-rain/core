@@ -354,7 +354,7 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             ));
         }
     }
-    let forged: [(&str, u32, &[u8]); 7] = [
+    let forged: [(&str, u32, &[u8]); 11] = [
         // A join, a leave, then a double join and a leave of slot 0, which are refused.
         (
             "forged-join",
@@ -392,6 +392,26 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             1,
             &[0x01, 0x07, 0x01, 0x00, 0x00, 0x00],
         ),
+        // A Replace(3, 7) between two runs; a party of 2 with a TreePick(4) by slot 1; an
+        // ACTIONS record with no action; one with an unknown kind.
+        (
+            "forged-actions",
+            2,
+            &[
+                0x01, 0x00, 0x01, 0x02, 0x00, 0x00, 0x04, 0x02, 0x03, 0x07, 0x00, 0x01, 0x00, 0x00,
+                0x00,
+            ],
+        ),
+        (
+            "forged-actions-party",
+            2,
+            &[
+                0x03, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x05, 0x04, 0x00,
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ],
+        ),
+        ("forged-actions-none", 0, &[0x01, 0x04, 0x00]),
+        ("forged-actions-kind", 0, &[0x01, 0x04, 0x06, 0x00]),
     ];
     for (name, ticks, log) in forged {
         seeds.push((name.to_owned(), step_log_range_input(ticks, 0, ticks, log)));
