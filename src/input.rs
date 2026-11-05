@@ -60,7 +60,7 @@ pub struct Input {
     /// An equipment action made on this step. It is recorded as an ACTIONS step, never inside a
     /// TICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: no
     /// rule accepts an action yet.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<EquipAction>,
 }
 
