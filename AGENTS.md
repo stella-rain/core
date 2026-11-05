@@ -53,12 +53,15 @@ What is inside these folders loads from `.claude/rules/` when those files are to
 | Parser, validator, replay loader, share codes, run setups | In `fuzz/`: fmt, clippy, `cargo test`, `cargo +nightly fuzz build`; a short fuzz run per target in CI |
 | Tick cost | `cargo bench` (every target in `benches/budgets.toml`); CI: budgets block, a case over +2% fails unless `benches/accepted.toml` covers it (ADR-SIM-6) |
 | `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
+| `scripts/*.py` | `python3 -m unittest discover -s scripts` (CI: `scripts.yml`, job `script unit tests`); with `../app` cloned beside, it also checks `scripts/adr_ids.txt` against the app's ADRs |
+| iPhone corpus run | `cargo test --locked --all-features --test integration --release --target aarch64-apple-ios -- corpus:: the_golden_hash_is_the_same_on_every_platform` (`docs/device-gates.md`); Kade's Mac with the iPhone connected, never CI: add `cmd:verify-needs-iphone` |
 | `AGENTS.md`, `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too); `AGENTS.md` at most 100 lines (`wc -l`) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
-The corpus run on an Android device is a release gate (ADR-SIM-3 point 4), tried on the prerelease, and so are the
-iOS Simulator and long fuzz runs, which Candidate runs; when a gate is needed and cannot run
-here, add `cmd:verify-needs-android` (or `-windows`, `-macos`) to the issue.
+The Android emulator, the iOS Simulator and the long fuzz runs are Candidate checks (ADR-REL-3 point 5, ADR-REL-6 point 1); the emulator is
+advisory until `candidate.yml` lists it in `tag.needs`. The corpus run on real devices (the Android phones and the iPhone, ADR-PLAT-10) is not a
+Candidate gate: it runs after Promote, on the released tag, for each `0.N.0` release or on request (ADR-REL-6 points 2 and 3, ADR-SIM-3 point 4).
+When a gate is needed and cannot run here, add `cmd:verify-needs-android` (or `-iphone`, `-windows`, `-macos`) to the issue.
 In CI (`rust.yml`) a PR of only `*.md` files skips every Rust job; `rust checks` passes when each job ran or was
 skipped by right. Fuzz, bench and workflow detail: `.claude/rules/benches-fuzz.md`, `ci.md`.
 
