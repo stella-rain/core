@@ -54,8 +54,8 @@ use crate::registry;
 use crate::rewards::{MAX_RANGE_PCT, MAX_TYPE_BONUS_PCT};
 use crate::rng::SplitMix64;
 use crate::sim::state::{
-    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbLink, OrbState, Origin, PathStep,
-    Smash, State, StatusKind, ZoneState,
+    Aim, AttackRun, AttackTask, Dir, Frame, Frames, Hook, OrbLink, OrbState, Origin, Path,
+    PathStep, Smash, State, StatusKind, ZoneState,
 };
 use crate::trig;
 use crate::validate::limits::{MAX_LEN, MAX_ORB_TICKS, MAX_REPEAT, MAX_TICKS, MAX_ZONE_TICKS};
@@ -856,7 +856,7 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
     let task = AttackTask {
         owner: r.owner,
         program: def.programs[r.phase as usize],
-        base: Vec::new(),
+        base: Path::new(),
         origin: r.at.map_or(Origin::Owner, Origin::At),
         aim: r.aim,
         friendly: r.friendly,
@@ -880,27 +880,28 @@ fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEv
 // (ADR-SIM-5).
 #[inline(never)]
 pub(super) fn fire_hooks(s: &mut State) {
-    let mut starts = Vec::new();
-    for b in &mut s.orbs {
+    let State { orbs, tasks, .. } = s;
+    for b in orbs.iter_mut() {
         let Some(hook) = b.hook.as_mut() else {
             continue;
         };
         hook.left = hook.left.saturating_sub(1);
-        if hook.left == 0 {
-            if let Some(hook) = b.hook.take() {
-                starts.push((hook, b.at, b.dir));
-            }
+        if hook.left != 0 {
+            continue;
         }
-    }
-    for (hook, at, dir) in starts {
-        if count(&s.tasks) >= MAX_ATTACK_TASKS {
-            break;
+        let Some(hook) = b.hook.take() else {
+            continue;
+        };
+        // Past the cap the hook is taken and dropped all the same: the orb loses it either way.
+        if count(tasks) >= MAX_ATTACK_TASKS {
+            continue;
         }
-        s.tasks.push(AttackTask {
+        let dir = b.dir;
+        tasks.push(AttackTask {
             owner: hook.owner,
             program: hook.program,
             base: hook.path,
-            origin: Origin::At(at),
+            origin: Origin::At(b.at),
             aim: hook.aim,
             friendly: false,
             damage: hook.damage,
@@ -1459,17 +1460,22 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
             return true;
         }
     }
-    let hook = (!burst.is_empty()).then(|| {
-        let path = t
-            .base
-            .iter()
-            .copied()
-            .chain((0..=top).map(|j| PathStep {
+    let hook = if burst.is_empty() {
+        None
+    } else {
+        let mut path = t.base;
+        for j in 0..=top {
+            let step = PathStep {
                 node: t.frames[j].idx,
                 then: j == top,
-            }))
-            .collect();
-        Box::new(Hook {
+            };
+            // The validator holds a path to `MAX_PATTERN_DEPTH`; an unvalidated file that
+            // goes deeper loses the orb, as a cap does (fail closed).
+            if !path.try_push(step) {
+                return true;
+            }
+        }
+        Some(Hook {
             program: t.program,
             path,
             left: life,
@@ -1481,7 +1487,7 @@ fn emit_orb(s: &mut State, t: &mut AttackTask, ab: &Above, node: &Emitter, top: 
             smash: t.smash,
             combo: t.combo,
         })
-    });
+    };
     let scale = i64::from(trig::SCALE);
     let velocity = |component: i32| Fx(saturate(i64::from(component) * i64::from(speed) / scale));
     let halted = stop == Some(0);

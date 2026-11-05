@@ -9,7 +9,6 @@
 use crate::id::EntityId;
 use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
-    max_path,
 };
 
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
@@ -229,7 +228,7 @@ impl Decode for AttackTask {
         Ok(AttackTask {
             owner: Decode::decode(r)?,
             program: Decode::decode(r)?,
-            base: decode_vec(r, max_path())?,
+            base: Decode::decode(r)?,
             origin: Decode::decode(r)?,
             aim: Decode::decode(r)?,
             friendly: Decode::decode(r)?,
@@ -394,7 +393,7 @@ impl Decode for Hook {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(Hook {
             program: Decode::decode(r)?,
-            path: decode_vec(r, max_path())?,
+            path: Decode::decode(r)?,
             left: Decode::decode(r)?,
             owner: Decode::decode(r)?,
             aim: Decode::decode(r)?,

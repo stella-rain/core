@@ -91,12 +91,14 @@ fn an_orb_is_all_its_fields() {
 #[test]
 fn an_orbs_hook_is_its_fields_after_a_tag() {
     let mut o = orb();
-    o.hook = Some(Box::new(Hook {
+    o.hook = Some(Hook {
         program: ProgramIndex(0),
-        path: vec![PathStep {
+        path: [PathStep {
             node: 2,
             then: true,
-        }],
+        }]
+        .into_iter()
+        .collect(),
         left: 11,
         owner: EntityId(12),
         aim: Aim::Fixed(Dir { x: 13, y: -14 }),
@@ -105,7 +107,7 @@ fn an_orbs_hook_is_its_fields_after_a_tag() {
         breaks_charge: false,
         smash: None,
         combo: true,
-    }));
+    });
     let mut live = orb_bytes_before_the_hook();
     live.push(1); // hook: some
     live.extend(1u32.to_le_bytes()); // path length
@@ -232,4 +234,39 @@ fn an_agent_is_all_its_fields_with_a_tag_for_each_option() {
     live.push(0); // leave: none
     live.push(0); // shrine: none
     assert_eq!(hash_of(&a), fnv1a64(&live));
+}
+
+/// A hook's path holds `MAX_PATTERN_DEPTH` steps inline, and the savepoint writes it as a list
+/// of its length, so a fifth step is refused as the `Vec` it replaced refused it.
+#[test]
+fn a_hooks_path_of_four_steps_round_trips_and_a_fifth_is_refused() {
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    let step = PathStep {
+        node: 2,
+        then: true,
+    };
+    let mut hook = hook_of(step);
+    hook.path = std::iter::repeat_n(step, 4).collect();
+    assert_eq!(from_bytes::<Hook>(&to_bytes(&hook)), Ok(hook.clone()));
+    let mut bytes = to_bytes(&hook);
+    let at = to_bytes(&hook.program).len();
+    bytes[at] = 5;
+    let end = at + 4 + 4 * to_bytes(&step).len();
+    bytes.splice(end..end, to_bytes(&step));
+    assert!(from_bytes::<Hook>(&bytes).is_err());
+}
+
+fn hook_of(step: PathStep) -> Hook {
+    Hook {
+        program: ProgramIndex(0),
+        path: std::iter::once(step).collect(),
+        left: 11,
+        owner: EntityId(12),
+        aim: Aim::Fixed(Dir { x: 13, y: -14 }),
+        damage: 15,
+        damage_type: None,
+        breaks_charge: false,
+        smash: None,
+        combo: true,
+    }
 }

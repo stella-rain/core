@@ -1247,6 +1247,10 @@ pub(crate) type Statuses = InlineVec<StatusState, { StatusKind::COUNT }>;
 /// `MAX_PATTERN_DEPTH` of them, and some to spare.
 pub(crate) type Frames = InlineVec<Frame, MAX_FRAMES>;
 const MAX_FRAMES: usize = 8;
+/// A path into an attack program: one step for each level of nesting, and a hooked orb sits at
+/// depth `MAX_PATTERN_DEPTH - 1` at the deepest (its burst is one level below), so the path is
+/// never longer than `MAX_PATTERN_DEPTH`. Inline, so that an orb's hook allocates nothing (T1b).
+pub(crate) type Path = InlineVec<PathStep, { validate::limits::MAX_PATTERN_DEPTH as usize }>;
 
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -1440,7 +1444,7 @@ pub(crate) struct OrbState {
     /// Fired by a combo step, A or B: its hit adds expertise points.
     pub combo: bool,
     /// Starts an attack of its own when it ends: an orb's burst.
-    pub hook: Option<Box<Hook>>,
+    pub hook: Option<Hook>,
     /// An orb the main character's hit boxes break, with no burst.
     pub breakable: bool,
     /// Ticks left before it leaves the map (core#147). It leaves when this runs out or when it is
@@ -1513,7 +1517,7 @@ pub(crate) struct ZoneState {
 pub(crate) struct Hook {
     pub program: ProgramIndex,
     /// The `orb` node in the program: its `burst` list is what the orb starts.
-    pub path: Vec<PathStep>,
+    pub path: Path,
     /// Ticks left before it starts.
     pub left: u32,
     pub owner: EntityId,
@@ -1529,7 +1533,7 @@ pub(crate) struct Hook {
 
 /// One step down a program: the node at `node` in the current list, then its `body` list, or
 /// its `burst` list if `then` is set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PathStep {
     pub node: u16,
     pub then: bool,
@@ -1673,7 +1677,7 @@ pub(crate) struct AttackTask {
     pub owner: EntityId,
     pub program: ProgramIndex,
     /// Where in the program this task starts; empty for the whole program.
-    pub base: Vec<PathStep>,
+    pub base: Path,
     pub origin: Origin,
     /// What `aimed` directions point at.
     pub aim: Aim,
