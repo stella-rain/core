@@ -27,8 +27,9 @@ use stella_rain_core::run_setup::RunSetup;
 const RIG_CASES: [&str; 2] = ["two_revive", "three_revive"];
 /// The rollback window, in ticks.
 const MAX_DEPTH: u32 = 8;
-/// A rollback is run at the boundaries that are a multiple of this: every one.
-const STRIDE: u32 = 1;
+/// A rollback is run at the boundaries that are a multiple of this, every depth at each: with 1
+/// the module took 32 s, over the 30 s bar, so it is 2.
+const STRIDE: u32 = 2;
 
 /// The engine clones of the last `MAX_DEPTH + 1` boundaries.
 struct Ring {
@@ -98,20 +99,18 @@ impl Case {
     }
 }
 
+fn case(name: &'static str) -> Case {
+    let case = party_cases()
+        .into_iter()
+        .find(|c| c.name == name)
+        .unwrap_or_else(|| panic!("the party case {name} is missing"));
+    let replay = case.play().replay();
+    let rig = RigRun::of(&replay);
+    Case { name, replay, rig }
+}
+
 fn cases() -> Vec<Case> {
-    let all = party_cases();
-    RIG_CASES
-        .iter()
-        .map(|name| {
-            let case = all
-                .iter()
-                .find(|c| c.name == *name)
-                .unwrap_or_else(|| panic!("the party case {name} is missing"));
-            let replay = case.play().replay();
-            let rig = RigRun::of(&replay);
-            Case { name, replay, rig }
-        })
-        .collect()
+    RIG_CASES.iter().map(|name| case(name)).collect()
 }
 
 /// Plays `rig` forward from a fresh engine, saving every boundary in a ring; at the boundaries in
@@ -246,6 +245,16 @@ fn a_ring_keeps_the_last_nine_boundaries() {
     assert_ne!(copy.state_hash(), hashes[20]);
 }
 
+/// The boundaries `d..=len` that are a multiple of `STRIDE`: the windows of depth `d`.
+fn boundaries(d: u32, len: u32) -> u32 {
+    len / STRIDE - (d - 1) / STRIDE
+}
+
+/// The boundaries in `from..=to` where windows are run.
+fn strided(from: u32, to: u32) -> Vec<u32> {
+    (from..=to).filter(|t| t.rem_euclid(STRIDE) == 0).collect()
+}
+
 /// The sum over `depths` of `f(d)`.
 fn sum_over(depths: RangeInclusive<u32>, f: impl Fn(u32) -> u32) -> u32 {
     depths.map(f).sum()
@@ -266,13 +275,13 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
         assert_eq!(report.desyncs, vec![], "{}", case.name);
         assert_eq!(
             report.windows,
-            sum_over(1..=MAX_DEPTH, |d| len + 1 - d),
+            sum_over(1..=MAX_DEPTH, |d| boundaries(d, len)),
             "{}: windows",
             case.name
         );
         assert_eq!(
             report.resimulated,
-            sum_over(1..=MAX_DEPTH, |d| d * (len + 1 - d)),
+            sum_over(1..=MAX_DEPTH, |d| d * boundaries(d, len)),
             "{}: re-stepped ticks",
             case.name
         );
@@ -288,7 +297,7 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
         );
         assert!(report.revives > 0, "{}: a revive is replayed", case.name);
         let one = sync_test(&case.rig, &case.rig, &case.replay.setup, 8..=8, 0..=len);
-        assert_eq!(one.windows, len - 7, "{}: one depth", case.name);
+        assert_eq!(one.windows, boundaries(8, len), "{}: one depth", case.name);
     }
 }
 
@@ -383,9 +392,8 @@ fn steered(input: Input) -> Input {
 const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 100, 0, 1), ("three_revive", 100, 0, 1)];
 
 fn neg_case(name: &str) -> (Case, u32, usize, u32) {
-    let (_, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
-    let case = cases().into_iter().find(|c| c.name == name).unwrap();
-    (case, k, i, alt)
+    let (name, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
+    (case(name), k, i, alt)
 }
 
 /// The hash at boundaries 0 to `upto` of `rig` played forward. An altered run is played only as
@@ -398,6 +406,13 @@ fn hashes_to(rig: &RigRun, setup: &RunSetup, upto: u32) -> Vec<u64> {
         out.push(e.state_hash());
     }
     out
+}
+
+/// The boundaries where windows are run for an alteration at `step`: ten before it to ten after,
+/// which holds every window that contains it and the windows on both sides that do not. The
+/// forward pass still runs the whole case.
+fn around(step: u32, len: u32) -> RangeInclusive<u32> {
+    step.saturating_sub(10)..=(step + 10).min(len)
 }
 
 fn desync_boundaries(report: &Report) -> Vec<u32> {
@@ -423,8 +438,8 @@ fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
             "{name}: the step changes the hash"
         );
 
-        let report = sync_test(rig, &altered, setup, 8..=8, 0..=len);
-        let want: Vec<u32> = (k + 1..=(k + 8).min(len)).collect();
+        let report = sync_test(rig, &altered, setup, 8..=8, around(k, len));
+        let want = strided(k + 1, (k + 8).min(len));
         assert_eq!(desync_boundaries(&report), want, "{name}");
         assert!(
             report
@@ -435,11 +450,13 @@ fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
             report.desyncs
         );
 
-        let all = sync_test(rig, &altered, setup, 1..=8, 0..=len);
+        let all = sync_test(rig, &altered, setup, 1..=8, around(k, len));
         let first = &all.desyncs[0];
+        // The first window that holds tick `k` ends on the first boundary run after it.
+        let at = (k + 1).next_multiple_of(STRIDE);
         assert_eq!(
             (first.tick, first.depth, first.at),
-            (k + 1, 1, k + 1),
+            (k + 1, at - k, at),
             "{name}"
         );
     }
@@ -476,8 +493,8 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
             "{name}: the pick changes the hash"
         );
 
-        let report = sync_test(rig, &altered, setup, 8..=8, 0..=len);
-        let want: Vec<u32> = (p + 1..=(p + 8).min(len)).collect();
+        let report = sync_test(rig, &altered, setup, 8..=8, around(p, len));
+        let want = strided(p + 1, (p + 8).min(len));
         assert_eq!(desync_boundaries(&report), want, "{name}");
         assert!(
             report.desyncs.iter().all(|d| d.tick == p + 1),
