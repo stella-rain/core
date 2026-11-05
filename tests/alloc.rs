@@ -322,12 +322,13 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 /// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
 /// and rule firings. A tick that spawns or loses an elite, opens an offer or does anything else
 /// outside this list is left out: it builds an entity or an offer, which is by design. So is a
-/// tick that begins with an offer open, whose pick `Run::play` takes first, and one that emits an orb.
+/// tick that begins with an offer open, whose pick `Run::play` takes first. A tick that emits
+/// an orb or fires its hook is plain like any other: a hooked orb keeps its hook and path inline.
 #[test]
 fn the_dense_minutes_plain_ticks_allocate_nothing() {
     use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
     let mut run = bench_fixtures::worst_minute();
-    let (mut launched, mut defeated) = (0, 0);
+    let (mut launched, mut defeated, mut hooked) = (0, 0, 0_usize);
     for tick in 0..MINUTE_TICKS {
         // `play` answers an open offer first: that pick frees the offer's candidates and event.
         let picked = run.engine.offer_open();
@@ -346,10 +347,13 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
                     | DomainEvent::EnemyRelocated { .. }
             )
         });
-        // A new orb builds its entity (a hooked one boxes its hook and path), like an elite.
         let emitted = run.engine.load().orbs > orbs;
-        if picked || emitted || !plain {
+        if picked || !plain {
             continue;
+        }
+        if HOOKED_ORB_TICKS.contains(&tick) {
+            assert!(emitted, "minute tick {tick}: no orb was emitted");
+            hooked += 1;
         }
         launched += usize::from(
             events
@@ -365,7 +369,16 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
     }
     assert!(launched > 100, "only {launched} launch ticks reached");
     assert!(defeated > 50, "only {defeated} ticks with a defeat reached");
+    assert_eq!(
+        hooked,
+        HOOKED_ORB_TICKS.len(),
+        "every tick that emits a hooked orb was checked"
+    );
 }
+
+/// The minute's ticks (an offset from the minute's start) where a hooked orb is emitted, which
+/// the test above must reach and find allocation-free.
+const HOOKED_ORB_TICKS: [u32; 1] = [3514];
 
 /// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
 /// ADR-SIM-5 point 4): every per-enemy buffer is reserved to the run's cap when the engine
