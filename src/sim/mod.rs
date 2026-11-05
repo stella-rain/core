@@ -121,7 +121,7 @@ mod combat;
 mod damage;
 mod dash;
 mod entity;
-mod equipment;
+pub(crate) mod equipment;
 mod expertise;
 #[cfg(test)]
 mod frozen_tests;

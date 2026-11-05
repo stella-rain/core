@@ -2,9 +2,11 @@
 //! effects, the auto combo, the rune pool, the carried stars and the starting rune. They apply
 //! before the first step, in this order: the perk set, the carried stars in setup order, as if
 //! each were picked from an offer (they count toward their reward's stack limit), then the
-//! starting rune. Nothing is drawn for any of them, so the generator's order is unchanged.
+//! starting rune, then the Lumine star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn, no stat
+//! effect yet). Nothing is drawn for any of them, so the generator's order is unchanged.
 //! Regen, the auto combo and the rune pool are fixed for the run and part of the setup, which
-//! the replay stores: the state hash writes nothing for them.
+//! the replay stores: the state hash writes nothing for them. The Lumine slot is career state
+//! and is hashed with the equipment.
 
 use super::World;
 use crate::perk_sets::{PerkEffect, PerkEntry};
@@ -12,6 +14,7 @@ use crate::rewards::Rewards;
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
 use crate::rune::{MAX_RUNES, Rune};
+use crate::sim::equipment::{EquipSlot, Held, SlotKind};
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HeldRune, State};
 
@@ -27,6 +30,8 @@ pub(crate) struct Loadout {
     /// The carried stars, as places in the rewards file.
     carried: Vec<u16>,
     starting_rune: Option<Rune>,
+    /// The Lumine star, as a place in the rewards file.
+    lumine: Option<u16>,
 }
 
 impl Loadout {
@@ -50,6 +55,11 @@ impl Loadout {
                 .starting_rune
                 .as_ref()
                 .and_then(|id| Rune::from_id(id.as_str())),
+            lumine: setup
+                .lumine_star
+                .as_ref()
+                .and_then(|id| content.rewards().index_of(id))
+                .map(|at| u16::try_from(at).unwrap_or(u16::MAX)),
         }
     }
 }
@@ -94,6 +104,14 @@ pub(crate) fn apply(
             cooldown_left: 0,
         });
     }
+    if let Some(place) = loadout.lumine {
+        career.equipment.lumine = Some(EquipSlot {
+            kind: SlotKind::Lumine,
+            held: Some(Held::Star(place)),
+            level: 1,
+            expertise: 0,
+        });
+    }
 }
 
 pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
@@ -131,5 +149,87 @@ pub(super) fn regen(s: &mut State, me: PlayerIdx) {
             .hp
             .saturating_add(regen)
             .min(s.players[me].max_hp);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bench_fixtures::worst_case;
+    use crate::engine::{Engine, Run};
+    use crate::hash::{StableHash, StateHasher};
+    use crate::run_setup::BuildMode;
+    use crate::sim::equipment::{EquipSlot, Held, SlotKind};
+    use crate::sim::state::Players;
+
+    fn start() -> (World, State) {
+        let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+        match e.run() {
+            Run::V2 { world, state } => (world.clone(), state.clone()),
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+    }
+
+    fn hash_of(s: &State) -> u64 {
+        let mut h = StateHasher::new();
+        s.stable_hash(&mut h);
+        h.finish()
+    }
+
+    /// The state after `apply` of a setup with `lumine_star`, and the place of that star.
+    fn applied(star: Option<usize>) -> (State, Option<u16>) {
+        let content = worst_case::content();
+        let (world, mut s) = start();
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            lumine_star: star.map(|i| content.rewards().rewards()[i].id.clone()),
+            ..RunSetup::default()
+        };
+        let loadout = Loadout::of(&setup, &content);
+        apply(&world, content.rewards(), &mut s, PlayerIdx::SOLO, &loadout);
+        (s, star.map(|i| u16::try_from(i).unwrap()))
+    }
+
+    fn lumine_of(place: u16) -> EquipSlot {
+        EquipSlot {
+            kind: SlotKind::Lumine,
+            held: Some(Held::Star(place)),
+            level: 1,
+            expertise: 0,
+        }
+    }
+
+    #[test]
+    fn the_lumine_star_is_equipped_at_level_one_at_tick_zero() {
+        let (none, _) = applied(None);
+        assert!(
+            none.players
+                .career(PlayerIdx::SOLO)
+                .equipment
+                .lumine
+                .is_none()
+        );
+        let (s, place) = applied(Some(1));
+        let c = s.players.career(PlayerIdx::SOLO);
+        assert_eq!(c.equipment.lumine, Some(lumine_of(place.unwrap())));
+        // Nothing is drawn for it.
+        assert_eq!(
+            c.offer.state(),
+            none.players.career(PlayerIdx::SOLO).offer.state()
+        );
+        assert_eq!(s.rng.loot.state(), none.rng.loot.state());
+        assert_ne!(hash_of(&s), hash_of(&none), "the slot is hashed");
+
+        // A party built from it holds the slot in all three slots.
+        let party = Players::party(3, &s.players, s.crit_seed);
+        for me in party.indices() {
+            assert_eq!(party.career(me).equipment.lumine, Some(lumine_of(1)));
+        }
+        // A rejoiner gets it at level 1.
+        let mut p = Players::party(2, &s.players, s.crit_seed);
+        let template = s.players.template();
+        let slot2 = PlayerIdx::new(2).unwrap();
+        p.join(slot2, &template, s.crit_seed);
+        assert_eq!(p.career(slot2).equipment.lumine, Some(lumine_of(1)));
     }
 }
