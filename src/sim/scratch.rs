@@ -23,6 +23,15 @@ struct Reserved {
     height: i32,
 }
 
+/// A run end asked for while the hit pass holds the places of `State::runs` (ADR-SIM-7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RunEnd {
+    /// The run of this owner in this slot.
+    Slot(EntityId, u8),
+    /// Every run of this owner.
+    All(EntityId),
+}
+
 /// The attack runs that can end in one tick, each leaving its hit list behind: held to
 /// `MAX_ATTACK_TASKS` lists, which is also the most that can run at once.
 const HIT_LISTS: usize = super::MAX_ATTACK_TASKS as usize;
@@ -71,6 +80,11 @@ pub(crate) struct Scratch {
     pub(super) refused_spawns: u32,
     /// Wave spawns the director held so far in the tick; `step` hands it to `Load` too.
     pub(super) held_spawns: u32,
+    /// The `runs.len()` when the hit pass began; `None` outside the pass. While set, a run end
+    /// is only recorded in `ends_pending`.
+    pub(super) ends_pinned: Option<usize>,
+    /// The run ends the hit pass has deferred, applied after its last swing.
+    pub(super) ends_pending: Vec<RunEnd>,
     /// What `reserve` made room for; `None` for a scratch that was never reserved.
     reserved: Option<Reserved>,
 }
@@ -102,7 +116,8 @@ impl Scratch {
     /// - `hit_lists`: `MAX_ATTACK_TASKS` lists of one entry per enemy and a few more.
     /// - `swings`: a hit box per run and per zone; `consumed`: one per orb;
     ///   `ranged_grants`: `MAX_RANGED_ATTACKERS` ids in each pool;
-    ///   `shrine_ids`: one id per enemy;
+    ///   `shrine_ids`: one id per enemy; `ends_pending`: a stun per enemy, and a down and a hold
+    ///   break per player;
     ///   `bases`, `fallen`: one entry per enemy; `assist_kept`, `assist_targets`: the most homing
     ///   missiles a rune throws, and one more kept while a candidate is inserted.
     pub(super) fn reserve(&mut self, enemies: usize, width: i32, height: i32) {
@@ -131,9 +146,21 @@ impl Scratch {
             &mut self.swings,
             enemies + super::MAX_ZONES_ALIVE as usize + HIT_LIST_SPARE,
         );
+        reserve_to(
+            &mut self.ends_pending,
+            enemies + 2 * super::state::MAX_PLAYERS as usize,
+        );
         reserve_to(&mut self.consumed, super::MAX_ORBS_ALIVE as usize);
         for pool in &mut self.ranged_grants {
             reserve_to(pool, super::MAX_RANGED_ATTACKERS as usize);
+        }
+    }
+
+    /// Records a run end the hit pass defers, once however often it is asked for: a swing
+    /// after another stuns the same enemy again, and the list stays within its reserve.
+    pub(super) fn push_end(&mut self, end: RunEnd) {
+        if !self.ends_pending.contains(&end) {
+            self.ends_pending.push(end);
         }
     }
 

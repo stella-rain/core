@@ -34,6 +34,7 @@ use crate::trig;
 
 use super::entity::Who;
 use super::grid::Grid;
+use super::scratch::{RunEnd, Scratch};
 use super::{Blame, Culprit, Shot, damage, enemy_grid, hurt_player, overlaps};
 
 /// What a swing is made by, and so where the targets it has hit are kept.
@@ -159,22 +160,7 @@ pub(super) fn resolve(
             break_orbs(stage, s, me, &swings, events);
         }
     }
-    if s.next_orb_group > 0 {
-        // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
-        // the lowest slot first.
-        for me in s.players.indices() {
-            cage_beams(stage, s, me, events);
-        }
-    }
-    for w in &swings {
-        if w.friendly {
-            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
-            hit_enemy_side(stage, s, grid, w, (&mut bits, &mut found), events);
-        } else {
-            hit_players_side(stage, s, w, events);
-            hit_companions_side(stage, s, w, events);
-        }
-    }
+    land(stage, s, grid, &swings, (&mut bits, &mut found), events);
     if swings.iter().any(|w| w.once) {
         super::attacks::retain_runs(s, |r| r.homing.is_none() || r.hits.is_empty());
         s.move_index.rebuild(stage, &s.runs);
@@ -182,6 +168,66 @@ pub(super) fn resolve(
     s.scratch.swings = swings;
     s.scratch.found = found;
     s.scratch.found_bits = bits;
+}
+
+/// The cage beams, then every swing, one after another over the runs the pass collected them
+/// from.
+fn land(
+    stage: &World,
+    s: &mut State,
+    grid: &mut Option<Grid>,
+    swings: &[Swing],
+    (bits, found): (&mut Vec<u64>, &mut Vec<usize>),
+    events: &mut Vec<DomainEvent>,
+) {
+    // A run that ends in the pass (a player down, a hold broken, a stun) is ended after the
+    // last swing, so the places the swings hold stay valid (ADR-SIM-7).
+    s.scratch.ends_pinned = Some(s.runs.len());
+    if s.next_orb_group > 0 {
+        // A beam's `last_hit` is shared, so a beam hurts at most one player per `rehit_ticks`,
+        // the lowest slot first.
+        for me in s.players.indices() {
+            cage_beams(stage, s, me, events);
+        }
+    }
+    for w in swings {
+        if w.friendly {
+            let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
+            hit_enemy_side(stage, s, grid, w, (bits, found), events);
+        } else {
+            hit_players_side(stage, s, w, events);
+            hit_companions_side(stage, s, w, events);
+        }
+    }
+    apply_ends(stage, s);
+}
+
+/// Ends the runs that ended during the pass, in the order they were asked for, among the runs
+/// that existed when it began: a run a hit started in the pass is not touched.
+fn apply_ends(stage: &World, s: &mut State) {
+    let pinned = s.scratch.ends_pinned.take().unwrap_or(s.runs.len());
+    if s.scratch.ends_pending.is_empty() {
+        return;
+    }
+    let ends = std::mem::take(&mut s.scratch.ends_pending);
+    let mut at = 0;
+    s.runs.retain_mut(|r| {
+        let place = at;
+        at += 1;
+        let ended = place < pinned
+            && ends.iter().any(|e| match *e {
+                RunEnd::Slot(owner, slot) => r.owner == owner && r.slot == slot,
+                RunEnd::All(owner) => r.owner == owner,
+            });
+        if ended {
+            Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
+        }
+        !ended
+    });
+    s.move_index.rebuild(stage, &s.runs);
+    let mut ends = ends;
+    ends.clear();
+    s.scratch.ends_pending = ends;
 }
 
 /// A breakable enemy orb that a hit box of the main character covers is removed, with no burst,
@@ -859,5 +905,307 @@ mod party_tests {
             "the shared last hit spares slot 1 this tick"
         );
         assert_eq!(hurt_in(&ev), 1);
+    }
+
+    // A run end made during the pass (a player downed, a hold broken, a stun) must not shift the
+    // places the swings hold into `s.runs` (ADR-SIM-7).
+
+    const FOE: EntityId = EntityId(900);
+
+    /// A run of `owner` in `slot`, cloned from a real one, pushed; its place.
+    fn add_run(
+        s: &mut State,
+        template: &crate::sim::state::AttackRun,
+        owner: EntityId,
+        slot: u8,
+    ) -> usize {
+        let mut run = template.clone();
+        run.owner = owner;
+        run.slot = slot;
+        run.hits = Vec::new();
+        s.runs.push(run);
+        s.runs.len() - 1
+    }
+
+    fn at_place(mut w: Swing, place: usize, slot: u8) -> Swing {
+        w.source = Source::Run(place);
+        w.slot = slot;
+        w
+    }
+
+    fn pass(w: &World, s: &mut State, swings: &[Swing]) -> Vec<DomainEvent> {
+        let mut ev = Vec::new();
+        let (mut bits, mut found) = (Vec::new(), Vec::new());
+        land(w, s, &mut None, swings, (&mut bits, &mut found), &mut ev);
+        ev
+    }
+
+    fn hit_ids(s: &State, place: usize) -> Vec<EntityId> {
+        s.runs[place].hits.iter().map(|h| h.0).collect()
+    }
+
+    fn downed(ev: &[DomainEvent]) -> usize {
+        ev.iter()
+            .filter(|e| matches!(e, DomainEvent::PlayerDowned { .. }))
+            .count()
+    }
+
+    /// A party where players 1 and 2 stand together far from player 0, and player 1 goes down
+    /// on one hit. The runs: slot 1's combo run, then `foes` enemy runs.
+    fn downing(foes: usize) -> (World, State) {
+        let (w, mut s) = party();
+        let template = s.runs[0].clone();
+        s.runs.clear();
+        s.players[slot(2)].at = s.players[slot(1)].at;
+        s.players[slot(1)].hp = 1;
+        add_run(
+            &mut s,
+            &template,
+            slot(1).id(),
+            crate::sim::player::COMBO_SLOT,
+        );
+        for id in (900..).take(foes) {
+            add_run(&mut s, &template, EntityId(id), 0);
+        }
+        (w, s)
+    }
+
+    fn over(s: &State, i: u8, w: &World, owner: EntityId, place: usize) -> Swing {
+        at_place(
+            swing(s.players[slot(i)].at, w.tuning.player_radius, false, owner),
+            place,
+            0,
+        )
+    }
+
+    #[test]
+    fn a_player_downed_mid_swing_leaves_the_rest_of_the_swing_its_run() {
+        let (w, mut s) = downing(1);
+        let one = over(&s, 1, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(s.players[slot(1)].hp, 0);
+        assert_eq!(downed(&ev), 1);
+        assert_eq!(hurt_in(&ev), 2, "players 1 and 2 are each hurt once");
+        assert_eq!(s.runs.len(), 1, "the downed player's combo run is gone");
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+    }
+
+    #[test]
+    fn a_later_swing_writes_to_its_own_run_after_a_down() {
+        let (w, mut s) = downing(2);
+        let before = s.players[slot(0)].hp;
+        let swings = [over(&s, 1, &w, FOE, 1), over(&s, 0, &w, FOE, 2)];
+        let ev = pass(&w, &mut s, &swings);
+        assert_eq!(downed(&ev), 1);
+        assert!(
+            s.players[slot(0)].hp < before,
+            "the second swing hurts player 0"
+        );
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+        assert_eq!(hit_ids(&s, 1), vec![slot(0).id()]);
+    }
+
+    #[test]
+    fn a_down_does_not_move_a_hit_into_another_runs_list() {
+        let (w, mut s) = downing(3);
+        // The second foe has hit player 0 already; the third has hit nobody.
+        s.runs[2].hits.push((slot(0).id(), 0));
+        let swings = [over(&s, 1, &w, FOE, 1), over(&s, 0, &w, FOE, 2)];
+        pass(&w, &mut s, &swings);
+        assert_eq!(s.runs.len(), 3);
+        assert_eq!(hit_ids(&s, 0), vec![slot(1).id(), slot(2).id()]);
+        assert_eq!(
+            hit_ids(&s, 1),
+            vec![slot(0).id()],
+            "its own list, from before"
+        );
+        assert!(
+            hit_ids(&s, 2).is_empty(),
+            "the third foe's list is untouched"
+        );
+    }
+
+    #[test]
+    fn a_beam_that_downs_a_player_leaves_the_swings_their_runs() {
+        let (w, mut s) = downing(1);
+        let mid = s.players[slot(1)].at;
+        s.players[slot(2)].at = Point {
+            x: Fx(mid.x.0 + 4_000_000),
+            y: mid.y,
+        };
+        let link = |slot| crate::sim::state::OrbLink {
+            group: 1,
+            slot,
+            of: 2,
+            width: Fx::px(40),
+            damage: 10,
+            rehit_ticks: 30,
+            last_hit: None,
+        };
+        let end = |dx, k| {
+            let at = Point {
+                x: Fx(mid.x.0 + dx),
+                y: mid.y,
+            };
+            orb(at, FOE, Some(link(k)))
+        };
+        s.orbs = vec![end(-Fx::px(100).0, 0), end(Fx::px(100).0, 1)];
+        s.next_orb_group = 2;
+        s.tick = 100;
+        let one = over(&s, 2, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(s.players[slot(1)].hp, 0, "the beam downs player 1");
+        assert_eq!(downed(&ev), 1);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(hit_ids(&s, 0), vec![slot(2).id()]);
+    }
+
+    /// A single player, with a run of its own at place 0 and one foe run after it.
+    fn solo() -> (World, State) {
+        let e = worst_case::warmed_up();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules");
+        };
+        let mut s = state.clone();
+        assert_eq!(s.players.len(), 1);
+        let template = s.runs[0].clone();
+        s.runs.clear();
+        let p = &mut s.players[PlayerIdx::SOLO];
+        p.hp = p.max_hp;
+        p.invulnerable = 0;
+        s.companions.clear();
+        let me = slot(0).id();
+        add_run(&mut s, &template, me, crate::sim::player::COMBO_SLOT);
+        (world.clone(), s)
+    }
+
+    #[test]
+    fn a_hold_broken_by_the_swing_leaves_the_swings_their_runs() {
+        let (mut w, mut s) = solo();
+        // A second hit on the same player in the pass: the swing after the break is judged
+        // against its own run.
+        w.tuning.hit_invulnerable_ticks = 0;
+        let template = s.runs[0].clone();
+        add_run(&mut s, &template, FOE, 0);
+        add_run(&mut s, &template, EntityId(901), 0);
+        s.players[PlayerIdx::SOLO].combo.hold = Some(3);
+        let mut first = over(&s, 0, &w, FOE, 1);
+        first.breaks_charge = true;
+        let second = over(&s, 0, &w, EntityId(901), 2);
+        let ev = pass(&w, &mut s, &[first, second]);
+        assert_eq!(s.players[PlayerIdx::SOLO].combo.hold, None);
+        assert!(ev.iter().any(|e| matches!(e, DomainEvent::HoldBroken)));
+        assert_eq!(s.runs.len(), 2, "the held step's run ended after the pass");
+        assert!(s.runs.iter().all(|r| r.owner != slot(0).id()));
+        assert_eq!(hit_ids(&s, 0), vec![slot(0).id()]);
+        assert_eq!(hit_ids(&s, 1), vec![slot(0).id()]);
+    }
+
+    #[test]
+    fn a_stun_leaves_the_later_swing_its_run() {
+        let (w, mut s) = solo();
+        let template = s.runs[0].clone();
+        let x = (0..s.enemies.len())
+            .find(|&i| w.defs.agent(s.enemies[i].def).elite.is_none())
+            .expect("a regular enemy");
+        s.enemies[x].hp = u32::MAX / 2;
+        s.enemies[x].stun_immune = 0;
+        let xid = s.enemies[x].id;
+        add_run(&mut s, &template, xid, 0);
+        add_run(&mut s, &template, FOE, 0);
+        let me = slot(0).id();
+        let mut stun = at_place(swing(s.enemies[x].at, 1_000, true, me), 0, 0);
+        stun.combo = true;
+        stun.smash = Some(Smash::Stun { ticks: 30 });
+        let foe = over(&s, 0, &w, FOE, 2);
+        pass(&w, &mut s, &[stun, foe]);
+        assert!(
+            s.runs.iter().all(|r| r.owner != xid),
+            "the stunned enemy's run ended after the pass"
+        );
+        let foe_run = s.runs.iter().find(|r| r.owner == FOE).expect("its run");
+        assert_eq!(
+            foe_run.hits.iter().map(|h| h.0).collect::<Vec<_>>(),
+            vec![me]
+        );
+    }
+
+    #[test]
+    fn a_pass_with_no_run_end_changes_no_run() {
+        let (w, mut s) = downing(1);
+        s.players[slot(1)].hp = s.players[slot(1)].max_hp;
+        let one = over(&s, 1, &w, FOE, 1);
+        let ev = pass(&w, &mut s, &[one]);
+        assert_eq!(downed(&ev), 0);
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(hit_ids(&s, 1), vec![slot(1).id(), slot(2).id()]);
+        assert!(hit_ids(&s, 0).is_empty());
+    }
+
+    #[test]
+    fn the_ends_are_applied_once_and_leave_the_scratch_clean() {
+        let (w, mut s) = downing(1);
+        let owner = slot(1).id();
+        s.move_index.lower(owner, 50);
+        // A list with a room only this run's hit list has, so the pool shows it came back.
+        s.runs[0].hits = Vec::with_capacity(5);
+        s.runs[0].hits.push((slot(2).id(), 0));
+        let one = over(&s, 1, &w, FOE, 1);
+        pass(&w, &mut s, &[one]);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(
+            s.move_index.get(owner),
+            100,
+            "the index is rebuilt without it"
+        );
+        assert_eq!(s.scratch.ends_pinned, None);
+        assert!(s.scratch.ends_pending.is_empty());
+        assert!(
+            s.scratch.hit_lists.iter().any(|l| l.capacity() == 5),
+            "its hit list is kept"
+        );
+    }
+
+    #[test]
+    fn a_run_started_in_the_pass_survives_an_end_for_its_owner_and_slot() {
+        let (w, mut s) = downing(1);
+        let template = s.runs[1].clone();
+        let owner = slot(1).id();
+        s.scratch.ends_pinned = Some(s.runs.len());
+        // The run that existed ends; the one the pass started afterwards, same owner and slot,
+        // stays.
+        s.scratch
+            .ends_pending
+            .push(RunEnd::Slot(owner, crate::sim::player::COMBO_SLOT));
+        add_run(&mut s, &template, owner, crate::sim::player::COMBO_SLOT);
+        apply_ends(&w, &mut s);
+        assert_eq!(s.runs.len(), 2);
+        assert_eq!(s.runs[0].owner, FOE);
+        assert_eq!(s.runs[1].owner, owner);
+    }
+
+    #[test]
+    fn two_pending_ends_both_apply() {
+        let (w, mut s) = downing(2);
+        s.scratch.ends_pinned = Some(s.runs.len());
+        s.scratch
+            .ends_pending
+            .push(RunEnd::Slot(slot(1).id(), crate::sim::player::COMBO_SLOT));
+        s.scratch.ends_pending.push(RunEnd::All(EntityId(900)));
+        apply_ends(&w, &mut s);
+        assert_eq!(s.runs.len(), 1);
+        assert_eq!(s.runs[0].owner, EntityId(901));
+        assert_eq!(s.scratch.ends_pinned, None);
+    }
+
+    #[test]
+    fn the_same_end_asked_twice_is_kept_once() {
+        let (_, mut s) = downing(1);
+        let end = RunEnd::All(FOE);
+        s.scratch.push_end(end);
+        s.scratch.push_end(end);
+        s.scratch.push_end(RunEnd::All(EntityId(901)));
+        assert_eq!(s.scratch.ends_pending.len(), 2);
     }
 }
