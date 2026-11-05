@@ -2,9 +2,10 @@
 
 `core` runs its replay corpus and the engine's golden hash on a real iPhone, built and started from a Mac
 with a Cargo runner, `scripts/ios_device_runner.py`, that uses Xcode's own tools (`xcrun devicectl`,
-`codesign`, `security`). The iPhone 13 is the reference device. This is the iOS half of the device gate
-(ADR-REL-3): the same simulation on the phone's own arm64, iOS loader and libc gives the same state hash on
-every checked tick (ADR-SIM-3, ADR-PLAT-1).
+`codesign`, `security`). The iPhone 13 is the iOS reference device (ADR-PLAT-10 point 2). This is the iOS half
+of the device corpus run (ADR-REL-6): it runs after Promote, on the released tag, for each `0.N.0` release or
+when Kade asks, and is not a Candidate gate (ADR-REL-6 points 2 and 3). The same simulation on the phone's own
+arm64, iOS loader and libc gives the same state hash on every checked tick (ADR-SIM-3, ADR-PLAT-1).
 
 ## What runs, and what does not
 
