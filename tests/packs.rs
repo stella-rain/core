@@ -255,22 +255,37 @@ fn a_channel_key_twice_is_a_parse_error() {
 const REAL_MANIFEST: &[u8] = include_bytes!("fixtures/pack_signing/packs.json");
 const REAL_SIG: &[u8] = include_bytes!("fixtures/pack_signing/packs.json.minisig");
 
+/// The previous pack-signing key the fixture was signed with; core no longer trusts it.
+const OLD_KEY_ID: [u8; 8] = [0x61, 0x8d, 0x4d, 0x6a, 0xb8, 0x73, 0x67, 0xec];
+const OLD_PUBLIC_KEY: [u8; 32] = [
+    242, 178, 76, 159, 41, 113, 19, 194, 215, 104, 0, 53, 218, 1, 224, 172, 253, 14, 35, 188, 37,
+    4, 174, 51, 126, 171, 26, 196, 203, 224, 196, 73,
+];
+
+fn verify_with_old_key(
+    bytes: &[u8],
+    sig: &[u8],
+) -> Result<Packs, stella_rain_core::pack::trust::TrustError> {
+    stella_rain_core::pack::trust::verify_packs_with_keys(
+        bytes,
+        sig,
+        &[OLD_KEY_ID],
+        &[OLD_PUBLIC_KEY],
+    )
+}
+
 #[test]
 fn real_signature_has_the_prehashed_algorithm() {
     let text = std::str::from_utf8(REAL_SIG).unwrap();
     let bytes = stella_rain_core::base64::decode(text.lines().nth(1).unwrap()).unwrap();
     assert_eq!(bytes.len(), 74);
     assert_eq!(&bytes[0..2], b"ED");
-    assert_eq!(
-        bytes[2..10],
-        [0x61, 0x8d, 0x4d, 0x6a, 0xb8, 0x73, 0x67, 0xec]
-    );
+    assert_eq!(bytes[2..10], OLD_KEY_ID);
 }
 
 #[test]
 fn the_real_pack_signature_of_content_v0_0_7_rc_1_verifies() {
-    use stella_rain_core::pack::trust::verify_packs;
-    let packs = verify_packs(REAL_MANIFEST, REAL_SIG).expect("real signature verifies");
+    let packs = verify_with_old_key(REAL_MANIFEST, REAL_SIG).expect("real signature verifies");
     assert_eq!(packs.seq(), 2);
     assert_eq!(packs.channel("0.1").unwrap().tag(), "v0.0.6");
     assert_eq!(packs.channel("0.2").unwrap().tag(), "v0.0.7");
@@ -278,12 +293,12 @@ fn the_real_pack_signature_of_content_v0_0_7_rc_1_verifies() {
 
 #[test]
 fn a_one_byte_change_to_the_real_manifest_is_refused() {
-    use stella_rain_core::pack::trust::{TrustError, verify_packs};
+    use stella_rain_core::pack::trust::TrustError;
     let mut manifest = REAL_MANIFEST.to_vec();
     let at = manifest.windows(7).position(|w| w == b"\"seq\": ").unwrap() + 7;
     manifest[at] ^= 1;
     assert_eq!(
-        verify_packs(&manifest, REAL_SIG),
+        verify_with_old_key(&manifest, REAL_SIG),
         Err(TrustError::Signature)
     );
 
@@ -293,7 +308,7 @@ fn a_one_byte_change_to_the_real_manifest_is_refused() {
     global[0] = if global[0] == b'A' { b'B' } else { b'A' };
     lines[3] = String::from_utf8(global).unwrap();
     assert_eq!(
-        verify_packs(REAL_MANIFEST, lines.join("\n").as_bytes()),
+        verify_with_old_key(REAL_MANIFEST, lines.join("\n").as_bytes()),
         Err(TrustError::Signature)
     );
 }
