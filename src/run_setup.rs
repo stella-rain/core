@@ -112,11 +112,13 @@ pub struct RunSetup {
     pub weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     pub seed: u64,
-    /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.
+    /// The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards
+    /// an offer may hold, and in equipment mode the stars drops roll from, crafting draws from
+    /// and the Lumine star is picked from; each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
-    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
+    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in
+    /// equipment mode.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
     /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each
@@ -141,9 +143,11 @@ pub struct RunSetup {
     /// The stars the run starts holding, at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
     /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
+    /// None in equipment mode.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub carried: Vec<CarriedStar>,
-    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.
+    /// The level of the Lumine upgrade, at most `MAX_LUMINE`: in equipment mode the cap of the
+    /// Lumine star's rarity (ADR-SAVE-7 point 9), in offers mode the budget of `carried`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub lumine: u8,
     /// A rune the run starts holding: in the rune pool when there is one. It
@@ -157,17 +161,23 @@ pub struct RunSetup {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stat_priority: Vec<ContentId>,
     /// Each level reached opens an offer of the stats below their limit, answered through
-    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
+    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in
+    /// equipment mode.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
     /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup
-    /// written before the mode existed reads as it always did.
+    /// written before the mode existed reads as it always did. Not set (`timed`) in equipment
+    /// mode: nothing is offered.
     #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
     pub offer_mode: OfferMode,
-    /// How the run builds its character (ADR-SIM-7 point 4). Absent: `offers`.
+    /// How the run builds its character (ADR-SIM-7 points 4 and 7): the whole party's, one value
+    /// until a per-party setup exists. Absent: `offers`, so a setup written before the mode
+    /// existed reads as it always did.
     #[serde(default, skip_serializing_if = "BuildMode::is_offers")]
     pub build_mode: BuildMode,
-    /// The one star of the Lumine slot (ADR-SAVE-7 point 3): a reward ID of the run's rewards file.
+    /// The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's
+    /// rewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0
+    /// (the rule is not built yet). Its rarity is capped by `lumine`. Only in equipment mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lumine_star: Option<ContentId>,
 }
@@ -222,11 +232,13 @@ struct RunSetupFile {
     weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     seed: u64,
-    /// The rewards an offer may hold, by the IDs of the run's rewards file: the player's choice
-    /// in the Star Chart (ADR-REPL-5), each at most once. Absent: every reward in the file.
+    /// The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards
+    /// an offer may hold, and in equipment mode the stars drops roll from, crafting draws from
+    /// and the Lumine star is picked from; each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     star_pool: Option<Vec<ContentId>>,
-    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`.
+    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in
+    /// equipment mode.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
     /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each
@@ -251,9 +263,11 @@ struct RunSetupFile {
     /// The stars the run starts holding, at most `MAX_CARRIED_STARS`: each
     /// applies at tick 0 as if picked from an offer, in this order, and counts toward its
     /// reward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.
+    /// None in equipment mode.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     carried: Vec<CarriedStar>,
-    /// The Lumine budget, the level of the Lumine upgrade, at most `MAX_LUMINE`.
+    /// The level of the Lumine upgrade, at most `MAX_LUMINE`: in equipment mode the cap of the
+    /// Lumine star's rarity (ADR-SAVE-7 point 9), in offers mode the budget of `carried`.
     #[serde(default, skip_serializing_if = "is_zero")]
     lumine: u8,
     /// A rune the run starts holding: in the rune pool when there is one. It
@@ -267,7 +281,8 @@ struct RunSetupFile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stat_priority: Vec<ContentId>,
     /// Each level reached opens an offer of the stats below their limit, answered through
-    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false.
+    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in
+    /// equipment mode.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pick_stats: bool,
     /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`.
@@ -991,5 +1006,20 @@ mod tests {
         assert_eq!((setup.seed, setup.mode.as_str()), (7, "trial"));
         let bytes = serde_json::to_vec(&setup).unwrap();
         assert_eq!(serde_json::from_slice::<RunSetup>(&bytes).unwrap(), setup);
+    }
+
+    #[test]
+    fn an_equipment_setup_with_a_lumine_star_is_valid_and_reads_back() {
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            lumine: 1,
+            lumine_star: Some("max_hp_common".into()),
+            ..RunSetup::default()
+        };
+        assert_eq!(validate_in(&setup, RunContent::bundled()), Ok(()));
+        let text = serde_json::to_string(&setup).unwrap();
+        assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+        assert!(text.contains(r#""lumine_star":"max_hp_common""#), "{text}");
+        assert_eq!(serde_json::from_str::<RunSetup>(&text).unwrap(), setup);
     }
 }
