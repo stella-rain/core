@@ -682,6 +682,25 @@ fn a_forged_schema_version_is_refused() {
     assert!(!savepoint_load(&seed));
 }
 
+#[test]
+fn a_forged_equipment_block_is_refused() {
+    let mut seen = 0;
+    for (name, seed) in savepoint_seeds() {
+        if !name.starts_with("equipment-") {
+            continue;
+        }
+        seen += 1;
+        assert!(!savepoint_load(&seed), "{name} loads");
+        for prefix in savepoint_prefixes() {
+            assert!(
+                RunRecorder::resume_from_savepoint(&seed, prefix, Pack::bundled()).is_err(),
+                "{name}"
+            );
+        }
+    }
+    assert_eq!(seen, 4);
+}
+
 /// Writes the seeds of `savepoint_load` to the folder `SAVEPOINT_SEEDS_DIR` names, for a
 /// `cargo fuzz run` (they are generated, never committed).
 #[test]

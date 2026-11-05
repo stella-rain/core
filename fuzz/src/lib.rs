@@ -614,6 +614,63 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
         let at = valid.len() * k / 16;
         seeds.push((format!("flip-{at:04}"), edited(at, &|b| b ^ 0xff)));
     }
+    // The equipment block is the last thing the state hash covers: the ledger and the tallies
+    // follow it. Its end is the last byte whose flip is a `HashMismatch` (the replay prefix
+    // of the valid savepoint is its own run's). Each seed replaces its 17 empty bytes, moves
+    // the payload length by the difference and reseals.
+    let prefix = savepoint_recorder(Some(150)).replay();
+    let equipment_end = (HEADER_LEN..valid.len())
+        .rev()
+        .find(|&at| {
+            RunRecorder::resume_from_savepoint(
+                &reseal(edited(at, &|b| b ^ 1)),
+                &prefix,
+                Pack::bundled(),
+            )
+            .err()
+                == Some(SavepointError::HashMismatch)
+        })
+        .expect("a state byte")
+        + 1;
+    let with_tail = |tail: &[u8]| {
+        let mut bytes = valid[..equipment_end - 17].to_vec();
+        bytes.extend_from_slice(tail);
+        bytes.extend_from_slice(&valid[equipment_end..]);
+        let len = u32::from_le_bytes(
+            valid[PAYLOAD_LEN_AT..PAYLOAD_LEN_AT + 4]
+                .try_into()
+                .unwrap(),
+        ) - 17
+            + u32::try_from(tail.len()).unwrap();
+        bytes[PAYLOAD_LEN_AT..PAYLOAD_LEN_AT + 4].copy_from_slice(&len.to_le_bytes());
+        reseal(bytes)
+    };
+    let rest = [0u8; 8]; // starlight and tree points
+    let tail = |parts: &[&[u8]]| [parts.concat(), rest.to_vec()].concat();
+    seeds.push((
+        "equipment-inventory-over-bound".to_owned(),
+        with_tail(&tail(&[&u32::MAX.to_le_bytes(), &[0; 4], &[0]])),
+    ));
+    seeds.push((
+        "equipment-slots-over-bound".to_owned(),
+        with_tail(&tail(&[&[0; 4], &u32::MAX.to_le_bytes(), &[0]])),
+    ));
+    // One rune slot (kind 1, empty, expertise 0) at level 11, over the cap of 10.
+    seeds.push((
+        "equipment-level-over-cap".to_owned(),
+        with_tail(&tail(&[
+            &[0; 4],
+            &1u32.to_le_bytes(),
+            &[1, 0, 11],
+            &[0; 4],
+            &[0],
+        ])),
+    ));
+    // A Lumine slot (kind 2, empty, level 1) in a run whose setup names no Lumine star.
+    seeds.push((
+        "equipment-lumine-without-setup".to_owned(),
+        with_tail(&tail(&[&[0; 8], &[1, 2, 0, 1], &[0; 4]])),
+    ));
     let mut trailing = valid.clone();
     trailing.push(0);
     seeds.push(("trailing".to_owned(), trailing));
