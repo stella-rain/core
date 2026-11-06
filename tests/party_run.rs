@@ -416,9 +416,9 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
     ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 770),
     ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
-    ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 0),
+    ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
+    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 830),
+    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1140),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
@@ -434,9 +434,15 @@ const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
 /// replace, extract, craft, tree_pick]`. From the seed search, not edited.
 const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
-    ("equipment_rig_1", [[0; 5], [0; 5], [0; 5]]),
-    ("equipment_rig_2", [[0; 5], [0; 5], [0; 5]]),
-    ("equipment_rig_3", [[0; 5], [0; 5], [0; 5]]),
+    ("equipment_rig_1", [[12, 1, 47, 3, 1], [0; 5], [0; 5]]),
+    (
+        "equipment_rig_2",
+        [[12, 0, 26, 1, 1], [10, 0, 29, 3, 1], [0; 5]],
+    ),
+    (
+        "equipment_rig_3",
+        [[12, 2, 50, 2, 1], [11, 1, 54, 4, 0], [12, 2, 50, 2, 1]],
+    ),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
