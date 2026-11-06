@@ -228,10 +228,6 @@ mod grants {
         with(rewards())
     }
 
-    fn fixture_levels() -> Fixture {
-        fixture()
-    }
-
     /// A solo state over `rewards`, with the slot layout and room for every star in the pool.
     pub(super) fn with(rewards: Rewards) -> Fixture {
         build(rewards, true)
@@ -431,7 +427,7 @@ mod grants {
     /// stay as they were. A random rune in a bundle draws nothing.
     #[test]
     fn rerolls_banishes_and_the_random_rune_grant_nothing_else() {
-        let mut f = fixture_levels();
+        let mut f = fixture();
         let o = |f: &Fixture| {
             let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
             (o.rerolls_left, o.banishes_left, o.extra_candidates)
@@ -461,7 +457,7 @@ mod grants {
     /// takes them back exactly; the offers stay as they were.
     #[test]
     fn a_growth_star_writes_stats_in_equipment_mode() {
-        let mut f = fixture_levels();
+        let mut f = fixture();
         let offers = |f: &Fixture| {
             let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
             (o.rerolls_left, o.banishes_left, o.extra_candidates)
@@ -486,7 +482,7 @@ mod grants {
     /// T8: the Growth amount is not level-scaled, `xp_pct` is.
     #[test]
     fn the_growth_amount_is_not_level_scaled() {
-        let mut f = fixture_levels();
+        let mut f = fixture();
         f.set(0, Some(GROWTH));
         let xp1 = f.total(StatEffect::XpPct);
         f.change(|e| e.slots[0].level = 10);
