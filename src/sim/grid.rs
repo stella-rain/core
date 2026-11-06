@@ -68,12 +68,20 @@ impl Grid {
     ) {
         self.circles.clear();
         self.circles.extend(circles);
-        let circles = &self.circles;
-        let xs = circles.iter().map(|c| i64::from(c.0.x.0));
-        let ys = circles.iter().map(|c| i64::from(c.0.y.0));
-        let (min_x, max_x) = (xs.clone().min().unwrap_or(0), xs.max().unwrap_or(0));
-        let (min_y, max_y) = (ys.clone().min().unwrap_or(0), ys.max().unwrap_or(0));
-        let largest = circles.iter().map(|c| i64::from(c.1)).max().unwrap_or(0);
+        // One walk for the corner, the far corner and the largest radius; an empty grid has 0.
+        let (mut min_x, mut max_x, mut min_y, mut max_y, mut largest) =
+            (i64::MAX, i64::MIN, i64::MAX, i64::MIN, i64::MIN);
+        for &(at, radius) in &self.circles {
+            let (x, y) = (i64::from(at.x.0), i64::from(at.y.0));
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+            largest = largest.max(i64::from(radius));
+        }
+        if self.circles.is_empty() {
+            (min_x, max_x, min_y, max_y, largest) = (0, 0, 0, 0, 0);
+        }
         let cell = (i64::from(probe_radius) + largest).max(MIN_CELL);
         self.min_x = min_x;
         self.min_y = min_y;
@@ -141,9 +149,11 @@ impl Grid {
         ];
         let mut read = 0;
         let (col, row) = self.col_row(self.circles[me].0);
+        // A circle's cell is inside the grid; when it is not on the grid's edge, all 9 cells are.
+        let inside = col >= 1 && col + 1 < self.cols && row >= 1 && row + 1 < self.rows;
         for &(dc, dr) in &AROUND {
             let (c, r) = (col + dc, row + dr);
-            if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
+            if !inside && (!(0..self.cols).contains(&c) || !(0..self.rows).contains(&r)) {
                 continue;
             }
             // The range check above puts `r * cols + c` in `0..cols * rows`, the length of
@@ -283,6 +293,95 @@ mod tests {
                 grid.within(at, reach, &mut bits, &mut found);
                 assert_eq!(found, scan_all(&shapes, at, reach), "seed {seed}");
             }
+        }
+    }
+
+    /// `rebuild` as it was before the push-apply speedups (ADR-SIM-6), into a fresh grid.
+    fn rebuild_before_push_perf(circles: &[(Point, i32)], probe_radius: i32) -> Grid {
+        let mut g = Grid {
+            circles: circles.to_vec(),
+            ..Grid::default()
+        };
+        let xs = circles.iter().map(|c| i64::from(c.0.x.0));
+        let ys = circles.iter().map(|c| i64::from(c.0.y.0));
+        let (min_x, max_x) = (xs.clone().min().unwrap_or(0), xs.max().unwrap_or(0));
+        let (min_y, max_y) = (ys.clone().min().unwrap_or(0), ys.max().unwrap_or(0));
+        let largest = circles.iter().map(|c| i64::from(c.1)).max().unwrap_or(0);
+        let cell = (i64::from(probe_radius) + largest).max(super::MIN_CELL);
+        g.min_x = min_x;
+        g.min_y = min_y;
+        g.largest = largest;
+        g.cell = cell;
+        g.cols = (max_x - min_x) / cell + 1;
+        g.rows = (max_y - min_y) / cell + 1;
+        let cells: Vec<usize> = circles.iter().map(|c| g.cell_of(c.0)).collect();
+        g.start = vec![0; cell_index(g.cols * g.rows) + 1];
+        for &c in &cells {
+            g.start[c + 1] += 1;
+        }
+        for c in 1..g.start.len() {
+            g.start[c] += g.start[c - 1];
+        }
+        let mut next = g.start.clone();
+        g.members = vec![0; cells.len()];
+        for (i, &c) in cells.iter().enumerate() {
+            g.members[next[c] as usize] = u32::try_from(i).unwrap();
+            next[c] += 1;
+        }
+        g
+    }
+
+    fn assert_same_grid(a: &Grid, b: &Grid, what: &str) {
+        assert_eq!(a.circles, b.circles, "{what}: circles");
+        assert_eq!(
+            (a.min_x, a.min_y, a.largest, a.cell, a.cols, a.rows),
+            (b.min_x, b.min_y, b.largest, b.cell, b.cols, b.rows),
+            "{what}: corner, largest, cell, size"
+        );
+        assert_eq!(a.start, b.start, "{what}: start");
+        assert_eq!(a.members, b.members, "{what}: members");
+    }
+
+    /// The built fields equal the base build's over the seeded layouts, an empty grid and a
+    /// one-circle grid; a grid rebuilt over a larger one keeps no trace of it.
+    #[test]
+    fn rebuild_equals_the_base_rebuild() {
+        let mut rng = Lcg(7);
+        let mut reused = Grid::default();
+        for seed in 0..40 {
+            let (span, kind) = [(40_000, 0), (1_000_000, 1), (200_000, 2)][seed % 3];
+            let shapes: Vec<(Point, i32)> = (0..150)
+                .map(|_| {
+                    let (x, y) = match kind {
+                        2 => (rng.below(25) * 8_192, rng.below(25) * 8_192),
+                        _ => (rng.below(span), rng.below(span)),
+                    };
+                    (Point { x: Fx(x), y: Fx(y) }, 1_000 + rng.below(3_000))
+                })
+                .collect();
+            for probe in [512, 4_000] {
+                let what = format!("seed {seed} probe {probe}");
+                assert_same_grid(
+                    &Grid::new(shapes.clone(), probe),
+                    &rebuild_before_push_perf(&shapes, probe),
+                    &what,
+                );
+                reused.rebuild(shapes.iter().copied(), probe);
+                assert_same_grid(&reused, &rebuild_before_push_perf(&shapes, probe), &what);
+            }
+        }
+        for shapes in [
+            Vec::new(),
+            vec![(
+                Point {
+                    x: Fx(-5),
+                    y: Fx(9),
+                },
+                2_048,
+            )],
+        ] {
+            reused.rebuild(shapes.iter().copied(), 2_048);
+            assert_same_grid(&reused, &rebuild_before_push_perf(&shapes, 2_048), "small");
         }
     }
 
