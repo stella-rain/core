@@ -389,7 +389,6 @@ fn the_new_effects_follow_the_six() {
         (StatEffect::PickupRadiusPct, "pickup_radius_pct"),
         (StatEffect::StardustPct, "stardust_pct"),
     ];
-    assert_eq!(StatEffect::ALL.len(), 11);
     assert_eq!(StatEffect::RELEASED, StatEffect::ALL[..6]);
     for (i, (effect, name)) in new.into_iter().enumerate() {
         assert_eq!(StatEffect::ALL[6 + i], effect);
@@ -402,6 +401,32 @@ fn the_new_effects_follow_the_six() {
 
     let mut v = file(vec![stat("dust")]);
     v["stats"][0]["effect"] = json!("stardust_pct");
+    assert!(parse(&v).is_ok());
+    v["stats"][0]["step"] = json!(0);
+    invalid_at(&v, "$.stats[0].step");
+}
+
+/// T1: the two stage-skill and range effects follow the eleven, by index and by name.
+#[test]
+fn the_new_effects_follow_the_eleven() {
+    assert_eq!(StatEffect::ALL.len(), 13);
+    let new = [
+        (StatEffect::SkillCooldownPct, "skill_cooldown_pct"),
+        (StatEffect::RangePct, "range_pct"),
+    ];
+    for (i, (effect, name)) in new.into_iter().enumerate() {
+        assert_eq!(StatEffect::ALL[11 + i], effect);
+        assert_eq!(effect as usize, 11 + i);
+        assert_eq!(serde_json::to_value(effect).unwrap(), json!(name));
+        let back: StatEffect = serde_json::from_value(json!(name)).unwrap();
+        assert_eq!(back, effect);
+    }
+    assert!(serde_json::from_value::<StatEffect>(json!("range")).is_err());
+
+    let mut v = file(vec![stat("reach")]);
+    v["stats"][0]["effect"] = json!("range_pct");
+    v["stats"][0]["step"] = json!(5);
+    v["stats"][0]["limit"] = json!(3);
     assert!(parse(&v).is_ok());
     v["stats"][0]["step"] = json!(0);
     invalid_at(&v, "$.stats[0].step");

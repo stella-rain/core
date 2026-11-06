@@ -191,6 +191,8 @@ mod state_hash;
 mod stun;
 #[cfg(test)]
 mod tether_tests;
+#[cfg(test)]
+mod tree_stats_tests;
 mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};

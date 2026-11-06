@@ -14,7 +14,7 @@ use crate::run_stats::StatEffect;
 use crate::snapshot::ExpertiseOfferKind;
 use crate::stage::LevelTable;
 
-fn state_of(e: &Engine) -> &State {
+pub(super) fn state_of(e: &Engine) -> &State {
     match e.run() {
         Run::V2 { state, .. } => state,
         Run::V1 { .. } => panic!("the live rules"),
@@ -22,7 +22,7 @@ fn state_of(e: &Engine) -> &State {
 }
 
 /// An engine whose run has levels and the expertise gauge, in the build mode `mode`.
-fn engine(build_mode: BuildMode) -> Engine {
+pub(super) fn engine(build_mode: BuildMode) -> Engine {
     Engine::start(&RunSetup {
         mode: "time_limit".into(),
         build_mode,
@@ -33,7 +33,12 @@ fn engine(build_mode: BuildMode) -> Engine {
 
 /// Gives player 0 the experience of `n` levels at once, returning the events and leaving the
 /// priority as `priority` (places of the run stats) with the stat offer switch `pick_stats`.
-fn level_up(e: &mut Engine, priority: &[u8], pick_stats: bool, n: u32) -> Vec<DomainEvent> {
+pub(super) fn level_up(
+    e: &mut Engine,
+    priority: &[u8],
+    pick_stats: bool,
+    n: u32,
+) -> Vec<DomainEvent> {
     let Run::V2 { world, state } = e.run_mut() else {
         panic!("the live rules");
     };
@@ -52,7 +57,7 @@ fn level_up(e: &mut Engine, priority: &[u8], pick_stats: bool, n: u32) -> Vec<Do
     events
 }
 
-fn progress(e: &Engine) -> &super::state::Progress {
+pub(super) fn progress(e: &Engine) -> &super::state::Progress {
     state_of(e)
         .players
         .career(PlayerIdx::SOLO)
@@ -137,7 +142,7 @@ fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
 // --- the automatic common levels ----------------------------------------------------------------
 
 /// A time-limit equipment engine with the hammer, whose trees are `crush`, `quake` and `bulwark`.
-fn hammer() -> Engine {
+pub(super) fn hammer() -> Engine {
     Engine::start(&RunSetup {
         mode: "time_limit".into(),
         build_mode: BuildMode::Equipment,
@@ -149,7 +154,7 @@ fn hammer() -> Engine {
 
 /// Sets player 0's gauge to `level` with the levels up to `offered` passed, `style` chosen, and
 /// the stat priority; then passes the levels due, returning the events they made.
-fn pass(
+pub(super) fn pass(
     e: &mut Engine,
     offered: u32,
     level: u32,
@@ -169,7 +174,7 @@ fn pass(
     e.events().to_vec()
 }
 
-fn gauge(e: &Engine) -> &super::state::ExpertiseGauge {
+pub(super) fn gauge(e: &Engine) -> &super::state::ExpertiseGauge {
     state_of(e)
         .players
         .career(PlayerIdx::SOLO)
@@ -178,12 +183,12 @@ fn gauge(e: &Engine) -> &super::state::ExpertiseGauge {
         .expect("a gauge")
 }
 
-fn total(e: &Engine, effect: StatEffect) -> u32 {
+pub(super) fn total(e: &Engine, effect: StatEffect) -> u32 {
     progress(e).totals[effect as usize]
 }
 
-const ATTACK: u8 = 1;
-const SPEED: u8 = 4;
+pub(super) const ATTACK: u8 = 1;
+pub(super) const SPEED: u8 = 4;
 
 /// R1: a common level adds no stat: the totals stay as they were across a pass of common levels
 /// with a style chosen (a weapon's own stat set is written into `set_tenths`, not `totals`).
@@ -303,7 +308,7 @@ fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
 
 // --- the tree points ------------------------------------------------------------------------------
 
-fn world_state(e: &mut Engine) -> (&super::World, &mut State) {
+pub(super) fn world_state(e: &mut Engine) -> (&super::World, &mut State) {
     match e.run_mut() {
         Run::V2 { world, state } => (&*world, state),
         Run::V1 { .. } => panic!("the live rules"),
@@ -311,7 +316,7 @@ fn world_state(e: &mut Engine) -> (&super::World, &mut State) {
 }
 
 /// The player 0's `TreePick` through the sim's entry point.
-fn tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
+pub(super) fn tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
     let (world, state) = world_state(e);
     super::tree_pick_action(world, Expertise::bundled(), state, PlayerIdx::SOLO, option)
 }
@@ -322,7 +327,7 @@ fn check_tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
 }
 
 /// What the next tree pick is: its kind, its level, the points held and its choices' IDs.
-fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<String>)> {
+pub(super) fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<String>)> {
     let (world, state) = world_state(e);
     let g = state.players.career(PlayerIdx::SOLO).expertise.as_ref()?;
     let t = expertise::tree_next(world, Expertise::bundled(), g)?;
@@ -334,7 +339,7 @@ fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<String>)> {
     ))
 }
 
-fn reach(e: &mut Engine, level: u32) {
+pub(super) fn reach(e: &mut Engine, level: u32) {
     pass(e, 0, level, None, &[ATTACK]);
 }
 

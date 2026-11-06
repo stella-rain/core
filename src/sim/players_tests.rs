@@ -299,14 +299,17 @@ mod careers {
             offer_open: false,
             spent: vec![1],
             totals: [2; StatEffect::ALL.len()],
+            set_tenths: [3; StatEffect::ALL.len()],
         }
     }
 
-    /// T4: the live state keeps one total per effect, 11; the frozen one keeps the released 6.
+    /// T4: the live state keeps one total and one tenths entry per effect, 13; the frozen one
+    /// keeps the released 6 totals and no tenths.
     #[test]
-    fn the_state_layout_has_eleven_totals() {
-        assert_eq!(progress().totals.len(), 11);
-        assert_eq!(StatEffect::ALL.len(), 11);
+    fn the_state_layout_has_thirteen_totals_and_tenths() {
+        assert_eq!(progress().totals.len(), 13);
+        assert_eq!(progress().set_tenths.len(), 13);
+        assert_eq!(StatEffect::ALL.len(), 13);
         assert_eq!(StatEffect::RELEASED.len(), 6);
     }
 
@@ -373,8 +376,9 @@ mod careers {
             offer_open: _,
             spent: _,
             totals: _,
+            set_tenths: _,
         } = progress();
-        let edits: [(&str, Edit); 9] = [
+        let edits: [(&str, Edit); 11] = [
             ("level", |p| p.level += 1),
             ("xp", |p| p.xp += 1),
             ("priority", |p| p.priority.push(1)),
@@ -383,7 +387,9 @@ mod careers {
             ("offer_open", |p| p.offer_open = !p.offer_open),
             ("spent", |p| p.spent[0] += 1),
             ("totals", |p| p.totals[0] += 1),
-            ("the last total", |p| p.totals[10] += 1),
+            ("the last total", |p| p.totals[12] += 1),
+            ("set_tenths", |p| p.set_tenths[0] += 1),
+            ("the last set_tenths", |p| p.set_tenths[12] += 1),
         ];
         for (name, edit) in edits {
             let mut s = base.clone();
