@@ -435,3 +435,28 @@ fn the_recorder_and_the_replay_make_extract_and_craft() {
     let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");
     assert_eq!(verified.final_hash, rec.engine().state_hash());
 }
+
+/// T19: a run resumed from a savepoint cut after an extract and a craft matches the straight
+/// run's hashes (the codec carries Starlight and the inventory).
+#[test]
+fn a_run_resumed_after_extract_and_craft_matches_the_straight_run() {
+    let (mut live, actions) = extract_then_craft();
+    for a in &actions {
+        live.step(&acting(*a)).unwrap();
+    }
+    let prefix = live.replay();
+    let saved = live.save();
+    let pack = Pack::bundled();
+    let mut resumed = RunRecorder::resume_from_savepoint(&saved, &prefix, pack).unwrap();
+    for t in 0..60 {
+        assert_eq!(
+            resumed.engine().state_hash(),
+            live.engine().state_hash(),
+            "{t}"
+        );
+        for rec in [&mut live, &mut resumed] {
+            rec.step(&[Input::default(); 3]).unwrap();
+        }
+    }
+    assert_eq!(resumed.replay(), live.replay());
+}

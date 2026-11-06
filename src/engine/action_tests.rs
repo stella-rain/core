@@ -431,4 +431,115 @@ mod equipment_runs {
             "an equipment action on tick 12 crafts a star into a full inventory"
         );
     }
+    /// Gives `player` a star in the inventory, or in category slot 0, or in the Lumine slot.
+    fn put(e: &mut Engine, player: u8, held: Held, into: &str) {
+        match e.run_mut() {
+            Run::V2 { state, .. } => {
+                let eq = &mut state.players.career_mut(slot(player)).equipment;
+                match into {
+                    "inventory" => eq.inventory.push(held),
+                    "slot" => eq.slots[0].held = Some(held),
+                    "lumine" => eq.lumine.as_mut().expect("a Lumine slot").held = Some(held),
+                    _ => panic!("{into}"),
+                }
+            }
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+    }
+
+    /// T18: the snapshot shows the balance and the prices; an offers run shows neither.
+    #[test]
+    fn the_snapshot_shows_the_balance_and_the_prices() {
+        use crate::rewards::Rarity;
+        let mut e = started(false, 1);
+        e.act(PlayerIdx::SOLO, extract(0)).unwrap();
+        let snap = e.snapshot();
+        assert_eq!(snap.players[0].starlight, EXTRACT_VALUE[0]);
+        let view = snap.starlight.as_ref().expect("equipment mode");
+        assert_eq!(view.prices.len(), 6);
+        for (i, (price, rarity)) in view.prices.iter().zip(Rarity::ALL).enumerate() {
+            assert_eq!(price.rarity, rarity);
+            assert_eq!(price.extract, EXTRACT_VALUE[i]);
+            assert_eq!(price.craft, CRAFT_PRICE[i]);
+        }
+        assert_eq!(view.rune_extract, crate::sim::starlight::RUNE_EXTRACT);
+        assert_eq!(view.boss_bonus, crate::sim::starlight::BOSS_BONUS);
+        let json = serde_json::to_value(&snap).unwrap();
+        assert_eq!(
+            json["players"][0]["starlight"],
+            serde_json::json!(EXTRACT_VALUE[0])
+        );
+        assert!(json["starlight"]["prices"].is_array());
+        // Offers mode: no key at all.
+        let offers = Engine::start(&setup()).unwrap();
+        let json = serde_json::to_value(offers.snapshot()).unwrap();
+        assert!(json.get("starlight").is_none());
+        assert!(json["players"][0].get("starlight").is_none());
+        assert!(json["players"][0].get("pool_held").is_none());
+    }
+
+    /// T20: the snapshot marks which pool stars a player holds, by the test a craft uses.
+    #[test]
+    fn the_snapshot_marks_a_held_star() {
+        let pooled = RunSetup {
+            star_pool: Some(vec!["star_altair".into(), "max_hp_common".into()]),
+            ..equipment(true)
+        };
+        let fresh = || Engine::start_party(&pooled, 2).unwrap();
+        let held = |e: &Engine, p: usize| e.snapshot().players[p].pool_held.clone();
+        let agree = |e: &mut Engine| {
+            set_starlight(e, 0, 100_000);
+            set_starlight(e, 1, 100_000);
+            for (p, me) in [slot(0), slot(1)].into_iter().enumerate() {
+                let marks = held(e, p);
+                assert_eq!(marks.len(), 2);
+                for (i, mark) in marks.iter().enumerate() {
+                    let refused = e.check_action(me, craft(u32::try_from(i).unwrap()))
+                        == Err(ActionError::AlreadyHeld {
+                            star: u32::try_from(i).unwrap(),
+                        });
+                    assert_eq!(*mark, refused, "player {p} star {i}");
+                }
+            }
+        };
+        let e = fresh();
+        let altair = Held::Star(place(&e, "star_altair"));
+        let common = Held::Star(place(&e, "max_hp_common"));
+        let mut e = fresh();
+        assert_eq!((held(&e, 0), held(&e, 1)), (vec![false; 2], vec![false; 2]));
+        agree(&mut e);
+        for into in ["inventory", "slot", "lumine"] {
+            let mut e = fresh();
+            put(&mut e, 0, altair, into);
+            assert_eq!(held(&e, 0), [true, false], "{into}");
+            assert_eq!(held(&e, 1), [false, false], "{into}");
+            agree(&mut e);
+        }
+        // An unnamed star held does not mark, and a craft of it is accepted.
+        let mut e = fresh();
+        put(&mut e, 0, common, "inventory");
+        assert_eq!(held(&e, 0), [false, false]);
+        agree(&mut e);
+        assert_eq!(e.check_action(slot(0), craft(1)), Ok(()));
+        // Extracting the named star clears the mark.
+        let mut e = fresh();
+        put(&mut e, 0, altair, "inventory");
+        let at = u32::try_from(
+            equipment_of(&e, 0)
+                .inventory
+                .iter()
+                .position(|h| *h == altair)
+                .unwrap(),
+        )
+        .unwrap();
+        e.act(slot(0), extract(at)).unwrap();
+        assert_eq!(held(&e, 0), [false, false]);
+        agree(&mut e);
+        assert_eq!(e.check_action(slot(0), craft(0)), Ok(()));
+        let json = serde_json::to_value(e.snapshot()).unwrap();
+        assert_eq!(
+            json["players"][0]["pool_held"],
+            serde_json::json!([false, false])
+        );
+    }
 }
