@@ -433,6 +433,29 @@ impl Run {
         }
     }
 
+    /// Whether `player` could take choice `option` of the next tree pick: `None` where no rule
+    /// applies.
+    pub(crate) fn check_tree_pick(
+        &self,
+        expertise: &Expertise,
+        player: PlayerIdx,
+        option: u32,
+    ) -> Option<Result<(), sim::TreeError>> {
+        match self {
+            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_tree_pick(
+                world, expertise, state, player, option,
+            )),
+            Run::V1 { .. } | Run::V2 { .. } => None,
+        }
+    }
+
+    /// Makes a tree pick already accepted by `check_tree_pick`.
+    pub(crate) fn tree_pick(&mut self, expertise: &Expertise, player: PlayerIdx, option: u32) {
+        if let Run::V2 { world, state } = self {
+            let _ = sim::tree_pick_action(world, expertise, state, player, option);
+        }
+    }
+
     /// Whether `player` has an offer open.
     pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
         match self {
