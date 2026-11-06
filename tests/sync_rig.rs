@@ -540,8 +540,8 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
 
 /// The building rig cases: every slot equips, extracts and the like, recorded as ACTIONS steps.
 const EQUIP_CASES: [&str; 3] = ["equipment_rig_1", "equipment_rig_2", "equipment_rig_3"];
-/// The stride of the equipment cases' windows (a multiple of the boundaries), chosen so that the
-/// whole module stays under 30 s in `cargo test --release` (12.4 s measured at 2; 4 was the
+/// The stride of the equipment cases' windows, the same as `STRIDE`: every second boundary, every
+/// depth. The whole module stays under 30 s in `cargo test --release` (12.4 s measured at 2; 4 was the
 /// first try and the module took 10.6 s).
 const EQUIP_STRIDE: u32 = 2;
 
@@ -574,21 +574,7 @@ fn a_rollback_of_every_depth_agrees_in_the_equipment_cases() {
             "{}: re-stepped ticks",
             case.name
         );
-    }
-}
-
-#[test]
-fn a_window_replays_actions() {
-    for case in equip_cases() {
-        let len = case.len();
-        let report = sync_test(
-            &case.rig,
-            &case.rig,
-            &case.replay.setup,
-            1..=MAX_DEPTH,
-            0..=len,
-            EQUIP_STRIDE,
-        );
+        // S2: windows replay actions, and some start just before an ACTIONS step.
         assert!(report.actions_replayed > 0, "{}: an action", case.name);
         assert!(report.on_action > 0, "{}: a window on an action", case.name);
     }

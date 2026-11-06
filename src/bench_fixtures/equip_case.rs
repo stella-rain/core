@@ -175,5 +175,6 @@ pub fn window() -> (u32, u32) {
             heaviest = (w, MINUTE_START + i);
         }
     }
+    assert!(heaviest.0 > 0, "a tick with every inventory stocked");
     (MINUTE_START, heaviest.1)
 }
