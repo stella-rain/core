@@ -164,3 +164,75 @@ fn a_resumed_equipment_run_matches_the_straight_run() {
     }
     assert_eq!(by_savepoint.replay(), live.replay());
 }
+
+/// The slots of player 0 as the snapshot's JSON shows them.
+fn slots_json(e: &Engine) -> Vec<serde_json::Value> {
+    let player = serde_json::to_value(&e.snapshot().players[0]).unwrap();
+    player
+        .get("slots")
+        .and_then(|s| s.as_array())
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// T26: the snapshot lists the 12 slots in order and the Lumine slot last, with what each holds;
+/// an offers run shows none.
+#[test]
+fn the_snapshot_shows_the_slots() {
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        starting_rune: Some("thunder".into()),
+        lumine: 1,
+        lumine_star: Some("max_hp_common".into()),
+        pick_stats: false,
+        ..RunSetup::default()
+    };
+    let e = Engine::start(&setup).unwrap();
+    let slots = slots_json(&e);
+    assert_eq!(slots.len(), 13);
+    let kinds: Vec<String> = slots
+        .iter()
+        .map(|s| s["kind"]["kind"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(kinds[..9], ["category"; 9]);
+    assert_eq!(kinds[9..12], ["rune"; 3]);
+    assert_eq!(kinds[12], "lumine");
+    let index: Vec<u64> = slots[..9]
+        .iter()
+        .map(|s| s["kind"]["index"].as_u64().unwrap())
+        .collect();
+    assert_eq!(index, [0, 0, 0, 0, 0, 1, 1, 2, 2]);
+    assert!(slots[0].get("held").is_none());
+    assert_eq!(slots[0]["level"], 0);
+    assert_eq!(
+        slots[9]["held"],
+        serde_json::json!({ "kind": "rune", "rune": "thunder" })
+    );
+    assert_eq!(slots[9]["level"], 1);
+    assert_eq!(
+        slots[12]["held"],
+        serde_json::json!({ "kind": "star", "id": "max_hp_common", "rarity": "common" })
+    );
+    assert_eq!(slots[12]["expertise"], 0);
+
+    // After an equip the slot shows the star.
+    let (mut rec, a, _) = recorded();
+    let EquipAction::Equip { item, slot } = a else {
+        panic!("an equip")
+    };
+    let id =
+        serde_json::to_value(&rec.engine().snapshot().players[0].inventory[item as usize]).unwrap();
+    rec.step(&acting(a)).unwrap();
+    let now = slots_json(rec.engine());
+    assert_eq!(now[slot as usize]["held"], id);
+    assert_eq!(now[slot as usize]["level"], 1);
+
+    // An offers run has no slots key at all.
+    let offers = Engine::start(&RunSetup::default()).unwrap();
+    let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
+    assert!(json.get("slots").is_none());
+
+    // The generated schema describes the view.
+    let schema = include_str!("../schema/snapshot.schema.json");
+    assert!(schema.contains("\"SlotView\""));
+}
