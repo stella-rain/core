@@ -1466,3 +1466,89 @@ mod bundled_lumine {
         );
     }
 }
+
+// --- the rules are the pack's (ADR-CONT-3 point 8) -------------------------------------------------
+
+mod pack_rules {
+    use super::super::slots;
+    use crate::rewards::{EquipmentCategory, EquipmentRules};
+
+    fn rules() -> EquipmentRules {
+        slots::bundled_rules().clone()
+    }
+
+    /// T8: the kills each level takes are the pack's list.
+    #[test]
+    fn the_kills_each_level_takes_are_the_rules() {
+        let mut r = rules();
+        r.kills_to_next = (1..=9).collect();
+        assert_eq!(slots::gain(&r, 1, 0, 1), (2, 0));
+        assert_eq!(slots::gain(&r, 1, 0, 45), (10, 0));
+        assert_eq!(slots::gain(&r, 1, 0, 44), (9, 8));
+    }
+
+    /// T8: what a level adds is the pack's percent.
+    #[test]
+    fn what_a_level_adds_is_the_rules_percent() {
+        let mut r = rules();
+        r.level_pct = 10;
+        assert_eq!(slots::level_scaled(&r, 100, 4), 130);
+        assert_eq!(slots::level_scaled(&r, 100, 1), 100);
+    }
+
+    /// T8: the layout is the pack's categories in order, then its rune slots.
+    #[test]
+    fn the_layout_is_the_rules_categories_then_the_rune_slots() {
+        let mut r = rules();
+        r.categories = vec![
+            EquipmentCategory {
+                id: "attack".into(),
+                slots: 3,
+            },
+            EquipmentCategory {
+                id: "defence".into(),
+                slots: 3,
+            },
+        ];
+        r.rune_slots = 2;
+        let slots_ = slots::fresh_slots(&r);
+        assert_eq!(slots_.len(), 8);
+        assert_eq!(slots::first_rune_slot(&r), 6);
+        use crate::sim::equipment::SlotKind::{Category, Rune};
+        let kinds: Vec<_> = slots_.iter().map(|s| s.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                Category(0),
+                Category(0),
+                Category(0),
+                Category(1),
+                Category(1),
+                Category(1),
+                Rune,
+                Rune
+            ]
+        );
+        assert!(slots_.iter().all(|s| s.held.is_none() && s.level == 0));
+    }
+
+    /// T17: the bundled layout is Attack 5, Defence 2, Mobility 2 and 3 rune slots.
+    #[test]
+    fn the_bundled_layout_keeps_its_shape() {
+        use crate::sim::equipment::SlotKind::{Category, Rune};
+        let kinds: Vec<_> = slots::fresh_slots(&rules())
+            .iter()
+            .map(|s| s.kind)
+            .collect();
+        let want = [
+            (Category(0), 5),
+            (Category(1), 2),
+            (Category(2), 2),
+            (Rune, 3),
+        ]
+        .into_iter()
+        .flat_map(|(k, n)| std::iter::repeat_n(k, n))
+        .collect::<Vec<_>>();
+        assert_eq!(kinds, want);
+    }
+}

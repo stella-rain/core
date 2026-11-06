@@ -789,3 +789,41 @@ fn the_style_pick_options_match_the_view() {
     let trees: Vec<_> = view.trees.iter().map(|t| t.style.clone()).collect();
     assert_eq!(ready.options, trees);
 }
+
+/// T11: the set is read from the pack: a pack that says `[1..10]` for one effect gives the Lv
+/// value of the level and nothing else; level 0 reads Lv1 and level 40 reads Lv10; a weapon
+/// with no `base` writes nothing.
+#[test]
+fn the_set_is_what_the_pack_says() {
+    let mut v: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../content/expertise.json")).unwrap();
+    let series: Vec<u32> = (1..=10).collect();
+    for w in v["weapons"].as_array_mut().unwrap() {
+        w["base"] = serde_json::json!([{ "effect": "range_pct", "by_level": [7, 7, 7, 7, 7, 7, 7, 7, 7, 7] }]);
+        for st in w["styles"].as_array_mut().unwrap() {
+            st["stats"] = serde_json::json!([{ "effect": "attack_pct", "by_level": series }]);
+        }
+    }
+    for w in v["weapons"].as_array_mut().unwrap() {
+        if w["weapon"] == "giant_hammer" {
+            w.as_object_mut().unwrap().remove("base");
+        }
+    }
+    let ex = Expertise::parse(v.to_string().as_bytes(), crate::version::Versions::CURRENT)
+        .expect("the edited pack validates");
+    let sword = ex.weapon(&"giant_sword".into());
+    let tree = expertise::tree_stats(sword, Some("tempo"), 5);
+    let mut want = [0; StatEffect::ALL.len()];
+    want[AP] = 5;
+    assert_eq!(tree, want);
+    let mut base = [0; StatEffect::ALL.len()];
+    base[RG] = 7;
+    assert_eq!(expertise::tree_stats(sword, None, 1), base);
+    assert_eq!(expertise::tree_stats(sword, Some("tempo"), 0)[AP], 1);
+    assert_eq!(expertise::tree_stats(sword, Some("tempo"), 40)[AP], 10);
+    let bare = ex.weapon(&"giant_hammer".into());
+    assert_eq!(
+        expertise::tree_stats(bare, None, 5),
+        [0; StatEffect::ALL.len()]
+    );
+}

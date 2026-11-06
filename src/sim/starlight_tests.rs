@@ -288,6 +288,28 @@ fn craft_and_extract_draw_nothing_and_allocate_nothing() {
     assert_eq!(s.players.career(me).equipment.inventory.capacity(), cap);
 }
 
+/// T8: the Starlight values are the pack's: a pack that says 3, 9 and 4 gives and takes those.
+#[test]
+fn the_values_are_the_rules() {
+    use crate::rewards::RarityStarlight;
+    let rw = rewards();
+    let mut r = bundled_rules().clone();
+    r.rarities = Rarity::ALL
+        .into_iter()
+        .map(|rarity| RarityStarlight {
+            rarity,
+            extract: 3,
+            craft_price: 9,
+        })
+        .collect();
+    r.rune_extract = 4;
+    assert_eq!(extract_value(&r, &rw, Held::Star(0)), 3);
+    assert_eq!(extract_value(&r, &rw, Held::Rune(Rune::Thunder)), 4);
+    for rarity in Rarity::ALL {
+        assert_eq!(craft_price(&r, rarity), 9);
+    }
+}
+
 // --- the boss bonus ----------------------------------------------------------------------------
 
 mod boss {
@@ -302,6 +324,15 @@ mod boss {
             .indices()
             .map(|me| s.players.career(me).equipment.starlight)
             .collect()
+    }
+
+    /// T8: the boss bonus is the pack's: 7 pays 7.
+    #[test]
+    fn the_bonus_is_the_rules() {
+        let (mut w, mut s) = equipment_party(2);
+        w.equipment_rules.boss_bonus = 7;
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![7; 2]);
     }
 
     fn equipment_party(n: u8) -> (World, State) {

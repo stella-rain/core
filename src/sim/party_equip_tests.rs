@@ -258,3 +258,39 @@ fn a_joiner_takes_the_start_regen_not_slot_0s_current() {
     assert_eq!(s.players[slot(1)].hp, s.players[slot(1)].max_hp);
     assert_eq!(s.players[slot(2)].hp, 0);
 }
+
+/// T8: a boss kill pays each member who is up the pack's `boss_drops` rolls: 2 give two, 0 none.
+#[test]
+fn a_boss_kill_rolls_the_rules_boss_drops() {
+    for n in [0u8, 2] {
+        let (mut w, mut s) = rare_party(2);
+        w.equipment_rules.boss_drops = n;
+        stars::boss_killed(&w, &mut s);
+        for i in 0..2 {
+            assert_eq!(
+                inventory(&s, i).len(),
+                usize::from(n),
+                "{n} drops, slot {i}"
+            );
+        }
+    }
+}
+
+/// T8: the rune share is the pack's: 0 never gives a rune, 1000 only runes.
+#[test]
+fn a_drop_is_a_rune_by_the_rules_share() {
+    for (share, runes) in [(0u32, false), (1000, true)] {
+        let (mut w, mut s) = rare_party(1);
+        w.equipment_rules.rune_share_permille = share;
+        w.equipment_rules.boss_drops = 8;
+        for _ in 0..50 {
+            stars::boss_killed(&w, &mut s);
+        }
+        let items = inventory(&s, 0);
+        assert!(!items.is_empty());
+        assert!(
+            items.iter().all(|h| matches!(h, Held::Rune(_)) == runes),
+            "share {share}"
+        );
+    }
+}
