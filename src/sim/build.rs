@@ -300,6 +300,11 @@ pub(super) struct Grants {
 }
 
 impl Grants {
+    /// The skill the grants hold: its place in the stage skills and its level.
+    pub(super) fn skill(&self) -> Option<(u16, u8)> {
+        self.skill
+    }
+
     /// The grants of `equipped`, the places of the stars equipped in slot order (the Lumine slot
     /// last), and of the tiers their sets reach. A random rune in a bundle grants nothing in
     /// equipment mode: runes come from drops.
@@ -403,10 +408,16 @@ impl Grants {
 
     /// Writes the change from `before` to `after` into the player and its offers. A field that
     /// did not change is not touched. The skill keeps its cooldown while its index is unchanged
-    /// and a new one arrives ready; an orbit still equipped keeps its run state and a new one
+    /// and a new one arrives with `entry_cooldown` (0 is ready); an orbit still equipped keeps its run state and a new one
     /// arrives ready; the evade charges follow the stage's own plus the stars', held to its most,
     /// and a fall never takes the charges below the stage's own.
-    pub(super) fn write(before: &Grants, after: &Grants, stage: &World, player: &mut PlayerState) {
+    pub(super) fn write(
+        before: &Grants,
+        after: &Grants,
+        stage: &World,
+        player: &mut PlayerState,
+        entry_cooldown: u32,
+    ) {
         if before.skill != after.skill {
             let held = player.skill;
             player.skill = after.skill.map(|(index, level)| SkillSlot {
@@ -414,7 +425,7 @@ impl Grants {
                 level,
                 cooldown_left: held
                     .filter(|h| h.index == index)
-                    .map_or(0, |h| h.cooldown_left),
+                    .map_or(entry_cooldown, |h| h.cooldown_left),
             });
         }
         if before.orbits != after.orbits {

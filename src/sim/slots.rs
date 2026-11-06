@@ -17,6 +17,7 @@
 use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
+use super::skill;
 use super::state::{Career, HeldRune, Offers, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
@@ -191,17 +192,29 @@ pub(super) fn keep_fraction(hp: u32, was: u32, now: u32) -> u32 {
     u32::try_from(kept).unwrap_or(u32::MAX).max(1).min(now)
 }
 
+/// How a change of the equipped set arrives: at the start of a run, or as a swap in play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Arrival {
+    /// Tick 0: loading the run is no equip, so a skill starts ready.
+    Start,
+    /// An equip, a replace or a level-up in play: a skill that takes the slot starts its full
+    /// cooldown.
+    Swap,
+}
+
 /// Writes the change of what is equipped: `before` is the stars equipped before the change, with
 /// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
 /// the members equipped. A change of the most hit points leaves the hit points at the same
-/// fraction (`keep_fraction`), not the heal or clamp the build's write did.
+/// fraction (`keep_fraction`), not the heal or clamp the build's write did. A stage skill that
+/// arrives as a `Swap` starts the full cooldown a press would set (`skill::cooldown_ticks`).
 pub(super) fn refresh(
     stage: &World,
     rewards: &Rewards,
     player: &mut PlayerState,
     career: &mut Career,
     before: &[(u16, u8)],
+    arrival: Arrival,
 ) {
     let Career {
         progress,
@@ -226,11 +239,23 @@ pub(super) fn refresh(
     if player.max_hp != max_was {
         player.hp = keep_fraction(hp_was, max_was, player.max_hp);
     }
+    let grants = Grants::of(rewards, &after);
+    let entry = match (arrival, grants.skill()) {
+        (Arrival::Swap, Some((index, level))) => rewards
+            .stage_skills()
+            .get(usize::from(index))
+            .and_then(|def| def.levels.get(usize::from(level).saturating_sub(1)))
+            .map_or(0, |l| {
+                skill::cooldown_ticks(l.cooldown_ticks, progress.as_ref(), player)
+            }),
+        _ => 0,
+    };
     Grants::write(
         &Grants::of(rewards, &before_places),
-        &Grants::of(rewards, &after),
+        &grants,
         stage,
         player,
+        entry,
     );
     for (set, c) in rewards.constellations().sets().iter().enumerate() {
         let members = c
@@ -294,7 +319,7 @@ pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
             }
         }
         if let Some(before) = before {
-            refresh(stage, rewards, player, career, &before);
+            refresh(stage, rewards, player, career, &before, Arrival::Swap);
         }
     }
 }
@@ -511,7 +536,7 @@ fn apply(
             })
             .collect();
     } else {
-        refresh(stage, rewards, player, career, &before);
+        refresh(stage, rewards, player, career, &before, Arrival::Swap);
     }
 }
 

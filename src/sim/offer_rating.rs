@@ -790,7 +790,14 @@ mod tests {
                 let before = slots::equipped_levels(&career.equipment);
                 career.equipment.slots[at].held = Some(Held::Star(place));
                 career.equipment.slots[at].level = level;
-                slots::refresh(&self.world, &self.rewards, player, career, &before);
+                slots::refresh(
+                    &self.world,
+                    &self.rewards,
+                    player,
+                    career,
+                    &before,
+                    slots::Arrival::Swap,
+                );
             }
 
             /// Puts the star `id` at the end of the inventory; its index.

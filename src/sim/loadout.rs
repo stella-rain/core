@@ -150,7 +150,7 @@ pub(crate) fn apply(
     }
     if stage.equipment_mode {
         // The Lumine star's effects are in the build from tick 0 (before = the build of nothing).
-        slots::refresh(stage, rewards, player, career, &[]);
+        slots::refresh(stage, rewards, player, career, &[], slots::Arrival::Start);
     }
 }
 

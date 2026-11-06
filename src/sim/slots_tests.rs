@@ -309,7 +309,14 @@ mod grants {
             let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
             let before = slots::equipped_levels(&career.equipment);
             f(&mut career.equipment);
-            slots::refresh(&self.stage, &self.rewards, player, career, &before);
+            slots::refresh(
+                &self.stage,
+                &self.rewards,
+                player,
+                career,
+                &before,
+                slots::Arrival::Swap,
+            );
         }
 
         fn skill(&self) -> Option<SkillSlot> {
