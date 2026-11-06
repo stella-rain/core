@@ -1909,6 +1909,52 @@ mod tests {
         );
     }
 
+    /// L8: a replay forged with an ACTIONS step of a downed member does not verify.
+    #[test]
+    fn a_replay_with_an_action_of_a_downed_player_does_not_verify() {
+        use crate::run_replay::Record;
+        use crate::run_setup::BuildMode;
+        let setup = RunSetup {
+            seed: 20_261_010,
+            build_mode: BuildMode::Equipment,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
+        let walk = Input {
+            move_x: 100,
+            ..Input::default()
+        };
+        let one = crate::id::PlayerIdx::new(1).unwrap();
+        while rec.engine().snapshot().players[1].down.is_none() {
+            assert!(rec.engine().tick() < 4_000, "slot 1 goes down");
+            if rec.engine().offer_open() {
+                let holder = (0..2u8)
+                    .filter_map(crate::id::PlayerIdx::new)
+                    .find(|p| rec.engine().check_pick(*p, 0).is_ok())
+                    .unwrap();
+                rec.choose(holder, 0).unwrap();
+                continue;
+            }
+            rec.step(&[walk, Input::default(), Input::default()])
+                .unwrap();
+        }
+        assert!(
+            rec.engine()
+                .check_action(one, EquipAction::Extract { item: 0 })
+                .is_err()
+        );
+        rec.records.push(Record::Actions {
+            actions: vec![None, Some(EquipAction::Extract { item: 0 })],
+        });
+        assert_eq!(
+            verify_run(&rec.replay().to_bytes()).unwrap_err(),
+            RunReplayError::ActionRefused {
+                tick: rec.engine().tick(),
+                error: ActionError::Downed
+            }
+        );
+    }
+
     #[test]
     fn a_replay_with_an_action_step_loads_and_ranges_but_does_not_verify() {
         use crate::pack::Pack;

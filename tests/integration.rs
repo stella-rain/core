@@ -60,6 +60,7 @@ mod enemy_roles;
 mod engine;
 mod equipment_drops;
 mod equipment_input;
+mod equipment_party;
 mod equipment_slots;
 mod evade;
 mod expertise;
