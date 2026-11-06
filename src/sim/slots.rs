@@ -177,6 +177,12 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
+/// Placeholder: the rule lands in the next commit.
+#[allow(dead_code)]
+pub(super) fn keep_fraction(hp: u32, _was: u32, now: u32) -> u32 {
+    hp.min(now)
+}
+
 /// Writes the change of what is equipped: `before` is the stars equipped before the change, with
 /// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are

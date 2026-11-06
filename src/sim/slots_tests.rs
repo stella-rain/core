@@ -535,6 +535,7 @@ mod rules {
     const RUNE: u16 = 6;
     const CRIT: u16 = 7;
     const REGEN: u16 = 8;
+    const HP_BIG: u16 = 9;
 
     // The slot indices of the layout.
     const ATTACK0: u32 = 0;
@@ -575,6 +576,7 @@ mod rules {
             json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
             named("crit", "Keen", fx("crit_chance_pct", 5)),
             star("regen", "common", vec![fx("regen", 2)]),
+            star("hp_big", "common", vec![fx("max_hp", 50_000)]),
         ];
         let mut file = json!({ "rarities": rarities(), "rewards": list });
         crate::sim::starlight::with_equipment_rules(&mut file);
@@ -653,6 +655,148 @@ mod rules {
 
     fn star_at(f: &Fixture, slot: usize) -> Option<Held> {
         f.eq().slots[slot].held
+    }
+
+    // --- 1a: a swap keeps the hit-point fraction (ADR-SIM-7) -------------------------------------
+
+    /// The player's `(max_hp, hp)`.
+    fn hp_of(f: &Fixture) -> (u32, u32) {
+        let p = &f.s.players[PlayerIdx::SOLO];
+        (p.max_hp, p.hp)
+    }
+
+    fn hurt(f: &mut Fixture, max_hp: u32, hp: u32) {
+        let p = &mut f.s.players[PlayerIdx::SOLO];
+        (p.max_hp, p.hp) = (max_hp, hp);
+    }
+
+    /// A1: a star that raises the most hit points leaves the hit points at the same fraction.
+    #[test]
+    fn a_rise_keeps_the_fraction() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.put(&[Held::Star(HP_C)]);
+        assert_eq!(f.equip(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1100, 550));
+    }
+
+    /// A2: a star leaving takes the fraction with it, not the clamp.
+    #[test]
+    fn a_fall_keeps_the_fraction() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.lumine(HP_C);
+        assert_eq!(hp_of(&f), (1100, 550));
+        f.put(&[Held::Star(ATK)]);
+        assert_eq!(f.replace(0, LUMINE), Ok(()));
+        assert_eq!(hp_of(&f), (1000, 500));
+    }
+
+    /// A3: a switch to a larger grade scales up.
+    #[test]
+    fn a_replace_by_a_larger_star_scales_up() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.put(&[Held::Star(HP_C), Held::Star(HP_R)]);
+        assert_eq!(f.equip(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1100, 550));
+        assert_eq!(f.replace(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1250, 625));
+    }
+
+    /// A4: swapping a star in and out is no free heal: every round trip returns the start or less.
+    #[test]
+    fn swapping_back_and_forth_is_no_free_heal() {
+        for (max, start, rise, first_in, first_out) in
+            [(1000, 333, HP_C, 366, 332), (10, 7, HP_C, 77, 7)]
+        {
+            let mut f = fixture();
+            hurt(&mut f, max, start);
+            let mut last_out = start;
+            for round in 0..10 {
+                f.set(5, Some(rise));
+                if round == 0 {
+                    assert_eq!(f.s.players[PlayerIdx::SOLO].hp, first_in, "in");
+                }
+                f.set(5, None);
+                let hp = f.s.players[PlayerIdx::SOLO].hp;
+                if round == 0 {
+                    assert_eq!(hp, first_out, "out");
+                }
+                assert!(hp <= start && hp <= last_out, "round {round}: {hp}");
+                last_out = hp;
+            }
+        }
+    }
+
+    /// A5: a full player stays full both ways and a downed one stays down.
+    #[test]
+    fn a_full_player_stays_full_and_a_downed_one_stays_down() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 1000);
+        f.set(5, Some(HP_C));
+        assert_eq!(hp_of(&f), (1100, 1100));
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 1000));
+        hurt(&mut f, 1000, 0);
+        f.set(5, Some(HP_C));
+        assert_eq!(hp_of(&f), (1100, 0));
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 0));
+    }
+
+    /// A6: a swap never takes a living player to 0, and at the shipped scale gives no more back.
+    #[test]
+    fn a_swap_never_kills_a_living_player() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 1);
+        f.set(5, Some(HP_C));
+        hurt_keep_max(&mut f, 1100, 1);
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 1));
+
+        let mut f = fixture();
+        hurt(&mut f, 100_000, 3);
+        f.set(5, Some(HP_BIG));
+        assert_eq!(hp_of(&f).0, 150_000);
+        assert!(hp_of(&f).1 >= 1);
+        f.set(5, None);
+        let (max, hp) = hp_of(&f);
+        assert_eq!(max, 100_000);
+        assert!((1..=3).contains(&hp), "hp {hp}");
+    }
+
+    fn hurt_keep_max(f: &mut Fixture, max_hp: u32, hp: u32) {
+        assert_eq!(f.s.players[PlayerIdx::SOLO].max_hp, max_hp);
+        f.s.players[PlayerIdx::SOLO].hp = hp;
+    }
+
+    /// A7: the integer rule, exactly.
+    #[test]
+    fn keep_fraction_is_exact() {
+        for ((hp, was, now), want) in [
+            ((500, 1000, 1100), 550),
+            ((550, 1100, 1000), 500),
+            ((1, 1100, 1000), 1),
+            ((0, 1000, 1100), 0),
+            ((1000, 1000, 1), 1),
+            ((u32::MAX, u32::MAX, 1), 1),
+            ((5, 0, 3), 3),
+            ((7, 10, 110), 77),
+        ] {
+            assert_eq!(slots::keep_fraction(hp, was, now), want, "{hp} {was} {now}");
+        }
+    }
+
+    /// Tick 0 is a refresh too: the Lumine star's most hit points leave a full player full.
+    #[test]
+    fn a_lumine_star_leaves_a_full_player_full_at_tick_0() {
+        let mut f = fixture();
+        let full = f.s.players[PlayerIdx::SOLO].max_hp;
+        f.s.players[PlayerIdx::SOLO].hp = full;
+        f.lumine(HP_C);
+        let (max, hp) = hp_of(&f);
+        assert_eq!((max, hp), (full + 100, full + 100));
     }
 
     /// T11: an equip moves the star from the inventory into the slot and the build follows.
