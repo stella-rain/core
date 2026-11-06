@@ -209,7 +209,7 @@ use crate::hash::{StableHash, StateHasher};
 use crate::id::EntityId;
 use crate::input::Input;
 use crate::kinds::{KindIndex, KindTable};
-use crate::rewards::{Rarity, Rewards};
+use crate::rewards::{EquipmentRules, Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
@@ -973,6 +973,7 @@ pub(crate) fn choose(
 /// Whether the inventory item `item` could go into `slot` of `me`, as an equip or a replace
 /// (`slots::check`). Read-only.
 pub(crate) fn check_equip(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     s: &State,
     me: PlayerIdx,
@@ -981,6 +982,7 @@ pub(crate) fn check_equip(
     replace: bool,
 ) -> Result<(), SlotError> {
     slots::check(
+        rules,
         rewards,
         &s.players.career(me).equipment,
         item,
@@ -1044,27 +1046,41 @@ pub(crate) fn check_extract(s: &State, me: PlayerIdx, item: u32) -> Result<(), S
 /// Extracts inventory item `item` of `me` into Starlight, or a refusal that changes nothing.
 /// Made between ticks; no event, no draw.
 pub(crate) fn extract_action(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     s: &mut State,
     me: PlayerIdx,
     item: u32,
 ) -> Result<(), StarlightError> {
-    starlight::extract(rewards, &mut s.players.career_mut(me).equipment, item)
+    starlight::extract(
+        rules,
+        rewards,
+        &mut s.players.career_mut(me).equipment,
+        item,
+    )
 }
 
 /// Whether `me` could craft the star at index `star` of the star pool. Read-only.
 pub(crate) fn check_craft(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     s: &State,
     me: PlayerIdx,
     star: u32,
 ) -> Result<(), StarlightError> {
-    starlight::check_craft(rewards, star_pool(s), &s.players.career(me).equipment, star)
+    starlight::check_craft(
+        rules,
+        rewards,
+        star_pool(s),
+        &s.players.career(me).equipment,
+        star,
+    )
 }
 
 /// Crafts the star at index `star` of the star pool for `me`, or a refusal that changes nothing.
 /// Made between ticks; no event, no draw.
 pub(crate) fn craft_action(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     s: &mut State,
     me: PlayerIdx,
@@ -1072,7 +1088,13 @@ pub(crate) fn craft_action(
 ) -> Result<(), StarlightError> {
     let State { stars, players, .. } = s;
     let pool = stars.as_ref().map_or(&[][..], |f| &f.pool);
-    starlight::craft(rewards, pool, &mut players.career_mut(me).equipment, star)
+    starlight::craft(
+        rules,
+        rewards,
+        pool,
+        &mut players.career_mut(me).equipment,
+        star,
+    )
 }
 
 fn count<T>(items: &[T]) -> u32 {

@@ -45,7 +45,7 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
+    Expertise, ExpertiseEffect, ExpertiseOption, SetStat, Style, TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
@@ -289,130 +289,30 @@ fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
 
 // --- the equipment build: the weapon's stat sets ----------------------------------------------
 
-/// One effect's value at weapon level 1 to 10, in tenths of a percent (`MaxHp`: whole units).
-type Row = (StatEffect, [u32; 10]);
-
-/// `floor(max * n / 10)` for `n` in 1..=10: the linear placeholder curve up to the Lv10 value.
-const fn lv(max: u32) -> [u32; 10] {
-    let mut out = [0; 10];
-    let mut n = 1u32;
-    while n <= 10 {
-        out[(n - 1) as usize] = max * n / 10;
-        n += 1;
-    }
-    out
-}
-
-use StatEffect::{AttackPct, AttackSpeedPct, EvadePct, MaxHp, RangePct, SkillCooldownPct};
-
-/// PLACEHOLDER (content row for the pack): a weapon's base set, in force until a tree is picked.
-pub(super) const BASE_SETS: [(&str, &[Row]); 2] = [
-    (
-        "giant_sword",
-        &[
-            (AttackPct, lv(100)),
-            (AttackSpeedPct, lv(100)),
-            (MaxHp, lv(100_000)),
-        ],
-    ),
-    (
-        "giant_hammer",
-        &[
-            (AttackPct, lv(100)),
-            (AttackSpeedPct, lv(100)),
-            (MaxHp, lv(100_000)),
-        ],
-    ),
-];
-
-/// PLACEHOLDER (content row for the pack): the set of each weapon tree (weapon, style), which
-/// replaces the base set once the style is picked. The weapon level scales every value.
-pub(super) const TREE_SETS: [(&str, &str, &[Row]); 6] = [
-    (
-        "giant_sword",
-        "edge",
-        &[
-            (AttackPct, lv(500)),
-            (AttackSpeedPct, lv(300)),
-            (SkillCooldownPct, lv(100)),
-            (RangePct, lv(200)),
-        ],
-    ),
-    (
-        "giant_sword",
-        "tempo",
-        &[
-            (AttackPct, lv(330)),
-            (AttackSpeedPct, lv(1000)),
-            (SkillCooldownPct, lv(200)),
-            (RangePct, lv(500)),
-        ],
-    ),
-    (
-        "giant_sword",
-        "reach",
-        &[
-            (AttackPct, lv(300)),
-            (AttackSpeedPct, lv(300)),
-            (SkillCooldownPct, lv(100)),
-            (RangePct, lv(800)),
-        ],
-    ),
-    (
-        "giant_hammer",
-        "crush",
-        &[
-            (AttackPct, lv(600)),
-            (AttackSpeedPct, lv(200)),
-            (SkillCooldownPct, lv(100)),
-            (RangePct, lv(200)),
-        ],
-    ),
-    (
-        "giant_hammer",
-        "quake",
-        &[
-            (AttackPct, lv(300)),
-            (AttackSpeedPct, lv(200)),
-            (SkillCooldownPct, lv(200)),
-            (RangePct, lv(800)),
-        ],
-    ),
-    (
-        "giant_hammer",
-        "bulwark",
-        &[
-            (AttackPct, lv(200)),
-            (SkillCooldownPct, lv(200)),
-            (MaxHp, lv(40_000)),
-            (EvadePct, lv(200)),
-        ],
-    ),
-];
-
-/// A weapon's stat set at weapon level `level` (0 reads as 1, and past 10 it stops growing):
-/// the tree `style` names if it is `Some`, else the weapon's base set. Tenths of a percent per
-/// effect in `StatEffect::ALL` order, `MaxHp` whole. A weapon or a style the tables do not name
-/// has the empty set. Pure: reads nothing but its arguments.
+/// A weapon's stat set at weapon level `level` (0 reads as 1, and past 10 it stops growing),
+/// read from the pack: the tree `style` names if it is `Some`, else the weapon's base set.
+/// Tenths of a percent per effect in `StatEffect::ALL` order, `MaxHp` whole. No weapon, a style
+/// the weapon lacks, or a set the pack leaves out is the empty set. Pure: reads nothing but its
+/// arguments.
 pub(super) fn tree_stats(
-    weapon: &str,
+    weapon: Option<&WeaponExpertise>,
     style: Option<&str>,
     level: u32,
 ) -> [u32; StatEffect::ALL.len()] {
     let mut out = [0; StatEffect::ALL.len()];
-    let rows: &[Row] = match style {
-        Some(style) => TREE_SETS
+    let set: &[SetStat] = match (weapon, style) {
+        (Some(w), Some(style)) => w
+            .styles
             .iter()
-            .find(|(w, s, _)| *w == weapon && *s == style)
-            .map_or(&[], |(_, _, rows)| rows),
-        None => BASE_SETS
-            .iter()
-            .find(|(w, _)| *w == weapon)
-            .map_or(&[], |(_, rows)| rows),
+            .find(|st| st.id.as_str() == style)
+            .map_or(&[], |st| &st.stats),
+        (Some(w), None) => &w.base,
+        (None, _) => &[],
     };
     let at = usize::try_from(level.clamp(1, 10) - 1).unwrap_or(0);
-    for (effect, values) in rows {
-        out[*effect as usize] = values[at];
+    for stat in set {
+        // `by_level` has exactly ten entries (validated); a short list reads 0.
+        out[stat.effect as usize] = stat.by_level.get(at).copied().unwrap_or(0);
     }
     out
 }
@@ -425,17 +325,13 @@ pub(super) fn set_for(
     style: Option<u8>,
     level: u32,
 ) -> [u32; StatEffect::ALL.len()] {
-    let (WeaponRef::Preset { id, .. }, Some(w)) = (&stage.player.weapon, content(stage, expertise))
-    else {
-        return [0; StatEffect::ALL.len()];
-    };
+    let w = content(stage, expertise);
     match style {
-        None => tree_stats(id.as_str(), None, level),
+        None => tree_stats(w, None, level),
         Some(i) => w
-            .styles
-            .get(usize::from(i))
+            .and_then(|w| w.styles.get(usize::from(i)))
             .map_or([0; StatEffect::ALL.len()], |st| {
-                tree_stats(id.as_str(), Some(st.id.as_str()), level)
+                tree_stats(w, Some(st.id.as_str()), level)
             }),
     }
 }

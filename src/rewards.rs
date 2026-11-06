@@ -580,7 +580,7 @@ pub const MAX_BOSS_DROPS: u8 = 8;
 
 /// The equipment rules (ADR-CONT-3): the slot layout, the level curve, the Starlight values and
 /// the drop numbers, which a designer tunes. Bounds are code.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EquipmentRules {
     /// The slot categories in slot order, 1 to `MAX_EQUIP_CATEGORIES`.

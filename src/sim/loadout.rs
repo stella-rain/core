@@ -10,8 +10,8 @@
 //! and is hashed with the equipment.
 
 use super::World;
-use crate::perk_sets::{PerkEffect, PerkEntry};
-use crate::rewards::Rewards;
+use crate::perk_sets::{PerkCategory, PerkEffect, PerkEntry};
+use crate::rewards::{EquipmentRules, Rewards};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
 use crate::rune::{MAX_RUNES, Rune};
@@ -36,13 +36,27 @@ pub(crate) struct Loadout {
 }
 
 impl Loadout {
-    /// The setup's drop weight, in percent: the set's `drop_weight` amount, 0 when it has none.
-    pub(crate) fn drop_weight_pct(&self) -> u32 {
-        self.perk
+    /// The setup's drop weight in percent for each category of `rules`, in the rules' order: the
+    /// sum of the set's `drop_weight` amounts naming the category. Empty when the set has none.
+    pub(crate) fn drop_weight_pct(&self, rules: &EquipmentRules) -> Vec<u32> {
+        let weighs = |e: &&PerkEntry| e.effect == PerkEffect::DropWeight;
+        if !self.perk.iter().any(|e| weighs(&e)) {
+            return Vec::new();
+        }
+        rules
+            .categories
             .iter()
-            .filter(|e| e.effect == PerkEffect::DropWeight)
-            .map(|e| e.amount)
-            .sum()
+            .map(|c| {
+                self.perk
+                    .iter()
+                    .filter(weighs)
+                    .filter(|e| {
+                        e.category.as_ref().map(PerkCategory::as_str) == Some(c.id.as_str())
+                    })
+                    .map(|e| e.amount)
+                    .sum()
+            })
+            .collect()
     }
 
     /// The grants of `setup`, which `run_setup::validate_in` accepted against `content`.
@@ -106,7 +120,7 @@ pub(crate) fn apply(
         }
     }
     if stage.equipment_mode {
-        career.equipment.slots = slots::fresh_slots();
+        career.equipment.slots = slots::fresh_slots(&stage.equipment_rules);
     }
     if let Some(rune) = loadout.starting_rune
         && player.runes.len() < MAX_RUNES
@@ -117,7 +131,11 @@ pub(crate) fn apply(
             cooldown_left: 0,
         });
         // The starting rune fills rune slot 0 (the slot list is empty in an offers run).
-        if let Some(slot) = career.equipment.slots.get_mut(slots::first_rune_slot()) {
+        if let Some(slot) = career
+            .equipment
+            .slots
+            .get_mut(slots::first_rune_slot(&stage.equipment_rules))
+        {
             slot.held = Some(Held::Rune(rune));
             slot.level = 1;
         }

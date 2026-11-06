@@ -1,13 +1,49 @@
 //! Tests for the two new stat effects and the tenths array a weapon tree's stat set is written
 //! to (ADR-SIM-7, ADR-SIM-3): the type, the reads, and the state layout.
 
+use super::expertise;
 use super::levels::{self, attack_of};
 use super::levels_tests::{hammer, progress, state_of, world_state};
 use super::skill;
 use super::state::PlayerIdx;
 use crate::engine::Engine;
+use crate::expertise::Expertise;
 use crate::run_setup::{BuildMode, RunSetup};
 use crate::run_stats::StatEffect;
+
+/// A pack set as `(effect, Lv1..Lv10)` rows, in the pack's order.
+fn rows_of(set: &[crate::expertise::SetStat]) -> Vec<(StatEffect, [u32; 10])> {
+    set.iter()
+        .map(|s| (s.effect, s.by_level.clone().try_into().expect("ten levels")))
+        .collect()
+}
+
+/// The bundled pack's expertise of the weapon preset `weapon`.
+fn weapon_of(weapon: &str) -> &'static crate::expertise::WeaponExpertise {
+    Expertise::bundled()
+        .weapon(&weapon.into())
+        .expect("a bundled weapon")
+}
+
+/// The rows of the weapon's tree `style` in the bundled pack.
+fn tree_rows(weapon: &str, style: &str) -> Vec<(StatEffect, [u32; 10])> {
+    let st = weapon_of(weapon)
+        .styles
+        .iter()
+        .find(|s| s.id.as_str() == style)
+        .expect("a bundled style");
+    rows_of(&st.stats)
+}
+
+/// The rows of the weapon's base set in the bundled pack.
+fn base_rows(weapon: &str) -> Vec<(StatEffect, [u32; 10])> {
+    rows_of(&weapon_of(weapon).base)
+}
+
+/// `expertise::tree_stats` on the bundled pack's weapon (none for an unlisted weapon).
+fn tree_stats(weapon: &str, style: Option<&str>, level: u32) -> [u32; StatEffect::ALL.len()] {
+    expertise::tree_stats(Expertise::bundled().weapon(&weapon.into()), style, level)
+}
 
 fn set_progress(e: &mut Engine, f: impl FnOnce(&mut super::state::Progress)) {
     let (_, state) = world_state(e);
@@ -133,9 +169,7 @@ fn a_set_free_read_is_todays_number() {
 
 // --- the weapon's stat sets -------------------------------------------------------------------
 
-use super::expertise;
 use super::levels_tests::{gauge, tree_pick};
-use crate::expertise::Expertise;
 use crate::input::Input;
 
 const AP: usize = StatEffect::AttackPct as usize;
@@ -220,7 +254,7 @@ fn a_level_up_recomputes_and_does_not_stack() {
         assert_eq!((tenths(&e)[AS], tenths(&e)[AP]), (1000, 330), "{level}");
     }
     // The pure function: level 0 reads as Lv1.
-    let at = |lv| expertise::tree_stats("giant_sword", Some("tempo"), lv);
+    let at = |lv| tree_stats("giant_sword", Some("tempo"), lv);
     assert_eq!(
         (at(0)[AS], at(1)[AS], at(2)[AS], at(10)[AS]),
         (100, 100, 200, 1000)
@@ -344,13 +378,10 @@ fn max_hp_in_a_set_moves_max_hp_and_never_below_one() {
 #[test]
 fn an_unlisted_weapon_or_style_has_the_empty_set() {
     let zero = [0; StatEffect::ALL.len()];
-    assert_eq!(expertise::tree_stats("nowhere", None, 5), zero);
-    assert_eq!(expertise::tree_stats("nowhere", Some("tempo"), 5), zero);
-    assert_eq!(
-        expertise::tree_stats("giant_sword", Some("nowhere"), 5),
-        zero
-    );
-    assert_ne!(expertise::tree_stats("giant_sword", None, 5), zero);
+    assert_eq!(tree_stats("nowhere", None, 5), zero);
+    assert_eq!(tree_stats("nowhere", Some("tempo"), 5), zero);
+    assert_eq!(tree_stats("giant_sword", Some("nowhere"), 5), zero);
+    assert_ne!(tree_stats("giant_sword", None, 5), zero);
 
     let mut e = sword();
     set_progress(&mut e, |_| {});
@@ -467,11 +498,7 @@ fn levels_crossed_in_one_tick_equal_two_ticks() {
 /// `floor(M * n / 10)`, ten values each, only the allowed effects, each within its bound.
 #[test]
 fn the_set_values_are_pinned() {
-    let tempo = expertise::TREE_SETS
-        .iter()
-        .find(|(w, s, _)| (*w, *s) == ("giant_sword", "tempo"))
-        .expect("tempo")
-        .2;
+    let tempo = tree_rows("giant_sword", "tempo");
     let row = |e: StatEffect| tempo.iter().find(|(f, _)| *f == e).expect("a row").1;
     assert_eq!(
         row(StatEffect::AttackPct),
@@ -491,14 +518,7 @@ fn the_set_values_are_pinned() {
     );
 
     let lv10 = |w: &str, s: &str| -> Vec<(StatEffect, u32)> {
-        expertise::TREE_SETS
-            .iter()
-            .find(|(a, b, _)| (*a, *b) == (w, s))
-            .expect("a tree")
-            .2
-            .iter()
-            .map(|(f, v)| (*f, v[9]))
-            .collect()
+        tree_rows(w, s).iter().map(|(f, v)| (*f, v[9])).collect()
     };
     use StatEffect::{AttackPct, AttackSpeedPct, EvadePct, MaxHp, RangePct, SkillCooldownPct};
     assert_eq!(
@@ -547,11 +567,7 @@ fn the_set_values_are_pinned() {
         ]
     );
     for w in ["giant_sword", "giant_hammer"] {
-        let base = expertise::BASE_SETS
-            .iter()
-            .find(|(a, _)| *a == w)
-            .expect("a base")
-            .1;
+        let base = base_rows(w);
         assert_eq!(base.len(), 3);
         assert_eq!(base[2].0, MaxHp);
         assert_eq!(base[2].1[9], 100_000);
@@ -564,12 +580,14 @@ fn the_set_values_are_pinned() {
             (AttackSpeedPct, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
         );
     }
-    let sets = expertise::TREE_SETS
-        .iter()
-        .map(|(_, _, s)| *s)
-        .chain(expertise::BASE_SETS.iter().map(|(_, s)| *s));
+    let sets = Expertise::bundled().weapons().iter().flat_map(|w| {
+        w.styles
+            .iter()
+            .map(|st| rows_of(&st.stats))
+            .chain(std::iter::once(rows_of(&w.base)))
+    });
     for set in sets {
-        for (f, values) in set {
+        for (f, values) in &set {
             assert!(
                 [
                     AttackPct,
@@ -772,30 +790,40 @@ fn the_style_pick_options_match_the_view() {
     assert_eq!(ready.options, trees);
 }
 
-/// The pack's base and tree sets are the code tables, entry for entry (effect, order and the ten
-/// values), until the tables are replaced by reads of the pack (ADR-CONT-3).
+/// T11: the set is read from the pack: a pack that says `[1..10]` for one effect gives the Lv
+/// value of the level and nothing else; level 0 reads Lv1 and level 40 reads Lv10; a weapon
+/// with no `base` writes nothing.
 #[test]
-fn the_pack_sets_equal_the_code_tables() {
-    use crate::expertise::{Expertise, SetStat};
-    use crate::sim::expertise;
-    let ex = Expertise::bundled();
-    let rows = |set: &[SetStat]| -> Vec<(StatEffect, Vec<u32>)> {
-        set.iter().map(|s| (s.effect, s.by_level.clone())).collect()
-    };
-    let table = |t: &[(StatEffect, [u32; 10])]| -> Vec<(StatEffect, Vec<u32>)> {
-        t.iter().map(|(e, v)| (*e, v.to_vec())).collect()
-    };
-    for (weapon, set) in expertise::BASE_SETS {
-        let w = ex.weapon(&weapon.into()).expect("a weapon");
-        assert_eq!(rows(&w.base), table(set), "{weapon} base");
+fn the_set_is_what_the_pack_says() {
+    let mut v: serde_json::Value =
+        serde_json::from_slice(crate::pack::ContentFiles::bundled_file("expertise")).unwrap();
+    let series: Vec<u32> = (1..=10).collect();
+    for w in v["weapons"].as_array_mut().unwrap() {
+        w["base"] = serde_json::json!([{ "effect": "range_pct", "by_level": [7, 7, 7, 7, 7, 7, 7, 7, 7, 7] }]);
+        for st in w["styles"].as_array_mut().unwrap() {
+            st["stats"] = serde_json::json!([{ "effect": "attack_pct", "by_level": series }]);
+        }
     }
-    for (weapon, style, set) in expertise::TREE_SETS {
-        let w = ex.weapon(&weapon.into()).expect("a weapon");
-        let s = w.styles.iter().find(|s| s.id.as_str() == style);
-        assert_eq!(
-            rows(&s.expect("a style").stats),
-            table(set),
-            "{weapon}/{style}"
-        );
+    for w in v["weapons"].as_array_mut().unwrap() {
+        if w["weapon"] == "giant_hammer" {
+            w.as_object_mut().unwrap().remove("base");
+        }
     }
+    let ex = Expertise::parse(v.to_string().as_bytes(), crate::version::Versions::CURRENT)
+        .expect("the edited pack validates");
+    let sword = ex.weapon(&"giant_sword".into());
+    let tree = expertise::tree_stats(sword, Some("tempo"), 5);
+    let mut want = [0; StatEffect::ALL.len()];
+    want[AP] = 5;
+    assert_eq!(tree, want);
+    let mut base = [0; StatEffect::ALL.len()];
+    base[RG] = 7;
+    assert_eq!(expertise::tree_stats(sword, None, 1), base);
+    assert_eq!(expertise::tree_stats(sword, Some("tempo"), 0)[AP], 1);
+    assert_eq!(expertise::tree_stats(sword, Some("tempo"), 40)[AP], 10);
+    let bare = ex.weapon(&"giant_hammer".into());
+    assert_eq!(
+        expertise::tree_stats(bare, None, 5),
+        [0; StatEffect::ALL.len()]
+    );
 }

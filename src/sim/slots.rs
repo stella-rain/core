@@ -4,10 +4,9 @@
 //! the Lumine slot do); a change of what is equipped goes through `refresh`, which writes the
 //! change from the build of the set before to the build of the set after.
 //!
-//! Placeholders (ADR-CONT-3 point 8; the pack will carry them): the layout, each star's category
-//! and each star's option, the kills each level takes (`KILLS_TO_NEXT`) and the share of a star's
-//! base each level adds (`PCT_PER_LEVEL`). They are derived or set here and are the one place to
-//! replace.
+//! The layout, the kills each level takes and the share of a star's base each level adds are
+//! the pack's `EquipmentRules` (ADR-CONT-3 point 8), held by the `World`. A star's category is
+//! its reward's `category`; its option is derived from its effect entries.
 //!
 //! Expertise: every kill a player makes gives one point to each of its slots that holds a star
 //! (a category slot or the Lumine slot; runes and empty slots gain nothing). A slot rises one
@@ -18,43 +17,31 @@
 use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
-use super::offer_rating::category_of;
 use super::state::{Career, HeldRune, Offers, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
 use crate::limits::MAX_SLOT_LEVEL;
-use crate::rewards::{RewardEffect, Rewards};
-use crate::snapshot::Category;
+use crate::rewards::{EquipmentRules, RewardEffect, Rewards};
 
-/// The slots a player has, in order: the kind and how many of it. Attack 5, Defence 2,
-/// Mobility 2, Rune 3.
-pub(super) const SLOT_LAYOUT: [(SlotKind, u8); 4] = [
-    (SlotKind::Category(0), 5),
-    (SlotKind::Category(1), 2),
-    (SlotKind::Category(2), 2),
-    (SlotKind::Rune, 3),
-];
+#[cfg(test)]
+pub(super) use super::starlight::bundled_rules;
 
 /// The highest level a slot reaches (ADR-SIM-5).
 pub(super) const MAX_LEVEL: u8 = MAX_SLOT_LEVEL;
 
-/// Placeholder curve: entry `i` is the kills a slot at level `i + 1` needs to reach level `i + 2`.
-/// Rising, so the lower levels come faster; Lv1 to Lv10 takes 870 kills.
-pub(super) const KILLS_TO_NEXT: [u32; 9] = [10, 20, 35, 55, 80, 110, 145, 185, 230];
-
-/// Placeholder: the percent of a star's base amount each level above 1 adds.
-const PCT_PER_LEVEL: u32 = 3;
-
 /// A slot's level and kills after `kills` more: one level at a time while the kills reach the
 /// level's need; at `MAX_LEVEL` the kills are dropped. A level of 0 (a slot that never held a
 /// star) gains nothing. Pure.
-pub(super) fn gain(level: u8, expertise: u32, kills: u32) -> (u8, u32) {
+pub(super) fn gain(rules: &EquipmentRules, level: u8, expertise: u32, kills: u32) -> (u8, u32) {
     if level == 0 {
         return (0, expertise);
     }
     let (mut level, mut expertise) = (level.min(MAX_LEVEL), expertise.saturating_add(kills));
     while level < MAX_LEVEL {
-        let need = KILLS_TO_NEXT[usize::from(level) - 1];
+        // The pack's list has `MAX_LEVEL - 1` entries (validated); a missing one stops the climb.
+        let Some(&need) = rules.kills_to_next.get(usize::from(level) - 1) else {
+            break;
+        };
         if expertise < need {
             break;
         }
@@ -67,51 +54,47 @@ pub(super) fn gain(level: u8, expertise: u32, kills: u32) -> (u8, u32) {
     (level, expertise)
 }
 
-/// `amount` at `level`: `PCT_PER_LEVEL` percent more for each level above 1, floored. A level of
+/// `amount` at `level`: `level_pct` percent more for each level above 1, floored. A level of
 /// 0 reads as 1 and one past `MAX_LEVEL` as `MAX_LEVEL`.
-pub(super) fn level_scaled(amount: u32, level: u8) -> u32 {
+pub(super) fn level_scaled(rules: &EquipmentRules, amount: u32, level: u8) -> u32 {
     let above = u64::from(level.clamp(1, MAX_LEVEL) - 1);
-    let scaled = u64::from(amount) * (100 + u64::from(PCT_PER_LEVEL) * above) / 100;
+    let scaled = u64::from(amount) * (100 + u64::from(rules.level_pct) * above) / 100;
     u32::try_from(scaled).unwrap_or(u32::MAX)
 }
 
-/// The slot index of the first rune slot.
-pub(super) fn first_rune_slot() -> usize {
-    SLOT_LAYOUT
-        .iter()
-        .take_while(|(kind, _)| !matches!(kind, SlotKind::Rune))
-        .map(|(_, n)| usize::from(*n))
-        .sum()
+/// The slot index of the first rune slot: the category slots come first.
+pub(super) fn first_rune_slot(rules: &EquipmentRules) -> usize {
+    rules.categories.iter().map(|c| usize::from(c.slots)).sum()
 }
 
-/// The empty slots of the layout, level 0 and no expertise.
-pub(super) fn fresh_slots() -> Vec<EquipSlot> {
-    SLOT_LAYOUT
-        .iter()
-        .flat_map(|&(kind, n)| {
-            (0..n).map(move |_| EquipSlot {
-                kind,
-                held: None,
-                level: 0,
-                expertise: 0,
-            })
-        })
-        .collect()
+/// The empty slots of the layout, level 0 and no expertise: each category's slots in list order,
+/// then the rune slots.
+pub(super) fn fresh_slots(rules: &EquipmentRules) -> Vec<EquipSlot> {
+    let slot = |kind| EquipSlot {
+        kind,
+        held: None,
+        level: 0,
+        expertise: 0,
+    };
+    let mut slots = Vec::with_capacity(first_rune_slot(rules) + usize::from(rules.rune_slots));
+    for (i, c) in rules.categories.iter().enumerate() {
+        let kind = SlotKind::Category(u8::try_from(i).unwrap_or(u8::MAX));
+        slots.extend((0..c.slots).map(|_| slot(kind)));
+    }
+    slots.extend((0..rules.rune_slots).map(|_| slot(SlotKind::Rune)));
+    slots
 }
 
-/// The category slot a star fits, from its first effect: Attack, on-hit and rune stars go to 0,
-/// Defence to 1, Mobility to 2; a Growth star (or a lone random rune) fits no category slot.
-pub(super) fn star_category(rewards: &Rewards, place: u16) -> Option<u8> {
-    let reward = rewards.rewards().get(usize::from(place))?;
-    if reward.is_random_rune() {
-        return None;
-    }
-    match category_of(reward.effect()) {
-        Category::Attack | Category::OnHit | Category::Rune => Some(0),
-        Category::Defence => Some(1),
-        Category::Mobility => Some(2),
-        Category::Growth => None,
-    }
+/// The category slot a star fits: the place of its reward's `category` in the rules' list. A
+/// reward with none (a Growth star, the lone random rune) fits no category slot.
+pub(super) fn star_category(rules: &EquipmentRules, rewards: &Rewards, place: u16) -> Option<u8> {
+    let category = rewards
+        .rewards()
+        .get(usize::from(place))?
+        .category
+        .as_ref()?;
+    let at = rules.categories.iter().position(|c| &c.id == category)?;
+    u8::try_from(at).ok()
 }
 
 /// One option of a star: its effect, the damage type of a type bonus and the stage skill.
@@ -275,7 +258,7 @@ pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
         let eq = &career.equipment;
         let rises = |slot: &EquipSlot| {
             matches!(slot.held, Some(Held::Star(_)))
-                && gain(slot.level, slot.expertise, n).0 != slot.level
+                && gain(&stage.equipment_rules, slot.level, slot.expertise, n).0 != slot.level
         };
         // A level-up is rare: the levels before are listed only when one happens.
         let before = eq
@@ -287,7 +270,8 @@ pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
         let eq = &mut career.equipment;
         for slot in eq.slots.iter_mut().chain(eq.lumine.as_mut()) {
             if matches!(slot.held, Some(Held::Star(_))) {
-                (slot.level, slot.expertise) = gain(slot.level, slot.expertise, n);
+                (slot.level, slot.expertise) =
+                    gain(&stage.equipment_rules, slot.level, slot.expertise, n);
             }
         }
         if let Some(before) = before {
@@ -334,6 +318,7 @@ fn slot_at(equipment: &Equipment, index: usize) -> Option<&EquipSlot> {
 /// Lumine slot), then the option (no other slot holds a star sharing one) or the rune (no other
 /// rune slot holds it).
 pub(super) fn check(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     equipment: &Equipment,
     item: u32,
@@ -363,7 +348,7 @@ pub(super) fn check(
                 return Err(SlotError::NotEquippable { item });
             }
             match target.kind {
-                SlotKind::Category(c) if star_category(rewards, place) == Some(c) => {}
+                SlotKind::Category(c) if star_category(rules, rewards, place) == Some(c) => {}
                 SlotKind::Lumine => {}
                 SlotKind::Category(_) | SlotKind::Rune => return wrong,
             }
@@ -417,7 +402,14 @@ pub(super) fn equip(
     item: u32,
     slot: u32,
 ) -> Result<(), SlotError> {
-    check(rewards, &career.equipment, item, slot, false)?;
+    check(
+        &stage.equipment_rules,
+        rewards,
+        &career.equipment,
+        item,
+        slot,
+        false,
+    )?;
     apply(stage, rewards, player, career, item, slot, false);
     Ok(())
 }
@@ -433,7 +425,14 @@ pub(super) fn replace(
     item: u32,
     slot: u32,
 ) -> Result<(), SlotError> {
-    check(rewards, &career.equipment, item, slot, true)?;
+    check(
+        &stage.equipment_rules,
+        rewards,
+        &career.equipment,
+        item,
+        slot,
+        true,
+    )?;
     apply(stage, rewards, player, career, item, slot, true);
     Ok(())
 }

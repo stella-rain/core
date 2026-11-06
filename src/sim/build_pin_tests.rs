@@ -132,7 +132,9 @@ fn hand() -> Rewards {
 }
 
 fn stage() -> World {
-    World::for_test(RunContent::bundled().trial().clone())
+    let mut w = World::for_test(RunContent::bundled().trial().clone());
+    w.equipment_rules = crate::sim::slots::bundled_rules().clone();
+    w
 }
 
 /// A solo state whose offers hold the first `n` rewards of the file.
@@ -1022,10 +1024,16 @@ fn a_level_raises_the_amounts_and_not_the_intervals() {
     assert_eq!(at10(ATK).stats[StatEffect::AttackPct as usize], 6);
     assert_eq!(at10(HP).stats[StatEffect::MaxHp as usize], 127);
     let heal = at10(HEAL_A);
-    assert_eq!(heal.kill_heal, level_scaled(300, 10));
+    assert_eq!(
+        heal.kill_heal,
+        level_scaled(crate::sim::slots::bundled_rules(), 300, 10)
+    );
     assert_eq!(heal.kill_heal_every, at1(HEAL_A).kill_heal_every);
     let burst = at10(BURST_A);
-    assert_eq!(burst.burst_pct, level_scaled(20, 10));
+    assert_eq!(
+        burst.burst_pct,
+        level_scaled(crate::sim::slots::bundled_rules(), 20, 10)
+    );
     assert_eq!(burst.burst_radius, at1(BURST_A).burst_radius);
     assert_eq!(burst.burst_depth, at1(BURST_A).burst_depth);
     // Counts are not scaled: burst depth and offer candidates.
@@ -1034,7 +1042,10 @@ fn a_level_raises_the_amounts_and_not_the_intervals() {
         at1(BDEPTH).burst_depth_extra
     );
     assert_eq!(at10(CAND).extra_candidates, at1(CAND).extra_candidates);
-    assert_eq!(at10(REGEN).regen, level_scaled(2, 10));
+    assert_eq!(
+        at10(REGEN).regen,
+        level_scaled(crate::sim::slots::bundled_rules(), 2, 10)
+    );
     assert_eq!(at10(RANGE).range_pct, 12);
     // The caps still apply after the scaling.
     let two = Build::of_levelled(&stage, &rewards, &[(CRIT, 10), (CRIT, 10)]);

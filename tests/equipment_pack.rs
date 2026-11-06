@@ -622,3 +622,36 @@ fn a_file_made_before_the_keys_existed_writes_the_same_bytes() {
     assert!(parse_rewards(&v).is_ok());
     assert!(registry::is_well_formed("rune_haste_star_supernova"));
 }
+
+/// The equipment numbers and the weapon sets are the pack's: none is a const of the sim any more
+/// (ADR-CONT-3 point 8).
+#[test]
+fn the_equipment_consts_and_set_tables_are_gone_from_the_sim() {
+    let sources = [
+        ("drops", include_str!("../src/sim/drops.rs")),
+        ("slots", include_str!("../src/sim/slots.rs")),
+        ("starlight", include_str!("../src/sim/starlight.rs")),
+        ("expertise", include_str!("../src/sim/expertise.rs")),
+    ];
+    let names = [
+        "BOSS_DROPS",
+        "RUNE_SHARE_PERMILLE",
+        "SLOT_LAYOUT",
+        "KILLS_TO_NEXT",
+        "PCT_PER_LEVEL",
+        "EXTRACT_VALUE",
+        "RUNE_EXTRACT",
+        "CRAFT_PRICE",
+        "BOSS_BONUS",
+        "BASE_SETS",
+        "TREE_SETS",
+    ];
+    for (file, text) in sources {
+        for name in names {
+            assert!(
+                !text.contains(&format!("const {name}")),
+                "{file}.rs still has const {name}"
+            );
+        }
+    }
+}

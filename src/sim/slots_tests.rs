@@ -214,7 +214,8 @@ mod grants {
                 ],
             ),
         ];
-        let file = json!({ "rarities": rarities, "rewards": list });
+        let mut file = json!({ "rarities": rarities, "rewards": list });
+        crate::sim::starlight::with_equipment_rules(&mut file);
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("validates")
     }
 
@@ -248,6 +249,7 @@ mod grants {
         let mut stage = World::for_test(stage);
         // The slots are equipment mode's: the Growth effects are stats there.
         stage.equipment_mode = true;
+        stage.equipment_rules = slots::bundled_rules().clone();
         let pool = RunPool {
             rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
             extra_rerolls: 0,
@@ -264,7 +266,8 @@ mod grants {
             1,
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
-        s.players.career_mut(PlayerIdx::SOLO).equipment.slots = slots::fresh_slots();
+        s.players.career_mut(PlayerIdx::SOLO).equipment.slots =
+            slots::fresh_slots(slots::bundled_rules());
         Fixture { stage, rewards, s }
     }
 
@@ -573,7 +576,8 @@ mod rules {
             named("crit", "Keen", fx("crit_chance_pct", 5)),
             star("regen", "common", vec![fx("regen", 2)]),
         ];
-        let file = json!({ "rarities": rarities(), "rewards": list });
+        let mut file = json!({ "rarities": rarities(), "rewards": list });
+        crate::sim::starlight::with_equipment_rules(&mut file);
         let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
             .expect("the file validates");
         let sets = json!({ "constellations": [{
@@ -966,7 +970,7 @@ mod rules {
         hold(&mut f, 5, HP_C, 7, 40);
         assert_eq!(
             f.total(StatEffect::MaxHp),
-            base + slots::level_scaled(100, 7)
+            base + slots::level_scaled(slots::bundled_rules(), 100, 7)
         );
         f.put(&[Held::Star(HP_R)]);
         assert!(slots::is_switch(&f.rewards, f.eq(), 0, DEFENCE0));
@@ -974,7 +978,7 @@ mod rules {
         assert_eq!(lv(&f, 5), (7, 40));
         assert_eq!(
             f.total(StatEffect::MaxHp),
-            base + slots::level_scaled(250, 7)
+            base + slots::level_scaled(slots::bundled_rules(), 250, 7)
         );
         // The Lumine slot switches the same way.
         let mut f = fixture();
@@ -994,7 +998,7 @@ mod rules {
         hold(&mut f, 0, ATK_HP, 10, 0);
         assert_eq!(
             f.total(StatEffect::AttackPct),
-            atk + slots::level_scaled(4, 10)
+            atk + slots::level_scaled(slots::bundled_rules(), 4, 10)
         );
         f.put(&[Held::Star(CRIT)]);
         assert_eq!(f.replace(0, ATTACK0), Ok(()));
@@ -1003,7 +1007,7 @@ mod rules {
         assert_eq!(f.total(StatEffect::MaxHp), hp);
         assert_eq!(
             f.s.players[PlayerIdx::SOLO].crit_chance_pct,
-            slots::level_scaled(5, 5)
+            slots::level_scaled(slots::bundled_rules(), 5, 5)
         );
     }
 
@@ -1034,54 +1038,83 @@ mod rules {
 // --- expertise: the curve and the gain (ADR-SIM-3, ADR-SIM-5) ----------------------------------
 
 mod curve {
-    use super::super::slots::{self, KILLS_TO_NEXT, MAX_LEVEL};
+    use super::super::slots::{self, MAX_LEVEL};
 
     /// T1: the curve rises and a slot takes 870 kills from Lv1 to Lv10.
     #[test]
     fn the_curve_rises_and_ends_at_lv10() {
-        assert_eq!(KILLS_TO_NEXT.len(), 9);
-        assert!(KILLS_TO_NEXT.iter().all(|&n| n > 0));
-        assert!(KILLS_TO_NEXT.windows(2).all(|w| w[0] < w[1]));
-        assert_eq!(KILLS_TO_NEXT.iter().sum::<u32>(), 870);
+        assert_eq!(slots::bundled_rules().kills_to_next.len(), 9);
+        assert!(slots::bundled_rules().kills_to_next.iter().all(|&n| n > 0));
+        assert!(
+            slots::bundled_rules()
+                .kills_to_next
+                .windows(2)
+                .all(|w| w[0] < w[1])
+        );
+        assert_eq!(
+            slots::bundled_rules().kills_to_next.iter().sum::<u32>(),
+            870
+        );
         assert_eq!(MAX_LEVEL, 10);
     }
 
     /// T2: a slot rises one level at a time and keeps the rest.
     #[test]
     fn gain_levels_a_slot_one_level_at_a_time() {
-        assert_eq!(slots::gain(1, 0, 9), (1, 9));
-        assert_eq!(slots::gain(1, 9, 1), (2, 0));
-        assert_eq!(slots::gain(1, 0, 35), (3, 5));
-        assert_eq!(slots::gain(2, 19, 1), (3, 0));
-        assert_eq!(slots::gain(9, 0, 230), (10, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 9), (1, 9));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 9, 1), (2, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 35), (3, 5));
+        assert_eq!(slots::gain(slots::bundled_rules(), 2, 19, 1), (3, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 9, 0, 230), (10, 0));
     }
 
     /// T3: Lv10 is the end: no overflow, no expertise kept.
     #[test]
     fn gain_stops_at_lv10() {
-        assert_eq!(slots::gain(10, 0, 1_000_000), (10, 0));
-        assert_eq!(slots::gain(1, 0, u32::MAX), (10, 0));
-        assert_eq!(slots::gain(9, 229, 5), (10, 0));
-        assert_eq!(slots::gain(1, u32::MAX, u32::MAX), (10, 0));
+        assert_eq!(
+            slots::gain(slots::bundled_rules(), 10, 0, 1_000_000),
+            (10, 0)
+        );
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, u32::MAX), (10, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 9, 229, 5), (10, 0));
+        assert_eq!(
+            slots::gain(slots::bundled_rules(), 1, u32::MAX, u32::MAX),
+            (10, 0)
+        );
     }
 
     /// T5: a level adds a floored percentage of the base; Lv1 is the base.
     #[test]
     fn level_scaled_is_a_floored_percentage_of_the_base() {
-        assert_eq!(slots::level_scaled(20_000, 1), 20_000);
-        assert_eq!(slots::level_scaled(20_000, 2), 20_600);
-        assert_eq!(slots::level_scaled(20_000, 10), 25_400);
-        assert_eq!(slots::level_scaled(5, 10), 6);
-        assert_eq!(slots::level_scaled(5, 3), 5);
-        assert_eq!(slots::level_scaled(0, 10), 0);
-        assert_eq!(slots::level_scaled(u32::MAX, 10), u32::MAX);
-        assert_eq!(slots::level_scaled(7, 0), slots::level_scaled(7, 1));
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), 20_000, 1),
+            20_000
+        );
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), 20_000, 2),
+            20_600
+        );
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), 20_000, 10),
+            25_400
+        );
+        assert_eq!(slots::level_scaled(slots::bundled_rules(), 5, 10), 6);
+        assert_eq!(slots::level_scaled(slots::bundled_rules(), 5, 3), 5);
+        assert_eq!(slots::level_scaled(slots::bundled_rules(), 0, 10), 0);
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), u32::MAX, 10),
+            u32::MAX
+        );
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), 7, 0),
+            slots::level_scaled(slots::bundled_rules(), 7, 1)
+        );
     }
 
     /// T4: a slot that never held anything gains nothing.
     #[test]
     fn an_empty_slot_gains_nothing() {
-        assert_eq!(slots::gain(0, 0, 50), (0, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 0, 0, 50), (0, 0));
     }
 }
 
@@ -1089,7 +1122,7 @@ mod curve {
 
 mod kills {
     use super::super::equipment::{EquipSlot, Held, SlotKind};
-    use super::super::slots::{self, KILLS_TO_NEXT};
+    use super::super::slots::{self};
     use super::super::state::{AgentKey, AgentSource, PlayerIdx, State};
     use super::grants::{Fixture, rarities, star, with};
     use crate::fixed::Point;
@@ -1122,7 +1155,8 @@ mod kills {
                 vec![json!({ "effect": "speed_pct", "amount": 5 })],
             ),
         ];
-        let file = json!({ "rarities": rarities(), "rewards": list });
+        let mut file = json!({ "rarities": rarities(), "rewards": list });
+        crate::sim::starlight::with_equipment_rules(&mut file);
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("validates")
     }
 
@@ -1130,6 +1164,7 @@ mod kills {
     fn armed() -> Fixture {
         let mut f = with(rewards());
         f.stage.equipment_mode = true;
+        f.stage.equipment_rules = slots::bundled_rules().clone();
         f.set(0, Some(ATK));
         f.change(|e| {
             e.lumine = Some(EquipSlot {
@@ -1221,7 +1256,7 @@ mod kills {
                 .keeping_career_of(&f.s.players);
         for who in [one, two] {
             let eq = &mut f.s.players.career_mut(who).equipment;
-            eq.slots = slots::fresh_slots();
+            eq.slots = slots::fresh_slots(slots::bundled_rules());
             eq.slots[0].held = Some(Held::Star(SPEED));
             eq.slots[0].level = 1;
         }
@@ -1239,14 +1274,14 @@ mod kills {
     fn a_level_up_changes_the_build_in_the_tick() {
         let mut f = armed();
         let atk = f.total(StatEffect::AttackPct);
-        dead(&mut f, KILLS_TO_NEXT[0] - 1, 0);
+        dead(&mut f, slots::bundled_rules().kills_to_next[0] - 1, 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(f.total(StatEffect::AttackPct), atk);
         dead(&mut f, 1, 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(
             f.total(StatEffect::AttackPct),
-            atk + slots::level_scaled(100, 2) - 100
+            atk + slots::level_scaled(slots::bundled_rules(), 100, 2) - 100
         );
     }
 
@@ -1294,10 +1329,13 @@ mod kills {
         };
         assert_eq!(gap(&f, &control), (50_000, 3_000));
         for fx in [&mut f, &mut control] {
-            dead(fx, KILLS_TO_NEXT[0] - 1, 0);
+            dead(fx, slots::bundled_rules().kills_to_next[0] - 1, 0);
             tick(fx, PlayerIdx::SOLO);
         }
-        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (1, KILLS_TO_NEXT[0] - 1));
+        assert_eq!(
+            slot_of(&f, PlayerIdx::SOLO, 12),
+            (1, slots::bundled_rules().kills_to_next[0] - 1)
+        );
         assert_eq!(
             gap(&f, &control),
             (50_000, 3_000),
@@ -1308,7 +1346,10 @@ mod kills {
             tick(fx, PlayerIdx::SOLO);
         }
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0));
-        assert_eq!(slots::level_scaled(50_000, 2), 51_500);
+        assert_eq!(
+            slots::level_scaled(slots::bundled_rules(), 50_000, 2),
+            51_500
+        );
         assert_eq!(gap(&f, &control), (51_500, 3_090));
 
         let (mut f, place) = bundled_with_lumine();
@@ -1316,7 +1357,7 @@ mod kills {
             e.slots[0].held = Some(Held::Star(place));
             e.slots[0].level = 1;
         });
-        dead(&mut f, KILLS_TO_NEXT[0], 0);
+        dead(&mut f, slots::bundled_rules().kills_to_next[0], 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (2, 0));
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0));
@@ -1423,5 +1464,91 @@ mod bundled_lumine {
             total(s, StatEffect::AttackPct),
             total(p, StatEffect::AttackPct) + 30
         );
+    }
+}
+
+// --- the rules are the pack's (ADR-CONT-3 point 8) -------------------------------------------------
+
+mod pack_rules {
+    use super::super::slots;
+    use crate::rewards::{EquipmentCategory, EquipmentRules};
+
+    fn rules() -> EquipmentRules {
+        slots::bundled_rules().clone()
+    }
+
+    /// T8: the kills each level takes are the pack's list.
+    #[test]
+    fn the_kills_each_level_takes_are_the_rules() {
+        let mut r = rules();
+        r.kills_to_next = (1..=9).collect();
+        assert_eq!(slots::gain(&r, 1, 0, 1), (2, 0));
+        assert_eq!(slots::gain(&r, 1, 0, 45), (10, 0));
+        assert_eq!(slots::gain(&r, 1, 0, 44), (9, 8));
+    }
+
+    /// T8: what a level adds is the pack's percent.
+    #[test]
+    fn what_a_level_adds_is_the_rules_percent() {
+        let mut r = rules();
+        r.level_pct = 10;
+        assert_eq!(slots::level_scaled(&r, 100, 4), 130);
+        assert_eq!(slots::level_scaled(&r, 100, 1), 100);
+    }
+
+    /// T8: the layout is the pack's categories in order, then its rune slots.
+    #[test]
+    fn the_layout_is_the_rules_categories_then_the_rune_slots() {
+        let mut r = rules();
+        r.categories = vec![
+            EquipmentCategory {
+                id: "attack".into(),
+                slots: 3,
+            },
+            EquipmentCategory {
+                id: "defence".into(),
+                slots: 3,
+            },
+        ];
+        r.rune_slots = 2;
+        let slots_ = slots::fresh_slots(&r);
+        assert_eq!(slots_.len(), 8);
+        assert_eq!(slots::first_rune_slot(&r), 6);
+        use crate::sim::equipment::SlotKind::{Category, Rune};
+        let kinds: Vec<_> = slots_.iter().map(|s| s.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                Category(0),
+                Category(0),
+                Category(0),
+                Category(1),
+                Category(1),
+                Category(1),
+                Rune,
+                Rune
+            ]
+        );
+        assert!(slots_.iter().all(|s| s.held.is_none() && s.level == 0));
+    }
+
+    /// T17: the bundled layout is Attack 5, Defence 2, Mobility 2 and 3 rune slots.
+    #[test]
+    fn the_bundled_layout_keeps_its_shape() {
+        use crate::sim::equipment::SlotKind::{Category, Rune};
+        let kinds: Vec<_> = slots::fresh_slots(&rules())
+            .iter()
+            .map(|s| s.kind)
+            .collect();
+        let want = [
+            (Category(0), 5),
+            (Category(1), 2),
+            (Category(2), 2),
+            (Rune, 3),
+        ]
+        .into_iter()
+        .flat_map(|(k, n)| std::iter::repeat_n(k, n))
+        .collect::<Vec<_>>();
+        assert_eq!(kinds, want);
     }
 }

@@ -3,29 +3,15 @@
 //! spends by crafting a star of the setup's pool. The balance is `Equipment.starlight`, hashed
 //! and saved already; nothing carries it out of the run, a new run or a joiner starts at 0.
 //!
-//! Rules of this file, which the pack may refine later: a rune extracts at one flat value (it has
-//! no rarity); craft takes an index of the star pool and draws nothing; a craft is not clamped to
+//! The values (extract, craft price, rune extract, boss bonus) are the pack's `EquipmentRules`
+//! (ADR-CONT-3 point 8). Rules of this file: a rune extracts at one flat value (it has no rarity); craft takes an index of the star pool and draws nothing; a craft is not clamped to
 //! the difficulty's rarity range (a drop is); an extract and a craft work for a downed or out
 //! player as an equip does. Nothing here draws, emits an event or allocates inside a tick.
 
 use super::equipment::{Equipment, Held};
 use super::state::State;
 use crate::limits::MAX_INVENTORY;
-use crate::rewards::{Rarity, Rewards};
-
-/// The Starlight an extracted star gives, by `Rarity::index()`. A placeholder: the pack will
-/// carry it (ADR-CONT-3 point 8).
-pub(crate) const EXTRACT_VALUE: [u32; Rarity::ALL.len()] = [5, 10, 20, 40, 80, 160];
-
-/// The Starlight an extracted rune gives: a rune has no rarity. A placeholder.
-pub(crate) const RUNE_EXTRACT: u32 = 10;
-
-/// The Starlight a craft of a star costs, by `Rarity::index()`: five times its extract value, so
-/// extracting is a loss. A placeholder.
-pub(crate) const CRAFT_PRICE: [u32; Rarity::ALL.len()] = [25, 50, 100, 200, 400, 800];
-
-/// The Starlight each player who is up gets from a boss kill. A placeholder.
-pub(crate) const BOSS_BONUS: u32 = 50;
+use crate::rewards::{EquipmentRules, Rarity, Rewards};
 
 /// Why an extract or a craft is refused (ADR-SIM-7).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,21 +30,35 @@ pub(crate) enum StarlightError {
     InventoryFull,
 }
 
+/// The rules' row for `rarity`: a rarity the list lacks is priced 0 (the pack lists every one).
+fn priced(rules: &EquipmentRules, rarity: Rarity) -> (u32, u32) {
+    rules
+        .rarities
+        .iter()
+        .find(|r| r.rarity == rarity)
+        .map_or((0, 0), |r| (r.extract, r.craft_price))
+}
+
+/// The Starlight extracting a star of `rarity` gives.
+pub(super) fn extract_of(rules: &EquipmentRules, rarity: Rarity) -> u32 {
+    priced(rules, rarity).0
+}
+
 /// The Starlight extracting `held` gives: a star by its rarity, a star outside the file 0, a rune
 /// the flat value.
-pub(super) fn extract_value(rewards: &Rewards, held: Held) -> u32 {
+pub(super) fn extract_value(rules: &EquipmentRules, rewards: &Rewards, held: Held) -> u32 {
     match held {
-        Held::Rune(_) => RUNE_EXTRACT,
+        Held::Rune(_) => rules.rune_extract,
         Held::Star(place) => rewards
             .rewards()
             .get(usize::from(place))
-            .map_or(0, |r| EXTRACT_VALUE[usize::from(r.rarity.index())]),
+            .map_or(0, |r| priced(rules, r.rarity).0),
     }
 }
 
 /// The Starlight a craft of a star of `rarity` costs.
-pub(super) fn craft_price(rarity: Rarity) -> u32 {
-    CRAFT_PRICE[usize::from(rarity.index())]
+pub(super) fn craft_price(rules: &EquipmentRules, rarity: Rarity) -> u32 {
+    priced(rules, rarity).1
 }
 
 /// Whether inventory item `item` could be extracted. Pure.
@@ -73,6 +73,7 @@ pub(super) fn check_extract(equipment: &Equipment, item: u32) -> Result<(), Star
 /// Extracts inventory item `item`: it leaves the inventory (later items shift down, as an equip
 /// does) and its value is added with `saturating_add`. A refusal changes nothing.
 pub(super) fn extract(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     equipment: &mut Equipment,
     item: u32,
@@ -81,17 +82,17 @@ pub(super) fn extract(
     let held = equipment.inventory.remove(item as usize);
     equipment.starlight = equipment
         .starlight
-        .saturating_add(extract_value(rewards, held));
+        .saturating_add(extract_value(rules, rewards, held));
     Ok(())
 }
 
-/// A boss kill: every present player that is up gets `BOSS_BONUS`, added with `saturating_add`.
+/// A boss kill: every present player that is up gets the rules' `boss_bonus`, added with `saturating_add`.
 /// A downed or out player gets none, as with the boss's drops. No draw, no event, no allocation.
-pub(super) fn boss_bonus(s: &mut State) {
+pub(super) fn boss_bonus(rules: &EquipmentRules, s: &mut State) {
     for me in s.players.indices() {
         if s.players[me].is_up() {
             let equipment = &mut s.players.career_mut(me).equipment;
-            equipment.starlight = equipment.starlight.saturating_add(BOSS_BONUS);
+            equipment.starlight = equipment.starlight.saturating_add(rules.boss_bonus);
         }
     }
 }
@@ -111,6 +112,7 @@ pub(super) fn holds_named(rewards: &Rewards, equipment: &Equipment, place: u16) 
 /// The order of the checks is the star, whether it is craftable, whether a named star is held,
 /// the price, the inventory.
 fn craft_target(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     pool: &[u16],
     equipment: &Equipment,
@@ -131,7 +133,7 @@ fn craft_target(
     if holds_named(rewards, equipment, place) {
         return Err(StarlightError::AlreadyHeld { star });
     }
-    let need = craft_price(reward.rarity);
+    let need = craft_price(rules, reward.rarity);
     if equipment.starlight < need {
         return Err(StarlightError::NotEnoughStarlight {
             need,
@@ -146,24 +148,84 @@ fn craft_target(
 
 /// Whether the star at index `star` of `pool` could be crafted (`craft_target`). Pure.
 pub(super) fn check_craft(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     pool: &[u16],
     equipment: &Equipment,
     star: u32,
 ) -> Result<(), StarlightError> {
-    craft_target(rewards, pool, equipment, star).map(|_| ())
+    craft_target(rules, rewards, pool, equipment, star).map(|_| ())
 }
 
 /// Crafts the star at index `star` of `pool`: its price leaves the balance and the star is
 /// pushed at the end of the inventory, like a drop. A refusal changes nothing.
 pub(super) fn craft(
+    rules: &EquipmentRules,
     rewards: &Rewards,
     pool: &[u16],
     equipment: &mut Equipment,
     star: u32,
 ) -> Result<(), StarlightError> {
-    let (place, price) = craft_target(rewards, pool, equipment, star)?;
+    let (place, price) = craft_target(rules, rewards, pool, equipment, star)?;
     equipment.starlight -= price;
     equipment.inventory.push(Held::Star(place));
     Ok(())
+}
+
+/// The bundled pack's equipment rules, for tests that run on the bundled pack.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn bundled_rules() -> &'static EquipmentRules {
+    Rewards::bundled()
+        .equipment()
+        .expect("the bundled pack holds the equipment rules")
+}
+
+/// The bundled pack's extract values by `Rarity::index()`, for tests.
+#[cfg(test)]
+pub(crate) fn extract_table() -> Vec<u32> {
+    Rarity::ALL.map(|r| extract_of(bundled_rules(), r)).to_vec()
+}
+
+/// The bundled pack's craft prices by `Rarity::index()`, for tests.
+#[cfg(test)]
+pub(crate) fn craft_table() -> Vec<u32> {
+    Rarity::ALL
+        .map(|r| craft_price(bundled_rules(), r))
+        .to_vec()
+}
+
+/// Gives a hand-written rewards file the bundled equipment rules and, to each reward with none,
+/// the category its first effect names (Attack, on-hit and rune effects `attack`, Defence
+/// `defence`, Mobility `mobility`; Growth and the random rune none), for tests.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn with_equipment_rules(file: &mut serde_json::Value) {
+    use crate::rewards::RewardEffect;
+    use crate::snapshot::Category;
+    file["equipment"] = serde_json::to_value(bundled_rules()).expect("the rules serialise");
+    let Some(list) = file["rewards"].as_array_mut() else {
+        return;
+    };
+    for r in list {
+        let first = r["effects"][0]["effect"]
+            .as_str()
+            .or_else(|| r["effect"].as_str())
+            .map(str::to_owned);
+        let Some(first) = first else { continue };
+        let effect: RewardEffect =
+            serde_json::from_value(serde_json::Value::String(first)).expect("an effect name");
+        if effect == RewardEffect::RandomRune || r.get("category").is_some() {
+            continue;
+        }
+        let category = match super::offer_rating::category_of(effect) {
+            Category::Attack | Category::OnHit | Category::Rune => Some("attack"),
+            Category::Defence => Some("defence"),
+            Category::Mobility => Some("mobility"),
+            Category::Growth => None,
+        };
+        if let Some(category) = category {
+            r["category"] = serde_json::Value::String(category.into());
+        }
+    }
 }

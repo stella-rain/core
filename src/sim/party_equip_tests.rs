@@ -3,11 +3,12 @@
 //! its rolls, an out member gets none, a leaver's items go with it and a joiner takes the start
 //! loadout.
 
-use super::drops::{self, DropTable};
+use super::drops::DropTable;
 use super::drops_tests::{after, drop_star, expected, inventory, rewards, tiered};
 use super::equipment::Held;
 use super::party_fix_tests::{down, out, slot};
 use super::runes::FULL_POOL;
+use super::starlight::bundled_rules;
 use super::stars;
 use crate::engine::{Engine, Run};
 use crate::fixed::Fx;
@@ -27,8 +28,9 @@ fn rare_party(n: u8) -> (super::World, super::State) {
         ],
         false,
     );
-    w.drops = DropTable::of(&rw);
+    w.drops = DropTable::of(&rw, bundled_rules());
     w.equipment_mode = true;
+    w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL_POOL;
     (w, s)
@@ -82,14 +84,17 @@ fn a_downed_member_collects_nothing() {
     }
 }
 
-/// E3: a boss kill gives the downed and the out nothing; the up member gets `BOSS_DROPS`.
+/// E3: a boss kill gives the downed and the out nothing; the up member gets the rules' `boss_drops`.
 #[test]
 fn a_boss_kill_gives_the_downed_and_the_out_nothing() {
     let (w, mut s) = rare_party(3);
     down(&mut s, 1);
     out(&mut s, 2);
     stars::boss_killed(&w, &mut s);
-    assert_eq!(inventory(&s, 0).len(), usize::from(drops::BOSS_DROPS));
+    assert_eq!(
+        inventory(&s, 0).len(),
+        usize::from(bundled_rules().boss_drops)
+    );
     assert!(inventory(&s, 1).is_empty() && inventory(&s, 2).is_empty());
 }
 
@@ -252,4 +257,40 @@ fn a_joiner_takes_the_start_regen_not_slot_0s_current() {
     }
     assert_eq!(s.players[slot(1)].hp, s.players[slot(1)].max_hp);
     assert_eq!(s.players[slot(2)].hp, 0);
+}
+
+/// T8: a boss kill pays each member who is up the pack's `boss_drops` rolls: 2 give two, 0 none.
+#[test]
+fn a_boss_kill_rolls_the_rules_boss_drops() {
+    for n in [0u8, 2] {
+        let (mut w, mut s) = rare_party(2);
+        w.equipment_rules.boss_drops = n;
+        stars::boss_killed(&w, &mut s);
+        for i in 0..2 {
+            assert_eq!(
+                inventory(&s, i).len(),
+                usize::from(n),
+                "{n} drops, slot {i}"
+            );
+        }
+    }
+}
+
+/// T8: the rune share is the pack's: 0 never gives a rune, 1000 only runes.
+#[test]
+fn a_drop_is_a_rune_by_the_rules_share() {
+    for (share, runes) in [(0u32, false), (1000, true)] {
+        let (mut w, mut s) = rare_party(1);
+        w.equipment_rules.rune_share_permille = share;
+        w.equipment_rules.boss_drops = 8;
+        for _ in 0..50 {
+            stars::boss_killed(&w, &mut s);
+        }
+        let items = inventory(&s, 0);
+        assert!(!items.is_empty());
+        assert!(
+            items.iter().all(|h| matches!(h, Held::Rune(_)) == runes),
+            "share {share}"
+        );
+    }
 }
