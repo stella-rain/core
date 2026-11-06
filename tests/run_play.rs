@@ -266,8 +266,8 @@ pub struct EquipScript {
     /// star, so it shares no option (the contents' ids name the option): a slot's expertise is
     /// halved. Without it the first accepted replace is made, a switch when there is one.
     pub no_share: bool,
-    /// At this tick, and the two after it, slot 0 extracts the first inventory item the engine
-    /// accepts (ADR-SIM-7); `None` extracts nothing.
+    /// At this tick, and the two after it, slot 0 extracts inventory item 0 if the engine
+    /// accepts it (ADR-SIM-7); `None` extracts nothing.
     pub extract_at: Option<u32>,
     /// At this tick slot 0 crafts the first star of the pool the engine accepts; `None` crafts
     /// nothing.
@@ -329,7 +329,10 @@ impl EquipScript {
             t if t == self.swap_at => {
                 find(replace, false, 0..9).or_else(|| find(equip, false, 0..9))
             }
-            t if self.extract_at.is_some_and(|x| (x..x + 3).contains(&t)) => {
+            t if self
+                .extract_at
+                .is_some_and(|x| t.checked_sub(x).is_some_and(|d| d < 3)) =>
+            {
                 let extract = EquipAction::Extract { item: 0 };
                 Some(extract).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
             }

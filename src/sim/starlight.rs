@@ -15,14 +15,14 @@ use crate::rewards::{Rarity, Rewards};
 
 /// The Starlight an extracted star gives, by `Rarity::index()`. A placeholder: the pack will
 /// carry it (ADR-CONT-3 point 8).
-pub(crate) const EXTRACT_VALUE: [u32; 6] = [5, 10, 20, 40, 80, 160];
+pub(crate) const EXTRACT_VALUE: [u32; Rarity::ALL.len()] = [5, 10, 20, 40, 80, 160];
 
 /// The Starlight an extracted rune gives: a rune has no rarity. A placeholder.
 pub(crate) const RUNE_EXTRACT: u32 = 10;
 
 /// The Starlight a craft of a star costs, by `Rarity::index()`: five times its extract value, so
 /// extracting is a loss. A placeholder.
-pub(crate) const CRAFT_PRICE: [u32; 6] = [25, 50, 100, 200, 400, 800];
+pub(crate) const CRAFT_PRICE: [u32; Rarity::ALL.len()] = [25, 50, 100, 200, 400, 800];
 
 /// The Starlight each player who is up gets from a boss kill. A placeholder.
 pub(crate) const BOSS_BONUS: u32 = 50;
@@ -107,14 +107,15 @@ pub(super) fn holds_named(rewards: &Rewards, equipment: &Equipment, place: u16) 
         && super::drops::holds(equipment, place)
 }
 
-/// Whether the star at index `star` of `pool` could be crafted. Pure. The order of the checks is
-/// the star, whether it is craftable, whether a named star is held, the price, the inventory.
-pub(super) fn check_craft(
+/// The place and price of the star at index `star` of `pool`, or why it cannot be crafted. Pure.
+/// The order of the checks is the star, whether it is craftable, whether a named star is held,
+/// the price, the inventory.
+fn craft_target(
     rewards: &Rewards,
     pool: &[u16],
     equipment: &Equipment,
     star: u32,
-) -> Result<(), StarlightError> {
+) -> Result<(u16, u32), StarlightError> {
     let place = usize::try_from(star)
         .ok()
         .and_then(|i| pool.get(i))
@@ -140,7 +141,17 @@ pub(super) fn check_craft(
     if equipment.inventory.len() >= MAX_INVENTORY {
         return Err(StarlightError::InventoryFull);
     }
-    Ok(())
+    Ok((place, need))
+}
+
+/// Whether the star at index `star` of `pool` could be crafted (`craft_target`). Pure.
+pub(super) fn check_craft(
+    rewards: &Rewards,
+    pool: &[u16],
+    equipment: &Equipment,
+    star: u32,
+) -> Result<(), StarlightError> {
+    craft_target(rewards, pool, equipment, star).map(|_| ())
 }
 
 /// Crafts the star at index `star` of `pool`: its price leaves the balance and the star is
@@ -151,12 +162,7 @@ pub(super) fn craft(
     equipment: &mut Equipment,
     star: u32,
 ) -> Result<(), StarlightError> {
-    check_craft(rewards, pool, equipment, star)?;
-    let place = pool[star as usize];
-    let price = rewards
-        .rewards()
-        .get(usize::from(place))
-        .map_or(0, |r| craft_price(r.rarity));
+    let (place, price) = craft_target(rewards, pool, equipment, star)?;
     equipment.starlight -= price;
     equipment.inventory.push(Held::Star(place));
     Ok(())
