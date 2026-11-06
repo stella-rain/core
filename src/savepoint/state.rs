@@ -667,6 +667,65 @@ mod players_tests {
         ok.players = Players::of(vec![first.clone(), first]).unwrap();
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
     }
+    /// T14: an equipment star out of range, or the random rune, is refused for every present
+    /// slot, wherever it is held.
+    #[test]
+    fn the_savepoint_refuses_a_bad_equipment_index() {
+        use crate::savepoint::DecodeError;
+        use crate::sim::equipment::{EquipSlot, Held, SlotKind};
+
+        let e = worst_case::warmed_up().into_party(2);
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules")
+        };
+        let rewards = e.content().rewards().rewards();
+        let random_rune = rewards
+            .iter()
+            .position(|r| r.is_random_rune())
+            .map(|i| u16::try_from(i).unwrap())
+            .expect("the bundled file has the random rune");
+        let len = u16::try_from(rewards.len()).unwrap();
+        let put = |me: u8, place: usize, held: Held| {
+            let mut s = state.clone();
+            let slot = EquipSlot {
+                kind: SlotKind::Category(0),
+                held: Some(held),
+                level: 1,
+                expertise: 0,
+            };
+            let eq = &mut s.players.career_mut(PlayerIdx::new(me).unwrap()).equipment;
+            match place {
+                0 => eq.inventory.push(held),
+                1 => eq.slots.push(slot),
+                _ => {
+                    eq.lumine = Some(EquipSlot {
+                        kind: SlotKind::Lumine,
+                        ..slot
+                    })
+                }
+            }
+            s
+        };
+        for me in 0..2 {
+            for place in 0..3 {
+                for (held, message) in [
+                    (Held::Star(len), "equipment star out of range"),
+                    (Held::Star(random_rune), "equipment star is the random rune"),
+                ] {
+                    assert_eq!(
+                        check_indices(&put(me, place, held), world, e.content()),
+                        Err(DecodeError::Invalid(message)),
+                        "slot {me} place {place}"
+                    );
+                }
+                let fine = put(me, place, Held::Star(0));
+                assert_eq!(check_indices(&fine, world, e.content()), Ok(()));
+                let rune = put(me, place, Held::Rune(crate::rune::Rune::Thunder));
+                assert_eq!(check_indices(&rune, world, e.content()), Ok(()));
+            }
+        }
+    }
+
     #[test]
     fn a_lumine_slot_the_setup_does_not_name_is_refused() {
         use crate::savepoint::DecodeError;
