@@ -368,6 +368,17 @@ fn the_released_set_is_unchanged() {
     }
 }
 
+/// P2: the first eleven effects keep their order and indices as later effects are appended.
+#[test]
+fn the_eleven_effects_are_in_order() {
+    assert!(StatEffect::ALL.len() >= 11);
+    for (i, effect) in StatEffect::ALL.iter().take(11).enumerate() {
+        assert_eq!(*effect as usize, i);
+    }
+    assert_eq!(StatEffect::RELEASED, StatEffect::ALL[..6]);
+    assert_eq!(StatEffect::StardustPct as usize, 10);
+}
+
 /// T1: the five new effects follow the six, by index and by name.
 #[test]
 fn the_new_effects_follow_the_six() {
