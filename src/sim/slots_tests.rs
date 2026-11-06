@@ -249,7 +249,9 @@ mod grants {
         }
         stage.player.evade.charges = 1;
         stage.player.evade.max_charges = Some(3);
-        let stage = World::for_test(stage);
+        let mut stage = World::for_test(stage);
+        // The slots are equipment mode's: the Growth effects are stats there.
+        stage.equipment_mode = true;
         let pool = RunPool {
             rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
             extra_rerolls: 0,

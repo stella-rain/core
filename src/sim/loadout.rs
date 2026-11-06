@@ -85,7 +85,7 @@ pub(crate) fn apply(
         f.rune_pool = loadout.rune_pool;
     }
     for entry in &loadout.perk {
-        perk(s, me, *entry);
+        perk(s, me, *entry, stage.equipment_mode);
     }
     let State { stars, players, .. } = s;
     let (player, career) = players.both_mut(me);
@@ -135,12 +135,20 @@ pub(crate) fn apply(
     }
 }
 
-pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
+/// Adds one perk entry. In equipment mode (`equipment`) the extra rerolls and banishes are stats
+/// of the player's `Progress` (nothing without one); otherwise they go to the offers.
+pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry, equipment: bool) {
     let amount = entry.amount;
     match entry.effect {
         PerkEffect::Regen => {
             let career = s.players.career_mut(me);
             career.regen = career.regen.saturating_add(amount);
+        }
+        PerkEffect::ExtraRerolls | PerkEffect::ExtraBanishes if equipment => {
+            let (player, career) = s.players.both_mut(me);
+            if let (Some(stat), Some(p)) = (entry.effect.growth_stat(), career.progress.as_mut()) {
+                levels::add_effect(p, player, stat, amount);
+            }
         }
         PerkEffect::ExtraRerolls => {
             if let Some(o) = s.players.career_mut(me).offers.as_mut() {
