@@ -1500,16 +1500,25 @@ fn overlaps(a: Point, ra: i32, b: Point, rb: i32) -> bool {
     dx * dx + dy * dy <= r * r
 }
 
-/// The percent a pickup circle of `me` is widened by: the stars' share plus the `PickupRadiusPct`
-/// total of the run stats (0 without levels), saturating; `widened` holds the sum to its cap.
+/// The percent a pickup circle of `me` is widened by: `pickup_pct_of` for its player.
 fn pickup_pct(s: &State, me: PlayerIdx) -> u32 {
-    s.players[me]
+    pickup_pct_of(s.players.career(me).progress.as_ref(), &s.players[me])
+}
+
+/// The percent a pickup circle of `player` is widened by: the stars' share plus the
+/// `PickupRadiusPct` total of the run stats in `progress` (0 without levels), saturating, held to
+/// `MAX_PICKUP_RADIUS_TOTAL_PCT`. What the snapshot and the offer rating show is this number.
+pub(crate) fn pickup_pct_of(
+    progress: Option<&state::Progress>,
+    player: &state::PlayerState,
+) -> u32 {
+    let stat = progress.map_or(0, |p| {
+        p.totals[crate::run_stats::StatEffect::PickupRadiusPct as usize]
+    });
+    player
         .pickup_radius_pct
-        .saturating_add(levels::total(
-            s,
-            me,
-            crate::run_stats::StatEffect::PickupRadiusPct,
-        ))
+        .saturating_add(stat)
+        .min(crate::rewards::MAX_PICKUP_RADIUS_TOTAL_PCT)
 }
 
 /// A pickup circle of `radius` widened by `pct` percent, the percent held to
