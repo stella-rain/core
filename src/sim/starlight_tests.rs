@@ -127,7 +127,127 @@ fn extract_refuses_a_place_past_the_inventory() {
 fn a_star_outside_the_file_extracts_for_nothing() {
     let rw = rewards();
     assert_eq!(extract_value(&rw, Held::Star(RANDOM_RUNE + 50)), 0);
-    let _ = (RARE, NAMED);
+}
+
+// --- craft -------------------------------------------------------------------------------------
+
+fn rich(starlight: u32) -> Equipment {
+    Equipment {
+        starlight,
+        ..Equipment::default()
+    }
+}
+
+#[test]
+fn craft_spends_the_price_and_adds_the_star() {
+    let rw = rewards();
+    let pool = [COMMON, RARE];
+    let mut e = rich(100);
+    e.inventory.push(Held::Star(EPIC));
+    starlight::craft(&rw, &pool, &mut e, 1).expect("a craft");
+    assert_eq!(e.starlight, 100 - CRAFT_PRICE[2]);
+    assert_eq!(e.inventory, vec![Held::Star(EPIC), Held::Star(RARE)]);
+    // An unnamed star twice gives two copies.
+    let mut e = rich(100);
+    starlight::craft(&rw, &pool, &mut e, 0).unwrap();
+    starlight::craft(&rw, &pool, &mut e, 0).unwrap();
+    assert_eq!(e.inventory, vec![Held::Star(COMMON); 2]);
+    assert_eq!(e.starlight, 100 - 2 * CRAFT_PRICE[0]);
+}
+
+#[test]
+fn craft_refuses_what_it_cannot_take() {
+    let rw = rewards();
+    let pool = [COMMON, RARE, 99, RANDOM_RUNE];
+    let refused = |e: &Equipment, star: u32, want: StarlightError| {
+        let mut e2 = e.clone();
+        assert_eq!(starlight::check_craft(&rw, &pool, e, star), Err(want));
+        assert_eq!(starlight::craft(&rw, &pool, &mut e2, star), Err(want));
+        assert_eq!(&e2, e);
+    };
+    let e = rich(10_000);
+    refused(&e, 4, StarlightError::NoStar { star: 4 });
+    refused(&e, u32::MAX, StarlightError::NoStar { star: u32::MAX });
+    refused(&e, 2, StarlightError::NoStar { star: 2 });
+    refused(&e, 3, StarlightError::NotCraftable { star: 3 });
+    let e = rich(CRAFT_PRICE[2] - 1);
+    refused(
+        &e,
+        1,
+        StarlightError::NotEnoughStarlight {
+            need: CRAFT_PRICE[2],
+            have: CRAFT_PRICE[2] - 1,
+        },
+    );
+    let mut e = rich(CRAFT_PRICE[2]);
+    starlight::craft(&rw, &pool, &mut e, 1).expect("exactly the price");
+    assert_eq!(e.starlight, 0);
+    let mut full = rich(10_000);
+    full.inventory = vec![Held::Star(COMMON); crate::limits::MAX_INVENTORY];
+    refused(&full, 0, StarlightError::InventoryFull);
+    starlight::extract(&rw, &mut full, 0).unwrap();
+    starlight::craft(&rw, &pool, &mut full, 0).expect("room again");
+}
+
+#[test]
+fn craft_of_a_held_named_star_is_refused() {
+    use super::equipment::{EquipSlot, SlotKind};
+    let rw = rewards();
+    let pool = [NAMED, COMMON];
+    let slot = |held| EquipSlot {
+        kind: SlotKind::Category(0),
+        held: Some(held),
+        level: 1,
+        expertise: 0,
+    };
+    let already = StarlightError::AlreadyHeld { star: 0 };
+    let mut e = rich(10_000);
+    assert!(!starlight::holds_named(&rw, &e, NAMED));
+    starlight::check_craft(&rw, &pool, &e, 0).expect("not held: craftable");
+    e.inventory.push(Held::Star(NAMED));
+    assert_eq!(starlight::check_craft(&rw, &pool, &e, 0), Err(already));
+    assert!(starlight::holds_named(&rw, &e, NAMED));
+    let mut e = rich(10_000);
+    e.slots.push(slot(Held::Star(NAMED)));
+    assert_eq!(starlight::check_craft(&rw, &pool, &e, 0), Err(already));
+    let mut e = rich(10_000);
+    e.lumine = Some(EquipSlot {
+        kind: SlotKind::Lumine,
+        ..slot(Held::Star(NAMED))
+    });
+    assert_eq!(starlight::check_craft(&rw, &pool, &e, 0), Err(already));
+    // An unnamed star crafts whether held or not.
+    let mut e = rich(10_000);
+    e.inventory.push(Held::Star(COMMON));
+    e.slots.push(slot(Held::Star(COMMON)));
+    assert!(!starlight::holds_named(&rw, &e, COMMON));
+    starlight::check_craft(&rw, &pool, &e, 1).expect("an unnamed star");
+}
+
+#[test]
+fn craft_and_extract_draw_nothing_and_allocate_nothing() {
+    use super::party_fix_tests::{party, slot};
+    use super::{check_craft, craft_action, extract_action};
+    let rw = rewards();
+    let (_, mut s) = party(1);
+    let me = slot(0);
+    s.stars.as_mut().expect("stars").pool = vec![COMMON, RARE];
+    {
+        let e = &mut s.players.career_mut(me).equipment;
+        e.inventory.reserve(crate::limits::MAX_INVENTORY);
+        e.inventory.push(Held::Star(EPIC));
+    }
+    let offer = s.players.career(me).offer.clone();
+    let cap = s.players.career(me).equipment.inventory.capacity();
+    extract_action(&rw, &mut s, me, 0).expect("extract");
+    assert_eq!(check_craft(&rw, &s, me, 1), Err(StarlightError::NotEnoughStarlight {
+        need: CRAFT_PRICE[2],
+        have: EXTRACT_VALUE[3],
+    }));
+    s.players.career_mut(me).equipment.starlight = 1000;
+    craft_action(&rw, &mut s, me, 1).expect("craft");
+    assert_eq!(s.players.career(me).offer, offer);
+    assert_eq!(s.players.career(me).equipment.inventory.capacity(), cap);
 }
 
 // --- the boss bonus ----------------------------------------------------------------------------
