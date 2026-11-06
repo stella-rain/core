@@ -15,6 +15,7 @@
 use std::fmt::Write as _;
 
 use sha2::{Digest, Sha256};
+use stella_rain_core::bench_fixtures::equip_case::{self, EQUIP_PEAK_TICK, ROLLBACK_ACTIONS};
 use stella_rain_core::bench_fixtures::party_case::{self, PEAK_TICK_3P, ROLLBACK_TICKS};
 use stella_rain_core::bench_fixtures::worst_minute_case::{
     MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at, worst_minute_window,
@@ -58,6 +59,8 @@ enum Kind {
     Party(fn() -> party_case::Case, fn() -> Stage),
     /// The saved engine of the rollback bench (`party_case::rollback`).
     Rollback(fn() -> Engine),
+    /// The saved engine of the equipment rollback bench (`equip_case::rollback_equip`).
+    EquipRollback(fn() -> Engine),
 }
 
 struct Spec {
@@ -69,7 +72,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 8] {
+fn specs() -> [Spec; 9] {
     [
         Spec {
             id: "worst_tick",
@@ -118,6 +121,12 @@ fn specs() -> [Spec; 8] {
             bench: "rollback",
             mode: "time_limit",
             kind: Kind::Rollback(party_case::saved),
+        },
+        Spec {
+            id: "rollback_equip",
+            bench: "rollback_equip",
+            mode: "time_limit",
+            kind: Kind::EquipRollback(equip_case::saved),
         },
     ]
 }
@@ -245,6 +254,30 @@ fn measure(spec: &Spec) -> Pins {
             std::mem::forget(saved);
             after = hash_hex(engine.state_hash());
         }
+        Kind::EquipRollback(saved) => {
+            let saved = saved();
+            before = hash_hex(saved.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&saved, spec.mode),
+            ]);
+            let mut played = Vec::new();
+            for tick in saved.tick()..saved.tick() + ROLLBACK_TICKS {
+                serde_json::to_writer(&mut played, &party_case::minute_inputs(tick))
+                    .expect("the inputs serialize");
+                played.push(b'\n');
+            }
+            let actions = serde_json::to_vec(&ROLLBACK_ACTIONS).expect("the actions serialize");
+            input = digest(&[
+                b"stella-rain/bench-input-equip/v1\n",
+                &played,
+                b"actions:",
+                &actions,
+            ]);
+            let (engine, saved) = equip_case::rollback_equip(saved);
+            std::mem::forget(saved);
+            after = hash_hex(engine.state_hash());
+        }
         Kind::Run(run, ticks) => {
             let mut run = run();
             before = hash_hex(run.engine.state_hash());
@@ -363,6 +396,11 @@ fn the_rollback_is_the_benches_case() {
     check("rollback");
 }
 
+#[test]
+fn the_rollback_equip_is_the_benches_case() {
+    check("rollback_equip");
+}
+
 fn hits_by(engine: &Engine, slot: u8) -> usize {
     use stella_rain_core::event::DomainEvent;
     let id = PlayerIdx::new(slot).expect("a slot").id();
@@ -414,6 +452,84 @@ fn the_rollback_restores_and_plays_eight_ticks() {
 #[test]
 fn the_party_peak_is_where_the_scan_finds_it() {
     assert_eq!(party_case::window(), (MINUTE_START, PEAK_TICK_3P));
+}
+
+/// E1: the equipment rollback's saved engine.
+#[test]
+fn the_equip_saved_engine() {
+    let saved = equip_case::saved();
+    assert_eq!(saved.players(), 3);
+    assert_eq!(saved.present(), 0b111);
+    assert!(
+        !saved.snapshot().players[0].slots.is_empty(),
+        "equipment mode"
+    );
+    assert!(!saved.offer_open());
+    assert_eq!(saved.tick(), EQUIP_PEAK_TICK);
+    for view in &saved.snapshot().players {
+        assert!(view.inventory.len() >= 2, "every inventory holds two items");
+    }
+}
+
+/// E2: the window's actions are accepted where they come, and equip two, extract two.
+#[test]
+fn the_window_equips_and_extracts() {
+    let mut e = equip_case::saved();
+    let before = e.snapshot();
+    for i in 0..ROLLBACK_TICKS {
+        for (at, acts) in &ROLLBACK_ACTIONS {
+            if *at == i {
+                for (s, a) in acts.iter().enumerate() {
+                    if let Some(a) = a {
+                        let p = PlayerIdx::new(u8::try_from(s).unwrap()).unwrap();
+                        assert_eq!(e.check_action(p, *a), Ok(()), "slot {s} at {i}");
+                        e.act(p, *a).unwrap();
+                    }
+                }
+            }
+        }
+        e.step(&party_case::minute_inputs(e.tick()));
+    }
+    let after = e.snapshot();
+    for (b, a) in before.players.iter().zip(&after.players) {
+        assert_eq!(a.inventory.len() + 2, b.inventory.len());
+        let filled = |v: &stella_rain_core::snapshot::PlayerView| {
+            v.slots.iter().filter(|s| s.held.is_some()).count()
+        };
+        assert_eq!(filled(a), filled(b) + 1);
+        assert!(a.starlight > b.starlight);
+    }
+}
+
+/// E3: the rollback leaves the saved engine alone and equals a direct play.
+#[test]
+fn the_rollback_equip_matches_a_direct_play() {
+    let saved = equip_case::saved();
+    let before = saved.state_hash();
+    let mut direct = saved.clone();
+    for i in 0..ROLLBACK_TICKS {
+        for (at, acts) in &ROLLBACK_ACTIONS {
+            if *at == i {
+                for (s, a) in acts.iter().enumerate() {
+                    if let Some(a) = a {
+                        let p = PlayerIdx::new(u8::try_from(s).unwrap()).unwrap();
+                        direct.act(p, *a).unwrap();
+                    }
+                }
+            }
+        }
+        direct.step(&party_case::minute_inputs(direct.tick()));
+    }
+    let (played, saved) = equip_case::rollback_equip(saved);
+    assert_eq!(saved.state_hash(), before);
+    assert_eq!(played.tick(), EQUIP_PEAK_TICK + ROLLBACK_TICKS);
+    assert_eq!(played.state_hash(), direct.state_hash());
+}
+
+/// E4: the scan finds the peak.
+#[test]
+fn the_equip_peak_is_where_the_scan_finds_it() {
+    assert_eq!(equip_case::window(), (MINUTE_START, EQUIP_PEAK_TICK));
 }
 
 /// Asserts that `file` holds exactly the benches' cases, each with a bench of `budgets.toml` or
