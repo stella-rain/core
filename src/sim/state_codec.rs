@@ -1631,7 +1631,10 @@ impl Decode for Progress {
         };
         // A weapon's stat set is at most `MAX_STEP` percent of an effect, in tenths.
         let most = crate::run_stats::MAX_STEP.saturating_mul(10);
-        if progress.set_tenths.iter().any(|t| *t > most) {
+        // Hit points of a set are whole and live in `totals`, never in the tenths.
+        if progress.set_tenths.iter().any(|t| *t > most)
+            || progress.set_tenths[crate::run_stats::StatEffect::MaxHp as usize] != 0
+        {
             return Err(DecodeError::Invalid("a stat set value past its bound"));
         }
         Ok(progress)

@@ -361,4 +361,13 @@ fn a_stat_total_past_the_sixth_moves_the_hash_and_round_trips() {
         .expect("a progress");
     assert_eq!(back.totals, progress.totals);
     assert_eq!(back.set_tenths, progress.set_tenths);
+    // A set entry past its bound, or a hit-point entry in the tenths, is refused.
+    for (at, value) in [
+        (StatEffect::RangePct as usize, 1001),
+        (StatEffect::MaxHp as usize, 1),
+    ] {
+        let mut bad = progress.clone();
+        bad.set_tenths[at] = value;
+        assert!(from_bytes::<Option<super::state::Progress>>(&to_bytes(&Some(bad))).is_err());
+    }
 }
