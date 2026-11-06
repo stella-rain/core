@@ -1095,6 +1095,7 @@ mod kills {
     use crate::fixed::Point;
     use crate::id::EntityId;
     use crate::rewards::Rewards;
+    use crate::run_content::RunContent;
     use crate::run_stats::StatEffect;
     use crate::version::Versions;
     use serde_json::json;
@@ -1260,6 +1261,167 @@ mod kills {
         assert!(f.s.scratch.kills_by.iter().all(|&k| k == 0));
     }
 
+    /// The bundled Mintaka (`max_hp` 50,000 and `regen` 3,000) in the Lumine slot of a fixture
+    /// over the bundled stars, and its place.
+    fn bundled_with_lumine() -> (Fixture, u16) {
+        let rewards = RunContent::bundled().rewards().clone();
+        let place = u16::try_from(rewards.index_of(&"star_mintaka".into()).unwrap()).unwrap();
+        let mut f = with(rewards);
+        f.change(|e| {
+            e.lumine = Some(EquipSlot {
+                kind: SlotKind::Lumine,
+                held: Some(Held::Star(place)),
+                level: 1,
+                expertise: 0,
+            });
+        });
+        (f, place)
+    }
+
+    /// T4 (Lumine): ten kills raise the Lumine star to Lv2 and its build with it; nine do not; a
+    /// category slot holding the same star rises at the same kill. The kills also level the
+    /// player, so the build is read against a run with no star that has the same kills.
+    #[test]
+    fn kills_raise_the_lumine_slot_like_any_other() {
+        let regen = |f: &Fixture| f.s.players.career(PlayerIdx::SOLO).regen;
+        let (mut f, _) = bundled_with_lumine();
+        let mut control = with(RunContent::bundled().rewards().clone());
+        let gap = |f: &Fixture, c: &Fixture| {
+            (
+                f.total(StatEffect::MaxHp) - c.total(StatEffect::MaxHp),
+                regen(f) - regen(c),
+            )
+        };
+        assert_eq!(gap(&f, &control), (50_000, 3_000));
+        for fx in [&mut f, &mut control] {
+            dead(fx, KILLS_TO_NEXT[0] - 1, 0);
+            tick(fx, PlayerIdx::SOLO);
+        }
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (1, KILLS_TO_NEXT[0] - 1));
+        assert_eq!(
+            gap(&f, &control),
+            (50_000, 3_000),
+            "nine kills change nothing"
+        );
+        for fx in [&mut f, &mut control] {
+            dead(fx, 1, 0);
+            tick(fx, PlayerIdx::SOLO);
+        }
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0));
+        assert_eq!(slots::level_scaled(50_000, 2), 51_500);
+        assert_eq!(gap(&f, &control), (51_500, 3_090));
+
+        let (mut f, place) = bundled_with_lumine();
+        f.change(|e| {
+            e.slots[0].held = Some(Held::Star(place));
+            e.slots[0].level = 1;
+        });
+        dead(&mut f, KILLS_TO_NEXT[0], 0);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (2, 0));
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0));
+    }
+
     #[allow(dead_code)]
     fn _uses(_: &State) {}
+}
+
+// --- the Lumine star against the bundled stars (ADR-SAVE-7, ADR-SIM-7) -------------------------
+
+mod bundled_lumine {
+    use super::*;
+    use crate::run_content::RunContent;
+
+    fn run(lumine: u8, star: Option<&str>) -> Engine {
+        Engine::start(&RunSetup {
+            build_mode: BuildMode::Equipment,
+            lumine,
+            lumine_star: star.map(Into::into),
+            ..RunSetup::default()
+        })
+        .expect("starts")
+    }
+
+    fn total(s: &State, stat: StatEffect) -> u32 {
+        s.players
+            .career(PlayerIdx::SOLO)
+            .progress
+            .as_ref()
+            .expect("levels")
+            .totals[stat as usize]
+    }
+
+    /// T1: a Lumine star with regen is in the build at tick 0, at Lv1, and draws nothing.
+    #[test]
+    fn a_lumine_star_with_regen_is_in_the_build_at_tick_0() {
+        let (plain, with) = (run(4, None), run(4, Some("star_mintaka")));
+        let (p, s) = (state_of(&plain), state_of(&with));
+        let (was, me) = (&p.players[PlayerIdx::SOLO], &s.players[PlayerIdx::SOLO]);
+        assert_eq!(me.max_hp, was.max_hp + 50_000);
+        assert_eq!(me.hp, me.max_hp);
+        assert_eq!(
+            total(s, StatEffect::MaxHp),
+            total(p, StatEffect::MaxHp) + 50_000
+        );
+        let (cs, cp) = (
+            s.players.career(PlayerIdx::SOLO),
+            p.players.career(PlayerIdx::SOLO),
+        );
+        assert_eq!(cs.regen, cp.regen + 3_000);
+        let slot = cs.equipment.lumine.as_ref().expect("the Lumine slot");
+        assert!(matches!(slot.held, Some(Held::Star(_))));
+        assert_eq!(
+            (slot.kind, slot.level, slot.expertise),
+            (SlotKind::Lumine, 1, 0)
+        );
+        assert_eq!(cs.offer.state(), cp.offer.state(), "no offer draw");
+        assert_eq!(s.rng.loot.state(), p.rng.loot.state(), "no loot draw");
+    }
+
+    /// T2: a Lumine set member counts at tick 0 (one of three, threshold 2: no tier), with its speed.
+    #[test]
+    fn a_lumine_set_member_counts_at_tick_0() {
+        let (plain, with) = (run(4, None), run(4, Some("star_altair")));
+        let (p, s) = (state_of(&plain), state_of(&with));
+        let offers = |s: &State| {
+            s.players
+                .career(PlayerIdx::SOLO)
+                .offers
+                .clone()
+                .expect("offers")
+        };
+        let (po, so) = (offers(p), offers(s));
+        let at = RunContent::bundled()
+            .rewards()
+            .constellations()
+            .set_of(&"star_altair".into())
+            .expect("the set");
+        assert_eq!(so.set_counts[at], po.set_counts[at] + 1);
+        assert_eq!(so.set_counts[at], 1, "below the threshold of 2");
+        // The bundled stage names no `max_charges`, so the star's charge is clamped to the
+        // stage's own count (`player.rs`): the star is held, the count does not move.
+        assert_eq!(
+            s.players[PlayerIdx::SOLO].evade_charges,
+            p.players[PlayerIdx::SOLO].evade_charges
+        );
+        assert_eq!(
+            total(s, StatEffect::SpeedPct),
+            total(p, StatEffect::SpeedPct) + 20
+        );
+    }
+
+    /// T3: a Lumine orbit is in the player's orbits at tick 0, ready.
+    #[test]
+    fn a_lumine_orbit_arrives_ready_at_tick_0() {
+        let (plain, with) = (run(10, None), run(10, Some("star_sirius")));
+        let (p, s) = (state_of(&plain), state_of(&with));
+        assert!(p.players[PlayerIdx::SOLO].orbits.is_empty());
+        let orbits = &s.players[PlayerIdx::SOLO].orbits;
+        assert_eq!(orbits.len(), 1);
+        assert_eq!((orbits[0].orbs, orbits[0].cooldown_left), (4, 0));
+        assert_eq!(
+            total(s, StatEffect::AttackPct),
+            total(p, StatEffect::AttackPct) + 30
+        );
+    }
 }

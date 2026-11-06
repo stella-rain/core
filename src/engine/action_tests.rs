@@ -447,6 +447,129 @@ mod equipment_runs {
         }
     }
 
+    /// A solo equipment run whose Lumine slot holds `lumine` (a bundled star) at `level` and
+    /// `expertise`, with `items` as the whole inventory.
+    fn lumine_run(lumine: &str, level: u8, expertise: u32, items: &[Held]) -> Engine {
+        let mut e = Engine::start(&RunSetup {
+            lumine: 10,
+            lumine_star: Some(lumine.into()),
+            ..equipment(false)
+        })
+        .unwrap();
+        match e.run_mut() {
+            Run::V2 { state, .. } => {
+                let eq = &mut state.players.career_mut(PlayerIdx::SOLO).equipment;
+                let slot = eq.lumine.as_mut().expect("a Lumine slot");
+                (slot.level, slot.expertise) = (level, expertise);
+                eq.inventory = items.to_vec();
+            }
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+        e
+    }
+
+    fn place_of(id: &str) -> u16 {
+        let rewards = crate::run_content::RunContent::bundled().rewards();
+        u16::try_from(rewards.index_of(&id.into()).expect("bundled star")).unwrap()
+    }
+
+    fn lumine_of(e: &Engine) -> (Option<Held>, u8, u32) {
+        let s = equipment_of(e, 0).lumine.expect("a Lumine slot");
+        (s.held, s.level, s.expertise)
+    }
+
+    /// T5 (Lumine): a replace of the Lumine star by one that shares no option halves the level and
+    /// resets the kills; a same-option replace keeps both; equip, rune and slot rules hold.
+    #[test]
+    fn a_non_switch_replace_of_the_lumine_star_halves_the_level() {
+        let me = PlayerIdx::SOLO;
+        let (mintaka, sirius) = (
+            Held::Star(place_of("star_mintaka")),
+            Held::Star(place_of("star_sirius")),
+        );
+        let items = [
+            Held::Star(place_of("attack_common")),
+            Held::Star(place_of("xp_common")),
+            sirius,
+            Held::Rune(Rune::Thunder),
+        ];
+        let mut e = lumine_run("star_mintaka", 6, 40, &items);
+        assert_eq!(lumine_of(&e), (Some(mintaka), 6, 40));
+        assert_eq!(e.act(me, replace(2, 12)), Ok(()));
+        assert_eq!(lumine_of(&e), (Some(sirius), 3, 0));
+        assert_eq!(equipment_of(&e, 0).inventory[2], mintaka);
+
+        // The Lumine slot is filled, takes no rune, and is addressed one past the slots only.
+        let e = lumine_run("star_mintaka", 6, 40, &items);
+        let refused = |a| e.check_action(me, a).unwrap_err();
+        assert_eq!(refused(equip(0, 12)), ActionError::SlotFilled { slot: 12 });
+        assert_eq!(refused(replace(3, 12)), ActionError::WrongSlot { slot: 12 });
+        assert_eq!(refused(replace(0, 13)), ActionError::NoSlot { slot: 13 });
+        let plain = started(false, 1);
+        assert_eq!(
+            plain.check_action(me, replace(0, 12)).unwrap_err(),
+            ActionError::NoSlot { slot: 12 }
+        );
+
+        // A same-option star of another grade is a switch: the level and the kills stay.
+        let mut e = lumine_run(
+            "max_hp_common",
+            6,
+            40,
+            &[Held::Star(place_of("max_hp_rare"))],
+        );
+        assert_eq!(e.act(me, replace(0, 12)), Ok(()));
+        assert_eq!(
+            lumine_of(&e),
+            (Some(Held::Star(place_of("max_hp_rare"))), 6, 40)
+        );
+    }
+
+    /// T8 (Lumine): the displaced Lumine star extracts and crafts; the equipped one is never an
+    /// item, and a craft of a star the Lumine slot holds is refused.
+    #[test]
+    fn the_displaced_lumine_star_is_extractable() {
+        let me = PlayerIdx::SOLO;
+        let items = [
+            Held::Star(place_of("attack_common")),
+            Held::Star(place_of("star_sirius")),
+        ];
+        let mut e = lumine_run("star_mintaka", 6, 40, &items);
+        let mintaka_pool = pool_index(&e, "star_mintaka");
+        set_starlight(&mut e, 0, 1000);
+        assert_eq!(
+            e.check_action(me, craft(mintaka_pool)),
+            Err(ActionError::AlreadyHeld { star: mintaka_pool }),
+            "the Lumine slot holds it"
+        );
+        assert_eq!(
+            e.check_action(me, extract(2)),
+            Err(ActionError::NoItem { item: 2 }),
+            "the equipped star is no item"
+        );
+        e.act(me, replace(1, 12)).unwrap();
+        assert_eq!(
+            e.check_action(me, craft(mintaka_pool)),
+            Err(ActionError::AlreadyHeld { star: mintaka_pool }),
+            "now it sits in the inventory"
+        );
+        let before = lumine_of(&e);
+        assert_eq!(e.act(me, extract(1)), Ok(()));
+        let eq = equipment_of(&e, 0);
+        assert_eq!(eq.starlight, 1000 + EXTRACT_VALUE[3], "epic");
+        assert_eq!(lumine_of(&e), before, "the Lumine slot is untouched");
+        let n = u32::try_from(eq.inventory.len()).unwrap();
+        assert_eq!(
+            e.check_action(me, extract(n)),
+            Err(ActionError::NoItem { item: n })
+        );
+        assert_eq!(e.act(me, craft(mintaka_pool)), Ok(()));
+        assert_eq!(
+            equipment_of(&e, 0).inventory.last(),
+            Some(&Held::Star(place_of("star_mintaka")))
+        );
+    }
+
     /// T18: the snapshot shows the balance and the prices; an offers run shows neither.
     #[test]
     fn the_snapshot_shows_the_balance_and_the_prices() {

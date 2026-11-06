@@ -176,8 +176,9 @@ pub struct RunSetup {
     #[serde(default, skip_serializing_if = "BuildMode::is_offers")]
     pub build_mode: BuildMode,
     /// The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's
-    /// rewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0
-    /// (the rule is not built yet). Its rarity is capped by `lumine`. Only in equipment mode.
+    /// rewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in
+    /// the build from the first tick, and then changes like any other slot (equip rules, kills,
+    /// replace, extract). Its rarity is capped by `lumine`. Only in equipment mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lumine_star: Option<ContentId>,
 }
