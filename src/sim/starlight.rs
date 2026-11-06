@@ -4,8 +4,7 @@
 //! and saved already; nothing carries it out of the run, a new run or a joiner starts at 0.
 //!
 //! The values (extract, craft price, rune extract, boss bonus) are the pack's `EquipmentRules`
-//! (ADR-CONT-3 point 8). Rules of this file, which the pack may refine later: a rune extracts at one flat value (it has
-//! no rarity); craft takes an index of the star pool and draws nothing; a craft is not clamped to
+//! (ADR-CONT-3 point 8). Rules of this file: a rune extracts at one flat value (it has no rarity); craft takes an index of the star pool and draws nothing; a craft is not clamped to
 //! the difficulty's rarity range (a drop is); an extract and a craft work for a downed or out
 //! player as an equip does. Nothing here draws, emits an event or allocates inside a tick.
 

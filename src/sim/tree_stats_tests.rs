@@ -796,7 +796,7 @@ fn the_style_pick_options_match_the_view() {
 #[test]
 fn the_set_is_what_the_pack_says() {
     let mut v: serde_json::Value =
-        serde_json::from_slice(include_bytes!("../../content/expertise.json")).unwrap();
+        serde_json::from_slice(crate::pack::ContentFiles::bundled_file("expertise")).unwrap();
     let series: Vec<u32> = (1..=10).collect();
     for w in v["weapons"].as_array_mut().unwrap() {
         w["base"] = serde_json::json!([{ "effect": "range_pct", "by_level": [7, 7, 7, 7, 7, 7, 7, 7, 7, 7] }]);

@@ -186,12 +186,11 @@ fn star_taken(stage: &World, f: &StarField, players: &mut Players, rarity: Rarit
             continue;
         }
         let career = players.career_mut(me);
-        let rules = &stage.equipment_rules;
         roll(
             &stage.drops,
             f,
             career,
-            rules.rune_share_permille,
+            stage.equipment_rules.rune_share_permille,
             &stage.drop_weight_pct,
             rarity,
         );
@@ -257,12 +256,11 @@ pub(super) fn boss_killed(stage: &World, s: &mut State) {
         }
         for _ in 0..stage.equipment_rules.boss_drops {
             let career = players.career_mut(me);
-            let rules = &stage.equipment_rules;
             roll(
                 &stage.drops,
                 f,
                 career,
-                rules.rune_share_permille,
+                stage.equipment_rules.rune_share_permille,
                 &stage.drop_weight_pct,
                 rarity,
             );
