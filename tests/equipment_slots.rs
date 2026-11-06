@@ -233,6 +233,6 @@ fn the_snapshot_shows_the_slots() {
     assert!(json.get("slots").is_none());
 
     // The generated schema describes the view.
-    let schema = include_str!("../schema/snapshot.schema.json");
+    let schema = include_str!("../schema/content.schema.json");
     assert!(schema.contains("\"SlotView\""));
 }
