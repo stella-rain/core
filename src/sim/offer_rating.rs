@@ -8,6 +8,15 @@
 //! before and after are read from the two clones. A random rune is drawn from a generator seeded
 //! 0 and dropped: it moves no stat shown and its draw leaks nothing (ADR-SIM-2).
 //!
+//! **A swap is run, not described.** `swap_ratings` rates one star against each slot it could go
+//! in (ADR-SIM-7): the equip or replace is made by `slots::equip` / `slots::replace` on a clone of
+//! the player, so the build, the grants, the set counts and the slot's level come from the live
+//! rules and no rule or per-level number is copied here. The model is the offer model's below;
+//! `dps_bp` is signed (a replace can lower the damage). Same read-only, not-in-the-snapshot
+//! rule: call it when a window opens or an item arrives, not every frame; it clones the
+//! player's equipment once per slot. It is empty for a run without slots, a rune, a star the
+//! file lacks and a star no slot takes.
+//!
 //! **The damage model** (`Rate`) has no tunable number (ADR-CONT-3), so no content key. It
 //! rates the Main weapon's reference swing: the `main` chain of its combo (each step's `main`
 //! after the first), a tap at the first level, no charge or hold. For each `Active` phase it
