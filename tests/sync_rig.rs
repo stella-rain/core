@@ -81,6 +81,10 @@ struct Report {
     on_offer: u32,
     /// Pick steps keyed inside windows, summed.
     picks_replayed: u32,
+    /// Action steps keyed inside windows, summed.
+    actions_replayed: u32,
+    /// Windows whose first clone is followed by an ACTIONS step.
+    on_action: u32,
     /// `PlayerRevived` events seen in re-stepped ticks.
     revives: u32,
     desyncs: Vec<Desync>,
@@ -114,7 +118,7 @@ fn cases() -> Vec<Case> {
 }
 
 /// Plays `rig` forward from a fresh engine, saving every boundary in a ring; at the boundaries in
-/// `checks` (that are a multiple of `STRIDE`) rolls back `d` ticks for each `d` in `depths` and
+/// `checks` (that are a multiple of `stride`) rolls back `d` ticks for each `d` in `depths` and
 /// steps `resim` over the window, comparing the hash after every tick with the forward pass.
 /// A positive test passes `rig` twice, a negative one an altered copy.
 fn sync_test(
@@ -123,6 +127,7 @@ fn sync_test(
     setup: &RunSetup,
     depths: RangeInclusive<u32>,
     checks: RangeInclusive<u32>,
+    stride: u32,
 ) -> Report {
     let len = u32::try_from(rig.ticks.len()).unwrap();
     let mut e = Engine::start_party_with(setup, RunContent::bundled(), rig.n).unwrap();
@@ -143,7 +148,7 @@ fn sync_test(
             e.player_stats(),
             "clone at boundary {t}"
         );
-        if checks.contains(&t) && t.rem_euclid(STRIDE) == 0 {
+        if checks.contains(&t) && t.rem_euclid(stride) == 0 {
             for d in depths.clone().filter(|d| *d <= t) {
                 window(&mut report, &ring, resim, t, d);
             }
@@ -174,6 +179,15 @@ fn window(report: &mut Report, ring: &Ring, resim: &RigRun, at: u32, depth: u32)
             .count(),
     )
     .unwrap();
+    report.actions_replayed += u32::try_from(
+        resim
+            .actions
+            .iter()
+            .filter(|(key, _)| (from..at).contains(key) || (at == len && *key == len))
+            .count(),
+    )
+    .unwrap();
+    report.on_action += u32::from(resim.actions.iter().any(|(key, _)| *key == from));
     for k in from..at {
         resim.play_with(&mut c, k, k + 1, |e| {
             report.revives += u32::try_from(
@@ -246,13 +260,13 @@ fn a_ring_keeps_the_last_nine_boundaries() {
 }
 
 /// The boundaries `d..=len` that are a multiple of `STRIDE`: the windows of depth `d`.
-fn boundaries(d: u32, len: u32) -> u32 {
-    len / STRIDE - (d - 1) / STRIDE
+fn boundaries(d: u32, len: u32, stride: u32) -> u32 {
+    len / stride - (d - 1) / stride
 }
 
 /// The boundaries in `from..=to` where windows are run.
-fn strided(from: u32, to: u32) -> Vec<u32> {
-    (from..=to).filter(|t| t.rem_euclid(STRIDE) == 0).collect()
+fn strided(from: u32, to: u32, stride: u32) -> Vec<u32> {
+    (from..=to).filter(|t| t.rem_euclid(stride) == 0).collect()
 }
 
 /// The sum over `depths` of `f(d)`.
@@ -271,17 +285,18 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
             &case.replay.setup,
             1..=MAX_DEPTH,
             0..=len,
+            STRIDE,
         );
         assert_eq!(report.desyncs, vec![], "{}", case.name);
         assert_eq!(
             report.windows,
-            sum_over(1..=MAX_DEPTH, |d| boundaries(d, len)),
+            sum_over(1..=MAX_DEPTH, |d| boundaries(d, len, STRIDE)),
             "{}: windows",
             case.name
         );
         assert_eq!(
             report.resimulated,
-            sum_over(1..=MAX_DEPTH, |d| d * boundaries(d, len)),
+            sum_over(1..=MAX_DEPTH, |d| d * boundaries(d, len, STRIDE)),
             "{}: re-stepped ticks",
             case.name
         );
@@ -296,8 +311,20 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
             case.name
         );
         assert!(report.revives > 0, "{}: a revive is replayed", case.name);
-        let one = sync_test(&case.rig, &case.rig, &case.replay.setup, 8..=8, 0..=len);
-        assert_eq!(one.windows, boundaries(8, len), "{}: one depth", case.name);
+        let one = sync_test(
+            &case.rig,
+            &case.rig,
+            &case.replay.setup,
+            8..=8,
+            0..=len,
+            STRIDE,
+        );
+        assert_eq!(
+            one.windows,
+            boundaries(8, len, STRIDE),
+            "{}: one depth",
+            case.name
+        );
     }
 }
 
@@ -305,7 +332,14 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
 fn the_forward_pass_ends_at_the_recorded_hashes() {
     for case in cases() {
         let len = case.len();
-        let report = sync_test(&case.rig, &case.rig, &case.replay.setup, 1..=1, 0..=0);
+        let report = sync_test(
+            &case.rig,
+            &case.rig,
+            &case.replay.setup,
+            1..=1,
+            0..=0,
+            STRIDE,
+        );
         assert_eq!(report.hashes.len(), len as usize + 1, "{}", case.name);
         assert_eq!(
             Some(report.hashes[len as usize]),
@@ -438,8 +472,8 @@ fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
             "{name}: the step changes the hash"
         );
 
-        let report = sync_test(rig, &altered, setup, 8..=8, around(k, len));
-        let want = strided(k + 1, (k + 8).min(len));
+        let report = sync_test(rig, &altered, setup, 8..=8, around(k, len), STRIDE);
+        let want = strided(k + 1, (k + 8).min(len), STRIDE);
         assert_eq!(desync_boundaries(&report), want, "{name}");
         assert!(
             report
@@ -450,7 +484,7 @@ fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
             report.desyncs
         );
 
-        let all = sync_test(rig, &altered, setup, 1..=8, around(k, len));
+        let all = sync_test(rig, &altered, setup, 1..=8, around(k, len), STRIDE);
         let first = &all.desyncs[0];
         // The first window that holds tick `k` ends on the first boundary run after it.
         let at = (k + 1).next_multiple_of(STRIDE);
@@ -493,8 +527,8 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
             "{name}: the pick changes the hash"
         );
 
-        let report = sync_test(rig, &altered, setup, 8..=8, around(p, len));
-        let want = strided(p + 1, (p + 8).min(len));
+        let report = sync_test(rig, &altered, setup, 8..=8, around(p, len), STRIDE);
+        let want = strided(p + 1, (p + 8).min(len), STRIDE);
         assert_eq!(desync_boundaries(&report), want, "{name}");
         assert!(
             report.desyncs.iter().all(|d| d.tick == p + 1),
@@ -507,8 +541,9 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
 /// The building rig cases: every slot equips, extracts and the like, recorded as ACTIONS steps.
 const EQUIP_CASES: [&str; 3] = ["equipment_rig_1", "equipment_rig_2", "equipment_rig_3"];
 /// The stride of the equipment cases' windows (a multiple of the boundaries), chosen so that the
-/// whole module stays under 30 s in `cargo test --release`.
-const EQUIP_STRIDE: u32 = 4;
+/// whole module stays under 30 s in `cargo test --release` (12.4 s measured at 2; 4 was the
+/// first try and the module took 10.6 s).
+const EQUIP_STRIDE: u32 = 2;
 
 fn equip_cases() -> Vec<Case> {
     EQUIP_CASES.iter().map(|name| case(name)).collect()
