@@ -113,6 +113,7 @@ mod grants {
     use super::super::{RunDifficulty, RunPool, World, initial_state, slots};
     use crate::rewards::{Rarity, Rewards};
     use crate::run_content::RunContent;
+    use crate::run_stats::StatEffect;
     use crate::version::Versions;
     use serde_json::{Value, json};
 
@@ -126,6 +127,7 @@ mod grants {
     const EVADE_C: u16 = 8;
     const REROLL: u16 = 9;
     const BUNDLE: u16 = 10;
+    pub(super) const GROWTH: u16 = 11;
 
     pub(super) fn star(id: &str, rarity: &str, effects: Vec<Value>) -> Value {
         json!({ "id": id, "rarity": rarity, "limit": 3, "effects": effects })
@@ -201,6 +203,16 @@ mod grants {
                     json!({ "effect": "attack_pct", "amount": 3 }),
                 ],
             ),
+            star(
+                "growth",
+                "common",
+                vec![
+                    json!({ "effect": "rerolls", "amount": 2 }),
+                    json!({ "effect": "banishes", "amount": 1 }),
+                    json!({ "effect": "offer_candidates", "amount": 1 }),
+                    json!({ "effect": "xp_pct", "amount": 10 }),
+                ],
+            ),
         ];
         let file = json!({ "rarities": rarities, "rewards": list });
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("validates")
@@ -216,9 +228,25 @@ mod grants {
         with(rewards())
     }
 
+    fn fixture_levels() -> Fixture {
+        fixture()
+    }
+
     /// A solo state over `rewards`, with the slot layout and room for every star in the pool.
     pub(super) fn with(rewards: Rewards) -> Fixture {
+        build(rewards, true)
+    }
+
+    /// As `with`, over a stage with no `levels`: the player has no stat totals.
+    fn without_levels(rewards: Rewards) -> Fixture {
+        build(rewards, false)
+    }
+
+    fn build(rewards: Rewards, levels: bool) -> Fixture {
         let mut stage = RunContent::bundled().trial().clone();
+        if !levels {
+            stage.levels = None;
+        }
         stage.player.evade.charges = 1;
         stage.player.evade.max_charges = Some(3);
         let stage = World::for_test(stage);
@@ -397,20 +425,24 @@ mod grants {
         assert_eq!(f.charges(), 2);
     }
 
-    /// T10: rerolls and banishes add and a replace removes exactly their amounts; a random rune in
-    /// a bundle draws nothing.
+    /// The reroll star's offers in equipment mode: rerolls and banishes are stats, the offers
+    /// stay as they were. A random rune in a bundle draws nothing.
     #[test]
     fn rerolls_banishes_and_the_random_rune_grant_nothing_else() {
-        let mut f = fixture();
+        let mut f = fixture_levels();
         let o = |f: &Fixture| {
             let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
-            (o.rerolls_left, o.banishes_left)
+            (o.rerolls_left, o.banishes_left, o.extra_candidates)
         };
         let base = o(&f);
         f.set(0, Some(REROLL));
-        assert_eq!(o(&f), (base.0 + 2, base.1 + 1));
+        assert_eq!(o(&f), base, "equipment mode writes stats, not offers");
+        assert_eq!(f.total(StatEffect::Rerolls), 2);
+        assert_eq!(f.total(StatEffect::Banishes), 1);
         f.set(0, None);
         assert_eq!(o(&f), base);
+        assert_eq!(f.total(StatEffect::Rerolls), 0);
+        assert_eq!(f.total(StatEffect::Banishes), 0);
 
         let career = f.s.players.career(PlayerIdx::SOLO);
         let (offer, runes) = (
@@ -421,6 +453,60 @@ mod grants {
         let career = f.s.players.career(PlayerIdx::SOLO);
         assert_eq!(career.offer.state(), offer, "no draw");
         assert_eq!(f.s.players[PlayerIdx::SOLO].runes, runes, "no rune");
+    }
+
+    /// T7: a Growth star writes its amounts to the stat totals in equipment mode and a replace
+    /// takes them back exactly; the offers stay as they were.
+    #[test]
+    fn a_growth_star_writes_stats_in_equipment_mode() {
+        let mut f = fixture_levels();
+        let offers = |f: &Fixture| {
+            let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
+            (o.rerolls_left, o.banishes_left, o.extra_candidates)
+        };
+        let base = offers(&f);
+        f.set(0, Some(GROWTH));
+        assert_eq!(f.total(StatEffect::Rerolls), 2);
+        assert_eq!(f.total(StatEffect::Banishes), 1);
+        assert_eq!(f.total(StatEffect::OfferCandidates), 1);
+        assert_eq!(offers(&f), base);
+        f.set(0, None);
+        for stat in [
+            StatEffect::Rerolls,
+            StatEffect::Banishes,
+            StatEffect::OfferCandidates,
+        ] {
+            assert_eq!(f.total(stat), 0, "{stat:?}");
+        }
+        assert_eq!(offers(&f), base);
+    }
+
+    /// T8: the Growth amount is not level-scaled, `xp_pct` is.
+    #[test]
+    fn the_growth_amount_is_not_level_scaled() {
+        let mut f = fixture_levels();
+        f.set(0, Some(GROWTH));
+        let xp1 = f.total(StatEffect::XpPct);
+        f.change(|e| e.slots[0].level = 10);
+        assert_eq!(f.total(StatEffect::Rerolls), 2);
+        assert_eq!(f.total(StatEffect::Banishes), 1);
+        assert_eq!(f.total(StatEffect::OfferCandidates), 1);
+        assert!(
+            f.total(StatEffect::XpPct) > xp1,
+            "xp_pct scales with the level"
+        );
+    }
+
+    /// T10: a stage with no `levels` has no stat totals: the Growth stats are dropped, with no
+    /// panic and nothing else moved.
+    #[test]
+    fn a_stage_without_levels_drops_the_growth_stats() {
+        let mut f = without_levels(rewards());
+        assert!(f.s.players.career(PlayerIdx::SOLO).progress.is_none());
+        let before = f.s.players.career(PlayerIdx::SOLO).offers.clone();
+        f.set(0, Some(GROWTH));
+        assert!(f.s.players.career(PlayerIdx::SOLO).progress.is_none());
+        assert_eq!(f.s.players.career(PlayerIdx::SOLO).offers, before);
     }
 }
 

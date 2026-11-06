@@ -957,8 +957,53 @@ mod career_rest {
                 effect: PerkEffect::Regen,
                 amount: 2,
             },
+            false,
         );
         assert_eq!((career(&mut s, 0).regen, career(&mut s, 1).regen), (0, 7));
+    }
+
+    /// T9: the extra rerolls and banishes of a perk are stats in equipment mode and offers
+    /// otherwise.
+    #[test]
+    fn the_scholar_perk_writes_stats_in_equipment_mode() {
+        use crate::run_stats::StatEffect;
+        let entries = [
+            PerkEntry {
+                effect: PerkEffect::ExtraRerolls,
+                amount: 2,
+            },
+            PerkEntry {
+                effect: PerkEffect::ExtraBanishes,
+                amount: 1,
+            },
+        ];
+        let read = |s: &mut State| {
+            let c = career(s, 0);
+            let o = c.offers.as_ref().expect("offers");
+            let p = c.progress.as_ref().expect("progress");
+            (
+                o.rerolls_left,
+                o.banishes_left,
+                p.totals[StatEffect::Rerolls as usize],
+                p.totals[StatEffect::Banishes as usize],
+            )
+        };
+        let (_, mut s) = party(0b001);
+        let base = read(&mut s);
+        for e in entries {
+            loadout::perk(&mut s, slot(0), e, true);
+        }
+        let got = read(&mut s);
+        assert_eq!((got.0, got.1), (base.0, base.1), "offers untouched");
+        assert_eq!((got.2, got.3), (base.2 + 2, base.3 + 1));
+
+        let (_, mut s) = party(0b001);
+        let base = read(&mut s);
+        for e in entries {
+            loadout::perk(&mut s, slot(0), e, false);
+        }
+        let got = read(&mut s);
+        assert_eq!(got, (base.0 + 2, base.1 + 1, base.2, base.3));
     }
 }
 
