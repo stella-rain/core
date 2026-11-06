@@ -143,6 +143,7 @@ mod leash_tests;
 mod levels;
 mod loadout;
 mod offer_rating;
+mod slots;
 pub(crate) use offer_rating::offer_ratings;
 #[cfg(test)]
 mod damage_tests;

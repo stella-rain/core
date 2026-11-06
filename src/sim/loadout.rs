@@ -18,7 +18,7 @@ use crate::sim::equipment::{EquipSlot, Held, SlotKind};
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HeldRune, State};
 
-use super::{levels, runes, stars};
+use super::{levels, runes, slots, stars};
 
 /// The ticks between two regenerations: a second.
 pub(super) const REGEN_TICKS: u32 = 60;
@@ -104,6 +104,9 @@ pub(crate) fn apply(
             );
         }
     }
+    if stage.equipment_mode {
+        career.equipment.slots = slots::fresh_slots();
+    }
     if let Some(rune) = loadout.starting_rune
         && player.runes.len() < MAX_RUNES
         && !player.runes.iter().any(|h| h.rune == rune)
@@ -112,6 +115,11 @@ pub(crate) fn apply(
             rune,
             cooldown_left: 0,
         });
+        // The starting rune fills rune slot 0 (the slot list is empty in an offers run).
+        if let Some(slot) = career.equipment.slots.get_mut(slots::first_rune_slot()) {
+            slot.held = Some(Held::Rune(rune));
+            slot.level = 1;
+        }
     }
     if let Some(place) = loadout.lumine {
         career.equipment.lumine = Some(EquipSlot {
@@ -120,6 +128,10 @@ pub(crate) fn apply(
             level: 1,
             expertise: 0,
         });
+    }
+    if stage.equipment_mode {
+        // The Lumine star's effects are in the build from tick 0 (before = the build of nothing).
+        slots::refresh(stage, rewards, player, career, &[]);
     }
 }
 
