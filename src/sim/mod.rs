@@ -1441,6 +1441,18 @@ fn overlaps(a: Point, ra: i32, b: Point, rb: i32) -> bool {
     dx * dx + dy * dy <= r * r
 }
 
+/// The percent a pickup circle of `me` is widened by: the stars' share plus the `PickupRadiusPct`
+/// total of the run stats (0 without levels), saturating; `widened` holds the sum to its cap.
+fn pickup_pct(s: &State, me: PlayerIdx) -> u32 {
+    s.players[me]
+        .pickup_radius_pct
+        .saturating_add(levels::total(
+            s,
+            me,
+            crate::run_stats::StatEffect::PickupRadiusPct,
+        ))
+}
+
 /// A pickup circle of `radius` widened by `pct` percent, the percent held to
 /// `MAX_PICKUP_RADIUS_TOTAL_PCT` (the pickup radius rewards).
 fn widened(radius: i32, pct: u32) -> i32 {

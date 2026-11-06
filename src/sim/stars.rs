@@ -57,7 +57,7 @@ use crate::stage::{RarityWeights, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::build::Build;
-use super::{orbit, overlaps, player, runes, skill, widened};
+use super::{orbit, overlaps, pickup_pct, player, runes, skill, widened};
 
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
@@ -235,7 +235,7 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
         return;
     };
     let at = s.players[me].at;
-    let radius = widened(cfg.pickup_radius.0, s.players[me].pickup_radius_pct);
+    let radius = widened(cfg.pickup_radius.0, pickup_pct(s, me));
     let State { stars, players, .. } = s;
     let (Some(f), Some(o)) = (stars.as_mut(), players.career_mut(me).offers.as_mut()) else {
         return;

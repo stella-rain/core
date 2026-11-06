@@ -259,7 +259,7 @@ pub(super) fn remove_effect(
     }
 }
 
-fn total(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
+pub(super) fn total(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
     let career = s.players.career(me);
     career
         .progress

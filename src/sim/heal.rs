@@ -17,7 +17,7 @@ use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HealPickup, PlayerState, State};
 use crate::validate::limits::MAX_HEAL_AMOUNT;
 
-use super::{overlaps, widened};
+use super::{overlaps, pickup_pct, widened};
 
 /// The boss died this tick: it heals the main character `boss_pct` percent of its most.
 pub(super) fn boss_killed(
@@ -81,7 +81,7 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
         return;
     }
     let at = s.players[me].at;
-    let radius = widened(cfg.pickup_radius.0, s.players[me].pickup_radius_pct);
+    let radius = widened(cfg.pickup_radius.0, pickup_pct(s, me));
     let taken = {
         let Some(pickups) = s.heal_pickups.as_mut() else {
             return;

@@ -11,6 +11,7 @@
 //! counts nothing.
 
 use super::World;
+use crate::run_stats::StatEffect;
 use crate::sim::state::{AgentSource, PlayerIdx, State};
 use crate::stage::StardustFactor;
 use crate::validate::limits::MAX_RUN_STARDUST;
@@ -31,7 +32,11 @@ fn earn(stage: &World, s: &mut State, me: PlayerIdx, base: u32) {
         return;
     };
     let pct = factor_pct(f, s.tick);
-    let gained = u64::from(base) * u64::from(pct) / 100;
+    // The stat's percent adds to 100 and the product is cut once; at a total of 0 this is
+    // `base * pct / 100`.
+    let more = 100 + u128::from(super::levels::total(s, me, StatEffect::StardustPct));
+    let gained =
+        u64::try_from(u128::from(base) * u128::from(pct) * more / 10_000).unwrap_or(u64::MAX);
     let sum = u64::from(total) + gained;
     s.players.career_mut(me).stardust =
         Some(u32::try_from(sum.min(u64::from(MAX_RUN_STARDUST))).unwrap_or(u32::MAX));
@@ -110,7 +115,6 @@ mod tests {
         assert_eq!(factor_pct(&f, u32::MAX), 400);
     }
 
-    use crate::run_stats::StatEffect;
     use crate::sim::party_fix_tests::{party, slot};
 
     /// A solo run counting Stardust at factor `pct`, with the `StardustPct` total `total`.
