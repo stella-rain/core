@@ -372,7 +372,8 @@ fn offer_tag(me: PlayerIdx) -> u64 {
 }
 
 impl Career {
-    /// The career of slot `me` at the start of a run seeded `seed`.
+    /// The career of slot `me` at the start of a run seeded `seed`, with `regen` hit points a second
+    /// (the start value: slot 0's after the loadout).
     pub(crate) fn new(
         seed: u64,
         me: PlayerIdx,
@@ -380,6 +381,7 @@ impl Career {
         offers: Option<Offers>,
         expertise: Option<ExpertiseGauge>,
         stardust: Option<u32>,
+        regen: u32,
         equipment: Equipment,
     ) -> Career {
         Career {
@@ -388,7 +390,7 @@ impl Career {
             offers,
             expertise,
             stardust,
-            regen: 0,
+            regen,
             equipment,
         }
     }
@@ -468,6 +470,7 @@ impl Players {
                 c0.offers.clone(),
                 c0.expertise.clone(),
                 c0.stardust,
+                c0.regen,
                 c0.equipment.for_new_slot(),
             );
         }
@@ -500,6 +503,7 @@ impl Players {
             c0.offers.clone(),
             c0.expertise.clone(),
             c0.stardust,
+            c0.regen,
             c0.equipment.for_new_slot(),
         );
         self.present |= 1 << me.get();

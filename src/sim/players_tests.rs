@@ -511,7 +511,7 @@ mod offers {
             let tags = [TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2];
             let states: Vec<u64> = (0..MAX_PLAYERS)
                 .map(|i| {
-                    Career::new(seed, slot(i), None, None, None, None, Default::default())
+                    Career::new(seed, slot(i), None, None, None, None, 0, Default::default())
                         .offer
                         .state()
                 })
