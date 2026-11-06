@@ -216,7 +216,7 @@ pub(super) fn apply(stage: &World, s: &mut State) {
 mod tests {
     use proptest::prelude::*;
 
-    use super::{Body, CANDIDATES, LEAST_RADIUS, NEIGHBOURS, STEP};
+    use super::{Body, CANDIDATES, CROWDED_OVER, Grid, LEAST_RADIUS, NEIGHBOURS, STEP, root};
     use crate::fixed::{Fx, Point};
 
     /// How far each body moves.
@@ -401,6 +401,119 @@ mod tests {
             ));
         }
         out
+    }
+
+    /// `offsets_into` as it was before the push-apply speedups (ADR-SIM-6), on the real grid.
+    /// It stays fixed while the real pass changes.
+    fn offsets_into_before_push_perf(
+        bodies: &[Body],
+        grid: &mut Grid,
+        out: &mut Vec<(i32, i32, bool)>,
+    ) {
+        let largest = bodies.iter().map(|b| b.radius).max().unwrap_or(0);
+        // Cells as wide as two of the largest radius: whatever overlaps a body is in the 9 cells
+        // round it.
+        grid.rebuild(bodies.iter().map(|b| (b.at, b.radius)), largest);
+        out.clear();
+        for (i, a) in bodies.iter().enumerate() {
+            // The nearest overlapping candidates so far, as (distance squared, ID, index), ascending.
+            let mut counted = [(0i64, 0u32, 0u32); NEIGHBOURS];
+            let mut n = 0;
+            grid.each_neighbour(i, CANDIDATES, |j| {
+                let b = &bodies[j as usize];
+                let dx = i64::from(a.at.x.0) - i64::from(b.at.x.0);
+                let dy = i64::from(a.at.y.0) - i64::from(b.at.y.0);
+                let reach = i64::from(a.radius) + i64::from(b.radius);
+                let key = (dx * dx + dy * dy, b.id, j);
+                // Touching is not overlapping.
+                if key.0 >= reach * reach || (n == NEIGHBOURS && key >= counted[n - 1]) {
+                    return;
+                }
+                let mut at = if n < NEIGHBOURS { n } else { n - 1 };
+                while at > 0 && counted[at - 1] > key {
+                    counted[at] = counted[at - 1];
+                    at -= 1;
+                }
+                counted[at] = key;
+                n = (n + 1).min(NEIGHBOURS);
+            });
+            let (mut sx, mut sy, mut overlap) = (0i64, 0i64, 0i64);
+            for &(d2, _, j) in &counted[..n] {
+                let b = &bodies[j as usize];
+                let dist = root(d2);
+                overlap += i64::from(a.radius) + i64::from(b.radius) - dist;
+                let (px, py) = super::push(a, b, dist);
+                sx += px;
+                sy += py;
+            }
+            let len2 = sx * sx + sy * sy;
+            if len2 > STEP * STEP {
+                // The length rounded up, so that the clamped sum is never longer than the step.
+                let floor = root(len2);
+                let len = floor + i64::from(floor * floor < len2);
+                (sx, sy) = (sx * STEP / len, sy * STEP / len);
+            }
+            // The squared length is at most `STEP²` here, so neither component is over `STEP`; the
+            // checked narrowing counted 29 M instructions in `worst_minute` (ADR-SIM-6).
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "|sx| and |sy| are at most STEP (1,024), after the clamp above"
+            )]
+            let (ox, oy) = (sx as i32, sy as i32);
+            out.push((ox, oy, overlap > CROWDED_OVER));
+        }
+    }
+
+    fn base_offsets(bodies: &[Body]) -> Vec<(i32, i32, bool)> {
+        let (mut grid, mut out) = (Grid::default(), Vec::new());
+        offsets_into_before_push_perf(bodies, &mut grid, &mut out);
+        out
+    }
+
+    #[test]
+    fn the_pass_equals_the_base_pass_on_fixed_crowds() {
+        let stack: Vec<Body> = (1..=40).map(|id| body(id, 0, 0, 2_048)).collect();
+        // A stack of 40 with radii above 8,192, and bodies on the grid's edge.
+        let big: Vec<Body> = (1..=40)
+            .map(|id| body(id, 0, 0, 8_192 + i32::try_from(id).unwrap() * 100))
+            .collect();
+        let edges: Vec<Body> = (0..60)
+            .map(|k: i32| {
+                body(
+                    u32::try_from(k).unwrap() + 1,
+                    (k % 6) * 8_192 + (k % 3) - 1,
+                    (k / 6) * 8_192,
+                    2_048,
+                )
+            })
+            .collect();
+        let mix: Vec<Body> = (0..300)
+            .map(|k: i32| {
+                let radius = if k % 7 == 0 { 4_096 } else { 2_048 };
+                body(
+                    u32::try_from(k).unwrap() + 1,
+                    (k % 20) * 3_000,
+                    (k / 20) * 3_000,
+                    radius,
+                )
+            })
+            .collect();
+        for (name, bodies) in [
+            ("stack", stack),
+            ("big", big),
+            ("edges", edges),
+            ("mix", mix),
+        ] {
+            assert_eq!(super::offsets(&bodies), base_offsets(&bodies), "{name}");
+        }
+        assert_eq!(super::offsets(&[]), base_offsets(&[]));
+    }
+
+    proptest! {
+        #[test]
+        fn the_pass_equals_the_base_pass(bodies in reference_crowd()) {
+            prop_assert_eq!(super::offsets(&bodies), base_offsets(&bodies));
+        }
     }
 
     fn assert_matches_reference(bodies: &[Body]) {

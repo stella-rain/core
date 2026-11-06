@@ -605,3 +605,119 @@ fn move_agent<const ONE: bool>(stage: &World, s: &mut State, up: &Up, me: Who, d
         a.at = map.clamp(a.at);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bench_fixtures::{self, worst_minute_case};
+    use crate::engine::Run;
+
+    /// `act_one` as it was before the push-apply speedups (ADR-SIM-6). It stays fixed while the
+    /// real one changes; the test below shows both give the same state and events.
+    fn act_one_before_push_perf<const ONE: bool>(
+        stage: &World,
+        s: &mut State,
+        up: &Up,
+        me: Who,
+        events: &mut Vec<DomainEvent>,
+    ) {
+        let def = stage.defs.agent(agent(s, me).def);
+        {
+            let a = agent_mut(s, me);
+            a.age = a.age.saturating_add(1);
+            for r in &mut a.rules {
+                r.cooldown_left = r.cooldown_left.saturating_sub(1);
+            }
+        }
+        if agent(s, me).hidden() {
+            reveal(s, up, me, def, events);
+            return;
+        }
+        if super::super::stun::stunned(&agent(s, me).statuses) {
+            return;
+        }
+        move_agent::<ONE>(stage, s, up, me, def);
+        if waits(s, up, me, def) {
+            return;
+        }
+        fire_first_rule(stage, s, me, &def.rules, events);
+    }
+
+    /// `act` calling the fixed `act_one`.
+    fn act_before_push_perf(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+        let up = Up::of(&s.players);
+        super::super::attacks::grant_ranged(stage, s, &up);
+        if up.n == 1 {
+            for i in 0..s.companions.len() {
+                act_one_before_push_perf::<true>(stage, s, &up, Who::Companion(i), events);
+            }
+            for i in 0..s.enemies.len() {
+                act_one_before_push_perf::<true>(stage, s, &up, Who::Enemy(i), events);
+            }
+        } else {
+            for i in 0..s.companions.len() {
+                act_one_before_push_perf::<false>(stage, s, &up, Who::Companion(i), events);
+            }
+            for i in 0..s.enemies.len() {
+                act_one_before_push_perf::<false>(stage, s, &up, Who::Enemy(i), events);
+            }
+        }
+        shrines(stage, s, events);
+        let holds = stage.map().holds();
+        s.enemies.retain(|e| holds(e.at));
+        leave(stage, s, events);
+    }
+
+    /// The real `act` and the fixed one, on copies of the state of `run` as it stands.
+    fn assert_acts_alike(run: &mut worst_minute_case::Run, what: &str) {
+        let Run::V2 { world, state } = run.engine.run_mut() else {
+            panic!("the live rules");
+        };
+        let (mut real, mut base) = (state.clone(), state.clone());
+        let (mut real_events, mut base_events) = (Vec::new(), Vec::new());
+        act(world, &mut real, &mut real_events);
+        act_before_push_perf(world, &mut base, &mut base_events);
+        assert_eq!(
+            crate::sim::state_hash(&real),
+            crate::sim::state_hash(&base),
+            "{what}: state hash"
+        );
+        assert_eq!(
+            format!("{real_events:?}"),
+            format!("{base_events:?}"),
+            "{what}: events"
+        );
+        let places = |s: &State| s.enemies.iter().map(|e| (e.id, e.at)).collect::<Vec<_>>();
+        assert_eq!(places(&real), places(&base), "{what}: enemy places");
+    }
+
+    #[test]
+    fn act_equals_the_base_act() {
+        let mut run = worst_minute_case::Run::fast_forwarded(0);
+        for tick in [1, 60, 600, 10_714] {
+            let played = run.engine.tick();
+            run.play(tick - played);
+            assert_acts_alike(&mut run, &format!("one player, tick {tick}"));
+        }
+    }
+
+    #[test]
+    fn act_equals_the_base_act_for_a_party_of_two() {
+        let mut run = worst_minute_case::Run::fast_forwarded(0);
+        run.engine = run.engine.into_party(2);
+        for tick in [1, 60, 600] {
+            let played = run.engine.tick();
+            run.play(tick - played);
+            assert_acts_alike(&mut run, &format!("two players, tick {tick}"));
+        }
+    }
+
+    #[test]
+    fn act_equals_the_base_act_on_the_worst_tick() {
+        let case = bench_fixtures::worst_tick();
+        let mut run = worst_minute_case::Run {
+            engine: case.engine,
+        };
+        assert_acts_alike(&mut run, "worst tick");
+    }
+}
