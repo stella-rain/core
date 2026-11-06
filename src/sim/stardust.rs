@@ -109,4 +109,49 @@ mod tests {
         assert_eq!(factor_pct(&f, 5_000), 400);
         assert_eq!(factor_pct(&f, u32::MAX), 400);
     }
+
+    use crate::run_stats::StatEffect;
+    use crate::sim::party_fix_tests::{party, slot};
+
+    /// A solo run counting Stardust at factor `pct`, with the `StardustPct` total `total`.
+    fn earning(pct: u32, total: Option<u32>) -> (World, State) {
+        let (mut w, mut s) = party(1);
+        w.stage.stardust = Some(table(&[(0, pct)]));
+        let career = s.players.career_mut(slot(0));
+        career.stardust = Some(0);
+        match total {
+            Some(t) => {
+                career.progress.as_mut().expect("levels").totals[StatEffect::StardustPct as usize] =
+                    t
+            }
+            None => career.progress = None,
+        }
+        (w, s)
+    }
+
+    fn earned(pct: u32, total: Option<u32>, base: u32) -> u32 {
+        let (w, mut s) = earning(pct, total);
+        earn(&w, &mut s, slot(0), base);
+        s.players.career(slot(0)).stardust.expect("counted")
+    }
+
+    /// T14: the stat scales a kill once, with a single truncation.
+    #[test]
+    fn stardust_pct_scales_a_kill_once() {
+        assert_eq!(earned(100, Some(0), 40), 40);
+        assert_eq!(earned(100, Some(50), 40), 60);
+        assert_eq!(earned(150, Some(0), 5), 7);
+        assert_eq!(earned(150, Some(100), 5), 15);
+    }
+
+    /// T15: no overflow, the cap holds, and no `Progress` means no stat.
+    #[test]
+    fn stardust_pct_cannot_overflow_or_pass_the_cap() {
+        assert_eq!(
+            earned(1000, Some(u32::MAX), u32::MAX),
+            MAX_RUN_STARDUST,
+            "the counter holds at the cap"
+        );
+        assert_eq!(earned(100, None, 40), 40);
+    }
 }
