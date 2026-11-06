@@ -146,6 +146,7 @@ mod levels_tests;
 mod loadout;
 mod offer_rating;
 mod slots;
+pub(crate) use expertise::TreeError;
 pub(crate) use offer_rating::{offer_ratings, swap_ratings};
 pub(crate) use slots::{SlotError, holds_right_kinds, runes_match_slots, same_layout};
 pub(crate) use starlight::StarlightError;
@@ -996,6 +997,30 @@ pub(crate) fn equip_action(
         true => slots::replace(stage, rewards, player, career, item, slot),
         false => slots::equip(stage, rewards, player, career, item, slot),
     }
+}
+
+/// Whether `me` could take choice `option` of the next tree pick (`expertise::check_tree_pick`).
+/// Read-only.
+pub(crate) fn check_tree_pick(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    expertise::check_tree_pick(stage, expertise, s, me, option)
+}
+
+/// Takes choice `option` of the next tree pick for `me`, or a refusal that changes nothing. Made
+/// between ticks; no event, no draw.
+pub(crate) fn tree_pick_action(
+    stage: &World,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    expertise::tree_pick(stage, expertise, s, me, option)
 }
 
 /// The setup's star pool of `s`, empty when the run has no star field.

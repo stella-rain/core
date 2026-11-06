@@ -454,8 +454,10 @@ fn the_style_level_holds_a_tree_point_and_nothing_stops() {
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
 }
 
+/// Passes the levels from `offered` to `level`, keeping the style already chosen.
 fn reach_from(e: &mut Engine, offered: u32, level: u32) {
-    pass(e, offered, level, None, &[ATTACK]);
+    let style = gauge(e).style;
+    pass(e, offered, level, style, &[ATTACK]);
 }
 
 /// T11: points wait and queue; they are taken in path order.

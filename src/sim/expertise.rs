@@ -175,10 +175,10 @@ fn pool<'a>(stage: &World, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
 }
 
 /// One choice an offer can hold: a common option, a style, or a choice of a style's path.
-struct Choice<'a> {
-    id: &'a ContentId,
-    effect: ExpertiseEffect,
-    amount: u32,
+pub(super) struct Choice<'a> {
+    pub(super) id: &'a ContentId,
+    pub(super) effect: ExpertiseEffect,
+    pub(super) amount: u32,
 }
 
 impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
@@ -421,6 +421,129 @@ fn equipment_pass(
         option: picked.id.clone(),
         taken,
     });
+}
+
+// --- the equipment build: tree points ----------------------------------------------------------
+
+/// Why a tree pick is refused (the engine's `ActionError` maps it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TreeError {
+    /// No point is held: none earned, all taken, no gauge, or no expertise content.
+    NoTreePoint,
+    /// `option` is not below the `options` the next pick has.
+    NoTreeOption { option: u32, options: u32 },
+}
+
+/// How many tree points the levels up to `level` have earned: the table's levels reached.
+pub(super) fn tree_earned(table: &LevelTable, level: u32) -> u8 {
+    let n = table.levels().iter().filter(|l| **l <= level).count();
+    u8::try_from(n).unwrap_or(u8::MAX)
+}
+
+/// How many tree points the gauge has taken: the style, then the path.
+fn tree_taken(g: &ExpertiseGauge) -> u8 {
+    u8::from(g.style.is_some()).saturating_add(u8::try_from(g.path.len()).unwrap_or(u8::MAX))
+}
+
+/// The next tree pick of a gauge that holds a point.
+pub(super) struct TreeNext<'a> {
+    pub(super) kind: ExpertiseOfferKind,
+    /// The table level of this pick.
+    pub(super) level: u32,
+    /// The points held, at least 1.
+    pub(super) held: u8,
+    /// The choices, in the order `TreePick.option` indexes.
+    pub(super) choices: Vec<Choice<'a>>,
+}
+
+/// The next tree pick, or none: not the equipment build, no expertise content, or no point held.
+/// The points are derived (held = earned - taken) and taken in path order.
+pub(super) fn tree_next<'a>(
+    stage: &World,
+    expertise: &'a Expertise,
+    g: &ExpertiseGauge,
+) -> Option<TreeNext<'a>> {
+    if !stage.equipment_mode {
+        return None;
+    }
+    content(stage, expertise)?;
+    let table = stage.level_table();
+    let taken = tree_taken(g);
+    let held = tree_earned(&table, g.level).saturating_sub(taken);
+    if held == 0 {
+        return None;
+    }
+    let (kind, level) = match taken {
+        0 => (ExpertiseOfferKind::Style, table.style),
+        1 => (ExpertiseOfferKind::Upgrade, table.upgrades[0]),
+        2 => (ExpertiseOfferKind::Upgrade, table.upgrades[1]),
+        3 => (ExpertiseOfferKind::Capstone, table.capstone),
+        _ => return None,
+    };
+    Some(TreeNext {
+        kind,
+        level,
+        held,
+        choices: fixed(stage, expertise, g, level),
+    })
+}
+
+/// Whether `me` could take choice `option` of the next tree pick. Read-only.
+pub(super) fn check_tree_pick(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    let g = s.players.career(me).expertise.as_ref();
+    let next = g
+        .and_then(|g| tree_next(stage, expertise, g))
+        .ok_or(TreeError::NoTreePoint)?;
+    let options = u32::try_from(next.choices.len()).unwrap_or(u32::MAX);
+    if option >= options {
+        return Err(TreeError::NoTreeOption { option, options });
+    }
+    Ok(())
+}
+
+/// Takes choice `option` of the next tree pick: its effect, and the style or the path. No event,
+/// no draw.
+pub(super) fn tree_pick(
+    stage: &World,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    check_tree_pick(stage, expertise, s, me, option)?;
+    let (player, career) = s.players.both_mut(me);
+    let crate::sim::state::Career {
+        progress,
+        expertise: g,
+        ..
+    } = career;
+    let Some(g) = g.as_mut() else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let Some(next) = tree_next(stage, expertise, g) else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let place = u8::try_from(option).map_err(|_| TreeError::NoTreeOption {
+        option,
+        options: u32::try_from(next.choices.len()).unwrap_or(u32::MAX),
+    })?;
+    let Some(c) = next.choices.get(usize::from(place)) else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let (effect, amount, kind) = (c.effect, c.amount, next.kind);
+    apply(&mut g.range_pct, progress, player, effect, amount);
+    if kind == ExpertiseOfferKind::Style {
+        g.style = Some(place);
+    } else {
+        g.path.push(place);
+    }
+    Ok(())
 }
 
 /// Opens the offer of the first level due to `me` that has a candidate, unless `me` has an offer
