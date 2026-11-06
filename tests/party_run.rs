@@ -529,7 +529,9 @@ fn recorder_at(recorded: &RunReplay, party: u8, cut: u32) -> RunRecorder {
 fn drive(rec: &mut RunRecorder, range: &StepRange) {
     for step in &range.steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { actions } => rec
+                .actions(&slots(rec.engine().present(), actions))
+                .unwrap(),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     rec.step(&slots(rec.engine().present(), inputs)).unwrap();
