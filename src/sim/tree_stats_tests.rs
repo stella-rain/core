@@ -771,3 +771,31 @@ fn the_style_pick_options_match_the_view() {
     let trees: Vec<_> = view.trees.iter().map(|t| t.style.clone()).collect();
     assert_eq!(ready.options, trees);
 }
+
+/// The pack's base and tree sets are the code tables, entry for entry (effect, order and the ten
+/// values), until the tables are replaced by reads of the pack (ADR-CONT-3).
+#[test]
+fn the_pack_sets_equal_the_code_tables() {
+    use crate::expertise::{Expertise, SetStat};
+    use crate::sim::expertise;
+    let ex = Expertise::bundled();
+    let rows = |set: &[SetStat]| -> Vec<(StatEffect, Vec<u32>)> {
+        set.iter().map(|s| (s.effect, s.by_level.clone())).collect()
+    };
+    let table = |t: &[(StatEffect, [u32; 10])]| -> Vec<(StatEffect, Vec<u32>)> {
+        t.iter().map(|(e, v)| (*e, v.to_vec())).collect()
+    };
+    for (weapon, set) in expertise::BASE_SETS {
+        let w = ex.weapon(&weapon.into()).expect("a weapon");
+        assert_eq!(rows(&w.base), table(set), "{weapon} base");
+    }
+    for (weapon, style, set) in expertise::TREE_SETS {
+        let w = ex.weapon(&weapon.into()).expect("a weapon");
+        let s = w.styles.iter().find(|s| s.id.as_str() == style);
+        assert_eq!(
+            rows(&s.expect("a style").stats),
+            table(set),
+            "{weapon}/{style}"
+        );
+    }
+}
