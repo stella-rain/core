@@ -392,9 +392,7 @@ impl Career {
             equipment,
         }
     }
-}
 
-impl Career {
     /// The career of slot `me`, a member who starts or joins, from slot 0's start career `c0`: its
     /// progress, offers, expertise, Stardust and regeneration as they were at the start (the perk's
     /// and a regen Lumine star's), the equipment of `for_new_slot`, its own offer stream.
