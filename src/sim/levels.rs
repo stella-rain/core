@@ -62,7 +62,13 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
     }
 }
 
-fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<DomainEvent>) {
+pub(super) fn gain(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    xp: u32,
+    events: &mut Vec<DomainEvent>,
+) {
     let xp = raised(xp, total(s, me, StatEffect::XpPct));
     let (player, career) = s.players.both_mut(me);
     let Some(p) = career.progress.as_mut() else {

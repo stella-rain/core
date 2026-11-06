@@ -141,6 +141,8 @@ mod leash;
 #[cfg(test)]
 mod leash_tests;
 mod levels;
+#[cfg(test)]
+mod levels_tests;
 mod loadout;
 mod offer_rating;
 mod slots;
