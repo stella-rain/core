@@ -585,7 +585,8 @@ mod rules {
         assert_eq!(f.set_counts(), [0]);
     }
 
-    /// T12: a replace puts the displaced star at the item's place; level and expertise stay.
+    /// T12: a replace puts the displaced star at the item's place; a star sharing no option halves
+    /// the level (Lv3 to Lv1) and resets the kills.
     #[test]
     fn replace_returns_the_displaced_star_to_the_item_s_place() {
         let mut f = fixture();
@@ -602,7 +603,7 @@ mod rules {
             [Held::Star(SPEED), Held::Star(ATK), Held::Star(HP_C)]
         );
         assert_eq!(star_at(&f, 0), Some(Held::Star(CRIT)));
-        assert_eq!((f.eq().slots[0].level, f.eq().slots[0].expertise), (3, 17));
+        assert_eq!((f.eq().slots[0].level, f.eq().slots[0].expertise), (1, 0));
         assert_eq!(f.total(StatEffect::AttackPct), atk - 5);
     }
 
@@ -838,6 +839,111 @@ mod rules {
         assert_eq!(f.replace(0, ATTACK0), Ok(()));
         assert_eq!(f.s.rng, rng);
         assert_eq!(f.s.players.career(PlayerIdx::SOLO).offer.state(), offer);
+    }
+    /// Holds `place` in slot `at` at `level` and `expertise`, and writes the change.
+    fn hold(f: &mut Fixture, at: usize, place: u16, level: u8, expertise: u32) {
+        f.change(|e| {
+            let slot = if at < e.slots.len() {
+                &mut e.slots[at]
+            } else {
+                e.lumine.as_mut().unwrap()
+            };
+            slot.held = Some(Held::Star(place));
+            slot.level = level;
+            slot.expertise = expertise;
+        });
+    }
+
+    fn lv(f: &Fixture, at: usize) -> (u8, u32) {
+        let eq = f.eq();
+        let s = eq.slots.get(at).or(eq.lumine.as_ref()).unwrap();
+        (s.level, s.expertise)
+    }
+
+    /// T14: a replace by a star that shares no option keeps half the level, at least 1, no kills.
+    #[test]
+    fn a_replace_keeps_half_the_level_and_resets_the_kills() {
+        for (level, kills, want) in [(7, 40, 3), (10, 0, 5), (2, 11, 1), (1, 5, 1)] {
+            let mut f = fixture();
+            hold(&mut f, 0, ATK, level, kills);
+            f.put(&[Held::Star(CRIT)]);
+            assert!(!slots::is_switch(&f.rewards, f.eq(), 0, ATTACK0));
+            assert_eq!(f.replace(0, ATTACK0), Ok(()));
+            assert_eq!(lv(&f, 0), (want, 0), "from Lv{level}");
+            assert_eq!(f.eq().inventory, [Held::Star(ATK)]);
+        }
+    }
+
+    /// T15: a same-option switch keeps the whole level and kills, and the build follows.
+    #[test]
+    fn a_same_option_switch_keeps_the_whole_level() {
+        let mut f = fixture();
+        let base = f.total(StatEffect::MaxHp);
+        hold(&mut f, 5, HP_C, 7, 40);
+        assert_eq!(
+            f.total(StatEffect::MaxHp),
+            base + slots::level_scaled(100, 7)
+        );
+        f.put(&[Held::Star(HP_R)]);
+        assert!(slots::is_switch(&f.rewards, f.eq(), 0, DEFENCE0));
+        assert_eq!(f.replace(0, DEFENCE0), Ok(()));
+        assert_eq!(lv(&f, 5), (7, 40));
+        assert_eq!(
+            f.total(StatEffect::MaxHp),
+            base + slots::level_scaled(250, 7)
+        );
+        // The Lumine slot switches the same way.
+        let mut f = fixture();
+        f.lumine(HP_C);
+        hold(&mut f, LUMINE as usize, HP_C, 5, 9);
+        f.put(&[Held::Star(HP_R)]);
+        assert_eq!(f.replace(0, LUMINE), Ok(()));
+        assert_eq!(lv(&f, LUMINE as usize), (5, 9));
+    }
+
+    /// T16: a replace rewrites the build from the old star at the old level to the new one at the
+    /// new level.
+    #[test]
+    fn a_replace_changes_the_build_from_the_old_level_to_the_new() {
+        let mut f = fixture();
+        let (atk, hp) = (f.total(StatEffect::AttackPct), f.total(StatEffect::MaxHp));
+        hold(&mut f, 0, ATK_HP, 10, 0);
+        assert_eq!(
+            f.total(StatEffect::AttackPct),
+            atk + slots::level_scaled(4, 10)
+        );
+        f.put(&[Held::Star(CRIT)]);
+        assert_eq!(f.replace(0, ATTACK0), Ok(()));
+        assert_eq!(lv(&f, 0), (5, 0));
+        assert_eq!(f.total(StatEffect::AttackPct), atk);
+        assert_eq!(f.total(StatEffect::MaxHp), hp);
+        assert_eq!(
+            f.s.players[PlayerIdx::SOLO].crit_chance_pct,
+            slots::level_scaled(5, 5)
+        );
+    }
+
+    /// T17: a rune replace leaves the rune slot at Lv1.
+    #[test]
+    fn a_rune_replace_resets_to_level_1_at_most() {
+        let mut f = fixture();
+        thunder(&mut f);
+        f.change(|e| e.slots[9].expertise = 3);
+        f.put(&[Held::Rune(Rune::Bleed)]);
+        assert_eq!(f.replace(0, RUNE0), Ok(()));
+        assert_eq!(lv(&f, 9), (1, 0));
+    }
+
+    /// T18: an equip into an empty slot makes Lv1, keeps the kills and adds the base.
+    #[test]
+    fn an_equip_into_an_empty_slot_is_unchanged() {
+        let mut f = fixture();
+        f.change(|e| e.slots[0].expertise = 3);
+        let atk = f.total(StatEffect::AttackPct);
+        f.put(&[Held::Star(ATK)]);
+        assert_eq!(f.equip(0, ATTACK0), Ok(()));
+        assert_eq!(lv(&f, 0), (1, 3));
+        assert_eq!(f.total(StatEffect::AttackPct), atk + 5);
     }
 }
 
