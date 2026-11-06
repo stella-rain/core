@@ -2,6 +2,7 @@
 //! level-up spends by the stat priority and opens no offer, a common expertise level takes its
 //! stat by the chosen tree, and the style path is held tree points.
 
+use super::TreeError;
 use super::expertise::{self, TREE_COMMON};
 use super::levels;
 use super::state::{PlayerIdx, State};
@@ -10,6 +11,8 @@ use crate::event::DomainEvent;
 use crate::expertise::{Expertise, ExpertiseEffect, WeaponExpertise};
 use crate::run_setup::{BuildMode, RunSetup};
 use crate::run_stats::StatEffect;
+use crate::snapshot::ExpertiseOfferKind;
+use crate::stage::LevelTable;
 
 fn setup(mode: &str) -> RunSetup {
     RunSetup {
@@ -398,4 +401,171 @@ fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
     }
     e.open_offers_for_test();
     e.events().to_vec()
+}
+
+// --- the tree points ------------------------------------------------------------------------------
+
+fn world_state(e: &mut Engine) -> (&super::World, &mut State) {
+    match e.run_mut() {
+        Run::V2 { world, state } => (&*world, state),
+        Run::V1 { .. } => panic!("the live rules"),
+    }
+}
+
+/// The player 0's `TreePick` through the sim's entry point.
+fn tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
+    let (world, state) = world_state(e);
+    super::tree_pick_action(world, Expertise::bundled(), state, PlayerIdx::SOLO, option)
+}
+
+fn check_tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
+    let (world, state) = world_state(e);
+    super::check_tree_pick(world, Expertise::bundled(), state, PlayerIdx::SOLO, option)
+}
+
+/// What the next tree pick is: its kind, its level, the points held and its choices' IDs.
+fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<String>)> {
+    let (world, state) = world_state(e);
+    let g = state.players.career(PlayerIdx::SOLO).expertise.as_ref()?;
+    let t = expertise::tree_next(world, Expertise::bundled(), g)?;
+    Some((
+        t.kind,
+        t.level,
+        t.held,
+        t.choices.iter().map(|c| c.id.to_string()).collect(),
+    ))
+}
+
+fn reach(e: &mut Engine, level: u32) {
+    pass(e, 0, level, None, &[ATTACK]);
+}
+
+/// T10: the style level holds a point and stops nothing.
+#[test]
+fn the_style_level_holds_a_tree_point_and_nothing_stops() {
+    let mut e = hammer();
+    reach(&mut e, 2);
+    assert_eq!(next(&mut e), None);
+    reach_from(&mut e, 2, 3);
+    let (kind, level, held, choices) = next(&mut e).expect("a point");
+    assert_eq!((kind, level, held), (ExpertiseOfferKind::Style, 3, 1));
+    assert_eq!(choices, ["crush", "quake", "bulwark"]);
+    assert!(gauge(&e).offer.is_none());
+    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
+}
+
+fn reach_from(e: &mut Engine, offered: u32, level: u32) {
+    pass(e, offered, level, None, &[ATTACK]);
+}
+
+/// T11: points wait and queue; they are taken in path order.
+#[test]
+fn a_point_waits_and_later_points_queue() {
+    let mut e = hammer();
+    reach(&mut e, 10);
+    assert_eq!(next(&mut e).expect("a point").2, 4);
+    let mut kinds = Vec::new();
+    for held in (0..4u8).rev() {
+        let (kind, _, _, _) = next(&mut e).expect("a point");
+        kinds.push(kind);
+        tree_pick(&mut e, 0).expect("taken");
+        assert_eq!(next(&mut e).map_or(0, |n| n.2), held);
+    }
+    use ExpertiseOfferKind::{Capstone, Style, Upgrade};
+    assert_eq!(kinds, [Style, Upgrade, Upgrade, Capstone]);
+    assert_eq!(tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
+}
+
+/// T12: a pick applies the option, records the path, and makes no event and no draw.
+#[test]
+fn a_tree_pick_applies_the_option_and_records_the_path() {
+    let mut e = hammer();
+    reach(&mut e, 6);
+    let (before, rng) = (
+        total(&e, StatEffect::AttackPct),
+        state_of(&e).players.career(PlayerIdx::SOLO).offer.state(),
+    );
+    e.open_offers_for_test();
+    tree_pick(&mut e, 0).expect("the style");
+    assert_eq!(gauge(&e).style, Some(0));
+    assert_eq!(total(&e, StatEffect::AttackPct), before + 15);
+    tree_pick(&mut e, 0).expect("the upgrade");
+    assert_eq!(gauge(&e).path, [0]);
+    assert_eq!(total(&e, StatEffect::AttackPct), before + 35);
+    assert_eq!(
+        state_of(&e).players.career(PlayerIdx::SOLO).offer.state(),
+        rng
+    );
+
+    let mut e = hammer();
+    reach(&mut e, 3);
+    tree_pick(&mut e, 1).expect("quake");
+    assert_eq!((gauge(&e).style, gauge(&e).range_pct), (Some(1), 20));
+}
+
+/// T13: what the rules cannot take is refused and changes nothing.
+#[test]
+fn check_tree_pick_refuses_what_it_cannot_take() {
+    let mut e = hammer();
+    reach(&mut e, 2);
+    let h = e.state_hash();
+    assert_eq!(check_tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
+    assert_eq!(tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
+    assert_eq!(e.state_hash(), h);
+    reach_from(&mut e, 2, 3);
+    let h = e.state_hash();
+    assert_eq!(
+        check_tree_pick(&mut e, 3),
+        Err(TreeError::NoTreeOption {
+            option: 3,
+            options: 3
+        })
+    );
+    assert_eq!(
+        tree_pick(&mut e, 99),
+        Err(TreeError::NoTreeOption {
+            option: 99,
+            options: 3
+        })
+    );
+    assert_eq!(e.state_hash(), h);
+    tree_pick(&mut e, 2).expect("the last valid option");
+    reach_from(&mut e, 3, 6);
+    assert_eq!(
+        check_tree_pick(&mut e, 1),
+        Err(TreeError::NoTreeOption {
+            option: 1,
+            options: 1
+        })
+    );
+    // No gauge at all.
+    let mut e = hammer();
+    {
+        let (_, state) = world_state(&mut e);
+        state.players.career_mut(PlayerIdx::SOLO).expertise = None;
+    }
+    assert_eq!(check_tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
+}
+
+/// T14: an out player keeps its tree points.
+#[test]
+fn a_tree_point_survives_an_out_player() {
+    let mut e = hammer();
+    reach(&mut e, 4);
+    {
+        let (_, state) = world_state(&mut e);
+        super::drop_offers(state, PlayerIdx::SOLO);
+    }
+    assert_eq!(gauge(&e).offered, 4);
+    assert_eq!(next(&mut e).expect("a point").2, 1);
+    tree_pick(&mut e, 0).expect("the point can be taken");
+}
+
+/// T15: the short table gives its own levels.
+#[test]
+fn a_short_run_table_gives_its_own_levels() {
+    let held: Vec<u8> = (0..=9)
+        .map(|l| expertise::tree_earned(&LevelTable::SHORT, l))
+        .collect();
+    assert_eq!(held, [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
 }
