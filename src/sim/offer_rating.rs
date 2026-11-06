@@ -889,7 +889,7 @@ mod tests {
         /// rating reads what `slots::replace` leaves.
         #[test]
         fn replace_halves_and_switch_keeps_the_level() {
-            for (level, halved) in [(10, 5), (3, 1), (1, 1)] {
+            for (level, halved) in [(10, 5), (9, 4), (3, 1), (2, 1), (1, 1)] {
                 let mut f = fixture();
                 f.equip(0, "atk20", level);
                 let other = f.hold("crit10");
@@ -936,7 +936,8 @@ mod tests {
             };
             assert_eq!(rated(3), Some(bp(3)));
             assert_eq!(rated(10), Some(bp(10)));
-            assert_ne!(rated(3), rated(10));
+            // Worked by hand: 131/121 and 138/125.
+            assert_eq!((rated(3), rated(10)), (Some(826), Some(1040)));
         }
 
         /// T17: at a level, the stat changes are the diff of really making the action.
@@ -958,6 +959,7 @@ mod tests {
             let (mut player, mut c) = (held.clone(), career.clone());
             slots::replace(&f.world, &f.rewards, &mut player, &mut c, i, 0).unwrap();
             let after = sheet(&f.s, &c.progress, &player, c.regen, c.offers.as_ref());
+            assert!(!at(&r, 0).changes.is_empty());
             assert_eq!(at(&r, 0).changes, diff_sheets(&before, &after));
             assert_eq!(at(&r, 0).level_after, 3);
         }
