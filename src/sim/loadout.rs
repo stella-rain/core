@@ -3,7 +3,8 @@
 //! before the first step, in this order: the perk set, the carried stars in setup order, as if
 //! each were picked from an offer (they count toward their reward's stack limit), then the
 //! starting rune, then the Lumine star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn; the star
-//! is in the build from tick 0, its stats, skill, orbit and set count included). Nothing is drawn for any of them, so the generator's order is unchanged.
+//! is in the build from tick 0, its stats, skill, orbit and set count included). Nothing is
+//! drawn for any of them, so the generator's order is unchanged.
 //! Regen, the auto combo and the rune pool are fixed for the run and part of the setup, which
 //! the replay stores: the state hash writes nothing for them. The Lumine slot is career state
 //! and is hashed with the equipment.

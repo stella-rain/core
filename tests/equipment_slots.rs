@@ -377,9 +377,15 @@ mod search {
         use crate::run_play::{EquipScript, equipment_lumine};
         for seed in 1..=60u64 {
             let rec = equipment_lumine("x", seed).play();
-            let replaced = actions_of(&rec)
-                .iter()
-                .any(|a| matches!(a, EquipAction::Replace { slot: 12, .. }));
+            let replaced = actions_of(&rec).iter().any(|a| {
+                matches!(
+                    a,
+                    EquipAction::Replace {
+                        slot: LUMINE_SLOT,
+                        ..
+                    }
+                )
+            });
             let mut early = equipment_lumine("x", seed);
             early.ticks = 2700;
             early.script = early.script.map(|s| EquipScript {
@@ -635,7 +641,7 @@ fn equipment_levels_records_a_tree_pick() {
 
 // --- the Lumine slot (ADR-SAVE-7, ADR-SIM-3, ADR-REPL-5) ---------------------------------------
 
-const LUMINE_SLOT: u32 = 12;
+use crate::run_play::{LUMINE_SLOT, shares_effect};
 
 fn lumine_setup(seed: u64) -> RunSetup {
     RunSetup {
@@ -652,11 +658,17 @@ fn lumine_case(seed: u64, ticks: u32) -> PartyCase {
     }
 }
 
-/// The first `Replace` into the Lumine slot the engine accepts.
+/// The first `Replace` into the Lumine slot the engine accepts that is not a switch: the star
+/// shares no effect with the Lumine star.
 fn lumine_replace(e: &Engine) -> Option<EquipAction> {
-    let items = u32::try_from(inventory(e)).unwrap();
-    (0..items)
-        .map(|item| replace(item, LUMINE_SLOT))
+    let held = lumine_view(e)["held"]["id"].as_str()?.to_string();
+    let snap = serde_json::to_value(&e.snapshot().players[0]).unwrap();
+    snap["inventory"]
+        .as_array()?
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h["kind"] == "star" && !shares_effect(h["id"].as_str().unwrap(), &held))
+        .map(|(item, _)| replace(u32::try_from(item).unwrap(), LUMINE_SLOT))
         .find(|a| e.check_action(PlayerIdx::SOLO, *a).is_ok())
 }
 
@@ -697,12 +709,10 @@ fn every_member_starts_with_the_lumine_star() {
 fn a_resumed_lumine_run_matches_the_straight_run() {
     let (mut live, a) = lumine_recorded();
     live.step(&acting(a)).unwrap();
-    assert_eq!(
-        serde_json::to_value(&live.engine().snapshot().players[0])
-            .unwrap()
-            .get("slots")
-            .unwrap()[12]["level"],
-        1
+    assert_ne!(
+        lumine_view(live.engine())["held"]["id"],
+        "star_mintaka",
+        "the replace took"
     );
     let prefix = live.replay();
     let saved = live.save();
@@ -739,7 +749,7 @@ fn actions_of(rec: &RunRecorder) -> Vec<EquipAction> {
 }
 
 fn lumine_view(e: &Engine) -> serde_json::Value {
-    slots_json(e)[12].clone()
+    slots_json(e)[LUMINE_SLOT as usize].clone()
 }
 
 /// T9: the `equipment_lumine` recording holds a Replace into slot 12 among its ACTIONS steps, a
@@ -750,7 +760,15 @@ fn the_lumine_case_replaces_the_lumine_star() {
     let rec = equipment_lumine("x", EQUIP_LUMINE_SEED).play();
     let replaced = actions_of(&rec)
         .iter()
-        .filter(|a| matches!(a, EquipAction::Replace { slot: 12, .. }))
+        .filter(|a| {
+            matches!(
+                a,
+                EquipAction::Replace {
+                    slot: LUMINE_SLOT,
+                    ..
+                }
+            )
+        })
         .count();
     assert!(replaced >= 1, "{replaced}");
     let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");

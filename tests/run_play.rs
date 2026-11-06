@@ -276,7 +276,8 @@ pub struct EquipScript {
     /// tree point if the engine accepts it (ADR-SIM-7); `None` takes none.
     pub tree_at: Option<u32>,
     /// At this tick slot 0 replaces its Lumine star (slot 12) by the first inventory star the
-    /// engine accepts that shares no effect with the Lumine star, so the replace is not a switch (ADR-SIM-7); `None` makes none. One tick: a second replace could swap back.
+    /// engine accepts that shares no effect with the Lumine star, so the replace is not a switch
+    /// (ADR-SIM-7); `None` makes none. One tick: a second replace could swap the star back.
     pub lumine_at: Option<u32>,
 }
 
@@ -299,7 +300,7 @@ fn stem(id: &str) -> &str {
 }
 
 /// Whether the bundled stars `a` and `b` share an effect: the option rule of a switch.
-fn shares_effect(a: &str, b: &str) -> bool {
+pub fn shares_effect(a: &str, b: &str) -> bool {
     let rewards = RunContent::bundled().rewards();
     let effects = |id: &str| -> Vec<_> {
         let at = rewards.index_of(&id.into()).expect("a bundled star");
@@ -368,7 +369,9 @@ impl EquipScript {
                 Some(pick).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
             }
             t if self.lumine_at == Some(t) => {
-                let Some(HeldView::Star { id: held, .. }) = &slots[LUMINE_SLOT as usize].held
+                let Some(HeldView::Star { id: held, .. }) = slots
+                    .get(LUMINE_SLOT as usize)
+                    .and_then(|s| s.held.as_ref())
                 else {
                     return None;
                 };
@@ -504,18 +507,23 @@ pub const EQUIP_LUMINE_SEED: u64 = 1;
 /// a rune and a star, and late replaces the Lumine star by a star that shares no option, after
 /// the slot has risen (ADR-SAVE-7, ADR-SIM-3, ADR-SIM-7).
 pub fn equipment_lumine(name: &'static str, seed: u64) -> PartyCase {
-    let levels = equipment_levels(name, seed);
     PartyCase {
         setup: RunSetup {
+            mode: "time_limit".into(),
+            seed,
             lumine: 4,
             lumine_star: Some("star_mintaka".into()),
-            ..levels.setup
+            ..equipment(name, 1).setup
         },
         script: Some(EquipScript {
+            rune_at: 400,
+            star_at: 700,
+            swap_at: u32::MAX,
+            no_share: false,
+            extract_at: None,
+            craft_at: None,
             tree_at: None,
             lumine_at: Some(2700),
-            swap_at: u32::MAX,
-            ..levels.script.expect("a script")
         }),
         ..equipment(name, 1)
     }
