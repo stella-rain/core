@@ -7595,7 +7595,7 @@
               "type": "null"
             }
           ],
-          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0\n(the rule is not built yet). Its rarity is capped by `lumine`. Only in equipment mode."
+          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only in equipment mode."
         },
         "mode": {
           "$ref": "#/$defs/ContentId",
