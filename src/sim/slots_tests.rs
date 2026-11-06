@@ -105,12 +105,31 @@ fn the_lumine_star_is_in_the_build_at_tick_0() {
     assert_eq!(total(s), total(p) + 20_000);
 }
 
+/// B7: loading a run is not an equip: a Lumine skill star and a joiner start ready.
+#[test]
+fn tick_0_and_a_joiner_start_with_the_skill_ready() {
+    let setup = RunSetup {
+        lumine: 3,
+        ..setup(None, Some("nova_rare"))
+    };
+    let e = Engine::start(&setup).expect("starts");
+    let skill = state_of(&e).players[PlayerIdx::SOLO]
+        .skill
+        .expect("a skill");
+    assert_eq!(skill.cooldown_left, 0);
+    let mut e = Engine::start_party(&setup, 1).expect("starts");
+    let one = PlayerIdx::new(1).unwrap();
+    e.join(one).expect("joins");
+    let skill = state_of(&e).players[one].skill.expect("a skill");
+    assert_eq!(skill.cooldown_left, 0);
+}
+
 // --- the grants follow the equipped set (ADR-SIM-7) ---------------------------------------------
 
 mod grants {
-    use super::super::equipment::{Equipment, Held};
+    use super::super::equipment::{EquipSlot, Equipment, Held, SlotKind};
     use super::super::state::{OrbitState, PlayerIdx, SkillSlot, State};
-    use super::super::{RunDifficulty, RunPool, World, initial_state, slots};
+    use super::super::{RunDifficulty, RunPool, World, initial_state, skill, slots};
     use crate::rewards::{Rarity, Rewards};
     use crate::run_content::RunContent;
     use crate::run_stats::StatEffect;
@@ -128,6 +147,7 @@ mod grants {
     const REROLL: u16 = 9;
     const BUNDLE: u16 = 10;
     pub(super) const GROWTH: u16 = 11;
+    const COOLER: u16 = 12;
 
     pub(super) fn star(id: &str, rarity: &str, effects: Vec<Value>) -> Value {
         json!({ "id": id, "rarity": rarity, "limit": 3, "effects": effects })
@@ -213,6 +233,11 @@ mod grants {
                     json!({ "effect": "xp_pct", "amount": 10 }),
                 ],
             ),
+            star(
+                "cooler",
+                "common",
+                vec![json!({ "effect": "skill_cooldown_pct", "amount": 20 })],
+            ),
         ];
         let mut file = json!({ "rarities": rarities, "rewards": list });
         crate::sim::starlight::with_equipment_rules(&mut file);
@@ -284,7 +309,14 @@ mod grants {
             let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
             let before = slots::equipped_levels(&career.equipment);
             f(&mut career.equipment);
-            slots::refresh(&self.stage, &self.rewards, player, career, &before);
+            slots::refresh(
+                &self.stage,
+                &self.rewards,
+                player,
+                career,
+                &before,
+                slots::Arrival::Swap,
+            );
         }
 
         fn skill(&self) -> Option<SkillSlot> {
@@ -300,6 +332,28 @@ mod grants {
         }
     }
 
+    /// The full cooldown the skill `index` at `level` takes now: what a press sets.
+    fn full(f: &Fixture, index: u16, level: u8) -> u32 {
+        let def = &f.rewards.stage_skills().get(usize::from(index)).unwrap();
+        let ticks = def.levels[usize::from(level) - 1].cooldown_ticks;
+        let career = f.s.players.career(PlayerIdx::SOLO);
+        skill::cooldown_ticks(
+            ticks,
+            career.progress.as_ref(),
+            &f.s.players[PlayerIdx::SOLO],
+        )
+    }
+
+    fn war_cry_index(f: &Fixture) -> u16 {
+        u16::try_from(
+            f.rewards
+                .stage_skills()
+                .index_of(&"war_cry".into())
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
     fn nova_index(f: &Fixture) -> u16 {
         u16::try_from(f.rewards.stage_skills().index_of(&"nova".into()).unwrap()).unwrap()
     }
@@ -311,12 +365,14 @@ mod grants {
         assert_eq!(f.skill(), None);
         f.set(0, Some(NOVA));
         let nova = nova_index(&f);
+        let nova_full = full(&f, nova, 1);
+        assert!(nova_full > 0);
         assert_eq!(
             f.skill(),
             Some(SkillSlot {
                 index: nova,
                 level: 1,
-                cooldown_left: 0
+                cooldown_left: nova_full
             })
         );
         // A second skill star in a later slot changes nothing: the first in slot order wins.
@@ -337,7 +393,7 @@ mod grants {
                 cooldown_left: 40
             })
         );
-        // Replacing the first out: the second's skill arrives ready.
+        // Replacing the first out: the second's skill starts its full cooldown.
         f.set(0, None);
         let war_cry = u16::try_from(
             f.rewards
@@ -351,11 +407,168 @@ mod grants {
             Some(SkillSlot {
                 index: war_cry,
                 level: 1,
-                cooldown_left: 0
+                cooldown_left: full(&f, war_cry, 1)
             })
         );
+        assert!(full(&f, war_cry, 1) > 0);
         f.set(1, None);
         assert_eq!(f.skill(), None);
+    }
+
+    // --- 1b: a skill star entering a slot starts its full cooldown (ADR-SIM-7) -------------------
+
+    fn cooldown_left(f: &Fixture) -> u32 {
+        f.skill().expect("a skill").cooldown_left
+    }
+
+    /// B1: a skill star put into a slot starts cooling.
+    #[test]
+    fn a_skill_star_entering_a_slot_starts_cooling() {
+        let mut f = fixture();
+        let nova = nova_index(&f);
+        let full = full(&f, nova, 1);
+        assert!(full > 0, "not vacuous");
+        f.set(0, Some(NOVA));
+        assert_eq!(
+            f.skill(),
+            Some(SkillSlot {
+                index: nova,
+                level: 1,
+                cooldown_left: full
+            })
+        );
+    }
+
+    /// B2: taking the star out and putting it back starts the full cooldown, ready or not.
+    #[test]
+    fn out_and_back_is_a_full_cooldown() {
+        let mut f = fixture();
+        let full = full(&f, nova_index(&f), 1);
+        assert!(full > 10);
+        f.set(0, Some(NOVA));
+        for left in [0, 10] {
+            f.s.players[PlayerIdx::SOLO]
+                .skill
+                .as_mut()
+                .unwrap()
+                .cooldown_left = left;
+            f.set(0, None);
+            assert_eq!(f.skill(), None);
+            f.set(0, Some(NOVA));
+            assert_eq!(cooldown_left(&f), full, "from {left}");
+        }
+    }
+
+    /// B3: the same skill at another grade keeps the cooldown (unchanged rule).
+    #[test]
+    fn a_grade_switch_keeps_the_cooldown() {
+        let mut f = fixture();
+        f.set(0, Some(NOVA));
+        f.s.players[PlayerIdx::SOLO]
+            .skill
+            .as_mut()
+            .unwrap()
+            .cooldown_left = 40;
+        f.set(0, Some(NOVA2));
+        let s = f.skill().unwrap();
+        assert_eq!((s.level, s.cooldown_left), (2, 40));
+    }
+
+    /// B4: another skill in the slot starts its own full cooldown.
+    #[test]
+    fn a_different_skill_starts_cooling() {
+        let mut f = fixture();
+        f.set(0, Some(NOVA));
+        f.s.players[PlayerIdx::SOLO]
+            .skill
+            .as_mut()
+            .unwrap()
+            .cooldown_left = 0;
+        f.set(0, Some(WAR_CRY));
+        let war_cry = war_cry_index(&f);
+        let want = full(&f, war_cry, 1);
+        assert!(want > 0);
+        assert_eq!(f.skill().unwrap().index, war_cry);
+        assert_eq!(cooldown_left(&f), want);
+    }
+
+    /// B5: the next skill in slot order takes over cooling (the T7 arm).
+    #[test]
+    fn the_next_skill_takes_over_cooling() {
+        let mut f = fixture();
+        f.set(0, Some(NOVA));
+        f.set(1, Some(WAR_CRY));
+        f.s.players[PlayerIdx::SOLO]
+            .skill
+            .as_mut()
+            .unwrap()
+            .cooldown_left = 0;
+        f.set(0, None);
+        let war_cry = war_cry_index(&f);
+        assert_eq!(f.skill().unwrap().index, war_cry);
+        assert_eq!(cooldown_left(&f), full(&f, war_cry, 1));
+    }
+
+    /// B6: the number is the one a press sets, with the cooldown stars counted.
+    #[test]
+    fn the_full_cooldown_is_the_one_a_press_sets() {
+        let mut f = fixture();
+        f.set(1, Some(COOLER));
+        assert_eq!(f.s.players[PlayerIdx::SOLO].skill_cooldown_pct, 20);
+        f.set(0, Some(NOVA));
+        let nova = nova_index(&f);
+        let ticks = f
+            .rewards
+            .stage_skills()
+            .get(usize::from(nova))
+            .unwrap()
+            .levels[0]
+            .cooldown_ticks;
+        assert!(ticks > 0);
+        assert_eq!(cooldown_left(&f), skill::shortened(ticks, 20));
+        assert_eq!(
+            cooldown_left(&f),
+            skill::cooldown_after(&f.s, PlayerIdx::SOLO, ticks),
+            "the press sets this number"
+        );
+        assert!(cooldown_left(&f) < ticks);
+    }
+
+    /// B7: the Lumine slot after tick 0 is a slot like any other.
+    #[test]
+    fn the_lumine_slot_cools_after_tick_0() {
+        let mut f = fixture();
+        let lumine = |f: &mut Fixture, place| {
+            f.change(|e| {
+                e.lumine = Some(EquipSlot {
+                    kind: SlotKind::Lumine,
+                    held: Some(Held::Star(place)),
+                    level: 1,
+                    expertise: 0,
+                });
+            });
+        };
+        lumine(&mut f, NOVA);
+        let nova = nova_index(&f);
+        assert_eq!(cooldown_left(&f), full(&f, nova, 1));
+        lumine(&mut f, WAR_CRY);
+        assert_eq!(cooldown_left(&f), full(&f, war_cry_index(&f), 1));
+        lumine(&mut f, NOVA);
+        assert_eq!(cooldown_left(&f), full(&f, nova, 1));
+    }
+
+    /// B8: a swap elsewhere leaves the skill's cooldown alone.
+    #[test]
+    fn a_non_skill_swap_leaves_the_skill_alone() {
+        let mut f = fixture();
+        f.set(0, Some(NOVA));
+        f.s.players[PlayerIdx::SOLO]
+            .skill
+            .as_mut()
+            .unwrap()
+            .cooldown_left = 25;
+        f.set(3, Some(EVADE_A));
+        assert_eq!(cooldown_left(&f), 25);
     }
 
     /// T8: the orbits are the equipped orbit stars in slot order, each keeping its run state.
@@ -535,6 +748,7 @@ mod rules {
     const RUNE: u16 = 6;
     const CRIT: u16 = 7;
     const REGEN: u16 = 8;
+    const HP_BIG: u16 = 9;
 
     // The slot indices of the layout.
     const ATTACK0: u32 = 0;
@@ -575,6 +789,7 @@ mod rules {
             json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
             named("crit", "Keen", fx("crit_chance_pct", 5)),
             star("regen", "common", vec![fx("regen", 2)]),
+            star("hp_big", "common", vec![fx("max_hp", 50_000)]),
         ];
         let mut file = json!({ "rarities": rarities(), "rewards": list });
         crate::sim::starlight::with_equipment_rules(&mut file);
@@ -653,6 +868,148 @@ mod rules {
 
     fn star_at(f: &Fixture, slot: usize) -> Option<Held> {
         f.eq().slots[slot].held
+    }
+
+    // --- 1a: a swap keeps the hit-point fraction (ADR-SIM-7) -------------------------------------
+
+    /// The player's `(max_hp, hp)`.
+    fn hp_of(f: &Fixture) -> (u32, u32) {
+        let p = &f.s.players[PlayerIdx::SOLO];
+        (p.max_hp, p.hp)
+    }
+
+    fn hurt(f: &mut Fixture, max_hp: u32, hp: u32) {
+        let p = &mut f.s.players[PlayerIdx::SOLO];
+        (p.max_hp, p.hp) = (max_hp, hp);
+    }
+
+    /// A1: a star that raises the most hit points leaves the hit points at the same fraction.
+    #[test]
+    fn a_rise_keeps_the_fraction() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.put(&[Held::Star(HP_C)]);
+        assert_eq!(f.equip(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1100, 550));
+    }
+
+    /// A2: a star leaving takes the fraction with it, not the clamp.
+    #[test]
+    fn a_fall_keeps_the_fraction() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.lumine(HP_C);
+        assert_eq!(hp_of(&f), (1100, 550));
+        f.put(&[Held::Star(ATK)]);
+        assert_eq!(f.replace(0, LUMINE), Ok(()));
+        assert_eq!(hp_of(&f), (1000, 500));
+    }
+
+    /// A3: a switch to a larger grade scales up.
+    #[test]
+    fn a_replace_by_a_larger_star_scales_up() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 500);
+        f.put(&[Held::Star(HP_C), Held::Star(HP_R)]);
+        assert_eq!(f.equip(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1100, 550));
+        assert_eq!(f.replace(0, DEFENCE0), Ok(()));
+        assert_eq!(hp_of(&f), (1250, 625));
+    }
+
+    /// A4: swapping a star in and out is no free heal: every round trip returns the start or less.
+    #[test]
+    fn swapping_back_and_forth_is_no_free_heal() {
+        for (max, start, rise, first_in, first_out) in
+            [(1000, 333, HP_C, 366, 332), (10, 7, HP_C, 77, 7)]
+        {
+            let mut f = fixture();
+            hurt(&mut f, max, start);
+            let mut last_out = start;
+            for round in 0..10 {
+                f.set(5, Some(rise));
+                if round == 0 {
+                    assert_eq!(f.s.players[PlayerIdx::SOLO].hp, first_in, "in");
+                }
+                f.set(5, None);
+                let hp = f.s.players[PlayerIdx::SOLO].hp;
+                if round == 0 {
+                    assert_eq!(hp, first_out, "out");
+                }
+                assert!(hp <= start && hp <= last_out, "round {round}: {hp}");
+                last_out = hp;
+            }
+        }
+    }
+
+    /// A5: a full player stays full both ways and a downed one stays down.
+    #[test]
+    fn a_full_player_stays_full_and_a_downed_one_stays_down() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 1000);
+        f.set(5, Some(HP_C));
+        assert_eq!(hp_of(&f), (1100, 1100));
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 1000));
+        hurt(&mut f, 1000, 0);
+        f.set(5, Some(HP_C));
+        assert_eq!(hp_of(&f), (1100, 0));
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 0));
+    }
+
+    /// A6: a swap never takes a living player to 0, and at the shipped scale gives no more back.
+    #[test]
+    fn a_swap_never_kills_a_living_player() {
+        let mut f = fixture();
+        hurt(&mut f, 1000, 1);
+        f.set(5, Some(HP_C));
+        hurt_keep_max(&mut f, 1100, 1);
+        f.set(5, None);
+        assert_eq!(hp_of(&f), (1000, 1));
+
+        let mut f = fixture();
+        hurt(&mut f, 100_000, 3);
+        f.set(5, Some(HP_BIG));
+        assert_eq!(hp_of(&f).0, 150_000);
+        assert!(hp_of(&f).1 >= 1);
+        f.set(5, None);
+        let (max, hp) = hp_of(&f);
+        assert_eq!(max, 100_000);
+        assert!((1..=3).contains(&hp), "hp {hp}");
+    }
+
+    fn hurt_keep_max(f: &mut Fixture, max_hp: u32, hp: u32) {
+        assert_eq!(f.s.players[PlayerIdx::SOLO].max_hp, max_hp);
+        f.s.players[PlayerIdx::SOLO].hp = hp;
+    }
+
+    /// A7: the integer rule, exactly.
+    #[test]
+    fn keep_fraction_is_exact() {
+        for ((hp, was, now), want) in [
+            ((500, 1000, 1100), 550),
+            ((550, 1100, 1000), 500),
+            ((1, 1100, 1000), 1),
+            ((0, 1000, 1100), 0),
+            ((1000, 1000, 1), 1),
+            ((u32::MAX, u32::MAX, 1), 1),
+            ((5, 0, 3), 3),
+            ((7, 10, 110), 77),
+        ] {
+            assert_eq!(slots::keep_fraction(hp, was, now), want, "{hp} {was} {now}");
+        }
+    }
+
+    /// Tick 0 is a refresh too: the Lumine star's most hit points leave a full player full.
+    #[test]
+    fn a_lumine_star_leaves_a_full_player_full_at_tick_0() {
+        let mut f = fixture();
+        let full = f.s.players[PlayerIdx::SOLO].max_hp;
+        f.s.players[PlayerIdx::SOLO].hp = full;
+        f.lumine(HP_C);
+        let (max, hp) = hp_of(&f);
+        assert_eq!((max, hp), (full + 100, full + 100));
     }
 
     /// T11: an equip moves the star from the inventory into the slot and the build follows.

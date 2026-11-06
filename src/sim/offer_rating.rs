@@ -167,7 +167,10 @@ fn sheet(
     );
     out.extend([
         (StatKind::RangePct, player.range_pct),
-        (StatKind::PickupRadiusPct, player.pickup_radius_pct),
+        (
+            StatKind::PickupRadiusPct,
+            super::pickup_pct_of(progress.as_ref(), player),
+        ),
         (StatKind::SkillCooldownPct, player.skill_cooldown_pct),
         (StatKind::RuneHastePct, player.rune_haste_pct),
         (StatKind::EvadeCharges, u32::from(player.evade_charges)),
@@ -685,6 +688,9 @@ mod tests {
                 named("speed", vec![effect("speed_pct", 10)]),
                 star("hp100", vec![effect("max_hp", 100)]),
                 star("hp250", vec![effect("max_hp", 250)]),
+                star("pick50", vec![effect("pickup_radius_pct", 50)]),
+                star("pick150", vec![effect("pickup_radius_pct", 150)]),
+                star("pick200", vec![effect("pickup_radius_pct", 200)]),
                 json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
             ]
         }
@@ -790,7 +796,14 @@ mod tests {
                 let before = slots::equipped_levels(&career.equipment);
                 career.equipment.slots[at].held = Some(Held::Star(place));
                 career.equipment.slots[at].level = level;
-                slots::refresh(&self.world, &self.rewards, player, career, &before);
+                slots::refresh(
+                    &self.world,
+                    &self.rewards,
+                    player,
+                    career,
+                    &before,
+                    slots::Arrival::Swap,
+                );
             }
 
             /// Puts the star `id` at the end of the inventory; its index.
@@ -824,6 +837,46 @@ mod tests {
                 before,
                 after,
             }
+        }
+
+        /// P4: the sheet shows the pickup radius the sim reads: the stars' share plus the stat,
+        /// held to `MAX_PICKUP_RADIUS_TOTAL_PCT`.
+        #[test]
+        fn the_offer_rating_shows_the_total() {
+            let rated = |f: &Fixture, item: u32, slot: u32| {
+                let r = f.rate_item(item);
+                at(&r, slot)
+                    .changes
+                    .iter()
+                    .find(|c| c.stat == StatKind::PickupRadiusPct)
+                    .cloned()
+            };
+            let stat = |f: &mut Fixture, v: u32| {
+                f.s.players.career_mut(ME).progress.as_mut().unwrap().totals
+                    [crate::run_stats::StatEffect::PickupRadiusPct as usize] = v;
+            };
+            let pickup = |before, after| Some(change(StatKind::PickupRadiusPct, before, after));
+            // Stars 0, stat 100: the star (+50) takes the total from 100 to 150.
+            let mut f = fixture();
+            stat(&mut f, 100);
+            let p50 = f.hold("pick50");
+            assert_eq!(rated(&f, p50, 7), pickup(100, 150));
+            // Stars 150, stat 100: a switch to +200 shows 250 to 300.
+            let mut f = fixture();
+            f.equip(8, "pick150", 1);
+            stat(&mut f, 100);
+            let p200 = f.hold("pick200");
+            assert_eq!(rated(&f, p200, 8), pickup(250, 300));
+            // Stars 200, stat 150: the 350 the sum would be is held to 300 before, and a switch
+            // to +50 shows 300 to 200; a switch to +150 on a stat of 200 stays at 300, so no change is listed.
+            let mut f = fixture();
+            f.equip(8, "pick200", 1);
+            stat(&mut f, 150);
+            let p50 = f.hold("pick50");
+            assert_eq!(rated(&f, p50, 8), pickup(300, 200));
+            stat(&mut f, 200);
+            let p150 = f.hold("pick150");
+            assert_eq!(rated(&f, p150, 8), None);
         }
 
         /// T1: an equip into an empty slot, against the Attack slots only.

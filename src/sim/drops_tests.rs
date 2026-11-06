@@ -798,7 +798,8 @@ mod pickup_stat {
             .totals[effect as usize] = v;
     }
 
-    /// T12: the stat adds to the stars' share, saturating, and the cap holds the sum.
+    /// T12 / P3: the stat adds to the stars' share, saturating, and the cap holds the sum: the
+    /// number the sim reads is at most 300.
     #[test]
     fn pickup_pct_adds_the_stat_to_the_stars_share() {
         let (_, mut s) = party(1);
@@ -807,12 +808,57 @@ mod pickup_stat {
         assert_eq!(super::super::pickup_pct(&s, slot(0)), 150);
         s.players[slot(0)].pickup_radius_pct = u32::MAX;
         set_total(&mut s, StatEffect::PickupRadiusPct, u32::MAX);
-        assert_eq!(super::super::pickup_pct(&s, slot(0)), u32::MAX);
+        assert_eq!(super::super::pickup_pct(&s, slot(0)), 300);
         assert_eq!(
             super::super::widened(RADIUS, u32::MAX),
             RADIUS * 4,
             "held to 300 percent more"
         );
+    }
+
+    /// The snapshot's pickup number for slot 0 of `s`.
+    fn shown(w: &World, s: &State) -> u32 {
+        let content = crate::run_content::RunContent::bundled();
+        super::super::snapshot::build(w, content, s).players[0].pickup_radius_pct
+    }
+
+    /// P1: the snapshot shows the stars' share plus the stat.
+    #[test]
+    fn the_snapshot_shows_stars_plus_stat() {
+        let (w, mut s) = party(1);
+        s.players[slot(0)].pickup_radius_pct = 100;
+        set_total(&mut s, StatEffect::PickupRadiusPct, 30);
+        assert_eq!(shown(&w, &s), 130);
+    }
+
+    /// P2: the number shown is the number the sim uses, the cap included.
+    #[test]
+    fn the_snapshot_total_is_capped() {
+        let (w, mut s) = party(1);
+        s.players[slot(0)].pickup_radius_pct = 250;
+        set_total(&mut s, StatEffect::PickupRadiusPct, 100);
+        assert_eq!(shown(&w, &s), 300);
+        assert_eq!(super::super::pickup_pct(&s, slot(0)), 300);
+        assert_eq!(
+            super::super::widened(RADIUS, shown(&w, &s)),
+            super::super::widened(RADIUS, super::super::pickup_pct(&s, slot(0)))
+        );
+        assert!(
+            star_taken(&w, &s, RADIUS * 4, true),
+            "300 percent more is taken"
+        );
+        assert!(
+            !star_taken(&w, &s, RADIUS * 4 + 1, true),
+            "one unit past is not"
+        );
+    }
+
+    /// P5: an offers run shows the stars' share, as before.
+    #[test]
+    fn offers_mode_shows_the_stars_share() {
+        let (w, mut s) = party(1);
+        s.players[slot(0)].pickup_radius_pct = 40;
+        assert_eq!(shown(&w, &s), 40);
     }
 
     /// Slot 0 of `s` with a pickup `dx` to its right: the position to put it at.

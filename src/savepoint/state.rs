@@ -633,6 +633,21 @@ macro_rules! state_codec_v2 {
                         }
                     }
                 }
+                // Equipment mode: a star in a category slot is of that category, and no two
+                // equipped stars share an option (the rules of `slots::check`).
+                if world.equipment_mode {
+                    match crate::sim::misfit(&world.equipment_rules, content.rewards(), equipment) {
+                        Some(crate::sim::Misfit::Category) => {
+                            return Err(DecodeError::Invalid(
+                                "equipment star does not fit its slot's category",
+                            ));
+                        }
+                        Some(crate::sim::Misfit::SharedOption) => {
+                            return Err(DecodeError::Invalid("equipment stars share an option"));
+                        }
+                        None => {}
+                    }
+                }
                 if let Some(g) = &s.players.career(me).expertise {
                     crate::sim::check_tree(world, content.expertise(), g)
                         .map_err(DecodeError::Invalid)?;
@@ -915,7 +930,8 @@ mod slots_tests {
     use crate::sim::equipment::Held;
     use crate::sim::state::{HeldRune, State};
 
-    use super::v2::check_shape;
+    use super::decode_state;
+    use super::v2::{check_indices, check_shape};
 
     fn engine(party: u8) -> Engine {
         let setup = RunSetup {
@@ -1004,6 +1020,165 @@ mod slots_tests {
                 Ok(())
             );
         }
+    }
+
+    // --- a star must fit its slot: its category, and no two share an option (ADR-SAVE-4) --------
+
+    const DOES_NOT_FIT: &str = "equipment star does not fit its slot's category";
+    const SHARED: &str = "equipment stars share an option";
+
+    // The bundled layout: Attack 0..5, Defence 5..7, Mobility 7..9, runes 9..12, Lumine 12.
+    const LUMINE: usize = 12;
+
+    /// The place of the reward `id` in the bundled file.
+    fn place(e: &Engine, id: &str) -> u16 {
+        let at = e.content().rewards().index_of(&id.into()).expect(id);
+        u16::try_from(at).unwrap()
+    }
+
+    /// `state` with the star `id` put into slot `at` for each pair, for every player.
+    fn with(state: &State, puts: &[(usize, &str)], e: &Engine) -> State {
+        let mut s = state.clone();
+        for me in s.players.indices() {
+            let eq = &mut s.players.career_mut(me).equipment;
+            for &(at, id) in puts {
+                let slot = if at == LUMINE {
+                    eq.lumine.as_mut().expect("the Lumine slot")
+                } else {
+                    &mut eq.slots[at]
+                };
+                slot.held = Some(Held::Star(place(e, id)));
+                slot.level = 1;
+            }
+        }
+        s
+    }
+
+    fn lumine_engine() -> Engine {
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            lumine: 4,
+            lumine_star: Some("attack_common".into()),
+            pick_stats: false,
+            ..RunSetup::default()
+        };
+        Engine::start_party(&setup, 2).unwrap()
+    }
+
+    fn indices(e: &Engine, s: &State) -> Result<(), DecodeError> {
+        let Run::V2 { world, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        check_indices(s, world, e.content())
+    }
+
+    /// C1: a star of another category in a category slot is refused, for both players.
+    #[test]
+    fn a_star_of_another_category_is_refused() {
+        let e = engine(2);
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        assert_eq!(indices(&e, state), Ok(()));
+        for (at, id) in [
+            (0, "max_hp_common"),
+            (5, "attack_common"),
+            (7, "max_hp_rare"),
+        ] {
+            assert_eq!(
+                indices(&e, &with(state, &[(at, id)], &e)),
+                refused(DOES_NOT_FIT),
+                "slot {at} {id}"
+            );
+        }
+    }
+
+    /// C2: a star with no category (a Growth star) is refused in a category slot.
+    #[test]
+    fn a_category_less_star_in_a_category_slot_is_refused() {
+        let e = engine(2);
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let growth = usize::from(place(&e, "xp_common"));
+        assert!(e.content().rewards().rewards()[growth].category.is_none());
+        for at in [0, 5, 7] {
+            assert_eq!(
+                indices(&e, &with(state, &[(at, "xp_common")], &e)),
+                refused(DOES_NOT_FIT),
+                "slot {at}"
+            );
+        }
+    }
+
+    /// C3: two stars of one option are refused, in two category slots or with the Lumine slot.
+    #[test]
+    fn two_stars_sharing_an_option_are_refused() {
+        let e = lumine_engine();
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let two = with(state, &[(5, "max_hp_common"), (6, "max_hp_rare")], &e);
+        assert_eq!(indices(&e, &two), refused(SHARED));
+        let with_lumine = with(state, &[(5, "max_hp_common"), (LUMINE, "max_hp_rare")], &e);
+        assert_eq!(indices(&e, &with_lumine), refused(SHARED));
+        // The setup's Lumine star (attack) against another grade of it in an attack slot.
+        let attack = with(state, &[(0, "attack_rare")], &e);
+        assert_eq!(indices(&e, &attack), refused(SHARED));
+    }
+
+    /// C4: one star per option, each in its category, the Lumine slot any category: accepted.
+    #[test]
+    fn a_legal_set_is_accepted() {
+        let e = lumine_engine();
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let puts = [
+            (0, "attack_speed_common"),
+            (5, "max_hp_common"),
+            (7, "speed_common"),
+            (LUMINE, "xp_common"),
+        ];
+        let ok = with(state, &puts, &e);
+        assert_eq!(indices(&e, &ok), Ok(()));
+        // An equipped star equal to an inventory star is not a clash.
+        let mut s = ok.clone();
+        for me in s.players.indices() {
+            let held = s.players.career(me).equipment.slots[5].held.unwrap();
+            s.players.career_mut(me).equipment.inventory.push(held);
+        }
+        assert_eq!(indices(&e, &s), Ok(()));
+    }
+
+    /// C5: the load path (`decode_state`) refuses the misplaced star; the unmodified state loads.
+    #[test]
+    fn the_load_refuses_through_decode_state() {
+        use super::super::{Encode, Writer};
+        let e = engine(2);
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let (ledger, counted, stats) = e.saved_parts();
+        let bytes_of = |s: &State| {
+            let mut w = Writer::new();
+            stats.encode(&mut w);
+            let mut bytes = w.finish();
+            bytes.extend(super::v2::encode(s, ledger, counted));
+            bytes
+        };
+        let fresh = engine(2);
+        assert!(decode_state(&bytes_of(state), &fresh).is_ok(), "unmodified");
+        let bad = with(state, &[(0, "max_hp_common")], &e);
+        assert_eq!(
+            decode_state(&bytes_of(&bad), &fresh).err(),
+            Some(DecodeError::Invalid(DOES_NOT_FIT))
+        );
+        let clash = with(state, &[(5, "max_hp_common"), (6, "max_hp_rare")], &e);
+        assert_eq!(
+            decode_state(&bytes_of(&clash), &fresh).err(),
+            Some(DecodeError::Invalid(SHARED))
+        );
     }
 }
 

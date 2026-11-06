@@ -17,6 +17,7 @@
 use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
+use super::skill;
 use super::state::{Career, HeldRune, Offers, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
@@ -120,6 +121,77 @@ pub(super) fn shares_option(rewards: &Rewards, a: u16, b: u16) -> bool {
     a.iter().any(|o| b.contains(o))
 }
 
+/// Whether a star at `place` fits a slot of `kind`: a category slot takes the stars of its
+/// category, the Lumine slot any star. A rune slot takes no star.
+pub(super) fn fits_slot(
+    rules: &EquipmentRules,
+    rewards: &Rewards,
+    kind: SlotKind,
+    place: u16,
+) -> bool {
+    match kind {
+        SlotKind::Category(c) => star_category(rules, rewards, place) == Some(c),
+        SlotKind::Lumine => true,
+        SlotKind::Rune => false,
+    }
+}
+
+/// The first slot other than `at` (the category slots, then the Lumine slot) holding a star that
+/// shares an option with the star at `place`.
+pub(super) fn clashes(
+    rewards: &Rewards,
+    equipment: &Equipment,
+    place: u16,
+    at: usize,
+) -> Option<usize> {
+    let others = equipment.slots.iter().chain(equipment.lumine.as_ref());
+    others
+        .enumerate()
+        .find_map(|(i, other)| match (i != at, other.held) {
+            (true, Some(Held::Star(q))) if shares_option(rewards, place, q) => Some(i),
+            _ => None,
+        })
+}
+
+/// What is wrong with the stars an equipment holds (a savepoint is refused for it): a star in a
+/// slot of another category, or two stars sharing an option.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Misfit {
+    /// A category slot holds a star of another category, or one with no category.
+    Category,
+    /// Two equipped stars (the Lumine slot included) share an option.
+    SharedOption,
+}
+
+/// The first `Misfit` of `equipment`: a category fault in slot order (the Lumine slot last), else
+/// the first option clash in the same order. Pure; the rune slots are `holds_right_kinds`'
+/// business, and the stars' places must be in range.
+pub(crate) fn misfit(
+    rules: &EquipmentRules,
+    rewards: &Rewards,
+    equipment: &Equipment,
+) -> Option<Misfit> {
+    let stars = || {
+        equipment
+            .slots
+            .iter()
+            .chain(equipment.lumine.as_ref())
+            .enumerate()
+            .filter_map(|(i, s)| match s.held {
+                Some(Held::Star(p)) => Some((i, s.kind, p)),
+                _ => None,
+            })
+    };
+    if stars()
+        .any(|(_, kind, p)| !matches!(kind, SlotKind::Rune) && !fits_slot(rules, rewards, kind, p))
+    {
+        return Some(Misfit::Category);
+    }
+    stars()
+        .any(|(i, _, p)| clashes(rewards, equipment, p, i).is_some())
+        .then_some(Misfit::SharedOption)
+}
+
 /// The stars equipped, in slot order and the Lumine slot last.
 #[cfg(test)]
 pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ {
@@ -177,16 +249,43 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
+/// The hit points a swap leaves when the most hit points go from `was` to `now`: the same
+/// fraction, rounded down, so swapping a star in and out never heals. A player at 0 stays at 0 and
+/// a living one never reaches 0; `was` of 0 only clamps.
+pub(super) fn keep_fraction(hp: u32, was: u32, now: u32) -> u32 {
+    if hp == 0 {
+        return 0;
+    }
+    if was == 0 {
+        return hp.min(now);
+    }
+    let kept = u64::from(hp) * u64::from(now) / u64::from(was);
+    u32::try_from(kept).unwrap_or(u32::MAX).max(1).min(now)
+}
+
+/// How a change of the equipped set arrives: at the start of a run, or as a swap in play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Arrival {
+    /// Tick 0: loading the run is no equip, so a skill starts ready.
+    Start,
+    /// An equip, a replace or a level-up in play: a skill that takes the slot starts its full
+    /// cooldown.
+    Swap,
+}
+
 /// Writes the change of what is equipped: `before` is the stars equipped before the change, with
 /// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
-/// the members equipped.
+/// the members equipped. A change of the most hit points leaves the hit points at the same
+/// fraction (`keep_fraction`), not the heal or clamp the build's write did. A stage skill that
+/// arrives as a `Swap` starts the full cooldown a press would set (`skill::cooldown_ticks`).
 pub(super) fn refresh(
     stage: &World,
     rewards: &Rewards,
     player: &mut PlayerState,
     career: &mut Career,
     before: &[(u16, u8)],
+    arrival: Arrival,
 ) {
     let Career {
         progress,
@@ -206,13 +305,25 @@ pub(super) fn refresh(
     };
     let was = Build::of_levelled(stage, rewards, before);
     let now = Build::of_levelled(stage, rewards, &after_levels);
+    let (hp_was, max_was) = (player.hp, player.max_hp);
     Build::write(&was, &now, player, progress, regen, o);
-    Grants::write(
-        &Grants::of(rewards, &before_places),
-        &Grants::of(rewards, &after),
-        stage,
-        player,
-    );
+    if player.max_hp != max_was {
+        player.hp = keep_fraction(hp_was, max_was, player.max_hp);
+    }
+    let grants = Grants::of(rewards, &after);
+    let was_grants = Grants::of(rewards, &before_places);
+    // Only a skill that changes takes the entry cooldown (a grade switch keeps its own).
+    let entry = match (arrival, grants.skill()) {
+        (Arrival::Swap, Some((index, level))) if was_grants.skill() != grants.skill() => rewards
+            .stage_skills()
+            .get(usize::from(index))
+            .and_then(|def| def.levels.get(usize::from(level).saturating_sub(1)))
+            .map_or(0, |l| {
+                skill::cooldown_ticks(l.cooldown_ticks, progress.as_ref(), player)
+            }),
+        _ => 0,
+    };
+    Grants::write(&was_grants, &grants, stage, player, entry);
     for (set, c) in rewards.constellations().sets().iter().enumerate() {
         let members = c
             .members
@@ -275,7 +386,7 @@ pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
             }
         }
         if let Some(before) = before {
-            refresh(stage, rewards, player, career, &before);
+            refresh(stage, rewards, player, career, &before, Arrival::Swap);
         }
     }
 }
@@ -347,19 +458,12 @@ pub(super) fn check(
             if lone_rune {
                 return Err(SlotError::NotEquippable { item });
             }
-            match target.kind {
-                SlotKind::Category(c) if star_category(rules, rewards, place) == Some(c) => {}
-                SlotKind::Lumine => {}
-                SlotKind::Category(_) | SlotKind::Rune => return wrong,
+            if !fits_slot(rules, rewards, target.kind, place) {
+                return wrong;
             }
-            let others = equipment.slots.iter().chain(equipment.lumine.as_ref());
-            for (i, other) in others.enumerate() {
-                if let (true, Some(Held::Star(q))) = (i != at, other.held)
-                    && shares_option(rewards, place, q)
-                {
-                    let slot = u32::try_from(i).unwrap_or(u32::MAX);
-                    return Err(SlotError::OptionHeld { slot });
-                }
+            if let Some(i) = clashes(rewards, equipment, place, at) {
+                let slot = u32::try_from(i).unwrap_or(u32::MAX);
+                return Err(SlotError::OptionHeld { slot });
             }
         }
         Held::Rune(rune) => {
@@ -492,7 +596,7 @@ fn apply(
             })
             .collect();
     } else {
-        refresh(stage, rewards, player, career, &before);
+        refresh(stage, rewards, player, career, &before, Arrival::Swap);
     }
 }
 
