@@ -837,6 +837,7 @@ impl StableHash for Progress {
             offer_open,
             spent,
             totals,
+            set_tenths,
         } = self;
         level.stable_hash(h);
         xp.stable_hash(h);
@@ -846,6 +847,7 @@ impl StableHash for Progress {
         offer_open.stable_hash(h);
         spent.stable_hash(h);
         totals.stable_hash(h);
+        set_tenths.stable_hash(h);
     }
 }
 

@@ -1600,6 +1600,7 @@ impl Encode for Progress {
             offer_open,
             spent,
             totals,
+            set_tenths,
         } = self;
         level.encode(w);
         xp.encode(w);
@@ -1609,13 +1610,14 @@ impl Encode for Progress {
         offer_open.encode(w);
         spent.encode(w);
         totals.encode(w);
+        set_tenths.encode(w);
     }
 }
 
 impl Decode for Progress {
     /// `stats` is left empty: `decode_state` copies it from the fresh engine.
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(Progress {
+        let progress = Progress {
             level: Decode::decode(r)?,
             xp: Decode::decode(r)?,
             stats: Vec::new(),
@@ -1625,7 +1627,14 @@ impl Decode for Progress {
             offer_open: Decode::decode(r)?,
             spent: decode_vec(r, MAX_PLACES)?,
             totals: Decode::decode(r)?,
-        })
+            set_tenths: Decode::decode(r)?,
+        };
+        // A weapon's stat set is at most `MAX_STEP` percent of an effect, in tenths.
+        let most = crate::run_stats::MAX_STEP.saturating_mul(10);
+        if progress.set_tenths.iter().any(|t| *t > most) {
+            return Err(DecodeError::Invalid("a stat set value past its bound"));
+        }
+        Ok(progress)
     }
 }
 

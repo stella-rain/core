@@ -524,6 +524,7 @@ fn unreserved_state(
         offer_open: false,
         spent: vec![0; run_stats.stats().len()],
         totals: [0; StatEffect::ALL.len()],
+        set_tenths: [0; StatEffect::ALL.len()],
     });
     let offers = stage.stars.as_ref().map(|st| Offers {
         due: Vec::new(),

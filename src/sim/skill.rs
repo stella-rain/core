@@ -103,6 +103,19 @@ pub(crate) fn shortened(ticks: u32, pct: u32) -> u32 {
     u32::try_from(left).unwrap_or(u32::MAX).max(1)
 }
 
+/// `ticks` shortened by `me`'s skill-cooldown percent: the reward's plus the stat's, the sum held
+/// to `MAX_SKILL_COOLDOWN_TOTAL_PCT` by `shortened`.
+pub(super) fn cooldown_after(s: &State, me: PlayerIdx, ticks: u32) -> u32 {
+    let pct = s.players[me]
+        .skill_cooldown_pct
+        .saturating_add(super::levels::pct(
+            s,
+            me,
+            crate::run_stats::StatEffect::SkillCooldownPct,
+        ));
+    shortened(ticks, pct)
+}
+
 /// A press of `skill`: the skill in the slot acts, if it is ready.
 pub(super) fn press(
     stage: &World,
@@ -139,7 +152,7 @@ pub(super) fn press(
             .saturating_add(Fx::from_wide(i64::from(dir.y) * ahead / scale)),
     });
     s.players[me].skill = Some(SkillSlot {
-        cooldown_left: shortened(level.cooldown_ticks, s.players[me].skill_cooldown_pct),
+        cooldown_left: cooldown_after(s, me, level.cooldown_ticks),
         ..slot
     });
     events.push(DomainEvent::StageSkillUsed {
