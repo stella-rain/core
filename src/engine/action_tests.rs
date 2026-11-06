@@ -197,10 +197,10 @@ mod equipment_runs {
         );
         assert_eq!(e.check_action(me, equip(0, 5)), Ok(()));
         assert_eq!(e.check_action(me, equip(6, 10)), Ok(()));
-        // Extract and Craft are built (the tests below); only the tree pick is still refused.
+        // Extract, Craft and the tree pick are built (the tests below): no point is held yet.
         assert_eq!(
             refused(&e, EquipAction::TreePick { option: 0 }),
-            ActionError::NotBuilt
+            ActionError::NoTreePoint
         );
         assert_eq!(e.state_hash(), hash, "the check changes nothing");
 
@@ -541,5 +541,142 @@ mod equipment_runs {
             json["players"][0]["pool_held"],
             serde_json::json!([false, false])
         );
+    }
+}
+
+// --- the tree pick in an equipment run (ADR-SIM-7, ADR-REPL-5) ------------------------------------
+
+mod tree_runs {
+    use super::*;
+    use crate::run_setup::BuildMode;
+
+    fn equipment() -> RunSetup {
+        RunSetup {
+            build_mode: BuildMode::Equipment,
+            pick_stats: false,
+            ..setup()
+        }
+    }
+
+    fn pick(option: u32) -> EquipAction {
+        EquipAction::TreePick { option }
+    }
+
+    /// Gives player `p` the gauge level `level`, the levels passed.
+    fn reach(e: &mut Engine, p: u8, level: u32) {
+        let Run::V2 { state, .. } = e.run_mut() else {
+            panic!("the live rules");
+        };
+        let g = state
+            .players
+            .career_mut(slot(p))
+            .expertise
+            .as_mut()
+            .expect("a gauge");
+        (g.level, g.offered) = (level, level);
+    }
+
+    /// T16: `check_action` for a tree pick: each refusal in its order, and reads only.
+    #[test]
+    fn check_action_tree_pick() {
+        let mut e = Engine::start(&equipment()).unwrap();
+        let hash = e.state_hash();
+        assert_eq!(
+            e.check_action(slot(1), pick(0)),
+            Err(ActionError::NoPlayer { player: slot(1) })
+        );
+        assert_eq!(
+            e.check_action(PlayerIdx::SOLO, pick(0)),
+            Err(ActionError::NoTreePoint)
+        );
+        reach(&mut e, 0, 3);
+        let hash_held = e.state_hash();
+        assert_ne!(hash, hash_held);
+        assert_eq!(e.check_action(PlayerIdx::SOLO, pick(2)), Ok(()));
+        assert_eq!(
+            e.check_action(PlayerIdx::SOLO, pick(3)),
+            Err(ActionError::NoTreeOption {
+                option: 3,
+                options: 3
+            })
+        );
+        assert_eq!(e.state_hash(), hash_held, "the check changes nothing");
+        // An offers run and a sim_version 1 run have no tree.
+        let offers = Engine::start(&setup()).unwrap();
+        assert_eq!(
+            offers.check_action(PlayerIdx::SOLO, pick(0)),
+            Err(ActionError::NotBuilt)
+        );
+        let v1 = Engine::start(&RunSetup {
+            schema_version: 1,
+            ..setup()
+        })
+        .unwrap();
+        assert_eq!(
+            v1.check_action(PlayerIdx::SOLO, pick(0)),
+            Err(ActionError::NotBuilt)
+        );
+    }
+
+    /// T17: `act` makes the pick; a refused one changes nothing.
+    #[test]
+    fn act_makes_the_tree_pick() {
+        let mut e = Engine::start(&equipment()).unwrap();
+        reach(&mut e, 0, 3);
+        let hash = e.state_hash();
+        assert_eq!(
+            e.act(PlayerIdx::SOLO, pick(5)),
+            Err(ActionError::NoTreeOption {
+                option: 5,
+                options: 3
+            })
+        );
+        assert_eq!(e.state_hash(), hash);
+        assert!(e.snapshot().expertise.expect("a gauge").style.is_none());
+        e.act(PlayerIdx::SOLO, pick(1)).unwrap();
+        let view = e.snapshot().expertise.expect("a gauge");
+        assert_eq!(view.style.as_ref().map(|s| s.as_str()), Some("tempo"));
+        assert_ne!(e.state_hash(), hash);
+        assert_eq!(
+            e.act(PlayerIdx::SOLO, pick(0)),
+            Err(ActionError::NoTreePoint)
+        );
+        reach(&mut e, 0, 6);
+        e.act(PlayerIdx::SOLO, pick(0)).unwrap();
+        assert_eq!(e.snapshot().expertise.expect("a gauge").path.len(), 1);
+    }
+
+    /// T19: the refusals read well in a replay error.
+    #[test]
+    fn the_tree_refusals_read_well() {
+        use crate::run_replay::RunReplayError;
+        let text = |error| RunReplayError::ActionRefused { tick: 12, error }.to_string();
+        assert_eq!(
+            text(ActionError::NoTreePoint),
+            "an equipment action on tick 12 takes a tree pick, but no tree point is held"
+        );
+        assert_eq!(
+            text(ActionError::NoTreeOption {
+                option: 7,
+                options: 3
+            }),
+            "an equipment action on tick 12 takes tree option 7, but the pick has 3 options"
+        );
+    }
+
+    /// T20: a point waiting in one slot does not stop a party.
+    #[test]
+    fn a_waiting_point_does_not_stop_a_party() {
+        let mut e = Engine::start_party(&equipment(), 2).unwrap();
+        reach(&mut e, 0, 3);
+        let tick = e.tick();
+        e.step(&[Input::default(); 3]);
+        assert_eq!(e.tick(), tick + 1);
+        assert!(!e.offer_open());
+        assert_eq!(
+            e.check_action(slot(1), pick(0)),
+            Err(ActionError::NoTreePoint)
+        );
+        assert_eq!(e.check_action(slot(0), pick(0)), Ok(()));
     }
 }
