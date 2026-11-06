@@ -596,3 +596,93 @@ fn equipment_levels_records_a_tree_pick() {
     assert!(picks >= 1, "{picks}");
     assert!(rec.engine().snapshot().expertise.unwrap().style.is_some());
 }
+
+// --- the Lumine slot (ADR-SAVE-7, ADR-SIM-3, ADR-REPL-5) ---------------------------------------
+
+const LUMINE_SLOT: u32 = 12;
+
+fn lumine_setup(seed: u64) -> RunSetup {
+    RunSetup {
+        lumine: 4,
+        lumine_star: Some("star_mintaka".into()),
+        ..case(seed, 0).setup
+    }
+}
+
+fn lumine_case(seed: u64, ticks: u32) -> PartyCase {
+    PartyCase {
+        setup: lumine_setup(seed),
+        ..case(seed, ticks)
+    }
+}
+
+/// The first `Replace` into the Lumine slot the engine accepts.
+fn lumine_replace(e: &Engine) -> Option<EquipAction> {
+    let items = u32::try_from(inventory(e)).unwrap();
+    (0..items)
+        .map(|item| replace(item, LUMINE_SLOT))
+        .find(|a| e.check_action(PlayerIdx::SOLO, *a).is_ok())
+}
+
+/// A recording of 3000 ticks whose inventory lets a replace of the Lumine star through, with it.
+fn lumine_recorded() -> (RunRecorder, EquipAction) {
+    for seed in 1..=60u64 {
+        let rec = lumine_case(seed, 3000).play();
+        if rec.engine().outcome() != Outcome::Running {
+            continue;
+        }
+        if let Some(a) = lumine_replace(rec.engine()) {
+            return (rec, a);
+        }
+    }
+    panic!("no seed of 1..=60 drops a star that replaces the Lumine star");
+}
+
+/// T6 (Lumine): every member of a party starts with the Lumine star at Lv1, as the solo run does.
+#[test]
+fn every_member_starts_with_the_lumine_star() {
+    let setup = lumine_setup(7);
+    let solo = Engine::start(&setup).unwrap();
+    let party = Engine::start_party(&setup, 3).unwrap();
+    let snap = party.snapshot();
+    for (i, p) in snap.players.iter().enumerate() {
+        let player = serde_json::to_value(p).unwrap();
+        let slot = &player["slots"][12];
+        assert_eq!(slot["kind"]["kind"], "lumine", "player {i}");
+        assert_eq!(slot["held"]["id"], "star_mintaka", "player {i}");
+        assert_eq!(slot["level"], 1, "player {i}");
+        assert_eq!(p.hp, solo.snapshot().players[0].hp, "player {i}");
+    }
+}
+
+/// T7 (Lumine): a run resumed from a savepoint cut after a replace of the Lumine star matches the
+/// straight run's hashes.
+#[test]
+fn a_resumed_lumine_run_matches_the_straight_run() {
+    let (mut live, a) = lumine_recorded();
+    live.step(&acting(a)).unwrap();
+    assert_eq!(
+        serde_json::to_value(&live.engine().snapshot().players[0])
+            .unwrap()
+            .get("slots")
+            .unwrap()[12]["level"],
+        1
+    );
+    let prefix = live.replay();
+    let saved = live.save();
+    let pack = Pack::bundled();
+    let mut resumed = RunRecorder::resume_from_savepoint(&saved, &prefix, pack).unwrap();
+    for t in 0..120 {
+        assert_eq!(
+            resumed.engine().state_hash(),
+            live.engine().state_hash(),
+            "{t}"
+        );
+        for rec in [&mut live, &mut resumed] {
+            rec.step(&[Input::default(); 3]).unwrap();
+        }
+    }
+    assert_eq!(resumed.replay(), live.replay());
+    let verified = verify_run(&live.replay().to_bytes()).expect("the replay verifies");
+    assert_eq!(verified.final_hash, live.engine().state_hash());
+}
