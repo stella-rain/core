@@ -11,11 +11,11 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::RunReplay;
-use stella_rain_core::run_setup::{OfferMode, RunSetup};
+use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
 use stella_rain_core::snapshot::EntityKind;
 
 use crate::common::run::trial_setup;
-use crate::run_play::PartyCase;
+use crate::run_play::{Change, PartyCase};
 
 /// How near (1/256 pixel) the bot's revive walk gets before it holds `interact`: 40 pixels,
 /// inside the revive range (48 pixels) with room for the 2 pixels a player moves in a tick.
@@ -217,6 +217,8 @@ pub struct RigParty {
     difficulty: String,
     ticks: u32,
     bot_seed: u64,
+    equipment: bool,
+    changes: Vec<(u32, Change)>,
 }
 
 impl RigParty {
@@ -230,6 +232,8 @@ impl RigParty {
             difficulty: "normal".into(),
             ticks: 3000,
             bot_seed: 0,
+            equipment: false,
+            changes: vec![],
         }
     }
 
@@ -259,6 +263,18 @@ impl RigParty {
         self
     }
 
+    /// Equipment mode with the `vanguard` perk set (it regenerates): nothing else changes.
+    pub fn equipment(mut self) -> RigParty {
+        self.equipment = true;
+        self
+    }
+
+    /// Joins and leaves, by world tick (applied before that tick's step).
+    pub fn changes(mut self, changes: Vec<(u32, Change)>) -> RigParty {
+        self.changes = changes;
+        self
+    }
+
     /// The corpus case `name`: a `stop` run, no joins or leaves, no timed answers.
     pub fn case(&self, name: &'static str) -> PartyCase {
         let setup = RunSetup {
@@ -266,6 +282,15 @@ impl RigParty {
             seed: self.seed,
             difficulty: self.difficulty.as_str().into(),
             ..trial_setup()
+        };
+        let setup = if self.equipment {
+            RunSetup {
+                build_mode: BuildMode::Equipment,
+                perk_set: "vanguard".into(),
+                ..setup
+            }
+        } else {
+            setup
         };
         assert!(
             setup.offer_mode == OfferMode::Stop,
@@ -276,7 +301,7 @@ impl RigParty {
             setup,
             party: self.n,
             ticks: self.ticks,
-            changes: vec![],
+            changes: self.changes.clone(),
             answer_after: None,
             bot: Some(PartyBot {
                 seed: self.bot_seed,
