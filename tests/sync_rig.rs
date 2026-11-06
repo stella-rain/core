@@ -503,3 +503,150 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
         );
     }
 }
+
+/// The building rig cases: every slot equips, extracts and the like, recorded as ACTIONS steps.
+const EQUIP_CASES: [&str; 3] = ["equipment_rig_1", "equipment_rig_2", "equipment_rig_3"];
+/// The stride of the equipment cases' windows (a multiple of the boundaries), chosen so that the
+/// whole module stays under 30 s in `cargo test --release`.
+const EQUIP_STRIDE: u32 = 4;
+
+fn equip_cases() -> Vec<Case> {
+    EQUIP_CASES.iter().map(|name| case(name)).collect()
+}
+
+#[test]
+fn a_rollback_of_every_depth_agrees_in_the_equipment_cases() {
+    for case in equip_cases() {
+        let len = case.len();
+        let report = sync_test(
+            &case.rig,
+            &case.rig,
+            &case.replay.setup,
+            1..=MAX_DEPTH,
+            0..=len,
+            EQUIP_STRIDE,
+        );
+        assert_eq!(report.desyncs, vec![], "{}", case.name);
+        assert_eq!(
+            report.windows,
+            sum_over(1..=MAX_DEPTH, |d| boundaries(d, len, EQUIP_STRIDE)),
+            "{}: windows",
+            case.name
+        );
+        assert_eq!(
+            report.resimulated,
+            sum_over(1..=MAX_DEPTH, |d| d * boundaries(d, len, EQUIP_STRIDE)),
+            "{}: re-stepped ticks",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn a_window_replays_actions() {
+    for case in equip_cases() {
+        let len = case.len();
+        let report = sync_test(
+            &case.rig,
+            &case.rig,
+            &case.replay.setup,
+            1..=MAX_DEPTH,
+            0..=len,
+            EQUIP_STRIDE,
+        );
+        assert!(report.actions_replayed > 0, "{}: an action", case.name);
+        assert!(report.on_action > 0, "{}: a window on an action", case.name);
+    }
+}
+
+#[test]
+fn the_forward_pass_ends_at_the_recorded_hashes_with_actions() {
+    for case in equip_cases() {
+        let len = case.len();
+        let report = sync_test(
+            &case.rig,
+            &case.rig,
+            &case.replay.setup,
+            1..=1,
+            0..=0,
+            EQUIP_STRIDE,
+        );
+        assert_eq!(
+            Some(report.hashes[len as usize]),
+            hash_from_hex(&case.replay.final_hash),
+            "{}: final hash",
+            case.name
+        );
+        for m in 1..=len / CHECKPOINT_TICKS {
+            let at = (m * CHECKPOINT_TICKS) as usize;
+            let from = (m as usize - 1) * 16;
+            assert_eq!(
+                Some(report.hashes[at]),
+                hash_from_hex(&case.replay.checkpoints[from..from + 16]),
+                "{}: checkpoint at tick {at}",
+                case.name
+            );
+        }
+    }
+}
+
+/// A copy of `rig` with the action of `slot` in the step keyed `tick` removed.
+fn with_action(rig: &RigRun, tick: u32, slot: usize) -> RigRun {
+    let mut out = rig.clone();
+    for (at, acts) in &mut out.actions {
+        if *at == tick {
+            acts[slot] = None;
+        }
+    }
+    out
+}
+
+#[test]
+fn an_altered_action_is_caught_at_the_tick_it_takes_effect() {
+    for case in equip_cases() {
+        let (rig, setup, len) = (&case.rig, &case.replay.setup, case.len());
+        // The first equip from tick 100 on whose removal changes the hash after it.
+        let (k, slot) = rig
+            .actions
+            .iter()
+            .filter(|(at, _)| *at >= 100)
+            .find_map(|(at, acts)| {
+                let slot = acts.iter().position(|a| {
+                    matches!(a, Some(stella_rain_core::input::EquipAction::Equip { .. }))
+                })?;
+                Some((*at, slot))
+            })
+            .expect("an equip");
+        let altered = with_action(rig, k, slot);
+        assert_ne!(
+            altered.actions, rig.actions,
+            "{}: the action goes",
+            case.name
+        );
+        let h = hashes_to(rig, setup, k + 1);
+        let h2 = hashes_to(&altered, setup, k + 1);
+        assert_eq!(
+            h2[..=k as usize],
+            h[..=k as usize],
+            "{}: equal up to {k}",
+            case.name
+        );
+        assert_ne!(
+            h2[k as usize + 1],
+            h[k as usize + 1],
+            "{}: the step changes the hash",
+            case.name
+        );
+        let report = sync_test(rig, &altered, setup, 8..=8, around(k, len), EQUIP_STRIDE);
+        let want = strided(k + 1, (k + 8).min(len), EQUIP_STRIDE);
+        assert_eq!(desync_boundaries(&report), want, "{}", case.name);
+        assert!(
+            report
+                .desyncs
+                .iter()
+                .all(|d| d.tick == k + 1 && d.depth == 8),
+            "{}",
+            case.name
+        );
+    }
+}
