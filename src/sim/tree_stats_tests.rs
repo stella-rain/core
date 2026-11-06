@@ -606,3 +606,40 @@ fn a_downed_player_keeps_its_set() {
     level_to(&mut e, 5);
     assert_eq!((tenths(&e)[AP], tenths(&e)[AS]), (50, 50));
 }
+
+/// Q1: a style pick adds no stat of its own: the tree's set is everything; an upgrade still adds
+/// its own.
+#[test]
+fn a_style_pick_adds_no_stat_of_its_own() {
+    let mut e = hammer();
+    level_to(&mut e, 5);
+    let before = progress(&e).totals;
+    tree_pick(&mut e, 0).expect("crush");
+    assert_eq!(progress(&e).totals, before);
+    assert_eq!(progress(&e).totals[AP], 0);
+    assert_eq!(tenths(&e)[AP], 300);
+    assert_eq!(gauge(&e).range_pct, 0);
+
+    let mut e = hammer();
+    level_to(&mut e, 5);
+    let hp = state_of(&e).players[PlayerIdx::SOLO].max_hp;
+    tree_pick(&mut e, 2).expect("bulwark");
+    assert_eq!(
+        state_of(&e).players[PlayerIdx::SOLO].max_hp,
+        hp + 20_000,
+        "the set alone"
+    );
+
+    // The tempo pick leaves every total as it was, and an upgrade still adds its own.
+    let mut e = sword();
+    level_to(&mut e, 5);
+    let before = progress(&e).totals;
+    tree_pick(&mut e, 1).expect("tempo");
+    assert_eq!(progress(&e).totals, before);
+    tree_pick(&mut e, 0).expect("an upgrade");
+    assert_ne!(
+        (progress(&e).totals, gauge(&e).range_pct),
+        (before, 0),
+        "the upgrade adds its stat"
+    );
+}

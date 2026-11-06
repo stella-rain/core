@@ -393,10 +393,14 @@ fn a_tree_pick_applies_the_option_and_records_the_path() {
     e.open_offers_for_test();
     tree_pick(&mut e, 0).expect("the style");
     assert_eq!(gauge(&e).style, Some(0));
-    assert_eq!(total(&e, StatEffect::AttackPct), before + 15);
+    assert_eq!(
+        total(&e, StatEffect::AttackPct),
+        before,
+        "the style adds no stat of its own"
+    );
     tree_pick(&mut e, 0).expect("the upgrade");
     assert_eq!(gauge(&e).path, [0]);
-    assert_eq!(total(&e, StatEffect::AttackPct), before + 35);
+    assert_eq!(total(&e, StatEffect::AttackPct), before + 20);
     assert_eq!(
         state_of(&e).players.career(PlayerIdx::SOLO).offer.state(),
         rng
@@ -405,7 +409,7 @@ fn a_tree_pick_applies_the_option_and_records_the_path() {
     let mut e = hammer();
     reach(&mut e, 3);
     tree_pick(&mut e, 1).expect("quake");
-    assert_eq!((gauge(&e).style, gauge(&e).range_pct), (Some(1), 20));
+    assert_eq!((gauge(&e).style, gauge(&e).range_pct), (Some(1), 0));
 }
 
 /// T13: what the rules cannot take is refused and changes nothing.
