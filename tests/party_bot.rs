@@ -455,6 +455,19 @@ pub struct RigRun {
     pub ticks: Vec<[Input; 3]>,
     /// The `Picks` steps in order, each with the world tick it comes before.
     pub picks: Vec<(u32, [Option<u32>; 3])>,
+    /// The `Actions` steps in order, each with the world tick it comes before and the action of
+    /// every slot. Applied after the picks of that tick and before the tick.
+    pub actions: Vec<(u32, [Option<EquipAction>; 3])>,
+}
+
+/// How many actions of each kind one slot made.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ActionCounts {
+    pub equip: u32,
+    pub replace: u32,
+    pub extract: u32,
+    pub craft: u32,
+    pub tree_pick: u32,
 }
 
 impl RigRun {
@@ -468,17 +481,20 @@ impl RigRun {
             range.present == (1u8 << slots.len()) - 1,
             "a rig run holds a party from slot 0 with no hole"
         );
-        let spread = |dense: &[_]| {
+        fn spread<T: Copy>(slots: &[usize], dense: &[Option<T>]) -> [Option<T>; 3] {
             let mut out = [None; 3];
             for (s, v) in slots.iter().zip(dense) {
                 out[*s] = *v;
             }
             out
-        };
-        let (mut ticks, mut picks) = (Vec::new(), Vec::new());
+        }
+        let (mut ticks, mut picks, mut actions) = (Vec::new(), Vec::new(), Vec::new());
         for step in &range.steps {
             match step {
-                RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+                RangeStep::Actions { actions: dense } => {
+                    let world = u32::try_from(ticks.len()).expect("fewer ticks than u32");
+                    actions.push((world, spread(&slots, dense)));
+                }
                 RangeStep::Ticks { run, inputs } => {
                     let mut all = [Input::default(); 3];
                     for (s, input) in slots.iter().zip(inputs) {
@@ -488,7 +504,7 @@ impl RigRun {
                 }
                 RangeStep::Picks { picks: dense } => {
                     let world = u32::try_from(ticks.len()).expect("fewer ticks than u32");
-                    picks.push((world, spread(dense)));
+                    picks.push((world, spread(&slots, dense)));
                 }
                 RangeStep::Join { .. } | RangeStep::Leave { .. } => {
                     panic!("a rig run holds no join or leave")
@@ -499,6 +515,7 @@ impl RigRun {
             n: u8::try_from(slots.len()).unwrap(),
             ticks,
             picks,
+            actions,
         }
     }
 
@@ -537,13 +554,27 @@ impl RigRun {
                 after(engine);
             }
         };
+        let acts_at = |world: u32, engine: &mut Engine| {
+            for (_, acts) in self.actions.iter().filter(|(at, _)| *at == world) {
+                for (slot, action) in acts.iter().enumerate() {
+                    if let Some(action) = action {
+                        let player = PlayerIdx::new(u8::try_from(slot).unwrap()).unwrap();
+                        engine
+                            .act(player, *action)
+                            .unwrap_or_else(|e| panic!("action {action:?} at {world}: {e:?}"));
+                    }
+                }
+            }
+        };
         for t in from..to {
             picks_at(t, engine, &mut after);
+            acts_at(t, engine);
             engine.step(&self.ticks[t as usize]);
             after(engine);
         }
         if to == len {
             picks_at(len, engine, &mut after);
+            acts_at(len, engine);
         }
     }
 
@@ -553,6 +584,24 @@ impl RigRun {
         for (_, picks) in &self.picks {
             for (n, pick) in per.iter_mut().zip(picks) {
                 *n += u32::from(pick.is_some());
+            }
+        }
+        per
+    }
+
+    /// How many actions of each kind each slot made.
+    pub fn actions_per_slot(&self) -> [ActionCounts; 3] {
+        let mut per = [ActionCounts::default(); 3];
+        for (_, acts) in &self.actions {
+            for (c, action) in per.iter_mut().zip(acts) {
+                match action {
+                    Some(EquipAction::Equip { .. }) => c.equip += 1,
+                    Some(EquipAction::Replace { .. }) => c.replace += 1,
+                    Some(EquipAction::Extract { .. }) => c.extract += 1,
+                    Some(EquipAction::Craft { .. }) => c.craft += 1,
+                    Some(EquipAction::TreePick { .. }) => c.tree_pick += 1,
+                    None => {}
+                }
             }
         }
         per
@@ -1063,7 +1112,7 @@ mod builds {
         let recorded: u32 = run
             .actions
             .iter()
-            .map(|(_, per)| per.iter().flatten().count() as u32)
+            .map(|(_, per)| u32::try_from(per.iter().flatten().count()).unwrap())
             .sum();
         assert!(recorded > 0);
         assert_eq!(recorded, proposed, "the recorder drops nothing");
@@ -1093,8 +1142,8 @@ mod builds {
             let p = PlayerIdx::new(s).unwrap();
             let mut best = None;
             let inv = e.snapshot().players[usize::from(s)].inventory.len().min(12);
-            for i in 0..inv {
-                for r in e.swap_ratings(p, SwapItem::Inventory(i as u32)) {
+            for i in 0..u32::try_from(inv).unwrap() {
+                for r in e.swap_ratings(p, SwapItem::Inventory(i)) {
                     let adopted = if r.replaces {
                         r.dps_bp > Some(0) && r.level_after >= r.level_before
                     } else {
@@ -1104,11 +1153,11 @@ mod builds {
                         let key = (
                             r.dps_bp.unwrap_or(0),
                             !r.replaces,
-                            std::cmp::Reverse(i as u32),
+                            std::cmp::Reverse(i),
                             std::cmp::Reverse(r.slot),
                         );
                         if best.is_none_or(|(k, _, _)| key > k) {
-                            best = Some((key, i as u32, r.slot));
+                            best = Some((key, i, r.slot));
                         }
                     }
                 }
@@ -1376,11 +1425,27 @@ mod rig {
             .iter()
             .map(|c| c.equip + c.replace + c.extract + c.craft + c.tree_pick)
             .sum();
-        let some: usize = run.actions.iter().map(|(_, a)| a.iter().flatten().count()).sum();
+        let some: usize = run
+            .actions
+            .iter()
+            .map(|(_, a)| a.iter().flatten().count())
+            .sum();
         assert_eq!(total as usize, some);
-        let revive = RigRun::of(&RigParty::new(3).seed(1).bot_seed(1).case("x").play().replay());
+        let revive = RigRun::of(
+            &RigParty::new(3)
+                .seed(1)
+                .bot_seed(1)
+                .case("x")
+                .play()
+                .replay(),
+        );
         assert!(revive.actions.is_empty());
-        assert!(revive.actions_per_slot().iter().all(|c| *c == ActionCounts::default()));
+        assert!(
+            revive
+                .actions_per_slot()
+                .iter()
+                .all(|c| *c == ActionCounts::default())
+        );
     }
 
     #[test]
