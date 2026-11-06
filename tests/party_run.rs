@@ -413,9 +413,9 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
     ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 780),
     ("equipment_craft", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 800),
-    ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 0),
+    ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
+    ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 680),
+    ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 790),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
