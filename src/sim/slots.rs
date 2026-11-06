@@ -102,6 +102,7 @@ pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ 
 }
 
 /// How many of each star of the file are equipped (the inventory does not count).
+#[cfg(test)]
 pub(super) fn equipped_counts(rewards: &Rewards, equipment: &Equipment) -> Vec<u8> {
     counts_of(rewards, equipped(equipment))
 }
@@ -279,7 +280,9 @@ pub(super) fn check(
 }
 
 /// Whether replacing the star in `slot` by the star `item` is a switch: both are stars and
-/// share an option. A switch costs no expertise (the expertise rules read this).
+/// share an option. A switch costs no expertise: the expertise rules read this (a later task),
+/// so it is tested here and unused by the live rules until then.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(super) fn is_switch(rewards: &Rewards, equipment: &Equipment, item: u32, slot: u32) -> bool {
     let item = usize::try_from(item)
         .ok()

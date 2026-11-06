@@ -145,6 +145,7 @@ mod loadout;
 mod offer_rating;
 mod slots;
 pub(crate) use offer_rating::offer_ratings;
+pub(crate) use slots::SlotError;
 #[cfg(test)]
 mod damage_tests;
 #[cfg(test)]
@@ -952,6 +953,43 @@ pub(crate) fn choose(
         timer.due[me.get()] = None;
     }
     open_offers_for(stage, rewards, expertise, s, me, events);
+}
+
+/// Whether the inventory item `item` could go into `slot` of `me`, as an equip or a replace
+/// (`slots::check`). Read-only.
+pub(crate) fn check_equip(
+    rewards: &Rewards,
+    s: &State,
+    me: PlayerIdx,
+    item: u32,
+    slot: u32,
+    replace: bool,
+) -> Result<(), SlotError> {
+    slots::check(
+        rewards,
+        &s.players.career(me).equipment,
+        item,
+        slot,
+        replace,
+    )
+}
+
+/// Equips (`replace` false) or replaces: the item `item` into `slot` of `me`, or a refusal that
+/// changes nothing. Made between ticks, like a pick; no event, no draw.
+pub(crate) fn equip_action(
+    stage: &World,
+    rewards: &Rewards,
+    s: &mut State,
+    me: PlayerIdx,
+    item: u32,
+    slot: u32,
+    replace: bool,
+) -> Result<(), SlotError> {
+    let (player, career) = s.players.both_mut(me);
+    match replace {
+        true => slots::replace(stage, rewards, player, career, item, slot),
+        false => slots::equip(stage, rewards, player, career, item, slot),
+    }
 }
 
 fn count<T>(items: &[T]) -> u32 {

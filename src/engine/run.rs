@@ -357,6 +357,38 @@ impl Run {
         }
     }
 
+    /// Whether `player` could equip (or `replace`) inventory item `item` into `slot`: `None`
+    /// where no rule applies, a run that is not in equipment mode and `sim_version` 1.
+    pub(crate) fn check_equip(
+        &self,
+        rewards: &Rewards,
+        player: PlayerIdx,
+        item: u32,
+        slot: u32,
+        replace: bool,
+    ) -> Option<Result<(), sim::SlotError>> {
+        match self {
+            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_equip(
+                rewards, state, player, item, slot, replace,
+            )),
+            Run::V1 { .. } | Run::V2 { .. } => None,
+        }
+    }
+
+    /// Makes an equip (or `replace`) already accepted by `check_equip`.
+    pub(crate) fn equip(
+        &mut self,
+        rewards: &Rewards,
+        player: PlayerIdx,
+        item: u32,
+        slot: u32,
+        replace: bool,
+    ) {
+        if let Run::V2 { world, state } = self {
+            let _ = sim::equip_action(world, rewards, state, player, item, slot, replace);
+        }
+    }
+
     /// Whether `player` has an offer open.
     pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
         match self {

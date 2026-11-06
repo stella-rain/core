@@ -326,9 +326,43 @@ impl fmt::Display for RunReplayError {
                 ActionError::NotBuilt => {
                     write!(f, "an equipment action on tick {tick} is not built yet")
                 }
-                other => write!(
+                ActionError::NoItem { item } => write!(
                     f,
-                    "an equipment action on tick {tick} is refused: {other:?}"
+                    "an equipment action on tick {tick} names inventory item {item}, \
+                     which is not in the inventory"
+                ),
+                ActionError::NoSlot { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} names slot {slot}, \
+                     which is not an equipment slot"
+                ),
+                ActionError::SlotFilled { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} equips into slot {slot}, which is filled"
+                ),
+                ActionError::SlotEmpty { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} replaces in slot {slot}, which is empty"
+                ),
+                ActionError::WrongSlot { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} puts an item into slot {slot}, \
+                     which does not take it"
+                ),
+                ActionError::NotEquippable { item } => write!(
+                    f,
+                    "an equipment action on tick {tick} equips inventory item {item}, \
+                     which cannot be equipped"
+                ),
+                ActionError::OptionHeld { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} equips a star whose option slot {slot} \
+                     already holds"
+                ),
+                ActionError::RuneHeld { slot } => write!(
+                    f,
+                    "an equipment action on tick {tick} equips a rune that slot {slot} \
+                     already holds"
                 ),
             },
             RunReplayError::PresenceRefused { tick, error } => match error {
@@ -987,6 +1021,7 @@ impl RunRecorder {
             });
         }
         check_actions(&self.engine, &dense)?;
+        self.engine.action_step(actions);
         self.records.push(Record::Actions { actions: dense });
         self.actions_made += 1;
         Ok(())
@@ -1363,10 +1398,13 @@ fn resimulate(
                 done.map_err(|error| RunReplayError::PresenceRefused { tick, error })?;
             }
             Record::Actions { actions } => {
-                // No rule accepts an action yet, so a step that holds one is refused; a step that
-                // holds none is a damaged log.
+                // A step that holds no action is a damaged log; every action is checked against
+                // the engine first, then they are made together, in slot order.
+                if actions.iter().all(Option::is_none) {
+                    return Err(RunReplayError::BadInputs("a record has no action"));
+                }
                 check_actions(&engine, actions)?;
-                return Err(RunReplayError::BadInputs("a record has no action"));
+                engine.action_step(&slots(engine.present(), actions));
             }
             Record::Picks { picks: chosen } => {
                 apply_picks(&mut engine, chosen)?;
@@ -1425,7 +1463,7 @@ fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; MAX_PLAYERS as usize] 
 }
 
 /// Asks `engine` about each action of one dense ACTIONS step, in slot order: the first refusal
-/// is `ActionRefused` at the engine's tick. Nothing is applied: no rule accepts one yet.
+/// is `ActionRefused` at the engine's tick. Nothing is applied.
 fn check_actions(engine: &Engine, dense: &[Option<EquipAction>]) -> Result<(), RunReplayError> {
     let slots = (0..MAX_PLAYERS)
         .filter_map(PlayerIdx::new)

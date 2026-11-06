@@ -181,7 +181,10 @@ mod equipment_runs {
         );
         assert_eq!(refused(&e, equip(2, 5)), ActionError::WrongSlot { slot: 5 });
         assert_eq!(refused(&e, equip(3, 0)), ActionError::WrongSlot { slot: 0 });
-        assert_eq!(refused(&e, equip(0, 9)), ActionError::WrongSlot { slot: 9 });
+        assert_eq!(
+            refused(&e, equip(0, 10)),
+            ActionError::WrongSlot { slot: 10 }
+        );
         assert_eq!(refused(&e, equip(5, 0)), ActionError::WrongSlot { slot: 0 });
         assert_eq!(
             refused(&e, equip(4, 0)),

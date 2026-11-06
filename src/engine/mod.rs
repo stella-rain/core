@@ -71,6 +71,22 @@ pub enum ActionError {
     RuneHeld { slot: u32 },
 }
 
+impl From<crate::sim::SlotError> for ActionError {
+    fn from(e: crate::sim::SlotError) -> ActionError {
+        use crate::sim::SlotError as S;
+        match e {
+            S::NoItem { item } => ActionError::NoItem { item },
+            S::NoSlot { slot } => ActionError::NoSlot { slot },
+            S::SlotFilled { slot } => ActionError::SlotFilled { slot },
+            S::SlotEmpty { slot } => ActionError::SlotEmpty { slot },
+            S::WrongSlot { slot } => ActionError::WrongSlot { slot },
+            S::NotEquippable { item } => ActionError::NotEquippable { item },
+            S::OptionHeld { slot } => ActionError::OptionHeld { slot },
+            S::RuneHeld { slot } => ActionError::RuneHeld { slot },
+        }
+    }
+}
+
 /// How a run stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -430,8 +446,8 @@ impl Engine {
     /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
     /// offer, the events are the picks' and the tick does not advance; a player with no offer
     /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
-    /// offer open `pick` is not read (ADR-REPL-5). `action` is never read: no rule accepts an
-    /// equipment action yet (`check_action`).
+    /// offer open `pick` is not read (ADR-REPL-5). `action` is never read: an equipment
+    /// action is made between steps, by `act` or a recorded ACTIONS step (`check_action`).
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
@@ -581,36 +597,64 @@ impl Engine {
     }
 
     /// Whether `player` could make the equipment action `action` in a step (ADR-SIM-7).
-    /// Read-only. `NoPlayer` for a slot outside the party, else `NotBuilt` for every action, in
-    /// every mode and `sim_version`: `NotBuilt` goes when the first equipment rule lands, each
-    /// rule replacing its own arm (equip and replace, extract and craft, the tree pick). The
-    /// match has one arm per variant so a new rule edits one line.
+    /// Read-only. `NoPlayer` for a slot outside the party. `Equip` and `Replace` are the
+    /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
+    /// equipment mode or is `sim_version` 1. `Extract`, `Craft` and `TreePick` are `NotBuilt`
+    /// in every mode: each rule replaces its own arm when it lands. The match has one arm per
+    /// variant so a new rule edits one line.
     pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
         if self.present() >> player.get() & 1 == 0 {
             return Err(ActionError::NoPlayer { player });
         }
+        let equip = |item: u32, slot: u32, replace: bool| {
+            self.run
+                .check_equip(self.content.rewards(), player, item, slot, replace)
+                .ok_or(ActionError::NotBuilt)?
+                .map_err(ActionError::from)
+        };
         match action {
-            EquipAction::Equip { .. } | EquipAction::Replace { .. } => Err(ActionError::NotBuilt),
+            EquipAction::Equip { item, slot } => equip(item, slot, false),
+            EquipAction::Replace { item, slot } => equip(item, slot, true),
             EquipAction::Extract { .. } | EquipAction::Craft { .. } => Err(ActionError::NotBuilt),
             EquipAction::TreePick { .. } => Err(ActionError::NotBuilt),
         }
     }
 
-    /// The step of actions: each present slot's action, in slot order, is made as `act` makes it;
-    /// a refused one is ignored. No tick runs.
+    /// The step of actions: each present slot's action, in slot order, is made as `act` makes
+    /// it; a refused one is ignored. No tick runs (a recorded ACTIONS step, like a PICKS step).
     pub(crate) fn action_step(
         &mut self,
         actions: &[Option<EquipAction>; crate::id::MAX_PLAYERS as usize],
     ) {
-        let _ = actions;
-        unimplemented!("the engine applies an accepted action")
+        self.events.clear();
+        self.load = Load::default();
+        for (slot, action) in actions.iter().enumerate() {
+            let player = u8::try_from(slot).ok().and_then(PlayerIdx::new);
+            if let (Some(player), Some(action)) = (player, action) {
+                let _ = self.act(player, *action);
+            }
+        }
     }
 
-    /// Makes `action` for `player` now: `check_action`, then the change. A refused action
-    /// changes nothing and returns what `check_action` says.
+    /// Makes `action` for `player` now, between two steps: `check_action`, then the change. A
+    /// refused action changes nothing and returns what `check_action` says (ADR-SIM-7). No
+    /// event is emitted and nothing is drawn.
     pub fn act(&mut self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
-        let _ = (player, action);
-        unimplemented!("the engine applies an accepted action")
+        self.check_action(player, action)?;
+        match action {
+            EquipAction::Equip { item, slot } => {
+                self.run
+                    .equip(self.content.rewards(), player, item, slot, false)
+            }
+            EquipAction::Replace { item, slot } => {
+                self.run
+                    .equip(self.content.rewards(), player, item, slot, true)
+            }
+            EquipAction::Extract { .. }
+            | EquipAction::Craft { .. }
+            | EquipAction::TreePick { .. } => {}
+        }
+        Ok(())
     }
 
     /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
