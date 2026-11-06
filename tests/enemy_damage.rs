@@ -100,7 +100,8 @@ fn every_expertise_hit_point_amount_is_on_the_scaled_scale() {
     fn walk(v: &Value, found: &mut u32) {
         match v {
             Value::Object(m) => {
-                if m.get("effect") == Some(&json!("max_hp")) {
+                // A set stat (`by_level`) has no single amount: its entries are bounded by the schema.
+                if m.get("effect") == Some(&json!("max_hp")) && !m.contains_key("by_level") {
                     assert!(m["amount"].as_u64().unwrap() >= 10_000, "{m:?}");
                     *found += 1;
                 }

@@ -775,7 +775,13 @@ fn the_bundled_pack_introduces_every_id_in_version_1() {
     ] {
         assert!(!list.is_empty(), "{name}");
         for e in list {
-            assert_eq!(e.sim_version, 1, "{name} {}", e.id);
+            // The six equipment-only Rune Haste stars are the pack's own sim_version 2.
+            let want = if e.id.as_str().starts_with("rune_haste_star_") {
+                2
+            } else {
+                1
+            };
+            assert_eq!(e.sim_version, want, "{name} {}", e.id);
         }
     }
 }

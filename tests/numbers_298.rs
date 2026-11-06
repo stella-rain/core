@@ -118,7 +118,7 @@ fn the_run_stats_and_match_ups_hold_their_caps() {
 #[test]
 fn the_new_rewards_are_ordinary_ones_the_random_rune_apart() {
     let file = bundled(std::str::from_utf8(common::bundled_file("rewards")).unwrap());
-    for (effect, kinds) in [("rune_haste", 6), ("range_pct", 6), ("type_bonus_pct", 60)] {
+    for (effect, kinds) in [("rune_haste", 12), ("range_pct", 6), ("type_bonus_pct", 60)] {
         let found: Vec<&Value> = file["rewards"]
             .as_array()
             .unwrap()
