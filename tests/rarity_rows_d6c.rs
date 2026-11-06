@@ -50,7 +50,11 @@ fn families(file: &Value) -> BTreeMap<(String, String), Rows> {
     for r in rows(file) {
         let e = effect_of(r);
         let effect = e["effect"].as_str().unwrap();
-        if r.get("named").is_some() || matches!(effect, "stage_skill" | "random_rune") {
+        // The equipment-only Rune Haste stars are no offer rows.
+        if r.get("named").is_some()
+            || r.get("equipment_only").is_some()
+            || matches!(effect, "stage_skill" | "random_rune")
+        {
             continue;
         }
         let key = (
@@ -144,7 +148,12 @@ fn there_is_one_type_bonus_family_per_damage_type_and_no_group_family() {
         );
     }
     // 75 - 6 + 60 + 6 rows.
-    assert_eq!(rows(&file).len(), 135);
+    // The six equipment-only Rune Haste stars come after them.
+    let offered = rows(&file)
+        .iter()
+        .filter(|r| r.get("equipment_only").is_none())
+        .count();
+    assert_eq!(offered, 135);
 }
 
 // --- The random rune's weight per tier -----------------------------------------------------------
@@ -229,7 +238,11 @@ fn the_bundled_modes_give_the_random_rune_five_fifteen_and_twenty_five_percent()
     let others: u32 = rewards
         .rewards()
         .iter()
-        .filter(|r| r.rarity == stella_rain_core::rewards::Rarity::Common && !r.is_random_rune())
+        .filter(|r| {
+            r.rarity == stella_rain_core::rewards::Rarity::Common
+                && !r.is_random_rune()
+                && !r.equipment_only
+        })
         .map(|r| u32::from(r.weight))
         .sum();
     assert_eq!(others, 1_000);

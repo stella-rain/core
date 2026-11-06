@@ -25,9 +25,10 @@ use sha2::{Digest, Sha256};
 use crate::attack::{AttackRef, DamageType};
 use crate::constellations::Constellations;
 use crate::id::ContentId;
+use crate::limits::{MAX_CATEGORY_SLOTS, MAX_EQUIP_CATEGORIES, MAX_EQUIP_SLOTS, MAX_SLOT_LEVEL};
 use crate::pack::Pack;
 use crate::registry;
-use crate::run_setup::MAX_LUMINE;
+use crate::run_setup::{BuildMode, MAX_LUMINE};
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
@@ -396,6 +397,18 @@ pub struct Reward {
     /// Its share of a draw among the rewards of its rarity, from 1 to `MAX_WEIGHT`.
     #[serde(skip_serializing_if = "is_default_weight")]
     pub weight: u16,
+    /// The equipment category it goes in, one of the file's `equipment.categories`; absent for a
+    /// reward that cannot be equipped (a Growth star, the random rune).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<ContentId>,
+    /// Retired: still loadable and playable (a setup's pool may name it), but equipment mode's
+    /// default pool leaves it out (ADR-CONT-2 points 3, 8, 9).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub deprecated: bool,
+    /// Offered in equipment mode only: an offers run's default pool leaves it out and its setup
+    /// may not name it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub equipment_only: bool,
 }
 
 impl Reward {
@@ -454,6 +467,12 @@ struct RawReward {
     star: Option<Arc<str>>,
     #[serde(default = "default_weight")]
     weight: u16,
+    #[serde(default)]
+    category: Option<ContentId>,
+    #[serde(default)]
+    deprecated: bool,
+    #[serde(default)]
+    equipment_only: bool,
 }
 
 impl TryFrom<RawReward> for Reward {
@@ -493,6 +512,9 @@ impl TryFrom<RawReward> for Reward {
             named: raw.named,
             star: raw.star,
             weight: raw.weight,
+            category: raw.category,
+            deprecated: raw.deprecated,
+            equipment_only: raw.equipment_only,
         })
     }
 }
@@ -527,10 +549,70 @@ pub struct RarityCost {
     pub lumine_cost: u8,
 }
 
+/// One slot category of the equipment layout.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EquipmentCategory {
+    /// The category's ID, unique within the list.
+    pub id: ContentId,
+    /// Its slots, 1 to `MAX_CATEGORY_SLOTS`.
+    pub slots: u8,
+}
+
+/// What one rarity of star is worth in Stardust (equipment mode).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RarityStarlight {
+    /// The rarity priced.
+    pub rarity: Rarity,
+    /// What extracting a star of it gives, 1 to `MAX_STARLIGHT`.
+    pub extract: u32,
+    /// What crafting a star of it costs, `extract` to `MAX_STARLIGHT`.
+    pub craft_price: u32,
+}
+
+/// The largest Starlight value of the equipment rules.
+pub const MAX_STARLIGHT: u32 = 1_000_000;
+/// The largest level percentage of the equipment rules.
+pub const MAX_LEVEL_PCT: u32 = 50;
+/// The most boss drops a boss kill pays each member.
+pub const MAX_BOSS_DROPS: u8 = 8;
+
+/// The equipment rules (ADR-CONT-3): the slot layout, the level curve, the Starlight values and
+/// the drop numbers, which a designer tunes. Bounds are code.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EquipmentRules {
+    /// The slot categories in slot order, 1 to `MAX_EQUIP_CATEGORIES`.
+    pub categories: Vec<EquipmentCategory>,
+    /// The rune slots after the category slots, 1 to `MAX_CATEGORY_SLOTS`. The category slots,
+    /// the rune slots and the Lumine slot add up to at most `MAX_EQUIP_SLOTS`.
+    pub rune_slots: u8,
+    /// The kills a slot needs for each next level: exactly `MAX_SLOT_LEVEL - 1` entries, strictly
+    /// rising, each 1 to `MAX_STARLIGHT`.
+    pub kills_to_next: Vec<u32>,
+    /// What each level adds to a star's amount, in percent, 1 to `MAX_LEVEL_PCT`.
+    pub level_pct: u32,
+    /// Every rarity once, from common up.
+    pub rarities: Vec<RarityStarlight>,
+    /// What extracting a rune gives, 1 to `MAX_STARLIGHT`.
+    pub rune_extract: u32,
+    /// What a boss kill pays, 0 to `MAX_STARLIGHT`.
+    pub boss_bonus: u32,
+    /// The drops a boss kill rolls for each member who is up, 0 to `MAX_BOSS_DROPS`.
+    pub boss_drops: u8,
+    /// The chance in a thousand that a drop is a rune, 0 to 1000.
+    pub rune_share_permille: u32,
+}
+
 /// The rewards file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RewardsFile {
+    /// The equipment rules; absent in a file made before them, which then cannot start an
+    /// equipment run (kept packs, ADR-CONT-5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equipment: Option<EquipmentRules>,
     /// The most Rune Haste the picks add up to, in percent, 1 to `MAX_RUNE_HASTE_PCT`
     /// (app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -551,6 +633,7 @@ pub struct Rewards {
     max_rune_haste_pct: u32,
     /// The Lumine cost of a star of each rarity, by `Rarity::index`.
     lumine_costs: [u8; MAX_RARITIES],
+    equipment: Option<EquipmentRules>,
     stage_skills: StageSkills,
     /// The sets of named stars checked against these rewards (core#NS3): none unless a pack
     /// or a caller gives them (`with_constellations`).
@@ -585,6 +668,7 @@ impl Rewards {
         Ok(Rewards {
             rewards: file.rewards,
             lumine_costs,
+            equipment: file.equipment,
             max_rune_haste_pct: file
                 .max_rune_haste_pct
                 .unwrap_or(DEFAULT_MAX_RUNE_HASTE_PCT),
@@ -602,6 +686,26 @@ impl Rewards {
     /// What carrying a star of `rarity` costs, in Lumine: the file's `rarities`.
     pub fn lumine_cost(&self, rarity: Rarity) -> u8 {
         self.lumine_costs[usize::from(rarity.index())]
+    }
+
+    /// The equipment rules, if the file holds them.
+    pub fn equipment(&self) -> Option<&EquipmentRules> {
+        self.equipment.as_ref()
+    }
+
+    /// The places of the run's star pool when its setup names none (ADR-CONT-3 point 8): in
+    /// equipment mode every reward that has a category and is not deprecated, in offers mode
+    /// every reward that is not equipment-only.
+    pub fn default_pool(&self, mode: BuildMode) -> Vec<u16> {
+        self.rewards
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| match mode {
+                BuildMode::Equipment => r.category.is_some() && !r.deprecated,
+                BuildMode::Offers => !r.equipment_only,
+            })
+            .map(|(i, _)| u16::try_from(i).unwrap_or(u16::MAX))
+            .collect()
     }
 
     /// The rewards, in the file's order.
@@ -946,6 +1050,9 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
             );
         }
     }
+    if let Some(rules) = &file.equipment {
+        validate_equipment(rules, &mut issue);
+    }
     if file.rewards.is_empty() || file.rewards.len() > MAX_REWARDS {
         issue(
             "$.rewards".into(),
@@ -1002,6 +1109,7 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         }
         validate_bundle(&reward.effects, haste_cap, &at, &mut issue);
         validate_naming(&file.rewards[..i], reward, &at, &mut issue);
+        validate_flags(file.equipment.as_ref(), reward, &at, &mut issue);
     }
     let named = file.rewards.iter().filter(|r| r.named).count();
     if named > MAX_NAMED_REWARDS {
@@ -1014,5 +1122,165 @@ pub fn validate(file: &RewardsFile, stage_skills: &StageSkills) -> Result<(), Er
         Ok(())
     } else {
         Err(Error::Invalid(issues))
+    }
+}
+
+/// A reward's `category` and its two flags: the category is one of the file's, the random rune
+/// has none, and a reward is not both deprecated and equipment-only.
+fn validate_flags(
+    rules: Option<&EquipmentRules>,
+    reward: &Reward,
+    at: &dyn Fn(&str) -> String,
+    issue: &mut dyn FnMut(String, String),
+) {
+    if let Some(category) = &reward.category {
+        if reward.is_random_rune() {
+            issue(at("category"), "a random rune has no category".into());
+        } else if !rules.is_some_and(|r| r.categories.iter().any(|c| c.id == *category)) {
+            issue(
+                at("category"),
+                "not a category of the file's equipment rules".into(),
+            );
+        }
+    }
+    if reward.deprecated && reward.equipment_only {
+        issue(
+            at("equipment_only"),
+            "a reward is deprecated or equipment-only, not both".into(),
+        );
+    }
+}
+
+/// The equipment rules' bounds (code): one issue per problem, with its path.
+fn validate_equipment(rules: &EquipmentRules, issue: &mut dyn FnMut(String, String)) {
+    let at = |field: &str| format!("$.equipment.{field}");
+    let categories = rules.categories.len();
+    if categories == 0 || categories > MAX_EQUIP_CATEGORIES {
+        issue(
+            at("categories"),
+            format!("1 to {MAX_EQUIP_CATEGORIES} categories (found {categories})"),
+        );
+    }
+    let mut slots = usize::from(rules.rune_slots) + 1;
+    for (i, category) in rules
+        .categories
+        .iter()
+        .enumerate()
+        .take(MAX_EQUIP_CATEGORIES)
+    {
+        let path = |field: &str| format!("$.equipment.categories[{i}].{field}");
+        if !registry::is_well_formed(category.id.as_str()) {
+            issue(
+                path("id"),
+                "not a valid ID (lowercase snake_case, at most 32 characters)".into(),
+            );
+        } else if rules.categories[..i].iter().any(|c| c.id == category.id) {
+            issue(path("id"), "the same ID as an earlier category".into());
+        }
+        if !(1..=MAX_CATEGORY_SLOTS).contains(&category.slots) {
+            issue(
+                path("slots"),
+                format!("1 to {MAX_CATEGORY_SLOTS} (found {})", category.slots),
+            );
+        }
+        slots += usize::from(category.slots);
+    }
+    if !(1..=MAX_CATEGORY_SLOTS).contains(&rules.rune_slots) {
+        issue(
+            at("rune_slots"),
+            format!("1 to {MAX_CATEGORY_SLOTS} (found {})", rules.rune_slots),
+        );
+    }
+    if slots > MAX_EQUIP_SLOTS {
+        issue(
+            at("categories"),
+            format!(
+                "the category slots, the rune slots and the Lumine slot add up to at most {MAX_EQUIP_SLOTS} (found {slots})"
+            ),
+        );
+    }
+    let levels = usize::from(MAX_SLOT_LEVEL) - 1;
+    if rules.kills_to_next.len() != levels {
+        issue(
+            at("kills_to_next"),
+            format!(
+                "exactly {levels} entries (found {})",
+                rules.kills_to_next.len()
+            ),
+        );
+    }
+    for (i, &kills) in rules.kills_to_next.iter().enumerate() {
+        let path = format!("$.equipment.kills_to_next[{i}]");
+        if !(1..=MAX_STARLIGHT).contains(&kills) {
+            issue(path, format!("1 to {MAX_STARLIGHT} (found {kills})"));
+        } else if i > 0 && kills <= rules.kills_to_next[i - 1] {
+            issue(path, "more than the entry before".into());
+        }
+    }
+    if !(1..=MAX_LEVEL_PCT).contains(&rules.level_pct) {
+        issue(
+            at("level_pct"),
+            format!("1 to {MAX_LEVEL_PCT} (found {})", rules.level_pct),
+        );
+    }
+    if rules.rarities.len() != MAX_RARITIES {
+        issue(
+            at("rarities"),
+            format!(
+                "every rarity once ({MAX_RARITIES}, found {})",
+                rules.rarities.len()
+            ),
+        );
+    }
+    for (k, r) in rules.rarities.iter().enumerate().take(MAX_RARITIES) {
+        let path = |field: &str| format!("$.equipment.rarities[{k}].{field}");
+        if r.rarity != Rarity::ALL[k] {
+            issue(
+                path("rarity"),
+                format!(
+                    "not {:?}: every rarity once, from common up",
+                    Rarity::ALL[k]
+                ),
+            );
+        }
+        if !(1..=MAX_STARLIGHT).contains(&r.extract) {
+            issue(
+                path("extract"),
+                format!("1 to {MAX_STARLIGHT} (found {})", r.extract),
+            );
+        }
+        if !(r.extract..=MAX_STARLIGHT).contains(&r.craft_price) {
+            issue(
+                path("craft_price"),
+                format!(
+                    "{} (its extract) to {MAX_STARLIGHT} (found {})",
+                    r.extract, r.craft_price
+                ),
+            );
+        }
+    }
+    if !(1..=MAX_STARLIGHT).contains(&rules.rune_extract) {
+        issue(
+            at("rune_extract"),
+            format!("1 to {MAX_STARLIGHT} (found {})", rules.rune_extract),
+        );
+    }
+    if rules.boss_bonus > MAX_STARLIGHT {
+        issue(
+            at("boss_bonus"),
+            format!("0 to {MAX_STARLIGHT} (found {})", rules.boss_bonus),
+        );
+    }
+    if rules.boss_drops > MAX_BOSS_DROPS {
+        issue(
+            at("boss_drops"),
+            format!("0 to {MAX_BOSS_DROPS} (found {})", rules.boss_drops),
+        );
+    }
+    if rules.rune_share_permille > 1000 {
+        issue(
+            at("rune_share_permille"),
+            format!("0 to 1000 (found {})", rules.rune_share_permille),
+        );
     }
 }

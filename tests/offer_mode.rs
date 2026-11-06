@@ -129,8 +129,8 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
 // --- B. stop is untouched -------------------------------------------------------------------------
 
 /// The state hash of the stop engine after 600 bot steps (a pick is a step), recorded on the base
-/// build before the mode existed and re-pinned for the per-player layout and the slot generations, then for the 11 stat totals, then for the 13 totals and the weapon-set tenths.
-const STOP_HASH_600: u64 = 3_328_978_164_405_169_438;
+/// build before the mode existed and re-pinned for the per-player layout and the slot generations, then for the 11 stat totals, then for the 13 totals and the weapon-set tenths, then for the six new rewards that lengthen the hashed `taken` and `banished`.
+const STOP_HASH_600: u64 = 1_470_263_959_013_208_322;
 
 #[test]
 fn stop_is_byte_identical_to_the_base() {

@@ -49,6 +49,9 @@
 | `MAX_INVENTORY` | 1024 | held stars and runes | ADR-SIM-5 |
 | `MAX_EQUIP_SLOTS` | 32 | slots per player | ADR-SIM-5 |
 | `MAX_SLOT_LEVEL` | 10 | level | ADR-SIM-5 |
+| `MAX_EQUIP_CATEGORIES` | 8 | categories | ADR-CONT-3 |
+| `MAX_CATEGORY_SLOTS` | 16 | slots | ADR-CONT-3 |
+| `MAX_SET_STATS` | 8 | stats | ADR-CONT-3 |
 | `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-5 |
 | `MAX_WAVES` | 16 | waves | ADR-SVC-1 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-1 |

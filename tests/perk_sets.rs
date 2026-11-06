@@ -64,16 +64,25 @@ fn the_bundled_file_holds_the_four_sets_with_kades_numbers() {
         // Kade's numbers are shown hit points; the file holds them scaled.
         [
             (PerkEffect::MaxHp, 300 * DAMAGE_SCALE),
-            (PerkEffect::Regen, 10 * DAMAGE_SCALE)
+            (PerkEffect::Regen, 10 * DAMAGE_SCALE),
+            (PerkEffect::DropWeight, 25)
         ]
     );
     assert_eq!(
         effects_of("duelist"),
-        [(PerkEffect::AttackPct, 15), (PerkEffect::AttackSpeedPct, 8)]
+        [
+            (PerkEffect::AttackPct, 15),
+            (PerkEffect::AttackSpeedPct, 8),
+            (PerkEffect::DropWeight, 25)
+        ]
     );
     assert_eq!(
         effects_of("scout"),
-        [(PerkEffect::SpeedPct, 12), (PerkEffect::EvadePct, 20)]
+        [
+            (PerkEffect::SpeedPct, 12),
+            (PerkEffect::EvadePct, 20),
+            (PerkEffect::DropWeight, 25)
+        ]
     );
     assert_eq!(
         effects_of("scholar"),
@@ -168,7 +177,10 @@ fn a_set_holds_up_to_the_cap_of_effects_each_kind_once() {
     assert_eq!(PerkEffect::ALL.len(), 9);
     let effects: Vec<Value> = all
         .iter()
-        .map(|e| json!({ "effect": e, "amount": 1 }))
+        .map(|e| match *e {
+            "drop_weight" => json!({ "effect": e, "amount": 1, "category": "attack" }),
+            _ => json!({ "effect": e, "amount": 1 }),
+        })
         .collect();
     assert!(parse(&one(Value::Array(effects.clone()))).is_ok());
     let mut more = effects;
@@ -187,8 +199,12 @@ fn a_set_holds_up_to_the_cap_of_effects_each_kind_once() {
 
 #[test]
 fn an_amount_is_1_to_its_effects_cap() {
-    let at =
-        |effect: &str, amount: u32| parse(&one(json!([{ "effect": effect, "amount": amount }])));
+    let at = |effect: &str, amount: u32| {
+        let category = (effect == "drop_weight").then_some("attack");
+        parse(&one(
+            json!([{ "effect": effect, "amount": amount, "category": category }]),
+        ))
+    };
     for effect in [
         "attack_pct",
         "attack_speed_pct",

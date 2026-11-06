@@ -1,4 +1,69 @@
 {
+  "equipment": {
+    "categories": [
+      {
+        "id": "attack",
+        "slots": 5
+      },
+      {
+        "id": "defence",
+        "slots": 2
+      },
+      {
+        "id": "mobility",
+        "slots": 2
+      }
+    ],
+    "rune_slots": 3,
+    "kills_to_next": [
+      10,
+      20,
+      35,
+      55,
+      80,
+      110,
+      145,
+      185,
+      230
+    ],
+    "level_pct": 3,
+    "rarities": [
+      {
+        "rarity": "common",
+        "extract": 5,
+        "craft_price": 25
+      },
+      {
+        "rarity": "uncommon",
+        "extract": 10,
+        "craft_price": 50
+      },
+      {
+        "rarity": "rare",
+        "extract": 20,
+        "craft_price": 100
+      },
+      {
+        "rarity": "epic",
+        "extract": 40,
+        "craft_price": 200
+      },
+      {
+        "rarity": "legendary",
+        "extract": 80,
+        "craft_price": 400
+      },
+      {
+        "rarity": "supernova",
+        "extract": 160,
+        "craft_price": 800
+      }
+    ],
+    "rune_extract": 10,
+    "boss_bonus": 50,
+    "boss_drops": 1,
+    "rune_share_permille": 100
+  },
   "max_rune_haste_pct": 500,
   "rarities": [
     {
@@ -32,105 +97,120 @@
       "rarity": "common",
       "effect": "max_hp",
       "amount": 20000,
-      "limit": 5
+      "limit": 5,
+      "category": "defence"
     },
     {
       "id": "max_hp_rare",
       "rarity": "rare",
       "effect": "max_hp",
       "amount": 50000,
-      "limit": 3
+      "limit": 3,
+      "category": "defence"
     },
     {
       "id": "max_hp_legendary",
       "rarity": "legendary",
       "effect": "max_hp",
       "amount": 100000,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "attack_common",
       "rarity": "common",
       "effect": "attack_pct",
       "amount": 5,
-      "limit": 5
+      "limit": 5,
+      "category": "attack"
     },
     {
       "id": "attack_rare",
       "rarity": "rare",
       "effect": "attack_pct",
       "amount": 12,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "attack_legendary",
       "rarity": "legendary",
       "effect": "attack_pct",
       "amount": 25,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "attack_speed_common",
       "rarity": "common",
       "effect": "attack_speed_pct",
       "amount": 8,
-      "limit": 5
+      "limit": 5,
+      "category": "attack"
     },
     {
       "id": "attack_speed_rare",
       "rarity": "rare",
       "effect": "attack_speed_pct",
       "amount": 20,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "attack_speed_legendary",
       "rarity": "legendary",
       "effect": "attack_speed_pct",
       "amount": 40,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "evade_common",
       "rarity": "common",
       "effect": "evade_pct",
       "amount": 5,
-      "limit": 5
+      "limit": 5,
+      "category": "defence"
     },
     {
       "id": "evade_rare",
       "rarity": "rare",
       "effect": "evade_pct",
       "amount": 12,
-      "limit": 3
+      "limit": 3,
+      "category": "defence"
     },
     {
       "id": "evade_legendary",
       "rarity": "legendary",
       "effect": "evade_pct",
       "amount": 25,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "speed_common",
       "rarity": "common",
       "effect": "speed_pct",
       "amount": 4,
-      "limit": 5
+      "limit": 5,
+      "category": "mobility"
     },
     {
       "id": "speed_rare",
       "rarity": "rare",
       "effect": "speed_pct",
       "amount": 10,
-      "limit": 3
+      "limit": 3,
+      "category": "mobility"
     },
     {
       "id": "speed_legendary",
       "rarity": "legendary",
       "effect": "speed_pct",
       "amount": 20,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "xp_common",
@@ -159,7 +239,8 @@
       "effect": "stage_skill",
       "skill": "black_hole",
       "amount": 1,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "war_cry_rare",
@@ -167,7 +248,8 @@
       "effect": "stage_skill",
       "skill": "war_cry",
       "amount": 1,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "hex_rare",
@@ -175,7 +257,8 @@
       "effect": "stage_skill",
       "skill": "hex",
       "amount": 1,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "nova_rare",
@@ -183,7 +266,8 @@
       "effect": "stage_skill",
       "skill": "nova",
       "amount": 1,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "aegis_rare",
@@ -191,133 +275,152 @@
       "effect": "stage_skill",
       "skill": "aegis",
       "amount": 1,
-      "limit": 3
+      "limit": 3,
+      "category": "attack"
     },
     {
       "id": "regen_common",
       "rarity": "common",
       "effect": "regen",
       "amount": 1000,
-      "limit": 5
+      "limit": 5,
+      "category": "defence"
     },
     {
       "id": "regen_rare",
       "rarity": "rare",
       "effect": "regen",
       "amount": 3000,
-      "limit": 3
+      "limit": 3,
+      "category": "defence"
     },
     {
       "id": "regen_legendary",
       "rarity": "legendary",
       "effect": "regen",
       "amount": 6000,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "max_hp_uncommon",
       "rarity": "uncommon",
       "effect": "max_hp",
       "amount": 30000,
-      "limit": 4
+      "limit": 4,
+      "category": "defence"
     },
     {
       "id": "max_hp_epic",
       "rarity": "epic",
       "effect": "max_hp",
       "amount": 70000,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "max_hp_supernova",
       "rarity": "supernova",
       "effect": "max_hp",
       "amount": 160000,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "attack_uncommon",
       "rarity": "uncommon",
       "effect": "attack_pct",
       "amount": 7,
-      "limit": 4
+      "limit": 4,
+      "category": "attack"
     },
     {
       "id": "attack_epic",
       "rarity": "epic",
       "effect": "attack_pct",
       "amount": 17,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "attack_supernova",
       "rarity": "supernova",
       "effect": "attack_pct",
       "amount": 40,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "attack_speed_uncommon",
       "rarity": "uncommon",
       "effect": "attack_speed_pct",
       "amount": 12,
-      "limit": 4
+      "limit": 4,
+      "category": "attack"
     },
     {
       "id": "attack_speed_epic",
       "rarity": "epic",
       "effect": "attack_speed_pct",
       "amount": 28,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "attack_speed_supernova",
       "rarity": "supernova",
       "effect": "attack_speed_pct",
       "amount": 64,
-      "limit": 2
+      "limit": 2,
+      "category": "attack"
     },
     {
       "id": "evade_uncommon",
       "rarity": "uncommon",
       "effect": "evade_pct",
       "amount": 7,
-      "limit": 4
+      "limit": 4,
+      "category": "defence"
     },
     {
       "id": "evade_epic",
       "rarity": "epic",
       "effect": "evade_pct",
       "amount": 17,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "evade_supernova",
       "rarity": "supernova",
       "effect": "evade_pct",
       "amount": 40,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "speed_uncommon",
       "rarity": "uncommon",
       "effect": "speed_pct",
       "amount": 6,
-      "limit": 4
+      "limit": 4,
+      "category": "mobility"
     },
     {
       "id": "speed_epic",
       "rarity": "epic",
       "effect": "speed_pct",
       "amount": 14,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "speed_supernova",
       "rarity": "supernova",
       "effect": "speed_pct",
       "amount": 32,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "xp_uncommon",
@@ -345,105 +448,126 @@
       "rarity": "uncommon",
       "effect": "regen",
       "amount": 1500,
-      "limit": 4
+      "limit": 4,
+      "category": "defence"
     },
     {
       "id": "regen_epic",
       "rarity": "epic",
       "effect": "regen",
       "amount": 3500,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "regen_supernova",
       "rarity": "supernova",
       "effect": "regen",
       "amount": 8000,
-      "limit": 2
+      "limit": 2,
+      "category": "defence"
     },
     {
       "id": "rune_haste_common",
       "rarity": "common",
       "effect": "rune_haste",
       "amount": 25,
-      "limit": 5
+      "limit": 5,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "rune_haste_uncommon",
       "rarity": "uncommon",
       "effect": "rune_haste",
       "amount": 38,
-      "limit": 4
+      "limit": 4,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "rune_haste_rare",
       "rarity": "rare",
       "effect": "rune_haste",
       "amount": 50,
-      "limit": 3
+      "limit": 3,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "rune_haste_epic",
       "rarity": "epic",
       "effect": "rune_haste",
       "amount": 70,
-      "limit": 2
+      "limit": 2,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "rune_haste_legendary",
       "rarity": "legendary",
       "effect": "rune_haste",
       "amount": 100,
-      "limit": 2
+      "limit": 2,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "rune_haste_supernova",
       "rarity": "supernova",
       "effect": "rune_haste",
       "amount": 160,
-      "limit": 2
+      "limit": 2,
+      "category": "attack",
+      "deprecated": true
     },
     {
       "id": "range_common",
       "rarity": "common",
       "effect": "range_pct",
       "amount": 15,
-      "limit": 5
+      "limit": 5,
+      "category": "mobility"
     },
     {
       "id": "range_uncommon",
       "rarity": "uncommon",
       "effect": "range_pct",
       "amount": 23,
-      "limit": 4
+      "limit": 4,
+      "category": "mobility"
     },
     {
       "id": "range_rare",
       "rarity": "rare",
       "effect": "range_pct",
       "amount": 30,
-      "limit": 3
+      "limit": 3,
+      "category": "mobility"
     },
     {
       "id": "range_epic",
       "rarity": "epic",
       "effect": "range_pct",
       "amount": 42,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "range_legendary",
       "rarity": "legendary",
       "effect": "range_pct",
       "amount": 50,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "range_supernova",
       "rarity": "supernova",
       "effect": "range_pct",
       "amount": 80,
-      "limit": 2
+      "limit": 2,
+      "category": "mobility"
     },
     {
       "id": "type_bonus_slash_common",
@@ -452,7 +576,8 @@
       "type": "slash",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_slash_uncommon",
@@ -461,7 +586,8 @@
       "type": "slash",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_slash_rare",
@@ -470,7 +596,8 @@
       "type": "slash",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_slash_epic",
@@ -479,7 +606,8 @@
       "type": "slash",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_slash_legendary",
@@ -488,7 +616,8 @@
       "type": "slash",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_slash_supernova",
@@ -497,7 +626,8 @@
       "type": "slash",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_common",
@@ -506,7 +636,8 @@
       "type": "pierce",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_uncommon",
@@ -515,7 +646,8 @@
       "type": "pierce",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_rare",
@@ -524,7 +656,8 @@
       "type": "pierce",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_epic",
@@ -533,7 +666,8 @@
       "type": "pierce",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_legendary",
@@ -542,7 +676,8 @@
       "type": "pierce",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pierce_supernova",
@@ -551,7 +686,8 @@
       "type": "pierce",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_common",
@@ -560,7 +696,8 @@
       "type": "strike",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_uncommon",
@@ -569,7 +706,8 @@
       "type": "strike",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_rare",
@@ -578,7 +716,8 @@
       "type": "strike",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_epic",
@@ -587,7 +726,8 @@
       "type": "strike",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_legendary",
@@ -596,7 +736,8 @@
       "type": "strike",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_strike_supernova",
@@ -605,7 +746,8 @@
       "type": "strike",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_common",
@@ -614,7 +756,8 @@
       "type": "pyro",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_uncommon",
@@ -623,7 +766,8 @@
       "type": "pyro",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_rare",
@@ -632,7 +776,8 @@
       "type": "pyro",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_epic",
@@ -641,7 +786,8 @@
       "type": "pyro",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_legendary",
@@ -650,7 +796,8 @@
       "type": "pyro",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_pyro_supernova",
@@ -659,7 +806,8 @@
       "type": "pyro",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_common",
@@ -668,7 +816,8 @@
       "type": "hydro",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_uncommon",
@@ -677,7 +826,8 @@
       "type": "hydro",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_rare",
@@ -686,7 +836,8 @@
       "type": "hydro",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_epic",
@@ -695,7 +846,8 @@
       "type": "hydro",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_legendary",
@@ -704,7 +856,8 @@
       "type": "hydro",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_hydro_supernova",
@@ -713,7 +866,8 @@
       "type": "hydro",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_common",
@@ -722,7 +876,8 @@
       "type": "electro",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_uncommon",
@@ -731,7 +886,8 @@
       "type": "electro",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_rare",
@@ -740,7 +896,8 @@
       "type": "electro",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_epic",
@@ -749,7 +906,8 @@
       "type": "electro",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_legendary",
@@ -758,7 +916,8 @@
       "type": "electro",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_electro_supernova",
@@ -767,7 +926,8 @@
       "type": "electro",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_common",
@@ -776,7 +936,8 @@
       "type": "cryo",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_uncommon",
@@ -785,7 +946,8 @@
       "type": "cryo",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_rare",
@@ -794,7 +956,8 @@
       "type": "cryo",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_epic",
@@ -803,7 +966,8 @@
       "type": "cryo",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_legendary",
@@ -812,7 +976,8 @@
       "type": "cryo",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_cryo_supernova",
@@ -821,7 +986,8 @@
       "type": "cryo",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_common",
@@ -830,7 +996,8 @@
       "type": "anemo",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_uncommon",
@@ -839,7 +1006,8 @@
       "type": "anemo",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_rare",
@@ -848,7 +1016,8 @@
       "type": "anemo",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_epic",
@@ -857,7 +1026,8 @@
       "type": "anemo",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_legendary",
@@ -866,7 +1036,8 @@
       "type": "anemo",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_anemo_supernova",
@@ -875,7 +1046,8 @@
       "type": "anemo",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_common",
@@ -884,7 +1056,8 @@
       "type": "geo",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_uncommon",
@@ -893,7 +1066,8 @@
       "type": "geo",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_rare",
@@ -902,7 +1076,8 @@
       "type": "geo",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_epic",
@@ -911,7 +1086,8 @@
       "type": "geo",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_legendary",
@@ -920,7 +1096,8 @@
       "type": "geo",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_geo_supernova",
@@ -929,7 +1106,8 @@
       "type": "geo",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_common",
@@ -938,7 +1116,8 @@
       "type": "dendro",
       "amount": 25,
       "limit": 5,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_uncommon",
@@ -947,7 +1126,8 @@
       "type": "dendro",
       "amount": 38,
       "limit": 4,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_rare",
@@ -956,7 +1136,8 @@
       "type": "dendro",
       "amount": 50,
       "limit": 3,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_epic",
@@ -965,7 +1146,8 @@
       "type": "dendro",
       "amount": 70,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_legendary",
@@ -974,7 +1156,8 @@
       "type": "dendro",
       "amount": 80,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "type_bonus_dendro_supernova",
@@ -983,7 +1166,8 @@
       "type": "dendro",
       "amount": 128,
       "limit": 2,
-      "weight": 10
+      "weight": 10,
+      "category": "attack"
     },
     {
       "id": "random_rune",
@@ -1007,7 +1191,8 @@
       "limit": 1,
       "named": true,
       "star": "Altair",
-      "weight": 50
+      "weight": 50,
+      "category": "mobility"
     },
     {
       "id": "star_alnitak",
@@ -1026,7 +1211,8 @@
       "limit": 1,
       "named": true,
       "star": "Alnitak",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_alnilam",
@@ -1044,7 +1230,8 @@
       "limit": 1,
       "named": true,
       "star": "Alnilam",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_mintaka",
@@ -1062,7 +1249,8 @@
       "limit": 1,
       "named": true,
       "star": "Mintaka",
-      "weight": 50
+      "weight": 50,
+      "category": "defence"
     },
     {
       "id": "star_dubhe",
@@ -1080,7 +1268,8 @@
       "limit": 1,
       "named": true,
       "star": "Dubhe",
-      "weight": 50
+      "weight": 50,
+      "category": "mobility"
     },
     {
       "id": "star_rigel",
@@ -1099,7 +1288,8 @@
       "limit": 1,
       "named": true,
       "star": "Rigel",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_deneb",
@@ -1117,7 +1307,8 @@
       "limit": 1,
       "named": true,
       "star": "Deneb",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_vega",
@@ -1135,7 +1326,8 @@
       "limit": 1,
       "named": true,
       "star": "Vega",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_mizar",
@@ -1149,7 +1341,8 @@
       "limit": 1,
       "named": true,
       "star": "Mizar",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_alkaid",
@@ -1167,7 +1360,8 @@
       "limit": 1,
       "named": true,
       "star": "Alkaid",
-      "weight": 50
+      "weight": 50,
+      "category": "mobility"
     },
     {
       "id": "star_procyon",
@@ -1203,7 +1397,8 @@
       "limit": 1,
       "named": true,
       "star": "Antares",
-      "weight": 50
+      "weight": 50,
+      "category": "defence"
     },
     {
       "id": "star_sirius",
@@ -1242,7 +1437,8 @@
       "limit": 1,
       "named": true,
       "star": "Sirius",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_betelgeuse",
@@ -1262,7 +1458,8 @@
       "limit": 1,
       "named": true,
       "star": "Betelgeuse",
-      "weight": 50
+      "weight": 50,
+      "category": "attack"
     },
     {
       "id": "star_polaris",
@@ -1289,6 +1486,60 @@
       "named": true,
       "star": "Polaris",
       "weight": 50
+    },
+    {
+      "id": "rune_haste_star_common",
+      "rarity": "common",
+      "effect": "rune_haste",
+      "amount": 25,
+      "limit": 5,
+      "category": "attack",
+      "equipment_only": true
+    },
+    {
+      "id": "rune_haste_star_uncommon",
+      "rarity": "uncommon",
+      "effect": "rune_haste",
+      "amount": 38,
+      "limit": 4,
+      "category": "attack",
+      "equipment_only": true
+    },
+    {
+      "id": "rune_haste_star_rare",
+      "rarity": "rare",
+      "effect": "rune_haste",
+      "amount": 50,
+      "limit": 3,
+      "category": "attack",
+      "equipment_only": true
+    },
+    {
+      "id": "rune_haste_star_epic",
+      "rarity": "epic",
+      "effect": "rune_haste",
+      "amount": 70,
+      "limit": 2,
+      "category": "attack",
+      "equipment_only": true
+    },
+    {
+      "id": "rune_haste_star_legendary",
+      "rarity": "legendary",
+      "effect": "rune_haste",
+      "amount": 100,
+      "limit": 2,
+      "category": "attack",
+      "equipment_only": true
+    },
+    {
+      "id": "rune_haste_star_supernova",
+      "rarity": "supernova",
+      "effect": "rune_haste",
+      "amount": 160,
+      "limit": 2,
+      "category": "attack",
+      "equipment_only": true
     }
   ]
 }

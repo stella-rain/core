@@ -13,7 +13,7 @@ use stella_rain_core::{RangeStep, StepRange};
 /// The state hash after 600 ticks of the scripted solo run in `a_solo_run_is_the_same_run`,
 /// read from the engine before the step took one entry per slot, and re-pinned for the slot
 /// generations, then for the 13 totals and the weapon-set tenths.
-const H600: u64 = 16_534_234_789_806_300_810;
+const H600: u64 = 10_701_859_390_409_292_826;
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).unwrap()

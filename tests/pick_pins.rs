@@ -1,7 +1,7 @@
 //! Pins what a choice does before it moves into the input (ADR-REPL-5): for corpus run cases
 //! that hold commands, the state hash, the number of events and the tick after each of the first
 //! commands. The constants were taken once and stayed unchanged through the move of picks into
-//! `Input`; the hashes were re-pinned for the per-player hash layout and again for the slot generations (ADR-SIM-3), and the
+//! `Input`; the hashes were re-pinned for the per-player hash layout and again for the slot generations and then for the six new rewards that lengthen the hashed lists (ADR-SIM-3), and the
 //! event counts and ticks, which say what the choices did, did not move.
 use crate::corpus::{apply, case_content, runs_dir};
 use stella_rain_core::engine::Engine;
@@ -38,34 +38,34 @@ const PINS: [(&str, [Pin; 6]); 3] = [
     (
         "easy",
         [
-            (6332248442268475834, 1, 128),
-            (16987976956879084517, 2, 128),
-            (8348049503842638439, 1, 128),
-            (12775434655211000551, 1, 177),
-            (10363437424044771377, 2, 263),
-            (14812702528104815658, 1, 263),
+            (17117895086852862318, 1, 128),
+            (7616054199903736465, 2, 128),
+            (6972137321315370495, 1, 128),
+            (1836394631138400559, 1, 177),
+            (17044189276531530617, 2, 263),
+            (1138776114179265986, 1, 263),
         ],
     ),
     (
         "elites",
         [
-            (5671693779389078952, 1, 4161),
-            (10295690195600450867, 2, 4161),
-            (13888374517392201854, 1, 4161),
-            (18286132053158624661, 1, 4166),
-            (4337373875214919040, 1, 4167),
-            (18067123891957286051, 1, 4571),
+            (5838056326134554884, 1, 4161),
+            (7945712485010896719, 2, 4161),
+            (4868091848243456022, 1, 4161),
+            (9150931298935964537, 1, 4166),
+            (11923648164717174844, 1, 4167),
+            (11227868491310892799, 1, 4571),
         ],
     ),
     (
         "rainy",
         [
-            (10303760656628413762, 1, 177),
-            (4220810642159064908, 2, 177),
-            (16489442618224753926, 1, 177),
-            (15038317366758962713, 1, 248),
-            (577722602779091884, 1, 297),
-            (1214324560809883422, 1, 488),
+            (11328778091010703298, 1, 177),
+            (14886896750937530136, 2, 177),
+            (3417663741640201406, 1, 177),
+            (13177262495326042801, 1, 248),
+            (7985982310849542212, 1, 297),
+            (1163686814899249746, 1, 488),
         ],
     ),
 ];

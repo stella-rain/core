@@ -46,9 +46,9 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
         got,
         [
             11_900_308_431_256_756_614,
-            1_904_881_576_711_841_299,
-            15_115_231_045_541_577_672,
+            9_311_274_414_913_292_389,
+            2_987_092_171_638_027_915,
         ],
-        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none)"
+        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none), then for the six new rewards that lengthen `taken` and `banished` (hit_case and time_limit_case hold star state, worst_case does not)"
     );
 }

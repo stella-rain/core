@@ -397,7 +397,11 @@ mod equipment_runs {
     /// T13: `check_action` refuses each extract and craft reason, and reads only.
     #[test]
     fn check_action_extract_and_craft() {
-        let mut e = started(false, 1);
+        // The default pool leaves the random rune out (it has no category), so the pool names it.
+        let mut setup = equipment(false);
+        setup.star_pool = Some(vec!["max_hp_common".into(), "random_rune".into()]);
+        let mut e = Engine::start_party(&setup, 1).unwrap();
+        give(&mut e, 0);
         let me = PlayerIdx::SOLO;
         let hash = e.state_hash();
         let refused = |e: &Engine, a: EquipAction| e.check_action(me, a).unwrap_err();

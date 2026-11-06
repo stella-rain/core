@@ -443,6 +443,7 @@ impl Pack {
             .map_err(PackError::in_file("runes"))?;
         let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets), versions)
             .map_err(PackError::in_file("perk_sets"))?;
+        check_perk_categories(&perk_sets, &rewards)?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties), versions)
             .map_err(PackError::in_file("difficulties"))?;
         let attack_presets = AttackPresets::parse(&file_bytes(&pack.attack_presets), versions)
@@ -931,6 +932,37 @@ fn released_expertise(weapon: &ContentId) -> &'static [IntroducedId] {
         .iter()
         .find(|e| e.weapon == *weapon)
         .map_or(&[], |e| e.ids.as_slice())
+}
+
+/// A perk's drop-weight category is a category of the rewards' equipment rules.
+fn check_perk_categories(perk_sets: &PerkSets, rewards: &Rewards) -> Result<(), PackError> {
+    let mut issues = Vec::new();
+    for (i, set) in perk_sets.sets().iter().enumerate() {
+        for (e, entry) in set.effects.iter().enumerate() {
+            let Some(category) = entry.category else {
+                continue;
+            };
+            let known = rewards.equipment().is_some_and(|r| {
+                r.categories
+                    .iter()
+                    .any(|c| c.id.as_str() == category.as_str())
+            });
+            if !known {
+                issues.push(Issue {
+                    path: format!("$.perk_sets[{i}].effects[{e}].category"),
+                    message: "not a category of the rewards' equipment rules".into(),
+                });
+            }
+        }
+    }
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "perk_sets",
+            error: Error::Invalid(issues),
+        })
+    }
 }
 
 /// Checks one list of the table, at `at`, against the IDs of its file with their paths. An ID

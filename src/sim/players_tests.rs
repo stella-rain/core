@@ -962,6 +962,7 @@ mod career_rest {
             PerkEntry {
                 effect: PerkEffect::Regen,
                 amount: 2,
+                category: None,
             },
             false,
         );
@@ -977,10 +978,12 @@ mod career_rest {
             PerkEntry {
                 effect: PerkEffect::ExtraRerolls,
                 amount: 2,
+                category: None,
             },
             PerkEntry {
                 effect: PerkEffect::ExtraBanishes,
                 amount: 1,
+                category: None,
             },
         ];
         let read = |s: &mut State| {

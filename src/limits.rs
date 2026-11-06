@@ -92,6 +92,12 @@ pub const MAX_INVENTORY: usize = 1024;
 pub const MAX_EQUIP_SLOTS: usize = 32;
 /// The level cap of an equipment slot.
 pub const MAX_SLOT_LEVEL: u8 = 10;
+/// The most slot categories the rewards file's equipment rules list.
+pub const MAX_EQUIP_CATEGORIES: usize = 8;
+/// The most slots of one category, and the most rune slots.
+pub const MAX_CATEGORY_SLOTS: u8 = 16;
+/// The most stats in one weapon base set or style set.
+pub const MAX_SET_STATS: usize = 8;
 pub const MAX_STARS_ON_MAP: u16 = 64;
 
 // Time limit (ADR-SVC-1)
@@ -183,6 +189,9 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_INVENTORY", "1024", "held stars and runes", "ADR-SIM-5"),
     LimitEntry::new("MAX_EQUIP_SLOTS", "32", "slots per player", "ADR-SIM-5"),
     LimitEntry::new("MAX_SLOT_LEVEL", "10", "level", "ADR-SIM-5"),
+    LimitEntry::new("MAX_EQUIP_CATEGORIES", "8", "categories", "ADR-CONT-3"),
+    LimitEntry::new("MAX_CATEGORY_SLOTS", "16", "slots", "ADR-CONT-3"),
+    LimitEntry::new("MAX_SET_STATS", "8", "stats", "ADR-CONT-3"),
     LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-REPL-5"),
     LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-1"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
@@ -308,6 +317,9 @@ mod tests {
         assert_eq!(MAX_INVENTORY, 1024);
         assert_eq!(MAX_EQUIP_SLOTS, 32);
         assert_eq!(MAX_SLOT_LEVEL, 10);
+        assert_eq!(MAX_EQUIP_CATEGORIES, 8);
+        assert_eq!(MAX_CATEGORY_SLOTS, 16);
+        assert_eq!(MAX_SET_STATS, 8);
         assert_eq!(MAX_STARS_ON_MAP, crate::validate::limits::MAX_STARS_ON_MAP);
         assert_eq!(MAX_WAVES, crate::time_limit::MAX_WAVES);
         assert_eq!(

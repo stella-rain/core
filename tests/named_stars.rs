@@ -145,8 +145,14 @@ fn the_bundled_rewards_file_validates_with_its_named_stars() {
     assert_eq!(stars.len(), 15);
     // The 15 named stars come after the ordinary rewards (120: the six-rarity rows and a type
     // bonus per damage type of D6c).
-    assert_eq!(rewards.rewards().len(), 135);
-    assert!(rewards.rewards()[120..].iter().all(|r| r.named));
+    // After the named stars come the six equipment-only Rune Haste stars.
+    assert_eq!(rewards.rewards().len(), 141);
+    assert!(rewards.rewards()[120..135].iter().all(|r| r.named));
+    assert!(
+        rewards.rewards()[135..]
+            .iter()
+            .all(|r| !r.named && r.equipment_only)
+    );
 }
 
 #[test]

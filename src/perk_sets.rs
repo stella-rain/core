@@ -125,6 +125,68 @@ impl PerkEffect {
     }
 }
 
+/// The longest content ID, in bytes (`registry::is_well_formed`).
+const MAX_ID_BYTES: usize = 32;
+
+/// An equipment category's ID held inline, so that a perk entry stays `Copy`. Written and read
+/// as the ID's string.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PerkCategory {
+    len: u8,
+    bytes: [u8; MAX_ID_BYTES],
+}
+
+impl PerkCategory {
+    /// The category's ID.
+    pub fn as_str(&self) -> &str {
+        // Built only from a `&str` of at most `MAX_ID_BYTES` bytes.
+        std::str::from_utf8(&self.bytes[..usize::from(self.len)]).unwrap_or("")
+    }
+
+    /// The category named `id`, if it fits an ID.
+    pub fn new(id: &str) -> Option<PerkCategory> {
+        let b = id.as_bytes();
+        if b.len() > MAX_ID_BYTES {
+            return None;
+        }
+        let mut bytes = [0; MAX_ID_BYTES];
+        bytes[..b.len()].copy_from_slice(b);
+        Some(PerkCategory {
+            len: u8::try_from(b.len()).ok()?,
+            bytes,
+        })
+    }
+}
+
+impl std::fmt::Debug for PerkCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.as_str())
+    }
+}
+
+impl Serialize for PerkCategory {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for PerkCategory {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<PerkCategory, D::Error> {
+        let id = String::deserialize(d)?;
+        PerkCategory::new(&id).ok_or_else(|| serde::de::Error::custom("not a valid ID"))
+    }
+}
+
+impl JsonSchema for PerkCategory {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        ContentId::schema_name()
+    }
+
+    fn json_schema(g: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ContentId::json_schema(g)
+    }
+}
+
 /// One effect of a set.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -132,6 +194,10 @@ pub struct PerkEntry {
     pub effect: PerkEffect,
     /// From 1 to the effect's cap (`PerkEffect::most`).
     pub amount: u32,
+    /// The equipment category a `drop_weight` entry weighs, one of the rewards file's: with
+    /// that effect only, and required by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<PerkCategory>,
 }
 
 /// One perk set.
@@ -234,6 +300,19 @@ pub fn validate(file: &PerkSetsFile) -> Result<(), Error> {
                     format!("$.perk_sets[{i}].effects[{e}].amount"),
                     format!("1 to {most} (found {})", entry.amount),
                 );
+            }
+            let path = format!("$.perk_sets[{i}].effects[{e}].category");
+            match (entry.effect, entry.category) {
+                (PerkEffect::DropWeight, None) => {
+                    issue(path, "a drop weight names its category".into())
+                }
+                (PerkEffect::DropWeight, Some(c)) => {
+                    if !registry::is_well_formed(c.as_str()) {
+                        issue(path, "not a valid ID".into());
+                    }
+                }
+                (_, Some(_)) => issue(path, "only a drop weight names a category".into()),
+                (_, None) => {}
             }
         }
     }

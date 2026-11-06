@@ -29,7 +29,7 @@ use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
-use crate::run_stats::StatEffect;
+use crate::run_stats::{MAX_STEP, StatEffect};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
@@ -48,6 +48,34 @@ pub const STYLES: usize = 3;
 pub const MAX_STYLE_CHOICES: usize = 3;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
+pub use crate::limits::MAX_SET_STATS;
+
+/// One stat of a weapon base set or a style set (the equipment build): its value at weapon level
+/// 1 to 10.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetStat {
+    /// One of `attack_pct`, `attack_speed_pct`, `evade_pct`, `skill_cooldown_pct`, `range_pct`
+    /// and `max_hp`, once per set.
+    pub effect: StatEffect,
+    /// Exactly `TABLE_LEVELS` entries, Lv1 to Lv10, never falling. Tenths of a percent, except
+    /// `max_hp`: hit points in the stored scale of every other `max_hp` amount.
+    pub by_level: Vec<u32>,
+}
+
+/// The largest entry of a set stat of `effect`, if a set may hold the effect: a tenths effect
+/// up to `MAX_STEP * 10` (100 percent), `max_hp` up to `MAX_HP_AMOUNT`.
+fn set_stat_most(effect: StatEffect) -> Option<u32> {
+    match effect {
+        StatEffect::AttackPct
+        | StatEffect::AttackSpeedPct
+        | StatEffect::EvadePct
+        | StatEffect::SkillCooldownPct
+        | StatEffect::RangePct => Some(MAX_STEP * 10),
+        StatEffect::MaxHp => Some(MAX_HP_AMOUNT),
+        _ => None,
+    }
+}
 
 /// What taking an option or a style does: one of the run stats' effect kinds, under the same
 /// names, or a wider combo.
@@ -103,7 +131,8 @@ pub struct ExpertiseOption {
 }
 
 /// A style: a path chosen at the level table's style level, held for the run. Its
-/// own effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the
+/// own effect applies when it is chosen in offers mode (an equipment run applies the style's
+/// `stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the
 /// table's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -113,6 +142,10 @@ pub struct Style {
     pub effect: ExpertiseEffect,
     /// What choosing it adds to the effect's total, from 1 to the effect's most.
     pub amount: u32,
+    /// The set the style grants in the equipment build, replacing the weapon's base set when
+    /// the style is picked: at most `MAX_SET_STATS` stats. Absent or empty: the empty set.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stats: Vec<SetStat>,
     /// The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
     pub upgrade_1: Vec<ExpertiseOption>,
     /// The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
@@ -131,6 +164,10 @@ pub struct WeaponExpertise {
     pub styles: Vec<Style>,
     /// The common pool, 1 to `MAX_COMMON_OPTIONS` options, in the order offers draw from.
     pub common: Vec<ExpertiseOption>,
+    /// The set the weapon grants in the equipment build until a style is picked: at most
+    /// `MAX_SET_STATS` stats. Absent or empty: the empty set.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub base: Vec<SetStat>,
 }
 
 /// The expertise file.
@@ -283,6 +320,7 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
                 format!("exactly {STYLES} styles (found {})", weapon.styles.len()),
             );
         }
+        check_set(&mut issue, &at("base"), &weapon.base);
         if weapon.common.is_empty() || weapon.common.len() > MAX_COMMON_OPTIONS {
             issue(
                 at("common"),
@@ -299,6 +337,7 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
             let base = at(&format!("styles[{s}]"));
             check_id(&mut issue, &mut seen, &base, &style.id);
             check_amount(&mut issue, &base, style.effect, style.amount);
+            check_set(&mut issue, &format!("{base}.stats"), &style.stats);
             for (field, choices) in [
                 ("upgrade_1", &style.upgrade_1),
                 ("upgrade_2", &style.upgrade_2),
@@ -371,5 +410,48 @@ fn check_amount(
             format!("{path}.amount"),
             format!("1 to {most} (found {amount})"),
         );
+    }
+}
+
+/// A set: at most `MAX_SET_STATS` stats, each effect allowed and once, each with exactly
+/// `TABLE_LEVELS` entries within the effect's bound and never falling.
+fn check_set(issue: &mut impl FnMut(String, String), path: &str, set: &[SetStat]) {
+    if set.len() > MAX_SET_STATS {
+        issue(
+            path.to_string(),
+            format!("at most {MAX_SET_STATS} stats (found {})", set.len()),
+        );
+    }
+    for (i, stat) in set.iter().enumerate().take(MAX_SET_STATS) {
+        let at = format!("{path}[{i}]");
+        let most = set_stat_most(stat.effect);
+        if most.is_none() {
+            issue(
+                format!("{at}.effect"),
+                "a set holds attack_pct, attack_speed_pct, evade_pct, skill_cooldown_pct, range_pct or max_hp".into(),
+            );
+        } else if set[..i].iter().any(|x| x.effect == stat.effect) {
+            issue(
+                format!("{at}.effect"),
+                "the same effect as an earlier stat of the set".into(),
+            );
+        }
+        if stat.by_level.len() != TABLE_LEVELS {
+            issue(
+                format!("{at}.by_level"),
+                format!(
+                    "exactly {TABLE_LEVELS} entries (found {})",
+                    stat.by_level.len()
+                ),
+            );
+        }
+        for (n, &value) in stat.by_level.iter().enumerate().take(TABLE_LEVELS) {
+            let path = format!("{at}.by_level[{n}]");
+            if let Some(most) = most.filter(|&m| value > m) {
+                issue(path, format!("0 to {most} (found {value})"));
+            } else if n > 0 && value < stat.by_level[n - 1] {
+                issue(path, "not less than the level before".into());
+            }
+        }
     }
 }

@@ -1404,6 +1404,10 @@
       "description": "A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
       "type": "string"
     },
+    "ContentId2": {
+      "description": "A content ID from the registry (ADR-CONT-2): asset, palette, part, preset, status or pattern.\nLowercase `snake_case`, at most 32 characters; the validator checks the format and that the\nID exists.",
+      "type": "string"
+    },
     "Countdown": {
       "additionalProperties": false,
       "description": "A count-down in the snapshot: the ticks left and the ticks it started with.",
@@ -4010,6 +4014,107 @@
         }
       ]
     },
+    "EquipmentCategory": {
+      "additionalProperties": false,
+      "description": "One slot category of the equipment layout.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId",
+          "description": "The category's ID, unique within the list."
+        },
+        "slots": {
+          "description": "Its slots, 1 to `MAX_CATEGORY_SLOTS`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "slots"
+      ],
+      "type": "object"
+    },
+    "EquipmentRules": {
+      "additionalProperties": false,
+      "description": "The equipment rules (ADR-CONT-3): the slot layout, the level curve, the Starlight values and\nthe drop numbers, which a designer tunes. Bounds are code.",
+      "properties": {
+        "boss_bonus": {
+          "description": "What a boss kill pays, 0 to `MAX_STARLIGHT`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_drops": {
+          "description": "The drops a boss kill rolls for each member who is up, 0 to `MAX_BOSS_DROPS`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "categories": {
+          "description": "The slot categories in slot order, 1 to `MAX_EQUIP_CATEGORIES`.",
+          "items": {
+            "$ref": "#/$defs/EquipmentCategory"
+          },
+          "type": "array"
+        },
+        "kills_to_next": {
+          "description": "The kills a slot needs for each next level: exactly `MAX_SLOT_LEVEL - 1` entries, strictly\nrising, each 1 to `MAX_STARLIGHT`.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "level_pct": {
+          "description": "What each level adds to a star's amount, in percent, 1 to `MAX_LEVEL_PCT`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rarities": {
+          "description": "Every rarity once, from common up.",
+          "items": {
+            "$ref": "#/$defs/RarityStarlight"
+          },
+          "type": "array"
+        },
+        "rune_extract": {
+          "description": "What extracting a rune gives, 1 to `MAX_STARLIGHT`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rune_share_permille": {
+          "description": "The chance in a thousand that a drop is a rune, 0 to 1000.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rune_slots": {
+          "description": "The rune slots after the category slots, 1 to `MAX_CATEGORY_SLOTS`. The category slots,\nthe rune slots and the Lumine slot add up to at most `MAX_EQUIP_SLOTS`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "categories",
+        "rune_slots",
+        "kills_to_next",
+        "level_pct",
+        "rarities",
+        "rune_extract",
+        "boss_bonus",
+        "boss_drops",
+        "rune_share_permille"
+      ],
+      "type": "object"
+    },
     "Evade": {
       "additionalProperties": false,
       "description": "A dash with invulnerability, on charges. A press with a charge ready\ndashes `distance` over `ticks`, along the movement direction, or along the facing when the\nstick is centred; the stick is ignored until the dash ends, and a press during it with a\ncharge ready starts the next dash at once. Invulnerability counts from the press, and so\ndoes the cooldown of the charge it spent: each spent charge recovers on its own timer.",
@@ -6175,6 +6280,17 @@
           "minimum": 0,
           "type": "integer"
         },
+        "category": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The equipment category a `drop_weight` entry weighs, one of the rewards file's: with\nthat effect only, and required by it."
+        },
         "effect": {
           "$ref": "#/$defs/PerkEffect"
         }
@@ -6809,6 +6925,34 @@
       ],
       "type": "object"
     },
+    "RarityStarlight": {
+      "additionalProperties": false,
+      "description": "What one rarity of star is worth in Stardust (equipment mode).",
+      "properties": {
+        "craft_price": {
+          "description": "What crafting a star of it costs, `extract` to `MAX_STARLIGHT`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "extract": {
+          "description": "What extracting a star of it gives, 1 to `MAX_STARLIGHT`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rarity": {
+          "$ref": "#/$defs/Rarity",
+          "description": "The rarity priced."
+        }
+      },
+      "required": [
+        "rarity",
+        "extract",
+        "craft_price"
+      ],
+      "type": "object"
+    },
     "RarityWeights": {
       "additionalProperties": false,
       "description": "The weight of each rarity in a draw; a rarity left out weighs 0. A tier's highest rarity is\nthe highest one that weighs more than 0.",
@@ -6922,6 +7066,21 @@
             "null"
           ]
         },
+        "category": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "deprecated": {
+          "default": false,
+          "type": "boolean"
+        },
         "depth": {
           "default": null,
           "format": "uint32",
@@ -6953,6 +7112,10 @@
             "array",
             "null"
           ]
+        },
+        "equipment_only": {
+          "default": false,
+          "type": "boolean"
         },
         "id": {
           "$ref": "#/$defs/ContentId"
@@ -7171,6 +7334,17 @@
       "additionalProperties": false,
       "description": "The rewards file.",
       "properties": {
+        "equipment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquipmentRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The equipment rules; absent in a file made before them, which then cannot start an\nequipment run (kept packs, ADR-CONT-5)."
+        },
         "max_rune_haste_pct": {
           "description": "The most Rune Haste the picks add up to, in percent, 1 to `MAX_RUNE_HASTE_PCT`\n(app#298); absent, `DEFAULT_MAX_RUNE_HASTE_PCT`. A reward gives at most this.",
           "format": "uint32",
@@ -7939,6 +8113,30 @@
           "type": "object"
         }
       ]
+    },
+    "SetStat": {
+      "additionalProperties": false,
+      "description": "One stat of a weapon base set or a style set (the equipment build): its value at weapon level\n1 to 10.",
+      "properties": {
+        "by_level": {
+          "description": "Exactly `TABLE_LEVELS` entries, Lv1 to Lv10, never falling. Tenths of a percent, except\n`max_hp`: hit points in the stored scale of every other `max_hp` amount.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "effect": {
+          "$ref": "#/$defs/StatEffect",
+          "description": "One of `attack_pct`, `attack_speed_pct`, `evade_pct`, `skill_cooldown_pct`, `range_pct`\nand `max_hp`, once per set."
+        }
+      },
+      "required": [
+        "effect",
+        "by_level"
+      ],
+      "type": "object"
     },
     "ShieldView": {
       "additionalProperties": false,
@@ -9430,7 +9628,7 @@
     },
     "Style": {
       "additionalProperties": false,
-      "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen; it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
+      "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen in offers mode (an equipment run applies the style's\n`stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
       "properties": {
         "amount": {
           "description": "What choosing it adds to the effect's total, from 1 to the effect's most.",
@@ -9451,6 +9649,13 @@
         "id": {
           "$ref": "#/$defs/ContentId",
           "description": "The style's own ID, unique within its weapon."
+        },
+        "stats": {
+          "description": "The set the style grants in the equipment build, replacing the weapon's base set when\nthe style is picked: at most `MAX_SET_STATS` stats. Absent or empty: the empty set.",
+          "items": {
+            "$ref": "#/$defs/SetStat"
+          },
+          "type": "array"
         },
         "upgrade_1": {
           "description": "The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
@@ -10024,6 +10229,13 @@
       "additionalProperties": false,
       "description": "One weapon's expertise.",
       "properties": {
+        "base": {
+          "description": "The set the weapon grants in the equipment build until a style is picked: at most\n`MAX_SET_STATS` stats. Absent or empty: the empty set.",
+          "items": {
+            "$ref": "#/$defs/SetStat"
+          },
+          "type": "array"
+        },
         "common": {
           "description": "The common pool, 1 to `MAX_COMMON_OPTIONS` options, in the order offers draw from.",
           "items": {

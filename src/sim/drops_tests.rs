@@ -452,7 +452,7 @@ fn the_starting_rune_is_equipped_at_tick_0() {
     assert_eq!(eq.rng, offers.rng);
 }
 
-/// T17 (setup part): the perk set's `drop_weight` reaches the world; the bundled sets carry none;
+/// T17 (setup part): the perk set's `drop_weight` reaches the world; the bundled sets carry 25 each;
 /// the effect is a no-op elsewhere.
 #[test]
 fn the_perk_drop_weight_reaches_the_world() {
@@ -468,9 +468,11 @@ fn the_perk_drop_weight_reaches_the_world() {
         build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
-    assert_eq!(live(&Engine::start(&setup).expect("starts")), 0);
+    // The bundled default set carries drop weight 25 (vanguard, duelist and scout each weigh one
+    // category); the world still holds one scalar until the weight is read by category.
+    assert_eq!(live(&Engine::start(&setup).expect("starts")), 25);
     let file = json!({ "perk_sets": [{ "id": "lucky",
-        "effects": [{ "effect": "drop_weight", "amount": 40 }] }] });
+        "effects": [{ "effect": "drop_weight", "amount": 40, "category": "attack" }] }] });
     let sets = PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
     let content = RunContent::bundled().clone().with_perk_sets(sets);
     let lucky = RunSetup {
