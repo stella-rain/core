@@ -1328,6 +1328,61 @@ mod rig {
         }
     }
 
+    fn building_replay(n: u8) -> RunReplay {
+        RigParty::new(n)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .case("x")
+            .play()
+            .replay()
+    }
+
+    #[test]
+    fn a_rig_run_with_actions_replays_to_the_recorded_hashes() {
+        let replay = building_replay(3);
+        let run = RigRun::of(&replay);
+        assert!(!run.actions.is_empty());
+        let mut e = fresh(&replay, 3);
+        run.play_onto(&mut e, 0, replay.ticks);
+        assert_eq!(e.state_hash(), hash_of(&replay));
+    }
+
+    #[test]
+    fn actions_apply_after_picks_and_before_the_tick() {
+        let replay = building_replay(2);
+        let run = RigRun::of(&replay);
+        let (at, _) = *run.actions.get(1).expect("two action steps");
+        let mut whole = fresh(&replay, 2);
+        run.play_onto(&mut whole, 0, at + 1);
+        let mut windowed = fresh(&replay, 2);
+        run.play_onto(&mut windowed, 0, at);
+        run.play_onto(&mut windowed, at, at + 1);
+        assert_eq!(windowed.state_hash(), whole.state_hash());
+        // Without the actions of that tick the hash differs.
+        let mut bare = run.clone();
+        bare.actions.retain(|(t, _)| *t != at);
+        let mut skipped = fresh(&replay, 2);
+        bare.play_onto(&mut skipped, 0, at + 1);
+        assert_ne!(skipped.state_hash(), whole.state_hash());
+    }
+
+    #[test]
+    fn actions_per_slot_counts_the_kinds() {
+        let run = RigRun::of(&building_replay(3));
+        let per = run.actions_per_slot();
+        let total: u32 = per
+            .iter()
+            .map(|c| c.equip + c.replace + c.extract + c.craft + c.tree_pick)
+            .sum();
+        let some: usize = run.actions.iter().map(|(_, a)| a.iter().flatten().count()).sum();
+        assert_eq!(total as usize, some);
+        let revive = RigRun::of(&RigParty::new(3).seed(1).bot_seed(1).case("x").play().replay());
+        assert!(revive.actions.is_empty());
+        assert!(revive.actions_per_slot().iter().all(|c| *c == ActionCounts::default()));
+    }
+
     #[test]
     #[should_panic(expected = "join")]
     fn a_join_in_the_log_is_refused() {
