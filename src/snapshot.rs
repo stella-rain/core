@@ -454,6 +454,45 @@ pub struct OfferRating {
     pub changes: Vec<StatChange>,
 }
 
+/// What `Engine::swap_ratings` rates.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SwapItem {
+    /// The inventory place `item` of `EquipAction` (a rune rates nothing: an empty result).
+    Inventory(u32),
+    /// A star not held, by reward ID (a craft candidate, a preview). An unknown ID gives an
+    /// empty result.
+    Star(ContentId),
+}
+
+/// One slot a star could go in (the slot rules accept it) and what the swap does, from
+/// `Engine::swap_ratings`. The model and its limits are in `sim::offer_rating`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SwapRating {
+    /// The slot, as `EquipAction` numbers it (the Lumine slot is `slots.len()`).
+    pub slot: u32,
+    /// The slot holds a star now: a replace (the displaced star returns to the inventory);
+    /// otherwise an equip.
+    pub replaces: bool,
+    /// A replace by a star sharing an option (a grade switch): the slot keeps its whole level.
+    pub switch: bool,
+    /// The slot's level now (0 while it never held a star) and after the swap, read from the
+    /// rules run on a clone.
+    pub level_before: u8,
+    pub level_after: u8,
+    /// The categories of the incoming star's effects, then of a set tier it newly reaches.
+    pub categories: Vec<Category>,
+    /// The signed expected change of the Main weapon's damage per tick, in basis points (+1538
+    /// is +15.38%, -833 is -8.33%), the ratio rounded half up; `Some(0)` when no modelled term
+    /// moves; `None` when no star or set tier the swap crosses has a modelled effect, or the
+    /// build has no weapon damage to rate.
+    pub dps_bp: Option<i32>,
+    /// The highest set tier, counted from 1, the swap newly reaches, and the highest it loses.
+    pub set_gained: Option<u8>,
+    pub set_lost: Option<u8>,
+    /// The stats the swap moves, before and after, in `StatKind` order.
+    pub changes: Vec<StatChange>,
+}
+
 /// The map's width and height, from its top-left corner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
