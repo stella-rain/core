@@ -875,6 +875,19 @@ mod curve {
         assert_eq!(slots::gain(1, u32::MAX, u32::MAX), (10, 0));
     }
 
+    /// T5: a level adds a floored percentage of the base; Lv1 is the base.
+    #[test]
+    fn level_scaled_is_a_floored_percentage_of_the_base() {
+        assert_eq!(slots::level_scaled(20_000, 1), 20_000);
+        assert_eq!(slots::level_scaled(20_000, 2), 20_600);
+        assert_eq!(slots::level_scaled(20_000, 10), 25_400);
+        assert_eq!(slots::level_scaled(5, 10), 6);
+        assert_eq!(slots::level_scaled(5, 3), 5);
+        assert_eq!(slots::level_scaled(0, 10), 0);
+        assert_eq!(slots::level_scaled(u32::MAX, 10), u32::MAX);
+        assert_eq!(slots::level_scaled(7, 0), slots::level_scaled(7, 1));
+    }
+
     /// T4: a slot that never held anything gains nothing.
     #[test]
     fn an_empty_slot_gains_nothing() {
