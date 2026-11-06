@@ -112,6 +112,30 @@ pub struct Snapshot {
     /// factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<u32>,
+    /// What Starlight costs and gives, the same for every player; absent in offers mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub starlight: Option<StarlightView>,
+}
+
+/// The Starlight prices of an equipment run (placeholders until the pack carries them).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StarlightView {
+    /// One per rarity, in `Rarity::ALL` order.
+    pub prices: Vec<StarlightPrice>,
+    /// What an extracted rune gives: a rune has no rarity.
+    pub rune_extract: u32,
+    /// What each player who is up gets from a boss kill.
+    pub boss_bonus: u32,
+}
+
+/// What extracting a star of a rarity gives and what crafting one costs, in Starlight.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StarlightPrice {
+    pub rarity: Rarity,
+    pub extract: u32,
+    pub craft: u32,
 }
 
 /// A big pattern announced in the snapshot: its content ID, the ticks the count-down
@@ -593,6 +617,14 @@ pub struct PlayerView {
     /// sorts it by rarity.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inventory: Vec<HeldView>,
+    /// Its Starlight balance (equipment mode; absent reads as 0).
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
+    pub starlight: u32,
+    /// For each star of the setup's star pool, in pool order (the index `Craft` takes): whether
+    /// a craft of it is refused because this player already holds that named star. Empty in
+    /// offers mode.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pool_held: Vec<bool>,
     /// Its equipment slots in layout order, then the Lumine slot last when the run has one
     /// (equipment mode; empty in offers mode). An action addresses them by this order: an index
     /// into the list, the Lumine slot one past the others.
