@@ -309,11 +309,19 @@ use StatEffect::{AttackPct, AttackSpeedPct, EvadePct, MaxHp, RangePct, SkillCool
 pub(super) const BASE_SETS: [(&str, &[Row]); 2] = [
     (
         "giant_sword",
-        &[(AttackPct, lv(100)), (AttackSpeedPct, lv(100))],
+        &[
+            (AttackPct, lv(100)),
+            (AttackSpeedPct, lv(100)),
+            (MaxHp, lv(100_000)),
+        ],
     ),
     (
         "giant_hammer",
-        &[(AttackPct, lv(100)), (AttackSpeedPct, lv(100))],
+        &[
+            (AttackPct, lv(100)),
+            (AttackSpeedPct, lv(100)),
+            (MaxHp, lv(100_000)),
+        ],
     ),
 ];
 

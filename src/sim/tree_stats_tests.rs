@@ -552,7 +552,9 @@ fn the_set_values_are_pinned() {
             .find(|(a, _)| *a == w)
             .expect("a base")
             .1;
-        assert_eq!(base.len(), 2);
+        assert_eq!(base.len(), 3);
+        assert_eq!(base[2].0, MaxHp);
+        assert_eq!(base[2].1[9], 100_000);
         assert_eq!(
             base[0],
             (AttackPct, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
@@ -615,7 +617,10 @@ fn a_style_pick_adds_no_stat_of_its_own() {
     level_to(&mut e, 5);
     let before = progress(&e).totals;
     tree_pick(&mut e, 0).expect("crush");
-    assert_eq!(progress(&e).totals, before);
+    // Only the base set's hit points leave (50000 at Lv5); crush carries none of its own.
+    let mut want = before;
+    want[StatEffect::MaxHp as usize] -= 50_000;
+    assert_eq!(progress(&e).totals, want);
     assert_eq!(progress(&e).totals[AP], before[AP]);
     assert_eq!(tenths(&e)[AP], 300);
     assert_eq!(gauge(&e).range_pct, 0);
@@ -626,15 +631,16 @@ fn a_style_pick_adds_no_stat_of_its_own() {
     tree_pick(&mut e, 2).expect("bulwark");
     assert_eq!(
         state_of(&e).players[PlayerIdx::SOLO].max_hp,
-        hp + 20_000,
-        "the set alone"
+        hp - 50_000 + 20_000,
+        "the tree's set replaces the base set"
     );
 
     // The tempo pick leaves every total as it was, and an upgrade still adds its own.
     let mut e = sword();
     level_to(&mut e, 10);
-    let before = progress(&e).totals;
+    let mut before = progress(&e).totals;
     tree_pick(&mut e, 1).expect("tempo");
+    before[StatEffect::MaxHp as usize] -= 100_000; // the base set's hit points at Lv10 leave
     assert_eq!(progress(&e).totals, before);
     tree_pick(&mut e, 0).expect("an upgrade");
     assert_ne!(
@@ -665,8 +671,9 @@ fn the_snapshot_lists_the_sets() {
     assert_eq!(
         view.base,
         [
+            v(StatEffect::MaxHp, 50_000, 60_000),
             v(StatEffect::AttackPct, 50, 60),
-            v(StatEffect::AttackSpeedPct, 50, 60)
+            v(StatEffect::AttackSpeedPct, 50, 60),
         ]
     );
     let styles: Vec<&str> = view.trees.iter().map(|t| t.style.as_str()).collect();
