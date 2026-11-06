@@ -319,7 +319,7 @@ mod tests {
         assert_eq!(MAX_SLOT_LEVEL, 10);
         assert_eq!(MAX_EQUIP_CATEGORIES, 8);
         assert_eq!(MAX_CATEGORY_SLOTS, 16);
-        assert_eq!(MAX_SET_STATS, crate::expertise::MAX_SET_STATS);
+        assert_eq!(MAX_SET_STATS, 8);
         assert_eq!(MAX_STARS_ON_MAP, crate::validate::limits::MAX_STARS_ON_MAP);
         assert_eq!(MAX_WAVES, crate::time_limit::MAX_WAVES);
         assert_eq!(

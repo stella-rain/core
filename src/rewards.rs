@@ -401,8 +401,8 @@ pub struct Reward {
     /// reward that cannot be equipped (a Growth star, the random rune).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<ContentId>,
-    /// Retired: still loadable and playable, but equipment mode's default pool, drops and crafts
-    /// leave it out (ADR-CONT-2 points 3, 8, 9).
+    /// Retired: still loadable and playable (a setup's pool may name it), but equipment mode's
+    /// default pool leaves it out (ADR-CONT-2 points 3, 8, 9).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub deprecated: bool,
     /// Offered in equipment mode only: an offers run's default pool leaves it out and its setup
