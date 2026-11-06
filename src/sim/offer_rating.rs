@@ -291,7 +291,10 @@ pub(crate) fn offer_ratings(
 
 /// The members of each set that are equipped, in the file's set order.
 fn members_equipped(rewards: &Rewards, equipment: &Equipment) -> Vec<u8> {
-    let places: Vec<u16> = slots::equipped(equipment).collect();
+    let places: Vec<u16> = slots::equipped_levels(equipment)
+        .iter()
+        .map(|s| s.0)
+        .collect();
     rewards
         .constellations()
         .sets()
@@ -773,7 +776,7 @@ mod tests {
             fn equip(&mut self, at: usize, id: &str, level: u8) {
                 let place = self.place(id);
                 let (player, career) = self.s.players.both_mut(ME);
-                let before: Vec<u16> = slots::equipped(&career.equipment).collect();
+                let before = slots::equipped_levels(&career.equipment);
                 career.equipment.slots[at].held = Some(Held::Star(place));
                 career.equipment.slots[at].level = level;
                 slots::refresh(&self.world, &self.rewards, player, career, &before);
@@ -872,7 +875,91 @@ mod tests {
             let x = &r[0];
             assert!(x.replaces && x.switch);
             assert_eq!((x.level_before, x.level_after), (4, 4));
-            assert_eq!(x.dps_bp, Some(833));
+            // Lv4 scales both stars by `level_scaled`: 21 -> 32, so 132 / 121.
+            assert_eq!(x.dps_bp, Some(909));
+
+            // At Lv1 the amounts are the base: 120 -> 130.
+            let mut f = fixture();
+            f.equip(0, "atk20", 1);
+            let i = f.hold("atk30");
+            assert_eq!(f.rate_item(i)[0].dps_bp, Some(833));
+        }
+
+        /// T15: a replace keeps half the level (at least 1), a switch the whole level, and the
+        /// rating reads what `slots::replace` leaves.
+        #[test]
+        fn replace_halves_and_switch_keeps_the_level() {
+            for (level, halved) in [(10, 5), (3, 1), (1, 1)] {
+                let mut f = fixture();
+                f.equip(0, "atk20", level);
+                let other = f.hold("crit10");
+                let same = f.hold("atk30");
+                let r = f.rate_item(other);
+                let x = at(&r, 0);
+                assert_eq!(
+                    (x.level_before, x.level_after),
+                    (level, halved),
+                    "Lv{level}"
+                );
+                assert!(!x.switch);
+                let r = f.rate_item(same);
+                let x = at(&r, 0);
+                assert_eq!((x.level_before, x.level_after), (level, level), "Lv{level}");
+                assert!(x.switch);
+                // The rule itself, on a second clone.
+                let (mut player, mut career) =
+                    (f.s.players[ME].clone(), f.s.players.career(ME).clone());
+                slots::replace(&f.world, &f.rewards, &mut player, &mut career, other, 0).unwrap();
+                assert_eq!(career.equipment.slots[0].level, halved);
+            }
+        }
+
+        /// T16: the same swap at two levels differs by what `level_scaled` gives.
+        #[test]
+        fn the_per_level_change_comes_from_the_rules() {
+            let bp = |level: u8| {
+                let (before, after) = (
+                    100 + slots::level_scaled(20, level),
+                    100 + slots::level_scaled(30, level),
+                );
+                i32::try_from(
+                    (10_000 * u64::from(after) * 2 + u64::from(before)) / (2 * u64::from(before)),
+                )
+                .unwrap()
+                    - 10_000
+            };
+            let rated = |level: u8| {
+                let mut f = fixture();
+                f.equip(0, "atk20", level);
+                let i = f.hold("atk30");
+                f.rate_item(i)[0].dps_bp
+            };
+            assert_eq!(rated(3), Some(bp(3)));
+            assert_eq!(rated(10), Some(bp(10)));
+            assert_ne!(rated(3), rated(10));
+        }
+
+        /// T17: at a level, the stat changes are the diff of really making the action.
+        #[test]
+        fn the_changes_equal_the_stat_diff_of_the_action() {
+            let mut f = fixture();
+            f.equip(0, "atk20", 7);
+            let i = f.hold("crit10");
+            let r = f.rate_item(i);
+            let career = f.s.players.career(ME);
+            let held = &f.s.players[ME];
+            let before = sheet(
+                &f.s,
+                &career.progress,
+                held,
+                career.regen,
+                career.offers.as_ref(),
+            );
+            let (mut player, mut c) = (held.clone(), career.clone());
+            slots::replace(&f.world, &f.rewards, &mut player, &mut c, i, 0).unwrap();
+            let after = sheet(&f.s, &c.progress, &player, c.regen, c.offers.as_ref());
+            assert_eq!(at(&r, 0).changes, diff_sheets(&before, &after));
+            assert_eq!(at(&r, 0).level_after, 3);
         }
 
         /// T4: a slot the check refuses is absent, and so is every item that cannot be rated.
