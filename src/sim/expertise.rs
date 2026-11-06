@@ -53,7 +53,7 @@ use crate::rng::SplitMix64;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, Progress, State};
 use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
+    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, TreeReadyView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
@@ -542,6 +542,54 @@ pub(super) fn tree_pick(
         g.style = Some(place);
     } else {
         g.path.push(place);
+    }
+    Ok(())
+}
+
+/// What the frontend shows of `me`'s waiting tree point: none in the offers build or while no
+/// point is held.
+pub(crate) fn tree_ready_view(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+) -> Option<TreeReadyView> {
+    let g = s.players.career(me).expertise.as_ref()?;
+    let next = tree_next(stage, expertise, g)?;
+    Some(TreeReadyView {
+        kind: next.kind,
+        level: next.level,
+        held: next.held,
+        options: next.choices.iter().map(|c| c.id.clone()).collect(),
+    })
+}
+
+/// Whether a loaded gauge could have been reached: the tree taken is within the points the level
+/// earned, the style is one of the weapon's and each place of the path is one of its level's
+/// choices. A message for the first it fails; the check does not change the layout.
+pub(crate) fn check_tree(
+    stage: &World,
+    expertise: &Expertise,
+    g: &ExpertiseGauge,
+) -> Result<(), &'static str> {
+    let table = stage.level_table();
+    let taken = tree_taken(g);
+    let past = "expertise tree taken past the level";
+    if taken > tree_earned(&table, g.level) || (g.style.is_none() && !g.path.is_empty()) {
+        return Err(past);
+    }
+    let out = "expertise tree place out of range";
+    let Some(w) = content(stage, expertise) else {
+        return if taken == 0 { Ok(()) } else { Err(past) };
+    };
+    if g.style.is_some_and(|i| usize::from(i) >= w.styles.len()) {
+        return Err(out);
+    }
+    let levels = [table.upgrades[0], table.upgrades[1], table.capstone];
+    for (level, place) in levels.into_iter().zip(&g.path) {
+        if usize::from(*place) >= fixed(stage, expertise, g, level).len() {
+            return Err(out);
+        }
     }
     Ok(())
 }

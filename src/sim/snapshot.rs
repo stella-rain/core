@@ -26,7 +26,7 @@ use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, S
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
     combo_view, constellation_views, expertise_offer_view, expertise_styles_view, hold_view,
-    offer_view, phase, starlight, stat_offer_view, xp_next,
+    offer_view, phase, starlight, stat_offer_view, tree_ready_view, xp_next,
 };
 
 /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
@@ -310,6 +310,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             .collect(),
         starlight: s.players.career(me).equipment.starlight,
         pool_held: pool_held(world, content, s, me),
+        tree_ready: tree_ready_view(world, content.expertise(), s, me),
         slots: {
             let equipment = &s.players.career(me).equipment;
             equipment

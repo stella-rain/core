@@ -634,6 +634,8 @@ macro_rules! state_codec_v2 {
                     }
                 }
                 if let Some(g) = &s.players.career(me).expertise {
+                    crate::sim::check_tree(world, content.expertise(), g)
+                        .map_err(DecodeError::Invalid)?;
                     if let Some(o) = &g.offer {
                         if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
                             for c in &o.candidates {

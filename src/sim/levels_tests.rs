@@ -14,14 +14,6 @@ use crate::run_stats::StatEffect;
 use crate::snapshot::ExpertiseOfferKind;
 use crate::stage::LevelTable;
 
-fn setup(mode: &str) -> RunSetup {
-    RunSetup {
-        mode: mode.into(),
-        build_mode: BuildMode::Equipment,
-        ..RunSetup::default()
-    }
-}
-
 fn state_of(e: &Engine) -> &State {
     match e.run() {
         Run::V2 { state, .. } => state,
