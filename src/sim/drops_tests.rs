@@ -734,6 +734,9 @@ mod pickup_stat {
 
     const RADIUS: i32 = 12_288;
 
+    /// Whether a pickup at the given distance to the right is taken.
+    type Taken = fn(&World, &State, i32) -> bool;
+
     fn set_total(s: &mut State, effect: StatEffect, v: u32) {
         s.players
             .career_mut(slot(0))
@@ -821,7 +824,7 @@ mod pickup_stat {
         let near = RADIUS * 3 / 2;
         let (hw, mut hs) = heal_fixture();
         let (sw, mut ss) = party(1);
-        let cases: [(&str, fn(&World, &State, i32) -> bool); 3] = [
+        let cases: [(&str, Taken); 3] = [
             ("heal", heal_taken),
             ("offers star", |w, s, dx| star_taken(w, s, dx, false)),
             ("equipment star", |w, s, dx| star_taken(w, s, dx, true)),
