@@ -127,8 +127,8 @@ mod grants {
     const REROLL: u16 = 9;
     const BUNDLE: u16 = 10;
 
-    fn star(id: &str, effects: Vec<Value>) -> Value {
-        json!({ "id": id, "rarity": "common", "limit": 3, "effects": effects })
+    pub(super) fn star(id: &str, rarity: &str, effects: Vec<Value>) -> Value {
+        json!({ "id": id, "rarity": rarity, "limit": 3, "effects": effects })
     }
 
     fn orbit(orbs: u32, cooldown: u32) -> Value {
@@ -142,8 +142,8 @@ mod grants {
         json!({ "effect": "stage_skill", "skill": skill, "amount": levels })
     }
 
-    fn rewards() -> Rewards {
-        let rarities: Vec<Value> = [
+    pub(super) fn rarities() -> Vec<Value> {
+        [
             "common",
             "uncommon",
             "rare",
@@ -154,28 +154,40 @@ mod grants {
         .iter()
         .enumerate()
         .map(|(i, r)| json!({ "rarity": r, "lumine_cost": i + 1 }))
-        .collect();
+        .collect()
+    }
+
+    fn rewards() -> Rewards {
+        let rarities = rarities();
         let list = vec![
-            star("hp", vec![json!({ "effect": "max_hp", "amount": 100 })]),
-            star("nova", vec![skill("nova", 1)]),
-            star("war_cry", vec![skill("war_cry", 1)]),
-            star("nova2", vec![skill("nova", 2)]),
-            star("orbit_a", vec![orbit(2, 120)]),
-            star("orbit_b", vec![orbit(3, 90)]),
+            star(
+                "hp",
+                "common",
+                vec![json!({ "effect": "max_hp", "amount": 100 })],
+            ),
+            star("nova", "common", vec![skill("nova", 1)]),
+            star("war_cry", "common", vec![skill("war_cry", 1)]),
+            star("nova2", "common", vec![skill("nova", 2)]),
+            star("orbit_a", "common", vec![orbit(2, 120)]),
+            star("orbit_b", "common", vec![orbit(3, 90)]),
             star(
                 "evade_a",
+                "common",
                 vec![json!({ "effect": "evade_charge", "amount": 1 })],
             ),
             star(
                 "evade_b",
+                "common",
                 vec![json!({ "effect": "evade_charge", "amount": 1 })],
             ),
             star(
                 "evade_c",
+                "common",
                 vec![json!({ "effect": "evade_charge", "amount": 1 })],
             ),
             star(
                 "reroll",
+                "common",
                 vec![
                     json!({ "effect": "rerolls", "amount": 2 }),
                     json!({ "effect": "banishes", "amount": 1 }),
@@ -183,6 +195,7 @@ mod grants {
             ),
             star(
                 "bundle",
+                "common",
                 vec![
                     json!({ "effect": "random_rune" }),
                     json!({ "effect": "attack_pct", "amount": 3 }),
@@ -193,19 +206,24 @@ mod grants {
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("validates")
     }
 
-    struct Fixture {
-        stage: World,
-        rewards: Rewards,
-        s: State,
+    pub(super) struct Fixture {
+        pub stage: World,
+        pub rewards: Rewards,
+        pub s: State,
     }
 
     fn fixture() -> Fixture {
+        with(rewards())
+    }
+
+    /// A solo state over `rewards`, with the slot layout and room for every star in the pool.
+    pub(super) fn with(rewards: Rewards) -> Fixture {
         let mut stage = RunContent::bundled().trial().clone();
         stage.player.evade.charges = 1;
         stage.player.evade.max_charges = Some(3);
         let stage = World::for_test(stage);
         let pool = RunPool {
-            rewards: (0..11).collect(),
+            rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
             extra_rerolls: 0,
             difficulty: RunDifficulty {
                 hp_pct: 100,
@@ -221,23 +239,19 @@ mod grants {
             crate::kinds::KindTable::of_stage(&stage).unwrap(),
         );
         s.players.career_mut(PlayerIdx::SOLO).equipment.slots = slots::fresh_slots();
-        Fixture {
-            stage,
-            rewards: rewards(),
-            s,
-        }
+        Fixture { stage, rewards, s }
     }
 
     impl Fixture {
         /// Puts `place` (or nothing) into slot `at` and writes the change.
-        fn set(&mut self, at: usize, place: Option<u16>) {
+        pub(super) fn set(&mut self, at: usize, place: Option<u16>) {
             self.change(|e| {
                 e.slots[at].held = place.map(Held::Star);
                 e.slots[at].level = u8::from(place.is_some());
             });
         }
 
-        fn change(&mut self, f: impl FnOnce(&mut Equipment)) {
+        pub(super) fn change(&mut self, f: impl FnOnce(&mut Equipment)) {
             let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
             let before: Vec<u16> = slots::equipped(&career.equipment).collect();
             f(&mut career.equipment);
@@ -407,5 +421,422 @@ mod grants {
         let career = f.s.players.career(PlayerIdx::SOLO);
         assert_eq!(career.offer.state(), offer, "no draw");
         assert_eq!(f.s.players[PlayerIdx::SOLO].runes, runes, "no rune");
+    }
+}
+
+// --- equip, replace, switch and the rune slots (ADR-SIM-7) -------------------------------------
+
+mod rules {
+    use super::super::build::Build;
+    use super::super::equipment::Held;
+    use super::super::slots::{self, SlotError};
+    use super::super::state::{HeldRune, PlayerIdx};
+    use super::grants::{Fixture, rarities, star, with};
+    use crate::constellations::Constellations;
+    use crate::rewards::Rewards;
+    use crate::run_stats::StatEffect;
+    use crate::rune::Rune;
+    use crate::version::Versions;
+    use serde_json::{Value, json};
+
+    const HP_C: u16 = 0;
+    const HP_R: u16 = 1;
+    const ATK: u16 = 2;
+    const ATK_HP: u16 = 3;
+    const SPEED: u16 = 4;
+    const XP: u16 = 5;
+    const RUNE: u16 = 6;
+    const CRIT: u16 = 7;
+    const REGEN: u16 = 8;
+
+    // The slot indices of the layout.
+    const ATTACK0: u32 = 0;
+    const ATTACK1: u32 = 1;
+    const DEFENCE0: u32 = 5;
+    const DEFENCE1: u32 = 6;
+    const MOBILITY0: u32 = 7;
+    const RUNE0: u32 = 9;
+    const RUNE1: u32 = 10;
+    const RUNE2: u32 = 11;
+    const LUMINE: u32 = 12;
+
+    fn fx(effect: &str, amount: u32) -> Value {
+        json!({ "effect": effect, "amount": amount })
+    }
+
+    /// A named star (epic, taken once), as a set member must be.
+    fn named(id: &str, name: &str, effect: Value) -> Value {
+        json!({ "id": id, "rarity": "epic", "named": true, "star": name, "limit": 1,
+            "effects": [effect] })
+    }
+
+    /// The file: two max hp stars (one option, two grades), attack, a star of two effects, speed,
+    /// xp (Growth), the lone random rune, crit and regen, with the set `duo` of speed and crit
+    /// whose tier 1 (both members) gives 7 attack.
+    fn rewards() -> Rewards {
+        let list = vec![
+            star("hp_c", "common", vec![fx("max_hp", 100)]),
+            star("hp_r", "rare", vec![fx("max_hp", 250)]),
+            star("atk", "common", vec![fx("attack_pct", 5)]),
+            star(
+                "atk_hp",
+                "rare",
+                vec![fx("attack_pct", 4), fx("max_hp", 50)],
+            ),
+            named("speed", "Swift", fx("speed_pct", 10)),
+            star("xp", "common", vec![fx("xp_pct", 10)]),
+            json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
+            named("crit", "Keen", fx("crit_chance_pct", 5)),
+            star("regen", "common", vec![fx("regen", 2)]),
+        ];
+        let file = json!({ "rarities": rarities(), "rewards": list });
+        let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+            .expect("the file validates");
+        let sets = json!({ "constellations": [{
+            "id": "duo", "name": "The duo", "members": ["speed", "crit"],
+            "tiers": [{ "threshold": 2, "effects": [fx("attack_pct", 7)] }] }] });
+        let sets =
+            Constellations::parse_with(sets.to_string().as_bytes(), Versions::CURRENT, &rewards)
+                .expect("the duo validates");
+        rewards.with_constellations(sets)
+    }
+
+    fn fixture() -> Fixture {
+        with(rewards())
+    }
+
+    impl Fixture {
+        fn put(&mut self, items: &[Held]) {
+            self.s
+                .players
+                .career_mut(PlayerIdx::SOLO)
+                .equipment
+                .inventory
+                .extend_from_slice(items);
+        }
+
+        fn eq(&self) -> &super::super::equipment::Equipment {
+            &self.s.players.career(PlayerIdx::SOLO).equipment
+        }
+
+        fn equip(&mut self, item: u32, slot: u32) -> Result<(), SlotError> {
+            let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
+            slots::equip(&self.stage, &self.rewards, player, career, item, slot)
+        }
+
+        fn replace(&mut self, item: u32, slot: u32) -> Result<(), SlotError> {
+            let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
+            slots::replace(&self.stage, &self.rewards, player, career, item, slot)
+        }
+
+        fn total(&self, stat: StatEffect) -> u32 {
+            self.s
+                .players
+                .career(PlayerIdx::SOLO)
+                .progress
+                .as_ref()
+                .unwrap()
+                .totals[stat as usize]
+        }
+
+        fn set_counts(&self) -> Vec<u8> {
+            self.s
+                .players
+                .career(PlayerIdx::SOLO)
+                .offers
+                .as_ref()
+                .unwrap()
+                .set_counts[..1]
+                .to_vec()
+        }
+
+        /// Gives slot `at` the Lumine star `place`.
+        fn lumine(&mut self, place: u16) {
+            self.change(|e| {
+                e.lumine = Some(super::super::equipment::EquipSlot {
+                    kind: super::super::equipment::SlotKind::Lumine,
+                    held: Some(Held::Star(place)),
+                    level: 1,
+                    expertise: 0,
+                });
+            });
+        }
+    }
+
+    fn star_at(f: &Fixture, slot: usize) -> Option<Held> {
+        f.eq().slots[slot].held
+    }
+
+    /// T11: an equip moves the star from the inventory into the slot and the build follows.
+    #[test]
+    fn equip_puts_an_inventory_star_into_an_empty_slot() {
+        let mut f = fixture();
+        f.put(&[Held::Star(ATK), Held::Star(HP_C)]);
+        let atk = f.total(StatEffect::AttackPct);
+        assert_eq!(f.equip(0, ATTACK0), Ok(()));
+        assert_eq!(f.eq().inventory, [Held::Star(HP_C)]);
+        assert_eq!(star_at(&f, 0), Some(Held::Star(ATK)));
+        assert_eq!((f.eq().slots[0].level, f.eq().slots[0].expertise), (1, 0));
+        assert_eq!(f.total(StatEffect::AttackPct), atk + 5);
+        // The build is the build of the equipped counts.
+        let counts = slots::equipped_counts(&f.rewards, f.eq());
+        let build = Build::of(&f.stage, &f.rewards, &counts);
+        assert_eq!(build.stats[StatEffect::AttackPct as usize], 5);
+        assert_eq!(f.set_counts(), [0]);
+    }
+
+    /// T12: a replace puts the displaced star at the item's place; level and expertise stay.
+    #[test]
+    fn replace_returns_the_displaced_star_to_the_item_s_place() {
+        let mut f = fixture();
+        f.set(0, Some(ATK));
+        f.change(|e| {
+            e.slots[0].level = 3;
+            e.slots[0].expertise = 17;
+        });
+        f.put(&[Held::Star(SPEED), Held::Star(CRIT), Held::Star(HP_C)]);
+        let atk = f.total(StatEffect::AttackPct);
+        assert_eq!(f.replace(1, ATTACK0), Ok(()));
+        assert_eq!(
+            f.eq().inventory,
+            [Held::Star(SPEED), Held::Star(ATK), Held::Star(HP_C)]
+        );
+        assert_eq!(star_at(&f, 0), Some(Held::Star(CRIT)));
+        assert_eq!((f.eq().slots[0].level, f.eq().slots[0].expertise), (3, 17));
+        assert_eq!(f.total(StatEffect::AttackPct), atk - 5);
+    }
+
+    /// T13: a same-option star of another grade switches in its slot.
+    #[test]
+    fn a_same_option_star_of_another_grade_switches_in_its_slot() {
+        let mut f = fixture();
+        f.set(5, Some(HP_C));
+        f.put(&[Held::Star(HP_R), Held::Star(REGEN)]);
+        assert!(slots::is_switch(&f.rewards, f.eq(), 0, DEFENCE0));
+        assert!(!slots::is_switch(&f.rewards, f.eq(), 1, DEFENCE0));
+        assert_eq!(f.replace(0, DEFENCE0), Ok(()));
+        assert_eq!(star_at(&f, 5), Some(Held::Star(HP_R)));
+        assert_eq!(f.eq().slots[5].level, 1);
+        assert_eq!(f.eq().inventory[0], Held::Star(HP_C));
+    }
+
+    /// T14: a star sharing an option with one equipped in another slot is refused.
+    #[test]
+    fn a_same_option_star_in_another_slot_is_refused() {
+        let mut f = fixture();
+        f.set(5, Some(HP_C));
+        f.put(&[Held::Star(HP_R), Held::Star(ATK), Held::Star(ATK_HP)]);
+        assert_eq!(
+            f.equip(0, DEFENCE1),
+            Err(SlotError::OptionHeld { slot: DEFENCE0 })
+        );
+        // The kind of slot is checked before the option.
+        assert_eq!(
+            f.equip(0, ATTACK0),
+            Err(SlotError::WrongSlot { slot: ATTACK0 })
+        );
+        // A star of two effects sharing one entry is refused too.
+        assert_eq!(f.equip(1, ATTACK0), Ok(()));
+        assert_eq!(f.eq().inventory.len(), 2);
+        assert_eq!(
+            f.equip(1, ATTACK1),
+            Err(SlotError::OptionHeld { slot: ATTACK0 })
+        );
+        // And so is a star sharing with the Lumine star.
+        let mut f = fixture();
+        f.lumine(HP_C);
+        f.put(&[Held::Star(HP_R)]);
+        assert_eq!(
+            f.equip(0, DEFENCE0),
+            Err(SlotError::OptionHeld { slot: LUMINE })
+        );
+        // Replacing the Lumine star by a same-option star is a switch.
+        assert!(slots::is_switch(&f.rewards, f.eq(), 0, LUMINE));
+        assert_eq!(f.replace(0, LUMINE), Ok(()));
+        assert_eq!(f.eq().lumine.as_ref().unwrap().held, Some(Held::Star(HP_R)));
+    }
+
+    /// T15: the sets count the stars equipped, the Lumine star included, never the inventory.
+    #[test]
+    fn sets_count_equipped_stars_only() {
+        let mut f = fixture();
+        f.put(&[Held::Star(SPEED), Held::Star(CRIT), Held::Star(ATK)]);
+        assert_eq!(f.set_counts(), [0]);
+        let atk = f.total(StatEffect::AttackPct);
+        assert_eq!(f.equip(0, MOBILITY0), Ok(()));
+        assert_eq!(f.set_counts(), [1]);
+        assert_eq!(
+            f.total(StatEffect::AttackPct),
+            atk,
+            "no tier with one member"
+        );
+        assert_eq!(f.equip(0, ATTACK0), Ok(()));
+        assert_eq!(f.set_counts(), [2]);
+        assert_eq!(f.total(StatEffect::AttackPct), atk + 7, "the tier arrives");
+        // Replacing a member out: the tier falls at once.
+        assert_eq!(f.replace(0, ATTACK0), Ok(()));
+        assert_eq!(f.set_counts(), [1]);
+        assert_eq!(
+            f.total(StatEffect::AttackPct),
+            atk + 5,
+            "only the atk star is left"
+        );
+
+        // The Lumine member counts as one equipped.
+        let mut f = fixture();
+        let base = f.total(StatEffect::AttackPct);
+        f.lumine(SPEED);
+        assert_eq!(f.set_counts(), [1]);
+        f.put(&[Held::Star(CRIT)]);
+        assert_eq!(f.equip(0, ATTACK0), Ok(()));
+        assert_eq!(f.set_counts(), [2]);
+        assert_eq!(f.total(StatEffect::AttackPct), base + 7);
+    }
+
+    /// T16: a star goes only to its category; the Lumine slot takes any star and no rune.
+    #[test]
+    fn a_star_goes_only_to_its_category() {
+        let mut f = fixture();
+        f.lumine(HP_C);
+        f.put(&[
+            Held::Star(ATK),
+            Held::Star(XP),
+            Held::Star(RUNE),
+            Held::Rune(Rune::Bleed),
+        ]);
+        assert_eq!(
+            f.equip(0, DEFENCE0),
+            Err(SlotError::WrongSlot { slot: DEFENCE0 })
+        );
+        assert_eq!(
+            f.equip(1, ATTACK0),
+            Err(SlotError::WrongSlot { slot: ATTACK0 })
+        );
+        assert_eq!(
+            f.equip(1, MOBILITY0),
+            Err(SlotError::WrongSlot { slot: MOBILITY0 })
+        );
+        assert_eq!(f.equip(0, RUNE0), Err(SlotError::WrongSlot { slot: RUNE0 }));
+        assert_eq!(
+            f.equip(3, ATTACK0),
+            Err(SlotError::WrongSlot { slot: ATTACK0 })
+        );
+        for slot in [ATTACK0, DEFENCE0] {
+            assert_eq!(f.equip(2, slot), Err(SlotError::NotEquippable { item: 2 }));
+        }
+        assert_eq!(
+            f.replace(2, LUMINE),
+            Err(SlotError::NotEquippable { item: 2 })
+        );
+        assert_eq!(
+            f.replace(3, LUMINE),
+            Err(SlotError::WrongSlot { slot: LUMINE })
+        );
+        // A Growth star fits the Lumine slot, which has no category.
+        assert_eq!(f.replace(1, LUMINE), Ok(()));
+        assert_eq!(f.eq().lumine.as_ref().unwrap().held, Some(Held::Star(XP)));
+        assert_eq!(f.eq().inventory[1], Held::Star(HP_C));
+    }
+
+    /// The starting rune in rune slot 0, as `loadout::apply` leaves it, with a cooldown running.
+    fn thunder(f: &mut Fixture) {
+        f.change(|e| {
+            e.slots[9].held = Some(Held::Rune(Rune::Thunder));
+            e.slots[9].level = 1;
+        });
+        f.s.players[PlayerIdx::SOLO].runes = vec![HeldRune {
+            rune: Rune::Thunder,
+            cooldown_left: 40,
+        }];
+    }
+
+    fn runes(f: &Fixture) -> Vec<(Rune, u32)> {
+        f.s.players[PlayerIdx::SOLO]
+            .runes
+            .iter()
+            .map(|h| (h.rune, h.cooldown_left))
+            .collect()
+    }
+
+    /// T17: runes go into the three rune slots and `runes` follows the slot order.
+    #[test]
+    fn runes_equip_into_the_three_rune_slots() {
+        let mut f = fixture();
+        thunder(&mut f);
+        f.put(&[
+            Held::Rune(Rune::Bleed),
+            Held::Rune(Rune::Burn),
+            Held::Rune(Rune::Poison),
+            Held::Star(ATK),
+        ]);
+        assert_eq!(f.equip(0, RUNE2), Ok(()));
+        assert_eq!(runes(&f), [(Rune::Thunder, 40), (Rune::Bleed, 0)]);
+        // Slot 1 sits between the two: the list keeps the slot order.
+        assert_eq!(f.equip(0, RUNE1), Ok(()));
+        assert_eq!(
+            runes(&f),
+            [(Rune::Thunder, 40), (Rune::Burn, 0), (Rune::Bleed, 0)]
+        );
+        // There is no fourth rune slot.
+        assert_eq!(
+            f.equip(0, RUNE0),
+            Err(SlotError::SlotFilled { slot: RUNE0 })
+        );
+        assert_eq!(f.equip(0, 12), Err(SlotError::NoSlot { slot: 12 }));
+        assert_eq!(f.equip(0, 13), Err(SlotError::NoSlot { slot: 13 }));
+        // A rune in a star slot, a star in a rune slot.
+        assert_eq!(
+            f.equip(0, ATTACK0),
+            Err(SlotError::WrongSlot { slot: ATTACK0 })
+        );
+        assert_eq!(
+            f.equip(1, RUNE0),
+            Err(SlotError::SlotFilled { slot: RUNE0 })
+        );
+        assert_eq!(
+            f.replace(1, RUNE0),
+            Err(SlotError::WrongSlot { slot: RUNE0 })
+        );
+    }
+
+    /// T18: a rune replace swaps in place; the same rune in two slots is refused.
+    #[test]
+    fn a_rune_replace_swaps_in_place() {
+        let mut f = fixture();
+        thunder(&mut f);
+        f.put(&[Held::Rune(Rune::Bleed)]);
+        assert_eq!(f.replace(0, RUNE0), Ok(()));
+        assert_eq!(
+            runes(&f),
+            [(Rune::Bleed, 0)],
+            "the old rune's cooldown is lost"
+        );
+        assert_eq!(f.eq().inventory, [Held::Rune(Rune::Thunder)]);
+        f.put(&[Held::Rune(Rune::Bleed)]);
+        assert_eq!(f.equip(1, RUNE1), Err(SlotError::RuneHeld { slot: RUNE0 }));
+        assert_eq!(f.eq().inventory.len(), 2, "a refusal changes nothing");
+    }
+
+    /// T19: equipping and replacing draw nothing.
+    #[test]
+    fn equipping_draws_nothing_and_moves_no_stream() {
+        let mut f = fixture();
+        thunder(&mut f);
+        f.put(&[
+            Held::Star(ATK),
+            Held::Star(HP_C),
+            Held::Rune(Rune::Burn),
+            Held::Star(CRIT),
+        ]);
+        let (rng, offer) = (
+            f.s.rng.clone(),
+            f.s.players.career(PlayerIdx::SOLO).offer.state(),
+        );
+        assert_eq!(f.equip(0, ATTACK0), Ok(()));
+        assert_eq!(f.equip(0, DEFENCE0), Ok(()));
+        assert_eq!(f.equip(0, RUNE1), Ok(()));
+        assert_eq!(f.replace(0, ATTACK0), Ok(()));
+        assert_eq!(f.s.rng, rng);
+        assert_eq!(f.s.players.career(PlayerIdx::SOLO).offer.state(), offer);
     }
 }

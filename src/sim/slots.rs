@@ -181,3 +181,70 @@ pub(super) fn refresh(
         }
     }
 }
+
+/// Why an equip or a replace is refused (ADR-SIM-7), in the order the checks run: the item, the
+/// slot, what fits it, then the option and the rune.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SlotError {
+    /// `item` is not a place of the inventory.
+    NoItem { item: u32 },
+    /// `slot` addresses no slot: `0..slots.len()`, and `slots.len()` for the Lumine slot.
+    NoSlot { slot: u32 },
+    /// Equip into an occupied slot.
+    SlotFilled { slot: u32 },
+    /// Replace into an empty slot.
+    SlotEmpty { slot: u32 },
+    /// A rune in a star slot, a star in a rune slot, or a star in a slot of another category.
+    WrongSlot { slot: u32 },
+    /// The item is the lone random rune.
+    NotEquippable { item: u32 },
+    /// Another slot (the Lumine slot included) holds a star sharing an option with the item.
+    OptionHeld { slot: u32 },
+    /// That rune is in another rune slot.
+    RuneHeld { slot: u32 },
+}
+
+/// Whether `item` could go into `slot` as an equip (`replace` false) or a replace. Pure.
+pub(super) fn check(
+    _rewards: &Rewards,
+    _equipment: &Equipment,
+    _item: u32,
+    _slot: u32,
+    _replace: bool,
+) -> Result<(), SlotError> {
+    unimplemented!("the rules")
+}
+
+/// Whether replacing the star in `slot` by the star `item` is a switch: both share an option.
+pub(super) fn is_switch(
+    _rewards: &Rewards,
+    _equipment: &Equipment,
+    _item: u32,
+    _slot: u32,
+) -> bool {
+    unimplemented!("the rules")
+}
+
+/// Equips the inventory item `item` into the empty slot `slot`, or refuses and changes nothing.
+pub(super) fn equip(
+    _stage: &World,
+    _rewards: &Rewards,
+    _player: &mut PlayerState,
+    _career: &mut Career,
+    _item: u32,
+    _slot: u32,
+) -> Result<(), SlotError> {
+    unimplemented!("the rules")
+}
+
+/// Replaces the star or rune in the occupied `slot` by the inventory item `item`.
+pub(super) fn replace(
+    _stage: &World,
+    _rewards: &Rewards,
+    _player: &mut PlayerState,
+    _career: &mut Career,
+    _item: u32,
+    _slot: u32,
+) -> Result<(), SlotError> {
+    unimplemented!("the rules")
+}
