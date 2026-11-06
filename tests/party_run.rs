@@ -417,7 +417,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 770),
     ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
     ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
-    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 830),
+    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 1040),
     ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1140),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
@@ -437,7 +437,7 @@ const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
     ("equipment_rig_1", [[12, 1, 47, 3, 1], [0; 5], [0; 5]]),
     (
         "equipment_rig_2",
-        [[12, 0, 26, 1, 1], [10, 0, 29, 3, 1], [0; 5]],
+        [[12, 0, 37, 1, 1], [11, 0, 41, 3, 1], [0; 5]],
     ),
     (
         "equipment_rig_3",
