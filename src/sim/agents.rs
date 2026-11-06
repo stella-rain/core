@@ -593,6 +593,8 @@ fn move_agent<const ONE: bool>(stage: &World, s: &mut State, up: &Up, me: Who, d
                 i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
             let gap = dist - i64::from(distance.0);
             let speed = speed.map_or(FOLLOW_SPEED, |s| i64::from(s.0));
+            // A yielding follower took the arm above.
+            debug_assert!(!yields);
             if gap > 0 {
                 let step = gap.min(speed * keep / 100);
                 a.at.x = a.at.x.saturating_add(Fx::from_wide(dx * step / dist));
