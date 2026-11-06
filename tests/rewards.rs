@@ -64,7 +64,8 @@ fn invalid_at(v: &Value, path: &str) {
 #[test]
 fn the_bundled_rewards_hold_every_effect_at_its_rarities() {
     let rewards = Rewards::bundled().rewards();
-    for effect in StatEffect::ALL {
+    // The released set: the Growth effects added after it are stats, not rewards' effects.
+    for effect in StatEffect::RELEASED {
         let rarities: Vec<Rarity> = rewards
             .iter()
             .filter(|r| !r.named && r.effect().stat() == Some(effect))
@@ -847,4 +848,37 @@ fn a_cost_is_one_to_ten() {
         parse(&with_rarities(extra)),
         Err(Error::Parse { .. })
     ));
+}
+
+/// T2: only the Growth effects of a star and the perk map to the new stats; `stat()` is unchanged.
+#[test]
+fn growth_stat_maps_only_the_growth_effects() {
+    use stella_rain_core::perk_sets::PerkEffect;
+    use stella_rain_core::rewards::RewardEffect;
+    for effect in RewardEffect::ALL {
+        let want = match effect {
+            RewardEffect::Rerolls => Some(StatEffect::Rerolls),
+            RewardEffect::Banishes => Some(StatEffect::Banishes),
+            RewardEffect::OfferCandidates => Some(StatEffect::OfferCandidates),
+            _ => None,
+        };
+        assert_eq!(effect.growth_stat(), want, "{effect:?}");
+        if want.is_some() {
+            assert_eq!(effect.stat(), None, "{effect:?}");
+        }
+        if let Some(stat) = effect.stat() {
+            assert!(StatEffect::RELEASED.contains(&stat), "{effect:?}");
+        }
+    }
+    for effect in PerkEffect::ALL {
+        let want = match effect {
+            PerkEffect::ExtraRerolls => Some(StatEffect::Rerolls),
+            PerkEffect::ExtraBanishes => Some(StatEffect::Banishes),
+            _ => None,
+        };
+        assert_eq!(effect.growth_stat(), want, "{effect:?}");
+        if want.is_some() {
+            assert_eq!(effect.stat(), None, "{effect:?}");
+        }
+    }
 }

@@ -329,3 +329,27 @@ fn equipment_round_trips_and_the_bounds_are_refused() {
         Err(DecodeError::Invalid(_))
     ));
 }
+
+/// T3: a total past the sixth is hashed and survives the savepoint bytes (ADR-SAVE-4).
+#[test]
+fn a_stat_total_past_the_sixth_moves_the_hash_and_round_trips() {
+    use crate::run_stats::StatEffect;
+    let mut s = warm();
+    let career = s.players.career_mut(PlayerIdx::SOLO);
+    let mut progress = career
+        .progress
+        .take()
+        .unwrap_or_else(|| panic!("the worst-case stage has levels"));
+    let before = {
+        career.progress = Some(progress.clone());
+        hash_of(&s)
+    };
+    progress.totals[StatEffect::StardustPct as usize] += 1;
+    s.players.career_mut(PlayerIdx::SOLO).progress = Some(progress.clone());
+    assert_ne!(hash_of(&s), before);
+    let career = s.players.career(PlayerIdx::SOLO).clone();
+    let back = from_bytes::<Option<super::state::Progress>>(&to_bytes(&career.progress))
+        .expect("decodes")
+        .expect("a progress");
+    assert_eq!(back.totals, progress.totals);
+}

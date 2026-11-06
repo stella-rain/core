@@ -367,3 +367,31 @@ fn the_released_set_is_unchanged() {
         assert_eq!(serde_json::to_value(effect).unwrap(), json!(names[i]));
     }
 }
+
+/// T1: the five new effects follow the six, by index and by name.
+#[test]
+fn the_new_effects_follow_the_six() {
+    let new = [
+        (StatEffect::Rerolls, "rerolls"),
+        (StatEffect::Banishes, "banishes"),
+        (StatEffect::OfferCandidates, "offer_candidates"),
+        (StatEffect::PickupRadiusPct, "pickup_radius_pct"),
+        (StatEffect::StardustPct, "stardust_pct"),
+    ];
+    assert_eq!(StatEffect::ALL.len(), 11);
+    assert_eq!(StatEffect::RELEASED, StatEffect::ALL[..6]);
+    for (i, (effect, name)) in new.into_iter().enumerate() {
+        assert_eq!(StatEffect::ALL[6 + i], effect);
+        assert_eq!(effect as usize, 6 + i);
+        assert_eq!(serde_json::to_value(effect).unwrap(), json!(name));
+        let back: StatEffect = serde_json::from_value(json!(name)).unwrap();
+        assert_eq!(back, effect);
+    }
+    assert!(serde_json::from_value::<StatEffect>(json!("stardust")).is_err());
+
+    let mut v = file(vec![stat("dust")]);
+    v["stats"][0]["effect"] = json!("stardust_pct");
+    assert!(parse(&v).is_ok());
+    v["stats"][0]["step"] = json!(0);
+    invalid_at(&v, "$.stats[0].step");
+}

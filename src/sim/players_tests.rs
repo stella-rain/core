@@ -302,6 +302,14 @@ mod careers {
         }
     }
 
+    /// T4: the live state keeps one total per effect, 11; the frozen one keeps the released 6.
+    #[test]
+    fn the_state_layout_has_eleven_totals() {
+        assert_eq!(progress().totals.len(), 11);
+        assert_eq!(StatEffect::ALL.len(), 11);
+        assert_eq!(StatEffect::RELEASED.len(), 6);
+    }
+
     fn party(mask: u8) -> State {
         let e = worst_case::warmed_up();
         let mut s = live(&e).1.clone();
@@ -366,7 +374,7 @@ mod careers {
             spent: _,
             totals: _,
         } = progress();
-        let edits: [(&str, Edit); 8] = [
+        let edits: [(&str, Edit); 9] = [
             ("level", |p| p.level += 1),
             ("xp", |p| p.xp += 1),
             ("priority", |p| p.priority.push(1)),
@@ -375,6 +383,7 @@ mod careers {
             ("offer_open", |p| p.offer_open = !p.offer_open),
             ("spent", |p| p.spent[0] += 1),
             ("totals", |p| p.totals[0] += 1),
+            ("the last total", |p| p.totals[10] += 1),
         ];
         for (name, edit) in edits {
             let mut s = base.clone();
@@ -543,7 +552,7 @@ mod offers {
             set_counts: _,
         } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
         type Edit = fn(&mut Offers);
-        let edits: [(&str, Edit); 8] = [
+        let edits: [(&str, Edit); 9] = [
             ("due", |o| {
                 o.due.push(Due {
                     kind: OfferKind::Boss,

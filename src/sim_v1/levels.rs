@@ -260,3 +260,34 @@ pub(super) fn evade_cooldown(s: &State, ticks: u32) -> u32 {
 pub(super) fn speed(s: &State, cap: i64) -> i64 {
     cap * (100 + i64::from(total(s, StatEffect::SpeedPct))) / 100
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bench_fixtures;
+    use crate::engine::{Engine, Run};
+
+    /// T6: version 1 keeps the six totals it released and ignores an effect it never had.
+    #[test]
+    fn sim_v1_ignores_an_effect_it_never_had() {
+        let case = Engine::forced(1, bench_fixtures::worst_tick);
+        let Run::V1 { state, .. } = case.engine.run() else {
+            panic!("version 1");
+        };
+        let mut state = state.clone();
+        let mut p = state.progress.take().expect("the worst case has levels");
+        let mut player = state.player.clone();
+        assert_eq!(p.totals.len(), 6);
+        let (totals, hp) = (p.totals, player.max_hp);
+        for effect in StatEffect::ALL.into_iter().skip(6) {
+            add_effect(&mut p, &mut player, effect, 7);
+            assert_eq!(p.totals, totals, "{effect:?}");
+            assert_eq!(player.max_hp, hp, "{effect:?}");
+            state.progress = Some(p.clone());
+            assert_eq!(total(&state, effect), 0, "{effect:?}");
+        }
+        add_effect(&mut p, &mut player, StatEffect::MaxHp, 100);
+        assert_eq!(player.max_hp, hp + 100);
+        assert_eq!(p.totals[StatEffect::MaxHp as usize], totals[0] + 100);
+    }
+}
