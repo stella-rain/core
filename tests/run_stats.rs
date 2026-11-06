@@ -349,3 +349,21 @@ fn the_stun_rules_are_bounded_and_the_bundled_ones_are_the_placeholders() {
         "$.stun.elite_pct",
     );
 }
+
+/// The six effects version 1 released keep their order, index and JSON name (ADR-SIM-3, ADR-CONT-1).
+#[test]
+fn the_released_set_is_unchanged() {
+    let names = [
+        "max_hp",
+        "attack_pct",
+        "attack_speed_pct",
+        "evade_pct",
+        "speed_pct",
+        "xp_pct",
+    ];
+    assert_eq!(StatEffect::ALL.len(), 6);
+    for (i, effect) in StatEffect::ALL.iter().enumerate() {
+        assert_eq!(*effect as usize, i);
+        assert_eq!(serde_json::to_value(effect).unwrap(), json!(names[i]));
+    }
+}
