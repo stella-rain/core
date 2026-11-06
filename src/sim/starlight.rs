@@ -15,17 +15,17 @@ use crate::rewards::{Rarity, Rewards};
 
 /// The Starlight an extracted star gives, by `Rarity::index()`. A placeholder: the pack will
 /// carry it (ADR-CONT-3 point 8).
-pub(super) const EXTRACT_VALUE: [u32; 6] = [5, 10, 20, 40, 80, 160];
+pub(crate) const EXTRACT_VALUE: [u32; 6] = [5, 10, 20, 40, 80, 160];
 
 /// The Starlight an extracted rune gives: a rune has no rarity. A placeholder.
-pub(super) const RUNE_EXTRACT: u32 = 10;
+pub(crate) const RUNE_EXTRACT: u32 = 10;
 
 /// The Starlight a craft of a star costs, by `Rarity::index()`: five times its extract value, so
 /// extracting is a loss. A placeholder.
-pub(super) const CRAFT_PRICE: [u32; 6] = [25, 50, 100, 200, 400, 800];
+pub(crate) const CRAFT_PRICE: [u32; 6] = [25, 50, 100, 200, 400, 800];
 
 /// The Starlight each player who is up gets from a boss kill. A placeholder.
-pub(super) const BOSS_BONUS: u32 = 50;
+pub(crate) const BOSS_BONUS: u32 = 50;
 
 /// Why an extract or a craft is refused (ADR-SIM-7).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

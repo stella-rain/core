@@ -367,3 +367,71 @@ mod search {
         }
     }
 }
+
+// --- extract and craft (ADR-SIM-7, ADR-REPL-5) -------------------------------------------------
+
+/// The first craft the engine accepts for slot 0.
+fn craft_first(e: &Engine) -> Option<EquipAction> {
+    (0..256)
+        .map(|star| EquipAction::Craft { star })
+        .find(|a| e.check_action(PlayerIdx::SOLO, *a).is_ok())
+}
+
+/// A recording after 3000 ticks of a seed whose inventory, extracted one item at a time from
+/// the front, pays for a craft, with the actions that do it (the extracts, then the craft).
+fn extract_then_craft() -> (RunRecorder, Vec<EquipAction>) {
+    for seed in 1..=60u64 {
+        let rec = case(seed, 3000).play();
+        if rec.engine().outcome() != Outcome::Running {
+            continue;
+        }
+        let mut probe = rec.clone();
+        let mut actions = Vec::new();
+        loop {
+            if let Some(c) = craft_first(probe.engine()) {
+                actions.push(c);
+                // The run must outlive the actions and the idle ticks the test adds.
+                let lives = probe.step(&acting(c)).is_ok()
+                    && (0..62).all(|_| probe.step(&[Input::default(); 3]).is_ok());
+                if lives {
+                    return (rec, actions);
+                }
+                break;
+            }
+            if inventory(probe.engine()) == 0 {
+                break;
+            }
+            let a = EquipAction::Extract { item: 0 };
+            if probe.step(&acting(a)).is_err() {
+                break;
+            }
+            actions.push(a);
+        }
+    }
+    panic!("no seed of 1..=60 drops items that extract into a craft");
+}
+
+/// T16: the recorder applies and records extracts and a craft as ACTIONS steps, an action the
+/// engine refuses is ignored, and a replay verifies to the recorded hash.
+#[test]
+fn the_recorder_and_the_replay_make_extract_and_craft() {
+    let (mut rec, actions) = extract_then_craft();
+    let before = inventory(rec.engine());
+    let extracts = actions.len() - 1;
+    for a in &actions {
+        rec.step(&acting(*a)).unwrap();
+    }
+    assert_eq!(inventory(rec.engine()), before - extracts + 1);
+    assert_eq!(actions_in(&rec), actions.len());
+    // A refused action is ignored: the tick runs, nothing is recorded.
+    rec.step(&acting(EquipAction::Craft { star: 99_999 }))
+        .unwrap();
+    rec.step(&acting(EquipAction::Extract { item: 99_999 }))
+        .unwrap();
+    assert_eq!(actions_in(&rec), actions.len());
+    for _ in 0..60 {
+        rec.step(&[Input::default(); 3]).unwrap();
+    }
+    let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+}

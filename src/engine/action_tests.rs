@@ -197,13 +197,11 @@ mod equipment_runs {
         );
         assert_eq!(e.check_action(me, equip(0, 5)), Ok(()));
         assert_eq!(e.check_action(me, equip(6, 10)), Ok(()));
-        for action in [
-            EquipAction::Extract { item: 0 },
-            EquipAction::Craft { star: 0 },
-            EquipAction::TreePick { option: 0 },
-        ] {
-            assert_eq!(refused(&e, action), ActionError::NotBuilt, "{action:?}");
-        }
+        // Extract and Craft are built (the tests below); only the tree pick is still refused.
+        assert_eq!(
+            refused(&e, EquipAction::TreePick { option: 0 }),
+            ActionError::NotBuilt
+        );
         assert_eq!(e.state_hash(), hash, "the check changes nothing");
 
         e.act(me, equip(0, 5)).unwrap();
@@ -265,5 +263,170 @@ mod equipment_runs {
         e.action_step(&[Some(equip(0, 5)), Some(equip(99, 5)), None]);
         assert!(equipment_of(&e, 0).slots[5].held.is_some());
         assert!(equipment_of(&e, 1).slots[5].held.is_none());
+    }
+    use crate::sim::starlight::{CRAFT_PRICE, EXTRACT_VALUE};
+
+    fn set_starlight(e: &mut Engine, player: u8, n: u32) {
+        match e.run_mut() {
+            Run::V2 { state, .. } => {
+                state.players.career_mut(slot(player)).equipment.starlight = n;
+            }
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+    }
+
+    fn pool(e: &Engine) -> Vec<u16> {
+        match e.run() {
+            Run::V2 { state, .. } => state.stars.as_ref().expect("stars").pool.clone(),
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+    }
+
+    /// The index in the setup's star pool of the reward `id`.
+    fn pool_index(e: &Engine, id: &str) -> u32 {
+        let at = place(e, id);
+        let i = pool(e).iter().position(|&p| p == at).expect("in the pool");
+        u32::try_from(i).unwrap()
+    }
+
+    fn extract(item: u32) -> EquipAction {
+        EquipAction::Extract { item }
+    }
+
+    fn craft(star: u32) -> EquipAction {
+        EquipAction::Craft { star }
+    }
+
+    /// T13: `check_action` refuses each extract and craft reason, and reads only.
+    #[test]
+    fn check_action_extract_and_craft() {
+        let mut e = started(false, 1);
+        let me = PlayerIdx::SOLO;
+        let hash = e.state_hash();
+        let refused = |e: &Engine, a: EquipAction| e.check_action(me, a).unwrap_err();
+        assert_eq!(refused(&e, extract(7)), ActionError::NoItem { item: 7 });
+        assert_eq!(e.check_action(me, extract(0)), Ok(()));
+        let n = u32::try_from(pool(&e).len()).unwrap();
+        assert_eq!(refused(&e, craft(n)), ActionError::NoStar { star: n });
+        let rune = pool_index(&e, "random_rune");
+        assert_eq!(
+            refused(&e, craft(rune)),
+            ActionError::NotCraftable { star: rune }
+        );
+        let hp = pool_index(&e, "max_hp_common");
+        assert_eq!(
+            refused(&e, craft(hp)),
+            ActionError::NotEnoughStarlight {
+                need: CRAFT_PRICE[0],
+                have: 0
+            }
+        );
+        assert_eq!(
+            e.check_action(slot(2), extract(0)),
+            Err(ActionError::NoPlayer { player: slot(2) })
+        );
+        assert_eq!(e.state_hash(), hash, "the checks change nothing");
+        set_starlight(&mut e, 0, 1000);
+        assert_eq!(e.check_action(me, craft(hp)), Ok(()));
+        match e.run_mut() {
+            Run::V2 { state, .. } => {
+                let inv = &mut state.players.career_mut(me).equipment.inventory;
+                inv.resize(crate::limits::MAX_INVENTORY, Held::Rune(Rune::Thunder));
+            }
+            Run::V1 { .. } => panic!("the live rules"),
+        }
+        assert_eq!(refused(&e, craft(hp)), ActionError::InventoryFull);
+        assert_eq!(e.check_action(me, extract(0)), Ok(()));
+    }
+
+    /// T14: `act` makes an extract and a craft and changes nothing on a refusal.
+    #[test]
+    fn act_makes_extract_and_craft() {
+        let mut e = started(false, 1);
+        let me = PlayerIdx::SOLO;
+        let hash = e.state_hash();
+        assert_eq!(
+            e.act(me, extract(99)),
+            Err(ActionError::NoItem { item: 99 })
+        );
+        assert_eq!(e.state_hash(), hash);
+        assert_eq!(e.act(me, extract(0)), Ok(()));
+        let eq = equipment_of(&e, 0);
+        assert_eq!(eq.inventory.len(), 6);
+        assert_eq!(eq.starlight, EXTRACT_VALUE[0], "max_hp_common is Common");
+        let hp = pool_index(&e, "max_hp_common");
+        set_starlight(&mut e, 0, 1000);
+        assert_eq!(e.act(me, craft(hp)), Ok(()));
+        let eq = equipment_of(&e, 0);
+        assert_eq!(
+            eq.inventory.last(),
+            Some(&Held::Star(place(&e, "max_hp_common")))
+        );
+        assert_eq!(eq.starlight, 1000 - CRAFT_PRICE[0]);
+
+        // A displaced star comes back as an inventory item and extracts.
+        let mut e = started(false, 1);
+        e.act(me, equip(0, 5)).unwrap();
+        e.act(me, replace(0, 5)).unwrap();
+        let eq = equipment_of(&e, 0);
+        let last = u32::try_from(eq.inventory.len() - 1).unwrap();
+        assert_eq!(
+            eq.inventory.last(),
+            Some(&Held::Star(place(&e, "max_hp_common")))
+        );
+        assert_eq!(e.act(me, extract(last)), Ok(()));
+        assert_eq!(equipment_of(&e, 0).starlight, EXTRACT_VALUE[0]);
+
+        // In a party only the acting slot changes.
+        let mut e = started(false, 2);
+        let zero = equipment_of(&e, 0);
+        assert_eq!(e.act(slot(1), extract(0)), Ok(()));
+        assert_eq!(equipment_of(&e, 0), zero);
+        assert_eq!(equipment_of(&e, 1).starlight, EXTRACT_VALUE[0]);
+    }
+
+    /// T15: Starlight ends with the run: a new engine and a joiner start at 0.
+    #[test]
+    fn starlight_ends_with_the_run() {
+        let mut e = started(false, 1);
+        e.act(PlayerIdx::SOLO, extract(0)).unwrap();
+        assert!(equipment_of(&e, 0).starlight > 0);
+        let fresh = Engine::start(&equipment(false)).unwrap();
+        assert_eq!(equipment_of(&fresh, 0).starlight, 0);
+        set_starlight(&mut e, 0, 500);
+        e.join(slot(1)).unwrap();
+        assert_eq!(equipment_of(&e, 1).starlight, 0);
+        assert_eq!(equipment_of(&e, 0).starlight, 500);
+    }
+
+    /// T17: each new refusal reads well in a replay error.
+    #[test]
+    fn the_refusals_read_well() {
+        use crate::run_replay::RunReplayError;
+        let text = |error| RunReplayError::ActionRefused { tick: 12, error }.to_string();
+        assert_eq!(
+            text(ActionError::NoStar { star: 4 }),
+            "an equipment action on tick 12 crafts star 4, which is not in the star pool"
+        );
+        assert_eq!(
+            text(ActionError::NotCraftable { star: 5 }),
+            "an equipment action on tick 12 crafts star 5, which cannot be crafted"
+        );
+        assert_eq!(
+            text(ActionError::AlreadyHeld { star: 6 }),
+            "an equipment action on tick 12 crafts star 6, which the player already holds"
+        );
+        assert_eq!(
+            text(ActionError::NotEnoughStarlight {
+                need: 100,
+                have: 30
+            }),
+            "an equipment action on tick 12 crafts a star for 100 Starlight, \
+             but the player has 30"
+        );
+        assert_eq!(
+            text(ActionError::InventoryFull),
+            "an equipment action on tick 12 crafts a star into a full inventory"
+        );
     }
 }
