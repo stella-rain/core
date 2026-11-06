@@ -23,7 +23,9 @@ use crate::fixed::{Fx, Point};
 use crate::input::Input;
 use crate::rewards::Rewards;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{Dir, PlayerState, PullState, ShieldState, SkillSlot, State, StatusKind};
+use crate::sim::state::{
+    Dir, PlayerState, Progress, PullState, ShieldState, SkillSlot, State, StatusKind,
+};
 use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
 use crate::trig::SCALE;
 
@@ -103,17 +105,23 @@ pub(crate) fn shortened(ticks: u32, pct: u32) -> u32 {
     u32::try_from(left).unwrap_or(u32::MAX).max(1)
 }
 
-/// `ticks` shortened by `me`'s skill-cooldown percent: the reward's plus the stat's, the sum held
-/// to `MAX_SKILL_COOLDOWN_TOTAL_PCT` by `shortened`.
+/// `ticks` shortened by `player`'s skill-cooldown percent: the reward's plus the stat's (`progress`,
+/// none without levels), the sum held to `MAX_SKILL_COOLDOWN_TOTAL_PCT` by `shortened`. The number
+/// a press sets, and the one a skill star entering a slot starts with.
+pub(super) fn cooldown_ticks(ticks: u32, progress: Option<&Progress>, player: &PlayerState) -> u32 {
+    let stat = progress.map_or(0, |p| {
+        super::levels::set_pct(p, crate::run_stats::StatEffect::SkillCooldownPct)
+    });
+    shortened(ticks, player.skill_cooldown_pct.saturating_add(stat))
+}
+
+/// `cooldown_ticks` for `me` in `s`.
 pub(super) fn cooldown_after(s: &State, me: PlayerIdx, ticks: u32) -> u32 {
-    let pct = s.players[me]
-        .skill_cooldown_pct
-        .saturating_add(super::levels::pct(
-            s,
-            me,
-            crate::run_stats::StatEffect::SkillCooldownPct,
-        ));
-    shortened(ticks, pct)
+    cooldown_ticks(
+        ticks,
+        s.players.career(me).progress.as_ref(),
+        &s.players[me],
+    )
 }
 
 /// A press of `skill`: the skill in the slot acts, if it is ready.
