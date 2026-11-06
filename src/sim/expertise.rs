@@ -38,12 +38,9 @@
 //! levels due are passed over at once, so the offers' cost stays bounded too.
 //!
 //! In the equipment build no expertise offer opens and nothing stops the world. A common level
-//! takes one automatic option, no draw: the best option of the chosen tree's `TREE_COMMON` list,
-//! else the option the stat priority ranks first. The levels of the table are tree points, held
-//! until the player takes them by `TreePick`, in path order (style, upgrade, upgrade, capstone).
-//! Levels above the capstone are common and applied as one batch. The tree is read when the
-//! levels are passed (the tick they are reached): a common level reached before the style is
-//! taken uses the priority, one reached after it the tree's list.
+//! only raises the weapon level: it adds no stat, takes no option and emits no event. The
+//! levels of the table are tree points, held until the player takes them by `TreePick`, in
+//! path order (style, upgrade, upgrade, capstone).
 
 use super::World;
 use crate::event::DomainEvent;
@@ -53,7 +50,7 @@ use crate::expertise::{
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, Progress, State};
+use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, TreeReadyView,
 };
@@ -274,153 +271,14 @@ fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
 
 // --- the equipment build: automatic common levels ---------------------------------------------
 
-/// PLACEHOLDER (content row for the pack): the stat a common level gives by the weapon tree
-/// (the chosen style's `id`), best first. A tree takes the first effect of its list that the
-/// weapon's common pool carries; the pack replaces this table with a field of each style
-/// (ADR-CONT-3 point 8).
-pub(super) const TREE_COMMON: [(&str, &[ExpertiseEffect]); 6] = [
-    (
-        "crush",
-        &[
-            ExpertiseEffect::AttackPct,
-            ExpertiseEffect::MaxHp,
-            ExpertiseEffect::AttackSpeedPct,
-        ],
-    ),
-    (
-        "quake",
-        &[
-            ExpertiseEffect::RangePct,
-            ExpertiseEffect::AttackPct,
-            ExpertiseEffect::AttackSpeedPct,
-        ],
-    ),
-    (
-        "bulwark",
-        &[
-            ExpertiseEffect::MaxHp,
-            ExpertiseEffect::EvadePct,
-            ExpertiseEffect::SpeedPct,
-        ],
-    ),
-    (
-        "edge",
-        &[
-            ExpertiseEffect::AttackPct,
-            ExpertiseEffect::AttackSpeedPct,
-            ExpertiseEffect::RangePct,
-        ],
-    ),
-    (
-        "tempo",
-        &[
-            ExpertiseEffect::AttackSpeedPct,
-            ExpertiseEffect::SpeedPct,
-            ExpertiseEffect::AttackPct,
-        ],
-    ),
-    (
-        "reach",
-        &[
-            ExpertiseEffect::RangePct,
-            ExpertiseEffect::AttackPct,
-            ExpertiseEffect::AttackSpeedPct,
-        ],
-    ),
-];
-
-/// The place in `w`'s common pool a common level takes in the equipment build: the first
-/// effect of the chosen style's `TREE_COMMON` list that the pool carries; else, with no style, a
-/// style the table does not name or no match, the option whose stat the player's priority ranks
-/// first (an option with no stat, or whose stat no run stat carries, ranks last; ties go to the
-/// pool order). `None` for an empty pool. Draws nothing.
-pub(super) fn auto_option(w: &WeaponExpertise, style: Option<u8>, p: &Progress) -> Option<usize> {
-    let tree = style
-        .and_then(|i| w.styles.get(usize::from(i)))
-        .and_then(|st| TREE_COMMON.iter().find(|(id, _)| *id == st.id.as_str()));
-    if let Some((_, list)) = tree {
-        for effect in *list {
-            if let Some(at) = w.common.iter().position(|o| o.effect == *effect) {
-                return Some(at);
-            }
-        }
-    }
-    let rank = |o: &ExpertiseOption| {
-        o.effect
-            .stat()
-            .and_then(|stat| {
-                p.priority.iter().position(|&i| {
-                    p.stats
-                        .get(usize::from(i))
-                        .is_some_and(|rule| rule.effect == stat)
-                })
-            })
-            .unwrap_or(usize::MAX)
-    };
-    w.common
-        .iter()
-        .enumerate()
-        .min_by_key(|(i, o)| (rank(o), *i))
-        .map(|(i, _)| i)
-}
-
-/// The equipment build's pass over the levels due to `me`: no offer opens and nothing is
-/// drawn. The levels of the style path are tree points (held, see the tree rules); every other
-/// level takes one automatic common option, the same for all of them since the tree and the
-/// priority do not change inside the pass, so they are applied as one batch.
-fn equipment_pass(
-    stage: &World,
-    expertise: &Expertise,
-    s: &mut State,
-    me: PlayerIdx,
-    events: &mut Vec<DomainEvent>,
-) {
-    let (player, career) = s.players.both_mut(me);
-    let crate::sim::state::Career {
-        progress,
-        expertise: g,
-        ..
-    } = career;
-    let Some(g) = g.as_mut() else {
+/// The equipment build's pass over the levels due to `me`: no offer opens, nothing is drawn and
+/// no stat is added. The levels of the style path are tree points (held, see the tree rules);
+/// every other level only raises the weapon level, which is all the pass records (`offered`).
+fn equipment_pass(s: &mut State, me: PlayerIdx) {
+    let Some(g) = s.players.career_mut(me).expertise.as_mut() else {
         return;
     };
-    if g.offered >= g.level {
-        return;
-    }
-    let (from, to) = (g.offered, g.level);
-    g.offered = to;
-    let tree = stage
-        .level_table()
-        .levels()
-        .iter()
-        .filter(|l| **l > from && **l <= to)
-        .count();
-    let n = (to - from).saturating_sub(u32::try_from(tree).unwrap_or(u32::MAX));
-    if n == 0 {
-        return;
-    }
-    let Some(w) = content(stage, expertise) else {
-        return;
-    };
-    let Some(at) = progress.as_ref().and_then(|p| auto_option(w, g.style, p)) else {
-        return;
-    };
-    let (Some(picked), Some(times)) = (w.common.get(at), g.taken.get_mut(at)) else {
-        return;
-    };
-    *times = times.saturating_add(u8::try_from(n).unwrap_or(u8::MAX));
-    let taken = *times;
-    apply(
-        &mut g.range_pct,
-        progress,
-        player,
-        picked.effect,
-        picked.amount.saturating_mul(n),
-    );
-    events.push(DomainEvent::ExpertiseOptionTaken {
-        option: picked.id.clone(),
-        taken,
-    });
+    g.offered = g.offered.max(g.level);
 }
 
 // --- the equipment build: tree points ----------------------------------------------------------
@@ -613,7 +471,7 @@ pub(super) fn open_due(
     events: &mut Vec<DomainEvent>,
 ) {
     if stage.equipment_mode {
-        return equipment_pass(stage, expertise, s, me, events);
+        return equipment_pass(s, me);
     }
     if super::offer_open_for(s, me) {
         return;
