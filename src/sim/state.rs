@@ -468,7 +468,7 @@ impl Players {
                 c0.offers.clone(),
                 c0.expertise.clone(),
                 c0.stardust,
-                c0.equipment.clone(),
+                c0.equipment.for_new_slot(),
             );
         }
         out
@@ -500,7 +500,7 @@ impl Players {
             c0.offers.clone(),
             c0.expertise.clone(),
             c0.stardust,
-            c0.equipment.clone(),
+            c0.equipment.for_new_slot(),
         );
         self.present |= 1 << me.get();
     }

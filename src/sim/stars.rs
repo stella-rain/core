@@ -151,7 +151,7 @@ fn top_level(s: &State) -> u32 {
 }
 
 /// The drop table's tier for `level`.
-fn tier_of(cfg: &Stars, level: u32) -> Option<&Tier> {
+pub(super) fn tier_of(cfg: &Stars, level: u32) -> Option<&Tier> {
     cfg.tiers
         .iter()
         .rev()
@@ -160,7 +160,7 @@ fn tier_of(cfg: &Stars, level: u32) -> Option<&Tier> {
 }
 
 /// The highest level among the present players that are up; `None` when none is.
-fn top_up_level(s: &State) -> Option<u32> {
+pub(super) fn top_up_level(s: &State) -> Option<u32> {
     s.players
         .indices()
         .filter(|&me| s.players[me].is_up())
@@ -173,6 +173,9 @@ fn top_up_level(s: &State) -> Option<u32> {
 /// downed or out player gets none and sets nothing; nobody up, nothing is due (ADR-SIM-7
 /// point 5). A solo player at 0 hit points is not up.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
+    if stage.equipment_mode {
+        return super::drops::boss_killed(stage, s);
+    }
     let Some(level) = top_up_level(s) else {
         return;
     };
@@ -221,6 +224,9 @@ fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Ra
 
 /// The main character takes the stars inside its pickup circle; their offers are due.
 pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if stage.equipment_mode {
+        return super::drops::pick_up(stage, s, me, events);
+    }
     let Some(cfg) = &stage.stars else {
         return;
     };

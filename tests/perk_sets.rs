@@ -162,8 +162,10 @@ fn a_set_holds_up_to_the_cap_of_effects_each_kind_once() {
         "speed_pct",
         "extra_rerolls",
         "extra_banishes",
+        "drop_weight",
     ];
     assert_eq!(all.len(), MAX_PERK_EFFECTS);
+    assert_eq!(PerkEffect::ALL.len(), 9);
     let effects: Vec<Value> = all
         .iter()
         .map(|e| json!({ "effect": e, "amount": 1 }))
@@ -187,7 +189,13 @@ fn a_set_holds_up_to_the_cap_of_effects_each_kind_once() {
 fn an_amount_is_1_to_its_effects_cap() {
     let at =
         |effect: &str, amount: u32| parse(&one(json!([{ "effect": effect, "amount": amount }])));
-    for effect in ["attack_pct", "attack_speed_pct", "evade_pct", "speed_pct"] {
+    for effect in [
+        "attack_pct",
+        "attack_speed_pct",
+        "evade_pct",
+        "speed_pct",
+        "drop_weight",
+    ] {
         assert!(at(effect, MAX_PERK_PCT).is_ok(), "{effect} at the cap");
         assert_eq!(
             paths(at(effect, MAX_PERK_PCT + 1).unwrap_err()),

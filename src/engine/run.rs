@@ -171,7 +171,16 @@ impl Run {
     }
 
     fn new_v2(b: Build<'_>) -> Result<Run, Issue> {
-        let world = sim::World::new(b.stage, b.spec, &b.kinds, b.content)?;
+        let mut world = sim::World::new(b.stage, b.spec, &b.kinds, b.content)?;
+        // The mode is a fact of the setup (a replay stores it, a restore rebuilds from it).
+        world.equipment_mode = b
+            .setup
+            .is_some_and(|setup| setup.build_mode == crate::run_setup::BuildMode::Equipment);
+        if world.equipment_mode {
+            world.drops = sim::DropTable::of(b.content.rewards());
+        }
+        let loadout = b.setup.map(|setup| sim::Loadout::of(setup, b.content));
+        world.drop_weight_pct = loadout.as_ref().map_or(0, sim::Loadout::drop_weight_pct);
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {
@@ -197,8 +206,7 @@ impl Run {
             b.stat_priority,
             b.pick_stats,
         );
-        if let Some(setup) = b.setup {
-            let loadout = sim::Loadout::of(setup, b.content);
+        if let Some(loadout) = loadout {
             // A run's setup loads the first player; the party grows with the per-player setup.
             sim::apply_loadout(
                 &world,

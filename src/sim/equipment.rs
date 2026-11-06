@@ -49,3 +49,17 @@ pub(crate) struct Equipment {
     /// Unspent weapon-tree points.
     pub tree_points: u32,
 }
+
+impl Equipment {
+    /// What a member who joins takes from slot 0's equipment: the slots and the Lumine slot as
+    /// they are, an empty inventory, no Starlight and no tree points (ADR-SAVE-7 point 2).
+    pub(crate) fn for_new_slot(&self) -> Equipment {
+        Equipment {
+            inventory: Vec::new(),
+            slots: self.slots.clone(),
+            lumine: self.lumine.clone(),
+            starlight: 0,
+            tree_points: 0,
+        }
+    }
+}
