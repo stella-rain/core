@@ -16,6 +16,9 @@ use stella_rain_core::run_stats::{RunStats, StatEffect};
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::Versions;
 
+type Edit = Box<dyn Fn(&mut Value)>;
+type Rows = Vec<(StatEffect, Vec<u32>)>;
+
 fn rewards_json() -> Value {
     serde_json::from_slice(common::bundled_file("rewards")).unwrap()
 }
@@ -78,7 +81,7 @@ fn the_bundled_pack_holds_the_equipment_rules() {
 
 #[test]
 fn a_bad_equipment_rule_is_refused_with_its_path() {
-    let cases: Vec<(&str, Box<dyn Fn(&mut Value)>)> = vec![
+    let cases: Vec<(&str, Edit)> = vec![
         (
             "$.equipment.kills_to_next",
             Box::new(|e| e["kills_to_next"] = json!([1, 2, 3, 4, 5, 6, 7, 8])),
@@ -413,7 +416,7 @@ fn stat(effect: StatEffect, max: u32) -> (StatEffect, Vec<u32>) {
     (effect, lv(max))
 }
 
-fn rows(set: &[SetStat]) -> Vec<(StatEffect, Vec<u32>)> {
+fn rows(set: &[SetStat]) -> Rows {
     set.iter().map(|s| (s.effect, s.by_level.clone())).collect()
 }
 
@@ -426,7 +429,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         stat(AttackSpeedPct, 100),
         stat(MaxHp, 100_000),
     ];
-    let trees: [(&str, &str, Vec<(StatEffect, Vec<u32>)>); 6] = [
+    let trees: [(&str, &str, Rows); 6] = [
         (
             "giant_sword",
             "edge",
@@ -505,7 +508,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
 #[test]
 fn a_bad_set_is_refused_with_its_path() {
     let sets = "$.weapons[0].styles[1].stats";
-    let cases: Vec<(String, Box<dyn Fn(&mut Value)>)> = vec![
+    let cases: Vec<(String, Edit)> = vec![
         (
             format!("{sets}[0].by_level"),
             Box::new(|s| {

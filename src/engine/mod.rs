@@ -22,7 +22,7 @@ use crate::kinds::KindTable;
 use crate::ledger::{Counted, PlayerStats, RunLedger};
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
-use crate::run_setup::{self, OfferMode, RunSetup};
+use crate::run_setup::{self, BuildMode, OfferMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
 use crate::snapshot::{OfferOption, OfferRating, SwapItem, SwapRating};
@@ -362,7 +362,7 @@ impl Engine {
                 horde: None,
                 kinds,
                 content,
-                star_pool: pool(None, content.rewards())?,
+                star_pool: pool(None, content.rewards(), BuildMode::Offers)?,
                 extra_rerolls: 0,
                 difficulty: None,
                 seed,
@@ -422,7 +422,11 @@ impl Engine {
                 horde: None,
                 kinds,
                 content,
-                star_pool: pool(setup.star_pool.as_deref(), content.rewards())?,
+                star_pool: pool(
+                    setup.star_pool.as_deref(),
+                    content.rewards(),
+                    setup.build_mode,
+                )?,
                 extra_rerolls: setup.extra_rerolls,
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
@@ -467,7 +471,11 @@ impl Engine {
                 horde: Some(horde),
                 kinds,
                 content,
-                star_pool: pool(setup.star_pool.as_deref(), content.rewards())?,
+                star_pool: pool(
+                    setup.star_pool.as_deref(),
+                    content.rewards(),
+                    setup.build_mode,
+                )?,
                 extra_rerolls: setup.extra_rerolls,
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
@@ -915,12 +923,13 @@ fn run_difficulty(setup: &RunSetup, content: &RunContent) -> Result<Difficulty, 
     })
 }
 
-/// The run's star pool: the places in `rewards` of the rewards `ids` names, or of every reward
-/// when it names none. A name the file does not hold fails closed, one issue per name.
-fn pool(ids: Option<&[ContentId]>, rewards: &Rewards) -> Result<Vec<u16>, Error> {
+/// The run's star pool: the places in `rewards` of the rewards `ids` names, or the mode's
+/// default pool when it names none (`Rewards::default_pool`). A name the file does not hold fails
+/// closed, one issue per name.
+fn pool(ids: Option<&[ContentId]>, rewards: &Rewards, mode: BuildMode) -> Result<Vec<u16>, Error> {
     let place = |i: usize| u16::try_from(i).unwrap_or(u16::MAX);
     let Some(ids) = ids else {
-        return Ok((0..rewards.rewards().len()).map(place).collect());
+        return Ok(rewards.default_pool(mode));
     };
     let mut issues = Vec::new();
     let mut out = Vec::with_capacity(ids.len());

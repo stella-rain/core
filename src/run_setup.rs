@@ -640,12 +640,30 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
     }
     let rewards = content.rewards();
     for (i, id) in setup.star_pool.iter().flatten().enumerate() {
-        if rewards.index_of(id).is_none() {
-            issues.push(Issue {
+        match rewards.index_of(id) {
+            None => issues.push(Issue {
                 path: format!("$.star_pool[{i}]"),
                 message: "no such reward in the run's rewards file".into(),
-            });
+            }),
+            // An equipment-only star is never offered (ADR-CONT-3 point 8); a deprecated one
+            // stays playable when named.
+            Some(at)
+                if setup.build_mode == BuildMode::Offers
+                    && rewards.rewards()[at].equipment_only =>
+            {
+                issues.push(Issue {
+                    path: format!("$.star_pool[{i}]"),
+                    message: "an equipment-only reward is not offered in offers mode".into(),
+                });
+            }
+            Some(_) => {}
         }
+    }
+    if setup.build_mode == BuildMode::Equipment && rewards.equipment().is_none() {
+        issues.push(Issue {
+            path: "$.build_mode".into(),
+            message: "equipment mode needs the rewards file's equipment rules".into(),
+        });
     }
     let mut cost: u32 = 0;
     for (i, star) in setup.carried.iter().enumerate() {
