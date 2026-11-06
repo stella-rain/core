@@ -110,7 +110,7 @@ impl Build {
             // level scales it, except the counts (`BurstDepth`, `OfferCandidates`), which use
             // `base`; the intervals, radius and depth are other fields and are not scaled.
             let base = entry.amount.unwrap_or(0);
-            let amount = level_scaled(base, level);
+            let amount = level_scaled(&stage.equipment_rules, base, level);
             match entry.effect {
                 RewardEffect::RangePct => self.range_pct = self.range_pct.saturating_add(amount),
                 RewardEffect::PickupRadiusPct => {

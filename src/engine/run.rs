@@ -177,10 +177,16 @@ impl Run {
             .setup
             .is_some_and(|setup| setup.build_mode == crate::run_setup::BuildMode::Equipment);
         if world.equipment_mode {
-            world.drops = sim::DropTable::of(b.content.rewards());
+            // `run_setup::validate_in` refused an equipment run whose pack lacks the rules.
+            if let Some(rules) = b.content.rewards().equipment() {
+                world.equipment_rules = rules.clone();
+            }
+            world.drops = sim::DropTable::of(b.content.rewards(), &world.equipment_rules);
         }
         let loadout = b.setup.map(|setup| sim::Loadout::of(setup, b.content));
-        world.drop_weight_pct = loadout.as_ref().map_or(0, sim::Loadout::drop_weight_pct);
+        world.drop_weight_pct = loadout
+            .as_ref()
+            .map_or_else(Vec::new, |l| l.drop_weight_pct(&world.equipment_rules));
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {
@@ -388,7 +394,13 @@ impl Run {
     ) -> Option<Result<(), sim::SlotError>> {
         match self {
             Run::V2 { world, state } if world.equipment_mode => Some(sim::check_equip(
-                rewards, state, player, item, slot, replace,
+                &world.equipment_rules,
+                rewards,
+                state,
+                player,
+                item,
+                slot,
+                replace,
             )),
             Run::V1 { .. } | Run::V2 { .. } => None,
         }
@@ -424,8 +436,8 @@ impl Run {
 
     /// Makes an extract already accepted by `check_extract`.
     pub(crate) fn extract(&mut self, rewards: &Rewards, player: PlayerIdx, item: u32) {
-        if let Run::V2 { state, .. } = self {
-            let _ = sim::extract_action(rewards, state, player, item);
+        if let Run::V2 { world, state } = self {
+            let _ = sim::extract_action(&world.equipment_rules, rewards, state, player, item);
         }
     }
 
@@ -438,17 +450,21 @@ impl Run {
         star: u32,
     ) -> Option<Result<(), sim::StarlightError>> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => {
-                Some(sim::check_craft(rewards, state, player, star))
-            }
+            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_craft(
+                &world.equipment_rules,
+                rewards,
+                state,
+                player,
+                star,
+            )),
             Run::V1 { .. } | Run::V2 { .. } => None,
         }
     }
 
     /// Makes a craft already accepted by `check_craft`.
     pub(crate) fn craft(&mut self, rewards: &Rewards, player: PlayerIdx, star: u32) {
-        if let Run::V2 { state, .. } = self {
-            let _ = sim::craft_action(rewards, state, player, star);
+        if let Run::V2 { world, state } = self {
+            let _ = sim::craft_action(&world.equipment_rules, rewards, state, player, star);
         }
     }
 

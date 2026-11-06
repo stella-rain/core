@@ -15,15 +15,8 @@ use super::state::{Career, PlayerIdx, Players, StarField, State};
 use super::{World, overlaps, pickup_pct, runes, stars, widened};
 use crate::event::DomainEvent;
 use crate::limits::MAX_INVENTORY;
-use crate::rewards::{Rarity, Rewards};
+use crate::rewards::{EquipmentRules, Rarity, Rewards};
 use crate::rune::Rune;
-
-/// Personal drops each member that is up gets from a boss kill. A placeholder: the pack will
-/// carry it (ADR-CONT-3 point 8).
-pub(super) const BOSS_DROPS: u8 = 1;
-
-/// Out of 1,000, the share of a drop that is a rune. A placeholder: the pack will carry it.
-pub(super) const RUNE_SHARE_PERMILLE: u32 = 100;
 
 const PER_MILLE: u32 = 1000;
 
@@ -34,6 +27,8 @@ struct DropEntry {
     weight: u16,
     named: bool,
     random_rune: bool,
+    /// The place of the reward's category in the equipment rules' list, if it has one.
+    category: Option<u8>,
 }
 
 /// The run's rewards as a roll reads them, by place in the file: resolved once with the world.
@@ -41,7 +36,7 @@ struct DropEntry {
 pub(crate) struct DropTable(Vec<DropEntry>);
 
 impl DropTable {
-    pub(crate) fn of(rewards: &Rewards) -> DropTable {
+    pub(crate) fn of(rewards: &Rewards, rules: &EquipmentRules) -> DropTable {
         DropTable(
             rewards
                 .rewards()
@@ -51,6 +46,10 @@ impl DropTable {
                     weight: r.weight,
                     named: r.named,
                     random_rune: r.is_random_rune(),
+                    category: r.category.as_ref().and_then(|c| {
+                        let at = rules.categories.iter().position(|k| &k.id == c)?;
+                        u8::try_from(at).ok()
+                    }),
                 })
                 .collect(),
         )
@@ -87,14 +86,17 @@ fn eligible<'a>(
         .filter(|e| e.rarity == rarity && !e.random_rune && !(e.named && holds(equipment, place)))
 }
 
-/// The draw weight of a star: its own, at least 1; a named star's is scaled by the member's
-/// `drop_weight` percent (floored, at least 1).
-fn weight(entry: &DropEntry, drop_weight_pct: u32) -> u32 {
+/// The draw weight of a star: its own, at least 1, scaled by the member's `drop_weight` percent
+/// for the star's category (floored, at least 1); a star with no category, or a category the
+/// setup gives no percent, keeps its own.
+fn weight(entry: &DropEntry, drop_weight_pct: &[u32]) -> u32 {
     let base = u64::from(entry.weight).max(1);
-    let scaled = match entry.named {
-        true => (base * (100 + u64::from(drop_weight_pct)) / 100).max(1),
-        false => base,
-    };
+    let pct = entry
+        .category
+        .and_then(|c| drop_weight_pct.get(usize::from(c)))
+        .copied()
+        .unwrap_or(0);
+    let scaled = (base * (100 + u64::from(pct)) / 100).max(1);
     u32::try_from(scaled).unwrap_or(u32::MAX)
 }
 
@@ -105,7 +107,7 @@ pub(super) fn roll(
     f: &StarField,
     career: &mut Career,
     share: u32,
-    drop_weight_pct: u32,
+    drop_weight_pct: &[u32],
     rarity: Rarity,
 ) {
     let Career {
@@ -148,7 +150,7 @@ fn star(
     f: &StarField,
     equipment: &Equipment,
     rng: &mut crate::rng::SplitMix64,
-    drop_weight_pct: u32,
+    drop_weight_pct: &[u32],
     rarity: Rarity,
 ) -> Option<u16> {
     let any = |r: Rarity| {
@@ -184,8 +186,15 @@ fn star_taken(stage: &World, f: &StarField, players: &mut Players, rarity: Rarit
             continue;
         }
         let career = players.career_mut(me);
-        let pct = stage.drop_weight_pct;
-        roll(&stage.drops, f, career, RUNE_SHARE_PERMILLE, pct, rarity);
+        let rules = &stage.equipment_rules;
+        roll(
+            &stage.drops,
+            f,
+            career,
+            rules.rune_share_permille,
+            &stage.drop_weight_pct,
+            rarity,
+        );
     }
 }
 
@@ -221,7 +230,7 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
     f.on_map = on_map;
 }
 
-/// The boss died this tick: every present member that is up gets `BOSS_DROPS` rolls of its own,
+/// The boss died this tick: every present member that is up gets the rules' `boss_drops` rolls of its own,
 /// at one rarity for the party, the same one a boss offer would have (the highest of the drop
 /// table's tier for the highest level among those up, held to the difficulty's range). A downed
 /// or out member gets none.
@@ -246,10 +255,17 @@ pub(super) fn boss_killed(stage: &World, s: &mut State) {
         if !players[me].is_up() {
             continue;
         }
-        for _ in 0..BOSS_DROPS {
+        for _ in 0..stage.equipment_rules.boss_drops {
             let career = players.career_mut(me);
-            let pct = stage.drop_weight_pct;
-            roll(&stage.drops, f, career, RUNE_SHARE_PERMILLE, pct, rarity);
+            let rules = &stage.equipment_rules;
+            roll(
+                &stage.drops,
+                f,
+                career,
+                rules.rune_share_permille,
+                &stage.drop_weight_pct,
+                rarity,
+            );
         }
     }
 }

@@ -361,7 +361,7 @@ mod equipment_runs {
         assert!(equipment_of(&e, 0).slots[5].held.is_some());
         assert!(equipment_of(&e, 1).slots[5].held.is_none());
     }
-    use crate::sim::starlight::{CRAFT_PRICE, EXTRACT_VALUE};
+    use crate::sim::starlight::{bundled_rules, craft_table, extract_table};
 
     fn set_starlight(e: &mut Engine, player: u8, n: u32) {
         match e.run_mut() {
@@ -418,7 +418,7 @@ mod equipment_runs {
         assert_eq!(
             refused(&e, craft(hp)),
             ActionError::NotEnoughStarlight {
-                need: CRAFT_PRICE[0],
+                need: craft_table()[0],
                 have: 0
             }
         );
@@ -454,7 +454,7 @@ mod equipment_runs {
         assert_eq!(e.act(me, extract(0)), Ok(()));
         let eq = equipment_of(&e, 0);
         assert_eq!(eq.inventory.len(), 6);
-        assert_eq!(eq.starlight, EXTRACT_VALUE[0], "max_hp_common is Common");
+        assert_eq!(eq.starlight, extract_table()[0], "max_hp_common is Common");
         let hp = pool_index(&e, "max_hp_common");
         set_starlight(&mut e, 0, 1000);
         assert_eq!(e.act(me, craft(hp)), Ok(()));
@@ -463,7 +463,7 @@ mod equipment_runs {
             eq.inventory.last(),
             Some(&Held::Star(place(&e, "max_hp_common")))
         );
-        assert_eq!(eq.starlight, 1000 - CRAFT_PRICE[0]);
+        assert_eq!(eq.starlight, 1000 - craft_table()[0]);
 
         // A displaced star comes back as an inventory item and extracts.
         let mut e = started(false, 1);
@@ -478,14 +478,14 @@ mod equipment_runs {
             .expect("displaced");
         let last = u32::try_from(at).unwrap();
         assert_eq!(e.act(me, extract(last)), Ok(()));
-        assert_eq!(equipment_of(&e, 0).starlight, EXTRACT_VALUE[0]);
+        assert_eq!(equipment_of(&e, 0).starlight, extract_table()[0]);
 
         // In a party only the acting slot changes.
         let mut e = started(false, 2);
         let zero = equipment_of(&e, 0);
         assert_eq!(e.act(slot(1), extract(0)), Ok(()));
         assert_eq!(equipment_of(&e, 0), zero);
-        assert_eq!(equipment_of(&e, 1).starlight, EXTRACT_VALUE[0]);
+        assert_eq!(equipment_of(&e, 1).starlight, extract_table()[0]);
     }
 
     /// T15: Starlight ends with the run: a new engine and a joiner start at 0.
@@ -657,7 +657,7 @@ mod equipment_runs {
         let before = lumine_of(&e);
         assert_eq!(e.act(me, extract(1)), Ok(()));
         let eq = equipment_of(&e, 0);
-        assert_eq!(eq.starlight, 1000 + EXTRACT_VALUE[3], "epic");
+        assert_eq!(eq.starlight, 1000 + extract_table()[3], "epic");
         assert_eq!(lumine_of(&e), before, "the Lumine slot is untouched");
         let n = u32::try_from(eq.inventory.len()).unwrap();
         assert_eq!(
@@ -678,20 +678,20 @@ mod equipment_runs {
         let mut e = started(false, 1);
         e.act(PlayerIdx::SOLO, extract(0)).unwrap();
         let snap = e.snapshot();
-        assert_eq!(snap.players[0].starlight, EXTRACT_VALUE[0]);
+        assert_eq!(snap.players[0].starlight, extract_table()[0]);
         let view = snap.starlight.as_ref().expect("equipment mode");
         assert_eq!(view.prices.len(), 6);
         for (i, (price, rarity)) in view.prices.iter().zip(Rarity::ALL).enumerate() {
             assert_eq!(price.rarity, rarity);
-            assert_eq!(price.extract, EXTRACT_VALUE[i]);
-            assert_eq!(price.craft, CRAFT_PRICE[i]);
+            assert_eq!(price.extract, extract_table()[i]);
+            assert_eq!(price.craft, craft_table()[i]);
         }
-        assert_eq!(view.rune_extract, crate::sim::starlight::RUNE_EXTRACT);
-        assert_eq!(view.boss_bonus, crate::sim::starlight::BOSS_BONUS);
+        assert_eq!(view.rune_extract, bundled_rules().rune_extract);
+        assert_eq!(view.boss_bonus, bundled_rules().boss_bonus);
         let json = serde_json::to_value(&snap).unwrap();
         assert_eq!(
             json["players"][0]["starlight"],
-            serde_json::json!(EXTRACT_VALUE[0])
+            serde_json::json!(extract_table()[0])
         );
         assert!(json["starlight"]["prices"].is_array());
         // Offers mode: no key at all.

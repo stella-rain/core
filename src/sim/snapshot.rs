@@ -11,7 +11,7 @@ use crate::engine::{Place, Places};
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_BURST_DEPTH;
-use crate::rewards::Rarity;
+use crate::rewards::{EquipmentRules, Rarity};
 use crate::run_content::RunContent;
 use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
@@ -443,23 +443,25 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         }),
         patterns: announced_patterns(world, s),
         stardust: s.players.career(shown).stardust,
-        starlight: world.equipment_mode.then(starlight_view),
+        starlight: world
+            .equipment_mode
+            .then(|| starlight_view(&world.equipment_rules)),
     }
 }
 
-/// The Starlight prices, one per rarity in `Rarity::ALL` order.
-fn starlight_view() -> StarlightView {
+/// The Starlight prices, one per rarity in `Rarity::ALL` order, from the run's equipment rules.
+fn starlight_view(rules: &EquipmentRules) -> StarlightView {
     StarlightView {
         prices: Rarity::ALL
             .into_iter()
             .map(|rarity| StarlightPrice {
                 rarity,
-                extract: starlight::EXTRACT_VALUE[usize::from(rarity.index())],
-                craft: starlight::craft_price(rarity),
+                extract: starlight::extract_of(rules, rarity),
+                craft: starlight::craft_price(rules, rarity),
             })
             .collect(),
-        rune_extract: starlight::RUNE_EXTRACT,
-        boss_bonus: starlight::BOSS_BONUS,
+        rune_extract: rules.rune_extract,
+        boss_bonus: rules.boss_bonus,
     }
 }
 

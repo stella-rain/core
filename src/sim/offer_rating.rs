@@ -394,7 +394,16 @@ pub(crate) fn swap_ratings(
             continue;
         };
         let replaces = target.held.is_some();
-        if slots::check(rewards, &base.equipment, index, slot, replaces).is_err() {
+        if slots::check(
+            &world.equipment_rules,
+            rewards,
+            &base.equipment,
+            index,
+            slot,
+            replaces,
+        )
+        .is_err()
+        {
             continue;
         }
         let switch = replaces && slots::is_switch(rewards, &base.equipment, index, slot);
@@ -718,7 +727,8 @@ mod tests {
         }
 
         fn fixture_with(phases: Value, sets: Option<Value>, lumine: bool) -> Fixture {
-            let file = json!({ "rarities": rarities(), "rewards": list() });
+            let mut file = json!({ "rarities": rarities(), "rewards": list() });
+            crate::sim::starlight::with_equipment_rules(&mut file);
             let mut rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
                 .expect("the test rewards validate");
             if let Some(v) = sets {
@@ -733,7 +743,8 @@ mod tests {
             let mut stage = RunContent::bundled().trial().clone();
             stage.player.atk = 1000;
             stage.player.weapon = serde_json::from_value(weapon(phases)).expect("the weapon");
-            let world = World::for_test(stage);
+            let mut world = World::for_test(stage);
+            world.equipment_rules = slots::bundled_rules().clone();
             let pool = RunPool {
                 rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
                 extra_rerolls: 0,
@@ -751,7 +762,7 @@ mod tests {
                 crate::kinds::KindTable::of_stage(&world).unwrap(),
             );
             let eq = &mut s.players.career_mut(ME).equipment;
-            eq.slots = slots::fresh_slots();
+            eq.slots = slots::fresh_slots(slots::bundled_rules());
             if lumine {
                 eq.lumine = Some(crate::sim::equipment::EquipSlot {
                     kind: crate::sim::equipment::SlotKind::Lumine,
@@ -919,8 +930,8 @@ mod tests {
         fn the_per_level_change_comes_from_the_rules() {
             let bp = |level: u8| {
                 let (before, after) = (
-                    100 + slots::level_scaled(20, level),
-                    100 + slots::level_scaled(30, level),
+                    100 + slots::level_scaled(slots::bundled_rules(), 20, level),
+                    100 + slots::level_scaled(slots::bundled_rules(), 30, level),
                 );
                 i32::try_from(
                     (10_000 * u64::from(after) * 2 + u64::from(before)) / (2 * u64::from(before)),

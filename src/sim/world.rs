@@ -13,6 +13,7 @@ use crate::behaviour::{Action, Agent, Movement};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
+use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
 use crate::run_content::RunContent;
 use crate::sim::state::{AgentKey, AgentSource};
@@ -425,10 +426,15 @@ pub(crate) struct World {
     /// The run's rewards as a drop roll reads them, by place in the file: filled in equipment
     /// mode only (an offers run, and a restore of one, allocates nothing for it).
     pub drops: DropTable,
-    /// The setup's perk `drop_weight` in percent, 0 when its set has none: it scales the named
-    /// stars a drop rolls, for every member until the per-player setup (ADR-SAVE-7 point 7).
-    /// Not hashed: the setup, which the replay stores, fixes it.
-    pub drop_weight_pct: u32,
+    /// The equipment rules of the run's pack (ADR-CONT-3 point 8): the slot layout, the level
+    /// curve, the Starlight values and the drop numbers. Filled in equipment mode only; an
+    /// offers run holds the empty rules and never reads them. Not hashed: the pack fixes it.
+    pub equipment_rules: EquipmentRules,
+    /// The setup's perk `drop_weight` in percent for each category of the equipment rules, in
+    /// the rules' order (0 where its set has none; empty when it has none at all): it scales the
+    /// weight of every star of the category a drop rolls, for every member until the per-player
+    /// setup (ADR-SAVE-7 point 7). Not hashed: the setup, which the replay stores, fixes it.
+    pub drop_weight_pct: Vec<u32>,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
@@ -543,7 +549,8 @@ impl World {
             director: horde.is_some(),
             equipment_mode: false,
             drops: DropTable::default(),
-            drop_weight_pct: 0,
+            equipment_rules: EquipmentRules::default(),
+            drop_weight_pct: Vec::new(),
             stage,
             defs,
             bosses,

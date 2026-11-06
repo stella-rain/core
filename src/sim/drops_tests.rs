@@ -2,9 +2,10 @@
 //! point 2, ADR-SIM-5 point 8, ADR-SIM-7). The offers-mode pins pass before and after the
 //! equipment-mode rules land: the expected values are worked out here, not copied from a run.
 
-use super::drops::{self, DropTable, RUNE_SHARE_PERMILLE};
+use super::drops::{self, DropTable};
 use super::equipment::Held;
 use super::party_fix_tests::{party, slot};
+use super::starlight::bundled_rules;
 use super::state::{Career, StarField, StarState, State};
 use super::{World, stars};
 use crate::event::DomainEvent;
@@ -97,6 +98,12 @@ fn the_mode_is_set_by_the_setup() {
 type Spec = (&'static str, &'static str, bool, u16);
 
 pub(super) fn rewards(list: &[Spec], with_rune: bool) -> Rewards {
+    rewards_in(list, with_rune, &[])
+}
+
+/// `rewards`, with the bundled equipment rules and the category of each star by position
+/// (`categories[i]`; a star past the list has none).
+pub(super) fn rewards_in(list: &[Spec], with_rune: bool, categories: &[&str]) -> Rewards {
     let rarities: Vec<Value> = [
         ("common", 1),
         ("uncommon", 2),
@@ -110,9 +117,13 @@ pub(super) fn rewards(list: &[Spec], with_rune: bool) -> Rewards {
     .collect();
     let mut rewards: Vec<Value> = list
         .iter()
-        .map(|&(id, rarity, named, weight)| {
+        .enumerate()
+        .map(|(i, &(id, rarity, named, weight))| {
             let mut r = json!({ "id": id, "rarity": rarity, "effect": "attack_pct",
                 "amount": 1, "limit": if named { 1 } else { 2 }, "weight": weight });
+            if let Some(c) = categories.get(i) {
+                r["category"] = json!(c);
+            }
             if named {
                 r["named"] = json!(true);
                 r["star"] = json!(format!("Star {id}"));
@@ -123,7 +134,10 @@ pub(super) fn rewards(list: &[Spec], with_rune: bool) -> Rewards {
     if with_rune {
         rewards.push(json!({ "id": "rune", "rarity": "common", "effect": "random_rune" }));
     }
-    let file = json!({ "rarities": rarities, "rewards": rewards });
+    let mut file = json!({ "rarities": rarities, "rewards": rewards });
+    if !categories.is_empty() {
+        file["equipment"] = serde_json::to_value(bundled_rules()).expect("the rules serialise");
+    }
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the rewards validate")
 }
 
@@ -161,7 +175,7 @@ fn rolled(
     f: &StarField,
     c: &mut Career,
     share: u32,
-    pct: u32,
+    pct: &[u32],
     rarity: Rarity,
 ) -> Option<Held> {
     let before = c.equipment.inventory.len();
@@ -175,7 +189,7 @@ const FULL: u8 = crate::sim::runes::FULL_POOL;
 /// the share), then the rune's `below(n)` or the star's `below(total)` (ADR-SIM-2 point 2).
 pub(super) fn expected(rng: &SplitMix64, runes: &[Rune], places: &[(u16, u32)]) -> Held {
     let mut r = rng.clone();
-    if r.below(1000) < RUNE_SHARE_PERMILLE {
+    if r.below(1000) < bundled_rules().rune_share_permille {
         let n = u32::try_from(runes.len()).expect("few");
         return Held::Rune(runes[usize::try_from(r.below(n)).expect("small")]);
     }
@@ -203,8 +217,9 @@ fn a_star_taken_gives_every_member_a_roll_in_slot_order() {
         ],
         false,
     );
-    w.drops = DropTable::of(&rw);
+    w.drops = DropTable::of(&rw, bundled_rules());
     w.equipment_mode = true;
+    w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL;
     drop_star(&mut s, 0, Rarity::Rare);
@@ -237,28 +252,35 @@ fn a_star_taken_gives_every_member_a_roll_in_slot_order() {
 #[test]
 fn a_roll_draws_the_pinned_number_from_its_own_stream() {
     let rw = rewards(&[("a", "rare", false, 10), ("b", "rare", false, 20)], true);
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let f = field(3, FULL);
     let start = SplitMix64::new(77);
     // A star: below(1000), below(total).
     let mut c = career(77);
-    drops::roll(&table, &f, &mut c, 0, 0, Rarity::Rare);
+    drops::roll(&table, &f, &mut c, 0, &[], Rarity::Rare);
     assert_eq!(c.offer.state(), after(&start, 2).state());
     // A rune: below(1000), below(n).
     let mut c = career(77);
-    drops::roll(&table, &f, &mut c, 1000, 0, Rarity::Rare);
+    drops::roll(&table, &f, &mut c, 1000, &[], Rarity::Rare);
     assert!(matches!(c.equipment.inventory[..], [Held::Rune(_)]));
     assert_eq!(c.offer.state(), after(&start, 2).state());
     // Nothing eligible at the rarity or below: the kind draw only.
     let mut c = career(77);
-    drops::roll(&table, &f, &mut c, 0, 0, Rarity::Uncommon);
+    drops::roll(&table, &f, &mut c, 0, &[], Rarity::Uncommon);
     assert!(c.equipment.inventory.is_empty());
     assert_eq!(c.offer.state(), after(&start, 1).state());
     // Room: the inventory never grows past what `reserve` gave it.
     let mut c = career(5);
     let room = c.equipment.inventory.capacity();
     for _ in 0..2_000 {
-        drops::roll(&table, &f, &mut c, RUNE_SHARE_PERMILLE, 0, Rarity::Rare);
+        drops::roll(
+            &table,
+            &f,
+            &mut c,
+            bundled_rules().rune_share_permille,
+            &[],
+            Rarity::Rare,
+        );
     }
     assert_eq!(c.equipment.inventory.capacity(), room);
     assert_eq!(c.equipment.inventory.len(), MAX_INVENTORY);
@@ -275,7 +297,7 @@ fn a_unique_star_never_drops_while_held() {
         ],
         false,
     );
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let f = field(3, FULL);
     let slot_with = |held| super::equipment::EquipSlot {
         kind: super::equipment::SlotKind::Category(0),
@@ -285,7 +307,7 @@ fn a_unique_star_never_drops_while_held() {
     };
     let count = |c: &mut Career, place| {
         (0..2_000)
-            .filter(|_| rolled(&table, &f, c, 0, 0, Rarity::Epic) == Some(Held::Star(place)))
+            .filter(|_| rolled(&table, &f, c, 0, &[], Rarity::Epic) == Some(Held::Star(place)))
             .count()
     };
     let named = Held::Star(0);
@@ -304,7 +326,7 @@ fn a_unique_star_never_drops_while_held() {
     // Ordinary stars repeat.
     let mut c = career(6);
     for _ in 0..40 {
-        drops::roll(&table, &f, &mut c, 0, 0, Rarity::Epic);
+        drops::roll(&table, &f, &mut c, 0, &[], Rarity::Epic);
     }
     let a = c
         .equipment
@@ -322,22 +344,22 @@ fn rarity_falls_to_the_rarest_below_with_a_reward() {
         &[("c", "common", false, 10), ("e", "epic", false, 10)],
         false,
     );
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let f = field(2, FULL);
     let mut c = career(9);
     for _ in 0..200 {
         assert_eq!(
-            rolled(&table, &f, &mut c, 0, 0, Rarity::Legendary),
+            rolled(&table, &f, &mut c, 0, &[], Rarity::Legendary),
             Some(Held::Star(1))
         );
     }
     let mut f = field(2, FULL);
     f.rarity = (Rarity::Rare, Rarity::Supernova);
     let rw = rewards(&[("c", "common", false, 10)], false);
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let mut c = career(9);
     let start = c.offer.clone();
-    assert_eq!(rolled(&table, &f, &mut c, 0, 0, Rarity::Epic), None);
+    assert_eq!(rolled(&table, &f, &mut c, 0, &[], Rarity::Epic), None);
     assert_eq!(c.offer.state(), after(&start, 1).state());
 }
 
@@ -345,7 +367,7 @@ fn rarity_falls_to_the_rarest_below_with_a_reward() {
 #[test]
 fn a_rune_drops_with_the_share_from_the_rune_pool() {
     let rw = rewards(&[("a", "common", false, 10)], true);
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let pair = [Rune::ALL[0], Rune::ALL[3]];
     let mask = pair.iter().fold(0u8, |m, r| m | 1 << r.index());
     let f = field(2, mask);
@@ -353,8 +375,15 @@ fn a_rune_drops_with_the_share_from_the_rune_pool() {
     let mut replay = c.offer.clone();
     let (mut runes, mut seen) = (0, [false; 2]);
     for _ in 0..10_000 {
-        let rune_roll = replay.below(1000) < RUNE_SHARE_PERMILLE;
-        let got = rolled(&table, &f, &mut c, RUNE_SHARE_PERMILLE, 0, Rarity::Common);
+        let rune_roll = replay.below(1000) < bundled_rules().rune_share_permille;
+        let got = rolled(
+            &table,
+            &f,
+            &mut c,
+            bundled_rules().rune_share_permille,
+            &[],
+            Rarity::Common,
+        );
         if rune_roll {
             replay.below(2);
         } else {
@@ -375,40 +404,57 @@ fn a_rune_drops_with_the_share_from_the_rune_pool() {
     let mut c = career(31);
     for _ in 0..500 {
         assert!(matches!(
-            rolled(&table, &f, &mut c, 0, 0, Rarity::Common),
+            rolled(&table, &f, &mut c, 0, &[], Rarity::Common),
             Some(Held::Star(0))
         ));
     }
 }
 
-/// T17 (roll part): the drop weight scales a named star's weight, by the formula.
+/// T7: the drop weight scales the weight of every star of its category, named or not, by the
+/// formula, and no star of another category.
 #[test]
-fn drop_weight_scales_a_named_star_for_the_member_who_has_it() {
-    let rw = rewards(&[("n", "epic", true, 10), ("o", "epic", false, 10)], false);
-    let table = DropTable::of(&rw);
+fn drop_weight_scales_every_star_of_its_category() {
     let f = field(2, FULL);
-    for (pct, named_draws) in [(0u32, 10u32), (100, 20), (50, 15)] {
-        let total = named_draws + 10;
-        let mut c = career(11);
-        let mut replay = c.offer.clone();
-        for _ in 0..10_000 {
-            replay.below(1000);
-            let named = replay.below(total) < named_draws;
-            let got = rolled(&table, &f, &mut c, 0, pct, Rarity::Epic);
-            assert_eq!(got == Some(Held::Star(0)), named, "pct {pct}");
+    // Star 0 and star 1 weigh 10 each; the member's percent is for attack (category 0) only.
+    for (cats, first_is_scaled) in [
+        (["attack", "defence"], true),
+        (["defence", "attack"], false),
+    ] {
+        let rw = rewards_in(
+            &[("n", "epic", true, 10), ("o", "epic", false, 10)],
+            false,
+            &cats,
+        );
+        let table = DropTable::of(&rw, bundled_rules());
+        for (pct, scaled_draws) in [(0u32, 10u32), (100, 20), (40, 14)] {
+            // The scaled star draws `scaled_draws` of `total`; the other 10.
+            let total = scaled_draws + 10;
+            let mut c = career(11);
+            let mut replay = c.offer.clone();
+            for _ in 0..10_000 {
+                replay.below(1000);
+                let first_scaled =
+                    replay.below(total) < if first_is_scaled { scaled_draws } else { 10 };
+                let got = rolled(&table, &f, &mut c, 0, &[pct, 0, 0], Rarity::Epic);
+                assert_eq!(got == Some(Held::Star(0)), first_scaled, "pct {pct}");
+            }
         }
     }
-    // A weight of 1 at 50 floors to 1.
-    let rw = rewards(&[("n", "epic", true, 1), ("o", "epic", false, 1)], false);
-    let table = DropTable::of(&rw);
+    // A weight of 1 at 50 floors to 1; a star outside the member's categories keeps its own.
+    let rw = rewards_in(
+        &[("n", "epic", true, 1), ("o", "epic", false, 1)],
+        false,
+        &["attack", "defence"],
+    );
+    let table = DropTable::of(&rw, bundled_rules());
     let mut c = career(12);
     let mut replay = c.offer.clone();
     for _ in 0..1_000 {
         replay.below(1000);
-        let named = replay.below(2) < 1;
+        let first = replay.below(2) < 1;
         assert_eq!(
-            rolled(&table, &f, &mut c, 0, 50, Rarity::Epic) == Some(Held::Star(0)),
-            named
+            rolled(&table, &f, &mut c, 0, &[50, 0, 0], Rarity::Epic) == Some(Held::Star(0)),
+            first
         );
     }
 }
@@ -417,14 +463,14 @@ fn drop_weight_scales_a_named_star_for_the_member_who_has_it() {
 #[test]
 fn the_inventory_has_a_bound_not_a_cap() {
     let rw = rewards(&[("a", "common", false, 10)], false);
-    let table = DropTable::of(&rw);
+    let table = DropTable::of(&rw, bundled_rules());
     let f = field(1, FULL);
     let mut c = career(3);
     c.equipment.inventory = vec![Held::Star(0); MAX_INVENTORY - 1];
-    drops::roll(&table, &f, &mut c, 0, 0, Rarity::Common);
+    drops::roll(&table, &f, &mut c, 0, &[], Rarity::Common);
     assert_eq!(c.equipment.inventory.len(), MAX_INVENTORY);
     let before = c.offer.clone();
-    drops::roll(&table, &f, &mut c, 0, 0, Rarity::Common);
+    drops::roll(&table, &f, &mut c, 0, &[], Rarity::Common);
     assert_eq!(c.equipment.inventory.len(), MAX_INVENTORY);
     assert_eq!(c.offer.state(), after(&before, 2).state());
 }
@@ -461,7 +507,7 @@ fn the_perk_drop_weight_reaches_the_world() {
     use crate::run_content::RunContent;
     use crate::run_setup::{BuildMode, RunSetup};
     let live = |e: &Engine| match e.run() {
-        Run::V2 { world, .. } => world.drop_weight_pct,
+        Run::V2 { world, .. } => world.drop_weight_pct.clone(),
         Run::V1 { .. } => panic!("the live rules"),
     };
     let setup = RunSetup {
@@ -469,8 +515,11 @@ fn the_perk_drop_weight_reaches_the_world() {
         ..RunSetup::default()
     };
     // The bundled default set carries drop weight 25 (vanguard, duelist and scout each weigh one
-    // category); the world still holds one scalar until the weight is read by category.
-    assert_eq!(live(&Engine::start(&setup).expect("starts")), 25);
+    // category); `duelist`, the default, weighs attack.
+    assert_eq!(
+        live(&Engine::start(&setup).expect("starts")),
+        vec![25, 0, 0]
+    );
     let file = json!({ "perk_sets": [{ "id": "lucky",
         "effects": [{ "effect": "drop_weight", "amount": 40, "category": "attack" }] }] });
     let sets = PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
@@ -481,7 +530,7 @@ fn the_perk_drop_weight_reaches_the_world() {
     };
     assert_eq!(
         live(&Engine::start_with(&lucky, &content).expect("starts")),
-        40
+        vec![40, 0, 0]
     );
 }
 
@@ -522,8 +571,9 @@ fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
         ],
         false,
     );
-    w.drops = DropTable::of(&rw);
+    w.drops = DropTable::of(&rw, bundled_rules());
     w.equipment_mode = true;
+    w.equipment_rules = bundled_rules().clone();
     let f = s.stars.as_mut().expect("stars");
     f.rarity = (Rarity::Common, Rarity::Supernova);
     f.pool = vec![0, 1, 2];
@@ -551,7 +601,7 @@ fn a_boss_kill_gives_each_up_member_personal_drops() {
     stars::boss_killed(&w, &mut s);
     // Among those up the highest level is 5: the Rare tier, the place 1 (or a rune).
     let mine = inventory(&s, 0);
-    assert_eq!(mine.len(), usize::from(drops::BOSS_DROPS));
+    assert_eq!(mine.len(), usize::from(bundled_rules().boss_drops));
     assert!(matches!(mine[0], Held::Star(1) | Held::Rune(_)), "{mine:?}");
     assert!(inventory(&s, 1).is_empty() && inventory(&s, 2).is_empty());
     assert!(
@@ -568,7 +618,7 @@ fn a_boss_kill_gives_each_up_member_personal_drops() {
     stars::boss_killed(&w, &mut again);
     stars::pick_up(&w, &mut again, slot(0), &mut Vec::new());
     let both = inventory(&again, 0);
-    assert_eq!(both.len(), usize::from(drops::BOSS_DROPS) + 1);
+    assert_eq!(both.len(), usize::from(bundled_rules().boss_drops) + 1);
     assert_eq!(both[..mine.len()], mine[..]);
     // Nobody up, nobody gets one.
     let (w, mut s) = boss_party(2, [7, 7, 1]);
@@ -592,7 +642,7 @@ fn an_equipment_boss_kill_offers_nothing() {
             assert!(o.due.is_empty() && o.offer.is_none(), "n {n} slot {i}");
             assert_eq!(
                 career.equipment.inventory.len(),
-                usize::from(drops::BOSS_DROPS) + 1
+                usize::from(bundled_rules().boss_drops) + 1
             );
         }
     }

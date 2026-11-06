@@ -3,11 +3,12 @@
 //! its rolls, an out member gets none, a leaver's items go with it and a joiner takes the start
 //! loadout.
 
-use super::drops::{self, DropTable};
+use super::drops::DropTable;
 use super::drops_tests::{after, drop_star, expected, inventory, rewards, tiered};
 use super::equipment::Held;
 use super::party_fix_tests::{down, out, slot};
 use super::runes::FULL_POOL;
+use super::starlight::bundled_rules;
 use super::stars;
 use crate::engine::{Engine, Run};
 use crate::fixed::Fx;
@@ -27,8 +28,9 @@ fn rare_party(n: u8) -> (super::World, super::State) {
         ],
         false,
     );
-    w.drops = DropTable::of(&rw);
+    w.drops = DropTable::of(&rw, bundled_rules());
     w.equipment_mode = true;
+    w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL_POOL;
     (w, s)
@@ -82,14 +84,17 @@ fn a_downed_member_collects_nothing() {
     }
 }
 
-/// E3: a boss kill gives the downed and the out nothing; the up member gets `BOSS_DROPS`.
+/// E3: a boss kill gives the downed and the out nothing; the up member gets the rules' `boss_drops`.
 #[test]
 fn a_boss_kill_gives_the_downed_and_the_out_nothing() {
     let (w, mut s) = rare_party(3);
     down(&mut s, 1);
     out(&mut s, 2);
     stars::boss_killed(&w, &mut s);
-    assert_eq!(inventory(&s, 0).len(), usize::from(drops::BOSS_DROPS));
+    assert_eq!(
+        inventory(&s, 0).len(),
+        usize::from(bundled_rules().boss_drops)
+    );
     assert!(inventory(&s, 1).is_empty() && inventory(&s, 2).is_empty());
 }
 
