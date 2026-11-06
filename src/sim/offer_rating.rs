@@ -31,11 +31,12 @@ use crate::id::PlayerIdx;
 use crate::rewards::{EffectEntry, RewardEffect, Rewards};
 use crate::rewards::{MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT};
 use crate::rng::SplitMix64;
-use crate::snapshot::{Category, OfferRating, StatChange, StatKind};
+use crate::snapshot::{Category, OfferRating, StatChange, StatKind, SwapItem, SwapRating};
 
-use super::state::{Offers, PlayerState, Progress, State};
+use super::equipment::{EquipSlot, Equipment, Held};
+use super::state::{Career, Offers, PlayerState, Progress, State};
 use super::world::World;
-use super::{attacks, combat, levels, stars};
+use super::{attacks, combat, levels, slots, stars};
 
 /// The effect kinds that change a term the model rates.
 fn rated(effect: RewardEffect) -> bool {
@@ -279,6 +280,190 @@ pub(crate) fn offer_ratings(
         .collect()
 }
 
+/// The members of each set that are equipped, in the file's set order.
+fn members_equipped(rewards: &Rewards, equipment: &Equipment) -> Vec<u8> {
+    let places: Vec<u16> = slots::equipped(equipment).collect();
+    rewards
+        .constellations()
+        .sets()
+        .iter()
+        .map(|set| {
+            let n = set
+                .members
+                .iter()
+                .filter(|m| {
+                    rewards
+                        .index_of(m)
+                        .is_some_and(|p| places.iter().any(|&q| usize::from(q) == p))
+                })
+                .count();
+            u8::try_from(n).unwrap_or(u8::MAX)
+        })
+        .collect()
+}
+
+/// What the rules apply for the tiers `from + 1 ..= to` of `set` (each is its difference from
+/// the tier below).
+fn tier_effects(rewards: &Rewards, set: usize, from: u8, to: u8) -> Vec<EffectEntry> {
+    let tiers = &rewards.constellations().sets()[set].tiers;
+    (from..to)
+        .flat_map(|at| {
+            let at = usize::from(at);
+            constellations::tier_delta(at.checked_sub(1).map(|lower| &tiers[lower]), &tiers[at])
+        })
+        .collect()
+}
+
+/// The slot `index` addresses: the slots, then the Lumine slot.
+fn slot_at(equipment: &Equipment, index: usize) -> Option<&EquipSlot> {
+    equipment.slots.get(index).or_else(|| {
+        equipment
+            .lumine
+            .as_ref()
+            .filter(|_| index == equipment.slots.len())
+    })
+}
+
+/// A rating for the star `item` against each slot it could go in (the slot rules accept it as an
+/// equip into an empty slot or a replace of an occupied one), in slot order. Each swap is made by
+/// the rules' own `slots::equip` / `slots::replace` on a clone of the player, so the build, the
+/// grants, the set counts and the slot's level are the live rules' and nothing is copied here.
+/// Empty without slots, for an item that is not a star the rules can equip, or when no slot
+/// takes it. Read-only: the state is not changed, hashed or recorded.
+pub(crate) fn swap_ratings(
+    world: &World,
+    rewards: &Rewards,
+    s: &State,
+    me: PlayerIdx,
+    item: SwapItem,
+) -> Vec<SwapRating> {
+    let career = s.players.career(me);
+    if career.equipment.slots.is_empty() {
+        return Vec::new();
+    }
+    let owned;
+    let (base, index): (&Career, u32) = match item {
+        SwapItem::Inventory(i) => {
+            let held = usize::try_from(i)
+                .ok()
+                .and_then(|i| career.equipment.inventory.get(i));
+            if !matches!(held, Some(Held::Star(_))) {
+                return Vec::new();
+            }
+            (career, i)
+        }
+        SwapItem::Star(id) => {
+            let Some(place) = rewards.index_of(&id).and_then(|p| u16::try_from(p).ok()) else {
+                return Vec::new();
+            };
+            let mut c = career.clone();
+            c.equipment.inventory.push(Held::Star(place));
+            let at = u32::try_from(c.equipment.inventory.len() - 1).unwrap_or(u32::MAX);
+            owned = c;
+            (&owned, at)
+        }
+    };
+    let held = &s.players[me];
+    let sets = rewards.constellations().sets();
+    let before = Rate::of(world, s, &career.progress, held);
+    let before_sheet = sheet(
+        s,
+        &career.progress,
+        held,
+        career.regen,
+        career.offers.as_ref(),
+    );
+    let before_sets = members_equipped(rewards, &career.equipment);
+    let slot_count = base.equipment.slots.len() + usize::from(base.equipment.lumine.is_some());
+    let mut out = Vec::new();
+    for at in 0..slot_count {
+        let slot = u32::try_from(at).unwrap_or(u32::MAX);
+        let Some(target) = slot_at(&base.equipment, at) else {
+            continue;
+        };
+        let replaces = target.held.is_some();
+        if slots::check(rewards, &base.equipment, index, slot, replaces).is_err() {
+            continue;
+        }
+        let switch = replaces && slots::is_switch(rewards, &base.equipment, index, slot);
+        let displaced = target.held;
+        let incoming = match base.equipment.inventory.get(index as usize) {
+            Some(Held::Star(p)) => *p,
+            _ => continue,
+        };
+        let mut c = base.clone();
+        let mut player = held.clone();
+        let made = if replaces {
+            slots::replace(world, rewards, &mut player, &mut c, index, slot)
+        } else {
+            slots::equip(world, rewards, &mut player, &mut c, index, slot)
+        };
+        if made.is_err() {
+            continue;
+        }
+        let after_sets = members_equipped(rewards, &c.equipment);
+        let (mut set_gained, mut set_lost) = (None, None);
+        let mut tier_effects_moved: Vec<EffectEntry> = Vec::new();
+        let mut tier_effects_gained: Vec<EffectEntry> = Vec::new();
+        for (set, def) in sets.iter().enumerate() {
+            let was = def.tier_reached(before_sets[set]);
+            let now = def.tier_reached(after_sets[set]);
+            if now > was {
+                set_gained = set_gained.max(Some(now));
+                let gained = tier_effects(rewards, set, was, now);
+                tier_effects_moved.extend(gained.iter().cloned());
+                tier_effects_gained.extend(gained);
+            } else if now < was {
+                set_lost = set_lost.max(Some(was));
+                tier_effects_moved.extend(tier_effects(rewards, set, now, was));
+            }
+        }
+        let star_effects = |place: u16| -> &[EffectEntry] {
+            rewards
+                .rewards()
+                .get(usize::from(place))
+                .map_or(&[], |r| r.effects.as_slice())
+        };
+        let displaced_place = match displaced {
+            Some(Held::Star(p)) => Some(p),
+            _ => None,
+        };
+        let touches = star_effects(incoming)
+            .iter()
+            .chain(displaced_place.map_or(&[][..], star_effects))
+            .chain(&tier_effects_moved)
+            .any(|e| rated(e.effect));
+        let dps_bp = if touches {
+            let after = Rate::of(world, s, &c.progress, &player);
+            before
+                .as_ref()
+                .zip(after.as_ref())
+                .map(|(b, a)| b.delta_bp(a))
+        } else {
+            None
+        };
+        let effects: Vec<EffectEntry> = star_effects(incoming)
+            .iter()
+            .cloned()
+            .chain(tier_effects_gained)
+            .collect();
+        let after_sheet = sheet(s, &c.progress, &player, c.regen, c.offers.as_ref());
+        out.push(SwapRating {
+            slot,
+            replaces,
+            switch,
+            level_before: slot_at(&career.equipment, at).map_or(0, |t| t.level),
+            level_after: slot_at(&c.equipment, at).map_or(0, |t| t.level),
+            categories: categories_of_effects(&effects),
+            dps_bp,
+            set_gained,
+            set_lost,
+            changes: diff_sheets(&before_sheet, &after_sheet),
+        });
+    }
+    out
+}
+
 /// The category of one effect kind. One exhaustive `match`, no `_` arm: a new kind does not
 /// compile until it has a category (ADR-CONT-3: derived, never stored in the content).
 pub(crate) fn category_of(effect: RewardEffect) -> Category {
@@ -479,7 +664,7 @@ mod tests {
                 named("speed", vec![effect("speed_pct", 10)]),
                 star("hp100", vec![effect("max_hp", 100)]),
                 star("hp250", vec![effect("max_hp", 250)]),
-                star("random_rune", vec![json!({ "effect": "random_rune" })]),
+                json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
             ]
         }
 
