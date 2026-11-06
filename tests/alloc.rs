@@ -222,12 +222,13 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 
 /// The allocator calls of the two party benches (`benches/worst_tick_3p.rs`, `benches/rollback.rs`),
 /// by case: today's counts, not zero. The three-player tick allocates as the solo one does; the
-/// rollback is the clone's allocations plus the 8 ticks'. The rule of `BENCH_TICK_ALLOCS` holds:
-/// a count that falls is re-pinned lower, one that rises is a regression. A separate const so
+/// rollback is the clone's allocations plus the 8 ticks'. The clone copies the content too: the
+/// six new rewards, the equipment rules and the weapon sets add 47 (6 + 3 + 38), none a tick's.
+/// The rule of `BENCH_TICK_ALLOCS` holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const so
 /// that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 2] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(1694, 13, 8)),
+    ("rollback", pin(1741, 13, 8)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {

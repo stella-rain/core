@@ -412,7 +412,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
     ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 890),
     ("equipment_craft", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 790),
+    ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 920),
     ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
     ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 770),
     ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
@@ -424,8 +424,8 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [4, 4, 0], 1084, 1264, "e3e272f7223ce1b2"),
-    ("three_revive", [9, 8, 0], 994, 1174, "f072fac5d4c94504"),
+    ("two_revive", [4, 4, 0], 1084, 1264, "4fa15830c3e0a0ee"),
+    ("three_revive", [9, 8, 0], 994, 1174, "a93f79bd61c90d48"),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
