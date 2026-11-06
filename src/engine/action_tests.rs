@@ -679,4 +679,42 @@ mod tree_runs {
         );
         assert_eq!(e.check_action(slot(0), pick(0)), Ok(()));
     }
+
+    /// T21: the snapshot shows each player's own tree point, and drops it when it is taken.
+    #[test]
+    fn the_snapshot_shows_tree_ready() {
+        use crate::snapshot::{ExpertiseOfferKind, TreeReadyView};
+        let mut e = Engine::start_party(&equipment(), 2).unwrap();
+        assert_eq!(e.snapshot().players[0].tree_ready, None);
+        reach(&mut e, 0, 3);
+        let want = TreeReadyView {
+            kind: ExpertiseOfferKind::Style,
+            level: 3,
+            held: 1,
+            options: vec!["edge".into(), "tempo".into(), "reach".into()],
+        };
+        let snap = e.snapshot();
+        assert_eq!(snap.players[0].tree_ready.as_ref(), Some(&want));
+        assert_eq!(snap.players[1].tree_ready, None, "each player's own");
+        let json = serde_json::to_value(&snap.players[0]).unwrap();
+        assert_eq!(
+            json["tree_ready"],
+            serde_json::json!({ "kind": "style", "level": 3, "held": 1,
+                "options": ["edge", "tempo", "reach"] })
+        );
+        e.act(PlayerIdx::SOLO, pick(0)).unwrap();
+        let snap = e.snapshot();
+        assert_eq!(snap.players[0].tree_ready, None);
+        assert!(
+            serde_json::to_value(&snap.players[0])
+                .unwrap()
+                .get("tree_ready")
+                .is_none()
+        );
+        // An offers run has none.
+        let mut offers = Engine::start(&setup()).unwrap();
+        reach(&mut offers, 0, 3);
+        let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
+        assert!(json.get("tree_ready").is_none());
+    }
 }
