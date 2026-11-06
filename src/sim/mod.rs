@@ -158,6 +158,8 @@ mod orbit;
 #[cfg(test)]
 mod party_act_tests;
 #[cfg(test)]
+mod party_equip_tests;
+#[cfg(test)]
 mod party_fix_tests;
 mod player;
 #[cfg(test)]
