@@ -262,6 +262,25 @@ pub struct EquipScript {
     pub rune_at: u32,
     pub star_at: u32,
     pub swap_at: u32,
+    /// The replace at `swap_at` is by a star whose id (without its grade) differs from the slot's
+    /// star, so it shares no option (the contents' ids name the option): a slot's expertise is
+    /// halved. Without it the first accepted replace is made, a switch when there is one.
+    pub no_share: bool,
+}
+
+/// A star id without its grade: `max_hp_common` is `max_hp`.
+fn stem(id: &str) -> &str {
+    [
+        "_supernova",
+        "_legendary",
+        "_uncommon",
+        "_common",
+        "_epic",
+        "_rare",
+    ]
+    .iter()
+    .find_map(|g| id.strip_suffix(g))
+    .unwrap_or(id)
 }
 
 impl EquipScript {
@@ -281,9 +300,26 @@ impl EquipScript {
         };
         let equip = |item, slot| EquipAction::Equip { item, slot };
         let replace = |item, slot| EquipAction::Replace { item, slot };
+        let slots = engine.snapshot().players[0].slots.clone();
+        let other = |item: usize, slot: usize| match (&inventory[item], &slots[slot].held) {
+            (HeldView::Star { id: a, .. }, Some(HeldView::Star { id: b, .. })) => {
+                stem(a.as_str()) != stem(b.as_str())
+            }
+            _ => false,
+        };
+        let replace_other = || {
+            (0..inventory.len())
+                .flat_map(|item| (0..9usize).map(move |slot| (item, slot)))
+                .filter(|&(item, slot)| other(item, slot))
+                .map(|(item, slot)| {
+                    replace(u32::try_from(item).unwrap(), u32::try_from(slot).unwrap())
+                })
+                .find(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
+        };
         match tick {
             t if t == self.rune_at => find(equip, true, 9..12),
             t if t == self.star_at => find(equip, false, 0..9),
+            t if t == self.swap_at && self.no_share => replace_other(),
             t if t == self.swap_at => {
                 find(replace, false, 0..9).or_else(|| find(equip, false, 0..9))
             }
@@ -340,6 +376,29 @@ pub fn equipment_equip(name: &'static str, seed: u64) -> PartyCase {
             rune_at: 1000,
             star_at: 1500,
             swap_at: 2500,
+            no_share: false,
+        }),
+        ..equipment(name, 1)
+    }
+}
+
+/// The world seed of `equipment_levels` (`search_equipment_levels_seeds` in `equipment_slots.rs`).
+pub const EQUIP_LEVELS_SEED: u64 = 1;
+
+/// A solo equipment case where slot 0 equips a star early and replaces it late by a star that
+/// shares no option, after the star's slot has risen (the expertise of ADR-SIM-3, ADR-SIM-7).
+pub fn equipment_levels(name: &'static str, seed: u64) -> PartyCase {
+    PartyCase {
+        setup: RunSetup {
+            mode: "time_limit".into(),
+            seed,
+            ..equipment(name, 1).setup
+        },
+        script: Some(EquipScript {
+            rune_at: 400,
+            star_at: 700,
+            swap_at: 2700,
+            no_share: true,
         }),
         ..equipment(name, 1)
     }
@@ -460,6 +519,9 @@ pub fn party_cases() -> Vec<PartyCase> {
         // swaps or adds one, between ticks 1000 and 2500. The seed is the first of a search
         // (`search_equipment_equip_seeds` in `equipment_slots.rs`).
         equipment_equip("equipment_equip", EQUIP_SEED),
+        // A star equipped early rises on the kills and is replaced late by a star sharing no
+        // option: the slot keeps half its level (`search_equipment_levels_seeds`).
+        equipment_levels("equipment_levels", EQUIP_LEVELS_SEED),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]

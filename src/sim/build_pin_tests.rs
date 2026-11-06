@@ -988,3 +988,102 @@ fn a_replace_can_raise_one_stat_and_lower_another() {
     assert_eq!(total(&s, StatEffect::AttackPct), atk);
     assert_eq!(total(&s, StatEffect::MaxHp), hp + 100);
 }
+
+// --- the build at a slot level (equipment mode, ADR-SIM-3 point 2) ------------------------------
+
+use super::slots::level_scaled;
+
+/// T6: at level 1 the build of the levelled stars is the build of the counts, sets included.
+#[test]
+fn the_build_at_level_1_is_the_build_of_the_counts() {
+    let (stage, rewards) = (stage(), hand());
+    let places = [
+        ATK, ATK, HP, HEAL_A, BURST_A, REGEN, PYRO, N1, N2, RANGE, CRIT,
+    ];
+    let levelled: Vec<(u16, u8)> = places.iter().map(|&p| (p, 1)).collect();
+    assert_eq!(
+        Build::of_levelled(&stage, &rewards, &levelled),
+        Build::of(&stage, &rewards, &held(&places))
+    );
+    // Level 0 reads as 1.
+    let zero: Vec<(u16, u8)> = places.iter().map(|&p| (p, 0)).collect();
+    assert_eq!(
+        Build::of_levelled(&stage, &rewards, &zero),
+        Build::of(&stage, &rewards, &held(&places))
+    );
+}
+
+/// T7: a level raises the amounts and leaves the intervals, radius, depth, counts and tiers.
+#[test]
+fn a_level_raises_the_amounts_and_not_the_intervals() {
+    let (stage, rewards) = (stage(), hand());
+    let at10 = |p: u16| Build::of_levelled(&stage, &rewards, &[(p, 10)]);
+    let at1 = |p: u16| Build::of_levelled(&stage, &rewards, &[(p, 1)]);
+    assert_eq!(at10(ATK).stats[StatEffect::AttackPct as usize], 6);
+    assert_eq!(at10(HP).stats[StatEffect::MaxHp as usize], 127);
+    let heal = at10(HEAL_A);
+    assert_eq!(heal.kill_heal, level_scaled(300, 10));
+    assert_eq!(heal.kill_heal_every, at1(HEAL_A).kill_heal_every);
+    let burst = at10(BURST_A);
+    assert_eq!(burst.burst_pct, level_scaled(20, 10));
+    assert_eq!(burst.burst_radius, at1(BURST_A).burst_radius);
+    assert_eq!(burst.burst_depth, at1(BURST_A).burst_depth);
+    // Counts are not scaled: burst depth and offer candidates.
+    assert_eq!(
+        at10(BDEPTH).burst_depth_extra,
+        at1(BDEPTH).burst_depth_extra
+    );
+    assert_eq!(at10(CAND).extra_candidates, at1(CAND).extra_candidates);
+    assert_eq!(at10(REGEN).regen, level_scaled(2, 10));
+    assert_eq!(at10(RANGE).range_pct, 12);
+    // The caps still apply after the scaling.
+    let two = Build::of_levelled(&stage, &rewards, &[(CRIT, 10), (CRIT, 10)]);
+    assert_eq!(two.crit_chance_pct, MAX_CRIT_CHANCE_TOTAL_PCT);
+    // A set's tier delta is the same at any level of its members.
+    let (low, high) = (
+        Build::of_levelled(&stage, &rewards, &[(N1, 1), (N2, 1)]),
+        Build::of_levelled(&stage, &rewards, &[(N1, 10), (N2, 10)]),
+    );
+    assert_eq!(low.kill_heal, high.kill_heal);
+    assert_eq!(low.kill_heal_every, high.kill_heal_every);
+    assert_eq!(low.burst_radius, high.burst_radius);
+}
+
+/// T8: a level change rewrites the totals by the difference and heals a full player; a drop
+/// returns them exactly.
+#[test]
+fn a_level_up_rewrites_the_player_s_numbers() {
+    let (stage, rewards) = (stage(), hand());
+    let mut s = start(&stage, 23);
+    let (max, atk) = (
+        s.players[PlayerIdx::SOLO].max_hp,
+        total(&s, StatEffect::AttackPct),
+    );
+    let change = |s: &mut State, from: &[(u16, u8)], to: &[(u16, u8)]| {
+        let before = Build::of_levelled(&stage, &rewards, from);
+        let after = Build::of_levelled(&stage, &rewards, to);
+        let (player, career) = s.players.both_mut(PlayerIdx::SOLO);
+        let o = career.offers.as_mut().expect("offers");
+        Build::write(
+            &before,
+            &after,
+            player,
+            &mut career.progress,
+            &mut career.regen,
+            o,
+        );
+    };
+    change(&mut s, &[], &[(ATK, 1), (HP, 1)]);
+    s.players[PlayerIdx::SOLO].hp = s.players[PlayerIdx::SOLO].max_hp;
+    change(&mut s, &[(ATK, 1), (HP, 1)], &[(ATK, 10), (HP, 10)]);
+    assert_eq!(total(&s, StatEffect::AttackPct), atk + 6);
+    assert_eq!(s.players[PlayerIdx::SOLO].max_hp, max + 127);
+    assert_eq!(s.players[PlayerIdx::SOLO].hp, max + 127);
+    change(&mut s, &[(ATK, 10), (HP, 10)], &[(ATK, 1), (HP, 1)]);
+    assert_eq!(total(&s, StatEffect::AttackPct), atk + 5);
+    assert_eq!(s.players[PlayerIdx::SOLO].max_hp, max + 100);
+    // A downed player stays at 0 hit points.
+    s.players[PlayerIdx::SOLO].hp = 0;
+    change(&mut s, &[(ATK, 1), (HP, 1)], &[(ATK, 10), (HP, 10)]);
+    assert_eq!(s.players[PlayerIdx::SOLO].hp, 0);
+}

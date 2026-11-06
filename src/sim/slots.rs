@@ -5,16 +5,24 @@
 //! change from the build of the set before to the build of the set after.
 //!
 //! Placeholders (ADR-CONT-3 point 8; the pack will carry them): the layout, each star's category
-//! and each star's option. They are derived here from the effects and are the one place to
+//! and each star's option, the kills each level takes (`KILLS_TO_NEXT`) and the share of a star's
+//! base each level adds (`PCT_PER_LEVEL`). They are derived or set here and are the one place to
 //! replace.
+//!
+//! Expertise: every kill a player makes gives one point to each of its slots that holds a star
+//! (a category slot or the Lumine slot; runes and empty slots gain nothing). A slot rises one
+//! level at a time, Lv1 to `MAX_LEVEL`, and each level above 1 adds `PCT_PER_LEVEL` percent of the
+//! star's base amounts to the build (`level_scaled`). A replace by a star that shares no option
+//! halves the level (at least 1) and resets the kills; a same-option switch keeps both.
 
 use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::offer_rating::category_of;
-use super::state::{Career, HeldRune, Offers, PlayerState};
+use super::state::{Career, HeldRune, Offers, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
+use crate::limits::MAX_SLOT_LEVEL;
 use crate::rewards::{RewardEffect, Rewards};
 use crate::snapshot::Category;
 
@@ -26,6 +34,46 @@ pub(super) const SLOT_LAYOUT: [(SlotKind, u8); 4] = [
     (SlotKind::Category(2), 2),
     (SlotKind::Rune, 3),
 ];
+
+/// The highest level a slot reaches (ADR-SIM-5).
+pub(super) const MAX_LEVEL: u8 = MAX_SLOT_LEVEL;
+
+/// Placeholder curve: entry `i` is the kills a slot at level `i + 1` needs to reach level `i + 2`.
+/// Rising, so the lower levels come faster; Lv1 to Lv10 takes 870 kills.
+pub(super) const KILLS_TO_NEXT: [u32; 9] = [10, 20, 35, 55, 80, 110, 145, 185, 230];
+
+/// Placeholder: the percent of a star's base amount each level above 1 adds.
+const PCT_PER_LEVEL: u32 = 3;
+
+/// A slot's level and kills after `kills` more: one level at a time while the kills reach the
+/// level's need; at `MAX_LEVEL` the kills are dropped. A level of 0 (a slot that never held a
+/// star) gains nothing. Pure.
+pub(super) fn gain(level: u8, expertise: u32, kills: u32) -> (u8, u32) {
+    if level == 0 {
+        return (0, expertise);
+    }
+    let (mut level, mut expertise) = (level.min(MAX_LEVEL), expertise.saturating_add(kills));
+    while level < MAX_LEVEL {
+        let need = KILLS_TO_NEXT[usize::from(level) - 1];
+        if expertise < need {
+            break;
+        }
+        expertise -= need;
+        level += 1;
+    }
+    if level >= MAX_LEVEL {
+        expertise = 0;
+    }
+    (level, expertise)
+}
+
+/// `amount` at `level`: `PCT_PER_LEVEL` percent more for each level above 1, floored. A level of
+/// 0 reads as 1 and one past `MAX_LEVEL` as `MAX_LEVEL`.
+pub(super) fn level_scaled(amount: u32, level: u8) -> u32 {
+    let above = u64::from(level.clamp(1, MAX_LEVEL) - 1);
+    let scaled = u64::from(amount) * (100 + u64::from(PCT_PER_LEVEL) * above) / 100;
+    u32::try_from(scaled).unwrap_or(u32::MAX)
+}
 
 /// The slot index of the first rune slot.
 pub(super) fn first_rune_slot() -> usize {
@@ -90,6 +138,7 @@ pub(super) fn shares_option(rewards: &Rewards, a: u16, b: u16) -> bool {
 }
 
 /// The stars equipped, in slot order and the Lumine slot last.
+#[cfg(test)]
 pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ {
     equipment
         .slots
@@ -99,6 +148,19 @@ pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ 
             Some(Held::Star(p)) => Some(p),
             _ => None,
         })
+}
+
+/// The stars equipped with their slot's level, in slot order and the Lumine slot last.
+pub(super) fn equipped_levels(equipment: &Equipment) -> Vec<(u16, u8)> {
+    equipment
+        .slots
+        .iter()
+        .chain(equipment.lumine.as_ref())
+        .filter_map(|s| match s.held {
+            Some(Held::Star(p)) => Some((p, s.level)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// How many of each star of the file are equipped (the inventory does not count).
@@ -132,8 +194,8 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
-/// Writes the change of what is equipped: `before` is the stars equipped before the change in
-/// slot order (empty for nothing), the equipment of `career` holds the set after. The build and
+/// Writes the change of what is equipped: `before` is the stars equipped before the change, with
+/// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
 /// the members equipped.
 pub(super) fn refresh(
@@ -141,7 +203,7 @@ pub(super) fn refresh(
     rewards: &Rewards,
     player: &mut PlayerState,
     career: &mut Career,
-    before: &[u16],
+    before: &[(u16, u8)],
 ) {
     let Career {
         progress,
@@ -150,18 +212,20 @@ pub(super) fn refresh(
         equipment,
         ..
     } = career;
-    let after: Vec<u16> = equipped(equipment).collect();
+    let after_levels = equipped_levels(equipment);
+    let after: Vec<u16> = after_levels.iter().map(|s| s.0).collect();
+    let before_places: Vec<u16> = before.iter().map(|s| s.0).collect();
     let counts = counts_of(rewards, after.iter().copied());
     let mut local = None;
     let o = match offers {
         Some(o) => o,
         None => local.insert(throwaway(rewards)),
     };
-    let was = Build::of(stage, rewards, &counts_of(rewards, before.iter().copied()));
-    let now = Build::of(stage, rewards, &counts);
+    let was = Build::of_levelled(stage, rewards, before);
+    let now = Build::of_levelled(stage, rewards, &after_levels);
     Build::write(&was, &now, player, progress, regen, o);
     Grants::write(
-        &Grants::of(rewards, before),
+        &Grants::of(rewards, &before_places),
         &Grants::of(rewards, &after),
         stage,
         player,
@@ -179,6 +243,56 @@ pub(super) fn refresh(
             .count();
         if let Some(n) = o.set_counts.get_mut(set) {
             *n = u8::try_from(members).unwrap_or(u8::MAX);
+        }
+    }
+}
+
+/// Counts the enemies defeated this tick for each player into `Scratch::kills_by`: an enemy at 0
+/// hit points that is not a kill burst's, for the player that defeated it (the rule of
+/// `heal::kills_heal`). Called by `collide` before the dead are removed, in equipment mode only.
+pub(super) fn count_kills(s: &mut State) {
+    for i in 0..s.enemies.len() {
+        if s.enemies[i].hp == 0 && !s.enemies[i].burst {
+            let who = super::killer_of(s, i).get();
+            if let Some(n) = s.scratch.kills_by.get_mut(who) {
+                *n = n.saturating_add(1);
+            }
+        }
+    }
+}
+
+/// Gives each player its kills of the tick as expertise: every slot holding a star (a category
+/// slot or the Lumine slot) gains them all (`gain`); a player whose slot rose a level has its
+/// build rewritten from the levels before and after (`refresh`). Empties `Scratch::kills_by`
+/// (`collide` alone, as a test calls it, leaves the counts for the next `credit_kills`).
+pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
+    let kills = std::mem::take(&mut s.scratch.kills_by);
+    for me in s.players.indices() {
+        let n = kills[me.get()];
+        if n == 0 {
+            continue;
+        }
+        let (player, career) = s.players.both_mut(me);
+        let eq = &career.equipment;
+        let rises = |slot: &EquipSlot| {
+            matches!(slot.held, Some(Held::Star(_)))
+                && gain(slot.level, slot.expertise, n).0 != slot.level
+        };
+        // A level-up is rare: the levels before are listed only when one happens.
+        let before = eq
+            .slots
+            .iter()
+            .chain(eq.lumine.as_ref())
+            .any(rises)
+            .then(|| equipped_levels(eq));
+        let eq = &mut career.equipment;
+        for slot in eq.slots.iter_mut().chain(eq.lumine.as_mut()) {
+            if matches!(slot.held, Some(Held::Star(_))) {
+                (slot.level, slot.expertise) = gain(slot.level, slot.expertise, n);
+            }
+        }
+        if let Some(before) = before {
+            refresh(stage, rewards, player, career, &before);
         }
     }
 }
@@ -280,9 +394,7 @@ pub(super) fn check(
 }
 
 /// Whether replacing the star in `slot` by the star `item` is a switch: both are stars and
-/// share an option. A switch costs no expertise: the expertise rules read this (a later task),
-/// so it is tested here and unused by the live rules until then.
-#[cfg_attr(not(test), allow(dead_code))]
+/// share an option. A switch costs no expertise: `apply` keeps the whole level and kills.
 pub(super) fn is_switch(rewards: &Rewards, equipment: &Equipment, item: u32, slot: u32) -> bool {
     let item = usize::try_from(item)
         .ok()
@@ -312,7 +424,8 @@ pub(super) fn equip(
 }
 
 /// Replaces the star or rune in the occupied `slot` by the inventory item `item`: the displaced
-/// one takes the item's place in the inventory, and the slot keeps its level and expertise.
+/// one takes the item's place in the inventory. The slot keeps its level and kills for a same-option
+/// switch (`is_switch`) and otherwise keeps half the level, at least 1, and none of the kills.
 pub(super) fn replace(
     stage: &World,
     rewards: &Rewards,
@@ -336,8 +449,9 @@ fn apply(
     slot: u32,
     replace: bool,
 ) {
+    let switch = replace && is_switch(rewards, &career.equipment, item, slot);
     let (item, at) = (item as usize, slot as usize);
-    let before: Vec<u16> = equipped(&career.equipment).collect();
+    let before = equipped_levels(&career.equipment);
     let eq = &mut career.equipment;
     let is_rune = matches!(eq.inventory[item], Held::Rune(_));
     let new = if replace {
@@ -351,6 +465,12 @@ fn apply(
         false => eq.lumine.as_mut().expect("checked: the Lumine slot"),
     };
     let displaced = target.held.replace(new);
+    if replace && !switch {
+        // A replace by a star sharing no option keeps half the level and none of the kills; a
+        // switch keeps both. (A rune slot sits at Lv1 with no kills, so the rule leaves it there.)
+        target.level = (target.level / 2).max(1);
+        target.expertise = 0;
+    }
     target.level = target.level.max(1);
     if replace && let Some(old) = displaced {
         eq.inventory[item] = old;
