@@ -627,9 +627,8 @@ pub struct PlayerView {
     /// runes' cooldowns and the statuses' timers.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub rune_haste_pct: u32,
-    /// What the pickup radius rewards taken add up to, in percent, before the clamp at
-    /// `MAX_PICKUP_RADIUS_TOTAL_PCT`: the pickup circle of stars and heal pickups is that
-    /// much wider.
+    /// The pickup circle of stars and heal pickups is that much wider, in percent: the pickup
+    /// radius rewards taken plus the `PickupRadiusPct` stat, held to `MAX_PICKUP_RADIUS_TOTAL_PCT`.
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub pickup_radius_pct: u32,
     /// What the skill cooldown rewards taken add up to, in percent, before the clamp at

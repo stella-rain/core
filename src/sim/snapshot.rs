@@ -270,7 +270,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             .collect(),
         range_pct: s.players[me].range_pct,
         rune_haste_pct: s.players[me].rune_haste_pct,
-        pickup_radius_pct: s.players[me].pickup_radius_pct,
+        pickup_radius_pct: super::pickup_pct(s, me),
         skill_cooldown_pct: s.players[me].skill_cooldown_pct,
         kill_heal: s.players[me].kill_heal,
         kill_heal_every: s.players[me].kill_heal_every,
