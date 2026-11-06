@@ -389,6 +389,50 @@ impl Run {
         }
     }
 
+    /// Whether `player` could extract inventory item `item`: `None` where no rule applies.
+    pub(crate) fn check_extract(
+        &self,
+        player: PlayerIdx,
+        item: u32,
+    ) -> Option<Result<(), sim::StarlightError>> {
+        match self {
+            Run::V2 { world, state } if world.equipment_mode => {
+                Some(sim::check_extract(state, player, item))
+            }
+            Run::V1 { .. } | Run::V2 { .. } => None,
+        }
+    }
+
+    /// Makes an extract already accepted by `check_extract`.
+    pub(crate) fn extract(&mut self, rewards: &Rewards, player: PlayerIdx, item: u32) {
+        if let Run::V2 { state, .. } = self {
+            let _ = sim::extract_action(rewards, state, player, item);
+        }
+    }
+
+    /// Whether `player` could craft the star at index `star` of the star pool: `None` where no
+    /// rule applies.
+    pub(crate) fn check_craft(
+        &self,
+        rewards: &Rewards,
+        player: PlayerIdx,
+        star: u32,
+    ) -> Option<Result<(), sim::StarlightError>> {
+        match self {
+            Run::V2 { world, state } if world.equipment_mode => {
+                Some(sim::check_craft(rewards, state, player, star))
+            }
+            Run::V1 { .. } | Run::V2 { .. } => None,
+        }
+    }
+
+    /// Makes a craft already accepted by `check_craft`.
+    pub(crate) fn craft(&mut self, rewards: &Rewards, player: PlayerIdx, star: u32) {
+        if let Run::V2 { state, .. } = self {
+            let _ = sim::craft_action(rewards, state, player, star);
+        }
+    }
+
     /// Whether `player` has an offer open.
     pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
         match self {

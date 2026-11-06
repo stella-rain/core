@@ -76,8 +76,7 @@ fn the_prices_rise_with_rarity() {
         let value = extract_value(&rw, Held::Star(u16::from(r.index())));
         assert!(craft_price(r) > value, "{r:?}");
     }
-    assert!(RUNE_EXTRACT > 0);
-    assert!(BOSS_BONUS > 0);
+    const { assert!(RUNE_EXTRACT > 0 && BOSS_BONUS > 0) };
 }
 
 #[test]
@@ -136,7 +135,7 @@ fn extract_refuses_a_place_past_the_inventory() {
         starlight::check_extract(&e, 0),
         Err(StarlightError::NoItem { item: 0 })
     );
-    assert_eq!(starlight::extract(&rw, &mut e, u32::MAX).is_err(), true);
+    assert!(starlight::extract(&rw, &mut e, u32::MAX).is_err());
 }
 
 #[test]

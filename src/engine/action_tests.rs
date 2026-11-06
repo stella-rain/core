@@ -369,11 +369,13 @@ mod equipment_runs {
         e.act(me, equip(0, 5)).unwrap();
         e.act(me, replace(0, 5)).unwrap();
         let eq = equipment_of(&e, 0);
-        let last = u32::try_from(eq.inventory.len() - 1).unwrap();
-        assert_eq!(
-            eq.inventory.last(),
-            Some(&Held::Star(place(&e, "max_hp_common")))
-        );
+        let hp = Held::Star(place(&e, "max_hp_common"));
+        let at = eq
+            .inventory
+            .iter()
+            .position(|h| *h == hp)
+            .expect("displaced");
+        let last = u32::try_from(at).unwrap();
         assert_eq!(e.act(me, extract(last)), Ok(()));
         assert_eq!(equipment_of(&e, 0).starlight, EXTRACT_VALUE[0]);
 

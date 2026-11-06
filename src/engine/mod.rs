@@ -49,8 +49,8 @@ pub enum ChoiceError {
 pub enum ActionError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
-    /// No rule accepts this action yet: a run that is not in equipment mode, `sim_version` 1,
-    /// and `Extract`, `Craft` and `TreePick`.
+    /// No rule accepts this action: a run that is not in equipment mode or is `sim_version` 1
+    /// (every action), and `TreePick` (still unbuilt).
     NotBuilt,
     /// `item` is not a place of the inventory.
     NoItem { item: u32 },
@@ -69,6 +69,30 @@ pub enum ActionError {
     OptionHeld { slot: u32 },
     /// That rune is in another rune slot.
     RuneHeld { slot: u32 },
+    /// `Craft`: `star` is past the setup's star pool, or its place is past the rewards file.
+    NoStar { star: u32 },
+    /// `Craft`: the star is the lone random-rune reward.
+    NotCraftable { star: u32 },
+    /// `Craft`: the star is named and the player already holds it.
+    AlreadyHeld { star: u32 },
+    /// `Craft`: the star costs `need` Starlight and the player has `have`.
+    NotEnoughStarlight { need: u32, have: u32 },
+    /// `Craft`: the inventory is at its bound.
+    InventoryFull,
+}
+
+impl From<crate::sim::StarlightError> for ActionError {
+    fn from(e: crate::sim::StarlightError) -> ActionError {
+        use crate::sim::StarlightError as S;
+        match e {
+            S::NoItem { item } => ActionError::NoItem { item },
+            S::NoStar { star } => ActionError::NoStar { star },
+            S::NotCraftable { star } => ActionError::NotCraftable { star },
+            S::AlreadyHeld { star } => ActionError::AlreadyHeld { star },
+            S::NotEnoughStarlight { need, have } => ActionError::NotEnoughStarlight { need, have },
+            S::InventoryFull => ActionError::InventoryFull,
+        }
+    }
 }
 
 impl From<crate::sim::SlotError> for ActionError {
@@ -599,9 +623,11 @@ impl Engine {
     /// Whether `player` could make the equipment action `action` in a step (ADR-SIM-7).
     /// Read-only. `NoPlayer` for a slot outside the party. `Equip` and `Replace` are the
     /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
-    /// equipment mode or is `sim_version` 1. `Extract`, `Craft` and `TreePick` are `NotBuilt`
-    /// in every mode: each rule replaces its own arm when it lands. The match has one arm per
-    /// variant so a new rule edits one line.
+    /// equipment mode or is `sim_version` 1. `Extract` and `Craft` are the same: the refusals
+    /// of `starlight` (an item of the inventory; a star of the setup's pool, its price, a held
+    /// named star, the inventory bound). `TreePick` is `NotBuilt` in every mode: its rule
+    /// replaces its arm when it lands. The match has one arm per variant so a new rule edits
+    /// one line.
     pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
         if self.present() >> player.get() & 1 == 0 {
             return Err(ActionError::NoPlayer { player });
@@ -615,7 +641,16 @@ impl Engine {
         match action {
             EquipAction::Equip { item, slot } => equip(item, slot, false),
             EquipAction::Replace { item, slot } => equip(item, slot, true),
-            EquipAction::Extract { .. } | EquipAction::Craft { .. } => Err(ActionError::NotBuilt),
+            EquipAction::Extract { item } => self
+                .run
+                .check_extract(player, item)
+                .ok_or(ActionError::NotBuilt)?
+                .map_err(ActionError::from),
+            EquipAction::Craft { star } => self
+                .run
+                .check_craft(self.content.rewards(), player, star)
+                .ok_or(ActionError::NotBuilt)?
+                .map_err(ActionError::from),
             EquipAction::TreePick { .. } => Err(ActionError::NotBuilt),
         }
     }
@@ -650,9 +685,9 @@ impl Engine {
                 self.run
                     .equip(self.content.rewards(), player, item, slot, true)
             }
-            EquipAction::Extract { .. }
-            | EquipAction::Craft { .. }
-            | EquipAction::TreePick { .. } => {}
+            EquipAction::Extract { item } => self.run.extract(self.content.rewards(), player, item),
+            EquipAction::Craft { star } => self.run.craft(self.content.rewards(), player, star),
+            EquipAction::TreePick { .. } => {}
         }
         Ok(())
     }
