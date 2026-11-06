@@ -97,11 +97,17 @@ pub enum StatEffect {
     PickupRadiusPct,
     /// `step` percent more Stardust earned, truncated once with the stage's time factor.
     StardustPct,
+    /// `step` percent shorter stage-skill cooldown, added to the skill-cooldown reward's percent;
+    /// the sum is held to `MAX_SKILL_COOLDOWN_TOTAL_PCT`.
+    SkillCooldownPct,
+    /// `step` percent wider combo hit boxes, added to the range reward's and the expertise range;
+    /// the sum is held to `MAX_RANGE_PCT`.
+    RangePct,
 }
 
 impl StatEffect {
     /// Every effect, in the order the state keeps their totals.
-    pub const ALL: [StatEffect; 11] = [
+    pub const ALL: [StatEffect; 13] = [
         StatEffect::MaxHp,
         StatEffect::AttackPct,
         StatEffect::AttackSpeedPct,
@@ -113,6 +119,8 @@ impl StatEffect {
         StatEffect::OfferCandidates,
         StatEffect::PickupRadiusPct,
         StatEffect::StardustPct,
+        StatEffect::SkillCooldownPct,
+        StatEffect::RangePct,
     ];
 
     /// The effects version 1 released: the first six of `ALL`, what the frozen rules keep.

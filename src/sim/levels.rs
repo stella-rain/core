@@ -266,6 +266,37 @@ pub(super) fn remove_effect(
     }
 }
 
+/// The whole percent of `effect`: the total plus the weapon's stat set in tenths, `t / 10`
+/// rounded down once (an attack read keeps the tenths, see `attack_of`).
+#[inline]
+pub(super) fn set_pct(p: &Progress, effect: StatEffect) -> u32 {
+    p.totals[effect as usize].saturating_add(p.set_tenths[effect as usize] / 10)
+}
+
+/// `effect`'s whole percent for `me`; 0 without levels.
+pub(super) fn pct(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
+    s.players
+        .career(me)
+        .progress
+        .as_ref()
+        .map_or(0, |p| set_pct(p, effect))
+}
+
+/// The combo's range in percent: the player's own, the expertise range and the range stat
+/// (`wider_box` holds the sum to `MAX_RANGE_PCT`).
+pub(super) fn range_pct(s: &State, me: PlayerIdx) -> u32 {
+    s.players[me]
+        .range_pct
+        .saturating_add(
+            s.players
+                .career(me)
+                .expertise
+                .as_ref()
+                .map_or(0, |g| g.range_pct),
+        )
+        .saturating_add(pct(s, me, StatEffect::RangePct))
+}
+
 pub(super) fn total(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
     let career = s.players.career(me);
     career
@@ -292,10 +323,14 @@ pub(super) fn attack(s: &State, me: PlayerIdx, atk: u32) -> u32 {
 /// `atk` with the points `progress` holds spent on attack: `attack` for any one `Progress`.
 #[inline]
 pub(super) fn attack_of(progress: Option<&Progress>, atk: u32) -> u32 {
-    raised(
-        atk,
-        progress.map_or(0, |p| p.totals[StatEffect::AttackPct as usize]),
-    )
+    let Some(p) = progress else {
+        return atk;
+    };
+    // One rounding, down, in tenths: at no set this is `atk * (100 + w) / 100` exactly.
+    let w = u64::from(p.totals[StatEffect::AttackPct as usize]);
+    let t = u64::from(p.set_tenths[StatEffect::AttackPct as usize]);
+    let raised = u64::from(atk) * (1000 + 10 * w + t) / 1000;
+    u32::try_from(raised).unwrap_or(u32::MAX)
 }
 
 /// The main character's attack speed, in percent, with the points spent on it.
@@ -311,14 +346,14 @@ pub(super) fn attack_speed(s: &State, me: PlayerIdx) -> u32 {
 #[inline]
 pub(super) fn attack_speed_of(progress: Option<&Progress>, cap: u32) -> u32 {
     run_stats::capped_attack_speed_pct(
-        progress.map_or(0, |p| p.totals[StatEffect::AttackSpeedPct as usize]),
+        progress.map_or(0, |p| set_pct(p, StatEffect::AttackSpeedPct)),
         cap,
     )
 }
 
 /// The evade's cooldown with the points spent on evading.
 pub(super) fn evade_cooldown(s: &State, me: PlayerIdx, ticks: u32) -> u32 {
-    shortened(ticks, total(s, me, StatEffect::EvadePct))
+    shortened(ticks, pct(s, me, StatEffect::EvadePct))
 }
 
 /// A speed cap with the points spent on speed.

@@ -333,6 +333,10 @@ pub(crate) struct Progress {
     pub spent: Vec<u8>,
     /// What the points spent add up to for each effect, in `StatEffect::ALL` order.
     pub totals: [u32; StatEffect::ALL.len()],
+    /// What the weapon's stat set adds for each effect, in tenths of a percent (`MaxHp`'s set is
+    /// whole and lives in `totals`), in `StatEffect::ALL` order. Only the set's writer
+    /// (`expertise.rs`) touches it; a read adds `value / 10` to the whole percent in `totals`.
+    pub set_tenths: [u32; StatEffect::ALL.len()],
 }
 
 pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};

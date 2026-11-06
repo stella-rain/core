@@ -261,7 +261,7 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn level_up(c: &mut Ctx) {
         for me in c.s.players.indices() {
-            expertise::level_up(c.expertise, c.s, me);
+            expertise::level_up(c.world, c.expertise, c.s, me);
         }
     }
 

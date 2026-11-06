@@ -6603,6 +6603,17 @@
             "$ref": "#/$defs/TypeBonusView"
           },
           "type": "array"
+        },
+        "weapon_stats": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WeaponStatsView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The weapon's stat sets (equipment mode): the base set and every tree's set at the weapon's\nlevel; absent in offers mode, without an expertise gauge and for an inline weapon."
         }
       },
       "required": [
@@ -9170,6 +9181,16 @@
           "const": "stardust_pct",
           "description": "`step` percent more Stardust earned, truncated once with the stage's time factor.",
           "type": "string"
+        },
+        {
+          "const": "skill_cooldown_pct",
+          "description": "`step` percent shorter stage-skill cooldown, added to the skill-cooldown reward's percent;\nthe sum is held to `MAX_SKILL_COOLDOWN_TOTAL_PCT`.",
+          "type": "string"
+        },
+        {
+          "const": "range_pct",
+          "description": "`step` percent wider combo hit boxes, added to the range reward's and the expertise range;\nthe sum is held to `MAX_RANGE_PCT`.",
+          "type": "string"
         }
       ]
     },
@@ -9187,6 +9208,33 @@
       },
       "required": [
         "options"
+      ],
+      "type": "object"
+    },
+    "StatValueView": {
+      "additionalProperties": false,
+      "description": "One stat of a set. Percentages are in **tenths of a percent** (165 is 16.5 percent); the\nmost hit points (`MaxHp`) are whole units.",
+      "properties": {
+        "effect": {
+          "$ref": "#/$defs/StatEffect"
+        },
+        "next": {
+          "description": "The value at the next level (the same at level 10).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "now": {
+          "description": "The value at the weapon's level.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "effect",
+        "now",
+        "next"
       ],
       "type": "object"
     },
@@ -9737,6 +9785,28 @@
       ],
       "type": "object"
     },
+    "TreeStatsView": {
+      "additionalProperties": false,
+      "description": "One tree's stat set.",
+      "properties": {
+        "stats": {
+          "description": "The stats it gives at the weapon's level.",
+          "items": {
+            "$ref": "#/$defs/StatValueView"
+          },
+          "type": "array"
+        },
+        "style": {
+          "$ref": "#/$defs/ContentId",
+          "description": "The tree's style ID."
+        }
+      },
+      "required": [
+        "style",
+        "stats"
+      ],
+      "type": "object"
+    },
     "TypeBonusView": {
       "additionalProperties": false,
       "description": "The type bonus the main character holds for one damage type: the one-type\nbonuses of that type and its group's bonus, added up.",
@@ -10048,6 +10118,49 @@
           "type": "object"
         }
       ]
+    },
+    "WeaponStatsView": {
+      "additionalProperties": false,
+      "description": "A weapon's stat sets as the weapon level `level` gives them (equipment mode), for the tree\nselection window and the weapon window.",
+      "properties": {
+        "active": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The tree chosen, by its style ID; absent before the style pick."
+        },
+        "base": {
+          "description": "The base set: in force until a tree is chosen.",
+          "items": {
+            "$ref": "#/$defs/StatValueView"
+          },
+          "type": "array"
+        },
+        "level": {
+          "description": "The weapon level, 1 to 10 (level 0 shows 1, and levels past 10 show 10).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "trees": {
+          "description": "Every tree's set, in the weapon's style order (the order `TreeReadyView.options` lists).",
+          "items": {
+            "$ref": "#/$defs/TreeStatsView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "level",
+        "base",
+        "trees"
+      ],
+      "type": "object"
     },
     "WeaponTree": {
       "additionalProperties": false,

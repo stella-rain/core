@@ -191,6 +191,8 @@ mod state_hash;
 mod stun;
 #[cfg(test)]
 mod tether_tests;
+#[cfg(test)]
+mod tree_stats_tests;
 mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
@@ -228,7 +230,7 @@ pub(crate) use drops::DropTable;
 use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
-pub(crate) use expertise::{check_tree, tree_ready_view};
+pub(crate) use expertise::{check_tree, tree_ready_view, weapon_stats_view};
 use grid::Grid;
 pub(crate) use levels::{offer_view as stat_offer_view, set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
@@ -382,6 +384,8 @@ pub(crate) fn initial_state(
     kinds: KindTable,
 ) -> State {
     let mut state = unreserved_state(stage, content, pool, seed, kinds);
+    // The weapon's base set at level 1, for slot 0; a party member or a joiner copies the career.
+    expertise::start_set(stage, content.expertise(), &mut state, PlayerIdx::SOLO);
     reserve(stage, &mut state);
     state
 }
@@ -522,6 +526,7 @@ fn unreserved_state(
         offer_open: false,
         spent: vec![0; run_stats.stats().len()],
         totals: [0; StatEffect::ALL.len()],
+        set_tenths: [0; StatEffect::ALL.len()],
     });
     let offers = stage.stars.as_ref().map(|st| Offers {
         due: Vec::new(),
