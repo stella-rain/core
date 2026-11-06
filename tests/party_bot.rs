@@ -644,6 +644,36 @@ impl RigRun {
     }
 }
 
+/// Which predicate of a building rig case `replay` (a party of `n`) misses, if any: a run still
+/// `Running` of 3000 ticks and under 64 KiB that verifies to its final hash, every slot with an
+/// `Equip` and an `Extract`; the party of 1 also a `Craft` and a `TreePick`, the party of 3 also
+/// a `Replace` by some slot.
+pub fn rig_builds_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
+    use stella_rain_core::engine::Outcome;
+    let bytes = replay.to_bytes();
+    if replay.ticks != 3000 || bytes.len() >= 64 * 1024 {
+        return Some("3000 ticks, under 64 KiB");
+    }
+    match stella_rain_core::run_replay::verify_run(&bytes) {
+        Ok(v) if v.outcome == Outcome::Running => {}
+        _ => return Some("Running and verifies"),
+    }
+    let per = RigRun::of(replay).actions_per_slot();
+    if per[..usize::from(n)].iter().any(|c| c.equip == 0) {
+        return Some("every slot equips");
+    }
+    if per[..usize::from(n)].iter().any(|c| c.extract == 0) {
+        return Some("every slot extracts");
+    }
+    if n == 1 && (per[0].craft == 0 || per[0].tree_pick == 0) {
+        return Some("a craft and a tree pick");
+    }
+    if n == 3 && per.iter().all(|c| c.replace == 0) {
+        return Some("a replace");
+    }
+    None
+}
+
 /// The downs, revives and outs of a rig run (ADR-SIM-7, ADR-SIM-8). Ticks are the engine's
 /// tick count after the step the event came in.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1518,6 +1548,57 @@ mod search {
                 }
             }
             println!("N={n}: {found} candidates");
+        }
+    }
+
+    /// The search for the building rig cases of the corpus: `cargo test --release --locked --test
+    /// integration search_equipment_rig_seeds -- --ignored --nocapture`. World seeds 1..=100 x
+    /// bot seeds 1..=10, per party size the first that misses no predicate of `rig_builds_miss`;
+    /// widened once to 1..=300 x 1..=20.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_rig_seeds() {
+        for n in 1..=3u8 {
+            let mut found = None;
+            let mut nearest = ("", 0u8);
+            'scan: for (worlds, bots) in [(1..=100u64, 1..=10u64), (1..=300, 1..=20)] {
+                for seed in worlds {
+                    for bot_seed in bots.clone() {
+                        let case = RigParty::new(n)
+                            .equipment()
+                            .builds()
+                            .seed(seed)
+                            .bot_seed(bot_seed)
+                            .case("x");
+                        let replay = case.play().replay();
+                        match rig_builds_miss(&replay, n) {
+                            None => {
+                                found = Some((seed, bot_seed));
+                                break 'scan;
+                            }
+                            Some(m) => nearest = (m, nearest.1.saturating_add(1)),
+                        }
+                    }
+                }
+            }
+            match found {
+                Some((seed, bot_seed)) => {
+                    let case = RigParty::new(n)
+                        .equipment()
+                        .builds()
+                        .seed(seed)
+                        .bot_seed(bot_seed)
+                        .case("x");
+                    let replay = case.play().replay();
+                    let v = verify_run(&replay.to_bytes()).unwrap();
+                    println!(
+                        "N={n}: seed={seed} bot_seed={bot_seed} stardust={} per_slot={:?}",
+                        v.stardust,
+                        RigRun::of(&replay).actions_per_slot()
+                    );
+                }
+                None => println!("N={n}: NOT FOUND, last miss: {}", nearest.0),
+            }
         }
     }
 }

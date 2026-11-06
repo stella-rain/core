@@ -563,6 +563,22 @@ pub fn equipment_party(n: u8) -> PartyCase {
     rig.case(name)
 }
 
+/// The (world seed, bot seed) of `equipment_rig_1`, `_2` and `_3` (`search_equipment_rig_seeds`
+/// in `party_bot.rs`).
+pub const EQUIP_RIG_SEEDS: [(u64, u64); 3] = [(1, 1), (1, 1), (1, 1)];
+
+/// The building rig case of `n` (1 to 3) players: every slot a `PartyBot` that builds.
+pub fn equipment_rig(n: u8) -> PartyCase {
+    let (seed, bot_seed) = EQUIP_RIG_SEEDS[usize::from(n) - 1];
+    let name = ["equipment_rig_1", "equipment_rig_2", "equipment_rig_3"][usize::from(n) - 1];
+    RigParty::new(n)
+        .equipment()
+        .builds()
+        .seed(seed)
+        .bot_seed(bot_seed)
+        .case(name)
+}
+
 /// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
 /// seeds are found where, in the middle of the run, each answers an offer of its own): the
 /// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
@@ -691,6 +707,11 @@ pub fn party_cases() -> Vec<PartyCase> {
         equipment_party(1),
         equipment_party(2),
         equipment_party(3),
+        // The building rig cases (ADR-SIM-7): equipment mode, every slot a bot that takes its
+        // tree point, equips the best rated star, extracts the rest and crafts.
+        equipment_rig(1),
+        equipment_rig(2),
+        equipment_rig(3),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]
