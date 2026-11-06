@@ -723,3 +723,143 @@ fn the_snapshot_shows_the_inventory() {
         "{text}"
     );
 }
+
+// --- the pickup radius stat (ADR-SIM-3) ---------------------------------------------------------
+
+mod pickup_stat {
+    use super::*;
+    use crate::fixed::Fx;
+    use crate::run_stats::StatEffect;
+    use crate::stage::Healing;
+
+    const RADIUS: i32 = 12_288;
+
+    /// Whether a pickup at the given distance to the right is taken.
+    type Taken = fn(&World, &State, i32) -> bool;
+
+    fn set_total(s: &mut State, effect: StatEffect, v: u32) {
+        s.players
+            .career_mut(slot(0))
+            .progress
+            .as_mut()
+            .expect("the stage has levels")
+            .totals[effect as usize] = v;
+    }
+
+    /// T12: the stat adds to the stars' share, saturating, and the cap holds the sum.
+    #[test]
+    fn pickup_pct_adds_the_stat_to_the_stars_share() {
+        let (_, mut s) = party(1);
+        s.players[slot(0)].pickup_radius_pct = 100;
+        set_total(&mut s, StatEffect::PickupRadiusPct, 50);
+        assert_eq!(super::super::pickup_pct(&s, slot(0)), 150);
+        s.players[slot(0)].pickup_radius_pct = u32::MAX;
+        set_total(&mut s, StatEffect::PickupRadiusPct, u32::MAX);
+        assert_eq!(super::super::pickup_pct(&s, slot(0)), u32::MAX);
+        assert_eq!(
+            super::super::widened(RADIUS, u32::MAX),
+            RADIUS * 4,
+            "held to 300 percent more"
+        );
+    }
+
+    /// Slot 0 of `s` with a pickup `dx` to its right: the position to put it at.
+    fn beside(s: &State, dx: i32) -> crate::fixed::Point {
+        let mut at = s.players[slot(0)].at;
+        at.x.0 += dx;
+        at
+    }
+
+    fn heal_fixture() -> (World, State) {
+        let (mut w, mut s) = party(1);
+        w.stage.heal = Some(Healing {
+            boss_pct: 0,
+            drop_one_in: 1,
+            amount: 1,
+            cap: 4,
+            pickup_radius: Fx(RADIUS),
+        });
+        s.heal_pickups = Some(Vec::new());
+        (w, s)
+    }
+
+    fn heal_taken(w: &World, s: &State, dx: i32) -> bool {
+        let mut s = s.clone();
+        let id = EntityId(s.next_id);
+        s.next_id += 1;
+        let at = beside(&s, dx);
+        s.heal_pickups
+            .as_mut()
+            .unwrap()
+            .push(crate::sim::state::HealPickup { id, at });
+        super::super::heal::pick_up(w, &mut s, slot(0), &mut Vec::new());
+        s.heal_pickups.unwrap().is_empty()
+    }
+
+    fn star_taken(w: &World, s: &State, dx: i32, equipment: bool) -> bool {
+        let mut w = w.clone();
+        w.stage.stars.as_mut().unwrap().pickup_radius = Fx(RADIUS);
+        w.equipment_mode = equipment;
+        let mut s = s.clone();
+        let id = EntityId(s.next_id);
+        s.next_id += 1;
+        let at = beside(&s, dx);
+        s.stars.as_mut().unwrap().on_map.push(StarState {
+            id,
+            at,
+            rarity: Rarity::Common,
+        });
+        if equipment {
+            drops::pick_up(&w, &mut s, slot(0), &mut Vec::new());
+        } else {
+            stars::pick_up(&w, &mut s, slot(0), &mut Vec::new());
+        }
+        s.stars.unwrap().on_map.is_empty()
+    }
+
+    /// T13: a total of 50 widens a circle of `R` to 1.5 `R`, touching counts, for the heal
+    /// pickups, the stars of offers mode and the stars of equipment mode.
+    #[test]
+    fn a_pickup_stat_widens_each_pickup() {
+        let near = RADIUS * 3 / 2;
+        let (hw, mut hs) = heal_fixture();
+        let (sw, mut ss) = party(1);
+        let cases: [(&str, Taken); 3] = [
+            ("heal", heal_taken),
+            ("offers star", |w, s, dx| star_taken(w, s, dx, false)),
+            ("equipment star", |w, s, dx| star_taken(w, s, dx, true)),
+        ];
+        for (name, taken) in cases {
+            let (w, s) = if name == "heal" {
+                (&hw, &mut hs)
+            } else {
+                (&sw, &mut ss)
+            };
+            set_total(s, StatEffect::PickupRadiusPct, 0);
+            assert!(!taken(w, s, near), "{name}: not taken at total 0");
+            assert!(taken(w, s, RADIUS), "{name}: the circle itself");
+            set_total(s, StatEffect::PickupRadiusPct, 50);
+            assert!(taken(w, s, near), "{name}: touching counts at total 50");
+            assert!(!taken(w, s, near + 1), "{name}: one past is not taken");
+        }
+    }
+
+    /// T16: nothing shipped writes either stat, which is why no outcome moves: a run's
+    /// totals for them start at 0 and the bundled content never raises them.
+    #[test]
+    fn both_totals_are_zero_in_a_shipped_run() {
+        let (_, s) = party(1);
+        let totals = &s.players.career(slot(0)).progress.as_ref().unwrap().totals;
+        assert_eq!(totals[StatEffect::PickupRadiusPct as usize], 0);
+        assert_eq!(totals[StatEffect::StardustPct as usize], 0);
+        assert!(
+            crate::run_stats::RunStats::bundled()
+                .stats()
+                .iter()
+                .all(|r| !matches!(
+                    r.effect,
+                    StatEffect::PickupRadiusPct | StatEffect::StardustPct
+                ))
+        );
+    }
+}

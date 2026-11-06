@@ -101,6 +101,15 @@ impl PerkEffect {
         })
     }
 
+    /// The stat a Growth effect becomes in equipment mode, if it is one.
+    pub fn growth_stat(self) -> Option<StatEffect> {
+        match self {
+            PerkEffect::ExtraRerolls => Some(StatEffect::Rerolls),
+            PerkEffect::ExtraBanishes => Some(StatEffect::Banishes),
+            _ => None,
+        }
+    }
+
     /// The largest amount of this effect.
     pub fn most(self) -> u32 {
         match self {

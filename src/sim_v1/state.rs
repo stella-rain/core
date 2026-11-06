@@ -309,8 +309,8 @@ pub(crate) struct Progress {
     pub offer_open: bool,
     /// Points spent on each run stat, in the run stats' order.
     pub spent: Vec<u8>,
-    /// What the points spent add up to for each effect, in `StatEffect::ALL` order.
-    pub totals: [u32; StatEffect::ALL.len()],
+    /// What the points spent add up to for each effect, in `StatEffect::RELEASED` order.
+    pub totals: [u32; StatEffect::RELEASED.len()],
 }
 
 #[derive(Clone, Debug)]

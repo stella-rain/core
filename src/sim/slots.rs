@@ -229,7 +229,6 @@ pub(super) fn refresh(
         &Grants::of(rewards, &after),
         stage,
         player,
-        o,
     );
     for (set, c) in rewards.constellations().sets().iter().enumerate() {
         let members = c

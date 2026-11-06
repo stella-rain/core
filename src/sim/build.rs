@@ -162,6 +162,16 @@ impl Build {
                         .min(MAX_BURST_DEPTH)
                 }
                 RewardEffect::Regen => self.regen = self.regen.saturating_add(amount),
+                // Equipment mode keeps the Growth effects as stats (their `base`, not level-scaled,
+                // with no cap here); the room under the offer size is the reader's.
+                RewardEffect::Rerolls | RewardEffect::Banishes | RewardEffect::OfferCandidates
+                    if stage.equipment_mode =>
+                {
+                    if let Some(stat) = entry.effect.growth_stat() {
+                        let total = &mut self.stats[stat as usize];
+                        *total = total.saturating_add(base);
+                    }
+                }
                 RewardEffect::OfferCandidates => {
                     let room = u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size)
                         .unwrap_or(u8::MAX);
@@ -275,7 +285,7 @@ impl Build {
 }
 
 /// What the stars equipped grant besides the build, as a function of the set (equipment mode):
-/// the stage skill, the orbits, the evade charges, the rerolls and the banishes. The derived
+/// the stage skill, the orbits, the evade charges. The derived
 /// value does not depend on the order the stars were equipped in, only on their slot order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Grants {
@@ -287,8 +297,6 @@ pub(super) struct Grants {
     orbits: Vec<(u16, u8)>,
     /// The evade charges the stars add to the stage's own.
     evade_charges: u32,
-    rerolls: u32,
-    banishes: u32,
 }
 
 impl Grants {
@@ -361,8 +369,6 @@ impl Grants {
                 RewardEffect::EvadeCharge => {
                     self.evade_charges = self.evade_charges.saturating_add(amount)
                 }
-                RewardEffect::Rerolls => self.rerolls = self.rerolls.saturating_add(amount),
-                RewardEffect::Banishes => self.banishes = self.banishes.saturating_add(amount),
                 // A second skill star: the first in slot order holds the slot.
                 RewardEffect::StageSkill
                 // Runes come from drops in equipment mode: nothing is drawn, no stream moves.
@@ -384,6 +390,8 @@ impl Grants {
                 | RewardEffect::SkillCooldownPct
                 | RewardEffect::HealPerKills
                 | RewardEffect::OfferCandidates
+                | RewardEffect::Rerolls
+                | RewardEffect::Banishes
                 | RewardEffect::CritChancePct
                 | RewardEffect::CritDamagePct
                 | RewardEffect::EchoHitPct
@@ -397,15 +405,8 @@ impl Grants {
     /// did not change is not touched. The skill keeps its cooldown while its index is unchanged
     /// and a new one arrives ready; an orbit still equipped keeps its run state and a new one
     /// arrives ready; the evade charges follow the stage's own plus the stars', held to its most,
-    /// and a fall never takes the charges below the stage's own; rerolls and banishes add or
-    /// remove the difference.
-    pub(super) fn write(
-        before: &Grants,
-        after: &Grants,
-        stage: &World,
-        player: &mut PlayerState,
-        o: &mut Offers,
-    ) {
+    /// and a fall never takes the charges below the stage's own.
+    pub(super) fn write(before: &Grants, after: &Grants, stage: &World, player: &mut PlayerState) {
         if before.skill != after.skill {
             let held = player.skill;
             player.skill = after.skill.map(|(index, level)| SkillSlot {
@@ -450,13 +451,5 @@ impl Grants {
                 player.evade_charges = lowered.max(floor);
             }
         }
-        o.rerolls_left = o
-            .rerolls_left
-            .saturating_add(after.rerolls.saturating_sub(before.rerolls))
-            .saturating_sub(before.rerolls.saturating_sub(after.rerolls));
-        o.banishes_left = o
-            .banishes_left
-            .saturating_add(after.banishes.saturating_sub(before.banishes))
-            .saturating_sub(before.banishes.saturating_sub(after.banishes));
     }
 }

@@ -84,11 +84,39 @@ pub enum StatEffect {
     /// `step` percent more experience from every kill, rounded down (the build that
     /// unlocks rarer stars sooner).
     XpPct,
+    /// Rerolls of an offer. Written in equipment mode only (a Growth star and the perk's extra
+    /// rerolls); nothing reads the total yet except as a run stat.
+    Rerolls,
+    /// Banishes of an offer. Written in equipment mode only; nothing reads the total yet
+    /// except as a run stat.
+    Banishes,
+    /// Candidates an offer holds beyond its size. Written in equipment mode only; nothing
+    /// reads the total yet except as a run stat.
+    OfferCandidates,
+    /// `step` percent more pickup radius, added to the player's own percentage.
+    PickupRadiusPct,
+    /// `step` percent more Stardust earned, truncated once with the stage's time factor.
+    StardustPct,
 }
 
 impl StatEffect {
     /// Every effect, in the order the state keeps their totals.
-    pub const ALL: [StatEffect; 6] = [
+    pub const ALL: [StatEffect; 11] = [
+        StatEffect::MaxHp,
+        StatEffect::AttackPct,
+        StatEffect::AttackSpeedPct,
+        StatEffect::EvadePct,
+        StatEffect::SpeedPct,
+        StatEffect::XpPct,
+        StatEffect::Rerolls,
+        StatEffect::Banishes,
+        StatEffect::OfferCandidates,
+        StatEffect::PickupRadiusPct,
+        StatEffect::StardustPct,
+    ];
+
+    /// The effects version 1 released: the first six of `ALL`, what the frozen rules keep.
+    pub const RELEASED: [StatEffect; 6] = [
         StatEffect::MaxHp,
         StatEffect::AttackPct,
         StatEffect::AttackSpeedPct,

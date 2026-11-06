@@ -12,7 +12,7 @@
 
 use super::equipment::{Equipment, Held};
 use super::state::{Career, PlayerIdx, Players, StarField, State};
-use super::{World, overlaps, runes, stars, widened};
+use super::{World, overlaps, pickup_pct, runes, stars, widened};
 use crate::event::DomainEvent;
 use crate::limits::MAX_INVENTORY;
 use crate::rewards::{Rarity, Rewards};
@@ -199,7 +199,7 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
         return;
     }
     let at = s.players[me].at;
-    let radius = widened(cfg.pickup_radius.0, s.players[me].pickup_radius_pct);
+    let radius = widened(cfg.pickup_radius.0, pickup_pct(s, me));
     let State { stars, players, .. } = s;
     let Some(f) = stars.as_mut() else {
         return;

@@ -614,7 +614,7 @@ fn progress() -> Progress {
         offers_due: 4,
         offer_open: true,
         spent: vec![1],
-        totals: [1; crate::run_stats::StatEffect::ALL.len()],
+        totals: [1; crate::run_stats::StatEffect::RELEASED.len()],
     }
 }
 

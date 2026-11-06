@@ -506,7 +506,8 @@ mod golden {
     /// pinned format is never re-pinned. Format 2 has its own line in `v2.sha256` (the frozen
     /// `trial` case's version 1 state under the format 2 header and the 60-byte stats record);
     /// `v1.sha256` stays as history, format 1 files being refused. Format 4 adds each player's
-    /// equipment (`v4.sha256`); formats 1 to 3 are refused.
+    /// equipment (`v4.sha256`); format 5 holds the longer stat totals, 11 instead of 6
+    /// (`v5.sha256`); formats 1 to 4 are refused.
     #[test]
     fn the_encoding_matches_its_pinned_format() {
         let (bytes, ..) = bytes();
@@ -579,13 +580,13 @@ fn record_of(stats: &stella_rain_core::ledger::PlayerStats) -> Vec<u8> {
 }
 
 #[test]
-fn format_four_is_written_and_an_older_file_is_refused() {
+fn format_five_is_written_and_an_older_file_is_refused() {
     let rec = run(300);
     let good = rec.replay();
     let bytes = rec.save();
-    assert_eq!(bytes[4..8], 4u32.to_le_bytes());
-    assert_eq!(SAVEPOINT_FORMAT, 4);
-    for older in [1, 2, 3] {
+    assert_eq!(bytes[4..8], 5u32.to_le_bytes());
+    assert_eq!(SAVEPOINT_FORMAT, 5);
+    for older in [1, 2, 3, 4] {
         let mut old = bytes.clone();
         put_u32(&mut old, 4, older);
         reseal(&mut old);

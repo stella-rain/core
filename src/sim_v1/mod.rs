@@ -459,7 +459,7 @@ fn unreserved_state(
             offers_due: 0,
             offer_open: false,
             spent: vec![0; run_stats.stats().len()],
-            totals: [0; StatEffect::ALL.len()],
+            totals: [0; StatEffect::RELEASED.len()],
         }),
         stars: stage.stars.as_ref().map(|st| StarField {
             misses: 0,

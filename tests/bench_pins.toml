@@ -16,8 +16,8 @@
 
 [worst_tick]
 bench = "worst_tick"
-before = "a8532318343eae8e"
-after = "ee4a1b9e6ce8ee40"
+before = "837a1a3b073d1e2e"
+after = "450882301abe7980"
 stage = "c6af66ac0059b347"
 input = "cf9a77022954c996"
 
@@ -37,35 +37,35 @@ input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
-before = "eaca6222131b5e26"
-after = "d215fc39dd2b1fdb"
+before = "334c564272a14fc6"
+after = "6b4f9703c8b1ea0b"
 stage = "c314d3e08c43cb41"
 input = "c8f0ff41826bb896"
 
 [worst_minute]
 bench = "worst_minute"
-before = "4fe9c95844c5216b"
-after = "d62c144d199a15d1"
+before = "406e7d8e76d4c4eb"
+after = "7d31ff1d0d87fcc1"
 stage = "0a04cebb783f4749"
 input = "f529d1fcf6015867"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
-before = "f04fc7043a882ef2"
-after = "ca7516be21fbbc05"
+before = "b3c4501ffcf9b2a2"
+after = "6f542c248ba1a945"
 stage = "0a04cebb783f4749"
 input = "4f39ec612666549a"
 
 [worst_tick_3p]
 bench = "worst_tick_3p"
-before = "fd23cde67d116102"
-after = "4256e09f36cea5da"
+before = "f586c5603306bac2"
+after = "6f0c978668a1fd8a"
 stage = "c6af66ac0059b347"
 input = "ce2422ff60f961b0"
 
 [rollback]
 bench = "rollback"
-before = "327df2f6cb33791d"
-after = "23f4336c98b20139"
+before = "20d047fd5c1261cd"
+after = "0a863d9d879b03f9"
 stage = "0a04cebb783f4749"
 input = "f4ae51ae7ab18ba7"

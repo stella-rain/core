@@ -55,8 +55,9 @@ use super::{decode_state, encode_state};
 /// The version of the savepoint file layout. A change to the encoding bumps it, and the golden
 /// test refuses a change that does not. Format 4 holds the party (a presence byte, the three
 /// slot generations and a block per player, no entity-number gap), the player stats record and
-/// each player's equipment at the end of its block; formats 1 to 3 are refused.
-pub const SAVEPOINT_FORMAT: u32 = 4;
+/// each player's equipment at the end of its block; format 5 holds the longer stat totals (11,
+/// one per `StatEffect`); formats 1 to 4 are refused.
+pub const SAVEPOINT_FORMAT: u32 = 5;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.
@@ -406,7 +407,7 @@ mod tests {
         let bytes = sample().to_bytes();
         assert_eq!(bytes.len(), HEADER_LEN + 3);
         assert_eq!(&bytes[0..4], b"SRSV");
-        assert_eq!(&bytes[4..8], &4u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &5u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &SIM_VERSION.to_le_bytes());
         assert_eq!(&bytes[12..16], &SCHEMA_VERSION.to_le_bytes());
         assert_eq!(&bytes[16..48], &[0xA1; 32]);

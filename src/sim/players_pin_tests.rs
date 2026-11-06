@@ -45,10 +45,10 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            858_768_328_235_228_428,
+            16_241_881_495_979_550_278,
             1_904_881_576_711_841_299,
-            9_278_256_998_876_760_740,
+            7_615_422_195_200_345_157,
         ],
-        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes"
+        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals (worst_case and time_limit_case have levels, hit_case has none)"
     );
 }
