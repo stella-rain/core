@@ -361,8 +361,8 @@ fn the_released_set_is_unchanged() {
         "speed_pct",
         "xp_pct",
     ];
-    assert_eq!(StatEffect::ALL.len(), 6);
-    for (i, effect) in StatEffect::ALL.iter().enumerate() {
+    assert_eq!(StatEffect::RELEASED.len(), 6);
+    for (i, effect) in StatEffect::RELEASED.iter().enumerate() {
         assert_eq!(*effect as usize, i);
         assert_eq!(serde_json::to_value(effect).unwrap(), json!(names[i]));
     }

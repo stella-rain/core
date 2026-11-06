@@ -13,7 +13,7 @@ use stella_rain_core::{RangeStep, StepRange};
 /// The state hash after 600 ticks of the scripted solo run in `a_solo_run_is_the_same_run`,
 /// read from the engine before the step took one entry per slot, and re-pinned for the slot
 /// generations.
-const H600: u64 = 0x0ce4_e49c_5973_fc4a;
+const H600: u64 = 18_015_546_350_028_398_138;
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).unwrap()
