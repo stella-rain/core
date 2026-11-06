@@ -341,7 +341,9 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
     assert_eq!(range.present, 0b1);
     for step in &range.steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { actions } => rec
+                .actions(&slots(rec.engine().present(), actions))
+                .unwrap(),
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     rec.step(&slots(rec.engine().present(), inputs)).unwrap();
@@ -397,7 +399,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 11] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 12] = [
     ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
     ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
     ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
@@ -407,6 +409,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 11] = [
     ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
     ("equipment_solo", 3000, Outcome::Running, [1, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [1, 0, 0], 0),
+    ("equipment_equip", 3000, Outcome::Running, [1, 0, 0], 0),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
@@ -429,7 +432,7 @@ fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
     let mut mask = range.present;
     for step in &range.steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { .. } => {}
             RangeStep::Picks { picks } => {
                 for (s, p) in (0..3).filter(|s| mask >> s & 1 == 1).zip(picks) {
                     per[s] += u32::from(p.is_some());
@@ -547,7 +550,7 @@ fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     let (mut other, mut any) = (None, None);
     for step in &range.steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { .. } => {}
             RangeStep::Ticks { run, .. } => world += run,
             RangeStep::Picks { picks } if world + 1 < recorded.ticks => {
                 any.get_or_insert(world);

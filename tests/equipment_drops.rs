@@ -117,6 +117,7 @@ mod search {
             changes: vec![],
             answer_after: None,
             bot: None,
+            script: None,
         }
     }
 
