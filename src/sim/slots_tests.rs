@@ -840,3 +840,44 @@ mod rules {
         assert_eq!(f.s.players.career(PlayerIdx::SOLO).offer.state(), offer);
     }
 }
+
+// --- expertise: the curve and the gain (ADR-SIM-3, ADR-SIM-5) ----------------------------------
+
+mod curve {
+    use super::super::slots::{self, KILLS_TO_NEXT, MAX_LEVEL};
+
+    /// T1: the curve rises and a slot takes 870 kills from Lv1 to Lv10.
+    #[test]
+    fn the_curve_rises_and_ends_at_lv10() {
+        assert_eq!(KILLS_TO_NEXT.len(), 9);
+        assert!(KILLS_TO_NEXT.iter().all(|&n| n > 0));
+        assert!(KILLS_TO_NEXT.windows(2).all(|w| w[0] < w[1]));
+        assert_eq!(KILLS_TO_NEXT.iter().sum::<u32>(), 870);
+        assert_eq!(MAX_LEVEL, 10);
+    }
+
+    /// T2: a slot rises one level at a time and keeps the rest.
+    #[test]
+    fn gain_levels_a_slot_one_level_at_a_time() {
+        assert_eq!(slots::gain(1, 0, 9), (1, 9));
+        assert_eq!(slots::gain(1, 9, 1), (2, 0));
+        assert_eq!(slots::gain(1, 0, 35), (3, 5));
+        assert_eq!(slots::gain(2, 19, 1), (3, 0));
+        assert_eq!(slots::gain(9, 0, 230), (10, 0));
+    }
+
+    /// T3: Lv10 is the end: no overflow, no expertise kept.
+    #[test]
+    fn gain_stops_at_lv10() {
+        assert_eq!(slots::gain(10, 0, 1_000_000), (10, 0));
+        assert_eq!(slots::gain(1, 0, u32::MAX), (10, 0));
+        assert_eq!(slots::gain(9, 229, 5), (10, 0));
+        assert_eq!(slots::gain(1, u32::MAX, u32::MAX), (10, 0));
+    }
+
+    /// T4: a slot that never held anything gains nothing.
+    #[test]
+    fn an_empty_slot_gains_nothing() {
+        assert_eq!(slots::gain(0, 0, 50), (0, 0));
+    }
+}
