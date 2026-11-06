@@ -500,3 +500,99 @@ fn a_run_resumed_after_extract_and_craft_matches_the_straight_run() {
     }
     assert_eq!(resumed.replay(), live.replay());
 }
+
+// --- the weapon tree pick (ADR-SIM-7, ADR-REPL-5) ---------------------------------------------------
+
+/// `equipment_levels` stopped at `ticks`: its gauge has passed level 3 by tick 1600.
+fn tree_run(ticks: u32) -> RunRecorder {
+    let mut case = crate::run_play::equipment_levels("x", crate::run_play::EQUIP_LEVELS_SEED);
+    case.ticks = ticks;
+    case.script = case
+        .script
+        .map(|s| crate::run_play::EquipScript { tree_at: None, ..s });
+    case.play()
+}
+
+const TREE_TICK: u32 = 1600;
+
+fn tree_pick(option: u32) -> EquipAction {
+    EquipAction::TreePick { option }
+}
+
+/// T18: the recorder applies and records an accepted tree pick and refuses a forged one; a replay
+/// ends on the recorded hash.
+#[test]
+fn the_recorder_and_the_replay_make_the_tree_pick() {
+    use stella_rain_core::engine::ActionError;
+    use stella_rain_core::run_replay::RunReplayError;
+    let mut rec = tree_run(TREE_TICK);
+    assert_eq!(
+        rec.engine().check_action(PlayerIdx::SOLO, tree_pick(0)),
+        Ok(()),
+        "the run holds a tree point"
+    );
+    let before = actions_in(&rec);
+    let err = rec.actions(&[Some(tree_pick(99)), None, None]).unwrap_err();
+    assert!(matches!(
+        err,
+        RunReplayError::ActionRefused {
+            error: ActionError::NoTreeOption { option: 99, .. },
+            ..
+        }
+    ));
+    assert_eq!(actions_in(&rec), before);
+    rec.step(&acting(tree_pick(0))).unwrap();
+    assert_eq!(actions_in(&rec), before + 1);
+    assert!(rec.engine().snapshot().expertise.unwrap().style.is_some());
+    for _ in 0..60 {
+        rec.step(&[Input::default(); 3]).unwrap();
+    }
+    let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+}
+
+/// T22: a run resumed from a savepoint cut with a point held, the pick made after, matches the
+/// straight run's hashes (format 5 carries the gauge; the point is derived).
+#[test]
+fn a_resumed_run_matches_the_straight_run_through_a_tree_pick() {
+    let mut live = tree_run(TREE_TICK);
+    let prefix = live.replay();
+    let saved = live.save();
+    let pack = Pack::bundled();
+    let mut resumed = RunRecorder::resume_from_savepoint(&saved, &prefix, pack).unwrap();
+    for rec in [&mut live, &mut resumed] {
+        rec.step(&acting(tree_pick(0))).unwrap();
+    }
+    for t in 0..240 {
+        assert_eq!(
+            resumed.engine().state_hash(),
+            live.engine().state_hash(),
+            "{t}"
+        );
+        for rec in [&mut live, &mut resumed] {
+            rec.step(&[Input::default(); 3]).unwrap();
+        }
+    }
+    assert_eq!(resumed.replay(), live.replay());
+}
+
+/// T24: the `equipment_levels` recording holds a tree pick among its ACTIONS steps and ends with a
+/// style chosen.
+#[test]
+fn equipment_levels_records_a_tree_pick() {
+    let rec = crate::run_play::equipment_levels("x", crate::run_play::EQUIP_LEVELS_SEED).play();
+    let replay = rec.replay();
+    let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+    let picks = range
+        .steps
+        .iter()
+        .filter_map(|s| match s {
+            RangeStep::Actions { actions } => Some(actions.iter().flatten().copied()),
+            _ => None,
+        })
+        .flatten()
+        .filter(|a| matches!(a, EquipAction::TreePick { .. }))
+        .count();
+    assert!(picks >= 1, "{picks}");
+    assert!(rec.engine().snapshot().expertise.unwrap().style.is_some());
+}
