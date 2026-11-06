@@ -6586,6 +6586,17 @@
           ],
           "description": "The enemy aim assist and auto mode would face, while either is on, so the\nfrontend can mark it."
         },
+        "tree_ready": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TreeReadyView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The weapon tree point it holds (equipment mode); absent in offers mode and while none is\nheld."
+        },
         "type_bonuses": {
           "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n.",
           "items": {
@@ -9688,6 +9699,43 @@
           "type": "object"
         }
       ]
+    },
+    "TreeReadyView": {
+      "additionalProperties": false,
+      "description": "A weapon tree point a player holds in the equipment build (ADR-SIM-7): nothing is opened and\nthe world is not stopped; the player takes it with `TreePick`, whose `option` indexes `options`.",
+      "properties": {
+        "held": {
+          "description": "The points held, at least 1.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ExpertiseOfferKind",
+          "description": "Style, Upgrade or Capstone: the next pick's kind."
+        },
+        "level": {
+          "description": "The level table's level of this pick.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "options": {
+          "description": "The choices, in the order `TreePick.option` indexes.",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "level",
+        "held",
+        "options"
+      ],
+      "type": "object"
     },
     "TypeBonusView": {
       "additionalProperties": false,
