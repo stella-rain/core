@@ -58,7 +58,7 @@ impl DropTable {
 }
 
 /// Whether the player holds the star at `place`: in the inventory, a slot or the Lumine slot.
-fn holds(equipment: &Equipment, place: u16) -> bool {
+pub(super) fn holds(equipment: &Equipment, place: u16) -> bool {
     let is = |h: &Held| matches!(h, Held::Star(p) if *p == place);
     equipment.inventory.iter().any(is)
         || equipment

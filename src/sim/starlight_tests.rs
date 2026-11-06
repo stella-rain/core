@@ -20,20 +20,36 @@ const NAMED: u16 = 6;
 const RANDOM_RUNE: u16 = 7;
 
 fn rewards() -> Rewards {
-    let rarities: Vec<Value> = ["common", "uncommon", "rare", "epic", "legendary", "supernova"]
-        .iter()
-        .enumerate()
-        .map(|(i, r)| json!({ "rarity": r, "lumine_cost": i + 1 }))
-        .collect();
-    let mut list: Vec<Value> = ["common", "uncommon", "rare", "epic", "legendary", "supernova"]
-        .iter()
-        .map(|r| {
-            json!({ "id": format!("s_{r}"), "rarity": r, "effect": "attack_pct",
+    let rarities: Vec<Value> = [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova",
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, r)| json!({ "rarity": r, "lumine_cost": i + 1 }))
+    .collect();
+    let mut list: Vec<Value> = [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+        "supernova",
+    ]
+    .iter()
+    .map(|r| {
+        json!({ "id": format!("s_{r}"), "rarity": r, "effect": "attack_pct",
                 "amount": 1, "limit": 2 })
-        })
-        .collect();
-    list.push(json!({ "id": "named", "rarity": "epic", "effect": "attack_pct", "amount": 1,
-        "limit": 1, "named": true, "star": "Named" }));
+    })
+    .collect();
+    list.push(
+        json!({ "id": "named", "rarity": "epic", "effect": "attack_pct", "amount": 1,
+        "limit": 1, "named": true, "star": "Named" }),
+    );
     list.push(json!({ "id": "rune", "rarity": "common", "effect": "random_rune" }));
     let file = json!({ "rarities": rarities, "rewards": list });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the rewards validate")
@@ -240,10 +256,13 @@ fn craft_and_extract_draw_nothing_and_allocate_nothing() {
     let offer = s.players.career(me).offer.clone();
     let cap = s.players.career(me).equipment.inventory.capacity();
     extract_action(&rw, &mut s, me, 0).expect("extract");
-    assert_eq!(check_craft(&rw, &s, me, 1), Err(StarlightError::NotEnoughStarlight {
-        need: CRAFT_PRICE[2],
-        have: EXTRACT_VALUE[3],
-    }));
+    assert_eq!(
+        check_craft(&rw, &s, me, 1),
+        Err(StarlightError::NotEnoughStarlight {
+            need: CRAFT_PRICE[2],
+            have: EXTRACT_VALUE[3],
+        })
+    );
     s.players.career_mut(me).equipment.starlight = 1000;
     craft_action(&rw, &mut s, me, 1).expect("craft");
     assert_eq!(s.players.career(me).offer, offer);

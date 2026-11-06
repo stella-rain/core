@@ -10,6 +10,7 @@
 
 use super::equipment::{Equipment, Held};
 use super::state::State;
+use crate::limits::MAX_INVENTORY;
 use crate::rewards::{Rarity, Rewards};
 
 /// The Starlight an extracted star gives, by `Rarity::index()`. A placeholder: the pack will
@@ -31,6 +32,16 @@ pub(super) const BOSS_BONUS: u32 = 50;
 pub(crate) enum StarlightError {
     /// `item` is not a place of the inventory.
     NoItem { item: u32 },
+    /// `star` is past the star pool, or its pool place is past the rewards file.
+    NoStar { star: u32 },
+    /// The star is the lone random-rune reward.
+    NotCraftable { star: u32 },
+    /// The star is named and the player holds it (inventory, a slot or the Lumine slot).
+    AlreadyHeld { star: u32 },
+    /// The price is above the balance.
+    NotEnoughStarlight { need: u32, have: u32 },
+    /// The inventory is at `MAX_INVENTORY`.
+    InventoryFull,
 }
 
 /// The Starlight extracting `held` gives: a star by its rarity, a star outside the file 0, a rune
@@ -83,4 +94,70 @@ pub(super) fn boss_bonus(s: &mut State) {
             equipment.starlight = equipment.starlight.saturating_add(BOSS_BONUS);
         }
     }
+}
+
+/// Whether the player holds the named star at `place`: the one test both the refusal of a craft
+/// and the snapshot's `pool_held` read, so the two cannot differ. An unnamed star is never held
+/// in this sense (a craft of it is allowed).
+pub(super) fn holds_named(rewards: &Rewards, equipment: &Equipment, place: u16) -> bool {
+    rewards
+        .rewards()
+        .get(usize::from(place))
+        .is_some_and(|r| r.named)
+        && super::drops::holds(equipment, place)
+}
+
+/// Whether the star at index `star` of `pool` could be crafted. Pure. The order of the checks is
+/// the star, whether it is craftable, whether a named star is held, the price, the inventory.
+pub(super) fn check_craft(
+    rewards: &Rewards,
+    pool: &[u16],
+    equipment: &Equipment,
+    star: u32,
+) -> Result<(), StarlightError> {
+    let place = usize::try_from(star)
+        .ok()
+        .and_then(|i| pool.get(i))
+        .copied()
+        .ok_or(StarlightError::NoStar { star })?;
+    let reward = rewards
+        .rewards()
+        .get(usize::from(place))
+        .ok_or(StarlightError::NoStar { star })?;
+    if reward.is_random_rune() {
+        return Err(StarlightError::NotCraftable { star });
+    }
+    if holds_named(rewards, equipment, place) {
+        return Err(StarlightError::AlreadyHeld { star });
+    }
+    let need = craft_price(reward.rarity);
+    if equipment.starlight < need {
+        return Err(StarlightError::NotEnoughStarlight {
+            need,
+            have: equipment.starlight,
+        });
+    }
+    if equipment.inventory.len() >= MAX_INVENTORY {
+        return Err(StarlightError::InventoryFull);
+    }
+    Ok(())
+}
+
+/// Crafts the star at index `star` of `pool`: its price leaves the balance and the star is
+/// pushed at the end of the inventory, like a drop. A refusal changes nothing.
+pub(super) fn craft(
+    rewards: &Rewards,
+    pool: &[u16],
+    equipment: &mut Equipment,
+    star: u32,
+) -> Result<(), StarlightError> {
+    check_craft(rewards, pool, equipment, star)?;
+    let place = pool[star as usize];
+    let price = rewards
+        .rewards()
+        .get(usize::from(place))
+        .map_or(0, |r| craft_price(r.rarity));
+    equipment.starlight -= price;
+    equipment.inventory.push(Held::Star(place));
+    Ok(())
 }
