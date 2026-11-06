@@ -3,12 +3,12 @@
 //! stat by the chosen tree, and the style path is held tree points.
 
 use super::TreeError;
-use super::expertise::{self, TREE_COMMON};
+use super::expertise;
 use super::levels;
 use super::state::{PlayerIdx, State};
 use crate::engine::{Engine, Run};
 use crate::event::DomainEvent;
-use crate::expertise::{Expertise, ExpertiseEffect, WeaponExpertise};
+use crate::expertise::Expertise;
 use crate::run_setup::{BuildMode, RunSetup};
 use crate::run_stats::StatEffect;
 use crate::snapshot::ExpertiseOfferKind;
@@ -185,127 +185,64 @@ fn total(e: &Engine, effect: StatEffect) -> u32 {
 const ATTACK: u8 = 1;
 const SPEED: u8 = 4;
 
-/// T4: a common level takes the chosen tree's best option, whatever the priority says.
+/// R1: a common level adds no stat: the totals stay as they were across a pass of common levels
+/// with a style chosen (a weapon's own stat set is written into `set_tenths`, not `totals`).
 #[test]
-fn a_common_level_follows_the_chosen_trees_table() {
-    // (style place, the pool place taken)
-    for (style, place) in [(0u8, 0usize), (2, 3), (1, 2)] {
-        let mut e = hammer();
-        let (hp, atk) = (
-            total(&e, StatEffect::MaxHp),
-            total(&e, StatEffect::AttackPct),
-        );
-        let events = pass(&mut e, 3, 4, Some(style), &[SPEED, ATTACK]);
-        let g = gauge(&e);
-        let mut want = vec![0u8; 5];
-        want[place] = 1;
-        assert_eq!(g.taken, want, "style {style}");
-        assert_eq!((g.offered, g.offer.is_none()), (4, true));
-        assert_eq!(
-            events
-                .iter()
-                .filter(|ev| matches!(ev, DomainEvent::ExpertiseOptionTaken { taken: 1, .. }))
-                .count(),
-            1
-        );
-        match style {
-            0 => assert_eq!(total(&e, StatEffect::AttackPct), atk + 10),
-            2 => assert_eq!(total(&e, StatEffect::MaxHp), hp + 10_000),
-            _ => {
-                assert_eq!(g.range_pct, 10);
-                assert_eq!(total(&e, StatEffect::AttackPct), atk);
-            }
-        }
+fn a_common_level_adds_no_stat() {
+    let mut e = hammer();
+    let before = progress(&e).totals;
+    pass(&mut e, 3, 8, Some(0), &[SPEED, ATTACK]);
+    assert_eq!(progress(&e).totals.len(), StatEffect::ALL.len());
+    assert_eq!(progress(&e).totals, before);
+    assert_eq!(gauge(&e).range_pct, 0);
+}
+
+/// R2: a pass over common levels bumps no option count, emits no option event, and keeps
+/// `offered` in step with the level.
+#[test]
+fn a_common_level_bumps_nothing_and_emits_nothing() {
+    let mut e = hammer();
+    let events = pass(&mut e, 3, 8, Some(0), &[ATTACK]);
+    let g = gauge(&e);
+    assert!(g.taken.iter().all(|n| *n == 0));
+    assert!(
+        !events
+            .iter()
+            .any(|ev| matches!(ev, DomainEvent::ExpertiseOptionTaken { .. }))
+    );
+    assert_eq!((g.offered, g.level, g.offer.is_none()), (8, 8, true));
+}
+
+/// R3: tree points are earned at the table's levels only, never by a common level between them.
+#[test]
+fn tree_points_are_earned_at_the_table_levels_only() {
+    let t = LevelTable::NORMAL;
+    let at = [t.style, t.upgrades[0], t.upgrades[1], t.capstone];
+    assert_eq!(expertise::tree_earned(&t, at[0] - 1), 0);
+    for (i, level) in at.into_iter().enumerate() {
+        let want = u8::try_from(i + 1).unwrap();
+        assert_eq!(expertise::tree_earned(&t, level), want);
+        let before_next = at.get(i + 1).map_or(level + 5, |n| n - 1);
+        assert_eq!(expertise::tree_earned(&t, before_next), want);
     }
-}
-
-/// T5: before a style is chosen the stat priority decides.
-#[test]
-fn before_a_style_the_priority_list_decides() {
     let mut e = hammer();
-    pass(&mut e, 0, 1, None, &[SPEED, ATTACK]);
-    assert_eq!(gauge(&e).taken, [0, 0, 0, 0, 1]);
-    assert_eq!(total(&e, StatEffect::SpeedPct) % 5, 0);
-    let mut e = hammer();
-    pass(&mut e, 0, 1, None, &[ATTACK, SPEED]);
-    assert_eq!(gauge(&e).taken, [1, 0, 0, 0, 0]);
+    pass(&mut e, 0, 10, None, &[ATTACK]);
+    let held = next(&mut e).expect("points").2;
+    assert_eq!(held, expertise::tree_earned(&LevelTable::NORMAL, 10));
 }
 
-fn weapon(json: serde_json::Value) -> WeaponExpertise {
-    serde_json::from_value(json).expect("a weapon's expertise")
-}
-
-fn style(id: &str) -> serde_json::Value {
-    let one = |id: &str| serde_json::json!([{ "id": id, "effect": "attack_pct", "amount": 1 }]);
-    serde_json::json!({ "id": id, "effect": "attack_pct", "amount": 1,
-        "upgrade_1": one("u1"), "upgrade_2": one("u2"), "capstone": one("cap") })
-}
-
-fn option(id: &str, effect: &str) -> serde_json::Value {
-    serde_json::json!({ "id": id, "effect": effect, "amount": 1 })
-}
-
-/// T6: an unlisted tree, an unmatched list, a priority that names nothing the pool carries, an
-/// empty priority, a range option and a tie all fall to the priority's rank, then the pool order.
+/// R4: the priority still orders the player-level (experience) stat points.
 #[test]
-fn an_unlisted_tree_or_an_unmatched_list_falls_back_to_the_priority() {
-    let e = hammer();
-    let p = progress(&e).clone();
-    let with = |priority: &[u8]| {
-        let mut p = p.clone();
-        let mut order = priority.to_vec();
-        order.extend((0..5).filter(|i| !priority.contains(i)));
-        p.priority = order;
-        p
-    };
-    let w = weapon(serde_json::json!({
-        "weapon": "x",
-        "styles": [style("nowhere"), style("crush"), style("edge")],
-        "common": [option("range", "range_pct"), option("hp", "max_hp"),
-                   option("speed", "speed_pct"), option("speed_too", "speed_pct")],
-    }));
-    // A style whose id is not in the table: the priority [speed, attack] ranks `speed` first.
-    assert_eq!(
-        expertise::auto_option(&w, Some(0), &with(&[SPEED, ATTACK])),
-        Some(2)
-    );
-    // Ties by pool order: both speed options rank alike, the first wins.
-    assert_eq!(expertise::auto_option(&w, None, &with(&[SPEED])), Some(2));
-    // `crush` lists attack, max_hp, attack speed: the pool has max_hp only among them.
-    assert_eq!(
-        expertise::auto_option(&w, Some(1), &with(&[SPEED])),
-        Some(1)
-    );
-    // `edge` lists attack, attack speed, range: only range is in the pool.
-    assert_eq!(
-        expertise::auto_option(&w, Some(2), &with(&[SPEED])),
-        Some(0)
-    );
-    // A priority naming a stat the pool lacks (xp, attack): every option ranks last or by the
-    // stats it does carry; the range option, with no stat, ranks last of all.
-    assert_eq!(expertise::auto_option(&w, None, &with(&[ATTACK])), Some(1));
-    let only_range = weapon(serde_json::json!({
-        "weapon": "x", "styles": [style("a"), style("b"), style("c")],
-        "common": [option("range", "range_pct"), option("hp", "max_hp")],
-    }));
-    assert_eq!(
-        expertise::auto_option(&only_range, None, &with(&[0])),
-        Some(1)
-    );
-    let just_range = weapon(serde_json::json!({
-        "weapon": "x", "styles": [style("a"), style("b"), style("c")],
-        "common": [option("range", "range_pct")],
-    }));
-    assert_eq!(
-        expertise::auto_option(&just_range, None, &with(&[0])),
-        Some(0)
-    );
-    // The bundled order (max_hp first) with an empty priority list.
-    let bundled = Expertise::bundled().weapon(&"giant_hammer".into()).unwrap();
-    assert_eq!(
-        expertise::auto_option(bundled, None, &with(&[0, 1, 2, 3, 4])),
-        Some(3)
-    );
+fn the_priority_still_orders_the_xp_stat_points() {
+    let mut e = engine(BuildMode::Equipment);
+    let events = level_up(&mut e, &[SPEED, ATTACK], false, 1);
+    let first = events.iter().find_map(|ev| match ev {
+        DomainEvent::StatRaised { stat, .. } => Some(stat.clone()),
+        _ => None,
+    });
+    let want = progress(&e).stats[usize::from(SPEED)].id.clone();
+    assert_eq!(first, Some(want));
+    assert_eq!(progress(&e).spent[usize::from(SPEED)], 1);
 }
 
 /// T7: the pass opens no offer and draws nothing from the offer stream.
@@ -319,8 +256,7 @@ fn a_common_level_opens_no_offer_and_draws_nothing() {
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
 }
 
-/// T8: levels crossed in one tick equal levels crossed in three; the ones above the table are
-/// one batch.
+/// T8: levels crossed in one tick equal levels crossed in three.
 #[test]
 fn levels_crossed_in_one_tick_equal_levels_crossed_in_two() {
     let (mut one, mut three) = (hammer(), hammer());
@@ -329,24 +265,12 @@ fn levels_crossed_in_one_tick_equal_levels_crossed_in_two() {
     pass(&mut three, 4, 8, None, &[ATTACK]);
     pass(&mut three, 8, 12, None, &[ATTACK]);
     assert_eq!(one.state_hash(), three.state_hash());
-    // 12 levels less the 4 of the table are common.
-    assert_eq!(gauge(&one).taken, [8, 0, 0, 0, 0]);
-    let mut batch = hammer();
-    let events = pass(&mut batch, 10, 12, None, &[ATTACK]);
-    let taken: Vec<u8> = events
-        .iter()
-        .filter_map(|ev| match ev {
-            DomainEvent::ExpertiseOptionTaken { taken, .. } => Some(*taken),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(taken, [2]);
+    assert!(gauge(&one).taken.iter().all(|n| *n == 0));
 }
 
-/// T9: a run with no stat points passes the levels and takes nothing; the table names every
-/// bundled tree.
+/// T9: a run with no stat points passes the levels and takes nothing.
 #[test]
-fn a_stage_without_levels_takes_nothing_and_the_table_names_every_tree() {
+fn a_stage_without_levels_takes_nothing() {
     let mut e = hammer();
     {
         let Run::V2 { state, .. } = e.run_mut() else {
@@ -358,24 +282,6 @@ fn a_stage_without_levels_takes_nothing_and_the_table_names_every_tree() {
     assert!(events.is_empty());
     let g = gauge(&e);
     assert_eq!((g.offered, g.taken.iter().sum::<u8>()), (6, 0));
-
-    assert_eq!(TREE_COMMON.len(), 6);
-    for (id, list) in TREE_COMMON {
-        assert!(!list.is_empty(), "{id}");
-        for (i, effect) in list.iter().enumerate() {
-            assert!(!list[..i].contains(effect), "{id} repeats {effect:?}");
-        }
-    }
-    let _ = ExpertiseEffect::MaxHp;
-    for w in Expertise::bundled().weapons() {
-        for st in &w.styles {
-            assert!(
-                TREE_COMMON.iter().any(|(id, _)| *id == st.id.as_str()),
-                "{}",
-                st.id
-            );
-        }
-    }
 }
 
 fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
