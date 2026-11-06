@@ -97,22 +97,30 @@ impl Rate {
         (damage > 0 && ticks > 0).then_some(Rate { damage, ticks })
     }
 
-    /// The gain of `after` over `self`, in basis points, rounded half up; never below 0.
-    fn gain_bp(&self, after: &Rate) -> u32 {
+    /// The change from `self` to `after`, in basis points, the ratio rounded half up: positive
+    /// for a gain, negative for a loss.
+    fn delta_bp(&self, after: &Rate) -> i32 {
         let num = after.damage * self.ticks * 10_000;
         let den = self.damage * after.ticks;
         let ratio = (num * 2 + den) / (2 * den);
-        u32::try_from(ratio.saturating_sub(10_000)).unwrap_or(u32::MAX)
+        let delta = i128::try_from(ratio).unwrap_or(i128::MAX) - 10_000;
+        i32::try_from(delta).unwrap_or(if delta < 0 { i32::MIN } else { i32::MAX })
+    }
+
+    /// The gain of `after` over `self`, in basis points, rounded half up; never below 0.
+    fn gain_bp(&self, after: &Rate) -> u32 {
+        u32::try_from(self.delta_bp(after).max(0)).unwrap_or(0)
     }
 }
 
-/// The stats of a build that a pick can move, in `StatKind` order.
+/// The stats of a build that a pick can move, in `StatKind` order. Without `offers` (a stage
+/// without a stars section) the three stats that live in them are left out.
 fn sheet(
     s: &State,
     progress: &Option<Progress>,
     player: &PlayerState,
     regen: u32,
-    offers: &Offers,
+    offers: Option<&Offers>,
 ) -> Vec<(StatKind, u32)> {
     use crate::run_stats::StatEffect as Total;
     let total = |effect: Total| progress.as_ref().map_or(0, |p| p.totals[effect as usize]);
@@ -159,14 +167,44 @@ fn sheet(
             StatKind::Orbs,
             player.orbits.iter().map(|o| u32::from(o.orbs)).sum(),
         ),
-        (StatKind::Rerolls, offers.rerolls_left),
-        (StatKind::Banishes, offers.banishes_left),
-        (
-            StatKind::OfferCandidates,
-            u32::from(offers.extra_candidates),
-        ),
     ]);
+    if let Some(offers) = offers {
+        out.extend([
+            (StatKind::Rerolls, offers.rerolls_left),
+            (StatKind::Banishes, offers.banishes_left),
+            (
+                StatKind::OfferCandidates,
+                u32::from(offers.extra_candidates),
+            ),
+        ]);
+    }
     out
+}
+
+/// The distinct categories of `effects`, in the order they first appear.
+fn categories_of_effects(effects: &[EffectEntry]) -> Vec<Category> {
+    let mut categories: Vec<Category> = Vec::new();
+    for e in effects {
+        let category = category_of(e.effect);
+        if !categories.contains(&category) {
+            categories.push(category);
+        }
+    }
+    categories
+}
+
+/// The stats the two sheets (of one build, before and after) disagree on.
+fn diff_sheets(before: &[(StatKind, u32)], after: &[(StatKind, u32)]) -> Vec<StatChange> {
+    before
+        .iter()
+        .zip(after)
+        .filter(|(b, a)| b.1 != a.1)
+        .map(|(b, a)| StatChange {
+            stat: b.0,
+            before: b.1,
+            after: a.1,
+        })
+        .collect()
 }
 
 /// A rating for each candidate of `me`'s open star or boss offer, in the offer's order; empty
@@ -190,7 +228,7 @@ pub(crate) fn offer_ratings(
     }
     let held = &s.players[me];
     let before = Rate::of(world, s, &career.progress, held);
-    let before_sheet = sheet(s, &career.progress, held, career.regen, offers);
+    let before_sheet = sheet(s, &career.progress, held, career.regen, Some(offers));
     open.candidates
         .iter()
         .map(|&i| {
@@ -219,13 +257,7 @@ pub(crate) fn offer_ratings(
             });
             let effects: Vec<EffectEntry> =
                 reward.effects.iter().cloned().chain(tier_effects).collect();
-            let mut categories: Vec<Category> = Vec::new();
-            for e in &effects {
-                let category = category_of(e.effect);
-                if !categories.contains(&category) {
-                    categories.push(category);
-                }
-            }
+            let categories = categories_of_effects(&effects);
             let dps_bp = if effects.iter().any(|e| rated(e.effect)) {
                 let after = Rate::of(world, s, &progress, &player);
                 before
@@ -235,17 +267,8 @@ pub(crate) fn offer_ratings(
             } else {
                 None
             };
-            let after_sheet = sheet(s, &progress, &player, regen, &taken_by);
-            let changes = before_sheet
-                .iter()
-                .zip(&after_sheet)
-                .filter(|(b, a)| b.1 != a.1)
-                .map(|(b, a)| StatChange {
-                    stat: b.0,
-                    before: b.1,
-                    after: a.1,
-                })
-                .collect();
+            let after_sheet = sheet(s, &progress, &player, regen, Some(&taken_by));
+            let changes = diff_sheets(&before_sheet, &after_sheet);
             OfferRating {
                 categories,
                 dps_bp,
