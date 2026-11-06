@@ -372,8 +372,7 @@ fn offer_tag(me: PlayerIdx) -> u64 {
 }
 
 impl Career {
-    /// The career of slot `me` at the start of a run seeded `seed`, with `regen` hit points a second
-    /// (the start value: slot 0's after the loadout).
+    /// The career of slot `me` at the start of a run seeded `seed`.
     pub(crate) fn new(
         seed: u64,
         me: PlayerIdx,
@@ -381,7 +380,6 @@ impl Career {
         offers: Option<Offers>,
         expertise: Option<ExpertiseGauge>,
         stardust: Option<u32>,
-        regen: u32,
         equipment: Equipment,
     ) -> Career {
         Career {
@@ -390,8 +388,28 @@ impl Career {
             offers,
             expertise,
             stardust,
-            regen,
+            regen: 0,
             equipment,
+        }
+    }
+}
+
+impl Career {
+    /// The career of slot `me`, a member who starts or joins, from slot 0's start career `c0`: its
+    /// progress, offers, expertise, Stardust and regeneration as they were at the start (the perk's
+    /// and a regen Lumine star's), the equipment of `for_new_slot`, its own offer stream.
+    pub(crate) fn member(seed: u64, me: PlayerIdx, c0: &Career) -> Career {
+        Career {
+            regen: c0.regen,
+            ..Career::new(
+                seed,
+                me,
+                c0.progress.clone(),
+                c0.offers.clone(),
+                c0.expertise.clone(),
+                c0.stardust,
+                c0.equipment.for_new_slot(),
+            )
         }
     }
 }
@@ -463,16 +481,7 @@ impl Players {
         out.careers[0] = c0.clone();
         for i in 1..n {
             let me = PlayerIdx::new(i).expect("a slot");
-            out.careers[me.get()] = Career::new(
-                crit_seed,
-                me,
-                c0.progress.clone(),
-                c0.offers.clone(),
-                c0.expertise.clone(),
-                c0.stardust,
-                c0.regen,
-                c0.equipment.for_new_slot(),
-            );
+            out.careers[me.get()] = Career::member(crit_seed, me, &c0);
         }
         out
     }
@@ -496,16 +505,7 @@ impl Players {
         player.at = self.items[0].at;
         player.facing = self.items[0].facing;
         self.items[me.get()] = player;
-        self.careers[me.get()] = Career::new(
-            crit_seed,
-            me,
-            c0.progress.clone(),
-            c0.offers.clone(),
-            c0.expertise.clone(),
-            c0.stardust,
-            c0.regen,
-            c0.equipment.for_new_slot(),
-        );
+        self.careers[me.get()] = Career::member(crit_seed, me, c0);
         self.present |= 1 << me.get();
     }
 

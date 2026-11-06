@@ -597,7 +597,6 @@ fn unreserved_state(
                 offers,
                 expertise::initial(stage, content.expertise()),
                 stage.stardust.as_ref().map(|_| 0),
-                0,
                 equipment::Equipment::default(),
             ),
         ),
