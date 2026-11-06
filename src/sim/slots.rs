@@ -382,9 +382,7 @@ pub(super) fn check(
 }
 
 /// Whether replacing the star in `slot` by the star `item` is a switch: both are stars and
-/// share an option. A switch costs no expertise: the expertise rules read this (a later task),
-/// so it is tested here and unused by the live rules until then.
-#[cfg_attr(not(test), allow(dead_code))]
+/// share an option. A switch costs no expertise: `apply` keeps the whole level and kills.
 pub(super) fn is_switch(rewards: &Rewards, equipment: &Equipment, item: u32, slot: u32) -> bool {
     let item = usize::try_from(item)
         .ok()
@@ -414,7 +412,8 @@ pub(super) fn equip(
 }
 
 /// Replaces the star or rune in the occupied `slot` by the inventory item `item`: the displaced
-/// one takes the item's place in the inventory, and the slot keeps its level and expertise.
+/// one takes the item's place in the inventory. The slot keeps its level and kills for a same-option
+/// switch (`is_switch`) and otherwise keeps half the level, at least 1, and none of the kills.
 pub(super) fn replace(
     stage: &World,
     rewards: &Rewards,
@@ -438,6 +437,7 @@ fn apply(
     slot: u32,
     replace: bool,
 ) {
+    let switch = replace && is_switch(rewards, &career.equipment, item, slot);
     let (item, at) = (item as usize, slot as usize);
     let before = equipped_levels(&career.equipment);
     let eq = &mut career.equipment;
@@ -453,6 +453,12 @@ fn apply(
         false => eq.lumine.as_mut().expect("checked: the Lumine slot"),
     };
     let displaced = target.held.replace(new);
+    if replace && !switch {
+        // A replace by a star sharing no option (or by a rune) keeps half the level and none of
+        // the kills; a switch keeps both.
+        target.level = (target.level / 2).max(1);
+        target.expertise = 0;
+    }
     target.level = target.level.max(1);
     if replace && let Some(old) = displaced {
         eq.inventory[item] = old;

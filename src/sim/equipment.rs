@@ -26,7 +26,8 @@ pub(crate) enum SlotKind {
 }
 
 /// One slot: what it holds, its level (0 while it never held one) and the kills toward its next
-/// level.
+/// level. A kill by the player raises both (`slots::credit_kills`); a replace by a star sharing no
+/// option halves the level and resets the kills, a same-option switch keeps both (`slots::apply`).
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct EquipSlot {
