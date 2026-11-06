@@ -17,7 +17,7 @@ Sources: ADR-SIM-7, ADR-SIM-8, ADR-SAVE-7. The mode: `equipment.md`; down, reviv
 
 - No offer opens in equipment mode (`party-play.md`'s Rewards lines are offers mode). A taken
   falling star gives every member that is not out a roll of its own, from its own offer stream,
-  the downed included (`drops::pick_up`); a downed member (hp 0) cannot pick one up itself.
+  the downed included (`drops::pick_up`); a downed member cannot take a star itself.
 - A boss kill gives each member that is up the pack's `boss_drops` rolls of its own, at one
   rarity for the party (`drops::boss_killed`), and the pack's `boss_bonus` Starlight
   (`starlight::boss_bonus`). A downed or out member gets neither.

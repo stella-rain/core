@@ -49,7 +49,8 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
   revived), `timed_one` (1 player) and `timed_two` (2) in a `timed` run: slot 0 answers an
   offer 100 ticks after it opens, the timer closes the rest; the nine equipment-mode cases
   `equipment_solo`, `_two`, `_party_1` to `_party_3`, `_equip`, `_craft`, `_levels` and
-  `_lumine` (actions, drops, Starlight, levels; `equipment.md`); bless writes them, `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
+  `_lumine` (actions, drops, Starlight, levels; `equipment.md`); bless writes them,
+  `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
   `packs/<sha256>.json` the pinned packs besides the bundled one. `tests/corpus/v<N>/`
   (N >= 1) is a frozen version of the same shape (no `parties/`: `sim_version` 1 has one player)
   plus `manifest.sha256`: never edited (CI `frozen

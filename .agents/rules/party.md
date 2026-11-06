@@ -18,9 +18,9 @@ Sources: ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-6. The log bytes and the rec
 ## Parties
 
 - Slots 1 and 2 move, attack, orbit and regenerate like slot 0 (`party-play.md`: acting, down,
-  tether, rewards). `Engine::join(slot)` makes the joiner a `Career::member`: the run's starting player at
-  slot 0's place, at level 1 (equipment: `party-equipment.md`), with no event; `leave(slot)` keeps the leaver's in-flight attacks and closes its open
-  offer. Slot 0 never leaves, so a hole (`0b101`) arises only by LEAVE. A `sim_version` 1 run
+  tether, rewards). `Engine::join(slot)` makes the joiner a `Career::member`: the run's
+  starting player at slot 0's place, at level 1 (equipment: `party-equipment.md`), with no
+  event; `leave(slot)` keeps the leaver's in-flight attacks and closes its open offer. Slot 0 never leaves, so a hole (`0b101`) arises only by LEAVE. A `sim_version` 1 run
   refuses both (`PresenceError::SoloRules`).
 - In a `timed` run every present slot has its own deadline (`State.offer_timer.due`, one
   `Option<u32>` per slot): the timer takes the first option of an offer nobody answers, with a
