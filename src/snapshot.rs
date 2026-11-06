@@ -550,6 +550,10 @@ pub struct PlayerView {
     /// The runes its Main weapon holds, in the order drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runes: Vec<RuneView>,
+    /// What its inventory holds, in drop order (equipment mode; empty in offers mode). The app
+    /// sorts it by rarity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inventory: Vec<HeldView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came, then from 34 one for each
     /// on-hit rune, by its place in `Rune::ALL`.
@@ -591,6 +595,14 @@ pub struct RuneView {
     pub rune: Rune,
     /// For an on-hit rune, ticks until it may fire again; 0 for a damage-over-time rune.
     pub cooldown_left: u32,
+}
+
+/// What an inventory place holds: a star, by its reward ID and rarity, or a rune.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum HeldView {
+    Star { id: ContentId, rarity: Rarity },
+    Rune { rune: Rune },
 }
 
 /// An orbit held. Its orbs' attacks are in the main character's `attacks`, in slots

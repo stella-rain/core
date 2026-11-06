@@ -397,7 +397,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 9] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 11] = [
     ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
     ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
     ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
@@ -405,6 +405,8 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 9] = [
     ("leave_hole", 3000, Outcome::Running, [69, 1, 5], 1280),
     ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
     ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
+    ("equipment_solo", 3000, Outcome::Running, [1, 0, 0], 0),
+    ("equipment_two", 3000, Outcome::Running, [1, 0, 0], 0),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
@@ -457,8 +459,10 @@ fn the_party_cases_are_what_the_table_says() {
         let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
         assert_eq!(got, *want);
         let per = picks_per_slot(&replay);
+        // Equipment mode offers no stars, so slots 1 and 2 answer few offers there.
         if case.changes.is_empty()
             && case.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Stop
+            && case.setup.build_mode == stella_rain_core::run_setup::BuildMode::Offers
         {
             assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
         }

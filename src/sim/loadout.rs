@@ -35,6 +35,15 @@ pub(crate) struct Loadout {
 }
 
 impl Loadout {
+    /// The setup's drop weight, in percent: the set's `drop_weight` amount, 0 when it has none.
+    pub(crate) fn drop_weight_pct(&self) -> u32 {
+        self.perk
+            .iter()
+            .filter(|e| e.effect == PerkEffect::DropWeight)
+            .map(|e| e.amount)
+            .sum()
+    }
+
     /// The grants of `setup`, which `run_setup::validate_in` accepted against `content`.
     pub(crate) fn of(setup: &RunSetup, content: &RunContent) -> Loadout {
         let perk = content
