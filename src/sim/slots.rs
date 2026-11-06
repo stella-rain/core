@@ -138,6 +138,7 @@ pub(super) fn shares_option(rewards: &Rewards, a: u16, b: u16) -> bool {
 }
 
 /// The stars equipped, in slot order and the Lumine slot last.
+#[cfg(test)]
 pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ {
     equipment
         .slots
@@ -147,6 +148,19 @@ pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ 
             Some(Held::Star(p)) => Some(p),
             _ => None,
         })
+}
+
+/// The stars equipped with their slot's level, in slot order and the Lumine slot last.
+pub(super) fn equipped_levels(equipment: &Equipment) -> Vec<(u16, u8)> {
+    equipment
+        .slots
+        .iter()
+        .chain(equipment.lumine.as_ref())
+        .filter_map(|s| match s.held {
+            Some(Held::Star(p)) => Some((p, s.level)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// How many of each star of the file are equipped (the inventory does not count).
@@ -180,8 +194,8 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
-/// Writes the change of what is equipped: `before` is the stars equipped before the change in
-/// slot order (empty for nothing), the equipment of `career` holds the set after. The build and
+/// Writes the change of what is equipped: `before` is the stars equipped before the change, with
+/// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
 /// the members equipped.
 pub(super) fn refresh(
@@ -189,7 +203,7 @@ pub(super) fn refresh(
     rewards: &Rewards,
     player: &mut PlayerState,
     career: &mut Career,
-    before: &[u16],
+    before: &[(u16, u8)],
 ) {
     let Career {
         progress,
@@ -198,18 +212,20 @@ pub(super) fn refresh(
         equipment,
         ..
     } = career;
-    let after: Vec<u16> = equipped(equipment).collect();
+    let after_levels = equipped_levels(equipment);
+    let after: Vec<u16> = after_levels.iter().map(|s| s.0).collect();
+    let before_places: Vec<u16> = before.iter().map(|s| s.0).collect();
     let counts = counts_of(rewards, after.iter().copied());
     let mut local = None;
     let o = match offers {
         Some(o) => o,
         None => local.insert(throwaway(rewards)),
     };
-    let was = Build::of(stage, rewards, &counts_of(rewards, before.iter().copied()));
-    let now = Build::of(stage, rewards, &counts);
+    let was = Build::of_levelled(stage, rewards, before);
+    let now = Build::of_levelled(stage, rewards, &after_levels);
     Build::write(&was, &now, player, progress, regen, o);
     Grants::write(
-        &Grants::of(rewards, before),
+        &Grants::of(rewards, &before_places),
         &Grants::of(rewards, &after),
         stage,
         player,
@@ -385,7 +401,7 @@ fn apply(
     replace: bool,
 ) {
     let (item, at) = (item as usize, slot as usize);
-    let before: Vec<u16> = equipped(&career.equipment).collect();
+    let before = equipped_levels(&career.equipment);
     let eq = &mut career.equipment;
     let is_rune = matches!(eq.inventory[item], Held::Rune(_));
     let new = if replace {

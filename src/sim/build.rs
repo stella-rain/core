@@ -1,6 +1,6 @@
 //! The build of a player: what the stars held add up to (ADR-SIM-3, ADR-REPL-5).
 //!
-//! A pure function of the rewards file and how many of each star is held, so the stars a player
+//! A pure function of the rewards file and the stars held, each with its slot's level, so the stars a player
 //! holds can be counted from an inventory as well as from the picks of an offer. It draws
 //! nothing, reads no `State`, and nothing here is hashed or saved: `write` puts it into fields
 //! the hash already covers.
@@ -26,6 +26,7 @@ use crate::sim::state::{Offers, OrbitState, PlayerState, Progress, SkillSlot};
 use crate::stage_skill::MAX_SKILL_LEVELS;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 
+use super::slots::level_scaled;
 use super::{World, levels, player};
 
 /// What the stars held add up to, in the player's own numbers.
@@ -56,11 +57,22 @@ impl Build {
     /// The build of the stars held: `held[p]` times the star at place `p` of `rewards` (a slice
     /// shorter than the file counts the rest as 0), and the chain of tier deltas of each set.
     pub(super) fn of(stage: &World, rewards: &Rewards, held: &[u8]) -> Build {
-        let count = |p: usize| held.get(p).copied().unwrap_or(0);
+        let mut stars = Vec::new();
+        for (p, &n) in held.iter().enumerate() {
+            let place = u16::try_from(p).unwrap_or(u16::MAX);
+            stars.extend(std::iter::repeat_n((place, 1), usize::from(n)));
+        }
+        Build::of_levelled(stage, rewards, &stars)
+    }
+
+    /// The build of the stars equipped, each `(place, level)`: a star's own amounts scale with
+    /// its slot's level (`slots::level_scaled`, level 1 is the base), a set's tier deltas do not.
+    pub(super) fn of_levelled(stage: &World, rewards: &Rewards, stars: &[(u16, u8)]) -> Build {
+        let count = |p: usize| stars.iter().filter(|s| usize::from(s.0) == p).count();
         let mut b = Build::default();
-        for (p, reward) in rewards.rewards().iter().enumerate() {
-            for _ in 0..count(p) {
-                b.add(stage, &reward.effects);
+        for &(place, level) in stars {
+            if let Some(reward) = rewards.rewards().get(usize::from(place)) {
+                b.add(stage, &reward.effects, level);
             }
         }
         let sets = rewards.constellations();
@@ -73,7 +85,7 @@ impl Build {
             for (t, tier) in set.tiers.iter().enumerate() {
                 if usize::from(tier.threshold) <= members {
                     let lower = t.checked_sub(1).map(|p| &set.tiers[p]);
-                    b.add(stage, &constellations::tier_delta(lower, tier));
+                    b.add(stage, &constellations::tier_delta(lower, tier), 1);
                 }
             }
         }
@@ -83,10 +95,13 @@ impl Build {
     /// Adds what `effects` build, once. The grants (a skill, an orbit, an evade charge, a draw,
     /// rerolls and banishes) are not a build: they are `stars::grant`'s, and listed here under
     /// the one arm so that a new `RewardEffect` fails to compile until it is placed.
-    fn add(&mut self, stage: &World, effects: &[EffectEntry]) {
+    fn add(&mut self, stage: &World, effects: &[EffectEntry], level: u8) {
         for entry in effects {
-            // Every effect but the random rune's has an amount (`rewards::validate`).
-            let amount = entry.amount.unwrap_or(0);
+            // Every effect but the random rune's has an amount (`rewards::validate`). The slot's
+            // level scales it, except the counts (`BurstDepth`, `OfferCandidates`), which use
+            // `base`; the intervals, radius and depth are other fields and are not scaled.
+            let base = entry.amount.unwrap_or(0);
+            let amount = level_scaled(base, level);
             match entry.effect {
                 RewardEffect::RangePct => self.range_pct = self.range_pct.saturating_add(amount),
                 RewardEffect::PickupRadiusPct => {
@@ -134,14 +149,14 @@ impl Build {
                 RewardEffect::BurstDepth => {
                     self.burst_depth_extra = self
                         .burst_depth_extra
-                        .saturating_add(amount)
+                        .saturating_add(base)
                         .min(MAX_BURST_DEPTH)
                 }
                 RewardEffect::Regen => self.regen = self.regen.saturating_add(amount),
                 RewardEffect::OfferCandidates => {
                     let room = u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size)
                         .unwrap_or(u8::MAX);
-                    let more = u8::try_from(amount).unwrap_or(u8::MAX);
+                    let more = u8::try_from(base).unwrap_or(u8::MAX);
                     self.extra_candidates = self.extra_candidates.saturating_add(more).min(room);
                 }
                 RewardEffect::RuneHaste => {
