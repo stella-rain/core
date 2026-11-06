@@ -795,6 +795,251 @@ mod decisions {
 }
 
 #[cfg(test)]
+mod builds {
+    use super::*;
+    use stella_rain_core::input::EquipAction;
+    use stella_rain_core::snapshot::SwapItem;
+
+    fn building(seed: u64) -> PartyBot {
+        PartyBot {
+            seed,
+            builds: true,
+        }
+    }
+
+    fn equipment_engine(n: u8, world: u64) -> Engine {
+        let setup = RigParty::new(n).equipment().seed(world).case("x").setup;
+        Engine::start_party_with(&setup, Pack::bundled().content(), n).unwrap()
+    }
+
+    /// Plays `ticks` ticks of an equipment run of `n` with `bot` on every slot (the actions are
+    /// applied with `Engine::act` before the tick, as the recorder orders them); `see` is called
+    /// for every slot and tick with the engine before the action, the action chosen and the tick.
+    fn drive(
+        n: u8,
+        world: u64,
+        bot: &PartyBot,
+        ticks: u32,
+        mut see: impl FnMut(&Engine, u8, u32, Option<EquipAction>),
+    ) -> Engine {
+        let mut e = equipment_engine(n, world);
+        for t in 0..ticks {
+            if e.outcome() != stella_rain_core::engine::Outcome::Running {
+                break;
+            }
+            let mut inputs = [Input::default(); 3];
+            let mut acts = Vec::new();
+            for s in 0..n {
+                let a = bot.action(&e, s, t);
+                see(&e, s, t, a);
+                inputs[usize::from(s)] = bot.input(&e, s, t);
+                if let Some(a) = a {
+                    acts.push((s, a));
+                }
+            }
+            for (s, a) in acts {
+                e.act(PlayerIdx::new(s).unwrap(), a).unwrap();
+            }
+            e.step(&inputs);
+        }
+        e
+    }
+
+    #[test]
+    fn a_bot_without_builds_makes_no_action() {
+        let bot = PartyBot {
+            seed: 7,
+            builds: false,
+        };
+        drive(3, 1, &bot, 3000, |_, s, t, a| {
+            assert_eq!(a, None, "slot {s} tick {t}");
+        });
+    }
+
+    #[test]
+    fn an_offers_run_gets_no_action() {
+        let setup = RunSetup {
+            mode: "time_limit".into(),
+            seed: 1,
+            ..trial_setup()
+        };
+        let e = Engine::start_party(&setup, 3).unwrap();
+        assert!(e.snapshot().players[0].slots.is_empty());
+        for t in 0..600 {
+            for s in 0..3 {
+                assert_eq!(building(1).action(&e, s, t), None);
+            }
+        }
+    }
+
+    #[test]
+    fn the_cadence_is_one_decision_in_thirty_ticks() {
+        let mut differ = false;
+        for seed in 1..=5 {
+            let b = building(seed);
+            let phases: Vec<u64> = (0..3).map(|s| b.action_phase(s)).collect();
+            assert!(phases.iter().all(|p| *p < 30));
+            differ |= phases.iter().any(|p| *p != phases[0]);
+        }
+        assert!(differ);
+        let b = building(1);
+        let mut decided = 0;
+        drive(3, 1, &b, 3000, |_, s, t, a| {
+            if (u64::from(t) + b.action_phase(s)) % 30 != 0 {
+                assert_eq!(a, None, "slot {s} tick {t}");
+            } else {
+                decided += u32::from(a.is_some());
+            }
+        });
+        assert!(decided > 0, "a building bot acts at least once");
+    }
+
+    #[test]
+    fn every_action_is_accepted() {
+        let b = building(1);
+        let mut proposed = 0u32;
+        drive(3, 1, &b, 3000, |e, s, _, a| {
+            if let Some(a) = a {
+                proposed += 1;
+                assert_eq!(e.check_action(PlayerIdx::new(s).unwrap(), a), Ok(()));
+            }
+        });
+        let replay = RigParty::new(3)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .case("x")
+            .play()
+            .replay();
+        let run = RigRun::of(&replay);
+        let recorded: u32 = run
+            .actions
+            .iter()
+            .map(|(_, per)| per.iter().flatten().count() as u32)
+            .sum();
+        assert!(recorded > 0);
+        assert_eq!(recorded, proposed, "the recorder drops nothing");
+    }
+
+    /// Every decision of a building run of 3, with the engine it was made on.
+    fn decisions(world: u64) -> Vec<(Engine, u8, u32, Option<EquipAction>)> {
+        let mut out = Vec::new();
+        drive(3, world, &building(1), 3000, |e, s, t, a| {
+            if a.is_some() {
+                out.push((e.clone(), s, t, a));
+            }
+        });
+        out
+    }
+
+    #[test]
+    fn the_best_rated_star_goes_in_first() {
+        // A passive bot walks; the first decision of a building bot that equips is checked
+        // against the ratings computed here.
+        let mut checked = 0;
+        for (e, s, _, a) in decisions(1) {
+            let Some(EquipAction::Equip { item, slot } | EquipAction::Replace { item, slot }) = a
+            else {
+                continue;
+            };
+            let p = PlayerIdx::new(s).unwrap();
+            let mut best = None;
+            let inv = e.snapshot().players[usize::from(s)].inventory.len().min(12);
+            for i in 0..inv {
+                for r in e.swap_ratings(p, SwapItem::Inventory(i as u32)) {
+                    let adopted = if r.replaces {
+                        r.dps_bp > Some(0) && r.level_after >= r.level_before
+                    } else {
+                        r.dps_bp.unwrap_or(0) >= 0
+                    };
+                    if adopted {
+                        let key = (
+                            r.dps_bp.unwrap_or(0),
+                            !r.replaces,
+                            std::cmp::Reverse(i as u32),
+                            std::cmp::Reverse(r.slot),
+                        );
+                        if best.is_none_or(|(k, _, _)| key > k) {
+                            best = Some((key, i as u32, r.slot));
+                        }
+                    }
+                }
+            }
+            if let Some((_, bi, bs)) = best {
+                // A rune is not rated here; only star choices are compared.
+                assert_eq!((item, slot), (bi, bs));
+                checked += 1;
+            }
+        }
+        assert!(checked > 0, "some star equip was compared");
+    }
+
+    #[test]
+    fn a_replace_never_lowers_a_slot() {
+        let mut replaces = 0;
+        for world in 1..=3 {
+            for (e, s, _, a) in decisions(world) {
+                let Some(EquipAction::Replace { item, slot }) = a else {
+                    continue;
+                };
+                replaces += 1;
+                let p = PlayerIdx::new(s).unwrap();
+                let row = e
+                    .swap_ratings(p, SwapItem::Inventory(item))
+                    .into_iter()
+                    .find(|r| r.slot == slot)
+                    .expect("a row for the slot");
+                assert!(row.dps_bp > Some(0) && row.level_after >= row.level_before);
+            }
+        }
+        // A replace is rare early; the corpus case with one is checked in party_run.
+        let _ = replaces;
+    }
+
+    #[test]
+    fn a_tree_point_is_taken_before_anything_else() {
+        let mut seen = 0;
+        for world in 1..=5 {
+            let b = building(1);
+            drive(1, world, &b, 3000, |e, s, t, a| {
+                let ready = e.snapshot().players[usize::from(s)].tree_ready.is_some();
+                if ready && (u64::from(t) + b.action_phase(s)) % 30 == 0 {
+                    assert_eq!(a, Some(EquipAction::TreePick { option: 0 }));
+                    seen += 1;
+                }
+            });
+        }
+        assert!(seen > 0, "a tree point was ready on a decision tick");
+    }
+
+    #[test]
+    fn it_extracts_the_rest_then_crafts_only_what_it_would_equip() {
+        let (mut extracts, mut crafts) = (0, 0);
+        for (e, s, _, a) in decisions(1) {
+            let p = PlayerIdx::new(s).unwrap();
+            let view = &e.snapshot().players[usize::from(s)];
+            match a {
+                Some(EquipAction::Extract { item }) => {
+                    assert_eq!(item, 0);
+                    assert!(!view.inventory.is_empty());
+                    extracts += 1;
+                }
+                Some(EquipAction::Craft { star }) => {
+                    assert!(view.inventory.is_empty());
+                    assert!(!view.pool_held[star as usize]);
+                    crafts += 1;
+                }
+                _ => {}
+            }
+            let _ = p;
+        }
+        assert!(extracts > 0, "something was extracted");
+        let _ = crafts;
+    }
+}
+
+#[cfg(test)]
 mod rig {
     use super::*;
     use crate::run_play::{Change, party_cases};
