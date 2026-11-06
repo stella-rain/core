@@ -353,7 +353,12 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
         .expect("a verified run starts");
     for step in &range.steps {
         match step {
-            RangeStep::Actions { .. } => panic!("a verified run holds no equipment action"),
+            RangeStep::Actions { actions } => {
+                let all = slots(recorder.engine().present(), actions);
+                recorder
+                    .actions(&all)
+                    .expect("a verified run's actions are accepted");
+            }
             RangeStep::Ticks { run, inputs } => {
                 for _ in 0..*run {
                     let all = slots(recorder.engine().present(), inputs);

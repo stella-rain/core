@@ -9,10 +9,11 @@ use crate::party_bot::{PartyBot, RigParty};
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, RunRecorder};
 use stella_rain_core::run_setup::{OfferMode, RunSetup};
+use stella_rain_core::snapshot::HeldView;
 
 /// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
 /// `answer_all` does, between a tick and the next (and after the last).
@@ -176,6 +177,7 @@ pub fn play_party_with(
     changes: &[(u32, Change)],
     answer_after: Option<u32>,
     bot: Option<&PartyBot>,
+    script: Option<&EquipScript>,
 ) -> RunRecorder {
     let timed = setup.offer_mode == OfferMode::Timed;
     assert!(bot.is_none() || !timed, "a timed bot case is not built");
@@ -197,6 +199,7 @@ pub fn play_party_with(
             break;
         }
         let mut inputs = party_inputs_with(&rec, t, bot);
+        inputs[0].action = script.and_then(|script| script.action(rec.engine(), t));
         if timed {
             if rec.engine().check_pick(slot0, 0).is_ok() {
                 let since = *open_since.get_or_insert_with(|| {
@@ -245,6 +248,48 @@ pub struct PartyCase {
     /// A bot that plays every slot and picks every offer; `None` is the zone bot and the
     /// scripted slots, option 0 for every offer.
     pub bot: Option<PartyBot>,
+    /// Equipment actions slot 0 makes between ticks (ADR-SIM-7); `None` makes none.
+    pub script: Option<EquipScript>,
+}
+
+/// When slot 0 equips in a party case, and what: at `rune_at` the first inventory rune that goes
+/// into a rune slot, at `star_at` the first star that goes into a category slot, and at `swap_at`
+/// a replace of a star by one the engine accepts (a same-option star of another grade, when the
+/// inventory holds one) or, failing that, the next star into a free category slot. Each is the
+/// first accepted by `Engine::check_action`, items and slots in order.
+#[derive(Clone, Copy, Debug)]
+pub struct EquipScript {
+    pub rune_at: u32,
+    pub star_at: u32,
+    pub swap_at: u32,
+}
+
+impl EquipScript {
+    /// The action slot 0 makes before `tick`, if the script has one there.
+    pub fn action(&self, engine: &Engine, tick: u32) -> Option<EquipAction> {
+        let inventory = engine.snapshot().players[0].inventory.clone();
+        let find = |make: fn(u32, u32) -> EquipAction, rune: bool, slots: std::ops::Range<u32>| {
+            inventory
+                .iter()
+                .enumerate()
+                .filter(|(_, h)| matches!(h, HeldView::Rune { .. }) == rune)
+                .flat_map(|(item, _)| {
+                    let item = u32::try_from(item).unwrap();
+                    slots.clone().map(move |slot| make(item, slot))
+                })
+                .find(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
+        };
+        let equip = |item, slot| EquipAction::Equip { item, slot };
+        let replace = |item, slot| EquipAction::Replace { item, slot };
+        match tick {
+            t if t == self.rune_at => find(equip, true, 9..12),
+            t if t == self.star_at => find(equip, false, 0..9),
+            t if t == self.swap_at => {
+                find(replace, false, 0..9).or_else(|| find(equip, false, 0..9))
+            }
+            _ => None,
+        }
+    }
 }
 
 impl PartyCase {
@@ -257,6 +302,7 @@ impl PartyCase {
             &self.changes,
             self.answer_after,
             self.bot.as_ref(),
+            self.script.as_ref(),
         )
     }
 }
@@ -276,6 +322,26 @@ fn equipment(name: &'static str, party: u8) -> PartyCase {
         changes: vec![],
         answer_after: None,
         bot: None,
+        script: None,
+    }
+}
+
+/// The world seed of `equipment_equip`.
+const EQUIP_SEED: u64 = 2;
+
+/// A solo equipment case whose slot 0 follows an `EquipScript`.
+pub fn equipment_equip(name: &'static str, seed: u64) -> PartyCase {
+    PartyCase {
+        setup: RunSetup {
+            seed,
+            ..equipment(name, 1).setup
+        },
+        script: Some(EquipScript {
+            rune_at: 1000,
+            star_at: 1500,
+            swap_at: 2500,
+        }),
+        ..equipment(name, 1)
     }
 }
 
@@ -303,6 +369,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![],
             answer_after: None,
             bot: None,
+            script: None,
         },
         PartyCase {
             name: "three_tutorial",
@@ -312,6 +379,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![],
             answer_after: None,
             bot: None,
+            script: None,
         },
         PartyCase {
             name: "three_time_limit",
@@ -321,6 +389,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![],
             answer_after: None,
             bot: None,
+            script: None,
         },
         // A solo run that takes slot 1 at tick 600; slot 1 answers an offer after it.
         PartyCase {
@@ -331,6 +400,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![(600, Change::Join(1))],
             answer_after: None,
             bot: None,
+            script: None,
         },
         // A party of 3 that loses slot 1 (a hole, 0b101) and slot 2 (alone), then takes slot 2
         // back (0b101); slot 2 answers an offer inside the first hole window.
@@ -346,6 +416,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             ],
             answer_after: None,
             bot: None,
+            script: None,
         },
         // A timed party of one: the world keeps running with an offer open; slot 0 answers every
         // second offer 100 ticks after it opened and the timer closes the rest.
@@ -357,6 +428,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![],
             answer_after: Some(100),
             bot: None,
+            script: None,
         },
         // A timed party of two: slot 0 answers as above, slot 1 never does, so the timer
         // closes every offer of slot 1.
@@ -368,6 +440,7 @@ pub fn party_cases() -> Vec<PartyCase> {
             changes: vec![],
             answer_after: Some(100),
             bot: None,
+            script: None,
         },
         // The rig cases: every slot played by a `PartyBot`, a player goes down and is revived by
         // a teammate holding `interact`. The seeds are the first of a search (`search_rig_seeds`
@@ -383,6 +456,10 @@ pub fn party_cases() -> Vec<PartyCase> {
         // `equipment_drops.rs`.
         equipment("equipment_solo", 1),
         equipment("equipment_two", 2),
+        // An equip and a replace in a replay (ADR-SIM-7): slot 0 equips a rune, a star and then
+        // swaps or adds one, between ticks 1000 and 2500. The seed is the first of a search
+        // (`search_equipment_equip_seeds` in `equipment_slots.rs`).
+        equipment_equip("equipment_equip", EQUIP_SEED),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]

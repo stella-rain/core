@@ -281,6 +281,7 @@ impl RigParty {
             bot: Some(PartyBot {
                 seed: self.bot_seed,
             }),
+            script: None,
         }
     }
 }

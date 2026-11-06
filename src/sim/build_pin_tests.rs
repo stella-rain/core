@@ -869,3 +869,122 @@ fn reference_apply(
     }
     rune
 }
+
+// --- a fall in the build (an unequip, ADR-SIM-3 point 2, ADR-SIM-7) -----------------------------
+
+/// The held counts of the hand-built file with the stars at `places` held once.
+fn held(places: &[u16]) -> Vec<u8> {
+    let mut v = vec![0u8; 23];
+    for &p in places {
+        v[usize::from(p)] += 1;
+    }
+    v
+}
+
+/// Writes the change from the build of `from` to the build of `to` into slot 0 of `s`.
+fn write_change(stage: &World, rewards: &Rewards, s: &mut State, from: &[u16], to: &[u16]) {
+    let before = Build::of(stage, rewards, &held(from));
+    let after = Build::of(stage, rewards, &held(to));
+    let (player, career) = s.players.both_mut(PlayerIdx::SOLO);
+    let o = career.offers.as_mut().expect("offers");
+    Build::write(
+        &before,
+        &after,
+        player,
+        &mut career.progress,
+        &mut career.regen,
+        o,
+    );
+}
+
+fn total(s: &State, stat: StatEffect) -> u32 {
+    s.players
+        .career(PlayerIdx::SOLO)
+        .progress
+        .as_ref()
+        .expect("levels")
+        .totals[stat as usize]
+}
+
+/// T4: a fall lowers the stat totals and the regeneration by the star's share; the perk's stays.
+#[test]
+fn a_fall_lowers_the_stat_totals_and_regen() {
+    let (stage, rewards) = (stage(), hand());
+    let mut s = start(&stage, 23);
+    s.players.career_mut(PlayerIdx::SOLO).regen = 3; // a perk gave 3 first
+    let (atk, hp) = (
+        total(&s, StatEffect::AttackPct),
+        total(&s, StatEffect::MaxHp),
+    );
+    write_change(&stage, &rewards, &mut s, &[], &[ATK, HP, REGEN]);
+    assert_eq!(total(&s, StatEffect::AttackPct), atk + 5);
+    assert_eq!(total(&s, StatEffect::MaxHp), hp + 100);
+    assert_eq!(s.players.career(PlayerIdx::SOLO).regen, 5);
+    write_change(&stage, &rewards, &mut s, &[ATK, HP, REGEN], &[]);
+    assert_eq!(total(&s, StatEffect::AttackPct), atk);
+    assert_eq!(total(&s, StatEffect::MaxHp), hp);
+    assert_eq!(
+        s.players.career(PlayerIdx::SOLO).regen,
+        3,
+        "the perk's share stays"
+    );
+}
+
+/// T5: the most hit points fall with the clamp: no heal, never 0, a downed player stays down.
+#[test]
+fn max_hp_falls_with_the_hp_clamp() {
+    let (stage, rewards) = (stage(), hand());
+    let at = |s: &State| {
+        (
+            s.players[PlayerIdx::SOLO].max_hp,
+            s.players[PlayerIdx::SOLO].hp,
+        )
+    };
+    let mut s = start(&stage, 23);
+    let (max, _) = at(&s);
+    s.players[PlayerIdx::SOLO].hp = max;
+    write_change(&stage, &rewards, &mut s, &[], &[HP]);
+    assert_eq!(
+        at(&s),
+        (max + 100, max + 100),
+        "a full player is healed by the star"
+    );
+    write_change(&stage, &rewards, &mut s, &[HP], &[]);
+    assert_eq!(at(&s), (max, max), "back to the base");
+
+    // A hurt player keeps its hit points when the star leaves.
+    write_change(&stage, &rewards, &mut s, &[], &[HP]);
+    s.players[PlayerIdx::SOLO].hp = 40.min(max);
+    write_change(&stage, &rewards, &mut s, &[HP], &[]);
+    assert_eq!(at(&s), (max, 40.min(max)));
+
+    // The floor is 1: a star larger than what is left leaves 1.
+    let mut s = start(&stage, 23);
+    write_change(&stage, &rewards, &mut s, &[], &[HP]);
+    s.players[PlayerIdx::SOLO].max_hp = 50;
+    s.players[PlayerIdx::SOLO].hp = 50;
+    write_change(&stage, &rewards, &mut s, &[HP], &[]);
+    assert_eq!(at(&s), (1, 1));
+
+    // A downed player stays at 0.
+    let mut s = start(&stage, 23);
+    write_change(&stage, &rewards, &mut s, &[], &[HP]);
+    s.players[PlayerIdx::SOLO].hp = 0;
+    write_change(&stage, &rewards, &mut s, &[HP], &[]);
+    assert_eq!(at(&s), (max, 0));
+}
+
+/// T6: a replace can raise one stat and lower another in one write.
+#[test]
+fn a_replace_can_raise_one_stat_and_lower_another() {
+    let (stage, rewards) = (stage(), hand());
+    let mut s = start(&stage, 23);
+    let (atk, hp) = (
+        total(&s, StatEffect::AttackPct),
+        total(&s, StatEffect::MaxHp),
+    );
+    write_change(&stage, &rewards, &mut s, &[], &[ATK]);
+    write_change(&stage, &rewards, &mut s, &[ATK], &[HP]);
+    assert_eq!(total(&s, StatEffect::AttackPct), atk);
+    assert_eq!(total(&s, StatEffect::MaxHp), hp + 100);
+}

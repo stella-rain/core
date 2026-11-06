@@ -554,6 +554,11 @@ pub struct PlayerView {
     /// sorts it by rarity.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inventory: Vec<HeldView>,
+    /// Its equipment slots in layout order, then the Lumine slot last when the run has one
+    /// (equipment mode; empty in offers mode). An action addresses them by this order: an index
+    /// into the list, the Lumine slot one past the others.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub slots: Vec<SlotView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came, then from 34 one for each
     /// on-hit rune, by its place in `Rune::ALL`.
@@ -603,6 +608,31 @@ pub struct RuneView {
 pub enum HeldView {
     Star { id: ContentId, rarity: Rarity },
     Rune { rune: Rune },
+}
+
+/// Which equipment slot a `SlotView` is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SlotKindView {
+    /// A category slot: the category's index in the layout.
+    Category {
+        index: u8,
+    },
+    Rune,
+    /// The Lumine slot, present only when the run's setup names a Lumine star.
+    Lumine,
+}
+
+/// One equipment slot: what it holds, its level (0 while it never held anything) and the kills
+/// toward its next level.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SlotView {
+    pub kind: SlotKindView,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held: Option<HeldView>,
+    pub level: u8,
+    pub expertise: u32,
 }
 
 /// An orbit held. Its orbs' attacks are in the main character's `attacks`, in slots

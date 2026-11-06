@@ -454,6 +454,21 @@ macro_rules! state_codec_v2 {
                     &fresh.players.career(PlayerIdx::SOLO).equipment.lumine,
                     "lumine presence differs from the setup",
                 )?;
+                // Equipment mode: the slots are the fresh engine's layout, each holds the kind
+                // of item it takes, and the runes the Main fires are the rune slots filled.
+                let fresh_slots = &fresh.players.career(PlayerIdx::SOLO).equipment.slots;
+                let career = s.players.career(me);
+                if !crate::sim::same_layout(&career.equipment.slots, fresh_slots) {
+                    return Err(differs("equipment slots differ from the layout"));
+                }
+                if !crate::sim::holds_right_kinds(&career.equipment) {
+                    return Err(differs("equipment slot holds the wrong kind"));
+                }
+                if !fresh_slots.is_empty()
+                    && !crate::sim::runes_match_slots(&career.equipment, &s.players[me].runes)
+                {
+                    return Err(differs("runes differ from the rune slots"));
+                }
                 if let (Some(p), Some(f)) = (
                     &s.players.career(me).progress,
                     &fresh.players.career(PlayerIdx::SOLO).progress,
@@ -817,6 +832,110 @@ mod players_tests {
                 "progress presence differs from the content"
             ))
         );
+    }
+}
+
+#[cfg(test)]
+mod slots_tests {
+    //! The equipment slots of every present player are the layout, hold the right kind of item,
+    //! and the runes the Main fires are the rune slots filled (ADR-SIM-3 point 2, ADR-SIM-7).
+
+    use crate::engine::{Engine, Run};
+    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::rune::Rune;
+    use crate::savepoint::DecodeError;
+    use crate::sim::equipment::Held;
+    use crate::sim::state::{HeldRune, State};
+
+    use super::v2::check_shape;
+
+    fn engine(party: u8) -> Engine {
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            starting_rune: Some("thunder".into()),
+            pick_stats: false,
+            ..RunSetup::default()
+        };
+        Engine::start_party(&setup, party).unwrap()
+    }
+
+    fn refused(what: &'static str) -> Result<(), DecodeError> {
+        Err(DecodeError::Invalid(what))
+    }
+
+    /// T25: for every present slot the layout, the kinds and the runes are checked.
+    #[test]
+    fn the_savepoint_refuses_a_bad_slot_layout() {
+        let e = engine(2);
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        let counted = e.saved_parts().1;
+        let check = |s: &State| check_shape(s, counted, state, counted);
+        assert_eq!(check(state), Ok(()), "the fresh state is accepted");
+        for me in state.players.indices() {
+            let edit = |f: &dyn Fn(&mut State)| {
+                let mut s = state.clone();
+                f(&mut s);
+                check(&s)
+            };
+            let slots =
+                |s: &mut State| std::mem::take(&mut s.players.career_mut(me).equipment.slots);
+            let layout = "equipment slots differ from the layout";
+            let kind = "equipment slot holds the wrong kind";
+            // Fewer or more slots, or none.
+            assert_eq!(
+                edit(&|s| {
+                    s.players.career_mut(me).equipment.slots.pop();
+                }),
+                refused(layout),
+                "{me:?}"
+            );
+            assert_eq!(
+                edit(&|s| {
+                    let extra = s.players.career(me).equipment.slots[0].clone();
+                    s.players.career_mut(me).equipment.slots.push(extra);
+                }),
+                refused(layout)
+            );
+            assert_eq!(edit(&|s| drop(slots(s))), refused(layout));
+            // A slot of another kind.
+            assert_eq!(
+                edit(&|s| s.players.career_mut(me).equipment.slots[0].kind =
+                    crate::sim::equipment::SlotKind::Rune),
+                refused(layout)
+            );
+            // A rune in a category slot, a star in a rune slot.
+            assert_eq!(
+                edit(&|s| s.players.career_mut(me).equipment.slots[0].held =
+                    Some(Held::Rune(Rune::Bleed))),
+                refused(kind)
+            );
+            assert_eq!(
+                edit(&|s| s.players.career_mut(me).equipment.slots[10].held = Some(Held::Star(0))),
+                refused(kind)
+            );
+            // The runes the Main fires are the rune slots filled, in order.
+            let runes = "runes differ from the rune slots";
+            assert_eq!(
+                edit(&|s| s.players.career_mut(me).equipment.slots[10].held =
+                    Some(Held::Rune(Rune::Bleed))),
+                refused(runes)
+            );
+            assert_eq!(edit(&|s| s.players[me].runes.clear()), refused(runes));
+            // A consistent equip is accepted: the rune slot and the list agree.
+            assert_eq!(
+                edit(&|s| {
+                    s.players.career_mut(me).equipment.slots[10].held =
+                        Some(Held::Rune(Rune::Bleed));
+                    s.players[me].runes.push(HeldRune {
+                        rune: Rune::Bleed,
+                        cooldown_left: 7,
+                    });
+                }),
+                Ok(())
+            );
+        }
     }
 }
 
