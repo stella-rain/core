@@ -685,6 +685,9 @@ mod tests {
                 named("speed", vec![effect("speed_pct", 10)]),
                 star("hp100", vec![effect("max_hp", 100)]),
                 star("hp250", vec![effect("max_hp", 250)]),
+                star("pick50", vec![effect("pickup_radius_pct", 50)]),
+                star("pick150", vec![effect("pickup_radius_pct", 150)]),
+                star("pick200", vec![effect("pickup_radius_pct", 200)]),
                 json!({ "id": "random_rune", "rarity": "common", "effects": [{ "effect": "random_rune" }] }),
             ]
         }
@@ -831,6 +834,40 @@ mod tests {
                 before,
                 after,
             }
+        }
+
+        /// P4: the sheet shows the pickup radius the sim reads: the stars' share plus the stat,
+        /// held to `MAX_PICKUP_RADIUS_TOTAL_PCT`.
+        #[test]
+        fn the_offer_rating_shows_the_total() {
+            let rated = |f: &Fixture, item: u32| {
+                let r = f.rate_item(item);
+                at(&r, 7)
+                    .changes
+                    .iter()
+                    .find(|c| c.stat == StatKind::PickupRadiusPct)
+                    .cloned()
+                    .expect("the pickup stat changes")
+            };
+            let stat = |f: &mut Fixture, v: u32| {
+                f.s.players.career_mut(ME).progress.as_mut().unwrap().totals
+                    [crate::run_stats::StatEffect::PickupRadiusPct as usize] = v;
+            };
+            // Stars 0, stat 100: the star (+50) takes the total from 100 to 150.
+            let mut f = fixture();
+            stat(&mut f, 100);
+            let p50 = f.hold("pick50");
+            assert_eq!(rated(&f, p50), change(StatKind::PickupRadiusPct, 100, 150));
+            // Stars 200, stat 30: +50 shows 230 to 280; +150 is held to the cap, 230 to 300.
+            let mut f = fixture();
+            f.equip(8, "pick200", 1);
+            stat(&mut f, 30);
+            let (p50, p150) = (f.hold("pick50"), f.hold("pick150"));
+            assert_eq!(rated(&f, p50), change(StatKind::PickupRadiusPct, 230, 280));
+            assert_eq!(rated(&f, p150), change(StatKind::PickupRadiusPct, 230, 300));
+            // Already at the cap: 300 to 300.
+            stat(&mut f, 100);
+            assert_eq!(rated(&f, p50), change(StatKind::PickupRadiusPct, 300, 300));
         }
 
         /// T1: an equip into an empty slot, against the Attack slots only.
