@@ -25,7 +25,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, OfferMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
-use crate::snapshot::{OfferOption, OfferRating};
+use crate::snapshot::{OfferOption, OfferRating, SwapItem, SwapRating};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 use crate::version::SIM_VERSION;
@@ -669,6 +669,22 @@ impl Engine {
             return Vec::new();
         }
         self.run.offer_ratings(self.content.rewards(), player)
+    }
+
+    /// Rates a star against each slot it could go in, in slot order: for each, whether the swap
+    /// is an equip, a replace or a same-option switch, the slot's level before and after, the
+    /// expected signed change in the Main weapon's damage in basis points (the model of
+    /// `offer_ratings`), the set tiers gained or lost and the stats it moves. The swap is made
+    /// by the equip and replace rules on a clone, so the answer is what `act` would do. Empty
+    /// for a player outside the party, a `sim_version` 1 run, a run without slots, a rune, an
+    /// item or star that does not exist, or when no slot takes the star. Read-only, and a
+    /// separate query from the snapshot (ADR-BRDG-4): call it when a window opens or an item
+    /// arrives, not every frame; each call clones the player's equipment once per slot.
+    pub fn swap_ratings(&self, player: PlayerIdx, item: SwapItem) -> Vec<SwapRating> {
+        if self.present() >> player.get() & 1 == 0 {
+            return Vec::new();
+        }
+        self.run.swap_ratings(self.content.rewards(), player, item)
     }
 
     fn pick_option(&self, player: PlayerIdx, index: u32) -> Result<OfferOption, ChoiceError> {
