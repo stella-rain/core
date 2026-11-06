@@ -167,6 +167,8 @@ mod runes;
 mod schedule;
 mod scratch;
 mod skill;
+#[cfg(test)]
+mod slots_tests;
 pub(crate) mod snapshot;
 #[cfg(test)]
 mod spawn_edge_tests;
