@@ -41,7 +41,9 @@
 //! takes one automatic option, no draw: the best option of the chosen tree's `TREE_COMMON` list,
 //! else the option the stat priority ranks first. The levels of the table are tree points, held
 //! until the player takes them by `TreePick`, in path order (style, upgrade, upgrade, capstone).
-//! Levels above the capstone are common and applied as one batch.
+//! Levels above the capstone are common and applied as one batch. The tree is read when the
+//! levels are passed (the tick they are reached): a common level reached before the style is
+//! taken uses the priority, one reached after it the tree's list.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -394,20 +396,18 @@ fn equipment_pass(
         .filter(|l| **l > from && **l <= to)
         .count();
     let n = (to - from).saturating_sub(u32::try_from(tree).unwrap_or(u32::MAX));
-    let (Some(w), Some(at)) = (
-        content(stage, expertise),
-        content(stage, expertise)
-            .zip(progress.as_ref())
-            .and_then(|(w, p)| auto_option(w, g.style, p)),
-    ) else {
+    if n == 0 {
+        return;
+    }
+    let Some(w) = content(stage, expertise) else {
+        return;
+    };
+    let Some(at) = progress.as_ref().and_then(|p| auto_option(w, g.style, p)) else {
         return;
     };
     let (Some(picked), Some(times)) = (w.common.get(at), g.taken.get_mut(at)) else {
         return;
     };
-    if n == 0 {
-        return;
-    }
     *times = times.saturating_add(u8::try_from(n).unwrap_or(u8::MAX));
     let taken = *times;
     apply(
@@ -585,11 +585,20 @@ pub(crate) fn check_tree(
     if g.style.is_some_and(|i| usize::from(i) >= w.styles.len()) {
         return Err(out);
     }
-    let levels = [table.upgrades[0], table.upgrades[1], table.capstone];
-    for (level, place) in levels.into_iter().zip(&g.path) {
-        if usize::from(*place) >= fixed(stage, expertise, g, level).len() {
-            return Err(out);
-        }
+    // A place indexes the list of the level it was taken at, which an offers run's out player may
+    // have passed over, so it is held to the longest of the style's three lists.
+    let longest = g
+        .style
+        .and_then(|i| w.styles.get(usize::from(i)))
+        .map_or(0, |st| {
+            [&st.upgrade_1, &st.upgrade_2, &st.capstone]
+                .iter()
+                .map(|list| list.len())
+                .max()
+                .unwrap_or(0)
+        });
+    if g.path.iter().any(|place| usize::from(*place) >= longest) {
+        return Err(out);
     }
     Ok(())
 }
