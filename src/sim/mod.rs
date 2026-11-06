@@ -176,6 +176,9 @@ pub(crate) mod snapshot;
 mod spawn_edge_tests;
 mod stardust;
 mod stars;
+mod starlight;
+#[cfg(test)]
+mod starlight_tests;
 pub(crate) mod state;
 mod state_codec;
 mod state_hash;
