@@ -8,11 +8,12 @@ use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
-use stella_rain_core::snapshot::EntityKind;
+use stella_rain_core::snapshot::{EntityKind, HeldView, SlotKindView, SwapItem, SwapRating};
 
 use crate::common::run::trial_setup;
 use crate::run_play::{Change, PartyCase};
@@ -29,7 +30,16 @@ pub const NEAR: i64 = 32 * 256;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartyBot {
     pub seed: u64,
+    /// Plays the equipment actions of an equipment run (`action`); off, the bot makes none.
+    pub builds: bool,
 }
+
+/// The bot decides on one tick in this many, per slot.
+pub const ACTION_EVERY: u32 = 30;
+/// How many inventory places the bot rates.
+pub const RATED_ITEMS: usize = 12;
+/// How many craftable stars the bot rates.
+pub const CRAFT_RATED: usize = 8;
 
 /// A local SplitMix64 finaliser over the seed, the slot and a salt.
 pub fn mix(seed: u64, slot: u8, salt: u64) -> u64 {
@@ -177,6 +187,121 @@ impl PartyBot {
         input
     }
 
+    /// Slot `slot`'s equipment decision offset.
+    pub fn action_phase(&self, slot: u8) -> u64 {
+        mix(self.seed, slot, 4) % u64::from(ACTION_EVERY)
+    }
+
+    /// The equipment action `slot` takes at `tick`, if any: only a building bot in an equipment
+    /// run (the player view has slots), a slot that is up, and one tick in `ACTION_EVERY`. In
+    /// order: the tree point; the best rated equip or replace (a replace never lowers a slot);
+    /// extract the rest; with an empty inventory, craft the best rated star it would equip.
+    /// Every action returned has passed `Engine::check_action`.
+    pub fn action(&self, engine: &Engine, slot: u8, tick: u32) -> Option<EquipAction> {
+        if !self.builds
+            || (u64::from(tick) + self.action_phase(slot)) % u64::from(ACTION_EVERY) != 0
+        {
+            return None;
+        }
+        let player = PlayerIdx::new(slot)?;
+        let snap = engine.snapshot();
+        let present = engine.present();
+        let place = (present & ((1u8 << slot) - 1)).count_ones() as usize;
+        let view = snap.players.get(place)?;
+        if view.slots.is_empty() || view.hp == 0 || view.out || view.down.is_some() {
+            return None;
+        }
+        let accepted = |a: EquipAction| engine.check_action(player, a).is_ok();
+        if accepted(EquipAction::TreePick { option: 0 }) {
+            return Some(EquipAction::TreePick { option: 0 });
+        }
+        // A candidate: (dps_bp, an equip, reversed item, reversed slot) -> action.
+        type Key = (i32, bool, std::cmp::Reverse<u32>, std::cmp::Reverse<u32>);
+        let adopted = |rows: Vec<SwapRating>, item: u32| -> Vec<(Key, u32, bool)> {
+            rows.into_iter()
+                .filter(|r| {
+                    if r.replaces {
+                        r.dps_bp > Some(0) && r.level_after >= r.level_before
+                    } else {
+                        r.dps_bp.unwrap_or(0) >= 0
+                    }
+                })
+                .map(|r| {
+                    (
+                        (
+                            r.dps_bp.unwrap_or(0),
+                            !r.replaces,
+                            std::cmp::Reverse(item),
+                            std::cmp::Reverse(r.slot),
+                        ),
+                        r.slot,
+                        r.replaces,
+                    )
+                })
+                .collect()
+        };
+        let mut best: Option<(Key, EquipAction)> = None;
+        for (i, held) in view.inventory.iter().take(RATED_ITEMS).enumerate() {
+            let item = u32::try_from(i).ok()?;
+            let rows = match held {
+                HeldView::Star { .. } => {
+                    adopted(engine.swap_ratings(player, SwapItem::Inventory(item)), item)
+                }
+                HeldView::Rune { .. } => view
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, sv)| sv.kind == SlotKindView::Rune)
+                    .map(|(k, _)| u32::try_from(k).unwrap())
+                    .find(|k| accepted(EquipAction::Equip { item, slot: *k }))
+                    .map(|k| {
+                        (
+                            (0, true, std::cmp::Reverse(item), std::cmp::Reverse(k)),
+                            k,
+                            false,
+                        )
+                    })
+                    .into_iter()
+                    .collect(),
+            };
+            for (key, k, replaces) in rows {
+                let action = if replaces {
+                    EquipAction::Replace { item, slot: k }
+                } else {
+                    EquipAction::Equip { item, slot: k }
+                };
+                if accepted(action) && best.is_none_or(|(b, _)| key > b) {
+                    best = Some((key, action));
+                }
+            }
+        }
+        if let Some((_, action)) = best {
+            return Some(action);
+        }
+        if !view.inventory.is_empty() {
+            let extract = EquipAction::Extract { item: 0 };
+            return accepted(extract).then_some(extract);
+        }
+        let content = RunContent::bundled();
+        let pool = content.rewards().rewards();
+        let mut crafted: Option<(Key, EquipAction)> = None;
+        let candidates = (0..pool.len())
+            .filter(|p| !view.pool_held.get(*p).copied().unwrap_or(true))
+            .filter_map(|p| u32::try_from(p).ok())
+            .filter(|p| accepted(EquipAction::Craft { star: *p }))
+            .take(CRAFT_RATED);
+        for p in candidates {
+            let id = pool[p as usize].id.clone();
+            let rows = adopted(engine.swap_ratings(player, SwapItem::Star(id)), p);
+            for (key, _, _) in rows {
+                if crafted.is_none_or(|(b, _)| key > b) {
+                    crafted = Some((key, EquipAction::Craft { star: p }));
+                }
+            }
+        }
+        crafted.map(|(_, action)| action)
+    }
+
     /// The buttons of `slot` at `tick`.
     pub fn input(&self, engine: &Engine, slot: u8, tick: u32) -> Input {
         self.decide(&sight(engine, slot), slot, tick)
@@ -218,6 +343,7 @@ pub struct RigParty {
     ticks: u32,
     bot_seed: u64,
     equipment: bool,
+    builds: bool,
     changes: Vec<(u32, Change)>,
 }
 
@@ -233,6 +359,7 @@ impl RigParty {
             ticks: 3000,
             bot_seed: 0,
             equipment: false,
+            builds: false,
             changes: vec![],
         }
     }
@@ -266,6 +393,12 @@ impl RigParty {
     /// Equipment mode with the `vanguard` perk set (it regenerates): nothing else changes.
     pub fn equipment(mut self) -> RigParty {
         self.equipment = true;
+        self
+    }
+
+    /// Every slot's bot plays the equipment actions (`PartyBot::action`).
+    pub fn builds(mut self) -> RigParty {
+        self.builds = true;
         self
     }
 
@@ -305,6 +438,7 @@ impl RigParty {
             answer_after: None,
             bot: Some(PartyBot {
                 seed: self.bot_seed,
+                builds: self.builds,
             }),
             script: None,
         }
@@ -512,7 +646,10 @@ mod decisions {
     }
 
     fn bot() -> PartyBot {
-        PartyBot { seed: 7 }
+        PartyBot {
+            seed: 7,
+            builds: false,
+        }
     }
 
     fn up() -> Sight {
@@ -525,7 +662,10 @@ mod decisions {
     /// A seed whose `slot` has `role`.
     fn seed_with_role(slot: u8, role: u64) -> PartyBot {
         (1..)
-            .map(|seed| PartyBot { seed })
+            .map(|seed| PartyBot {
+                seed,
+                builds: false,
+            })
             .find(|b| b.role(slot) == role)
             .unwrap()
     }
@@ -645,7 +785,10 @@ mod decisions {
     #[test]
     fn buttons_follow_the_cadences_and_axes_stay_in_range() {
         for seed in 1..=3 {
-            let b = PartyBot { seed };
+            let b = PartyBot {
+                seed,
+                builds: false,
+            };
             for slot in 0..3u8 {
                 let s = Sight {
                     me: at(5, -9),
@@ -688,7 +831,11 @@ mod decisions {
         }
         let differ = |a: u64, b: u64| {
             (0..3u8).any(|slot| {
-                let (x, y) = (PartyBot { seed: a }, PartyBot { seed: b });
+                let bot = |seed| PartyBot {
+                    seed,
+                    builds: false,
+                };
+                let (x, y) = (bot(a), bot(b));
                 x.role(slot) != y.role(slot)
                     || x.phase(slot) != y.phase(slot)
                     || x.skill_phase(slot) != y.skill_phase(slot)
@@ -784,7 +931,10 @@ mod decisions {
                 panic!("an offer is open");
             };
             for seed in 1..=5 {
-                let b = PartyBot { seed };
+                let b = PartyBot {
+                    seed,
+                    builds: false,
+                };
                 let got = b.pick(&e, holder, e.tick()).unwrap();
                 assert!(got < options);
                 assert_eq!(Some(got), b.pick(&e, holder, e.tick()));
@@ -801,10 +951,7 @@ mod builds {
     use stella_rain_core::snapshot::SwapItem;
 
     fn building(seed: u64) -> PartyBot {
-        PartyBot {
-            seed,
-            builds: true,
-        }
+        PartyBot { seed, builds: true }
     }
 
     fn equipment_engine(n: u8, world: u64) -> Engine {
@@ -1069,7 +1216,13 @@ mod rig {
             assert_eq!(case.setup.difficulty, "normal".into());
             assert_eq!(case.setup.offer_mode, OfferMode::Stop);
             assert_eq!(case.ticks, 3000);
-            assert_eq!(case.bot, Some(PartyBot { seed: 5 }));
+            assert_eq!(
+                case.bot,
+                Some(PartyBot {
+                    seed: 5,
+                    builds: false
+                })
+            );
             assert!(case.changes.is_empty());
             assert_eq!(case.answer_after, None);
         }

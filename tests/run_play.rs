@@ -129,7 +129,11 @@ pub fn party_inputs_with(rec: &RunRecorder, tick: u32, bot: Option<&PartyBot>) -
     let present = rec.engine().present();
     for s in (0..3u8).filter(|s| present >> s & 1 == 1) {
         inputs[usize::from(s)] = match (bot, s) {
-            (Some(bot), _) => bot.input(rec.engine(), s, tick),
+            (Some(bot), _) => {
+                let mut input = bot.input(rec.engine(), s, tick);
+                input.action = bot.action(rec.engine(), s, tick);
+                input
+            }
             (None, 0) => run_input(rec.engine(), tick),
             (None, _) => scripted_input(rec.engine(), s, tick),
         };
@@ -199,7 +203,9 @@ pub fn play_party_with(
             break;
         }
         let mut inputs = party_inputs_with(&rec, t, bot);
-        inputs[0].action = script.and_then(|script| script.action(rec.engine(), t));
+        if let Some(script) = script {
+            inputs[0].action = script.action(rec.engine(), t);
+        }
         if timed {
             if rec.engine().check_pick(slot0, 0).is_ok() {
                 let since = *open_since.get_or_insert_with(|| {
