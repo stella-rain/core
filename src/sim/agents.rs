@@ -265,23 +265,21 @@ fn act_one<const ONE: bool>(
     me: Who,
     events: &mut Vec<DomainEvent>,
 ) {
-    let def = stage.defs.agent(agent(s, me).def);
-    {
-        let a = agent_mut(s, me);
-        a.age = a.age.saturating_add(1);
-        for r in &mut a.rules {
-            r.cooldown_left = r.cooldown_left.saturating_sub(1);
-        }
+    let a = agent_mut(s, me);
+    let def = stage.defs.agent(a.def);
+    a.age = a.age.saturating_add(1);
+    for r in &mut a.rules {
+        r.cooldown_left = r.cooldown_left.saturating_sub(1);
     }
     // A disguised mimic does nothing but wait to be revealed; the tick it reveals it does not
     // act either, so it acts from the next tick.
-    if agent(s, me).hidden() {
+    if a.hidden() {
         reveal(s, up, me, def, events);
         return;
     }
     // A stunned enemy does nothing while the stun lasts: no movement and no
     // rule. Its cooldowns counted above, so they run on through the stun.
-    if super::stun::stunned(&agent(s, me).statuses) {
+    if super::stun::stunned(&a.statuses) {
         return;
     }
     move_agent::<ONE>(stage, s, up, me, def);
