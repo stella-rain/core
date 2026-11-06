@@ -364,6 +364,30 @@ impl fmt::Display for RunReplayError {
                     "an equipment action on tick {tick} equips a rune that slot {slot} \
                      already holds"
                 ),
+                ActionError::NoStar { star } => write!(
+                    f,
+                    "an equipment action on tick {tick} crafts star {star}, \
+                     which is not in the star pool"
+                ),
+                ActionError::NotCraftable { star } => write!(
+                    f,
+                    "an equipment action on tick {tick} crafts star {star}, \
+                     which cannot be crafted"
+                ),
+                ActionError::AlreadyHeld { star } => write!(
+                    f,
+                    "an equipment action on tick {tick} crafts star {star}, \
+                     which the player already holds"
+                ),
+                ActionError::NotEnoughStarlight { need, have } => write!(
+                    f,
+                    "an equipment action on tick {tick} crafts a star for {need} Starlight, \
+                     but the player has {have}"
+                ),
+                ActionError::InventoryFull => write!(
+                    f,
+                    "an equipment action on tick {tick} crafts a star into a full inventory"
+                ),
             },
             RunReplayError::PresenceRefused { tick, error } => match error {
                 PresenceError::Occupied { slot } => write!(

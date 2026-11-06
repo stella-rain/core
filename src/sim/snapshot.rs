@@ -11,12 +11,14 @@ use crate::engine::{Place, Places};
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::rewards::MAX_BURST_DEPTH;
+use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
     EntityView, EvadeView, ExpertiseView, Facing, HealPickupView, HeldView, HoldView, MapView,
     OrbView, OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView,
-    SlotKindView, SlotView, Snapshot, StarView, StatusView, TypeBonusView, ZoneView,
+    SlotKindView, SlotView, Snapshot, StarView, StarlightPrice, StarlightView, StatusView,
+    TypeBonusView, ZoneView,
 };
 
 use super::equipment::{Held, SlotKind};
@@ -24,7 +26,7 @@ use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, S
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
     combo_view, constellation_views, expertise_offer_view, expertise_styles_view, hold_view,
-    offer_view, phase, stat_offer_view, xp_next,
+    offer_view, phase, starlight, stat_offer_view, xp_next,
 };
 
 /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
@@ -306,6 +308,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             .iter()
             .filter_map(|h| held_view(content, h))
             .collect(),
+        starlight: s.players.career(me).equipment.starlight,
+        pool_held: pool_held(world, content, s, me),
         slots: {
             let equipment = &s.players.career(me).equipment;
             equipment
@@ -437,7 +441,39 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         }),
         patterns: announced_patterns(world, s),
         stardust: s.players.career(shown).stardust,
+        starlight: world.equipment_mode.then(starlight_view),
     }
+}
+
+/// The Starlight prices, one per rarity in `Rarity::ALL` order.
+fn starlight_view() -> StarlightView {
+    StarlightView {
+        prices: Rarity::ALL
+            .into_iter()
+            .map(|rarity| StarlightPrice {
+                rarity,
+                extract: starlight::EXTRACT_VALUE[usize::from(rarity.index())],
+                craft: starlight::craft_price(rarity),
+            })
+            .collect(),
+        rune_extract: starlight::RUNE_EXTRACT,
+        boss_bonus: starlight::BOSS_BONUS,
+    }
+}
+
+/// Whether `me` holds each star of the star pool, in pool order: the test a craft refuses by
+/// (`starlight::holds_named`). Empty in offers mode.
+fn pool_held(world: &World, content: &RunContent, s: &State, me: PlayerIdx) -> Vec<bool> {
+    if !world.equipment_mode {
+        return Vec::new();
+    }
+    let equipment = &s.players.career(me).equipment;
+    s.stars.as_ref().map_or_else(Vec::new, |f| {
+        f.pool
+            .iter()
+            .map(|&place| starlight::holds_named(content.rewards(), equipment, place))
+            .collect()
+    })
 }
 
 /// The damage-over-time statuses of `statuses`, for the snapshot.

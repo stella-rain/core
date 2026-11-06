@@ -366,4 +366,137 @@ mod search {
             }
         }
     }
+
+    /// The seed of the `equipment_craft` corpus case: world seeds 1..=60, solo, 3000 ticks, the
+    /// script of `equipment_craft`; the first seed whose run records at least one Extract and one
+    /// Craft among its ACTIONS steps and ends with the crafted star in the inventory.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_craft_seeds() {
+        use crate::run_play::equipment_craft;
+        for seed in 1..=60u64 {
+            let rec = equipment_craft("x", seed).play();
+            let replay = rec.replay();
+            let range = replay.step_range(0, replay.ticks, 1_000_000).unwrap();
+            let actions: Vec<EquipAction> = range
+                .steps
+                .iter()
+                .filter_map(|s| match s {
+                    RangeStep::Actions { actions } => Some(actions.iter().flatten().copied()),
+                    _ => None,
+                })
+                .flatten()
+                .collect();
+            let extracts = actions
+                .iter()
+                .filter(|a| matches!(a, EquipAction::Extract { .. }))
+                .count();
+            let crafts = actions
+                .iter()
+                .filter(|a| matches!(a, EquipAction::Craft { .. }))
+                .count();
+            if extracts >= 1 && crafts >= 1 {
+                println!(
+                    "seed={seed} extracts={extracts} crafts={crafts} outcome={:?} ticks={} hash={}",
+                    rec.engine().outcome(),
+                    replay.ticks,
+                    replay.final_hash
+                );
+                break;
+            }
+        }
+    }
+}
+
+// --- extract and craft (ADR-SIM-7, ADR-REPL-5) -------------------------------------------------
+
+/// The first craft the engine accepts for slot 0.
+fn craft_first(e: &Engine) -> Option<EquipAction> {
+    (0..256)
+        .map(|star| EquipAction::Craft { star })
+        .find(|a| e.check_action(PlayerIdx::SOLO, *a).is_ok())
+}
+
+/// A recording after 3000 ticks of a seed whose inventory, extracted one item at a time from
+/// the front, pays for a craft, with the actions that do it (the extracts, then the craft).
+fn extract_then_craft() -> (RunRecorder, Vec<EquipAction>) {
+    for seed in 1..=60u64 {
+        let rec = case(seed, 3000).play();
+        if rec.engine().outcome() != Outcome::Running {
+            continue;
+        }
+        let mut probe = rec.clone();
+        let mut actions = Vec::new();
+        loop {
+            if let Some(c) = craft_first(probe.engine()) {
+                actions.push(c);
+                // The run must outlive the actions and the idle ticks the test adds.
+                let lives = probe.step(&acting(c)).is_ok()
+                    && (0..62).all(|_| probe.step(&[Input::default(); 3]).is_ok());
+                if lives {
+                    return (rec, actions);
+                }
+                break;
+            }
+            if inventory(probe.engine()) == 0 {
+                break;
+            }
+            let a = EquipAction::Extract { item: 0 };
+            if probe.step(&acting(a)).is_err() {
+                break;
+            }
+            actions.push(a);
+        }
+    }
+    panic!("no seed of 1..=60 drops items that extract into a craft");
+}
+
+/// T16: the recorder applies and records extracts and a craft as ACTIONS steps, an action the
+/// engine refuses is ignored, and a replay verifies to the recorded hash.
+#[test]
+fn the_recorder_and_the_replay_make_extract_and_craft() {
+    let (mut rec, actions) = extract_then_craft();
+    let before = inventory(rec.engine());
+    let extracts = actions.len() - 1;
+    for a in &actions {
+        rec.step(&acting(*a)).unwrap();
+    }
+    assert_eq!(inventory(rec.engine()), before - extracts + 1);
+    assert_eq!(actions_in(&rec), actions.len());
+    // A refused action is ignored: the tick runs, nothing is recorded.
+    rec.step(&acting(EquipAction::Craft { star: 99_999 }))
+        .unwrap();
+    rec.step(&acting(EquipAction::Extract { item: 99_999 }))
+        .unwrap();
+    assert_eq!(actions_in(&rec), actions.len());
+    for _ in 0..60 {
+        rec.step(&[Input::default(); 3]).unwrap();
+    }
+    let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+}
+
+/// T19: a run resumed from a savepoint cut after an extract and a craft matches the straight
+/// run's hashes (the codec carries Starlight and the inventory).
+#[test]
+fn a_run_resumed_after_extract_and_craft_matches_the_straight_run() {
+    let (mut live, actions) = extract_then_craft();
+    for a in &actions {
+        live.step(&acting(*a)).unwrap();
+    }
+    let prefix = live.replay();
+    let saved = live.save();
+    let pack = Pack::bundled();
+    let mut resumed = RunRecorder::resume_from_savepoint(&saved, &prefix, pack).unwrap();
+    for t in 0..60 {
+        assert_eq!(
+            resumed.engine().state_hash(),
+            live.engine().state_hash(),
+            "{t}"
+        );
+        for rec in [&mut live, &mut resumed] {
+            rec.step(&[Input::default(); 3]).unwrap();
+        }
+    }
+    assert_eq!(resumed.replay(), live.replay());
 }

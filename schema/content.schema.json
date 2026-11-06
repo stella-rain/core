@@ -6485,6 +6485,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "pool_held": {
+          "description": "For each star of the setup's star pool, in pool order (the index `Craft` takes): whether\na craft of it is refused because this player already holds that named star. Empty in\noffers mode.",
+          "items": {
+            "type": "boolean"
+          },
+          "type": "array"
+        },
         "pull": {
           "anyOf": [
             {
@@ -6554,6 +6561,12 @@
             "$ref": "#/$defs/SlotView"
           },
           "type": "array"
+        },
+        "starlight": {
+          "description": "Its Starlight balance (equipment mode; absent reads as 0).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
         },
         "statuses": {
           "description": "Its statuses, sorted by ID: the timed buffs and debuffs it holds.",
@@ -8544,6 +8557,17 @@
             "null"
           ]
         },
+        "starlight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StarlightView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What Starlight costs and gives, the same for every player; absent in offers mode."
+        },
         "stars": {
           "description": "Falling stars on the map, in the order they dropped (ADR-REPL-5).",
           "items": {
@@ -8901,6 +8925,62 @@
       "required": [
         "start_tick",
         "pct"
+      ],
+      "type": "object"
+    },
+    "StarlightPrice": {
+      "additionalProperties": false,
+      "description": "What extracting a star of a rarity gives and what crafting one costs, in Starlight.",
+      "properties": {
+        "craft": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "extract": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rarity": {
+          "$ref": "#/$defs/Rarity"
+        }
+      },
+      "required": [
+        "rarity",
+        "extract",
+        "craft"
+      ],
+      "type": "object"
+    },
+    "StarlightView": {
+      "additionalProperties": false,
+      "description": "The Starlight prices of an equipment run (placeholders until the pack carries them).",
+      "properties": {
+        "boss_bonus": {
+          "description": "What each player who is up gets from a boss kill.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "prices": {
+          "description": "One per rarity, in `Rarity::ALL` order.",
+          "items": {
+            "$ref": "#/$defs/StarlightPrice"
+          },
+          "type": "array"
+        },
+        "rune_extract": {
+          "description": "What an extracted rune gives: a rune has no rarity.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prices",
+        "rune_extract",
+        "boss_bonus"
       ],
       "type": "object"
     },

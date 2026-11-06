@@ -174,6 +174,7 @@ pub(super) fn top_up_level(s: &State) -> Option<u32> {
 /// point 5). A solo player at 0 hit points is not up.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
     if stage.equipment_mode {
+        super::starlight::boss_bonus(s);
         return super::drops::boss_killed(stage, s);
     }
     let Some(level) = top_up_level(s) else {

@@ -146,6 +146,7 @@ mod offer_rating;
 mod slots;
 pub(crate) use offer_rating::{offer_ratings, swap_ratings};
 pub(crate) use slots::{SlotError, holds_right_kinds, runes_match_slots, same_layout};
+pub(crate) use starlight::StarlightError;
 #[cfg(test)]
 mod damage_tests;
 #[cfg(test)]
@@ -175,6 +176,9 @@ pub(crate) mod snapshot;
 #[cfg(test)]
 mod spawn_edge_tests;
 mod stardust;
+pub(crate) mod starlight;
+#[cfg(test)]
+mod starlight_tests;
 mod stars;
 pub(crate) mod state;
 mod state_codec;
@@ -990,6 +994,50 @@ pub(crate) fn equip_action(
         true => slots::replace(stage, rewards, player, career, item, slot),
         false => slots::equip(stage, rewards, player, career, item, slot),
     }
+}
+
+/// The setup's star pool of `s`, empty when the run has no star field.
+fn star_pool(s: &State) -> &[u16] {
+    s.stars.as_ref().map_or(&[], |f| &f.pool)
+}
+
+/// Whether `me` could extract inventory item `item` (`starlight::check_extract`). Read-only.
+pub(crate) fn check_extract(s: &State, me: PlayerIdx, item: u32) -> Result<(), StarlightError> {
+    starlight::check_extract(&s.players.career(me).equipment, item)
+}
+
+/// Extracts inventory item `item` of `me` into Starlight, or a refusal that changes nothing.
+/// Made between ticks; no event, no draw.
+pub(crate) fn extract_action(
+    rewards: &Rewards,
+    s: &mut State,
+    me: PlayerIdx,
+    item: u32,
+) -> Result<(), StarlightError> {
+    starlight::extract(rewards, &mut s.players.career_mut(me).equipment, item)
+}
+
+/// Whether `me` could craft the star at index `star` of the star pool. Read-only.
+pub(crate) fn check_craft(
+    rewards: &Rewards,
+    s: &State,
+    me: PlayerIdx,
+    star: u32,
+) -> Result<(), StarlightError> {
+    starlight::check_craft(rewards, star_pool(s), &s.players.career(me).equipment, star)
+}
+
+/// Crafts the star at index `star` of the star pool for `me`, or a refusal that changes nothing.
+/// Made between ticks; no event, no draw.
+pub(crate) fn craft_action(
+    rewards: &Rewards,
+    s: &mut State,
+    me: PlayerIdx,
+    star: u32,
+) -> Result<(), StarlightError> {
+    let State { stars, players, .. } = s;
+    let pool = stars.as_ref().map_or(&[][..], |f| &f.pool);
+    starlight::craft(rewards, pool, &mut players.career_mut(me).equipment, star)
 }
 
 fn count<T>(items: &[T]) -> u32 {

@@ -294,6 +294,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 .collect(),
             inventory: Vec::new(),
             slots: Vec::new(),
+            starlight: 0,
+            pool_held: Vec::new(),
             runes: s
                 .player
                 .runes
@@ -394,6 +396,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         }),
         patterns: announced_patterns(world, s),
         stardust: s.stardust,
+        starlight: None,
     }
 }
 
