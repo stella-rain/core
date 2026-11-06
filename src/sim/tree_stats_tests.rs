@@ -113,6 +113,7 @@ fn the_new_values_are_zero_in_an_offers_run() {
 fn a_set_free_read_is_todays_number() {
     let e = hammer();
     let mut p = progress(&e).clone();
+    p.set_tenths = [0; StatEffect::ALL.len()];
     for w in 0..=100u32 {
         p.totals[StatEffect::AttackPct as usize] = w;
         for atk in [0u32, 1, 7, 99, 1000, 123_457, 4_000_000] {
@@ -293,7 +294,7 @@ fn other_sources_are_untouched_by_a_recompute() {
         p.totals[StatEffect::StardustPct as usize] = 5;
     });
     let read = |e: &Engine| attack_of(Some(progress(e)), 1000);
-    assert_eq!(read(&e), 1101);
+    assert_eq!(read(&e), 1110, "10 percent and the base set's 1.0");
     level_to(&mut e, 5);
     assert_eq!(read(&e), 1150);
     tree_pick(&mut e, 1).expect("tempo");
@@ -372,6 +373,12 @@ fn an_unlisted_weapon_or_style_has_the_empty_set() {
 fn scripted_run() -> Engine {
     let mut e = sword();
     for tick in 1..=3000u32 {
+        {
+            // The idle player is kept up so the run goes on to the end of the script.
+            let (_, state) = world_state(&mut e);
+            let player = &mut state.players[PlayerIdx::SOLO];
+            player.hp = player.max_hp;
+        }
         if tick % 250 == 0 {
             let (_, state) = world_state(&mut e);
             let g = state

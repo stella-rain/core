@@ -49,8 +49,11 @@ use crate::expertise::{
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
+use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
+use crate::sim::state::{
+    AgentSource, ExpertiseGauge, ExpertiseOffer, PlayerState, Progress, State,
+};
 use crate::snapshot::{
     ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, TreeReadyView,
 };
@@ -125,10 +128,22 @@ pub(super) fn credit(stage: &World, s: &mut State, me: PlayerIdx, target: Who, k
 }
 
 /// The levels the gauge's points reach this tick.
-pub(super) fn level_up(expertise: &Expertise, s: &mut State, me: PlayerIdx) {
-    let Some(g) = s.players.career_mut(me).expertise.as_mut() else {
+pub(super) fn level_up(stage: &World, expertise: &Expertise, s: &mut State, me: PlayerIdx) {
+    let (player, career) = s.players.both_mut(me);
+    let Some(g) = career.expertise.as_mut() else {
         return;
     };
+    let was = (g.style, g.level);
+    raise_levels(expertise, g);
+    if g.level != was.1 {
+        if let Some(p) = career.progress.as_mut() {
+            write_set(stage, expertise, p, player, Some(was), (g.style, g.level));
+        }
+    }
+}
+
+/// Raises the gauge by every level its points reach.
+fn raise_levels(expertise: &Expertise, g: &mut ExpertiseGauge) {
     while g.next > 0 && g.points >= g.next {
         let reached = g.level.saturating_add(1);
         let after = need(expertise, reached.saturating_add(1), g.next);
@@ -271,6 +286,196 @@ fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
 
 // --- the equipment build: automatic common levels ---------------------------------------------
 
+// --- the equipment build: the weapon's stat sets ----------------------------------------------
+
+/// One effect's value at weapon level 1 to 10, in tenths of a percent (`MaxHp`: whole units).
+type Row = (StatEffect, [u32; 10]);
+
+/// `floor(max * n / 10)` for `n` in 1..=10: the linear placeholder curve up to the Lv10 value.
+const fn lv(max: u32) -> [u32; 10] {
+    let mut out = [0; 10];
+    let mut n = 1u32;
+    while n <= 10 {
+        out[(n - 1) as usize] = max * n / 10;
+        n += 1;
+    }
+    out
+}
+
+use StatEffect::{AttackPct, AttackSpeedPct, EvadePct, MaxHp, RangePct, SkillCooldownPct};
+
+/// PLACEHOLDER (content row for the pack): a weapon's base set, in force until a tree is picked.
+pub(super) const BASE_SETS: [(&str, &[Row]); 2] = [
+    (
+        "giant_sword",
+        &[(AttackPct, lv(100)), (AttackSpeedPct, lv(100))],
+    ),
+    (
+        "giant_hammer",
+        &[(AttackPct, lv(100)), (AttackSpeedPct, lv(100))],
+    ),
+];
+
+/// PLACEHOLDER (content row for the pack): the set of each weapon tree (weapon, style), which
+/// replaces the base set once the style is picked. The weapon level scales every value.
+pub(super) const TREE_SETS: [(&str, &str, &[Row]); 6] = [
+    (
+        "giant_sword",
+        "edge",
+        &[
+            (AttackPct, lv(500)),
+            (AttackSpeedPct, lv(300)),
+            (SkillCooldownPct, lv(100)),
+            (RangePct, lv(200)),
+        ],
+    ),
+    (
+        "giant_sword",
+        "tempo",
+        &[
+            (AttackPct, lv(330)),
+            (AttackSpeedPct, lv(1000)),
+            (SkillCooldownPct, lv(200)),
+            (RangePct, lv(500)),
+        ],
+    ),
+    (
+        "giant_sword",
+        "reach",
+        &[
+            (AttackPct, lv(300)),
+            (AttackSpeedPct, lv(300)),
+            (SkillCooldownPct, lv(100)),
+            (RangePct, lv(800)),
+        ],
+    ),
+    (
+        "giant_hammer",
+        "crush",
+        &[
+            (AttackPct, lv(600)),
+            (AttackSpeedPct, lv(200)),
+            (SkillCooldownPct, lv(100)),
+            (RangePct, lv(200)),
+        ],
+    ),
+    (
+        "giant_hammer",
+        "quake",
+        &[
+            (AttackPct, lv(300)),
+            (AttackSpeedPct, lv(200)),
+            (SkillCooldownPct, lv(200)),
+            (RangePct, lv(800)),
+        ],
+    ),
+    (
+        "giant_hammer",
+        "bulwark",
+        &[
+            (AttackPct, lv(200)),
+            (SkillCooldownPct, lv(200)),
+            (MaxHp, lv(40_000)),
+            (EvadePct, lv(200)),
+        ],
+    ),
+];
+
+/// A weapon's stat set at weapon level `level` (0 reads as 1, and past 10 it stops growing):
+/// the tree `style` names if it is `Some`, else the weapon's base set. Tenths of a percent per
+/// effect in `StatEffect::ALL` order, `MaxHp` whole. A weapon or a style the tables do not name
+/// has the empty set. Pure: reads nothing but its arguments.
+pub(super) fn tree_stats(
+    weapon: &str,
+    style: Option<&str>,
+    level: u32,
+) -> [u32; StatEffect::ALL.len()] {
+    let mut out = [0; StatEffect::ALL.len()];
+    let rows: &[Row] = match style {
+        Some(style) => TREE_SETS
+            .iter()
+            .find(|(w, s, _)| *w == weapon && *s == style)
+            .map_or(&[], |(_, _, rows)| rows),
+        None => BASE_SETS
+            .iter()
+            .find(|(w, _)| *w == weapon)
+            .map_or(&[], |(_, rows)| rows),
+    };
+    let at = usize::try_from(level.clamp(1, 10) - 1).unwrap_or(0);
+    for (effect, values) in rows {
+        out[*effect as usize] = values[at];
+    }
+    out
+}
+
+/// The set of the run's weapon at `level` with the style `style` (a place in its styles) chosen:
+/// empty for an inline weapon, a weapon with no expertise content, or a style it lacks.
+pub(super) fn set_for(
+    stage: &World,
+    expertise: &Expertise,
+    style: Option<u8>,
+    level: u32,
+) -> [u32; StatEffect::ALL.len()] {
+    let (WeaponRef::Preset { id, .. }, Some(w)) = (&stage.player.weapon, content(stage, expertise))
+    else {
+        return [0; StatEffect::ALL.len()];
+    };
+    match style {
+        None => tree_stats(id.as_str(), None, level),
+        Some(i) => w
+            .styles
+            .get(usize::from(i))
+            .map_or([0; StatEffect::ALL.len()], |st| {
+                tree_stats(id.as_str(), Some(st.id.as_str()), level)
+            }),
+    }
+}
+
+/// Writes the weapon's set for `now` (style place, weapon level) over the one for `was` (`None`
+/// at the start of a run: nothing written yet): the tenths are assigned, the hit points by
+/// the difference through `add_effect` / `remove_effect`, so every other source in `totals` is
+/// untouched and the set is recomputed, never stacked. Equipment mode with a `Progress` only.
+pub(super) fn write_set(
+    stage: &World,
+    expertise: &Expertise,
+    progress: &mut Progress,
+    player: &mut PlayerState,
+    was: Option<(Option<u8>, u32)>,
+    now: (Option<u8>, u32),
+) {
+    if !stage.equipment_mode {
+        return;
+    }
+    let before = was.map_or([0; StatEffect::ALL.len()], |(style, level)| {
+        set_for(stage, expertise, style, level)
+    });
+    let after = set_for(stage, expertise, now.0, now.1);
+    for effect in StatEffect::ALL {
+        let at = effect as usize;
+        if effect == StatEffect::MaxHp {
+            match after[at].cmp(&before[at]) {
+                core::cmp::Ordering::Greater => {
+                    levels::add_effect(progress, player, effect, after[at] - before[at]);
+                }
+                core::cmp::Ordering::Less => {
+                    levels::remove_effect(progress, player, effect, before[at] - after[at]);
+                }
+                core::cmp::Ordering::Equal => {}
+            }
+        } else {
+            progress.set_tenths[at] = after[at];
+        }
+    }
+}
+
+/// The start of a run: slot `me`'s base set at weapon level 1, before anything else is written.
+pub(super) fn start_set(stage: &World, expertise: &Expertise, s: &mut State, me: PlayerIdx) {
+    let (player, career) = s.players.both_mut(me);
+    if let (Some(g), Some(p)) = (career.expertise.as_ref(), career.progress.as_mut()) {
+        write_set(stage, expertise, p, player, None, (g.style, g.level));
+    }
+}
+
 /// The equipment build's pass over the levels due to `me`: no offer opens, nothing is drawn and
 /// no stat is added. The levels of the style path are tree points (held, see the tree rules);
 /// every other level only raises the weapon level, which is all the pass records (`offered`).
@@ -397,7 +602,12 @@ pub(super) fn tree_pick(
     let (effect, amount, kind) = (c.effect, c.amount, next.kind);
     apply(&mut g.range_pct, progress, player, effect, amount);
     if kind == ExpertiseOfferKind::Style {
+        let was = (g.style, g.level);
         g.style = Some(place);
+        if let Some(p) = progress.as_mut() {
+            // The tree's set replaces the base set at the weapon's level.
+            write_set(stage, expertise, p, player, Some(was), (g.style, g.level));
+        }
     } else {
         g.path.push(place);
     }

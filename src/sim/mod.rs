@@ -384,6 +384,8 @@ pub(crate) fn initial_state(
     kinds: KindTable,
 ) -> State {
     let mut state = unreserved_state(stage, content, pool, seed, kinds);
+    // The weapon's base set at level 1, for slot 0; a party member or a joiner copies the career.
+    expertise::start_set(stage, content.expertise(), &mut state, PlayerIdx::SOLO);
     reserve(stage, &mut state);
     state
 }
