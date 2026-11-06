@@ -153,6 +153,7 @@ mod starting_unlocks;
 mod statuses;
 mod step_three;
 mod stun;
+mod swap_rating;
 mod sync_rig;
 mod tally;
 mod text_table;

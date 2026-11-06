@@ -144,7 +144,7 @@ mod levels;
 mod loadout;
 mod offer_rating;
 mod slots;
-pub(crate) use offer_rating::offer_ratings;
+pub(crate) use offer_rating::{offer_ratings, swap_ratings};
 pub(crate) use slots::{SlotError, holds_right_kinds, runes_match_slots, same_layout};
 #[cfg(test)]
 mod damage_tests;
