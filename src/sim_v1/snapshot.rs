@@ -293,6 +293,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 })
                 .collect(),
             inventory: Vec::new(),
+            slots: Vec::new(),
             runes: s
                 .player
                 .runes

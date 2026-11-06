@@ -16,10 +16,10 @@ use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
     EntityView, EvadeView, ExpertiseView, Facing, HealPickupView, HeldView, HoldView, MapView,
     OrbView, OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView,
-    Snapshot, StarView, StatusView, TypeBonusView, ZoneView,
+    SlotKindView, SlotView, Snapshot, StarView, StatusView, TypeBonusView, ZoneView,
 };
 
-use super::equipment::Held;
+use super::equipment::{Held, SlotKind};
 use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, StatusState};
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
@@ -304,20 +304,26 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             .equipment
             .inventory
             .iter()
-            .filter_map(|h| match h {
-                Held::Star(p) => {
-                    content
-                        .rewards()
-                        .rewards()
-                        .get(usize::from(*p))
-                        .map(|r| HeldView::Star {
-                            id: r.id.clone(),
-                            rarity: r.rarity,
-                        })
-                }
-                Held::Rune(rune) => Some(HeldView::Rune { rune: *rune }),
-            })
+            .filter_map(|h| held_view(content, h))
             .collect(),
+        slots: {
+            let equipment = &s.players.career(me).equipment;
+            equipment
+                .slots
+                .iter()
+                .chain(equipment.lumine.as_ref())
+                .map(|slot| SlotView {
+                    kind: match slot.kind {
+                        SlotKind::Category(index) => SlotKindView::Category { index },
+                        SlotKind::Rune => SlotKindView::Rune,
+                        SlotKind::Lumine => SlotKindView::Lumine,
+                    },
+                    held: slot.held.as_ref().and_then(|h| held_view(content, h)),
+                    level: slot.level,
+                    expertise: slot.expertise,
+                })
+                .collect()
+        },
         attacks: {
             let mut runs: Vec<&AttackRun> = s
                 .runs
@@ -473,4 +479,20 @@ fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
     }
     views.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
     views
+}
+
+/// What an inventory place or a slot holds, as the snapshot shows it; a star outside the rewards
+/// file shows nothing.
+fn held_view(content: &RunContent, held: &Held) -> Option<HeldView> {
+    match held {
+        Held::Star(p) => content
+            .rewards()
+            .rewards()
+            .get(usize::from(*p))
+            .map(|r| HeldView::Star {
+                id: r.id.clone(),
+                rarity: r.rarity,
+            }),
+        Held::Rune(rune) => Some(HeldView::Rune { rune: *rune }),
+    }
 }
