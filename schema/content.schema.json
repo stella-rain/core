@@ -4702,6 +4702,49 @@
       ],
       "type": "object"
     },
+    "HeldView": {
+      "description": "What an inventory place holds: a star, by its reward ID and rarity, or a rune.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/ContentId"
+            },
+            "kind": {
+              "const": "star",
+              "type": "string"
+            },
+            "rarity": {
+              "$ref": "#/$defs/Rarity"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "rarity"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "rune",
+              "type": "string"
+            },
+            "rune": {
+              "$ref": "#/$defs/Rune"
+            }
+          },
+          "required": [
+            "kind",
+            "rune"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "HitBox": {
       "description": "A hit box, in the attacker's own frame: `offset` is forward along the attacker's facing\nand to its right, from the `anchor`.",
       "oneOf": [
@@ -6114,6 +6157,11 @@
           "const": "extra_banishes",
           "description": "`amount` more banishes for offers, on top of the stage's.",
           "type": "string"
+        },
+        {
+          "const": "drop_weight",
+          "description": "`amount` percent more weight for the named stars a member's drops roll (equipment mode;\na no-op in offers mode and in the frozen rules).",
+          "type": "string"
         }
       ]
     },
@@ -6395,6 +6443,13 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "inventory": {
+          "description": "What its inventory holds, in drop order (equipment mode; empty in offers mode). The app\nsorts it by rarity.",
+          "items": {
+            "$ref": "#/$defs/HeldView"
+          },
+          "type": "array"
         },
         "invulnerable": {
           "description": "Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.",
