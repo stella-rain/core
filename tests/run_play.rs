@@ -266,6 +266,23 @@ impl PartyCase {
 /// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
 /// is cleared; in time_limit slot 1 answers in the middle of the run and slot 2 is not offered one
 /// (no seed of 1 to 300 gives both).
+fn equipment(name: &'static str, party: u8) -> PartyCase {
+    PartyCase {
+        name,
+        setup: RunSetup {
+            mode: "tutorial".into(),
+            seed: 2,
+            build_mode: stella_rain_core::run_setup::BuildMode::Equipment,
+            ..trial_setup()
+        },
+        party,
+        ticks: 3000,
+        changes: vec![],
+        answer_after: None,
+        bot: None,
+    }
+}
+
 pub fn party_cases() -> Vec<PartyCase> {
     let at = |mode: &str, seed: u64| RunSetup {
         mode: mode.into(),
@@ -357,6 +374,14 @@ pub fn party_cases() -> Vec<PartyCase> {
         // ticks, in that scan order; a run of at most 3000 ticks and under 64 KiB with a down and a
         // revive of a downed player, no out before the first revive, and the picks of slots 1
         // and 2 adding up to at least two. For three, also a revive made by a slot other than 0.
+        // The equipment cases: the scripted tutorial parties of 1 and of 2 in equipment mode, 3000
+        // ticks. Every member ends holding a star and a rune; the seeds are the first of a search
+        // (`search_equipment_seeds` in `equipment_drops.rs`): world seeds 1..=60, one scan per
+        // party size, the first seed where every inventory holds both. The tutorial's boss is
+        // not killed by the scripted slots in 3000 ticks, so the boss drop is played in
+        // `equipment_drops.rs`.
+        equipment("equipment_solo", 1),
+        equipment("equipment_two", 2),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]
