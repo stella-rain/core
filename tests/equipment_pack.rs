@@ -198,12 +198,12 @@ fn a_bad_reward_category_is_refused_with_its_path() {
 fn derived(effect: RewardEffect) -> Option<&'static str> {
     use RewardEffect::*;
     match effect {
-        AttackPct | AttackSpeedPct | RangePct | TypeBonusPct | AttackTypeBonusPct
-        | ElementBonusPct | RuneHaste | StageSkill | SkillCooldownPct | Orbit | CritChancePct
-        | CritDamagePct | EchoHitPct | KillBurst | BurstDepth | HealPerKills => Some("attack"),
-        MaxHp | EvadePct | Regen | EvadeCharge => Some("defence"),
-        SpeedPct => Some("mobility"),
-        XpPct | PickupRadiusPct | OfferCandidates | Rerolls | Banishes | RandomRune => None,
+        AttackPct | AttackSpeedPct | CritChancePct | CritDamagePct | TypeBonusPct
+        | ElementBonusPct | AttackTypeBonusPct | SkillCooldownPct | StageSkill | EchoHitPct
+        | KillBurst | BurstDepth | Orbit | RuneHaste => Some("attack"),
+        MaxHp | Regen | EvadePct | EvadeCharge | HealPerKills => Some("defence"),
+        SpeedPct | RangePct | PickupRadiusPct => Some("mobility"),
+        XpPct | Rerolls | Banishes | OfferCandidates | RandomRune => None,
     }
 }
 

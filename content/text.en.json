@@ -327,6 +327,30 @@
     "description": "Runes recover 50 percent sooner",
     "title": "Quickening (Rare)"
   },
+  "rewards/rune_haste_star_common": {
+    "description": "Runes recover 25 percent sooner",
+    "title": "Quickening (Common)"
+  },
+  "rewards/rune_haste_star_epic": {
+    "description": "Runes recover 70 percent sooner",
+    "title": "Quickening (Epic)"
+  },
+  "rewards/rune_haste_star_legendary": {
+    "description": "Runes recover 100 percent sooner",
+    "title": "Quickening (Legendary)"
+  },
+  "rewards/rune_haste_star_rare": {
+    "description": "Runes recover 50 percent sooner",
+    "title": "Quickening (Rare)"
+  },
+  "rewards/rune_haste_star_supernova": {
+    "description": "Runes recover 160 percent sooner",
+    "title": "Quickening (Supernova)"
+  },
+  "rewards/rune_haste_star_uncommon": {
+    "description": "Runes recover 38 percent sooner",
+    "title": "Quickening (Uncommon)"
+  },
   "rewards/rune_haste_supernova": {
     "description": "Runes recover 160 percent sooner",
     "title": "Quickening (Supernova)"

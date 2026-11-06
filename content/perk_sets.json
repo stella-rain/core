@@ -4,21 +4,24 @@
       "id": "vanguard",
       "effects": [
         { "effect": "max_hp", "amount": 30000 },
-        { "effect": "regen", "amount": 1000 }
+        { "effect": "regen", "amount": 1000 },
+        { "effect": "drop_weight", "amount": 25, "category": "defence" }
       ]
     },
     {
       "id": "duelist",
       "effects": [
         { "effect": "attack_pct", "amount": 15 },
-        { "effect": "attack_speed_pct", "amount": 8 }
+        { "effect": "attack_speed_pct", "amount": 8 },
+        { "effect": "drop_weight", "amount": 25, "category": "attack" }
       ]
     },
     {
       "id": "scout",
       "effects": [
         { "effect": "speed_pct", "amount": 12 },
-        { "effect": "evade_pct", "amount": 20 }
+        { "effect": "evade_pct", "amount": 20 },
+        { "effect": "drop_weight", "amount": 25, "category": "mobility" }
       ]
     },
     {
