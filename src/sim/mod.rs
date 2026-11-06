@@ -148,7 +148,9 @@ mod offer_rating;
 mod slots;
 pub(crate) use expertise::TreeError;
 pub(crate) use offer_rating::{offer_ratings, swap_ratings};
-pub(crate) use slots::{SlotError, holds_right_kinds, runes_match_slots, same_layout};
+pub(crate) use slots::{
+    Misfit, SlotError, holds_right_kinds, misfit, runes_match_slots, same_layout,
+};
 pub(crate) use starlight::StarlightError;
 #[cfg(test)]
 mod damage_tests;

@@ -121,6 +121,77 @@ pub(super) fn shares_option(rewards: &Rewards, a: u16, b: u16) -> bool {
     a.iter().any(|o| b.contains(o))
 }
 
+/// Whether a star at `place` fits a slot of `kind`: a category slot takes the stars of its
+/// category, the Lumine slot any star. A rune slot takes no star.
+pub(super) fn fits_slot(
+    rules: &EquipmentRules,
+    rewards: &Rewards,
+    kind: SlotKind,
+    place: u16,
+) -> bool {
+    match kind {
+        SlotKind::Category(c) => star_category(rules, rewards, place) == Some(c),
+        SlotKind::Lumine => true,
+        SlotKind::Rune => false,
+    }
+}
+
+/// The first slot other than `at` (the category slots, then the Lumine slot) holding a star that
+/// shares an option with the star at `place`.
+pub(super) fn clashes(
+    rewards: &Rewards,
+    equipment: &Equipment,
+    place: u16,
+    at: usize,
+) -> Option<usize> {
+    let others = equipment.slots.iter().chain(equipment.lumine.as_ref());
+    others
+        .enumerate()
+        .find_map(|(i, other)| match (i != at, other.held) {
+            (true, Some(Held::Star(q))) if shares_option(rewards, place, q) => Some(i),
+            _ => None,
+        })
+}
+
+/// What is wrong with the stars an equipment holds (a savepoint is refused for it): a star in a
+/// slot of another category, or two stars sharing an option.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Misfit {
+    /// A category slot holds a star of another category, or one with no category.
+    Category,
+    /// Two equipped stars (the Lumine slot included) share an option.
+    SharedOption,
+}
+
+/// The first `Misfit` of `equipment`: a category fault in slot order (the Lumine slot last), else
+/// the first option clash in the same order. Pure; the rune slots are `holds_right_kinds`'
+/// business, and the stars' places must be in range.
+pub(crate) fn misfit(
+    rules: &EquipmentRules,
+    rewards: &Rewards,
+    equipment: &Equipment,
+) -> Option<Misfit> {
+    let stars = || {
+        equipment
+            .slots
+            .iter()
+            .chain(equipment.lumine.as_ref())
+            .enumerate()
+            .filter_map(|(i, s)| match s.held {
+                Some(Held::Star(p)) => Some((i, s.kind, p)),
+                _ => None,
+            })
+    };
+    if stars()
+        .any(|(_, kind, p)| !matches!(kind, SlotKind::Rune) && !fits_slot(rules, rewards, kind, p))
+    {
+        return Some(Misfit::Category);
+    }
+    stars()
+        .any(|(i, _, p)| clashes(rewards, equipment, p, i).is_some())
+        .then_some(Misfit::SharedOption)
+}
+
 /// The stars equipped, in slot order and the Lumine slot last.
 #[cfg(test)]
 pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ {
@@ -391,19 +462,12 @@ pub(super) fn check(
             if lone_rune {
                 return Err(SlotError::NotEquippable { item });
             }
-            match target.kind {
-                SlotKind::Category(c) if star_category(rules, rewards, place) == Some(c) => {}
-                SlotKind::Lumine => {}
-                SlotKind::Category(_) | SlotKind::Rune => return wrong,
+            if !fits_slot(rules, rewards, target.kind, place) {
+                return wrong;
             }
-            let others = equipment.slots.iter().chain(equipment.lumine.as_ref());
-            for (i, other) in others.enumerate() {
-                if let (true, Some(Held::Star(q))) = (i != at, other.held)
-                    && shares_option(rewards, place, q)
-                {
-                    let slot = u32::try_from(i).unwrap_or(u32::MAX);
-                    return Err(SlotError::OptionHeld { slot });
-                }
+            if let Some(i) = clashes(rewards, equipment, place, at) {
+                let slot = u32::try_from(i).unwrap_or(u32::MAX);
+                return Err(SlotError::OptionHeld { slot });
             }
         }
         Held::Rune(rune) => {
