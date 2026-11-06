@@ -9134,6 +9134,31 @@
           "const": "xp_pct",
           "description": "`step` percent more experience from every kill, rounded down (the build that\nunlocks rarer stars sooner).",
           "type": "string"
+        },
+        {
+          "const": "rerolls",
+          "description": "Rerolls of an offer. Written in equipment mode only (a Growth star and the perk's extra\nrerolls); nothing reads the total yet except as a run stat.",
+          "type": "string"
+        },
+        {
+          "const": "banishes",
+          "description": "Banishes of an offer. Written in equipment mode only; nothing reads the total yet\nexcept as a run stat.",
+          "type": "string"
+        },
+        {
+          "const": "offer_candidates",
+          "description": "Candidates an offer holds beyond its size. Written in equipment mode only; nothing\nreads the total yet except as a run stat.",
+          "type": "string"
+        },
+        {
+          "const": "pickup_radius_pct",
+          "description": "`step` percent more pickup radius, added to the player's own percentage.",
+          "type": "string"
+        },
+        {
+          "const": "stardust_pct",
+          "description": "`step` percent more Stardust earned, truncated once with the stage's time factor.",
+          "type": "string"
         }
       ]
     },
