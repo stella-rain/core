@@ -6548,6 +6548,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "slots": {
+          "description": "Its equipment slots in layout order, then the Lumine slot last when the run has one\n(equipment mode; empty in offers mode). An action addresses them by this order: an index\ninto the list, the Lumine slot one past the others.",
+          "items": {
+            "$ref": "#/$defs/SlotView"
+          },
+          "type": "array"
+        },
         "statuses": {
           "description": "Its statuses, sorted by ID: the timed buffs and debuffs it holds.",
           "items": {
@@ -8268,6 +8275,95 @@
         "level",
         "ready",
         "cooldown_left"
+      ],
+      "type": "object"
+    },
+    "SlotKindView": {
+      "description": "Which equipment slot a `SlotView` is.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A category slot: the category's index in the layout.",
+          "properties": {
+            "index": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "category",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "index"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "rune",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The Lumine slot, present only when the run's setup names a Lumine star.",
+          "properties": {
+            "kind": {
+              "const": "lumine",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SlotView": {
+      "additionalProperties": false,
+      "description": "One equipment slot: what it holds, its level (0 while it never held anything) and the kills\ntoward its next level.",
+      "properties": {
+        "expertise": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "held": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeldView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/SlotKindView"
+        },
+        "level": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "level",
+        "expertise"
       ],
       "type": "object"
     },
