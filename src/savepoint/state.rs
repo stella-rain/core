@@ -602,6 +602,22 @@ macro_rules! state_codec_v2 {
                         below(usize::from(*c), rewards, "offer candidate out of range")?;
                     }
                 }
+                // A star held in the inventory, a slot or the Lumine slot is a place in the
+                // rewards file, and not the random rune (it is never a drop).
+                let equipment = &s.players.career(me).equipment;
+                let held = equipment
+                    .inventory
+                    .iter()
+                    .chain(equipment.slots.iter().filter_map(|s| s.held.as_ref()))
+                    .chain(equipment.lumine.iter().filter_map(|s| s.held.as_ref()));
+                for h in held {
+                    if let crate::sim::equipment::Held::Star(p) = h {
+                        below(usize::from(*p), rewards, "equipment star out of range")?;
+                        if content.rewards().rewards()[usize::from(*p)].is_random_rune() {
+                            return Err(DecodeError::Invalid("equipment star is the random rune"));
+                        }
+                    }
+                }
                 if let Some(g) = &s.players.career(me).expertise {
                     if let Some(o) = &g.offer {
                         if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
@@ -685,6 +701,8 @@ mod players_tests {
             .map(|i| u16::try_from(i).unwrap())
             .expect("the bundled file has the random rune");
         let len = u16::try_from(rewards.len()).unwrap();
+        let ordinary =
+            u16::try_from(rewards.iter().position(|r| !r.is_random_rune()).unwrap()).unwrap();
         let put = |me: u8, place: usize, held: Held| {
             let mut s = state.clone();
             let slot = EquipSlot {
@@ -718,7 +736,7 @@ mod players_tests {
                         "slot {me} place {place}"
                     );
                 }
-                let fine = put(me, place, Held::Star(0));
+                let fine = put(me, place, Held::Star(ordinary));
                 assert_eq!(check_indices(&fine, world, e.content()), Ok(()));
                 let rune = put(me, place, Held::Rune(crate::rune::Rune::Thunder));
                 assert_eq!(check_indices(&rune, world, e.content()), Ok(()));
