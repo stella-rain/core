@@ -326,6 +326,10 @@ impl fmt::Display for RunReplayError {
                 ActionError::NotBuilt => {
                     write!(f, "an equipment action on tick {tick} is not built yet")
                 }
+                other => write!(
+                    f,
+                    "an equipment action on tick {tick} is refused: {other:?}"
+                ),
             },
             RunReplayError::PresenceRefused { tick, error } => match error {
                 PresenceError::Occupied { slot } => write!(
@@ -1734,6 +1738,41 @@ mod tests {
         let verified = verify_run(&replay.to_bytes()).unwrap();
         assert_eq!(verified.ticks, 130);
         assert_eq!(verified.final_hash, hash);
+    }
+
+    /// T23: a replay whose ACTIONS step the engine refuses is `ActionRefused` at that tick, with
+    /// the refusal's own message; a step with no action is still a damaged log.
+    #[test]
+    fn a_replay_with_a_refused_equip_names_the_refusal() {
+        use crate::run_replay::Record;
+        use crate::run_setup::BuildMode;
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            pick_stats: false,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start(&setup).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
+        rec.records.push(Record::Actions {
+            actions: vec![Some(EquipAction::Equip { item: 0, slot: 0 })],
+        });
+        let refused = RunReplayError::ActionRefused {
+            tick: 1,
+            error: ActionError::NoItem { item: 0 },
+        };
+        assert_eq!(
+            refused.to_string(),
+            "an equipment action on tick 1 names inventory item 0, which is not in the inventory"
+        );
+        assert_eq!(verify_run(&rec.replay().to_bytes()).unwrap_err(), refused);
+        rec.records.pop();
+        rec.records.push(Record::Actions {
+            actions: vec![None],
+        });
+        assert_eq!(
+            verify_run(&rec.replay().to_bytes()).unwrap_err(),
+            RunReplayError::BadInputs("a record has no action")
+        );
     }
 
     #[test]

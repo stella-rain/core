@@ -49,8 +49,26 @@ pub enum ChoiceError {
 pub enum ActionError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
-    /// No rule accepts this action yet.
+    /// No rule accepts this action yet: a run that is not in equipment mode, `sim_version` 1,
+    /// and `Extract`, `Craft` and `TreePick`.
     NotBuilt,
+    /// `item` is not a place of the inventory.
+    NoItem { item: u32 },
+    /// `slot` addresses no slot: `0..` the slots, and one past them for the Lumine slot when the
+    /// run has one.
+    NoSlot { slot: u32 },
+    /// `Equip` into an occupied slot.
+    SlotFilled { slot: u32 },
+    /// `Replace` into an empty slot.
+    SlotEmpty { slot: u32 },
+    /// A rune in a star slot, a star in a rune slot, or a star in a slot of another category.
+    WrongSlot { slot: u32 },
+    /// The item is the lone random-rune reward.
+    NotEquippable { item: u32 },
+    /// Another slot (the Lumine slot included) holds a star sharing an option with the item.
+    OptionHeld { slot: u32 },
+    /// That rune is in another rune slot.
+    RuneHeld { slot: u32 },
 }
 
 /// How a run stands.
@@ -576,6 +594,23 @@ impl Engine {
             EquipAction::Extract { .. } | EquipAction::Craft { .. } => Err(ActionError::NotBuilt),
             EquipAction::TreePick { .. } => Err(ActionError::NotBuilt),
         }
+    }
+
+    /// The step of actions: each present slot's action, in slot order, is made as `act` makes it;
+    /// a refused one is ignored. No tick runs.
+    pub(crate) fn action_step(
+        &mut self,
+        actions: &[Option<EquipAction>; crate::id::MAX_PLAYERS as usize],
+    ) {
+        let _ = actions;
+        unimplemented!("the engine applies an accepted action")
+    }
+
+    /// Makes `action` for `player` now: `check_action`, then the change. A refused action
+    /// changes nothing and returns what `check_action` says.
+    pub fn act(&mut self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
+        let _ = (player, action);
+        unimplemented!("the engine applies an accepted action")
     }
 
     /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
