@@ -266,6 +266,12 @@ pub struct EquipScript {
     /// star, so it shares no option (the contents' ids name the option): a slot's expertise is
     /// halved. Without it the first accepted replace is made, a switch when there is one.
     pub no_share: bool,
+    /// At this tick, and the two after it, slot 0 extracts the first inventory item the engine
+    /// accepts (ADR-SIM-7); `None` extracts nothing.
+    pub extract_at: Option<u32>,
+    /// At this tick slot 0 crafts the first star of the pool the engine accepts; `None` crafts
+    /// nothing.
+    pub craft_at: Option<u32>,
 }
 
 /// A star id without its grade: `max_hp_common` is `max_hp`.
@@ -323,6 +329,13 @@ impl EquipScript {
             t if t == self.swap_at => {
                 find(replace, false, 0..9).or_else(|| find(equip, false, 0..9))
             }
+            t if self.extract_at.is_some_and(|x| (x..x + 3).contains(&t)) => {
+                let extract = EquipAction::Extract { item: 0 };
+                Some(extract).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
+            }
+            t if self.craft_at == Some(t) => (0..256u32)
+                .map(|star| EquipAction::Craft { star })
+                .find(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok()),
             _ => None,
         }
     }
@@ -377,6 +390,8 @@ pub fn equipment_equip(name: &'static str, seed: u64) -> PartyCase {
             star_at: 1500,
             swap_at: 2500,
             no_share: false,
+            extract_at: None,
+            craft_at: None,
         }),
         ..equipment(name, 1)
     }
@@ -399,6 +414,31 @@ pub fn equipment_levels(name: &'static str, seed: u64) -> PartyCase {
             star_at: 700,
             swap_at: 2700,
             no_share: true,
+            extract_at: None,
+            craft_at: None,
+        }),
+        ..equipment(name, 1)
+    }
+}
+
+/// The world seed of `equipment_craft` (`search_equipment_craft_seeds` in `equipment_slots.rs`).
+pub const EQUIP_CRAFT_SEED: u64 = 2;
+
+/// A solo equipment case where slot 0 equips a rune and a star, extracts three inventory items
+/// and crafts a star of the pool with the Starlight they gave (ADR-SIM-7).
+pub fn equipment_craft(name: &'static str, seed: u64) -> PartyCase {
+    PartyCase {
+        setup: RunSetup {
+            seed,
+            ..equipment(name, 1).setup
+        },
+        script: Some(EquipScript {
+            rune_at: 1000,
+            star_at: 1500,
+            swap_at: u32::MAX,
+            no_share: false,
+            extract_at: Some(2000),
+            craft_at: Some(2100),
         }),
         ..equipment(name, 1)
     }
@@ -522,6 +562,9 @@ pub fn party_cases() -> Vec<PartyCase> {
         // A star equipped early rises on the kills and is replaced late by a star sharing no
         // option: the slot keeps half its level (`search_equipment_levels_seeds`).
         equipment_levels("equipment_levels", EQUIP_LEVELS_SEED),
+        // Extracts and a craft in a replay (ADR-SIM-7): the seed is the first of a search
+        // (`search_equipment_craft_seeds` in `equipment_slots.rs`).
+        equipment_craft("equipment_craft", EQUIP_CRAFT_SEED),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]

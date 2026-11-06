@@ -366,6 +366,46 @@ mod search {
             }
         }
     }
+
+    /// The seed of the `equipment_craft` corpus case: world seeds 1..=60, solo, 3000 ticks, the
+    /// script of `equipment_craft`; the first seed whose run records at least one Extract and one
+    /// Craft among its ACTIONS steps and ends with the crafted star in the inventory.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_craft_seeds() {
+        use crate::run_play::equipment_craft;
+        for seed in 1..=60u64 {
+            let rec = equipment_craft("x", seed).play();
+            let replay = rec.replay();
+            let range = replay.step_range(0, replay.ticks, 1_000_000).unwrap();
+            let actions: Vec<EquipAction> = range
+                .steps
+                .iter()
+                .filter_map(|s| match s {
+                    RangeStep::Actions { actions } => Some(actions.iter().flatten().copied()),
+                    _ => None,
+                })
+                .flatten()
+                .collect();
+            let extracts = actions
+                .iter()
+                .filter(|a| matches!(a, EquipAction::Extract { .. }))
+                .count();
+            let crafts = actions
+                .iter()
+                .filter(|a| matches!(a, EquipAction::Craft { .. }))
+                .count();
+            if extracts >= 1 && crafts >= 1 {
+                println!(
+                    "seed={seed} extracts={extracts} crafts={crafts} outcome={:?} ticks={} hash={}",
+                    rec.engine().outcome(),
+                    replay.ticks,
+                    replay.final_hash
+                );
+                break;
+            }
+        }
+    }
 }
 
 // --- extract and craft (ADR-SIM-7, ADR-REPL-5) -------------------------------------------------
