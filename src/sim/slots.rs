@@ -263,7 +263,8 @@ pub(super) fn count_kills(s: &mut State) {
 
 /// Gives each player its kills of the tick as expertise: every slot holding a star (a category
 /// slot or the Lumine slot) gains them all (`gain`); a player whose slot rose a level has its
-/// build rewritten from the levels before and after (`refresh`). Empties `Scratch::kills_by`.
+/// build rewritten from the levels before and after (`refresh`). Empties `Scratch::kills_by`
+/// (`collide` alone, as a test calls it, leaves the counts for the next `credit_kills`).
 pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
     let kills = std::mem::take(&mut s.scratch.kills_by);
     for me in s.players.indices() {
@@ -272,14 +273,25 @@ pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
             continue;
         }
         let (player, career) = s.players.both_mut(me);
-        let before = equipped_levels(&career.equipment);
+        let eq = &career.equipment;
+        let rises = |slot: &EquipSlot| {
+            matches!(slot.held, Some(Held::Star(_)))
+                && gain(slot.level, slot.expertise, n).0 != slot.level
+        };
+        // A level-up is rare: the levels before are listed only when one happens.
+        let before = eq
+            .slots
+            .iter()
+            .chain(eq.lumine.as_ref())
+            .any(rises)
+            .then(|| equipped_levels(eq));
         let eq = &mut career.equipment;
         for slot in eq.slots.iter_mut().chain(eq.lumine.as_mut()) {
             if matches!(slot.held, Some(Held::Star(_))) {
                 (slot.level, slot.expertise) = gain(slot.level, slot.expertise, n);
             }
         }
-        if equipped_levels(&career.equipment) != before {
+        if let Some(before) = before {
             refresh(stage, rewards, player, career, &before);
         }
     }
@@ -454,8 +466,8 @@ fn apply(
     };
     let displaced = target.held.replace(new);
     if replace && !switch {
-        // A replace by a star sharing no option (or by a rune) keeps half the level and none of
-        // the kills; a switch keeps both.
+        // A replace by a star sharing no option keeps half the level and none of the kills; a
+        // switch keeps both. (A rune slot sits at Lv1 with no kills, so the rule leaves it there.)
         target.level = (target.level / 2).max(1);
         target.expertise = 0;
     }

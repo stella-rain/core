@@ -57,24 +57,34 @@ impl Build {
     /// The build of the stars held: `held[p]` times the star at place `p` of `rewards` (a slice
     /// shorter than the file counts the rest as 0), and the chain of tier deltas of each set.
     pub(super) fn of(stage: &World, rewards: &Rewards, held: &[u8]) -> Build {
-        let mut stars = Vec::new();
-        for (p, &n) in held.iter().enumerate() {
-            let place = u16::try_from(p).unwrap_or(u16::MAX);
-            stars.extend(std::iter::repeat_n((place, 1), usize::from(n)));
+        let count = |p: usize| usize::from(held.get(p).copied().unwrap_or(0));
+        let mut b = Build::default();
+        for (p, reward) in rewards.rewards().iter().enumerate() {
+            for _ in 0..count(p) {
+                b.add(stage, &reward.effects, 1);
+            }
         }
-        Build::of_levelled(stage, rewards, &stars)
+        b.add_tiers(stage, rewards, count);
+        b
     }
 
     /// The build of the stars equipped, each `(place, level)`: a star's own amounts scale with
     /// its slot's level (`slots::level_scaled`, level 1 is the base), a set's tier deltas do not.
     pub(super) fn of_levelled(stage: &World, rewards: &Rewards, stars: &[(u16, u8)]) -> Build {
-        let count = |p: usize| stars.iter().filter(|s| usize::from(s.0) == p).count();
         let mut b = Build::default();
         for &(place, level) in stars {
             if let Some(reward) = rewards.rewards().get(usize::from(place)) {
                 b.add(stage, &reward.effects, level);
             }
         }
+        b.add_tiers(stage, rewards, |p| {
+            stars.iter().filter(|s| usize::from(s.0) == p).count()
+        });
+        b
+    }
+
+    /// Adds the chain of tier deltas of each set, from how many of each member `count` says are held.
+    fn add_tiers(&mut self, stage: &World, rewards: &Rewards, count: impl Fn(usize) -> usize) {
         let sets = rewards.constellations();
         for set in sets.sets() {
             let members = set
@@ -85,11 +95,10 @@ impl Build {
             for (t, tier) in set.tiers.iter().enumerate() {
                 if usize::from(tier.threshold) <= members {
                     let lower = t.checked_sub(1).map(|p| &set.tiers[p]);
-                    b.add(stage, &constellations::tier_delta(lower, tier), 1);
+                    self.add(stage, &constellations::tier_delta(lower, tier), 1);
                 }
             }
         }
-        b
     }
 
     /// Adds what `effects` build, once. The grants (a skill, an orbit, an evade charge, a draw,
