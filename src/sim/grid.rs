@@ -141,9 +141,11 @@ impl Grid {
         ];
         let mut read = 0;
         let (col, row) = self.col_row(self.circles[me].0);
+        // A circle's cell is inside the grid; when it is not on the grid's edge, all 9 cells are.
+        let inside = col >= 1 && col + 1 < self.cols && row >= 1 && row + 1 < self.rows;
         for &(dc, dr) in &AROUND {
             let (c, r) = (col + dc, row + dr);
-            if !(0..self.cols).contains(&c) || !(0..self.rows).contains(&r) {
+            if !inside && (!(0..self.cols).contains(&c) || !(0..self.rows).contains(&r)) {
                 continue;
             }
             // The range check above puts `r * cols + c` in `0..cols * rows`, the length of
