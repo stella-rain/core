@@ -357,6 +357,25 @@ impl Run {
         }
     }
 
+    /// The refusal that locks `player`'s equipment window, if any: `Downed` at 0 hit points,
+    /// `Out` once out of the run. Only an equipment run of the live rules locks (ADR-SIM-7);
+    /// every other run keeps `NotBuilt` for all. `player` is in the party.
+    pub(crate) fn window_lock(&self, player: PlayerIdx) -> Option<super::ActionError> {
+        match self {
+            Run::V2 { world, state } if world.equipment_mode => {
+                let p = &state.players[player];
+                if p.is_out() {
+                    Some(super::ActionError::Out)
+                } else if p.is_downed() {
+                    Some(super::ActionError::Downed)
+                } else {
+                    None
+                }
+            }
+            Run::V1 { .. } | Run::V2 { .. } => None,
+        }
+    }
+
     /// Whether `player` could equip (or `replace`) inventory item `item` into `slot`: `None`
     /// where no rule applies, a run that is not in equipment mode and `sim_version` 1.
     pub(crate) fn check_equip(

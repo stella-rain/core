@@ -529,6 +529,34 @@ pub fn equipment_lumine(name: &'static str, seed: u64) -> PartyCase {
     }
 }
 
+/// The leave and the join of `equipment_party_3`, by world tick (test values).
+pub const EQUIP_PARTY_LEAVE: u32 = 1500;
+pub const EQUIP_PARTY_JOIN: u32 = 2000;
+
+/// The (world seed, bot seed) of `equipment_party_1`, `_2` and `_3`
+/// (`search_equipment_party_seeds` in `equipment_party.rs`).
+pub const EQUIP_PARTY_SEEDS: [(u64, u64); 3] = [(6, 2), (44, 3), (1, 4)];
+
+/// The equipment party case of `n` (1 to 3) players, played by bots.
+pub fn equipment_party(n: u8) -> PartyCase {
+    let (seed, bot_seed) = EQUIP_PARTY_SEEDS[usize::from(n) - 1];
+    let name = [
+        "equipment_party_1",
+        "equipment_party_2",
+        "equipment_party_3",
+    ][usize::from(n) - 1];
+    let rig = RigParty::new(n).equipment().seed(seed).bot_seed(bot_seed);
+    let rig = if n == 3 {
+        rig.changes(vec![
+            (EQUIP_PARTY_LEAVE, Change::Leave(2)),
+            (EQUIP_PARTY_JOIN, Change::Join(2)),
+        ])
+    } else {
+        rig
+    };
+    rig.case(name)
+}
+
 /// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
 /// seeds are found where, in the middle of the run, each answers an offer of its own): the
 /// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
@@ -651,6 +679,12 @@ pub fn party_cases() -> Vec<PartyCase> {
         // (`search_equipment_craft_seeds` in `equipment_slots.rs`).
         equipment_craft("equipment_craft", EQUIP_CRAFT_SEED),
         equipment_lumine("equipment_lumine", EQUIP_LUMINE_SEED),
+        // The equipment parties of 1, 2 and 3 (ADR-SIM-7): every slot a `PartyBot`, the `vanguard`
+        // perk, 3000 ticks; the seeds are the first of a search (`search_equipment_party_seeds`
+        // in `equipment_party.rs`); the third leaves slot 2 at 1500 and joins it again at 2000.
+        equipment_party(1),
+        equipment_party(2),
+        equipment_party(3),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]

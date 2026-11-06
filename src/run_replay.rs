@@ -388,6 +388,15 @@ impl fmt::Display for RunReplayError {
                     f,
                     "an equipment action on tick {tick} crafts a star into a full inventory"
                 ),
+                ActionError::Downed => write!(
+                    f,
+                    "an equipment action on tick {tick} is made by a downed player, whose \
+                     equipment window is locked until a teammate revives it"
+                ),
+                ActionError::Out => write!(
+                    f,
+                    "an equipment action on tick {tick} is made by a player who is out of the run"
+                ),
                 ActionError::NoTreePoint => write!(
                     f,
                     "an equipment action on tick {tick} takes a tree pick, \
@@ -1844,6 +1853,105 @@ mod tests {
         assert_eq!(
             verify_run(&rec.replay().to_bytes()).unwrap_err(),
             RunReplayError::BadInputs("a record has no action")
+        );
+    }
+
+    /// L6: the two lock refusals read as the plan names them.
+    #[test]
+    fn the_lock_refusals_read_well() {
+        let say = |error| RunReplayError::ActionRefused { tick: 7, error }.to_string();
+        assert_eq!(
+            say(ActionError::Downed),
+            "an equipment action on tick 7 is made by a downed player, whose equipment window \
+             is locked until a teammate revives it"
+        );
+        assert_eq!(
+            say(ActionError::Out),
+            "an equipment action on tick 7 is made by a player who is out of the run"
+        );
+    }
+
+    /// L7: the recorder's `step` drops a downed member's action and goes on; `actions` refuses it.
+    #[test]
+    fn the_recorder_drops_a_downed_action_and_refuses_it_direct() {
+        use crate::engine::Run;
+        use crate::run_setup::BuildMode;
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            pick_stats: false,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
+        if let Run::V2 { state, .. } = rec.engine.run_mut() {
+            let one = crate::id::PlayerIdx::new(1).unwrap();
+            state.players[one].hp = 0;
+        }
+        let act = EquipAction::Equip { item: 0, slot: 5 };
+        let acting = Input {
+            action: Some(act),
+            ..Input::default()
+        };
+        rec.step(&[Input::default(), acting, Input::default()])
+            .unwrap();
+        assert_eq!(rec.engine().tick(), 1, "the run went on");
+        assert!(
+            rec.records
+                .iter()
+                .all(|r| !matches!(r, super::Record::Actions { .. })),
+            "no ACTIONS step was recorded"
+        );
+        assert_eq!(
+            rec.actions(&[None, Some(act), None]).unwrap_err(),
+            RunReplayError::ActionRefused {
+                tick: 1,
+                error: ActionError::Downed
+            }
+        );
+    }
+
+    /// L8: a replay forged with an ACTIONS step of a downed member does not verify.
+    #[test]
+    fn a_replay_with_an_action_of_a_downed_player_does_not_verify() {
+        use crate::run_replay::Record;
+        use crate::run_setup::BuildMode;
+        let setup = RunSetup {
+            seed: 20_261_010,
+            build_mode: BuildMode::Equipment,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
+        let walk = Input {
+            move_x: 100,
+            ..Input::default()
+        };
+        let one = crate::id::PlayerIdx::new(1).unwrap();
+        while rec.engine().snapshot().players[1].down.is_none() {
+            assert!(rec.engine().tick() < 4_000, "slot 1 goes down");
+            if rec.engine().offer_open() {
+                let holder = (0..2u8)
+                    .filter_map(crate::id::PlayerIdx::new)
+                    .find(|p| rec.engine().check_pick(*p, 0).is_ok())
+                    .unwrap();
+                rec.choose(holder, 0).unwrap();
+                continue;
+            }
+            rec.step(&[walk, Input::default(), Input::default()])
+                .unwrap();
+        }
+        assert!(
+            rec.engine()
+                .check_action(one, EquipAction::Extract { item: 0 })
+                .is_err()
+        );
+        rec.records.push(Record::Actions {
+            actions: vec![None, Some(EquipAction::Extract { item: 0 })],
+        });
+        assert_eq!(
+            verify_run(&rec.replay().to_bytes()).unwrap_err(),
+            RunReplayError::ActionRefused {
+                tick: rec.engine().tick(),
+                error: ActionError::Downed
+            }
         );
     }
 

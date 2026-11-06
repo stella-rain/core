@@ -399,7 +399,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 15] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
     ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
     ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
     ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
@@ -413,6 +413,9 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 15] = [
     ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 780),
     ("equipment_craft", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 800),
+    ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
+    ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 680),
+    ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 790),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];

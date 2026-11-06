@@ -228,6 +228,103 @@ mod equipment_runs {
         assert_eq!(e.check_action(me, replace(1, 12)), Ok(()), "a switch");
     }
 
+    const FIVE: [EquipAction; 5] = [
+        EquipAction::Equip { item: 0, slot: 5 },
+        EquipAction::Replace { item: 0, slot: 5 },
+        EquipAction::Extract { item: 0 },
+        EquipAction::Craft { star: 0 },
+        EquipAction::TreePick { option: 0 },
+    ];
+
+    fn hurt(e: &mut Engine, player: u8, out: bool) {
+        if let Run::V2 { state, .. } = e.run_mut() {
+            state.players[slot(player)].hp = 0;
+            state.players[slot(player)].out = out;
+        }
+    }
+
+    /// L1: a downed member's window is locked for every kind of action; an up member's is not.
+    #[test]
+    fn a_downed_member_is_refused_every_action() {
+        let mut e = started(false, 2);
+        hurt(&mut e, 1, false);
+        for a in FIVE {
+            assert_eq!(
+                e.check_action(slot(1), a),
+                Err(ActionError::Downed),
+                "{a:?}"
+            );
+            assert_ne!(e.check_action(slot(0), a), Err(ActionError::Downed));
+        }
+        assert_eq!(e.check_action(slot(0), equip(0, 5)), Ok(()));
+    }
+
+    /// L2: the window opens again on the revive.
+    #[test]
+    fn the_window_opens_on_the_revive() {
+        let mut e = started(false, 2);
+        hurt(&mut e, 1, false);
+        let hash = e.state_hash();
+        assert_eq!(e.act(slot(1), equip(0, 5)), Err(ActionError::Downed));
+        assert_eq!(e.state_hash(), hash, "a refusal changes nothing");
+        let idle = Input::default();
+        let hold = Input {
+            interact: true,
+            ..Input::default()
+        };
+        for _ in 0..200 {
+            e.step(&[hold, idle, idle]);
+            if e.check_action(slot(1), equip(0, 5)).is_ok() {
+                break;
+            }
+        }
+        assert_eq!(e.check_action(slot(1), equip(0, 5)), Ok(()));
+        assert_eq!(e.act(slot(1), equip(0, 5)), Ok(()));
+        assert_eq!(
+            equipment_of(&e, 1).slots[5].held,
+            Some(Held::Star(place(&e, "max_hp_common")))
+        );
+    }
+
+    /// L3: an out member's window is locked too, with its own refusal.
+    #[test]
+    fn an_out_member_is_refused() {
+        let mut e = started(false, 3);
+        hurt(&mut e, 2, true);
+        for a in FIVE {
+            assert_eq!(e.check_action(slot(2), a), Err(ActionError::Out), "{a:?}");
+        }
+        let kept = equipment_of(&e, 2).inventory.len();
+        assert_eq!(kept, 7, "it keeps what it holds");
+    }
+
+    /// L4: the order of the refusals is the player, then the lock, then the rule.
+    #[test]
+    fn the_refusal_order_is_player_then_lock_then_rule() {
+        let mut e = started(false, 2);
+        hurt(&mut e, 1, false);
+        let bad = equip(99, 5);
+        assert_eq!(
+            e.check_action(slot(2), bad),
+            Err(ActionError::NoPlayer { player: slot(2) })
+        );
+        assert_eq!(e.check_action(slot(1), bad), Err(ActionError::Downed));
+        assert_eq!(
+            e.check_action(slot(0), bad),
+            Err(ActionError::NoItem { item: 99 })
+        );
+    }
+
+    /// L5: a solo player is never downed: at 0 hit points the run is over.
+    #[test]
+    fn a_solo_player_is_never_downed() {
+        let mut e = started(false, 1);
+        assert_eq!(e.check_action(PlayerIdx::SOLO, equip(0, 5)), Ok(()));
+        hurt(&mut e, 0, false);
+        e.step(&[Input::default(); 3]);
+        assert_ne!(e.outcome(), Outcome::Running);
+    }
+
     /// T21: `act` applies what `check_action` accepts and changes nothing on a refusal.
     #[test]
     fn act_applies_what_check_action_accepts() {

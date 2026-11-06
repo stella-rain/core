@@ -19,7 +19,7 @@ use crate::version::Versions;
 use serde_json::{Value, json};
 
 /// Tiers whose highest rarity is `Rare` for every level; every rarity allowed.
-fn tiered(n: u8) -> (World, State) {
+pub(super) fn tiered(n: u8) -> (World, State) {
     let (mut w, mut s) = party(n);
     let stars = w.stage.stars.as_mut().expect("stars");
     let weights = RarityWeights {
@@ -36,7 +36,7 @@ fn tiered(n: u8) -> (World, State) {
 }
 
 /// A star of `rarity` lying on slot `me`'s feet.
-fn drop_star(s: &mut State, me: u8, rarity: Rarity) {
+pub(super) fn drop_star(s: &mut State, me: u8, rarity: Rarity) {
     let at = s.players[slot(me)].at;
     let id = EntityId(s.next_id);
     s.next_id += 1;
@@ -96,7 +96,7 @@ fn the_mode_is_set_by_the_setup() {
 /// One reward of the hand-built file: id, rarity, whether it is a named star, draw weight.
 type Spec = (&'static str, &'static str, bool, u16);
 
-fn rewards(list: &[Spec], with_rune: bool) -> Rewards {
+pub(super) fn rewards(list: &[Spec], with_rune: bool) -> Rewards {
     let rarities: Vec<Value> = [
         ("common", 1),
         ("uncommon", 2),
@@ -147,7 +147,7 @@ fn career(seed: u64) -> Career {
 }
 
 /// The stream after `n` draws of any bound.
-fn after(rng: &SplitMix64, n: u32) -> SplitMix64 {
+pub(super) fn after(rng: &SplitMix64, n: u32) -> SplitMix64 {
     let mut c = rng.clone();
     for _ in 0..n {
         c.below(2);
@@ -173,7 +173,7 @@ const FULL: u8 = crate::sim::runes::FULL_POOL;
 
 /// What the stream gives a roll, replayed by hand from the weights: the kind first (a rune below
 /// the share), then the rune's `below(n)` or the star's `below(total)` (ADR-SIM-2 point 2).
-fn expected(rng: &SplitMix64, runes: &[Rune], places: &[(u16, u32)]) -> Held {
+pub(super) fn expected(rng: &SplitMix64, runes: &[Rune], places: &[(u16, u32)]) -> Held {
     let mut r = rng.clone();
     if r.below(1000) < RUNE_SHARE_PERMILLE {
         let n = u32::try_from(runes.len()).expect("few");
@@ -533,7 +533,7 @@ fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
     (w, s)
 }
 
-fn inventory(s: &State, i: u8) -> Vec<Held> {
+pub(super) fn inventory(s: &State, i: u8) -> Vec<Held> {
     s.players.career(slot(i)).equipment.inventory.clone()
 }
 
