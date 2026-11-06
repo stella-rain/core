@@ -367,6 +367,42 @@ mod search {
         }
     }
 
+    /// The seed of the `equipment_lumine` corpus case: world seeds 1..=60, solo, 3000 ticks, the
+    /// script of `equipment_lumine`; the first seed whose run records a Replace at slot 12, whose
+    /// Lumine slot is at Lv2 or more just before it (the same script with `lumine_at: None`
+    /// played to that tick) and ends with the displaced `star_mintaka` in the inventory.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_lumine_seeds() {
+        use crate::run_play::{EquipScript, equipment_lumine};
+        for seed in 1..=60u64 {
+            let rec = equipment_lumine("x", seed).play();
+            let replaced = actions_of(&rec)
+                .iter()
+                .any(|a| matches!(a, EquipAction::Replace { slot: 12, .. }));
+            let mut early = equipment_lumine("x", seed);
+            early.ticks = 2700;
+            early.script = early.script.map(|s| EquipScript {
+                lumine_at: None,
+                ..s
+            });
+            let level = lumine_view(early.play().engine())["level"].as_u64();
+            let snap = rec.engine().snapshot();
+            let displaced = snap.players[0]
+                .inventory
+                .iter()
+                .any(|h| serde_json::to_value(h).unwrap()["id"] == "star_mintaka");
+            println!(
+                "seed={seed} replaced={replaced} level_before={level:?} displaced={displaced} outcome={:?} hash={}",
+                rec.engine().outcome(),
+                rec.replay().final_hash
+            );
+            if replaced && level >= Some(2) && displaced {
+                break;
+            }
+        }
+    }
+
     /// The seed of the `equipment_craft` corpus case: world seeds 1..=60, solo, 3000 ticks, the
     /// script of `equipment_craft`; the first seed whose run records at least one Extract and one
     /// Craft among its ACTIONS steps and ends with the crafted star in the inventory.
@@ -685,4 +721,49 @@ fn a_resumed_lumine_run_matches_the_straight_run() {
     assert_eq!(resumed.replay(), live.replay());
     let verified = verify_run(&live.replay().to_bytes()).expect("the replay verifies");
     assert_eq!(verified.final_hash, live.engine().state_hash());
+}
+
+/// The ACTIONS of a recording, in order.
+fn actions_of(rec: &RunRecorder) -> Vec<EquipAction> {
+    let replay = rec.replay();
+    let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+    range
+        .steps
+        .iter()
+        .filter_map(|s| match s {
+            RangeStep::Actions { actions } => Some(actions.iter().flatten().copied()),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+fn lumine_view(e: &Engine) -> serde_json::Value {
+    slots_json(e)[12].clone()
+}
+
+/// T9: the `equipment_lumine` recording holds a Replace into slot 12 among its ACTIONS steps, a
+/// replay reaches the recorded hash, and the Lumine slot ends on another star, the level halved.
+#[test]
+fn the_lumine_case_replaces_the_lumine_star() {
+    use crate::run_play::{EQUIP_LUMINE_SEED, equipment_lumine};
+    let rec = equipment_lumine("x", EQUIP_LUMINE_SEED).play();
+    let replaced = actions_of(&rec)
+        .iter()
+        .filter(|a| matches!(a, EquipAction::Replace { slot: 12, .. }))
+        .count();
+    assert!(replaced >= 1, "{replaced}");
+    let verified = verify_run(&rec.replay().to_bytes()).expect("the replay verifies");
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+    let mut early = equipment_lumine("x", EQUIP_LUMINE_SEED);
+    early.ticks = 2700;
+    let before = lumine_view(early.play().engine());
+    let after = lumine_view(rec.engine());
+    assert_eq!(before["held"]["id"], "star_mintaka");
+    assert_ne!(after["held"]["id"], "star_mintaka");
+    assert!(before["level"].as_u64() >= Some(2), "{before}");
+    assert!(
+        after["level"].as_u64() < before["level"].as_u64(),
+        "{after}"
+    );
 }

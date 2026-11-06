@@ -275,7 +275,13 @@ pub struct EquipScript {
     /// At this tick, and the three after it, slot 0 takes the first choice of its next weapon
     /// tree point if the engine accepts it (ADR-SIM-7); `None` takes none.
     pub tree_at: Option<u32>,
+    /// At this tick slot 0 replaces its Lumine star (slot 12) by the first inventory star the
+    /// engine accepts that shares no effect with the Lumine star, so the replace is not a switch (ADR-SIM-7); `None` makes none. One tick: a second replace could swap back.
+    pub lumine_at: Option<u32>,
 }
+
+/// The slot index of the Lumine slot in an action: one past the twelve layout slots.
+pub const LUMINE_SLOT: u32 = 12;
 
 /// A star id without its grade: `max_hp_common` is `max_hp`.
 fn stem(id: &str) -> &str {
@@ -290,6 +296,21 @@ fn stem(id: &str) -> &str {
     .iter()
     .find_map(|g| id.strip_suffix(g))
     .unwrap_or(id)
+}
+
+/// Whether the bundled stars `a` and `b` share an effect: the option rule of a switch.
+fn shares_effect(a: &str, b: &str) -> bool {
+    let rewards = RunContent::bundled().rewards();
+    let effects = |id: &str| -> Vec<_> {
+        let at = rewards.index_of(&id.into()).expect("a bundled star");
+        rewards.rewards()[at]
+            .effects
+            .iter()
+            .map(|e| e.effect)
+            .collect()
+    };
+    let b = effects(b);
+    effects(a).iter().any(|e| b.contains(e))
 }
 
 impl EquipScript {
@@ -345,6 +366,19 @@ impl EquipScript {
             {
                 let pick = EquipAction::TreePick { option: 0 };
                 Some(pick).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
+            }
+            t if self.lumine_at == Some(t) => {
+                let Some(HeldView::Star { id: held, .. }) = &slots[LUMINE_SLOT as usize].held
+                else {
+                    return None;
+                };
+                (0..inventory.len())
+                    .filter(|&item| {
+                        matches!(&inventory[item], HeldView::Star { id, .. }
+                            if !shares_effect(id.as_str(), held.as_str()))
+                    })
+                    .map(|item| replace(u32::try_from(item).unwrap(), LUMINE_SLOT))
+                    .find(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
             }
             t if self.craft_at == Some(t) => (0..256u32)
                 .map(|star| EquipAction::Craft { star })
@@ -406,6 +440,7 @@ pub fn equipment_equip(name: &'static str, seed: u64) -> PartyCase {
             extract_at: None,
             craft_at: None,
             tree_at: None,
+            lumine_at: None,
         }),
         ..equipment(name, 1)
     }
@@ -431,6 +466,7 @@ pub fn equipment_levels(name: &'static str, seed: u64) -> PartyCase {
             extract_at: None,
             craft_at: None,
             tree_at: Some(1600),
+            lumine_at: None,
         }),
         ..equipment(name, 1)
     }
@@ -455,6 +491,31 @@ pub fn equipment_craft(name: &'static str, seed: u64) -> PartyCase {
             extract_at: Some(2000),
             craft_at: Some(2100),
             tree_at: None,
+            lumine_at: None,
+        }),
+        ..equipment(name, 1)
+    }
+}
+
+/// The world seed of `equipment_lumine` (`search_equipment_lumine_seeds` in `equipment_slots.rs`).
+pub const EQUIP_LUMINE_SEED: u64 = 1;
+
+/// A solo equipment case with `star_mintaka` in the Lumine slot from tick 0, where slot 0 equips
+/// a rune and a star, and late replaces the Lumine star by a star that shares no option, after
+/// the slot has risen (ADR-SAVE-7, ADR-SIM-3, ADR-SIM-7).
+pub fn equipment_lumine(name: &'static str, seed: u64) -> PartyCase {
+    let levels = equipment_levels(name, seed);
+    PartyCase {
+        setup: RunSetup {
+            lumine: 4,
+            lumine_star: Some("star_mintaka".into()),
+            ..levels.setup
+        },
+        script: Some(EquipScript {
+            tree_at: None,
+            lumine_at: Some(2700),
+            swap_at: u32::MAX,
+            ..levels.script.expect("a script")
         }),
         ..equipment(name, 1)
     }
@@ -581,6 +642,7 @@ pub fn party_cases() -> Vec<PartyCase> {
         // Extracts and a craft in a replay (ADR-SIM-7): the seed is the first of a search
         // (`search_equipment_craft_seeds` in `equipment_slots.rs`).
         equipment_craft("equipment_craft", EQUIP_CRAFT_SEED),
+        equipment_lumine("equipment_lumine", EQUIP_LUMINE_SEED),
         RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
         RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
     ]
