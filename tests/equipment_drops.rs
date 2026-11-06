@@ -30,7 +30,7 @@ fn an_equipment_setup_starts() {
         ..equipment()
     };
     assert_eq!(
-        messages(Engine::start(&old).err().expect("refused")),
+        messages(Engine::start(&old).expect_err("refused")),
         [(
             "$.build_mode".to_string(),
             "equipment mode needs sim_version 2".to_string()
@@ -43,7 +43,7 @@ fn an_equipment_setup_starts() {
         ..RunSetup::default()
     };
     assert_eq!(
-        messages(Engine::start(&offers_with_star).err().expect("refused")),
+        messages(Engine::start(&offers_with_star).expect_err("refused")),
         [(
             "$.lumine_star".to_string(),
             "needs equipment mode".to_string()

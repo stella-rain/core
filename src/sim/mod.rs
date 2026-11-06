@@ -113,6 +113,7 @@ mod boss;
 mod build;
 #[cfg(test)]
 mod build_pin_tests;
+mod drops;
 mod world;
 pub(crate) use attacks::phase;
 pub(crate) use world::{

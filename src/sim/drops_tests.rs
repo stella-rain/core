@@ -138,8 +138,10 @@ fn field(places: u16, rune_pool: u8) -> StarField {
 }
 
 fn career(seed: u64) -> Career {
-    let mut c = Career::default();
-    c.offer = SplitMix64::new(seed);
+    let mut c = Career {
+        offer: SplitMix64::new(seed),
+        ..Career::default()
+    };
     c.equipment.inventory = Vec::with_capacity(MAX_INVENTORY);
     c
 }
