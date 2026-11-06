@@ -421,6 +421,10 @@ pub(crate) struct World {
     /// boss kill roll into the inventories instead of queueing offers (ADR-SIM-2 point 2). A fact
     /// of the setup, which the replay stores and a restore rebuilds from: not hashed state.
     pub equipment_mode: bool,
+    /// The setup's perk `drop_weight` in percent, 0 when its set has none: it scales the named
+    /// stars a drop rolls, for every member until the per-player setup (ADR-SAVE-7 point 7).
+    /// Not hashed: the setup, which the replay stores, fixes it.
+    pub drop_weight_pct: u32,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
@@ -534,6 +538,7 @@ impl World {
             tuning: Tuning::of(rules),
             director: horde.is_some(),
             equipment_mode: false,
+            drop_weight_pct: 0,
             stage,
             defs,
             bosses,

@@ -65,11 +65,14 @@ pub enum PerkEffect {
     ExtraRerolls,
     /// `amount` more banishes for offers, on top of the stage's.
     ExtraBanishes,
+    /// `amount` percent more weight for the named stars a member's drops roll (equipment mode;
+    /// a no-op in offers mode and in the frozen rules).
+    DropWeight,
 }
 
 impl PerkEffect {
     /// Every effect.
-    pub const ALL: [PerkEffect; 8] = [
+    pub const ALL: [PerkEffect; 9] = [
         PerkEffect::MaxHp,
         PerkEffect::Regen,
         PerkEffect::AttackPct,
@@ -78,6 +81,7 @@ impl PerkEffect {
         PerkEffect::SpeedPct,
         PerkEffect::ExtraRerolls,
         PerkEffect::ExtraBanishes,
+        PerkEffect::DropWeight,
     ];
 
     /// The run stats' effect kind it adds to, if it is one.
@@ -88,7 +92,10 @@ impl PerkEffect {
             PerkEffect::AttackSpeedPct => StatEffect::AttackSpeedPct,
             PerkEffect::EvadePct => StatEffect::EvadePct,
             PerkEffect::SpeedPct => StatEffect::SpeedPct,
-            PerkEffect::Regen | PerkEffect::ExtraRerolls | PerkEffect::ExtraBanishes => {
+            PerkEffect::Regen
+            | PerkEffect::ExtraRerolls
+            | PerkEffect::ExtraBanishes
+            | PerkEffect::DropWeight => {
                 return None;
             }
         })
@@ -103,7 +110,8 @@ impl PerkEffect {
             PerkEffect::AttackPct
             | PerkEffect::AttackSpeedPct
             | PerkEffect::EvadePct
-            | PerkEffect::SpeedPct => MAX_PERK_PCT,
+            | PerkEffect::SpeedPct
+            | PerkEffect::DropWeight => MAX_PERK_PCT,
         }
     }
 }

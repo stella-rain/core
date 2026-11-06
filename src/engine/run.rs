@@ -176,6 +176,9 @@ impl Run {
         world.equipment_mode = b
             .setup
             .is_some_and(|setup| setup.build_mode == crate::run_setup::BuildMode::Equipment);
+        world.drop_weight_pct = b.setup.map_or(0, |setup| {
+            sim::Loadout::of(setup, b.content).drop_weight_pct()
+        });
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {

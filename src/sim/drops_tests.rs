@@ -449,3 +449,34 @@ fn the_starting_rune_is_equipped_at_tick_0() {
     assert_eq!(eq.players.career(me).offer, offers.players.career(me).offer);
     assert_eq!(eq.rng, offers.rng);
 }
+
+/// T17 (setup part): the perk set's `drop_weight` reaches the world; the bundled sets carry none;
+/// the effect is a no-op elsewhere.
+#[test]
+fn the_perk_drop_weight_reaches_the_world() {
+    use crate::engine::{Engine, Run};
+    use crate::perk_sets::PerkSets;
+    use crate::run_content::RunContent;
+    use crate::run_setup::{BuildMode, RunSetup};
+    let live = |e: &Engine| match e.run() {
+        Run::V2 { world, .. } => world.drop_weight_pct,
+        Run::V1 { .. } => panic!("the live rules"),
+    };
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        ..RunSetup::default()
+    };
+    assert_eq!(live(&Engine::start(&setup).expect("starts")), 0);
+    let file = json!({ "perk_sets": [{ "id": "lucky",
+        "effects": [{ "effect": "drop_weight", "amount": 40 }] }] });
+    let sets = PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
+    let content = RunContent::bundled().clone().with_perk_sets(sets);
+    let lucky = RunSetup {
+        perk_set: "lucky".into(),
+        ..setup
+    };
+    assert_eq!(
+        live(&Engine::start_with(&lucky, &content).expect("starts")),
+        40
+    );
+}
