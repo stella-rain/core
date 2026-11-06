@@ -67,10 +67,10 @@ pub(super) fn star_category(rewards: &Rewards, place: u16) -> Option<u8> {
 }
 
 /// One option of a star: its effect, the damage type of a type bonus and the stage skill.
-type Option3<'a> = (RewardEffect, Option<DamageType>, Option<&'a ContentId>);
+type OptionKey<'a> = (RewardEffect, Option<DamageType>, Option<&'a ContentId>);
 
 /// The options of the star at `place`: one per effect entry.
-fn options(rewards: &Rewards, place: u16) -> Vec<Option3<'_>> {
+fn options(rewards: &Rewards, place: u16) -> Vec<OptionKey<'_>> {
     rewards
         .rewards()
         .get(usize::from(place))
