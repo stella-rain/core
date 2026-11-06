@@ -422,7 +422,8 @@ pub(crate) struct World {
     /// boss kill roll into the inventories instead of queueing offers (ADR-SIM-2 point 2). A fact
     /// of the setup, which the replay stores and a restore rebuilds from: not hashed state.
     pub equipment_mode: bool,
-    /// The run's rewards as a drop roll reads them, by place in the file.
+    /// The run's rewards as a drop roll reads them, by place in the file: filled in equipment
+    /// mode only (an offers run, and a restore of one, allocates nothing for it).
     pub drops: DropTable,
     /// The setup's perk `drop_weight` in percent, 0 when its set has none: it scales the named
     /// stars a drop rolls, for every member until the per-player setup (ADR-SAVE-7 point 7).
@@ -541,7 +542,7 @@ impl World {
             tuning: Tuning::of(rules),
             director: horde.is_some(),
             equipment_mode: false,
-            drops: DropTable::of(content.rewards()),
+            drops: DropTable::default(),
             drop_weight_pct: 0,
             stage,
             defs,

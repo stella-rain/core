@@ -211,6 +211,7 @@ use crate::stage::{Side, ViewEdge};
 use crate::trig;
 use crate::validate::limits::DAMAGE_SCALE;
 
+pub(crate) use drops::DropTable;
 use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
