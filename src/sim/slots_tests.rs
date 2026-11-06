@@ -894,3 +894,189 @@ mod curve {
         assert_eq!(slots::gain(0, 0, 50), (0, 0));
     }
 }
+
+// --- kills give the killer's star slots expertise (ADR-SIM-3, ADR-SIM-7) -----------------------
+
+mod kills {
+    use super::super::equipment::{EquipSlot, Held, SlotKind};
+    use super::super::slots::{self, KILLS_TO_NEXT};
+    use super::super::state::{AgentKey, AgentSource, PlayerIdx, State};
+    use super::grants::{Fixture, rarities, star, with};
+    use crate::fixed::Point;
+    use crate::id::EntityId;
+    use crate::rewards::Rewards;
+    use crate::run_stats::StatEffect;
+    use crate::version::Versions;
+    use serde_json::json;
+
+    const ATK: u16 = 0;
+    const HP: u16 = 1;
+    const SPEED: u16 = 2;
+
+    fn rewards() -> Rewards {
+        let list = vec![
+            star(
+                "atk",
+                "common",
+                vec![json!({ "effect": "attack_pct", "amount": 20 })],
+            ),
+            star(
+                "hp",
+                "common",
+                vec![json!({ "effect": "max_hp", "amount": 20_000 })],
+            ),
+            star(
+                "speed",
+                "common",
+                vec![json!({ "effect": "speed_pct", "amount": 5 })],
+            ),
+        ];
+        let file = json!({ "rarities": rarities(), "rewards": list });
+        Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("validates")
+    }
+
+    /// An equipment solo fixture with the attack star in slot 0 and the hp star in the Lumine slot.
+    fn armed() -> Fixture {
+        let mut f = with(rewards());
+        f.stage.equipment_mode = true;
+        f.set(0, Some(ATK));
+        f.change(|e| {
+            e.lumine = Some(EquipSlot {
+                kind: SlotKind::Lumine,
+                held: Some(Held::Star(HP)),
+                level: 1,
+                expertise: 0,
+            });
+        });
+        f
+    }
+
+    fn slot_of(f: &Fixture, who: PlayerIdx, at: usize) -> (u8, u32) {
+        let eq = &f.s.players.career(who).equipment;
+        let s = eq.slots.get(at).or(eq.lumine.as_ref()).unwrap();
+        (s.level, s.expertise)
+    }
+
+    /// `n` enemies at 0 hit points, the first `burst` of them a kill burst's.
+    fn dead(f: &mut Fixture, n: u32, burst: u32) {
+        let key = AgentKey {
+            source: AgentSource::Wave,
+            index: 0,
+            rule: 0,
+        };
+        for i in 0..n {
+            let mut e = super::super::agents::new_agent(
+                EntityId(100 + i),
+                f.stage.defs.of_key(key),
+                f.stage.defs.get(f.stage.defs.of_key(key)),
+                key,
+                Point::default(),
+                0,
+            );
+            e.hp = 0;
+            e.burst = i < burst;
+            f.s.enemies.push(e);
+        }
+    }
+
+    /// The tick's two steps: `collide` counts the kills, `credit_kills` spends them.
+    fn tick(f: &mut Fixture, killer: PlayerIdx) {
+        for i in 0..f.s.enemies.len() {
+            super::super::record_kill(&mut f.s, i, killer);
+        }
+        let mut ev = Vec::new();
+        super::super::collide(&f.stage, &mut f.s, false, &mut ev);
+        slots::credit_kills(&f.stage, &f.rewards, &mut f.s);
+    }
+
+    /// T9: a kill gives every star slot of its killer a point; rune and empty slots gain nothing.
+    #[test]
+    fn a_kill_credits_the_killer_s_star_slots() {
+        let mut f = armed();
+        let atk = f.total(StatEffect::AttackPct);
+        dead(&mut f, 10, 0);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (2, 0));
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0), "the Lumine slot");
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 1), (0, 0), "an empty slot");
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 9), (0, 0), "a rune slot");
+        assert_eq!(f.total(StatEffect::AttackPct), atk + 1, "20 % of 20 is 4, floor");
+        assert_eq!(f.s.enemies.len(), 0);
+    }
+
+    /// T10: each enemy counts once, a burst's never, an enemy alive not at all; the count is emptied.
+    #[test]
+    fn a_kill_counts_once_per_enemy_and_never_a_burst() {
+        let mut f = armed();
+        dead(&mut f, 3, 1);
+        let mut alive = f.s.enemies[0].clone();
+        alive.hp = 1_000_000;
+        alive.burst = false;
+        alive.id = EntityId(900);
+        f.s.enemies.push(alive);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (1, 2));
+        assert!(f.s.scratch.kills_by.iter().all(|&k| k == 0));
+    }
+
+    /// T11: kills go to the player who made them; the others' slots and builds stay.
+    #[test]
+    fn kills_go_to_the_player_who_made_them() {
+        let mut f = armed();
+        let one = PlayerIdx::new(1).unwrap();
+        let two = PlayerIdx::new(2).unwrap();
+        f.s.players = super::super::state::Players::with_mask(0b111, f.s.players[PlayerIdx::SOLO].clone())
+            .keeping_career_of(&f.s.players);
+        for who in [one, two] {
+            let eq = &mut f.s.players.career_mut(who).equipment;
+            eq.slots = slots::fresh_slots();
+            eq.slots[0].held = Some(Held::Star(SPEED));
+            eq.slots[0].level = 1;
+        }
+        let other = f.total(StatEffect::SpeedPct);
+        dead(&mut f, 10, 0);
+        tick(&mut f, one);
+        assert_eq!(slot_of(&f, one, 0), (2, 0));
+        assert_eq!(slot_of(&f, two, 0), (1, 0));
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (1, 0));
+        assert_eq!(f.total(StatEffect::SpeedPct), other);
+    }
+
+    /// T12: the 10th kill is the one that changes the build; 9 change nothing.
+    #[test]
+    fn a_level_up_changes_the_build_in_the_tick() {
+        let mut f = armed();
+        let (atk, max) = (
+            f.total(StatEffect::AttackPct),
+            f.s.players[PlayerIdx::SOLO].max_hp,
+        );
+        dead(&mut f, KILLS_TO_NEXT[0] - 1, 0);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(f.total(StatEffect::AttackPct), atk);
+        assert_eq!(f.s.players[PlayerIdx::SOLO].max_hp, max);
+        dead(&mut f, 1, 0);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(
+            f.total(StatEffect::AttackPct),
+            atk + slots::level_scaled(20, 2) - 20
+        );
+        assert_eq!(
+            f.s.players[PlayerIdx::SOLO].max_hp,
+            max + slots::level_scaled(20_000, 2) - 20_000
+        );
+    }
+
+    /// T13: an offers run credits nothing and counts nothing.
+    #[test]
+    fn offers_mode_credits_nothing() {
+        let mut f = armed();
+        f.stage.equipment_mode = false;
+        dead(&mut f, 12, 0);
+        tick(&mut f, PlayerIdx::SOLO);
+        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (1, 0));
+        assert!(f.s.scratch.kills_by.iter().all(|&k| k == 0));
+    }
+
+    #[allow(dead_code)]
+    fn _uses(_: &State) {}
+}
