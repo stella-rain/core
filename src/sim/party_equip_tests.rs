@@ -193,3 +193,63 @@ fn a_joiner_takes_the_start_loadout() {
     let mine = e.snapshot().players[0].slots.last().cloned().unwrap();
     assert_eq!((mine.level, mine.expertise), (3, 20));
 }
+
+fn start_state(setup: &RunSetup, n: u8) -> Engine {
+    Engine::start_party(setup, n).expect("a party")
+}
+
+fn regens(e: &mut Engine, n: u8) -> Vec<u32> {
+    let s = state_mut(e);
+    (0..n).map(|i| s.players.career(slot(i)).regen).collect()
+}
+
+/// R1: every member starts with the perk's regeneration.
+#[test]
+fn a_party_member_starts_with_the_perk_regen() {
+    let setup = RunSetup {
+        perk_set: "vanguard".into(),
+        ..equipment_setup()
+    };
+    assert_eq!(regens(&mut start_state(&setup, 3), 3), vec![1_000; 3]);
+}
+
+/// R2: and with the regeneration of a regen Lumine star, with the same maximum hit points.
+#[test]
+fn a_party_member_starts_with_a_regen_lumine_star() {
+    let setup = RunSetup {
+        perk_set: "vanguard".into(),
+        lumine: 4,
+        lumine_star: Some("star_mintaka".into()),
+        ..equipment_setup()
+    };
+    let mut e = start_state(&setup, 3);
+    assert_eq!(regens(&mut e, 3), vec![4_000; 3]);
+    let s = state_mut(&mut e);
+    for i in 1..3 {
+        assert_eq!(s.players[slot(i)].max_hp, s.players[slot(0)].max_hp);
+    }
+}
+
+/// R3: a joiner takes the start regeneration, not what slot 0 has gained since; the second's
+/// regeneration heals an up member and never a downed one.
+#[test]
+fn a_joiner_takes_the_start_regen_not_slot_0s_current() {
+    let setup = RunSetup {
+        perk_set: "vanguard".into(),
+        ..equipment_setup()
+    };
+    let mut e = start_state(&setup, 1);
+    state_mut(&mut e).players.career_mut(slot(0)).regen = 9_000;
+    e.join(slot(1)).expect("joins");
+    e.join(slot(2)).expect("joins");
+    let s = state_mut(&mut e);
+    assert_eq!(s.players.career(slot(1)).regen, 1_000);
+    s.players[slot(1)].hp = s.players[slot(1)].max_hp - 500;
+    down(s, 2);
+    s.tick = 60;
+    for i in 0..3 {
+        super::loadout::regen(s, slot(i));
+    }
+    assert_eq!(s.players[slot(1)].hp, s.players[slot(1)].max_hp);
+    assert_eq!(s.players[slot(2)].hp, 0);
+}
