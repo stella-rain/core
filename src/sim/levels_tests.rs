@@ -258,7 +258,9 @@ fn an_unlisted_tree_or_an_unmatched_list_falls_back_to_the_priority() {
     let p = progress(&e).clone();
     let with = |priority: &[u8]| {
         let mut p = p.clone();
-        p.priority = priority.to_vec();
+        let mut order = priority.to_vec();
+        order.extend((0..5).filter(|i| !priority.contains(i)));
+        p.priority = order;
         p
     };
     let w = weapon(serde_json::json!({
