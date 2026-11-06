@@ -632,7 +632,7 @@ fn a_style_pick_adds_no_stat_of_its_own() {
 
     // The tempo pick leaves every total as it was, and an upgrade still adds its own.
     let mut e = sword();
-    level_to(&mut e, 5);
+    level_to(&mut e, 10);
     let before = progress(&e).totals;
     tree_pick(&mut e, 1).expect("tempo");
     assert_eq!(progress(&e).totals, before);
