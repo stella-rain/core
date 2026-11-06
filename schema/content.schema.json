@@ -6596,7 +6596,7 @@
           "type": "boolean"
         },
         "pickup_radius_pct": {
-          "description": "What the pickup radius rewards taken add up to, in percent, before the clamp at\n`MAX_PICKUP_RADIUS_TOTAL_PCT`: the pickup circle of stars and heal pickups is that\nmuch wider.",
+          "description": "The pickup circle of stars and heal pickups is that much wider, in percent: the pickup\nradius rewards taken plus the `PickupRadiusPct` stat, held to `MAX_PICKUP_RADIUS_TOTAL_PCT`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
