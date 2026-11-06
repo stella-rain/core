@@ -311,8 +311,10 @@ pub(super) fn refresh(
         player.hp = keep_fraction(hp_was, max_was, player.max_hp);
     }
     let grants = Grants::of(rewards, &after);
+    let was_grants = Grants::of(rewards, &before_places);
+    // Only a skill that changes takes the entry cooldown (a grade switch keeps its own).
     let entry = match (arrival, grants.skill()) {
-        (Arrival::Swap, Some((index, level))) => rewards
+        (Arrival::Swap, Some((index, level))) if was_grants.skill() != grants.skill() => rewards
             .stage_skills()
             .get(usize::from(index))
             .and_then(|def| def.levels.get(usize::from(level).saturating_sub(1)))
@@ -321,13 +323,7 @@ pub(super) fn refresh(
             }),
         _ => 0,
     };
-    Grants::write(
-        &Grants::of(rewards, &before_places),
-        &grants,
-        stage,
-        player,
-        entry,
-    );
+    Grants::write(&was_grants, &grants, stage, player, entry);
     for (set, c) in rewards.constellations().sets().iter().enumerate() {
         let members = c
             .members

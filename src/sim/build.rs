@@ -408,9 +408,9 @@ impl Grants {
 
     /// Writes the change from `before` to `after` into the player and its offers. A field that
     /// did not change is not touched. The skill keeps its cooldown while its index is unchanged
-    /// and a new one arrives with `entry_cooldown` (0 is ready); an orbit still equipped keeps its run state and a new one
-    /// arrives ready; the evade charges follow the stage's own plus the stars', held to its most,
-    /// and a fall never takes the charges below the stage's own.
+    /// and a new one arrives with `entry_cooldown` (0 is ready); an orbit still equipped keeps
+    /// its run state and a new one arrives ready; the evade charges follow the stage's own plus
+    /// the stars', held to its most, and a fall never takes the charges below the stage's own.
     pub(super) fn write(
         before: &Grants,
         after: &Grants,
