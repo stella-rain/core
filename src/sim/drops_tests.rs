@@ -673,3 +673,57 @@ fn a_joiner_starts_with_an_empty_inventory() {
         e.leave(slot(1)).expect("leaves");
     }
 }
+
+// --- the snapshot (ADR-SIM-3 point 2, ADR-SIM-7) -----------------------------------------------
+
+/// T15: the snapshot lists each slot's inventory in drop order with the star's id and rarity, a
+/// rune as itself; an offers-mode snapshot has no `inventory` key.
+#[test]
+fn the_snapshot_shows_the_inventory() {
+    use crate::run_content::RunContent;
+    use crate::snapshot::HeldView;
+    let content = RunContent::bundled();
+    let places = content.rewards().rewards();
+    let pick = |rarity| {
+        let at = places
+            .iter()
+            .position(|r| !r.is_random_rune() && r.rarity == rarity)
+            .expect("one at each rarity");
+        (u16::try_from(at).unwrap(), &places[at])
+    };
+    let (common, uncommon) = (pick(Rarity::Common), pick(Rarity::Uncommon));
+    let (w, mut s) = party(2);
+    let snap = super::snapshot::build(&w, content, &s);
+    let text = serde_json::to_string(&snap).expect("serialises");
+    assert!(!text.contains("inventory"), "offers mode shows none");
+    for (i, got) in [(0u8, [common, uncommon]), (1, [uncommon, common])] {
+        s.players.career_mut(slot(i)).equipment.inventory = vec![
+            Held::Star(got[0].0),
+            Held::Rune(Rune::Thunder),
+            Held::Star(got[1].0),
+        ];
+    }
+    let snap = super::snapshot::build(&w, content, &s);
+    for (i, got) in [(0usize, [common, uncommon]), (1, [uncommon, common])] {
+        let star = |p: (u16, &crate::rewards::Reward)| HeldView::Star {
+            id: p.1.id.clone(),
+            rarity: p.1.rarity,
+        };
+        assert_eq!(
+            snap.players[i].inventory,
+            vec![
+                star(got[0]),
+                HeldView::Rune {
+                    rune: Rune::Thunder
+                },
+                star(got[1])
+            ],
+            "slot {i}"
+        );
+    }
+    let text = serde_json::to_string(&snap.players[0].inventory).expect("serialises");
+    assert!(
+        text.contains(r#""kind":"rune""#) && text.contains(r#""kind":"star""#),
+        "{text}"
+    );
+}
