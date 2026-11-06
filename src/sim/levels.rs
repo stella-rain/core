@@ -242,6 +242,23 @@ pub(super) fn add_effect(
     }
 }
 
+/// Takes `amount` off the total of `effect` (an unequip); `MaxHp` also lowers the most hit points,
+/// never below 1 (0 is the downed state), and keeps the hit points within it: no heal, no loss
+/// beyond the clamp, and a player at 0 hit points stays at 0.
+pub(super) fn remove_effect(
+    p: &mut Progress,
+    player: &mut PlayerState,
+    effect: StatEffect,
+    amount: u32,
+) {
+    let total = &mut p.totals[effect as usize];
+    *total = total.saturating_sub(amount);
+    if effect == StatEffect::MaxHp {
+        player.max_hp = player.max_hp.saturating_sub(amount).max(1);
+        player.hp = player.hp.min(player.max_hp);
+    }
+}
+
 fn total(s: &State, me: PlayerIdx, effect: StatEffect) -> u32 {
     let career = s.players.career(me);
     career

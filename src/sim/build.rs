@@ -185,8 +185,9 @@ impl Build {
     /// difference. A stat goes through `levels::add_effect`, so `MaxHp` raises the most hit
     /// points and heals as it always did; a stage without levels ignores the stats.
     ///
-    /// Lowering the mixed fields (an unequip) is not here: the assert below marks where that
-    /// rule goes.
+    /// A fall (an unequip) takes the difference off the mixed fields: `regen` and the totals
+    /// fall by the stars' share, `MaxHp` through `levels::remove_effect` (no heal, hit points
+    /// kept within the most, never 0). A write can raise one stat and lower another.
     pub(super) fn write(
         before: &Build,
         after: &Build,
@@ -214,10 +215,6 @@ impl Build {
             extra_candidates,
             stats,
         } = *after;
-        debug_assert!(
-            more_regen >= before.regen && stats.iter().zip(&before.stats).all(|(a, b)| a >= b),
-            "a build that falls is the unequip rule's, not written here"
-        );
         player.range_pct = range_pct;
         player.pickup_radius_pct = pickup_radius_pct;
         player.skill_cooldown_pct = skill_cooldown_pct;
@@ -233,12 +230,17 @@ impl Build {
         player.rune_haste_pct = rune_haste_pct;
         player.type_bonus_pct = type_bonus_pct;
         o.extra_candidates = extra_candidates;
-        *regen = regen.saturating_add(more_regen.saturating_sub(before.regen));
+        // The stars' share is part of `regen`: a rise adds the difference, a fall takes it off.
+        *regen = regen
+            .saturating_add(more_regen.saturating_sub(before.regen))
+            .saturating_sub(before.regen.saturating_sub(more_regen));
         if let Some(p) = progress.as_mut() {
             for (stat, (&now, &was)) in StatEffect::ALL.iter().zip(stats.iter().zip(&before.stats))
             {
                 if now > was {
                     levels::add_effect(p, player, *stat, now - was);
+                } else if now < was {
+                    levels::remove_effect(p, player, *stat, was - now);
                 }
             }
         }
