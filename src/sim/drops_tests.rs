@@ -526,13 +526,9 @@ fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
     f.rarity = (Rarity::Common, Rarity::Supernova);
     f.pool = vec![0, 1, 2];
     f.rune_pool = FULL;
-    for i in 0..usize::from(n) {
-        s.players
-            .career_mut(slot(u8::try_from(i).unwrap()))
-            .progress
-            .as_mut()
-            .unwrap()
-            .level = levels[i];
+    for (i, level) in (0..n).zip(levels) {
+        let progress = s.players.career_mut(slot(i)).progress.as_mut().unwrap();
+        progress.level = level;
     }
     (w, s)
 }
