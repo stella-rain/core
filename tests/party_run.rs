@@ -410,7 +410,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 13] = [
     ("equipment_solo", 3000, Outcome::Running, [1, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [1, 0, 0], 0),
     ("equipment_equip", 3000, Outcome::Running, [1, 0, 0], 0),
-    ("equipment_levels", 3000, Outcome::Running, [1, 0, 0], 0),
+    ("equipment_levels", 3000, Outcome::Running, [6, 0, 0], 1080),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
