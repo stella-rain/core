@@ -5,8 +5,15 @@
 //! change from the build of the set before to the build of the set after.
 //!
 //! Placeholders (ADR-CONT-3 point 8; the pack will carry them): the layout, each star's category
-//! and each star's option. They are derived here from the effects and are the one place to
+//! and each star's option, the kills each level takes (`KILLS_TO_NEXT`) and the share of a star's
+//! base each level adds (`PCT_PER_LEVEL`). They are derived or set here and are the one place to
 //! replace.
+//!
+//! Expertise: every kill a player makes gives one point to each of its slots that holds a star
+//! (a category slot or the Lumine slot; runes and empty slots gain nothing). A slot rises one
+//! level at a time, Lv1 to `MAX_LEVEL`, and each level above 1 adds `PCT_PER_LEVEL` percent of the
+//! star's base amounts to the build (`level_scaled`). A replace by a star that shares no option
+//! halves the level (at least 1) and resets the kills; a same-option switch keeps both.
 
 use super::World;
 use super::build::{Build, Grants};
@@ -15,6 +22,7 @@ use super::offer_rating::category_of;
 use super::state::{Career, HeldRune, Offers, PlayerState};
 use crate::attack::DamageType;
 use crate::id::ContentId;
+use crate::limits::MAX_SLOT_LEVEL;
 use crate::rewards::{RewardEffect, Rewards};
 use crate::snapshot::Category;
 
@@ -26,6 +34,46 @@ pub(super) const SLOT_LAYOUT: [(SlotKind, u8); 4] = [
     (SlotKind::Category(2), 2),
     (SlotKind::Rune, 3),
 ];
+
+/// The highest level a slot reaches (ADR-SIM-5).
+pub(super) const MAX_LEVEL: u8 = MAX_SLOT_LEVEL;
+
+/// Placeholder curve: entry `i` is the kills a slot at level `i + 1` needs to reach level `i + 2`.
+/// Rising, so the lower levels come faster; Lv1 to Lv10 takes 870 kills.
+pub(super) const KILLS_TO_NEXT: [u32; 9] = [10, 20, 35, 55, 80, 110, 145, 185, 230];
+
+/// Placeholder: the percent of a star's base amount each level above 1 adds.
+const PCT_PER_LEVEL: u32 = 3;
+
+/// A slot's level and kills after `kills` more: one level at a time while the kills reach the
+/// level's need; at `MAX_LEVEL` the kills are dropped. A level of 0 (a slot that never held a
+/// star) gains nothing. Pure.
+pub(super) fn gain(level: u8, expertise: u32, kills: u32) -> (u8, u32) {
+    if level == 0 {
+        return (0, expertise);
+    }
+    let (mut level, mut expertise) = (level.min(MAX_LEVEL), expertise.saturating_add(kills));
+    while level < MAX_LEVEL {
+        let need = KILLS_TO_NEXT[usize::from(level) - 1];
+        if expertise < need {
+            break;
+        }
+        expertise -= need;
+        level += 1;
+    }
+    if level >= MAX_LEVEL {
+        expertise = 0;
+    }
+    (level, expertise)
+}
+
+/// `amount` at `level`: `PCT_PER_LEVEL` percent more for each level above 1, floored. A level of
+/// 0 reads as 1 and one past `MAX_LEVEL` as `MAX_LEVEL`.
+pub(super) fn level_scaled(amount: u32, level: u8) -> u32 {
+    let above = u64::from(level.clamp(1, MAX_LEVEL) - 1);
+    let scaled = u64::from(amount) * (100 + u64::from(PCT_PER_LEVEL) * above) / 100;
+    u32::try_from(scaled).unwrap_or(u32::MAX)
+}
 
 /// The slot index of the first rune slot.
 pub(super) fn first_rune_slot() -> usize {
