@@ -66,3 +66,20 @@ fn offers_mode_picks_are_unchanged() {
     assert!(s.stars.as_ref().unwrap().on_map.is_empty());
     assert!(matches!(ev[..], [DomainEvent::StarTaken { .. }]));
 }
+
+/// T2: the mode is a fact of the setup, and a restore rebuilds it.
+#[test]
+fn the_mode_is_set_by_the_setup() {
+    use crate::engine::{Engine, Run};
+    use crate::run_setup::{BuildMode, RunSetup};
+    let live = |e: &Engine| match e.run() {
+        Run::V2 { world, .. } => world.equipment_mode,
+        Run::V1 { .. } => panic!("the live rules"),
+    };
+    let equipment = RunSetup {
+        build_mode: BuildMode::Equipment,
+        ..RunSetup::default()
+    };
+    assert!(live(&Engine::start(&equipment).expect("starts")));
+    assert!(!live(&Engine::start(&RunSetup::default()).expect("starts")));
+}

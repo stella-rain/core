@@ -171,7 +171,11 @@ impl Run {
     }
 
     fn new_v2(b: Build<'_>) -> Result<Run, Issue> {
-        let world = sim::World::new(b.stage, b.spec, &b.kinds, b.content)?;
+        let mut world = sim::World::new(b.stage, b.spec, &b.kinds, b.content)?;
+        // The mode is a fact of the setup (a replay stores it, a restore rebuilds from it).
+        world.equipment_mode = b
+            .setup
+            .is_some_and(|setup| setup.build_mode == crate::run_setup::BuildMode::Equipment);
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {

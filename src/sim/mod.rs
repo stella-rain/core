@@ -403,6 +403,14 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     if let (Some(cfg), Some(pickups)) = (&stage.heal, s.heal_pickups.as_mut()) {
         scratch::reserve_to(pickups, usize::from(cfg.cap));
     }
+    // Equipment mode: each present slot's inventory has room for its bound, so a drop allocates
+    // nothing (ADR-SIM-5 points 7 and 8). Offers mode reserves nothing here.
+    if stage.equipment_mode {
+        for me in s.players.indices().collect::<Vec<_>>() {
+            let inventory = &mut s.players.career_mut(me).equipment.inventory;
+            scratch::reserve_to(inventory, crate::limits::MAX_INVENTORY);
+        }
+    }
 }
 
 /// Events a tick reserves room for per enemy alive (hits, kills, spawns, bursts).

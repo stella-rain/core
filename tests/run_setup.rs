@@ -732,16 +732,9 @@ fn star_setup(lumine: u8, star: &str) -> RunSetup {
     }
 }
 
-/// `validate_in` without the not-built gate (removed with the first rule that reads the mode).
+/// `validate_in` on the bundled content: the content-dependent checks of a setup.
 fn content_check(setup: &RunSetup) -> Result<(), Error> {
-    match run_setup::validate_in(setup, RunContent::bundled()) {
-        Err(Error::Invalid(found))
-            if found == [issue("$.build_mode", "equipment mode is not built yet")] =>
-        {
-            Ok(())
-        }
-        other => other,
-    }
+    run_setup::validate_in(setup, RunContent::bundled())
 }
 
 fn found_in(setup: &RunSetup) -> Vec<Issue> {
@@ -851,13 +844,11 @@ fn the_checked_in_schema_names_the_new_fields() {
 }
 
 #[test]
-fn an_equipment_setup_is_refused_at_start_until_the_rules_land() {
-    let gate = issue("$.build_mode", "equipment mode is not built yet");
+fn an_equipment_setup_starts_and_any_other_issue_is_reported() {
     let valid = equipment();
-    // Content-free validation accepts it; the start refuses it.
     assert_eq!(run_setup::validate(&valid), Ok(()));
-    assert_eq!(found_in(&valid), vec![gate.clone()]);
-    assert_eq!(issues(Engine::start(&valid).err().unwrap()), [gate]);
+    assert_eq!(content_check(&valid), Ok(()));
+    assert!(Engine::start(&valid).is_ok());
     // Any other issue is reported alone.
     assert_eq!(
         found_in(&star_setup(0, "max_hp_common")),

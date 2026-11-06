@@ -417,6 +417,10 @@ pub(crate) struct World {
     /// Whether the spawn director acts: a horde run holds its wave spawns at the target; a
     /// stage's waves are an authored timeline and keep their timing.
     pub director: bool,
+    /// Whether the run's setup says equipment mode (`BuildMode::Equipment`): a star taken and a
+    /// boss kill roll into the inventories instead of queueing offers (ADR-SIM-2 point 2). A fact
+    /// of the setup, which the replay stores and a restore rebuilds from: not hashed state.
+    pub equipment_mode: bool,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
@@ -529,6 +533,7 @@ impl World {
             enemy_cap: rules.enemy_cap_for(target),
             tuning: Tuning::of(rules),
             director: horde.is_some(),
+            equipment_mode: false,
             stage,
             defs,
             bosses,
