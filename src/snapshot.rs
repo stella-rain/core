@@ -206,6 +206,44 @@ pub struct TreeReadyView {
     pub options: Vec<ContentId>,
 }
 
+/// A weapon's stat sets as the weapon level `level` gives them (equipment mode), for the tree
+/// selection window and the weapon window.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WeaponStatsView {
+    /// The weapon level, 1 to 10 (level 0 shows 1, and levels past 10 show 10).
+    pub level: u32,
+    /// The tree chosen, by its style ID; absent before the style pick.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active: Option<ContentId>,
+    /// The base set: in force until a tree is chosen.
+    pub base: Vec<StatValueView>,
+    /// Every tree's set, in the weapon's style order (the order `TreeReadyView.options` lists).
+    pub trees: Vec<TreeStatsView>,
+}
+
+/// One tree's stat set.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TreeStatsView {
+    /// The tree's style ID.
+    pub style: ContentId,
+    /// The stats it gives at the weapon's level.
+    pub stats: Vec<StatValueView>,
+}
+
+/// One stat of a set. Percentages are in **tenths of a percent** (165 is 16.5 percent); the
+/// most hit points (`MaxHp`) are whole units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StatValueView {
+    pub effect: crate::run_stats::StatEffect,
+    /// The value at the weapon's level.
+    pub now: u32,
+    /// The value at the next level (the same at level 10).
+    pub next: u32,
+}
+
 /// An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's
 /// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
 /// fixed choices, with no reroll. None has a skip or a banish.
@@ -644,6 +682,10 @@ pub struct PlayerView {
     /// held.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tree_ready: Option<TreeReadyView>,
+    /// The weapon's stat sets (equipment mode): the base set and every tree's set at the weapon's
+    /// level; absent in offers mode, without an expertise gauge and for an inline weapon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weapon_stats: Option<WeaponStatsView>,
     /// Its equipment slots in layout order, then the Lumine slot last when the run has one
     /// (equipment mode; empty in offers mode). An action addresses them by this order: an index
     /// into the list, the Lumine slot one past the others.

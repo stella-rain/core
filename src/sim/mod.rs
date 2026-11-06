@@ -230,7 +230,7 @@ pub(crate) use drops::DropTable;
 use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
-pub(crate) use expertise::{check_tree, tree_ready_view};
+pub(crate) use expertise::{check_tree, tree_ready_view, weapon_stats_view};
 use grid::Grid;
 pub(crate) use levels::{offer_view as stat_offer_view, set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};

@@ -55,7 +55,8 @@ use crate::sim::state::{
     AgentSource, ExpertiseGauge, ExpertiseOffer, PlayerState, Progress, State,
 };
 use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, TreeReadyView,
+    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, StatValueView,
+    TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
@@ -632,6 +633,53 @@ pub(crate) fn tree_ready_view(
         level: next.level,
         held: next.held,
         options: next.choices.iter().map(|c| c.id.clone()).collect(),
+    })
+}
+
+/// The stat sets of `me`'s weapon for the snapshot: none outside the equipment build, without a
+/// gauge or without expertise content. Reads, writes and hashes nothing.
+pub(crate) fn weapon_stats_view(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+) -> Option<WeaponStatsView> {
+    if !stage.equipment_mode {
+        return None;
+    }
+    let g = s.players.career(me).expertise.as_ref()?;
+    let w = content(stage, expertise)?;
+    let level = g.level.clamp(1, 10);
+    let next = (level + 1).min(10);
+    let list = |style: Option<u8>| -> Vec<StatValueView> {
+        let (now, then) = (
+            set_for(stage, expertise, style, level),
+            set_for(stage, expertise, style, next),
+        );
+        StatEffect::ALL
+            .into_iter()
+            .filter(|f| now[*f as usize] != 0 || then[*f as usize] != 0)
+            .map(|effect| StatValueView {
+                effect,
+                now: now[effect as usize],
+                next: then[effect as usize],
+            })
+            .collect()
+    };
+    Some(WeaponStatsView {
+        level,
+        active: g
+            .style
+            .and_then(|i| w.styles.get(usize::from(i)))
+            .map(|st| st.id.clone()),
+        base: list(None),
+        trees: (0..w.styles.len())
+            .filter_map(|i| u8::try_from(i).ok())
+            .map(|i| TreeStatsView {
+                style: w.styles[usize::from(i)].id.clone(),
+                stats: list(Some(i)),
+            })
+            .collect(),
     })
 }
 

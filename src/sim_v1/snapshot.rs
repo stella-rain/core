@@ -297,6 +297,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             starlight: 0,
             pool_held: Vec::new(),
             tree_ready: None,
+            weapon_stats: None,
             runes: s
                 .player
                 .runes
