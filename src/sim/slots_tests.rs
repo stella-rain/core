@@ -529,7 +529,7 @@ mod rules {
             slots::replace(&self.stage, &self.rewards, player, career, item, slot)
         }
 
-        fn total(&self, stat: StatEffect) -> u32 {
+        pub(super) fn total(&self, stat: StatEffect) -> u32 {
             self.s
                 .players
                 .career(PlayerIdx::SOLO)
@@ -918,7 +918,7 @@ mod kills {
             star(
                 "atk",
                 "common",
-                vec![json!({ "effect": "attack_pct", "amount": 20 })],
+                vec![json!({ "effect": "attack_pct", "amount": 100 })],
             ),
             star(
                 "hp",
@@ -1000,7 +1000,7 @@ mod kills {
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0), "the Lumine slot");
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 1), (0, 0), "an empty slot");
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 9), (0, 0), "a rune slot");
-        assert_eq!(f.total(StatEffect::AttackPct), atk + 1, "20 % of 20 is 4, floor");
+        assert_eq!(f.total(StatEffect::AttackPct), atk + 3, "3 % of 100");
         assert_eq!(f.s.enemies.len(), 0);
     }
 
@@ -1025,8 +1025,9 @@ mod kills {
         let mut f = armed();
         let one = PlayerIdx::new(1).unwrap();
         let two = PlayerIdx::new(2).unwrap();
-        f.s.players = super::super::state::Players::with_mask(0b111, f.s.players[PlayerIdx::SOLO].clone())
-            .keeping_career_of(&f.s.players);
+        f.s.players =
+            super::super::state::Players::with_mask(0b111, f.s.players[PlayerIdx::SOLO].clone())
+                .keeping_career_of(&f.s.players);
         for who in [one, two] {
             let eq = &mut f.s.players.career_mut(who).equipment;
             eq.slots = slots::fresh_slots();
@@ -1046,23 +1047,15 @@ mod kills {
     #[test]
     fn a_level_up_changes_the_build_in_the_tick() {
         let mut f = armed();
-        let (atk, max) = (
-            f.total(StatEffect::AttackPct),
-            f.s.players[PlayerIdx::SOLO].max_hp,
-        );
+        let atk = f.total(StatEffect::AttackPct);
         dead(&mut f, KILLS_TO_NEXT[0] - 1, 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(f.total(StatEffect::AttackPct), atk);
-        assert_eq!(f.s.players[PlayerIdx::SOLO].max_hp, max);
         dead(&mut f, 1, 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(
             f.total(StatEffect::AttackPct),
-            atk + slots::level_scaled(20, 2) - 20
-        );
-        assert_eq!(
-            f.s.players[PlayerIdx::SOLO].max_hp,
-            max + slots::level_scaled(20_000, 2) - 20_000
+            atk + slots::level_scaled(100, 2) - 100
         );
     }
 

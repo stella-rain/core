@@ -19,7 +19,7 @@ use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::offer_rating::category_of;
-use super::state::{Career, HeldRune, Offers, PlayerState};
+use super::state::{Career, HeldRune, Offers, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
 use crate::limits::MAX_SLOT_LEVEL;
@@ -243,6 +243,44 @@ pub(super) fn refresh(
             .count();
         if let Some(n) = o.set_counts.get_mut(set) {
             *n = u8::try_from(members).unwrap_or(u8::MAX);
+        }
+    }
+}
+
+/// Counts the enemies defeated this tick for each player into `Scratch::kills_by`: an enemy at 0
+/// hit points that is not a kill burst's, for the player that defeated it (the rule of
+/// `heal::kills_heal`). Called by `collide` before the dead are removed, in equipment mode only.
+pub(super) fn count_kills(s: &mut State) {
+    for i in 0..s.enemies.len() {
+        if s.enemies[i].hp == 0 && !s.enemies[i].burst {
+            let who = super::killer_of(s, i).get();
+            if let Some(n) = s.scratch.kills_by.get_mut(who) {
+                *n = n.saturating_add(1);
+            }
+        }
+    }
+}
+
+/// Gives each player its kills of the tick as expertise: every slot holding a star (a category
+/// slot or the Lumine slot) gains them all (`gain`); a player whose slot rose a level has its
+/// build rewritten from the levels before and after (`refresh`). Empties `Scratch::kills_by`.
+pub(super) fn credit_kills(stage: &World, rewards: &Rewards, s: &mut State) {
+    let kills = std::mem::take(&mut s.scratch.kills_by);
+    for me in s.players.indices() {
+        let n = kills[me.get()];
+        if n == 0 {
+            continue;
+        }
+        let (player, career) = s.players.both_mut(me);
+        let before = equipped_levels(&career.equipment);
+        let eq = &mut career.equipment;
+        for slot in eq.slots.iter_mut().chain(eq.lumine.as_mut()) {
+            if matches!(slot.held, Some(Held::Star(_))) {
+                (slot.level, slot.expertise) = gain(slot.level, slot.expertise, n);
+            }
+        }
+        if equipped_levels(&career.equipment) != before {
+            refresh(stage, rewards, player, career, &before);
         }
     }
 }

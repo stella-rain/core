@@ -997,7 +997,9 @@ use super::slots::level_scaled;
 #[test]
 fn the_build_at_level_1_is_the_build_of_the_counts() {
     let (stage, rewards) = (stage(), hand());
-    let places = [ATK, ATK, HP, HEAL_A, BURST_A, REGEN, PYRO, N1, N2, RANGE, CRIT];
+    let places = [
+        ATK, ATK, HP, HEAL_A, BURST_A, REGEN, PYRO, N1, N2, RANGE, CRIT,
+    ];
     let levelled: Vec<(u16, u8)> = places.iter().map(|&p| (p, 1)).collect();
     assert_eq!(
         Build::of_levelled(&stage, &rewards, &levelled),
@@ -1027,7 +1029,10 @@ fn a_level_raises_the_amounts_and_not_the_intervals() {
     assert_eq!(burst.burst_radius, at1(BURST_A).burst_radius);
     assert_eq!(burst.burst_depth, at1(BURST_A).burst_depth);
     // Counts are not scaled: burst depth and offer candidates.
-    assert_eq!(at10(BDEPTH).burst_depth_extra, at1(BDEPTH).burst_depth_extra);
+    assert_eq!(
+        at10(BDEPTH).burst_depth_extra,
+        at1(BDEPTH).burst_depth_extra
+    );
     assert_eq!(at10(CAND).extra_candidates, at1(CAND).extra_candidates);
     assert_eq!(at10(REGEN).regen, level_scaled(2, 10));
     assert_eq!(at10(RANGE).range_pct, 12);
@@ -1059,7 +1064,14 @@ fn a_level_up_rewrites_the_player_s_numbers() {
         let after = Build::of_levelled(&stage, &rewards, to);
         let (player, career) = s.players.both_mut(PlayerIdx::SOLO);
         let o = career.offers.as_mut().expect("offers");
-        Build::write(&before, &after, player, &mut career.progress, &mut career.regen, o);
+        Build::write(
+            &before,
+            &after,
+            player,
+            &mut career.progress,
+            &mut career.regen,
+            o,
+        );
     };
     change(&mut s, &[], &[(ATK, 1), (HP, 1)]);
     s.players[PlayerIdx::SOLO].hp = s.players[PlayerIdx::SOLO].max_hp;

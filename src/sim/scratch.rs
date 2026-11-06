@@ -5,7 +5,7 @@
 use super::grid::Grid;
 use super::hit_boxes::Swing;
 use super::push::Body;
-use super::state::PlayerIdx;
+use super::state::{MAX_PLAYERS, PlayerIdx};
 use crate::fixed::Point;
 use crate::id::EntityId;
 
@@ -60,6 +60,10 @@ pub(crate) struct Scratch {
     /// read as the hit lands (ADR-SIM-7). Not hashed: enemy indices
     /// are stable from the first hit to that removal (ADR-SIM-3).
     pub(super) killers: Vec<Option<PlayerIdx>>,
+    /// The enemies each player defeated this tick, in an equipment run (`slots::count_kills`,
+    /// then spent and emptied by `slots::credit_kills`); all 0 outside the tick and in an offers
+    /// run. Not hashed.
+    pub(super) kills_by: [u32; MAX_PLAYERS as usize],
     /// The Stardust base of each defeated enemy of the tick (`stardust::credit_defeated`).
     pub(super) bases: Vec<u32>,
     /// Where each enemy defeated this tick fell and whether it was an elite
