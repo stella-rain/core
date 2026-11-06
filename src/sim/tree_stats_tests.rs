@@ -643,3 +643,124 @@ fn a_style_pick_adds_no_stat_of_its_own() {
         "the upgrade adds its stat"
     );
 }
+
+// --- the snapshot lists the sets --------------------------------------------------------------
+
+use crate::snapshot::StatValueView;
+
+fn v(effect: StatEffect, now: u32, next: u32) -> StatValueView {
+    StatValueView { effect, now, next }
+}
+
+/// V1: the view lists the base set and every tree's set at the level and the next.
+#[test]
+fn the_snapshot_lists_the_sets() {
+    let mut e = sword();
+    level_to(&mut e, 5);
+    let view = e.snapshot().players[0]
+        .weapon_stats
+        .clone()
+        .expect("a view");
+    assert_eq!((view.level, view.active), (5, None));
+    assert_eq!(
+        view.base,
+        [
+            v(StatEffect::AttackPct, 50, 60),
+            v(StatEffect::AttackSpeedPct, 50, 60)
+        ]
+    );
+    let styles: Vec<&str> = view.trees.iter().map(|t| t.style.as_str()).collect();
+    assert_eq!(styles, ["edge", "tempo", "reach"]);
+    assert_eq!(
+        view.trees[1].stats,
+        [
+            v(StatEffect::AttackPct, 165, 198),
+            v(StatEffect::AttackSpeedPct, 500, 600),
+            v(StatEffect::SkillCooldownPct, 100, 120),
+            v(StatEffect::RangePct, 250, 300),
+        ]
+    );
+}
+
+/// V2: the view follows the pick and the level; at 10 the next equals the present; 0 shows 1.
+#[test]
+fn the_view_follows_the_pick_and_the_level() {
+    let mut e = sword();
+    let view = e.snapshot().players[0]
+        .weapon_stats
+        .clone()
+        .expect("a view");
+    assert_eq!(view.level, 1, "level 0 shows level 1");
+    level_to(&mut e, 5);
+    tree_pick(&mut e, 1).expect("tempo");
+    let view = e.snapshot().players[0]
+        .weapon_stats
+        .clone()
+        .expect("a view");
+    assert_eq!(view.active.as_ref().map(|a| a.as_str()), Some("tempo"));
+    level_to(&mut e, 12);
+    let view = e.snapshot().players[0]
+        .weapon_stats
+        .clone()
+        .expect("a view");
+    assert_eq!(view.level, 10);
+    for stat in view.trees.iter().flat_map(|t| &t.stats).chain(&view.base) {
+        assert_eq!(stat.now, stat.next);
+    }
+}
+
+/// V3: no view in an offers run, without a gauge; the JSON has no key then; each player its own.
+#[test]
+fn no_view_without_equipment_or_content() {
+    let offers = Engine::start(&RunSetup {
+        mode: "time_limit".into(),
+        build_mode: BuildMode::Offers,
+        weapon: "giant_sword".into(),
+        ..RunSetup::default()
+    })
+    .expect("starts");
+    assert_eq!(offers.snapshot().players[0].weapon_stats, None);
+    let json = serde_json::to_value(&offers.snapshot().players[0]).expect("json");
+    assert!(json.get("weapon_stats").is_none());
+
+    let mut e = sword();
+    world_state(&mut e)
+        .1
+        .players
+        .career_mut(PlayerIdx::SOLO)
+        .expertise = None;
+    assert_eq!(e.snapshot().players[0].weapon_stats, None);
+
+    let mut party = Engine::start_party(
+        &RunSetup {
+            mode: "time_limit".into(),
+            build_mode: BuildMode::Equipment,
+            weapon: "giant_sword".into(),
+            ..RunSetup::default()
+        },
+        2,
+    )
+    .expect("a party");
+    level_to(&mut party, 5);
+    let snap = party.snapshot();
+    assert_eq!(
+        snap.players[0].weapon_stats.as_ref().map(|w| w.level),
+        Some(5)
+    );
+    assert_eq!(
+        snap.players[1].weapon_stats.as_ref().map(|w| w.level),
+        Some(1)
+    );
+}
+
+/// V4: the style pick's options are the view's trees, in order.
+#[test]
+fn the_style_pick_options_match_the_view() {
+    let mut e = sword();
+    level_to(&mut e, 3);
+    let snap = e.snapshot();
+    let ready = snap.players[0].tree_ready.clone().expect("a point");
+    let view = snap.players[0].weapon_stats.clone().expect("a view");
+    let trees: Vec<_> = view.trees.iter().map(|t| t.style.clone()).collect();
+    assert_eq!(ready.options, trees);
+}
