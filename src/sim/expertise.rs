@@ -600,7 +600,10 @@ pub(super) fn tree_pick(
         return Err(TreeError::NoTreePoint);
     };
     let (effect, amount, kind) = (c.effect, c.amount, next.kind);
-    apply(&mut g.range_pct, progress, player, effect, amount);
+    // A style adds nothing of its own: the tree's stat set is everything it gives.
+    if kind != ExpertiseOfferKind::Style {
+        apply(&mut g.range_pct, progress, player, effect, amount);
+    }
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(place);

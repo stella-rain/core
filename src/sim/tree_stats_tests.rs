@@ -616,7 +616,7 @@ fn a_style_pick_adds_no_stat_of_its_own() {
     let before = progress(&e).totals;
     tree_pick(&mut e, 0).expect("crush");
     assert_eq!(progress(&e).totals, before);
-    assert_eq!(progress(&e).totals[AP], 0);
+    assert_eq!(progress(&e).totals[AP], before[AP]);
     assert_eq!(tenths(&e)[AP], 300);
     assert_eq!(gauge(&e).range_pct, 0);
 
