@@ -261,11 +261,7 @@ impl PartyCase {
     }
 }
 
-/// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
-/// seeds are found where, in the middle of the run, each answers an offer of its own): the
-/// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
-/// is cleared; in time_limit slot 1 answers in the middle of the run and slot 2 is not offered one
-/// (no seed of 1 to 300 gives both).
+/// An equipment case: the scripted tutorial party of `party` in equipment mode.
 fn equipment(name: &'static str, party: u8) -> PartyCase {
     PartyCase {
         name,
@@ -283,6 +279,11 @@ fn equipment(name: &'static str, party: u8) -> PartyCase {
     }
 }
 
+/// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
+/// seeds are found where, in the middle of the run, each answers an offer of its own): the
+/// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
+/// is cleared; in time_limit slot 1 answers in the middle of the run and slot 2 is not offered one
+/// (no seed of 1 to 300 gives both).
 pub fn party_cases() -> Vec<PartyCase> {
     let at = |mode: &str, seed: u64| RunSetup {
         mode: mode.into(),

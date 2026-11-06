@@ -179,9 +179,8 @@ impl Run {
         if world.equipment_mode {
             world.drops = sim::DropTable::of(b.content.rewards());
         }
-        world.drop_weight_pct = b.setup.map_or(0, |setup| {
-            sim::Loadout::of(setup, b.content).drop_weight_pct()
-        });
+        let loadout = b.setup.map(|setup| sim::Loadout::of(setup, b.content));
+        world.drop_weight_pct = loadout.as_ref().map_or(0, sim::Loadout::drop_weight_pct);
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {
@@ -207,8 +206,7 @@ impl Run {
             b.stat_priority,
             b.pick_stats,
         );
-        if let Some(setup) = b.setup {
-            let loadout = sim::Loadout::of(setup, b.content);
+        if let Some(loadout) = loadout {
             // A run's setup loads the first player; the party grows with the per-player setup.
             sim::apply_loadout(
                 &world,
