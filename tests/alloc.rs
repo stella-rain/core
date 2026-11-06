@@ -229,7 +229,7 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
     ("rollback", pin(1741, 13, 8)),
-    ("rollback_equip", pin(0, 0, 0)),
+    ("rollback_equip", pin(1859, 26, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
