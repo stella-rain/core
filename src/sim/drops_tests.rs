@@ -482,3 +482,194 @@ fn the_perk_drop_weight_reaches_the_world() {
         40
     );
 }
+
+// --- the boss kill (ADR-SIM-7 point 5) ---------------------------------------------------------
+
+/// A party of `n` in equipment mode whose tiers top out at Uncommon, Rare and Epic from levels 1,
+/// 5 and 7, the members at `levels`; the pool holds one star of each of those rarities.
+fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
+    let (mut w, mut s) = party(n);
+    let stars = w.stage.stars.as_mut().expect("stars");
+    let weights = |top| match top {
+        Rarity::Uncommon => RarityWeights {
+            uncommon: 1,
+            ..RarityWeights::default()
+        },
+        Rarity::Rare => RarityWeights {
+            rare: 1,
+            ..RarityWeights::default()
+        },
+        _ => RarityWeights {
+            epic: 1,
+            ..RarityWeights::default()
+        },
+    };
+    stars.tiers = [(1, Rarity::Uncommon), (5, Rarity::Rare), (7, Rarity::Epic)]
+        .into_iter()
+        .map(|(from_level, top)| Tier {
+            from_level,
+            weights: weights(top),
+            random_rune_weight: None,
+        })
+        .collect();
+    let rw = rewards(
+        &[
+            ("u", "uncommon", false, 10),
+            ("r", "rare", false, 10),
+            ("e", "epic", false, 10),
+        ],
+        false,
+    );
+    w.drops = DropTable::of(&rw);
+    w.equipment_mode = true;
+    let f = s.stars.as_mut().expect("stars");
+    f.rarity = (Rarity::Common, Rarity::Supernova);
+    f.pool = vec![0, 1, 2];
+    f.rune_pool = FULL;
+    for i in 0..usize::from(n) {
+        s.players
+            .career_mut(slot(u8::try_from(i).unwrap()))
+            .progress
+            .as_mut()
+            .unwrap()
+            .level = levels[i];
+    }
+    (w, s)
+}
+
+fn inventory(s: &State, i: u8) -> Vec<Held> {
+    s.players.career(slot(i)).equipment.inventory.clone()
+}
+
+/// T10: a boss kill gives each member that is up personal drops at the rarity a boss offer would
+/// have had; a downed or out member gets none; the boss's drops come before a pickup's.
+#[test]
+fn a_boss_kill_gives_each_up_member_personal_drops() {
+    use super::party_fix_tests::{down, out};
+    let (w, mut s) = boss_party(3, [5, 7, 3]);
+    down(&mut s, 1);
+    out(&mut s, 2);
+    let mut again = s.clone();
+    stars::boss_killed(&w, &mut s);
+    // Among those up the highest level is 5: the Rare tier, the place 1 (or a rune).
+    let mine = inventory(&s, 0);
+    assert_eq!(mine.len(), usize::from(drops::BOSS_DROPS));
+    assert!(matches!(mine[0], Held::Star(1) | Held::Rune(_)), "{mine:?}");
+    assert!(inventory(&s, 1).is_empty() && inventory(&s, 2).is_empty());
+    assert!(
+        s.players
+            .career(slot(0))
+            .offers
+            .as_ref()
+            .unwrap()
+            .due
+            .is_empty()
+    );
+    // A pickup the same tick comes after.
+    drop_star(&mut again, 0, Rarity::Rare);
+    stars::boss_killed(&w, &mut again);
+    stars::pick_up(&w, &mut again, slot(0), &mut Vec::new());
+    let both = inventory(&again, 0);
+    assert_eq!(both.len(), usize::from(drops::BOSS_DROPS) + 1);
+    assert_eq!(both[..mine.len()], mine[..]);
+    // Nobody up, nobody gets one.
+    let (w, mut s) = boss_party(2, [7, 7, 1]);
+    down(&mut s, 0);
+    down(&mut s, 1);
+    stars::boss_killed(&w, &mut s);
+    assert!(inventory(&s, 0).is_empty() && inventory(&s, 1).is_empty());
+}
+
+/// T11: an equipment boss kill and a pickup offer nothing, solo or in a party.
+#[test]
+fn an_equipment_boss_kill_offers_nothing() {
+    for n in [1, 3] {
+        let (w, mut s) = boss_party(n, [7, 7, 7]);
+        drop_star(&mut s, 0, Rarity::Epic);
+        stars::boss_killed(&w, &mut s);
+        stars::pick_up(&w, &mut s, slot(0), &mut Vec::new());
+        for i in 0..n {
+            let career = s.players.career(slot(i));
+            let o = career.offers.as_ref().expect("offers");
+            assert!(o.due.is_empty() && o.offer.is_none(), "n {n} slot {i}");
+            assert_eq!(
+                career.equipment.inventory.len(),
+                usize::from(drops::BOSS_DROPS) + 1
+            );
+        }
+    }
+}
+
+// --- the joiner (ADR-SAVE-7 points 2 and 4) ----------------------------------------------------
+
+/// A solo state whose slot 0 holds two stars, a rune, Starlight, a tree point and a Lumine slot.
+fn rich() -> State {
+    use super::equipment::{EquipSlot, SlotKind};
+    let (_, mut s) = party(1);
+    let e = &mut s.players.career_mut(slot(0)).equipment;
+    e.inventory = vec![Held::Star(1), Held::Star(2), Held::Rune(Rune::Thunder)];
+    e.starlight = 5;
+    e.tree_points = 1;
+    e.lumine = Some(EquipSlot {
+        kind: SlotKind::Lumine,
+        held: Some(Held::Star(3)),
+        level: 1,
+        expertise: 0,
+    });
+    s
+}
+
+/// T12: a party member starts with an empty inventory and no Starlight or tree points.
+#[test]
+fn a_party_member_starts_with_an_empty_inventory() {
+    let s = rich();
+    let players = super::state::Players::party(3, &s.players, s.crit_seed);
+    let mine = players.career(slot(0));
+    assert_eq!(mine.equipment.inventory.len(), 3);
+    assert_eq!(
+        (mine.equipment.starlight, mine.equipment.tree_points),
+        (5, 1)
+    );
+    for i in 1..3 {
+        let e = &players.career(slot(i)).equipment;
+        assert!(e.inventory.is_empty(), "slot {i}");
+        assert_eq!((e.starlight, e.tree_points), (0, 0), "slot {i}");
+        assert_eq!(
+            e.lumine, mine.equipment.lumine,
+            "slot {i} keeps the Lumine slot"
+        );
+        assert_eq!(e.slots, mine.equipment.slots);
+    }
+}
+
+/// T13: a joiner, and a rejoiner, start empty too.
+#[test]
+fn a_joiner_starts_with_an_empty_inventory() {
+    use crate::engine::{Engine, Run};
+    use crate::run_setup::{BuildMode, RunSetup};
+    let s = rich();
+    let mut players = super::state::Players::party(2, &s.players, s.crit_seed);
+    players.leave(slot(1));
+    players.join(slot(1), &s.players.template(), s.crit_seed);
+    let e = &players.career(slot(1)).equipment;
+    assert!(e.inventory.is_empty() && e.starlight == 0 && e.tree_points == 0);
+    assert!(e.lumine.is_some());
+
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start(&setup).expect("starts");
+    if let Run::V2 { state, .. } = e.run_mut() {
+        state.players.career_mut(slot(0)).equipment.inventory = vec![Held::Star(0); 2];
+    }
+    for round in 0..2 {
+        e.join(slot(1)).expect("joins");
+        let Run::V2 { state, .. } = e.run() else {
+            panic!("the live rules")
+        };
+        assert!(inventory(state, 1).is_empty(), "round {round}");
+        assert_eq!(inventory(state, 0).len(), 2);
+        e.leave(slot(1)).expect("leaves");
+    }
+}
