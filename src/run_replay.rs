@@ -1847,6 +1847,59 @@ mod tests {
         );
     }
 
+    /// L6: the two lock refusals read as the plan names them.
+    #[test]
+    fn the_lock_refusals_read_well() {
+        let say = |error| RunReplayError::ActionRefused { tick: 7, error }.to_string();
+        assert_eq!(
+            say(ActionError::Downed),
+            "an equipment action on tick 7 is made by a downed player, whose equipment window \
+             is locked until a teammate revives it"
+        );
+        assert_eq!(
+            say(ActionError::Out),
+            "an equipment action on tick 7 is made by a player who is out of the run"
+        );
+    }
+
+    /// L7: the recorder's `step` drops a downed member's action and goes on; `actions` refuses it.
+    #[test]
+    fn the_recorder_drops_a_downed_action_and_refuses_it_direct() {
+        use crate::engine::Run;
+        use crate::run_setup::BuildMode;
+        let setup = RunSetup {
+            build_mode: BuildMode::Equipment,
+            pick_stats: false,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
+        if let Run::V2 { state, .. } = rec.engine.run_mut() {
+            let one = crate::id::PlayerIdx::new(1).unwrap();
+            state.players[one].hp = 0;
+        }
+        let act = EquipAction::Equip { item: 0, slot: 5 };
+        let acting = Input {
+            action: Some(act),
+            ..Input::default()
+        };
+        rec.step(&[Input::default(), acting, Input::default()])
+            .unwrap();
+        assert_eq!(rec.engine().tick(), 1, "the run went on");
+        assert!(
+            rec.records
+                .iter()
+                .all(|r| !matches!(r, super::Record::Actions { .. })),
+            "no ACTIONS step was recorded"
+        );
+        assert_eq!(
+            rec.actions(&[None, Some(act), None]).unwrap_err(),
+            RunReplayError::ActionRefused {
+                tick: 1,
+                error: ActionError::Downed
+            }
+        );
+    }
+
     #[test]
     fn a_replay_with_an_action_step_loads_and_ranges_but_does_not_verify() {
         use crate::pack::Pack;
