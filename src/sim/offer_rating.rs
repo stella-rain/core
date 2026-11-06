@@ -409,4 +409,380 @@ mod tests {
             }
         }
     }
+
+    // --- swap_ratings: the star rated against each slot it could go in -------------------------
+
+    mod swaps {
+        use super::super::*;
+        use crate::constellations::Constellations;
+        use crate::rewards::Rarity;
+        use crate::run_content::RunContent;
+        use crate::sim::equipment::Held;
+        use crate::sim::{RunDifficulty, RunPool, initial_state, slots};
+        use crate::snapshot::Category::{Attack, Defence};
+        use crate::snapshot::{SwapItem, SwapRating};
+        use crate::version::Versions;
+        use serde_json::{Value, json};
+
+        const ME: PlayerIdx = PlayerIdx::SOLO;
+
+        struct Fixture {
+            world: World,
+            rewards: Rewards,
+            s: State,
+        }
+
+        fn effect(kind: &str, amount: u32) -> Value {
+            json!({ "effect": kind, "amount": amount })
+        }
+
+        fn star(id: &str, effects: Vec<Value>) -> Value {
+            json!({ "id": id, "rarity": "common", "limit": 3, "effects": effects })
+        }
+
+        fn named(id: &str, effects: Vec<Value>) -> Value {
+            json!({ "id": id, "rarity": "epic", "limit": 1, "named": true, "star": id,
+                    "effects": effects })
+        }
+
+        /// The stars of the worked numbers.
+        fn list() -> Vec<Value> {
+            vec![
+                star("atk20", vec![effect("attack_pct", 20)]),
+                star("atk30", vec![effect("attack_pct", 30)]),
+                star("atk5", vec![effect("attack_pct", 5)]),
+                star("crit10", vec![effect("crit_chance_pct", 10)]),
+                named("crit5", vec![effect("crit_chance_pct", 5)]),
+                named("speed", vec![effect("speed_pct", 10)]),
+                star("hp100", vec![effect("max_hp", 100)]),
+                star("hp250", vec![effect("max_hp", 250)]),
+                star("random_rune", vec![json!({ "effect": "random_rune" })]),
+            ]
+        }
+
+        fn duo() -> Value {
+            json!({ "constellations": [{
+                "id": "duo", "name": "The duo", "members": ["speed", "crit5"],
+                "tiers": [{ "threshold": 2, "effects": [effect("attack_pct", 7)] }]
+            }] })
+        }
+
+        fn rarities() -> Vec<Value> {
+            [
+                "common",
+                "uncommon",
+                "rare",
+                "epic",
+                "legendary",
+                "supernova",
+            ]
+            .iter()
+            .enumerate()
+            .map(|(i, r)| json!({ "rarity": r, "lumine_cost": i + 1 }))
+            .collect()
+        }
+
+        /// One active phase of 10 ticks reaching the enemies.
+        fn swing() -> Value {
+            json!([{ "kind": "active", "ticks": 10,
+                     "hit_box": { "type": "circle", "offset": { "forward": 1_024 },
+                                  "radius": 16_384 } }])
+        }
+
+        fn weapon(phases: Value) -> Value {
+            json!({ "inline": {
+                "combo": { "main": { "attack": { "inline": phases } } },
+                "window_ticks": 30,
+                "assist_range": 0
+            } })
+        }
+
+        fn fixture_with(phases: Value, sets: Option<Value>, lumine: bool) -> Fixture {
+            let file = json!({ "rarities": rarities(), "rewards": list() });
+            let mut rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
+                .expect("the test rewards validate");
+            if let Some(v) = sets {
+                let c = Constellations::parse_with(
+                    v.to_string().as_bytes(),
+                    Versions::CURRENT,
+                    &rewards,
+                )
+                .expect("the test sets validate");
+                rewards = rewards.with_constellations(c);
+            }
+            let mut stage = RunContent::bundled().trial().clone();
+            stage.player.atk = 1000;
+            stage.player.weapon = serde_json::from_value(weapon(phases)).expect("the weapon");
+            let world = World::for_test(stage);
+            let pool = RunPool {
+                rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
+                extra_rerolls: 0,
+                difficulty: RunDifficulty {
+                    hp_pct: 100,
+                    damage_pct: 100,
+                    rarity: (Rarity::Common, Rarity::Supernova),
+                },
+            };
+            let mut s = initial_state(
+                &world,
+                RunContent::bundled(),
+                pool,
+                1,
+                crate::kinds::KindTable::of_stage(&world).unwrap(),
+            );
+            let eq = &mut s.players.career_mut(ME).equipment;
+            eq.slots = slots::fresh_slots();
+            if lumine {
+                eq.lumine = Some(crate::sim::equipment::EquipSlot {
+                    kind: crate::sim::equipment::SlotKind::Lumine,
+                    held: None,
+                    level: 0,
+                    expertise: 0,
+                });
+            }
+            Fixture { world, rewards, s }
+        }
+
+        fn fixture() -> Fixture {
+            fixture_with(swing(), None, false)
+        }
+
+        impl Fixture {
+            fn place(&self, id: &str) -> u16 {
+                u16::try_from(self.rewards.index_of(&id.into()).expect(id)).unwrap()
+            }
+
+            /// Puts the star `id` into slot `at` at `level`, writing the change.
+            fn equip(&mut self, at: usize, id: &str, level: u8) {
+                let place = self.place(id);
+                let (player, career) = self.s.players.both_mut(ME);
+                let before: Vec<u16> = slots::equipped(&career.equipment).collect();
+                career.equipment.slots[at].held = Some(Held::Star(place));
+                career.equipment.slots[at].level = level;
+                slots::refresh(&self.world, &self.rewards, player, career, &before);
+            }
+
+            /// Puts the star `id` at the end of the inventory; its index.
+            fn hold(&mut self, id: &str) -> u32 {
+                let place = self.place(id);
+                let inv = &mut self.s.players.career_mut(ME).equipment.inventory;
+                inv.push(Held::Star(place));
+                u32::try_from(inv.len() - 1).unwrap()
+            }
+
+            fn rate(&self, item: SwapItem) -> Vec<SwapRating> {
+                swap_ratings(&self.world, &self.rewards, &self.s, ME, item)
+            }
+
+            fn rate_item(&self, i: u32) -> Vec<SwapRating> {
+                self.rate(SwapItem::Inventory(i))
+            }
+        }
+
+        fn slots_of(r: &[SwapRating]) -> Vec<u32> {
+            r.iter().map(|x| x.slot).collect()
+        }
+
+        fn at(r: &[SwapRating], slot: u32) -> &SwapRating {
+            r.iter().find(|x| x.slot == slot).expect("slot is rated")
+        }
+
+        fn change(stat: StatKind, before: u32, after: u32) -> StatChange {
+            StatChange {
+                stat,
+                before,
+                after,
+            }
+        }
+
+        /// T1: an equip into an empty slot, against the Attack slots only.
+        #[test]
+        fn an_equip_into_an_empty_slot() {
+            let mut f = fixture();
+            let i = f.hold("atk20");
+            let r = f.rate_item(i);
+            assert_eq!(slots_of(&r), [0, 1, 2, 3, 4]);
+            assert_eq!(
+                *at(&r, 0),
+                SwapRating {
+                    slot: 0,
+                    replaces: false,
+                    switch: false,
+                    level_before: 0,
+                    level_after: 1,
+                    categories: vec![Attack],
+                    dps_bp: Some(2000),
+                    set_gained: None,
+                    set_lost: None,
+                    changes: vec![change(StatKind::AttackPct, 0, 20)],
+                }
+            );
+        }
+
+        /// T2: a replace can lower the damage; the other slots are equips against the build
+        /// that still holds the star.
+        #[test]
+        fn a_replace_is_signed() {
+            let mut f = fixture();
+            f.equip(0, "atk20", 1);
+            let i = f.hold("crit10");
+            let r = f.rate_item(i);
+            let first = at(&r, 0);
+            assert!(first.replaces && !first.switch);
+            assert_eq!(first.dps_bp, Some(-833));
+            assert_eq!(
+                first.changes,
+                [
+                    change(StatKind::AttackPct, 20, 0),
+                    change(StatKind::CritChancePct, 0, 10)
+                ]
+            );
+            for slot in 1..=4 {
+                let x = at(&r, slot);
+                assert!(!x.replaces);
+                assert_eq!(x.dps_bp, Some(1000));
+            }
+        }
+
+        /// T3: a same-option switch keeps the whole level and is the only slot left.
+        #[test]
+        fn a_switch_keeps_the_level() {
+            let mut f = fixture();
+            f.equip(0, "atk20", 4);
+            let i = f.hold("atk30");
+            let r = f.rate_item(i);
+            assert_eq!(slots_of(&r), [0]);
+            let x = &r[0];
+            assert!(x.replaces && x.switch);
+            assert_eq!((x.level_before, x.level_after), (4, 4));
+            assert_eq!(x.dps_bp, Some(833));
+        }
+
+        /// T4: a slot the check refuses is absent, and so is every item that cannot be rated.
+        #[test]
+        fn refusals_are_absent() {
+            let mut f = fixture();
+            let i = f.hold("hp100");
+            assert_eq!(slots_of(&f.rate_item(i)), [5, 6]);
+            let mut f = fixture_with(swing(), None, true);
+            let i = f.hold("hp100");
+            assert_eq!(slots_of(&f.rate_item(i)), [5, 6, 12]);
+
+            let mut f = fixture();
+            let rr = f.hold("random_rune");
+            assert!(f.rate_item(rr).is_empty());
+            let eq = &mut f.s.players.career_mut(ME).equipment;
+            eq.inventory.push(Held::Rune(crate::rune::Rune::Thunder));
+            let rune = u32::try_from(eq.inventory.len() - 1).unwrap();
+            assert!(f.rate_item(rune).is_empty());
+            assert!(f.rate_item(99).is_empty());
+            assert!(f.rate(SwapItem::Star("nope".into())).is_empty());
+        }
+
+        /// T5: a star not held rates like the same star held, on a clone.
+        #[test]
+        fn a_star_not_held_rates_as_held() {
+            let held = {
+                let mut f = fixture();
+                let i = f.hold("atk20");
+                f.rate_item(i)
+            };
+            let f = fixture();
+            let r = f.rate(SwapItem::Star("atk20".into()));
+            assert_eq!(r, held);
+            assert!(f.s.players.career(ME).equipment.inventory.is_empty());
+        }
+
+        /// T6: a star with no modelled effect has no damage rating.
+        #[test]
+        fn a_star_that_is_not_damage() {
+            let mut f = fixture();
+            let h = f.s.players[ME].max_hp;
+            let i = f.hold("hp100");
+            let r = f.rate_item(i);
+            let x = at(&r, 5);
+            assert_eq!(x.dps_bp, None);
+            assert_eq!(x.categories, [Defence]);
+            assert_eq!(x.changes, [change(StatKind::MaxHp, h, h + 100)]);
+        }
+
+        /// T7: a displaced star that is not damage either.
+        #[test]
+        fn a_displaced_star_that_is_not_damage() {
+            let mut f = fixture();
+            f.equip(5, "hp100", 1);
+            let h = f.s.players[ME].max_hp;
+            let i = f.hold("hp250");
+            let r = f.rate_item(i);
+            let x = at(&r, 5);
+            assert!(x.switch);
+            assert_eq!(x.dps_bp, None);
+            assert_eq!(x.changes, [change(StatKind::MaxHp, h, h + 150)]);
+        }
+
+        /// T8: a set tier gained or lost is run by the rules and rated.
+        #[test]
+        fn sets_gained_and_lost() {
+            let mut f = fixture_with(swing(), Some(duo()), false);
+            f.equip(7, "speed", 1);
+            let i = f.hold("crit5");
+            let r = f.rate_item(i);
+            let x = at(&r, 0);
+            assert_eq!(x.dps_bp, Some(1235));
+            assert_eq!((x.set_gained, x.set_lost), (Some(1), None));
+            assert!(x.changes.contains(&change(StatKind::AttackPct, 0, 7)));
+
+            let mut f = fixture_with(swing(), Some(duo()), false);
+            f.equip(7, "speed", 1);
+            f.equip(0, "crit5", 1);
+            let i = f.hold("atk5");
+            let x = at(&f.rate_item(i), 0).clone();
+            assert!(x.replaces && !x.switch);
+            assert_eq!(x.dps_bp, Some(-654));
+            assert_eq!((x.set_gained, x.set_lost), (None, Some(1)));
+        }
+
+        /// T9: a weapon with no active phase has no damage to rate.
+        #[test]
+        fn an_empty_weapon_rates_no_damage() {
+            let phases = json!([{ "kind": "wind_up", "ticks": 10,
+                "hit_box": { "type": "circle", "offset": { "forward": 1_024 },
+                             "radius": 16_384 } }]);
+            let mut f = fixture_with(phases, None, false);
+            let i = f.hold("atk20");
+            let r = f.rate_item(i);
+            assert_eq!(r.len(), 5);
+            assert!(r.iter().all(|x| x.dps_bp.is_none()));
+            assert_eq!(at(&r, 0).changes, [change(StatKind::AttackPct, 0, 20)]);
+        }
+
+        /// T10: the state is not touched, and two calls agree.
+        #[test]
+        fn the_query_reads_and_changes_nothing() {
+            let mut f = fixture_with(swing(), Some(duo()), false);
+            f.equip(7, "speed", 1);
+            let i = f.hold("crit5");
+            f.hold("atk20");
+            let hash = crate::sim::state_hash(&f.s);
+            let (career, player) = (f.s.players.career(ME).clone(), f.s.players[ME].clone());
+            let first = f.rate_item(i);
+            assert_eq!(f.rate_item(i), first);
+            assert_eq!(crate::sim::state_hash(&f.s), hash);
+            let after = f.s.players.career(ME);
+            assert_eq!(after.equipment, career.equipment);
+            assert_eq!(after.progress, career.progress);
+            assert_eq!(after.offers, career.offers);
+            assert_eq!(after.expertise, career.expertise);
+            assert_eq!(f.s.players[ME], player);
+        }
+
+        /// The signed core: the ratio rounds half up and a loss is negative.
+        #[test]
+        fn delta_bp_is_signed() {
+            let rate = |damage| Rate { damage, ticks: 1 };
+            assert_eq!(rate(100).delta_bp(&rate(120)), 2000);
+            assert_eq!(rate(120).delta_bp(&rate(110)), -833);
+            assert_eq!(rate(100).gain_bp(&rate(90)), 0);
+        }
+    }
 }
