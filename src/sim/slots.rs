@@ -377,3 +377,42 @@ fn apply(
         refresh(stage, rewards, player, career, &before);
     }
 }
+
+/// Whether `a` and `b` are the same layout: the same kinds in the same order. What a savepoint
+/// checks of the slots it restores against the fresh engine's.
+pub(crate) fn same_layout(a: &[EquipSlot], b: &[EquipSlot]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| match (x.kind, y.kind) {
+            (SlotKind::Category(i), SlotKind::Category(j)) => i == j,
+            (SlotKind::Rune, SlotKind::Rune) | (SlotKind::Lumine, SlotKind::Lumine) => true,
+            _ => false,
+        })
+}
+
+/// Whether every slot holds the kind of item it takes: a rune slot a rune, a category slot and the
+/// Lumine slot a star; the Lumine slot is of the Lumine kind.
+pub(crate) fn holds_right_kinds(equipment: &Equipment) -> bool {
+    let right = |s: &EquipSlot| match (s.kind, s.held) {
+        (SlotKind::Rune, Some(Held::Star(_)))
+        | (SlotKind::Category(_) | SlotKind::Lumine, Some(Held::Rune(_))) => false,
+        _ => true,
+    };
+    equipment.slots.iter().all(right)
+        && equipment
+            .lumine
+            .as_ref()
+            .is_none_or(|l| matches!(l.kind, SlotKind::Lumine) && right(l))
+}
+
+/// Whether the runes the Main fires are the rune slots filled, in slot order (their cooldowns are
+/// free).
+pub(crate) fn runes_match_slots(equipment: &Equipment, runes: &[HeldRune]) -> bool {
+    let filled = equipment
+        .slots
+        .iter()
+        .filter_map(|s| match (s.kind, s.held) {
+            (SlotKind::Rune, Some(Held::Rune(r))) => Some(r),
+            _ => None,
+        });
+    filled.eq(runes.iter().map(|h| h.rune))
+}

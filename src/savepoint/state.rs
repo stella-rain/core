@@ -454,6 +454,21 @@ macro_rules! state_codec_v2 {
                     &fresh.players.career(PlayerIdx::SOLO).equipment.lumine,
                     "lumine presence differs from the setup",
                 )?;
+                // Equipment mode: the slots are the fresh engine's layout, each holds the kind
+                // of item it takes, and the runes the Main fires are the rune slots filled.
+                let fresh_slots = &fresh.players.career(PlayerIdx::SOLO).equipment.slots;
+                let career = s.players.career(me);
+                if !crate::sim::same_layout(&career.equipment.slots, fresh_slots) {
+                    return Err(differs("equipment slots differ from the layout"));
+                }
+                if !crate::sim::holds_right_kinds(&career.equipment) {
+                    return Err(differs("equipment slot holds the wrong kind"));
+                }
+                if !fresh_slots.is_empty()
+                    && !crate::sim::runes_match_slots(&career.equipment, &s.players[me].runes)
+                {
+                    return Err(differs("runes differ from the rune slots"));
+                }
                 if let (Some(p), Some(f)) = (
                     &s.players.career(me).progress,
                     &fresh.players.career(PlayerIdx::SOLO).progress,
