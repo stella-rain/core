@@ -9,6 +9,7 @@
 //! player as an equip does. Nothing here draws, emits an event or allocates inside a tick.
 
 use super::equipment::{Equipment, Held};
+use super::state::State;
 use crate::rewards::{Rarity, Rewards};
 
 /// The Starlight an extracted star gives, by `Rarity::index()`. A placeholder: the pack will
@@ -71,4 +72,15 @@ pub(super) fn extract(
         .starlight
         .saturating_add(extract_value(rewards, held));
     Ok(())
+}
+
+/// A boss kill: every present player that is up gets `BOSS_BONUS`, added with `saturating_add`.
+/// A downed or out player gets none, as with the boss's drops. No draw, no event, no allocation.
+pub(super) fn boss_bonus(s: &mut State) {
+    for me in s.players.indices() {
+        if s.players[me].is_up() {
+            let equipment = &mut s.players.career_mut(me).equipment;
+            equipment.starlight = equipment.starlight.saturating_add(BOSS_BONUS);
+        }
+    }
 }
