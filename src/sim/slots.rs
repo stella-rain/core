@@ -177,16 +177,25 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
-/// Placeholder: the rule lands in the next commit.
-#[allow(dead_code)]
-pub(super) fn keep_fraction(hp: u32, _was: u32, now: u32) -> u32 {
-    hp.min(now)
+/// The hit points a swap leaves when the most hit points go from `was` to `now`: the same
+/// fraction, rounded down, so swapping a star in and out never heals. A player at 0 stays at 0 and
+/// a living one never reaches 0; `was` of 0 only clamps.
+pub(super) fn keep_fraction(hp: u32, was: u32, now: u32) -> u32 {
+    if hp == 0 {
+        return 0;
+    }
+    if was == 0 {
+        return hp.min(now);
+    }
+    let kept = u64::from(hp) * u64::from(now) / u64::from(was);
+    u32::try_from(kept).unwrap_or(u32::MAX).max(1).min(now)
 }
 
 /// Writes the change of what is equipped: `before` is the stars equipped before the change, with
 /// their levels, in slot order (empty for nothing), the equipment of `career` holds the set after. The build and
 /// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
-/// the members equipped.
+/// the members equipped. A change of the most hit points leaves the hit points at the same
+/// fraction (`keep_fraction`), not the heal or clamp the build's write did.
 pub(super) fn refresh(
     stage: &World,
     rewards: &Rewards,
@@ -212,7 +221,11 @@ pub(super) fn refresh(
     };
     let was = Build::of_levelled(stage, rewards, before);
     let now = Build::of_levelled(stage, rewards, &after_levels);
+    let (hp_was, max_was) = (player.hp, player.max_hp);
     Build::write(&was, &now, player, progress, regen, o);
+    if player.max_hp != max_was {
+        player.hp = keep_fraction(hp_was, max_was, player.max_hp);
+    }
     Grants::write(
         &Grants::of(rewards, &before_places),
         &Grants::of(rewards, &after),
