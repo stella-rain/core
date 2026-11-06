@@ -191,6 +191,21 @@ pub enum ExpertiseOfferKind {
     Capstone,
 }
 
+/// A weapon tree point a player holds in the equipment build (ADR-SIM-7): nothing is opened and
+/// the world is not stopped; the player takes it with `TreePick`, whose `option` indexes `options`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TreeReadyView {
+    /// Style, Upgrade or Capstone: the next pick's kind.
+    pub kind: ExpertiseOfferKind,
+    /// The level table's level of this pick.
+    pub level: u32,
+    /// The points held, at least 1.
+    pub held: u8,
+    /// The choices, in the order `TreePick.option` indexes.
+    pub options: Vec<ContentId>,
+}
+
 /// An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's
 /// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
 /// fixed choices, with no reroll. None has a skip or a banish.
@@ -625,6 +640,10 @@ pub struct PlayerView {
     /// offers mode.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pool_held: Vec<bool>,
+    /// The weapon tree point it holds (equipment mode); absent in offers mode and while none is
+    /// held.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tree_ready: Option<TreeReadyView>,
     /// Its equipment slots in layout order, then the Lumine slot last when the run has one
     /// (equipment mode; empty in offers mode). An action addresses them by this order: an index
     /// into the list, the Lumine slot one past the others.

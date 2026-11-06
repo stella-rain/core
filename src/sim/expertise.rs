@@ -36,6 +36,14 @@
 //!
 //! Past the table's last level (at most 10) every level is a common offer; with no pool the
 //! levels due are passed over at once, so the offers' cost stays bounded too.
+//!
+//! In the equipment build no expertise offer opens and nothing stops the world. A common level
+//! takes one automatic option, no draw: the best option of the chosen tree's `TREE_COMMON` list,
+//! else the option the stat priority ranks first. The levels of the table are tree points, held
+//! until the player takes them by `TreePick`, in path order (style, upgrade, upgrade, capstone).
+//! Levels above the capstone are common and applied as one batch. The tree is read when the
+//! levels are passed (the tick they are reached): a common level reached before the style is
+//! taken uses the priority, one reached after it the tree's list.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -45,9 +53,9 @@ use crate::expertise::{
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
+use crate::sim::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, Progress, State};
 use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
+    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, TreeReadyView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
@@ -169,10 +177,10 @@ fn pool<'a>(stage: &World, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
 }
 
 /// One choice an offer can hold: a common option, a style, or a choice of a style's path.
-struct Choice<'a> {
-    id: &'a ContentId,
-    effect: ExpertiseEffect,
-    amount: u32,
+pub(super) struct Choice<'a> {
+    pub(super) id: &'a ContentId,
+    pub(super) effect: ExpertiseEffect,
+    pub(super) amount: u32,
 }
 
 impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
@@ -264,6 +272,337 @@ fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
     places(pool).any(|i| eligible(pool, i, held))
 }
 
+// --- the equipment build: automatic common levels ---------------------------------------------
+
+/// PLACEHOLDER (content row for the pack): the stat a common level gives by the weapon tree
+/// (the chosen style's `id`), best first. A tree takes the first effect of its list that the
+/// weapon's common pool carries; the pack replaces this table with a field of each style
+/// (ADR-CONT-3 point 8).
+pub(super) const TREE_COMMON: [(&str, &[ExpertiseEffect]); 6] = [
+    (
+        "crush",
+        &[
+            ExpertiseEffect::AttackPct,
+            ExpertiseEffect::MaxHp,
+            ExpertiseEffect::AttackSpeedPct,
+        ],
+    ),
+    (
+        "quake",
+        &[
+            ExpertiseEffect::RangePct,
+            ExpertiseEffect::AttackPct,
+            ExpertiseEffect::AttackSpeedPct,
+        ],
+    ),
+    (
+        "bulwark",
+        &[
+            ExpertiseEffect::MaxHp,
+            ExpertiseEffect::EvadePct,
+            ExpertiseEffect::SpeedPct,
+        ],
+    ),
+    (
+        "edge",
+        &[
+            ExpertiseEffect::AttackPct,
+            ExpertiseEffect::AttackSpeedPct,
+            ExpertiseEffect::RangePct,
+        ],
+    ),
+    (
+        "tempo",
+        &[
+            ExpertiseEffect::AttackSpeedPct,
+            ExpertiseEffect::SpeedPct,
+            ExpertiseEffect::AttackPct,
+        ],
+    ),
+    (
+        "reach",
+        &[
+            ExpertiseEffect::RangePct,
+            ExpertiseEffect::AttackPct,
+            ExpertiseEffect::AttackSpeedPct,
+        ],
+    ),
+];
+
+/// The place in `w`'s common pool a common level takes in the equipment build: the first
+/// effect of the chosen style's `TREE_COMMON` list that the pool carries; else, with no style, a
+/// style the table does not name or no match, the option whose stat the player's priority ranks
+/// first (an option with no stat, or whose stat no run stat carries, ranks last; ties go to the
+/// pool order). `None` for an empty pool. Draws nothing.
+pub(super) fn auto_option(w: &WeaponExpertise, style: Option<u8>, p: &Progress) -> Option<usize> {
+    let tree = style
+        .and_then(|i| w.styles.get(usize::from(i)))
+        .and_then(|st| TREE_COMMON.iter().find(|(id, _)| *id == st.id.as_str()));
+    if let Some((_, list)) = tree {
+        for effect in *list {
+            if let Some(at) = w.common.iter().position(|o| o.effect == *effect) {
+                return Some(at);
+            }
+        }
+    }
+    let rank = |o: &ExpertiseOption| {
+        o.effect
+            .stat()
+            .and_then(|stat| {
+                p.priority.iter().position(|&i| {
+                    p.stats
+                        .get(usize::from(i))
+                        .is_some_and(|rule| rule.effect == stat)
+                })
+            })
+            .unwrap_or(usize::MAX)
+    };
+    w.common
+        .iter()
+        .enumerate()
+        .min_by_key(|(i, o)| (rank(o), *i))
+        .map(|(i, _)| i)
+}
+
+/// The equipment build's pass over the levels due to `me`: no offer opens and nothing is
+/// drawn. The levels of the style path are tree points (held, see the tree rules); every other
+/// level takes one automatic common option, the same for all of them since the tree and the
+/// priority do not change inside the pass, so they are applied as one batch.
+fn equipment_pass(
+    stage: &World,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    let (player, career) = s.players.both_mut(me);
+    let crate::sim::state::Career {
+        progress,
+        expertise: g,
+        ..
+    } = career;
+    let Some(g) = g.as_mut() else {
+        return;
+    };
+    if g.offered >= g.level {
+        return;
+    }
+    let (from, to) = (g.offered, g.level);
+    g.offered = to;
+    let tree = stage
+        .level_table()
+        .levels()
+        .iter()
+        .filter(|l| **l > from && **l <= to)
+        .count();
+    let n = (to - from).saturating_sub(u32::try_from(tree).unwrap_or(u32::MAX));
+    if n == 0 {
+        return;
+    }
+    let Some(w) = content(stage, expertise) else {
+        return;
+    };
+    let Some(at) = progress.as_ref().and_then(|p| auto_option(w, g.style, p)) else {
+        return;
+    };
+    let (Some(picked), Some(times)) = (w.common.get(at), g.taken.get_mut(at)) else {
+        return;
+    };
+    *times = times.saturating_add(u8::try_from(n).unwrap_or(u8::MAX));
+    let taken = *times;
+    apply(
+        &mut g.range_pct,
+        progress,
+        player,
+        picked.effect,
+        picked.amount.saturating_mul(n),
+    );
+    events.push(DomainEvent::ExpertiseOptionTaken {
+        option: picked.id.clone(),
+        taken,
+    });
+}
+
+// --- the equipment build: tree points ----------------------------------------------------------
+
+/// Why a tree pick is refused (the engine's `ActionError` maps it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TreeError {
+    /// No point is held: none earned, all taken, no gauge, or no expertise content.
+    NoTreePoint,
+    /// `option` is not below the `options` the next pick has.
+    NoTreeOption { option: u32, options: u32 },
+}
+
+/// How many tree points the levels up to `level` have earned: the table's levels reached.
+pub(super) fn tree_earned(table: &LevelTable, level: u32) -> u8 {
+    let n = table.levels().iter().filter(|l| **l <= level).count();
+    u8::try_from(n).unwrap_or(u8::MAX)
+}
+
+/// How many tree points the gauge has taken: the style, then the path.
+fn tree_taken(g: &ExpertiseGauge) -> u8 {
+    u8::from(g.style.is_some()).saturating_add(u8::try_from(g.path.len()).unwrap_or(u8::MAX))
+}
+
+/// The next tree pick of a gauge that holds a point.
+pub(super) struct TreeNext<'a> {
+    pub(super) kind: ExpertiseOfferKind,
+    /// The table level of this pick.
+    pub(super) level: u32,
+    /// The points held, at least 1.
+    pub(super) held: u8,
+    /// The choices, in the order `TreePick.option` indexes.
+    pub(super) choices: Vec<Choice<'a>>,
+}
+
+/// The next tree pick, or none: not the equipment build, no expertise content, or no point held.
+/// The points are derived (held = earned - taken) and taken in path order.
+pub(super) fn tree_next<'a>(
+    stage: &World,
+    expertise: &'a Expertise,
+    g: &ExpertiseGauge,
+) -> Option<TreeNext<'a>> {
+    if !stage.equipment_mode {
+        return None;
+    }
+    content(stage, expertise)?;
+    let table = stage.level_table();
+    let taken = tree_taken(g);
+    let held = tree_earned(&table, g.level).saturating_sub(taken);
+    if held == 0 {
+        return None;
+    }
+    let (kind, level) = match taken {
+        0 => (ExpertiseOfferKind::Style, table.style),
+        1 => (ExpertiseOfferKind::Upgrade, table.upgrades[0]),
+        2 => (ExpertiseOfferKind::Upgrade, table.upgrades[1]),
+        3 => (ExpertiseOfferKind::Capstone, table.capstone),
+        _ => return None,
+    };
+    Some(TreeNext {
+        kind,
+        level,
+        held,
+        choices: fixed(stage, expertise, g, level),
+    })
+}
+
+/// Whether `me` could take choice `option` of the next tree pick. Read-only.
+pub(super) fn check_tree_pick(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    let g = s.players.career(me).expertise.as_ref();
+    let next = g
+        .and_then(|g| tree_next(stage, expertise, g))
+        .ok_or(TreeError::NoTreePoint)?;
+    let options = u32::try_from(next.choices.len()).unwrap_or(u32::MAX);
+    if option >= options {
+        return Err(TreeError::NoTreeOption { option, options });
+    }
+    Ok(())
+}
+
+/// Takes choice `option` of the next tree pick: its effect, and the style or the path. No event,
+/// no draw.
+pub(super) fn tree_pick(
+    stage: &World,
+    expertise: &Expertise,
+    s: &mut State,
+    me: PlayerIdx,
+    option: u32,
+) -> Result<(), TreeError> {
+    check_tree_pick(stage, expertise, s, me, option)?;
+    let (player, career) = s.players.both_mut(me);
+    let crate::sim::state::Career {
+        progress,
+        expertise: g,
+        ..
+    } = career;
+    let Some(g) = g.as_mut() else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let Some(next) = tree_next(stage, expertise, g) else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let place = u8::try_from(option).map_err(|_| TreeError::NoTreeOption {
+        option,
+        options: u32::try_from(next.choices.len()).unwrap_or(u32::MAX),
+    })?;
+    let Some(c) = next.choices.get(usize::from(place)) else {
+        return Err(TreeError::NoTreePoint);
+    };
+    let (effect, amount, kind) = (c.effect, c.amount, next.kind);
+    apply(&mut g.range_pct, progress, player, effect, amount);
+    if kind == ExpertiseOfferKind::Style {
+        g.style = Some(place);
+    } else {
+        g.path.push(place);
+    }
+    Ok(())
+}
+
+/// What the frontend shows of `me`'s waiting tree point: none in the offers build or while no
+/// point is held.
+pub(crate) fn tree_ready_view(
+    stage: &World,
+    expertise: &Expertise,
+    s: &State,
+    me: PlayerIdx,
+) -> Option<TreeReadyView> {
+    let g = s.players.career(me).expertise.as_ref()?;
+    let next = tree_next(stage, expertise, g)?;
+    Some(TreeReadyView {
+        kind: next.kind,
+        level: next.level,
+        held: next.held,
+        options: next.choices.iter().map(|c| c.id.clone()).collect(),
+    })
+}
+
+/// Whether a loaded gauge could have been reached: the tree taken is within the points the level
+/// earned, the style is one of the weapon's and each place of the path is one of its level's
+/// choices. A message for the first it fails; the check does not change the layout.
+pub(crate) fn check_tree(
+    stage: &World,
+    expertise: &Expertise,
+    g: &ExpertiseGauge,
+) -> Result<(), &'static str> {
+    let table = stage.level_table();
+    let taken = tree_taken(g);
+    let past = "expertise tree taken past the level";
+    if taken > tree_earned(&table, g.level) || (g.style.is_none() && !g.path.is_empty()) {
+        return Err(past);
+    }
+    let out = "expertise tree place out of range";
+    let Some(w) = content(stage, expertise) else {
+        return if taken == 0 { Ok(()) } else { Err(past) };
+    };
+    if g.style.is_some_and(|i| usize::from(i) >= w.styles.len()) {
+        return Err(out);
+    }
+    // A place indexes the list of the level it was taken at, which an offers run's out player may
+    // have passed over, so it is held to the longest of the style's three lists.
+    let longest = g
+        .style
+        .and_then(|i| w.styles.get(usize::from(i)))
+        .map_or(0, |st| {
+            [&st.upgrade_1, &st.upgrade_2, &st.capstone]
+                .iter()
+                .map(|list| list.len())
+                .max()
+                .unwrap_or(0)
+        });
+    if g.path.iter().any(|place| usize::from(*place) >= longest) {
+        return Err(out);
+    }
+    Ok(())
+}
+
 /// Opens the offer of the first level due to `me` that has a candidate, unless `me` has an offer
 /// open.
 pub(super) fn open_due(
@@ -273,6 +612,9 @@ pub(super) fn open_due(
     me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
 ) {
+    if stage.equipment_mode {
+        return equipment_pass(stage, expertise, s, me, events);
+    }
     if super::offer_open_for(s, me) {
         return;
     }

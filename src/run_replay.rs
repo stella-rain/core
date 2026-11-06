@@ -388,6 +388,16 @@ impl fmt::Display for RunReplayError {
                     f,
                     "an equipment action on tick {tick} crafts a star into a full inventory"
                 ),
+                ActionError::NoTreePoint => write!(
+                    f,
+                    "an equipment action on tick {tick} takes a tree pick, \
+                     but no tree point is held"
+                ),
+                ActionError::NoTreeOption { option, options } => write!(
+                    f,
+                    "an equipment action on tick {tick} takes tree option {option}, \
+                     but the pick has {options} options"
+                ),
             },
             RunReplayError::PresenceRefused { tick, error } => match error {
                 PresenceError::Occupied { slot } => write!(

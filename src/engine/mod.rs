@@ -50,7 +50,7 @@ pub enum ActionError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
     /// No rule accepts this action: a run that is not in equipment mode or is `sim_version` 1
-    /// (every action), and `TreePick` (still unbuilt).
+    /// (every action).
     NotBuilt,
     /// `item` is not a place of the inventory.
     NoItem { item: u32 },
@@ -79,6 +79,21 @@ pub enum ActionError {
     NotEnoughStarlight { need: u32, have: u32 },
     /// `Craft`: the inventory is at its bound.
     InventoryFull,
+    /// `TreePick`: no tree point is held (none earned, all taken, no gauge or no expertise
+    /// content).
+    NoTreePoint,
+    /// `TreePick`: `option` is not below the `options` the next pick has.
+    NoTreeOption { option: u32, options: u32 },
+}
+
+impl From<crate::sim::TreeError> for ActionError {
+    fn from(e: crate::sim::TreeError) -> ActionError {
+        use crate::sim::TreeError as T;
+        match e {
+            T::NoTreePoint => ActionError::NoTreePoint,
+            T::NoTreeOption { option, options } => ActionError::NoTreeOption { option, options },
+        }
+    }
 }
 
 impl From<crate::sim::StarlightError> for ActionError {
@@ -625,9 +640,9 @@ impl Engine {
     /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
     /// equipment mode or is `sim_version` 1. `Extract` and `Craft` are the same: the refusals
     /// of `starlight` (an item of the inventory; a star of the setup's pool, its price, a held
-    /// named star, the inventory bound). `TreePick` is `NotBuilt` in every mode: its rule
-    /// replaces its arm when it lands. The match has one arm per variant so a new rule edits
-    /// one line.
+    /// named star, the inventory bound). `TreePick` is the same: `NoTreePoint` when no point is
+    /// held, then `NoTreeOption` when `option` is past the next pick's choices. The match has
+    /// one arm per variant so a new rule edits one line.
     pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
         if self.present() >> player.get() & 1 == 0 {
             return Err(ActionError::NoPlayer { player });
@@ -651,7 +666,11 @@ impl Engine {
                 .check_craft(self.content.rewards(), player, star)
                 .ok_or(ActionError::NotBuilt)?
                 .map_err(ActionError::from),
-            EquipAction::TreePick { .. } => Err(ActionError::NotBuilt),
+            EquipAction::TreePick { option } => self
+                .run
+                .check_tree_pick(self.content.expertise(), player, option)
+                .ok_or(ActionError::NotBuilt)?
+                .map_err(ActionError::from),
         }
     }
 
@@ -687,7 +706,9 @@ impl Engine {
             }
             EquipAction::Extract { item } => self.run.extract(self.content.rewards(), player, item),
             EquipAction::Craft { star } => self.run.craft(self.content.rewards(), player, star),
-            EquipAction::TreePick { .. } => {}
+            EquipAction::TreePick { option } => {
+                self.run.tree_pick(self.content.expertise(), player, option)
+            }
         }
         Ok(())
     }

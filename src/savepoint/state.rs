@@ -634,6 +634,8 @@ macro_rules! state_codec_v2 {
                     }
                 }
                 if let Some(g) = &s.players.career(me).expertise {
+                    crate::sim::check_tree(world, content.expertise(), g)
+                        .map_err(DecodeError::Invalid)?;
                     if let Some(o) = &g.offer {
                         if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
                             for c in &o.candidates {
@@ -698,6 +700,72 @@ mod players_tests {
         ok.players = Players::of(vec![first.clone(), first]).unwrap();
         assert_eq!(check_indices(&ok, world, e.content()), Ok(()));
     }
+    /// T23: a gauge that took more of the weapon tree than its level earned, or a place past the
+    /// style's choices, is refused for every present slot; a legal gauge decodes.
+    #[test]
+    fn the_savepoint_refuses_a_forged_tree() {
+        use crate::run_setup::{BuildMode, RunSetup};
+        use crate::savepoint::DecodeError;
+
+        let e = Engine::start_party(
+            &RunSetup {
+                mode: "time_limit".into(),
+                build_mode: BuildMode::Equipment,
+                weapon: "giant_hammer".into(),
+                ..RunSetup::default()
+            },
+            2,
+        )
+        .unwrap();
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules")
+        };
+        let gauge = |me: u8, level: u32, style: Option<u8>, path: &[u8]| {
+            let mut s = state.clone();
+            let g = s
+                .players
+                .career_mut(PlayerIdx::new(me).unwrap())
+                .expertise
+                .as_mut()
+                .expect("a gauge");
+            (g.level, g.style, g.path) = (level, style, path.to_vec());
+            s
+        };
+        let taken = Err(DecodeError::Invalid("expertise tree taken past the level"));
+        let range = Err(DecodeError::Invalid("expertise tree place out of range"));
+        for me in 0..2 {
+            let check = |s| check_indices(&s, world, e.content());
+            assert_eq!(
+                check(gauge(me, 2, Some(0), &[])),
+                taken,
+                "style before its level"
+            );
+            assert_eq!(
+                check(gauge(me, 3, Some(0), &[0])),
+                taken,
+                "path past the level"
+            );
+            assert_eq!(
+                check(gauge(me, 9, None, &[0])),
+                taken,
+                "path without a style"
+            );
+            assert_eq!(
+                check(gauge(me, 3, Some(3), &[])),
+                range,
+                "style past the styles"
+            );
+            assert_eq!(
+                check(gauge(me, 6, Some(0), &[1])),
+                range,
+                "place past the choices"
+            );
+            assert_eq!(check(gauge(me, 3, Some(2), &[])), Ok(()));
+            assert_eq!(check(gauge(me, 6, Some(1), &[0])), Ok(()));
+            assert_eq!(check(gauge(me, 0, None, &[])), Ok(()));
+        }
+    }
+
     /// T14: an equipment star out of range, or the random rune, is refused for every present
     /// slot, wherever it is held.
     #[test]

@@ -62,7 +62,13 @@ pub(super) fn credit_defeated(stage: &World, s: &mut State, events: &mut Vec<Dom
     }
 }
 
-fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<DomainEvent>) {
+pub(super) fn gain(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    xp: u32,
+    events: &mut Vec<DomainEvent>,
+) {
     let xp = raised(xp, total(s, me, StatEffect::XpPct));
     let (player, career) = s.players.both_mut(me);
     let Some(p) = career.progress.as_mut() else {
@@ -80,7 +86,8 @@ fn gain(stage: &World, s: &mut State, me: PlayerIdx, xp: u32, events: &mut Vec<D
         p.xp -= need;
         p.level += 1;
         events.push(DomainEvent::LeveledUp { level: p.level });
-        if p.pick_stats {
+        // The equipment build never queues a stat offer: the point goes by the priority.
+        if p.pick_stats && !stage.equipment_mode {
             p.offers_due = p.offers_due.saturating_add(1);
         } else if let Some(at) = first_below_limit(p) {
             raise(p, player, at, events);

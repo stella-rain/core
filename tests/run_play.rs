@@ -272,6 +272,9 @@ pub struct EquipScript {
     /// At this tick slot 0 crafts the first star of the pool the engine accepts; `None` crafts
     /// nothing.
     pub craft_at: Option<u32>,
+    /// At this tick, and the three after it, slot 0 takes the first choice of its next weapon
+    /// tree point if the engine accepts it (ADR-SIM-7); `None` takes none.
+    pub tree_at: Option<u32>,
 }
 
 /// A star id without its grade: `max_hp_common` is `max_hp`.
@@ -336,6 +339,13 @@ impl EquipScript {
                 let extract = EquipAction::Extract { item: 0 };
                 Some(extract).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
             }
+            t if self
+                .tree_at
+                .is_some_and(|x| t.checked_sub(x).is_some_and(|d| d < 4)) =>
+            {
+                let pick = EquipAction::TreePick { option: 0 };
+                Some(pick).filter(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok())
+            }
             t if self.craft_at == Some(t) => (0..256u32)
                 .map(|star| EquipAction::Craft { star })
                 .find(|a| engine.check_action(PlayerIdx::SOLO, *a).is_ok()),
@@ -395,6 +405,7 @@ pub fn equipment_equip(name: &'static str, seed: u64) -> PartyCase {
             no_share: false,
             extract_at: None,
             craft_at: None,
+            tree_at: None,
         }),
         ..equipment(name, 1)
     }
@@ -419,6 +430,7 @@ pub fn equipment_levels(name: &'static str, seed: u64) -> PartyCase {
             no_share: true,
             extract_at: None,
             craft_at: None,
+            tree_at: Some(1600),
         }),
         ..equipment(name, 1)
     }
@@ -442,6 +454,7 @@ pub fn equipment_craft(name: &'static str, seed: u64) -> PartyCase {
             no_share: false,
             extract_at: Some(2000),
             craft_at: Some(2100),
+            tree_at: None,
         }),
         ..equipment(name, 1)
     }

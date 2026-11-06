@@ -407,11 +407,11 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 14] = [
     ("leave_hole", 3000, Outcome::Running, [69, 1, 5], 1280),
     ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
     ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
-    ("equipment_solo", 3000, Outcome::Running, [1, 0, 0], 0),
-    ("equipment_two", 3000, Outcome::Running, [1, 0, 0], 0),
-    ("equipment_equip", 3000, Outcome::Running, [1, 0, 0], 0),
-    ("equipment_levels", 3000, Outcome::Running, [6, 0, 0], 1080),
-    ("equipment_craft", 3000, Outcome::Running, [1, 0, 0], 0),
+    ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
+    ("equipment_two", 3000, Outcome::Running, [0, 0, 0], 0),
+    ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
+    ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 780),
+    ("equipment_craft", 3000, Outcome::Running, [0, 0, 0], 0),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
@@ -547,7 +547,8 @@ fn drive(rec: &mut RunRecorder, range: &StepRange) {
 }
 
 /// Three cuts: early, with an offer open, and one tick before the end. The open one is where
-/// slot 1 or 2 holds an offer when that is before the last tick, else the first offer.
+/// slot 1 or 2 holds an offer when that is before the last tick, else the first offer, else (no
+/// offer opens) the middle of the run.
 fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
     let mut world = 0;
@@ -567,7 +568,8 @@ fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     }
     [
         early,
-        other.or(any).expect("an offer before the end"),
+        // An equipment case opens no offer (ADR-SIM-7): its middle cut is the middle of the run.
+        other.or(any).unwrap_or(recorded.ticks / 2),
         recorded.ticks - 1,
     ]
 }
