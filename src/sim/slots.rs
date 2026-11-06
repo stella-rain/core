@@ -392,10 +392,15 @@ pub(crate) fn same_layout(a: &[EquipSlot], b: &[EquipSlot]) -> bool {
 /// Whether every slot holds the kind of item it takes: a rune slot a rune, a category slot and the
 /// Lumine slot a star; the Lumine slot is of the Lumine kind.
 pub(crate) fn holds_right_kinds(equipment: &Equipment) -> bool {
-    let right = |s: &EquipSlot| match (s.kind, s.held) {
-        (SlotKind::Rune, Some(Held::Star(_)))
-        | (SlotKind::Category(_) | SlotKind::Lumine, Some(Held::Rune(_))) => false,
-        _ => true,
+    let right = |s: &EquipSlot| {
+        !matches!(
+            (s.kind, s.held),
+            (SlotKind::Rune, Some(Held::Star(_)))
+                | (
+                    SlotKind::Category(_) | SlotKind::Lumine,
+                    Some(Held::Rune(_))
+                )
+        )
     };
     equipment.slots.iter().all(right)
         && equipment
