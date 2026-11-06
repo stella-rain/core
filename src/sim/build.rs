@@ -18,12 +18,15 @@ use crate::attack::DamageType;
 use crate::constellations;
 use crate::rewards::{
     EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
-    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, RewardEffect, Rewards,
+    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, MAX_ORBITS, MAX_ORBS,
+    ORBIT_SET_BASE, RewardEffect, Rewards,
 };
 use crate::run_stats::StatEffect;
-use crate::sim::state::{Offers, PlayerState, Progress};
+use crate::sim::state::{Offers, OrbitState, PlayerState, Progress, SkillSlot};
+use crate::stage_skill::MAX_SKILL_LEVELS;
+use crate::validate::limits::MAX_EVADE_CHARGES;
 
-use super::{World, levels};
+use super::{World, levels, player};
 
 /// What the stars held add up to, in the player's own numbers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -244,5 +247,192 @@ impl Build {
                 }
             }
         }
+    }
+}
+
+/// What the stars equipped grant besides the build, as a function of the set (equipment mode):
+/// the stage skill, the orbits, the evade charges, the rerolls and the banishes. The derived
+/// value does not depend on the order the stars were equipped in, only on their slot order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct Grants {
+    /// The first equipped star with a stage skill, in slot order: the skill's place in the stage
+    /// skills and its level (the entry's amount, held to the skill's levels).
+    skill: Option<(u16, u8)>,
+    /// Every equipped orbit, in slot order: the key (the star's place, or `ORBIT_SET_BASE` plus a
+    /// set's place for a tier's orbit) and its orbs.
+    orbits: Vec<(u16, u8)>,
+    /// The evade charges the stars add to the stage's own.
+    evade_charges: u32,
+    rerolls: u32,
+    banishes: u32,
+}
+
+impl Grants {
+    /// The grants of `equipped`, the places of the stars equipped in slot order (the Lumine slot
+    /// last), and of the tiers their sets reach. A random rune in a bundle grants nothing in
+    /// equipment mode: runes come from drops.
+    pub(super) fn of(rewards: &Rewards, equipped: &[u16]) -> Grants {
+        let mut g = Grants::default();
+        for &place in equipped {
+            if let Some(reward) = rewards.rewards().get(usize::from(place)) {
+                g.add(rewards, place, &reward.effects);
+            }
+        }
+        let sets = rewards.constellations();
+        for (set, c) in sets.sets().iter().enumerate() {
+            let members = c
+                .members
+                .iter()
+                .filter(|m| {
+                    rewards
+                        .index_of(m)
+                        .and_then(|p| u16::try_from(p).ok())
+                        .is_some_and(|p| equipped.contains(&p))
+                })
+                .count();
+            for (t, tier) in c.tiers.iter().enumerate() {
+                if usize::from(tier.threshold) <= members {
+                    let lower = t.checked_sub(1).map(|p| &c.tiers[p]);
+                    let delta = constellations::tier_delta(lower, tier);
+                    // A tier's orbit is keyed on its set (`Rewards::orbit_def`).
+                    let key = ORBIT_SET_BASE + u16::try_from(set).unwrap_or(0);
+                    g.add(rewards, key, &delta);
+                }
+            }
+        }
+        g
+    }
+
+    /// Adds what `effects` grant, once. One arm per `RewardEffect` with no `_`, so a new kind
+    /// fails to compile until it is placed (the build's are `Build::add`'s).
+    fn add(&mut self, rewards: &Rewards, key: u16, effects: &[EffectEntry]) {
+        for entry in effects {
+            // Every effect but the random rune's has an amount (`rewards::validate`).
+            let amount = entry.amount.unwrap_or(0);
+            match entry.effect {
+                RewardEffect::StageSkill if self.skill.is_none() => {
+                    let index = entry
+                        .skill
+                        .as_ref()
+                        .and_then(|id| rewards.stage_skills().index_of(id));
+                    if let Some(index) = index
+                        && let Some(def) = rewards.stage_skills().get(index)
+                    {
+                        let most = u32::try_from(def.levels.len().min(MAX_SKILL_LEVELS))
+                            .unwrap_or(u32::MAX);
+                        self.skill = Some((
+                            u16::try_from(index).unwrap_or(u16::MAX),
+                            u8::try_from(amount.min(most)).unwrap_or(u8::MAX),
+                        ));
+                    }
+                }
+                RewardEffect::Orbit => {
+                    let orbs = u8::try_from(amount).unwrap_or(u8::MAX);
+                    if let Some(o) = self.orbits.iter_mut().find(|o| o.0 == key) {
+                        o.1 = o.1.saturating_add(orbs).min(MAX_ORBS);
+                    } else if self.orbits.len() < MAX_ORBITS {
+                        self.orbits.push((key, orbs.min(MAX_ORBS)));
+                    }
+                }
+                RewardEffect::EvadeCharge => {
+                    self.evade_charges = self.evade_charges.saturating_add(amount)
+                }
+                RewardEffect::Rerolls => self.rerolls = self.rerolls.saturating_add(amount),
+                RewardEffect::Banishes => self.banishes = self.banishes.saturating_add(amount),
+                // A second skill star: the first in slot order holds the slot.
+                RewardEffect::StageSkill
+                // Runes come from drops in equipment mode: nothing is drawn, no stream moves.
+                | RewardEffect::RandomRune
+                // The build's (`Build::add`).
+                | RewardEffect::MaxHp
+                | RewardEffect::AttackPct
+                | RewardEffect::AttackSpeedPct
+                | RewardEffect::EvadePct
+                | RewardEffect::SpeedPct
+                | RewardEffect::XpPct
+                | RewardEffect::RangePct
+                | RewardEffect::TypeBonusPct
+                | RewardEffect::AttackTypeBonusPct
+                | RewardEffect::ElementBonusPct
+                | RewardEffect::RuneHaste
+                | RewardEffect::Regen
+                | RewardEffect::PickupRadiusPct
+                | RewardEffect::SkillCooldownPct
+                | RewardEffect::HealPerKills
+                | RewardEffect::OfferCandidates
+                | RewardEffect::CritChancePct
+                | RewardEffect::CritDamagePct
+                | RewardEffect::EchoHitPct
+                | RewardEffect::KillBurst
+                | RewardEffect::BurstDepth => {}
+            }
+        }
+    }
+
+    /// Writes the change from `before` to `after` into the player and its offers. A field that
+    /// did not change is not touched. The skill keeps its cooldown while its index is unchanged
+    /// and a new one arrives ready; an orbit still equipped keeps its run state and a new one
+    /// arrives ready; the evade charges follow the stage's own plus the stars', held to its most,
+    /// and a fall never takes the charges below the stage's own; rerolls and banishes add or
+    /// remove the difference.
+    pub(super) fn write(
+        before: &Grants,
+        after: &Grants,
+        stage: &World,
+        player: &mut PlayerState,
+        o: &mut Offers,
+    ) {
+        if before.skill != after.skill {
+            let held = player.skill;
+            player.skill = after.skill.map(|(index, level)| SkillSlot {
+                index,
+                level,
+                cooldown_left: held
+                    .filter(|h| h.index == index)
+                    .map_or(0, |h| h.cooldown_left),
+            });
+        }
+        if before.orbits != after.orbits {
+            let held = std::mem::take(&mut player.orbits);
+            player.orbits = after
+                .orbits
+                .iter()
+                .map(|&(reward, orbs)| {
+                    held.iter().find(|h| h.reward == reward).map_or(
+                        OrbitState {
+                            reward,
+                            orbs,
+                            round: 0,
+                            cooldown_left: 0,
+                            angle: 0,
+                        },
+                        |h| OrbitState { orbs, ..*h },
+                    )
+                })
+                .collect();
+        }
+        if before.evade_charges != after.evade_charges {
+            let evade = &stage.player.evade;
+            let base = u32::from(evade.charges);
+            let most = u32::from(evade.most_charges().min(MAX_EVADE_CHARGES)).max(base);
+            let cap = |stars: u32| base.saturating_add(stars).min(most);
+            let (was, now) = (cap(before.evade_charges), cap(after.evade_charges));
+            if now > was {
+                player::add_evade_charges(stage, player, now - was);
+            } else if now < was {
+                let held = player.evade_charges;
+                let lowered = held.saturating_sub(u8::try_from(was - now).unwrap_or(u8::MAX));
+                let floor = held.min(u8::try_from(base).unwrap_or(u8::MAX));
+                player.evade_charges = lowered.max(floor);
+            }
+        }
+        o.rerolls_left = o
+            .rerolls_left
+            .saturating_add(after.rerolls.saturating_sub(before.rerolls))
+            .saturating_sub(before.rerolls.saturating_sub(after.rerolls));
+        o.banishes_left = o
+            .banishes_left
+            .saturating_add(after.banishes.saturating_sub(before.banishes))
+            .saturating_sub(before.banishes.saturating_sub(after.banishes));
     }
 }

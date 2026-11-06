@@ -9,7 +9,7 @@
 //! replace.
 
 use super::World;
-use super::build::Build;
+use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::offer_rating::category_of;
 use super::state::{Career, Offers, PlayerState};
@@ -103,8 +103,13 @@ pub(super) fn equipped(equipment: &Equipment) -> impl Iterator<Item = u16> + '_ 
 
 /// How many of each star of the file are equipped (the inventory does not count).
 pub(super) fn equipped_counts(rewards: &Rewards, equipment: &Equipment) -> Vec<u8> {
+    counts_of(rewards, equipped(equipment))
+}
+
+/// How many of each star of the file `places` hold.
+fn counts_of(rewards: &Rewards, places: impl IntoIterator<Item = u16>) -> Vec<u8> {
     let mut counts = vec![0u8; rewards.rewards().len()];
-    for p in equipped(equipment) {
+    for p in places {
         if let Some(c) = counts.get_mut(usize::from(p)) {
             *c = c.saturating_add(1);
         }
@@ -126,15 +131,16 @@ fn throwaway(rewards: &Rewards) -> Offers {
     }
 }
 
-/// Writes the change of what is equipped: `before` is the equipped counts before the change
-/// (empty for nothing), the equipment of `career` holds the set after. The build changes by the
-/// difference (`Build::write`), and the set counts are the members equipped.
+/// Writes the change of what is equipped: `before` is the stars equipped before the change in
+/// slot order (empty for nothing), the equipment of `career` holds the set after. The build and
+/// the grants change by the difference (`Build::write`, `Grants::write`), and the set counts are
+/// the members equipped.
 pub(super) fn refresh(
     stage: &World,
     rewards: &Rewards,
     player: &mut PlayerState,
     career: &mut Career,
-    before: &[u8],
+    before: &[u16],
 ) {
     let Career {
         progress,
@@ -143,15 +149,23 @@ pub(super) fn refresh(
         equipment,
         ..
     } = career;
-    let counts = equipped_counts(rewards, equipment);
+    let after: Vec<u16> = equipped(equipment).collect();
+    let counts = counts_of(rewards, after.iter().copied());
     let mut local = None;
     let o = match offers {
         Some(o) => o,
         None => local.insert(throwaway(rewards)),
     };
-    let was = Build::of(stage, rewards, before);
+    let was = Build::of(stage, rewards, &counts_of(rewards, before.iter().copied()));
     let now = Build::of(stage, rewards, &counts);
     Build::write(&was, &now, player, progress, regen, o);
+    Grants::write(
+        &Grants::of(rewards, before),
+        &Grants::of(rewards, &after),
+        stage,
+        player,
+        o,
+    );
     for (set, c) in rewards.constellations().sets().iter().enumerate() {
         let members = c
             .members

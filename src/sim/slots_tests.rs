@@ -239,7 +239,7 @@ mod grants {
 
         fn change(&mut self, f: impl FnOnce(&mut Equipment)) {
             let (player, career) = self.s.players.both_mut(PlayerIdx::SOLO);
-            let before = slots::equipped_counts(&self.rewards, &career.equipment);
+            let before: Vec<u16> = slots::equipped(&career.equipment).collect();
             f(&mut career.equipment);
             slots::refresh(&self.stage, &self.rewards, player, career, &before);
         }
