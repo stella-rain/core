@@ -84,6 +84,12 @@ pub enum ActionError {
     NoTreePoint,
     /// `TreePick`: `option` is not below the `options` the next pick has.
     NoTreeOption { option: u32, options: u32 },
+    /// The player is downed: its equipment window is locked until a teammate revives it. Every
+    /// kind of action; an equipment run only.
+    Downed,
+    /// The player is out of the run: its equipment window is locked for good. Every kind of
+    /// action; an equipment run only.
+    Out,
 }
 
 impl From<crate::sim::TreeError> for ActionError {
@@ -636,7 +642,9 @@ impl Engine {
     }
 
     /// Whether `player` could make the equipment action `action` in a step (ADR-SIM-7).
-    /// Read-only. `NoPlayer` for a slot outside the party. `Equip` and `Replace` are the
+    /// Read-only. `NoPlayer` for a slot outside the party; then, in an equipment run, `Downed`
+    /// for a player at 0 hit points and `Out` for one out of the run, for every kind of action
+    /// (the window opens again on the revive). `Equip` and `Replace` are the
     /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
     /// equipment mode or is `sim_version` 1. `Extract` and `Craft` are the same: the refusals
     /// of `starlight` (an item of the inventory; a star of the setup's pool, its price, a held
@@ -646,6 +654,9 @@ impl Engine {
     pub fn check_action(&self, player: PlayerIdx, action: EquipAction) -> Result<(), ActionError> {
         if self.present() >> player.get() & 1 == 0 {
             return Err(ActionError::NoPlayer { player });
+        }
+        if let Some(locked) = self.run.window_lock(player) {
+            return Err(locked);
         }
         let equip = |item: u32, slot: u32, replace: bool| {
             self.run

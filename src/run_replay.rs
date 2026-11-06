@@ -388,6 +388,15 @@ impl fmt::Display for RunReplayError {
                     f,
                     "an equipment action on tick {tick} crafts a star into a full inventory"
                 ),
+                ActionError::Downed => write!(
+                    f,
+                    "an equipment action on tick {tick} is made by a downed player, whose \
+                     equipment window is locked until a teammate revives it"
+                ),
+                ActionError::Out => write!(
+                    f,
+                    "an equipment action on tick {tick} is made by a player who is out of the run"
+                ),
                 ActionError::NoTreePoint => write!(
                     f,
                     "an equipment action on tick {tick} takes a tree pick, \
