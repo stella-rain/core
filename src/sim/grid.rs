@@ -68,12 +68,20 @@ impl Grid {
     ) {
         self.circles.clear();
         self.circles.extend(circles);
-        let circles = &self.circles;
-        let xs = circles.iter().map(|c| i64::from(c.0.x.0));
-        let ys = circles.iter().map(|c| i64::from(c.0.y.0));
-        let (min_x, max_x) = (xs.clone().min().unwrap_or(0), xs.max().unwrap_or(0));
-        let (min_y, max_y) = (ys.clone().min().unwrap_or(0), ys.max().unwrap_or(0));
-        let largest = circles.iter().map(|c| i64::from(c.1)).max().unwrap_or(0);
+        // One walk for the corner, the far corner and the largest radius; an empty grid has 0.
+        let (mut min_x, mut max_x, mut min_y, mut max_y, mut largest) =
+            (i64::MAX, i64::MIN, i64::MAX, i64::MIN, i64::MIN);
+        for &(at, radius) in &self.circles {
+            let (x, y) = (i64::from(at.x.0), i64::from(at.y.0));
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+            largest = largest.max(i64::from(radius));
+        }
+        if self.circles.is_empty() {
+            (min_x, max_x, min_y, max_y, largest) = (0, 0, 0, 0, 0);
+        }
         let cell = (i64::from(probe_radius) + largest).max(MIN_CELL);
         self.min_x = min_x;
         self.min_y = min_y;
