@@ -70,6 +70,7 @@ fn progress(e: &Engine) -> &super::state::Progress {
 fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     let mut e = engine(BuildMode::Equipment);
     let (attack, speed) = (1u8, 4u8);
+    let before = progress(&e).totals[StatEffect::AttackPct as usize];
     let events = level_up(&mut e, &[attack, speed], true, 2);
     let p = progress(&e);
     let raised: Vec<u8> = events
@@ -87,7 +88,7 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     assert_eq!((p.offers_due, p.offer_open), (0, false));
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
     let step = p.stats[usize::from(attack)].step;
-    assert_eq!(p.totals[StatEffect::AttackPct as usize], 2 * step);
+    assert_eq!(p.totals[StatEffect::AttackPct as usize], before + 2 * step);
     assert_eq!(p.spent[usize::from(attack)], 2);
 }
 

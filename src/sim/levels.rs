@@ -86,7 +86,8 @@ pub(super) fn gain(
         p.xp -= need;
         p.level += 1;
         events.push(DomainEvent::LeveledUp { level: p.level });
-        if p.pick_stats {
+        // The equipment build never queues a stat offer: the point goes by the priority.
+        if p.pick_stats && !stage.equipment_mode {
             p.offers_due = p.offers_due.saturating_add(1);
         } else if let Some(at) = first_below_limit(p) {
             raise(p, player, at, events);
