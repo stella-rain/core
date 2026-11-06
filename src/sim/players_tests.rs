@@ -552,7 +552,7 @@ mod offers {
             set_counts: _,
         } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
         type Edit = fn(&mut Offers);
-        let edits: [(&str, Edit); 9] = [
+        let edits: [(&str, Edit); 8] = [
             ("due", |o| {
                 o.due.push(Due {
                     kind: OfferKind::Boss,

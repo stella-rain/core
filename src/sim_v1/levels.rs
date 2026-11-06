@@ -219,7 +219,10 @@ pub(super) fn add_effect(
     effect: StatEffect,
     amount: u32,
 ) {
-    let total = &mut p.totals[effect as usize];
+    // An effect version 1 never had has no total here (a content pack is untrusted input).
+    let Some(total) = p.totals.get_mut(effect as usize) else {
+        return;
+    };
     *total = total.saturating_add(amount);
     if effect == StatEffect::MaxHp {
         player.max_hp = player.max_hp.saturating_add(amount);
@@ -228,7 +231,11 @@ pub(super) fn add_effect(
 }
 
 fn total(s: &State, effect: StatEffect) -> u32 {
-    s.progress.as_ref().map_or(0, |p| p.totals[effect as usize])
+    s.progress
+        .as_ref()
+        .and_then(|p| p.totals.get(effect as usize))
+        .copied()
+        .unwrap_or(0)
 }
 
 fn raised(value: u32, pct: u32) -> u32 {

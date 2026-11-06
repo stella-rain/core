@@ -300,6 +300,16 @@ impl RewardEffect {
             | RewardEffect::RandomRune => return None,
         })
     }
+
+    /// The stat a Growth effect becomes in equipment mode, if it is one.
+    pub fn growth_stat(self) -> Option<StatEffect> {
+        match self {
+            RewardEffect::Rerolls => Some(StatEffect::Rerolls),
+            RewardEffect::Banishes => Some(StatEffect::Banishes),
+            RewardEffect::OfferCandidates => Some(StatEffect::OfferCandidates),
+            _ => None,
+        }
+    }
 }
 
 /// One effect of a reward: an effect kind with the fields that kind takes.
