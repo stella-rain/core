@@ -535,7 +535,7 @@ pub const EQUIP_PARTY_JOIN: u32 = 2000;
 
 /// The (world seed, bot seed) of `equipment_party_1`, `_2` and `_3`
 /// (`search_equipment_party_seeds` in `equipment_party.rs`).
-pub const EQUIP_PARTY_SEEDS: [(u64, u64); 3] = [(6, 2), (44, 3), (1, 4)];
+pub const EQUIP_PARTY_SEEDS: [(u64, u64); 3] = [(6, 2), (18, 1), (2, 1)];
 
 /// The equipment party case of `n` (1 to 3) players, played by bots.
 pub fn equipment_party(n: u8) -> PartyCase {
