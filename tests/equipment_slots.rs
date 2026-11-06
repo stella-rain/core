@@ -237,3 +237,51 @@ fn the_snapshot_shows_the_slots() {
     let schema = include_str!("../schema/content.schema.json");
     assert!(schema.contains("\"SlotView\""));
 }
+
+mod search {
+    use super::*;
+    use crate::run_play::equipment_equip;
+    use stella_rain_core::input::EquipAction;
+    use stella_rain_core::snapshot::{HeldView, SlotKindView};
+
+    /// The seed of the `equipment_equip` corpus case: world seeds 1..=60, solo, 3000 ticks, the
+    /// script of `EquipScript`; the first seed whose run holds a star in a category slot and a rune
+    /// in a rune slot, records at least two ACTIONS steps and makes a replace.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_equip_seeds() {
+        for seed in 1..=60u64 {
+            let rec = equipment_equip("x", seed).play();
+            let snap = rec.engine().snapshot();
+            let slots = &snap.players[0].slots;
+            let star = slots.iter().any(|s| {
+                matches!(s.kind, SlotKindView::Category { .. })
+                    && matches!(s.held, Some(HeldView::Star { .. }))
+            });
+            let rune = slots.iter().any(|s| {
+                matches!(s.kind, SlotKindView::Rune)
+                    && matches!(s.held, Some(HeldView::Rune { .. }))
+            });
+            let replay = rec.replay();
+            let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+            let actions: Vec<EquipAction> = range
+                .steps
+                .iter()
+                .filter_map(|s| match s {
+                    RangeStep::Actions { actions } => Some(actions.iter().flatten().copied()),
+                    _ => None,
+                })
+                .flatten()
+                .collect();
+            let replaced = actions
+                .iter()
+                .any(|a| matches!(a, EquipAction::Replace { .. }));
+            println!(
+                "seed={seed} star={star} rune={rune} actions={} replace={replaced} ticks={} hash={}",
+                actions.len(),
+                replay.ticks,
+                replay.final_hash
+            );
+        }
+    }
+}
