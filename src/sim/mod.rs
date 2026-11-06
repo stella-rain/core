@@ -1475,6 +1475,9 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     for me in s.players.indices() {
         heal::kills_heal(s, me, events);
     }
+    if stage.equipment_mode {
+        slots::count_kills(s);
+    }
     // The record is by enemy index, which no step between a hit and this removal changes.
     debug_assert!(s.scratch.killers.len() <= s.enemies.len());
     s.enemies.retain(|e| e.hp > 0);

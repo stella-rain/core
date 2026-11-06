@@ -238,6 +238,55 @@ fn the_snapshot_shows_the_slots() {
     assert!(schema.contains("\"SlotView\""));
 }
 
+/// T19: the snapshot shows a slot's level and expertise after kills raised it.
+#[test]
+fn the_snapshot_shows_level_and_expertise() {
+    let mut early = crate::run_play::equipment_levels("x", crate::run_play::EQUIP_LEVELS_SEED);
+    early.ticks = 2700;
+    let rec = early.play();
+    let view = &rec.engine().snapshot().players[0].slots;
+    let json = slots_json(rec.engine());
+    let at = view
+        .iter()
+        .position(|s| s.level >= 2)
+        .expect("a star slot has risen");
+    assert_eq!(json[at]["level"], view[at].level);
+    assert_eq!(json[at]["expertise"], view[at].expertise);
+    // The kills are at most the need of the level (the curve is code, so only the bound).
+    assert!(view[at].level <= 10);
+}
+
+/// T20: a run resumed from a savepoint cut while a slot holds expertise matches the straight run.
+#[test]
+fn a_run_resumed_mid_expertise_matches_the_straight_run() {
+    let mut early = crate::run_play::equipment_levels("x", crate::run_play::EQUIP_LEVELS_SEED);
+    early.ticks = 1600;
+    let mut live = early.play();
+    let expertise = |r: &RunRecorder| -> u32 {
+        r.engine().snapshot().players[0]
+            .slots
+            .iter()
+            .map(|s| s.expertise + u32::from(s.level))
+            .sum()
+    };
+    assert!(expertise(&live) > 2, "a star slot holds kills");
+    let prefix = live.replay();
+    let saved = live.save();
+    let pack = Pack::bundled();
+    let mut by_savepoint = RunRecorder::resume_from_savepoint(&saved, &prefix, pack).unwrap();
+    for t in 0..600 {
+        assert_eq!(
+            by_savepoint.engine().state_hash(),
+            live.engine().state_hash(),
+            "{t}"
+        );
+        let inputs = crate::run_play::party_inputs_with(&live, 1600 + t, None);
+        for rec in [&mut live, &mut by_savepoint] {
+            rec.step(&inputs).unwrap();
+        }
+    }
+}
+
 mod search {
     use super::*;
     use crate::run_play::equipment_equip;
@@ -282,6 +331,39 @@ mod search {
                 replay.ticks,
                 replay.final_hash
             );
+        }
+    }
+
+    /// The seed of the `equipment_levels` corpus case: world seeds 1..=60, solo, 3000 ticks, the
+    /// script of `equipment_levels`; the first seed where a category slot holds Lv2 or more
+    /// before the late replace and a lower level after it.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_levels_seeds() {
+        use crate::run_play::equipment_levels;
+        let levels = |rec: &stella_rain_core::run_replay::RunRecorder| -> Vec<u8> {
+            rec.engine().snapshot().players[0].slots[..9]
+                .iter()
+                .map(|s| s.level)
+                .collect()
+        };
+        for seed in 1..=60u64 {
+            let mut early = equipment_levels("x", seed);
+            early.ticks = 2700;
+            let (before, after) = (
+                levels(&early.play()),
+                levels(&equipment_levels("x", seed).play()),
+            );
+            let dropped = before.iter().zip(&after).any(|(b, a)| *b >= 2 && a < b);
+            let rec = equipment_levels("x", seed).play();
+            let ex: Vec<u32> = rec.engine().snapshot().players[0].slots[..9]
+                .iter()
+                .map(|s| s.expertise)
+                .collect();
+            if dropped {
+                println!("seed={seed} before={before:?} after={after:?} ex={ex:?}");
+                break;
+            }
         }
     }
 }
