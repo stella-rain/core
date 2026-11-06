@@ -129,3 +129,65 @@ fn a_star_outside_the_file_extracts_for_nothing() {
     assert_eq!(extract_value(&rw, Held::Star(RANDOM_RUNE + 50)), 0);
     let _ = (RARE, NAMED);
 }
+
+// --- the boss bonus ----------------------------------------------------------------------------
+
+mod boss {
+    use super::super::equipment::Equipment;
+    use super::super::party_fix_tests::{down, out, party, slot};
+    use super::super::starlight::BOSS_BONUS;
+    use super::super::state::State;
+    use super::super::{World, stars};
+
+    fn balances(s: &State) -> Vec<u32> {
+        s.players
+            .indices()
+            .map(|me| s.players.career(me).equipment.starlight)
+            .collect()
+    }
+
+    fn equipment_party(n: u8) -> (World, State) {
+        let (mut w, s) = party(n);
+        w.equipment_mode = true;
+        (w, s)
+    }
+
+    #[test]
+    fn a_boss_kill_gives_each_player_who_is_up_the_bonus() {
+        let (w, mut s) = equipment_party(3);
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![BOSS_BONUS; 3]);
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![2 * BOSS_BONUS; 3]);
+    }
+
+    #[test]
+    fn a_downed_or_out_player_gets_no_bonus() {
+        let (w, mut s) = equipment_party(3);
+        down(&mut s, 1);
+        out(&mut s, 2);
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![BOSS_BONUS, 0, 0]);
+        down(&mut s, 0);
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![BOSS_BONUS, 0, 0]);
+    }
+
+    #[test]
+    fn the_bonus_does_not_need_a_drop_tier_and_offers_mode_gets_none() {
+        let (mut w, mut s) = equipment_party(2);
+        w.stage.stars.as_mut().expect("stars").tiers.clear();
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s), vec![BOSS_BONUS; 2]);
+        // Saturates at the top.
+        s.players.career_mut(slot(0)).equipment.starlight = u32::MAX - 1;
+        stars::boss_killed(&w, &mut s);
+        assert_eq!(balances(&s)[0], u32::MAX);
+        // An offers run pays nothing and keeps the equipment empty.
+        let (w, mut s) = party(2);
+        stars::boss_killed(&w, &mut s);
+        for me in s.players.indices() {
+            assert_eq!(s.players.career(me).equipment, Equipment::default());
+        }
+    }
+}
