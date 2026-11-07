@@ -47,7 +47,6 @@ x86_64 = 6_600_000
 arm64 = 4_800_000
 x86_64 = 5_300_000
 
-# Provisional (the frame ceiling) until CI counts this bench; then set by the rule above.
 [rollback_equip]
-arm64 = 12_400_000
-x86_64 = 12_400_000
+arm64 = 5_000_000
+x86_64 = 5_600_000
