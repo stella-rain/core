@@ -441,6 +441,133 @@ impl Engine {
         Ok(Engine::of(run, content, forced))
     }
 
+    /// For tests and benches only, under the `bench` feature: as `start_with`, on `stage` as given
+    /// instead of the stage `setup.mode` derives, so a hand-built stage runs in the setup's build
+    /// mode (equipment mode for `BuildMode::Equipment`, ADR-SIM-7). Nothing in the simulation
+    /// differs; a replay or a savepoint of such a run is not the setup's own.
+    ///
+    /// The caller sets `stage.sim_version` (equipment mode needs 2); the stage keeps its own weapon
+    /// and its seed is replaced by `setup.seed`, as `start` does. The setup is validated against
+    /// `content` and the stage as `Engine::new_with` validates it; `setup.mode` is only checked,
+    /// never read for a stage.
+    #[cfg(feature = "bench")]
+    #[doc(hidden)]
+    pub fn new_equipped(
+        stage: &Stage,
+        content: &RunContent,
+        setup: &RunSetup,
+    ) -> Result<Engine, Error> {
+        run_setup::validate_in(setup, content)?;
+        validate::validate(stage)?;
+        let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
+        let (stage, version, forced) = at_version(stage.clone());
+        let run = Run::new(
+            version,
+            Build {
+                stage,
+                spec: None,
+                horde: None,
+                kinds,
+                content,
+                star_pool: pool(
+                    setup.star_pool.as_deref(),
+                    content.rewards(),
+                    setup.build_mode,
+                )?,
+                extra_rerolls: setup.extra_rerolls,
+                difficulty: Some(run_difficulty(setup, content)?),
+                seed: setup.seed,
+                stat_priority: &setup.stat_priority,
+                pick_stats: setup.pick_stats,
+                setup: Some(setup),
+                party: 1,
+                offer_mode: setup.offer_mode,
+            },
+        )
+        .map_err(|i| Error::Invalid(vec![i]))?;
+        Ok(Engine::of(run, content, forced))
+    }
+
+    /// For tests and benches only, under the `bench` feature, before the first tick: pushes the
+    /// stars `inventory` (reward IDs of the run's rewards file) onto `player`'s inventory in
+    /// order, and gives each `(slot, level)` of `levels` (level 1 to `MAX_SLOT_LEVEL`) to an
+    /// empty category slot or the empty Lumine slot. The level is the level the slot gives the
+    /// star equipped into it (`Equip` keeps a level above 0), so it changes nothing until an
+    /// equip. Only the live rules (`Run::V2`) hold equipment. Anything it cannot do is
+    /// `Error::Invalid` and nothing changes: an unknown ID, an inventory past `MAX_INVENTORY`, a
+    /// rune, held or out-of-range slot, a level outside its range.
+    #[cfg(feature = "bench")]
+    #[doc(hidden)]
+    pub fn script_equipment(
+        &mut self,
+        player: PlayerIdx,
+        inventory: &[ContentId],
+        levels: &[(usize, u8)],
+    ) -> Result<(), Error> {
+        use crate::limits::{MAX_INVENTORY, MAX_SLOT_LEVEL};
+        use crate::sim::equipment::{EquipSlot, Equipment, Held, SlotKind};
+
+        let invalid = |path: &str, message: String| {
+            Err(Error::Invalid(vec![Issue {
+                path: path.into(),
+                message,
+            }]))
+        };
+        let Run::V2 { state, .. } = &mut self.run else {
+            return invalid("$.run", "equipment needs the live rules".into());
+        };
+        if !state.players.is_present(player) {
+            return invalid("$.player", "no such player in the party".into());
+        }
+        let rewards = self.content.rewards();
+        let mut items = Vec::with_capacity(inventory.len());
+        for id in inventory {
+            let place = rewards.index_of(id).and_then(|p| u16::try_from(p).ok());
+            let Some(place) = place else {
+                return invalid(
+                    "$.inventory",
+                    format!("no reward `{id}` in the rewards file"),
+                );
+            };
+            items.push(Held::Star(place));
+        }
+        let equipment = &mut state.players.career_mut(player).equipment;
+        if equipment.inventory.len() + items.len() > MAX_INVENTORY {
+            return invalid("$.inventory", format!("more than {MAX_INVENTORY} items"));
+        }
+        // The slot `slot` addresses: the layout, then the Lumine slot one past it.
+        fn slot_of(equipment: &mut Equipment, slot: usize) -> Option<&mut EquipSlot> {
+            let lumine_at = equipment.slots.len();
+            match slot < lumine_at {
+                true => equipment.slots.get_mut(slot),
+                false => equipment.lumine.as_mut().filter(|_| slot == lumine_at),
+            }
+        }
+        for (i, &(slot, level)) in levels.iter().enumerate() {
+            let ok = slot_of(equipment, slot).is_some_and(|s| {
+                s.held.is_none() && matches!(s.kind, SlotKind::Category(_) | SlotKind::Lumine)
+            });
+            if !ok
+                || !(1..=MAX_SLOT_LEVEL).contains(&level)
+                || levels[..i].iter().any(|l| l.0 == slot)
+            {
+                return invalid(
+                    "$.levels",
+                    format!(
+                        "slot {slot} at level {level}: an empty category or Lumine slot at 1 to {MAX_SLOT_LEVEL}"
+                    ),
+                );
+            }
+        }
+        equipment.inventory.extend(items);
+        for &(slot, level) in levels {
+            if let Some(target) = slot_of(equipment, slot) {
+                target.level = level;
+            }
+        }
+        Ok(())
+    }
+
     /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file: its
     /// waves, and its bosses as they come (`TICK`'s first step).
     pub fn start_time_limit(

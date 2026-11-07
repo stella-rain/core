@@ -30,7 +30,8 @@ path = "src/bin/content_pack.rs"
 # debugging. Not in release builds; a bug report is a stage and a replay instead.
 record = []
 # The cases the tick benches count (ADR-SIM-5), built in `bench_fixtures` so that a change to the
-# simulation's API edits `src/` alone. Benches and their tests only; no dependency.
+# simulation's API edits `src/` alone. Benches and their tests only; no dependency. It also gates
+# the equipment test seam (`Engine::new_equipped`, `Engine::script_equipment`).
 bench = []
 
 [dependencies]

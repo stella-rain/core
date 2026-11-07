@@ -1,0 +1,130 @@
+//! Stars equipped at a level on a hand-built stage, for tests (ADR-SIM-7): `equipped` starts an
+//! equipment-mode run on the stage as given, with the chosen stars in the chosen slots at the
+//! chosen level, through the engine's own `Equip`. It rests on the bench-only seam
+//! `Engine::new_equipped` and `Engine::script_equipment`; a test that needs a drop, a kill or a
+//! level-up plays the run instead.
+use crate::common;
+use crate::common::run::plain_content;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
+use stella_rain_core::engine::{ActionError, Engine};
+use stella_rain_core::id::{ContentId, PlayerIdx};
+use stella_rain_core::input::EquipAction;
+use stella_rain_core::rewards::Rewards;
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::stage::Stage;
+use stella_rain_core::version::Versions;
+
+/// The category the bundled pack gives each first effect (`None`: Growth and the random rune,
+/// which fit no category slot). One effect with two categories in the pack is a panic.
+fn categories() -> &'static BTreeMap<String, Option<String>> {
+    static TABLE: OnceLock<BTreeMap<String, Option<String>>> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        let mut table: BTreeMap<String, Option<String>> = BTreeMap::new();
+        for r in Rewards::bundled().rewards() {
+            let effect = serde_json::to_value(r.effect()).expect("an effect name");
+            let effect = effect.as_str().expect("a string").to_owned();
+            let category = r.category.as_ref().map(|c| c.as_str().to_owned());
+            if let Some(seen) = table.insert(effect.clone(), category.clone()) {
+                assert_eq!(seen, category, "the pack gives `{effect}` two categories");
+            }
+        }
+        table
+    })
+}
+
+/// The category of a reward whose first effect is `effect`, as the bundled pack gives it. An
+/// effect no bundled reward has panics naming it.
+pub fn category_of_effect(effect: &str) -> Option<&'static str> {
+    match categories().get(effect) {
+        Some(category) => category.as_deref(),
+        None => panic!("no bundled reward has the effect `{effect}`: give the reward a category"),
+    }
+}
+
+/// `rewards`, a hand-written rewards file, with the bundled `equipment` rules and each reward
+/// that has no `category` (a file that brings its own `equipment` keeps it) given the bundled one of its first effect.
+fn with_equipment_rules(mut rewards: Value) -> Value {
+    if rewards.get("equipment").is_none() {
+        let rules = Rewards::bundled().equipment().expect("the pack's rules");
+        rewards["equipment"] = serde_json::to_value(rules).expect("the rules serialise");
+    }
+    for r in rewards["rewards"].as_array_mut().expect("a rewards list") {
+        let first = r["effects"][0]["effect"].as_str().or(r["effect"].as_str());
+        let first = first.expect("a reward has an effect").to_owned();
+        if r.get("category").is_none()
+            && let Some(category) = category_of_effect(&first)
+        {
+            r["category"] = category.into();
+        }
+    }
+    rewards
+}
+
+/// Starts an equipment-mode, one-player run on `stage` (its `sim_version` is set to the live
+/// rules) over the hand-written rewards file `rewards`, with each `(reward ID, slot)` of `stars`
+/// equipped at `level` (1 to 10). The slots are the layout's: the categories' slots in list
+/// order, then the rune slots. The perk set is `plain`, the star pool every reward, and the
+/// stats are not picked. A star the engine refuses is the `ActionError`.
+pub fn try_equipped(
+    stage: &Stage,
+    rewards: Value,
+    stars: &[(&str, usize)],
+    level: u8,
+) -> Result<Engine, ActionError> {
+    build(stage, rewards, stars, level).map_err(|(_, refused)| refused)
+}
+
+/// `try_equipped`, with the place in `stars` of the star the engine refused.
+fn build(
+    stage: &Stage,
+    rewards: Value,
+    stars: &[(&str, usize)],
+    level: u8,
+) -> Result<Engine, (usize, ActionError)> {
+    let rewards = with_equipment_rules(rewards);
+    let ids: Vec<ContentId> = rewards["rewards"]
+        .as_array()
+        .expect("a rewards list")
+        .iter()
+        .map(|r| ContentId::from(r["id"].as_str().expect("an id")))
+        .collect();
+    let rewards = Rewards::parse(rewards.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the rewards file validates");
+    let content = RunContent::new(common::design_run_stats(), rewards)
+        .with_perk_sets(plain_content().perk_sets().clone());
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        perk_set: "plain".into(),
+        star_pool: Some(ids),
+        pick_stats: false,
+        seed: u64::from(stage.seed),
+        ..RunSetup::default()
+    };
+    let mut stage = stage.clone();
+    stage.sim_version = setup.sim_version;
+    let mut engine = Engine::new_equipped(&stage, &content, &setup).expect("the run starts");
+    let held: Vec<ContentId> = stars.iter().map(|(id, _)| ContentId::from(*id)).collect();
+    let levels: Vec<(usize, u8)> = stars.iter().map(|&(_, slot)| (slot, level)).collect();
+    engine
+        .script_equipment(PlayerIdx::SOLO, &held, &levels)
+        .expect("the stars and slots are the layout's");
+    for (at, &(_, slot)) in stars.iter().enumerate() {
+        let slot = u32::try_from(slot).expect("a slot");
+        let equip = EquipAction::Equip { item: 0, slot };
+        engine
+            .act(PlayerIdx::SOLO, equip)
+            .map_err(|refused| (at, refused))?;
+    }
+    Ok(engine)
+}
+
+/// As `try_equipped`, and a refusal panics naming the star, the slot and the `ActionError`.
+pub fn equipped(stage: &Stage, rewards: Value, stars: &[(&str, usize)], level: u8) -> Engine {
+    build(stage, rewards, stars, level).unwrap_or_else(|(at, refused)| {
+        let (id, slot) = stars[at];
+        panic!("equip `{id}` into slot {slot} at Lv{level}: refused with {refused:?}")
+    })
+}

@@ -156,6 +156,8 @@ pub(crate) use starlight::StarlightError;
 mod damage_tests;
 #[cfg(test)]
 mod drops_tests;
+#[cfg(test)]
+mod equip_support;
 mod orbit;
 #[cfg(test)]
 mod party_act_tests;
