@@ -134,6 +134,7 @@ pub(crate) mod state;
 mod state_codec;
 mod state_hash;
 mod stun;
+pub(crate) mod views;
 mod zones;
 
 pub(crate) use player::{auto_charge_view, charge_view, combo_view, hold_view};
@@ -160,10 +161,11 @@ use crate::sim_v1::state::{
     AgentKey, AgentSource, BossState, Dir, MoveOrder, PartState, PlayerState, Progress, Pull,
     Smash, StarField, StatRule, State, Streams,
 };
-use crate::snapshot::{EntityKind, OfferOption};
+use crate::snapshot::EntityKind;
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
 use crate::validate::limits::DAMAGE_SCALE;
+use views::OfferOption;
 
 use entity::{Who, scale_damage, status_pct};
 pub(crate) use expertise::offer_view as expertise_offer_view;

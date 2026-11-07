@@ -4,13 +4,14 @@
 
 use std::sync::Arc;
 
+use super::views::{ExpertiseOfferKind, OfferKind};
 use crate::attack::{DamageType, MatchUp};
 use crate::fixed::Point;
 use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind, Press};
+use crate::snapshot::{EntityKind, Press};
 
 /// What kind of thing hurt the main character.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

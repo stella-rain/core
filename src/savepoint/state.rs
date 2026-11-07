@@ -307,7 +307,7 @@ macro_rules! state_codec {
             }
             if let Some(g) = &s.expertise {
                 if let Some(o) = &g.offer {
-                    if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
+                    if o.kind == crate::$sim::views::ExpertiseOfferKind::Common {
                         for c in &o.candidates {
                             below(
                                 usize::from(*c),
@@ -1395,7 +1395,7 @@ mod frozen_text_tests {
     use crate::hash::fnv1a64;
 
     /// FNV-1a 64 of the text from the macro's first line through version 1's invocation.
-    const V1_TEXT_HASH: u64 = 4_389_356_803_138_707_161;
+    const V1_TEXT_HASH: u64 = 13_219_549_500_252_208_330;
 
     #[test]
     fn version_1_text_is_unchanged() {

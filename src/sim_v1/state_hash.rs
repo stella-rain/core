@@ -8,6 +8,7 @@
 
 use crate::hash::{StableHash, StateHasher, hash_enum};
 use crate::sim_v1::RangedPool;
+use crate::sim_v1::views::{ExpertiseOfferKind, OfferKind};
 
 use super::state::*;
 
@@ -1006,6 +1007,26 @@ impl StableHash for State {
         damage_pct.stable_hash(h);
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
+    }
+}
+
+impl StableHash for OfferKind {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            OfferKind::Star => hash_enum!(h, 0),
+            OfferKind::Boss => hash_enum!(h, 1),
+        }
+    }
+}
+
+impl StableHash for ExpertiseOfferKind {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            ExpertiseOfferKind::Common => hash_enum!(h, 0),
+            ExpertiseOfferKind::Style => hash_enum!(h, 1),
+            ExpertiseOfferKind::Upgrade => hash_enum!(h, 2),
+            ExpertiseOfferKind::Capstone => hash_enum!(h, 3),
+        }
     }
 }
 
