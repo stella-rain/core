@@ -736,15 +736,34 @@ fn a_tier_may_give_an_orbit_but_not_a_random_rune() {
     );
 }
 
+/// A run on a bare stage with the trio's members equipped at Lv1: `n1` attack (slot 0), `n2`
+/// defence (slot 5), `n3` mobility (slot 7), given distinct effects so they can be held
+/// together; `held` of them, in that order (ADR-SIM-7). `first` replaces `n1`'s effects.
+fn trio_equipped(held: usize, first: Value, sets: Value) -> Engine {
+    let mut list = trio_list();
+    list[0]["effects"] = json!([first]);
+    list[1]["effects"] = json!([max_hp(1)]);
+    list[2]["effects"] = json!([{ "effect": "speed_pct", "amount": 1 }]);
+    let file = json!({ "rarities": crate::common::rarities(), "rewards": list });
+    let parts = crate::common::equip::Parts {
+        sets: Some(sets),
+        ..Default::default()
+    };
+    let stars = [("n1", 0), ("n2", 5), ("n3", 7)];
+    let stage = near(1);
+    crate::common::equip::equipped_in(&stage, file, parts, &stars[..held], 1)
+}
+
 #[test]
 fn reaching_a_tier_with_an_orbit_gives_its_orbs() {
-    let mut e = engine(&epic_near(), trio_list(), Some(file(vec![orbit_trio()])));
-    for star in ["n1", "n2", "n3"] {
-        assert!(e.snapshot().players[0].orbits.is_empty(), "before {star}");
-        next_offer(&mut e);
-        take(&mut e, star);
+    let first = json!({ "effect": "attack_pct", "amount": 1 });
+    for held in 0..3 {
+        let e = trio_equipped(held, first.clone(), json!([orbit_trio()]));
+        assert!(e.snapshot().players[0].orbits.is_empty(), "{held} held");
     }
-    let orbits = &e.snapshot().players[0].orbits;
+    let e = trio_equipped(3, first, json!([orbit_trio()]));
+    let snapshot = e.snapshot();
+    let orbits = &snapshot.players[0].orbits;
     assert_eq!(orbits.len(), 1);
     assert_eq!((orbits[0].reward.as_str(), orbits[0].orbs), ("trio", 3));
 }
@@ -763,13 +782,7 @@ fn a_tier_that_adds_burst_depth_applies_once() {
             ),
         ],
     );
-    let mut list = trio_list();
-    list[0]["effects"] = json!([burst]);
-    let mut e = engine(&epic_near(), list, Some(file(vec![trio])));
-    for star in ["n1", "n2", "n3"] {
-        next_offer(&mut e);
-        take(&mut e, star);
-    }
+    let e = trio_equipped(3, burst, json!([trio]));
     assert_eq!(e.snapshot().players[0].burst_depth, 5);
 }
 
