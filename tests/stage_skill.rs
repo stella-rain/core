@@ -139,6 +139,40 @@ fn take(e: &mut Engine, reward: &str) {
     common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
+/// A stage of `waves` with no stars: no drop and no offer.
+fn bare(waves: Vec<Value>) -> Stage {
+    stage_full(18_000, Some(far_boss()), waves, vec![])
+}
+
+/// A run on `stage` with the stage skill star `(reward, skill, level)` equipped at Lv1 in the
+/// first attack slot (ADR-SIM-7), waited ready: a skill star arrives cooling, in equipment
+/// mode.
+fn equipped_skill(stage: &Stage, skills: Vec<Value>, star: (&str, &str, u32)) -> Engine {
+    let (id, skill, level) = star;
+    let reward = json!({ "id": id, "rarity": "common", "effect": "stage_skill", "skill": skill,
+                         "amount": level, "limit": 5 });
+    let file = json!({ "rarities": common::rarities(), "rewards": [reward] });
+    let parts = common::equip::Parts {
+        skills: Some(json!(skills)),
+        ..Default::default()
+    };
+    let mut e = common::equip::equipped_in(stage, file, parts, &[(id, 0)], 1);
+    ready(&mut e);
+    e
+}
+
+/// Steps idle until the skill is ready to press (at most 200 ticks).
+fn ready(e: &mut Engine) {
+    for _ in 0..200 {
+        let skill = e.snapshot().players[0].skill.clone().expect("a skill held");
+        if skill.ready {
+            return;
+        }
+        e.step(&[idle(), Default::default(), Default::default()]);
+    }
+    panic!("the skill is not ready after 200 ticks");
+}
+
 fn pressing_skill() -> Input {
     Input {
         skill: true,
@@ -234,11 +268,7 @@ fn a_skill_taken_arrives_ready_at_the_level_its_reward_gives() {
 #[test]
 fn a_press_uses_it_and_its_level_s_cooldown_counts_from_the_use() {
     let skills = vec![skill("aura", &[buff(10), buff(20)])];
-    let mut e = with(
-        &starry(vec![targets(1)]),
-        content(skills, &[("aura_r", "aura", 2)]),
-    );
-    take(&mut e, "aura_r");
+    let mut e = equipped_skill(&bare(vec![]), skills, ("aura_r", "aura", 2));
     e.step(&[pressing_skill(), Default::default(), Default::default()]);
     let at = e.tick();
     assert_eq!(used(e.events()), Some(("aura".into(), 2)));
@@ -311,19 +341,16 @@ fn another_skill_replaces_the_one_held_and_arrives_ready() {
 
 #[test]
 fn a_buff_raises_the_main_character_s_attack_for_its_time() {
-    let skills = vec![skill("aura", &[buff(50)])];
-    let mut e = with(
-        &starry(vec![targets(1)]),
-        content(skills, &[("aura_r", "aura", 1)]),
-    );
-    take(&mut e, "aura_r");
+    let skills = vec![quick("aura", &[buff(50)], 1)];
+    let mut e = equipped_skill(&bare(vec![]), skills, ("aura_r", "aura", 1));
     let events = use_skill(&mut e);
     assert!(events.contains(&DomainEvent::StatusApplied {
         target: EntityId(0),
         status: ContentId::from("atk_up"),
         stacks: 1,
         duration_ticks: DURATION,
-        source: None,
+        // The live rules name the player as the source; the frozen version 1 events had none.
+        source: Some(EntityId(0)),
     }));
 }
 
@@ -333,15 +360,12 @@ fn an_area_status_makes_the_enemies_near_its_point_vulnerable() {
     // The point is 100 pixels up the map from the main character: one enemy 40 pixels from it,
     // one 120 pixels from it.
     let point_y = START_Y - AHEAD;
-    let mut e = with(
-        &starry(vec![
-            targets(1),
-            standing(40, 50, START_X + 10_240, point_y),
-            standing(40, 50, START_X - 30_720, point_y),
-        ]),
-        content(vec![skill("hex", &[debuff])], &[("hex_r", "hex", 1)]),
-    );
-    take(&mut e, "hex_r");
+    let waves = vec![
+        standing(40, 50, START_X + 10_240, point_y),
+        standing(40, 50, START_X - 30_720, point_y),
+    ];
+    let skills = vec![quick("hex", &[debuff], 1)];
+    let mut e = equipped_skill(&bare(waves), skills, ("hex_r", "hex", 1));
     while enemies_at(&e).len() < 2 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -354,18 +378,12 @@ fn an_area_status_makes_the_enemies_near_its_point_vulnerable() {
 fn a_pull_draws_the_enemies_near_its_point_to_it_and_holds_them_there() {
     // 10 pixels right of the point, pulled 1 pixel a tick: there in 10 ticks, and held.
     let point_y = START_Y - AHEAD;
-    let mut e = with(
-        &starry(vec![
-            targets(1),
-            standing(40, 50, START_X + 2_560, point_y),
-            standing(40, 50, START_X - 51_200, point_y),
-        ]),
-        content(
-            vec![skill("well", &[pull(16_384, 256)])],
-            &[("well_r", "well", 1)],
-        ),
-    );
-    take(&mut e, "well_r");
+    let waves = vec![
+        standing(40, 50, START_X + 2_560, point_y),
+        standing(40, 50, START_X - 51_200, point_y),
+    ];
+    let skills = vec![quick("well", &[pull(16_384, 256)], 1)];
+    let mut e = equipped_skill(&bare(waves), skills, ("well_r", "well", 1));
     while enemies_at(&e).len() < 2 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -402,17 +420,9 @@ fn a_shield_absorbs_damage_up_to_its_amount_for_its_time() {
             70
         )]),
     );
-    let mut e = with(
-        &starry(vec![
-            targets(1),
-            wave(60, 1, 0, shooter, START_X, START_Y - 40_000),
-        ]),
-        content(
-            vec![skill("ward", &[shield(100, 600)])],
-            &[("ward_r", "ward", 1)],
-        ),
-    );
-    take(&mut e, "ward_r");
+    let waves = vec![wave(60, 1, 0, shooter, START_X, START_Y - 40_000)];
+    let skills = vec![quick("ward", &[shield(100, 600)], 1)];
+    let mut e = equipped_skill(&bare(waves), skills, ("ward_r", "ward", 1));
     let hp = e.snapshot().players[0].hp;
     use_skill(&mut e);
     assert_eq!(
@@ -442,11 +452,9 @@ fn an_attack_runs_in_its_own_slot_beside_a_combo_step() {
           "hit_box": { "type": "circle", "offset": { "forward": AHEAD }, "radius": 8_192 } }
     ] } });
     let point_y = START_Y - AHEAD;
-    let mut e = with(
-        &starry(vec![targets(1), standing(40, 50, START_X, point_y)]),
-        content(vec![skill("nova", &[area])], &[("nova_r", "nova", 1)]),
-    );
-    take(&mut e, "nova_r");
+    let waves = vec![standing(40, 50, START_X, point_y)];
+    let skills = vec![quick("nova", &[area], 1)];
+    let mut e = equipped_skill(&bare(waves), skills, ("nova_r", "nova", 1));
     while enemies_at(&e).is_empty() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -481,20 +489,12 @@ fn an_attack_runs_in_its_own_slot_beside_a_combo_step() {
 #[test]
 fn with_assist_on_the_point_is_ahead_toward_the_target() {
     // The target stands 200 pixels to the right: the point is 100 pixels toward it.
-    let mut stage = serde_json::to_value(starry(vec![
-        targets(1),
-        standing(40, 50, START_X + 51_200, START_Y),
-    ]))
-    .unwrap();
+    let mut stage =
+        serde_json::to_value(bare(vec![standing(40, 50, START_X + 51_200, START_Y)])).unwrap();
     stage["player"]["weapon"]["inline"]["assist_range"] = json!(65_536);
-    let mut e = with(
-        &serde_json::from_value(stage).unwrap(),
-        content(
-            vec![skill("well", &[pull(4_096, 0)])],
-            &[("well_r", "well", 1)],
-        ),
-    );
-    take(&mut e, "well_r");
+    let skills = vec![quick("well", &[pull(4_096, 0)], 1)];
+    let stage = serde_json::from_value(stage).unwrap();
+    let mut e = equipped_skill(&stage, skills, ("well_r", "well", 1));
     while enemies_at(&e).is_empty() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -512,36 +512,24 @@ fn with_assist_on_the_point_is_ahead_toward_the_target() {
 
 #[test]
 fn the_slot_is_in_the_state_hash() {
-    let skills = vec![skill("aura", &[buff(10), buff(20)])];
-    let mut a = with(
-        &starry(vec![targets(1)]),
-        content(skills.clone(), &[("aura_r", "aura", 1)]),
-    );
-    let mut b = with(
-        &starry(vec![targets(1)]),
-        content(skills, &[("aura_r", "aura", 2)]),
-    );
-    take(&mut a, "aura_r");
-    take(&mut b, "aura_r");
+    let skills = vec![quick("aura", &[buff(10), buff(20)], 1)];
+    let a = equipped_skill(&bare(vec![]), skills.clone(), ("aura_r", "aura", 1));
+    let b = equipped_skill(&bare(vec![]), skills, ("aura_r", "aura", 2));
     assert_eq!(a.tick(), b.tick());
     assert_ne!(a.state_hash(), b.state_hash(), "the level differs");
 }
 
 // --- Effects together --------------------------------------------------------------
 
-/// A stage where the skill `it` is taken from a star, then two enemies stand 10 pixels right of
-/// the test skills' point and 120 pixels left of it; it returns once both are there.
+/// A stage where the skill `it` is equipped, then two enemies stand 10 pixels right of the test
+/// skills' point and 120 pixels left of it; it returns once both are there.
 fn two_standing(skills: Vec<Value>) -> Engine {
     let point_y = START_Y - AHEAD;
-    let mut e = with(
-        &starry(vec![
-            targets(1),
-            standing(40, 50, START_X + 2_560, point_y),
-            standing(40, 50, START_X - 30_720, point_y),
-        ]),
-        content(skills, &[("it_r", "it", 1)]),
-    );
-    take(&mut e, "it_r");
+    let waves = vec![
+        standing(40, 50, START_X + 2_560, point_y),
+        standing(40, 50, START_X - 30_720, point_y),
+    ];
+    let mut e = equipped_skill(&bare(waves), skills, ("it_r", "it", 1));
     while enemies_at(&e).len() < 2 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -551,18 +539,20 @@ fn two_standing(skills: Vec<Value>) -> Engine {
 #[test]
 fn a_level_s_effects_apply_in_list_order() {
     let player = EntityId(0);
-    let mut e = two_standing(vec![skill(
+    let mut e = two_standing(vec![quick(
         "it",
         &[json!([buff(10), area("slow", 16_384)])],
+        1,
     )]);
     let near = enemies_at(&e)[0].0;
     assert_eq!(
         applied(&use_skill(&mut e)),
         [(player, "atk_up".into()), (near, "slow".into())]
     );
-    let mut e = two_standing(vec![skill(
+    let mut e = two_standing(vec![quick(
         "it",
         &[json!([area("slow", 16_384), buff(10)])],
+        1,
     )]);
     let near = enemies_at(&e)[0].0;
     assert_eq!(
@@ -573,9 +563,10 @@ fn a_level_s_effects_apply_in_list_order() {
 
 #[test]
 fn a_pull_and_an_area_status_act_at_the_one_point() {
-    let mut e = two_standing(vec![skill(
+    let mut e = two_standing(vec![quick(
         "it",
         &[json!([pull(16_384, 256), area("vulnerable", 16_384)])],
+        1,
     )]);
     let (near, far) = (enemies_at(&e)[0], enemies_at(&e)[1]);
     e.step(&[pressing_skill(), Default::default(), Default::default()]);
@@ -623,18 +614,12 @@ fn a_new_pull_shield_or_attack_replaces_the_one_still_going() {
         { "kind": "active", "ticks": 60, "damage": 1,
           "hit_box": { "type": "circle", "offset": { "forward": AHEAD }, "radius": 1_024 } }
     ] } });
-    let mut e = with(
-        &starry(vec![targets(1)]),
-        content(
-            vec![quick(
-                "it",
-                &[json!([pull(4_096, 0), attack, shield(3, DURATION)])],
-                5,
-            )],
-            &[("it_r", "it", 1)],
-        ),
-    );
-    take(&mut e, "it_r");
+    let skills = vec![quick(
+        "it",
+        &[json!([pull(4_096, 0), attack, shield(3, DURATION)])],
+        5,
+    )];
+    let mut e = equipped_skill(&bare(vec![]), skills, ("it_r", "it", 1));
     use_skill(&mut e);
     for _ in 0..10 {
         e.step(&[idle(), Default::default(), Default::default()]);
@@ -662,11 +647,9 @@ fn a_stage_skill_attack_names_its_damage_type_in_the_hit() {
           "hit_box": { "type": "circle", "offset": { "forward": AHEAD }, "radius": 8_192 } }
     ] } });
     let point_y = START_Y - AHEAD;
-    let mut e = with(
-        &starry(vec![targets(1), standing(40, 50, START_X, point_y)]),
-        content(vec![skill("nova", &[area])], &[("nova_r", "nova", 1)]),
-    );
-    take(&mut e, "nova_r");
+    let waves = vec![standing(40, 50, START_X, point_y)];
+    let skills = vec![quick("nova", &[area], 1)];
+    let mut e = equipped_skill(&bare(waves), skills, ("nova_r", "nova", 1));
     while enemies_at(&e).is_empty() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
