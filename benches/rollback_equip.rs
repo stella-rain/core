@@ -2,7 +2,8 @@
 //! three-player equipment run is cloned and 8 ticks are played on the clone, each player
 //! equipping a star and extracting another (`bench_fixtures::equip_case`). Run it with
 //! `cargo bench --bench rollback_equip`; its setup plays about 10,400 ticks, so it takes a
-//! minute under valgrind. It has no budget yet (`UNBUDGETED` in `tests/bench_teardown.rs`).
+//! minute under valgrind. It is budgeted like the other targets: the `[rollback_equip]` key of
+//! `benches/budgets.toml` (ADR-SIM-6), which `tests/bench_teardown.rs` requires of every bench.
 
 use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use stella_rain_core::bench_fixtures::equip_case;
