@@ -29,6 +29,10 @@ APP_ID = "com.stellarain.Dinghy"
 CERT = b"cert-one"
 CERT_SHA = hashlib.sha1(CERT).hexdigest().upper()
 NOW = datetime.datetime(2026, 10, 31, 12, 0, 0)
+# Launches the runner with its clock() fixed at NOW, so a whole run never reads today's date.
+BOOT = ("import sys, datetime; sys.path.insert(0, {dir!r}); import ios_device_runner as r; "
+        "r.clock = lambda: datetime.datetime({now}); sys.exit(r.main(sys.argv[1:]))").format(
+            dir=str(SCRIPT.parent), now=", ".join(str(n) for n in NOW.timetuple()[:6]))
 ENTITLEMENTS = {
     "application-identifier": TEAM + "." + APP_ID,
     "com.apple.developer.team-identifier": TEAM,
@@ -375,7 +379,7 @@ class TestWholeRun(unittest.TestCase):
         env = dict(os.environ, HOME=str(self.home), CARGO_MANIFEST_DIR=str(self.manifest),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    FAKE_CONF=str(self.tmp / "conf.json"), FAKE_LOG=str(self.log))
-        return subprocess.run([sys.executable, str(SCRIPT), str(self.binary)] + list(args),
+        return subprocess.run([sys.executable, "-c", BOOT, str(self.binary)] + list(args),
                               env=env, capture_output=True, text=True, cwd=str(self.manifest))
 
     def calls(self):
@@ -424,6 +428,14 @@ class TestWholeRun(unittest.TestCase):
         self.assertIn("expired", r.stderr)
         self.assertNotIn("devicectl install", self.labels())
 
+    def test_profile_expiry_is_judged_against_the_injected_clock(self):
+        self.set_profile(profile_data(expires=NOW + datetime.timedelta(hours=1)))
+        self.assertEqual(self.run_runner().returncode, 0)
+        self.set_profile(profile_data(expires=NOW - datetime.timedelta(seconds=1)))
+        r = self.run_runner()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("expired on 2026-10-31", r.stderr)
+
     def test_sign_failure(self):
         self.conf["codesign_status"] = 1
         r = self.run_runner()
@@ -449,6 +461,14 @@ class TestWholeRun(unittest.TestCase):
         shutil.rmtree(self.home / runner.PROFILE_DIRS[1])
         self.assertEqual(self.run_runner().returncode, 0)
         self.assertIn("devicectl launch", self.labels())
+
+
+class TestClock(unittest.TestCase):
+    def test_clock_seam_is_the_real_clock_by_default(self):
+        real = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        got = runner.clock()
+        self.assertIsNone(got.tzinfo)
+        self.assertLess(abs((got - real).total_seconds()), 5)
 
 
 class TestRepository(unittest.TestCase):
