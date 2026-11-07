@@ -5,6 +5,7 @@
 //! `common::equip` is tested below the seam's own tests.
 
 use crate::common;
+use crate::common::equip;
 use crate::common::run::{plain_content, plain_setup};
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -148,4 +149,109 @@ fn script_equipment_fills_the_inventory_and_seeds_the_level() {
         );
         assert_eq!(e.state_hash(), before, "a refusal changes nothing");
     }
+}
+
+// The helper `common::equip`: stars on a hand-built stage, written without categories.
+
+/// Bare stars, as a test writes them: no category, no `equipment` object. `a` and `b` share the
+/// option `max_hp`; `c` has another, whose amount floors differently at each level.
+fn bare_stars() -> Value {
+    let bare = |id: &str, effect: &str, amount: u32| {
+        json!({ "id": id, "rarity": "common", "limit": 3,
+                "effects": [{ "effect": effect, "amount": amount }] })
+    };
+    json!({ "rarities": common::rarities(), "rewards": [
+        bare("a", "max_hp", 100), bare("b", "max_hp", 50), bare("c", "crit_chance_pct", 40)
+    ] })
+}
+
+/// The slots of the layout the stars go in: Attack first (`c`), then Defence (`a`, `b`).
+const ATTACK: usize = 0;
+const DEFENCE: usize = 5;
+
+fn crit_of(e: &Engine) -> u32 {
+    e.snapshot().players[0].crit_chance_pct
+}
+
+/// T4: a star equipped at Lv1 is the star picked from an offer: the same stat as the run that
+/// carries it in as if picked, different from the run with nothing equipped; the slot is Lv1.
+#[test]
+fn lv1_equals_one_offer_pick_for_the_same_star() {
+    use stella_rain_core::run_setup::CarriedStar;
+    let (stage, content) = (stage(), content());
+    let equipped = equip::equipped(&stage, bare_stars(), &[("c", ATTACK)], 1);
+    let nothing = equip::equipped(&stage, bare_stars(), &[], 1);
+    let cost = content
+        .rewards()
+        .lumine_cost(content.rewards().rewards()[2].rarity);
+    let offers = RunSetup {
+        carried: vec![CarriedStar { reward: "c".into() }],
+        lumine: cost,
+        star_pool: Some(vec!["c".into()]),
+        ..plain_setup()
+    };
+    let picked = Engine::start_with(&offers, &content).expect("starts");
+    assert_eq!(crit_of(&nothing), 0);
+    assert_eq!(crit_of(&equipped), 40);
+    assert_eq!(crit_of(&equipped), crit_of(&picked));
+    assert_eq!(equipped.snapshot().players[0].slots[ATTACK].level, 1);
+}
+
+/// T5: a star at Lv n adds `level_scaled`: the amount plus `level_pct` for each level above 1,
+/// floored (restated here from the pack's rules, not read from the simulation).
+#[test]
+fn lv_n_equals_level_scaled() {
+    let rules = Rewards::bundled().equipment().expect("the pack's rules");
+    let (stage, amount) = (stage(), 40u32);
+    let mut floored = false;
+    for n in [1u8, 2, 10] {
+        let e = equip::equipped(&stage, bare_stars(), &[("c", ATTACK)], n);
+        let times = 100 + rules.level_pct * (u32::from(n) - 1);
+        floored |= amount * times % 100 != 0;
+        assert_eq!(crit_of(&e), amount * times / 100, "Lv{n}");
+        assert_eq!(e.snapshot().players[0].slots[ATTACK].level, n);
+    }
+    assert!(floored, "some level has a floor that matters");
+}
+
+/// T6: a star sharing an option with an equipped one is refused with `OptionHeld`, naming the
+/// slot that holds it; `equipped` panics naming the star, the slot and the refusal.
+#[test]
+fn a_clashing_star_is_refused_with_option_held() {
+    use stella_rain_core::engine::ActionError;
+    let stage = stage();
+    let clash = [("a", DEFENCE), ("b", DEFENCE + 1)];
+    let refused = equip::try_equipped(&stage, bare_stars(), &clash, 1).err();
+    assert_eq!(refused, Some(ActionError::OptionHeld { slot: 5 }));
+    let fine = [("a", DEFENCE), ("c", ATTACK)];
+    assert!(equip::try_equipped(&stage, bare_stars(), &fine, 1).is_ok());
+}
+
+#[test]
+#[should_panic(expected = "equip `b` into slot 6")]
+fn equipped_panics_on_a_clash_naming_the_star_and_the_slot() {
+    let clash = [("a", DEFENCE), ("b", DEFENCE + 1)];
+    equip::equipped(&stage(), bare_stars(), &clash, 1);
+}
+
+/// T7: the helper gives a bare reward the category the bundled pack gives the same first effect
+/// (the table is built from the pack); a first effect no bundled reward has panics naming it.
+#[test]
+fn the_helper_gives_a_hand_written_pack_its_categories() {
+    for r in Rewards::bundled().rewards() {
+        let effect = serde_json::to_value(r.effect()).unwrap();
+        let wanted = r.category.as_ref().map(|c| c.as_str());
+        assert_eq!(
+            equip::category_of_effect(effect.as_str().unwrap()),
+            wanted,
+            "{}",
+            r.id.as_str()
+        );
+    }
+}
+
+#[test]
+#[should_panic(expected = "no_such_effect")]
+fn an_effect_the_pack_never_uses_panics_naming_it() {
+    equip::category_of_effect("no_such_effect");
 }
