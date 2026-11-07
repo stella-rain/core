@@ -10,8 +10,6 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rewards::{MAX_HP_AMOUNT, Rarity, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate;
 use stella_rain_core::validate::limits::{DAMAGE_SCALE, MAX_HEAL_AMOUNT, MAX_PLAYER_HP};
@@ -65,27 +63,9 @@ fn healing(stage: Stage, heal: Value) -> Stage {
     stage
 }
 
-/// Levels of 1000 experience and stars of `rarity` only, which every kill drops, all taken.
-/// Every star's offer freezes the world until one is chosen, so only the regen tests use it.
-fn starry(stage: Stage, rarity: &str) -> Stage {
-    let mut stage = stage;
-    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
-    stage.stars = Some(
-        serde_json::from_value(json!({
-            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-            "rerolls": 0, "banishes": 0,
-            "tiers": [{ "from_level": 1, "weights": { rarity: 1 } }],
-        }))
-        .unwrap(),
-    );
-    stage
-}
-
 /// The rewards file with `list` in it.
-fn rewards(list: Vec<Value>) -> Rewards {
-    let file = json!({ "rarities": common::rarities(), "rewards": list });
-    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate")
+fn rewards(list: Vec<Value>) -> Value {
+    json!({ "rarities": common::rarities(), "rewards": list })
 }
 
 /// A regen reward of `amount` hit points a second at `rarity`, taken at most `limit` times.
@@ -402,41 +382,21 @@ fn the_pickups_on_the_map_stay_within_the_cap() {
 
 // Regen: a regen reward adds its amount to the perk counter, a second at a time.
 
-/// A stage where one kill drops a star of `rarity`, taken at once, after the shooter hurts the
-/// main character from 99 shown hit points to 9: then the reward `regen` is offered and taken.
-fn regen_offer(rarity: &str, amount: u32) -> Engine {
-    let stage = armed(
-        starry(
-            stage_full(
-                1_200,
-                Some(far_boss()),
-                vec![heavy_shooter(90 * DAMAGE_SCALE), targets(60, 1)],
-                vec![],
-            ),
-            rarity,
+/// A stage where the shooter hurts the main character from the most hit points, with the reward
+/// `regen` of `rarity` and `amount` equipped (slot 5, the first defence slot) at Lv1.
+fn regen_held(rarity: &str, amount: u32) -> Engine {
+    let mut stage = armed(
+        stage_full(
+            1_200,
+            Some(far_boss()),
+            vec![heavy_shooter(90 * DAMAGE_SCALE), targets(60, 1)],
+            vec![],
         ),
         weapon(),
     );
-    let mut stage = stage;
     stage.player.hp = MAX_PLAYER_HP;
     let list = vec![regen("regen", rarity, amount, 5)];
-    let content = RunContent::new(RunStats::bundled().clone(), rewards(list));
-    Engine::new_with(&stage, &content).expect("the test stage is valid")
-}
-
-/// Takes the open offer's candidate that is `reward`.
-fn take(e: &mut Engine, reward: &str) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
+    equip::equipped(&stage, rewards(list), &[("regen", 5)], 1)
 }
 
 #[test]
@@ -444,10 +404,13 @@ fn a_regen_reward_heals_its_amount_each_second_at_each_rarity() {
     for (rarity, amount) in bundled_regen() {
         let rarity = format!("{rarity:?}").to_lowercase();
         let rarity = rarity.as_str();
-        let mut e = regen_offer(rarity, amount);
-        run(&mut e, 300, |e| e.offer_open());
-        assert!(e.offer_open(), "{rarity}: an offer opens after the kill");
-        take(&mut e, "regen");
+        let mut e = regen_held(rarity, amount);
+        // The shooter fires at the first tick: wait until it has hurt the main character.
+        run(&mut e, 300, |e| hp(e) < MAX_PLAYER_HP);
+        assert!(
+            hp(&e) < MAX_PLAYER_HP,
+            "{rarity}: the shooter hurt the main character"
+        );
         let before = hp(&e);
         // One second is 60 ticks: exactly one regeneration in any 60 ticks.
         run(&mut e, 60, |_| false);
