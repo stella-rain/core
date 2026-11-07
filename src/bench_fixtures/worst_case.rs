@@ -351,9 +351,11 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// The `Load` weight of every tick the scripted run plays after the runes are taken, up to 60
-/// ticks past the measured one (the span `the_caps_are_held_tick_after_tick` holds the caps in):
-/// pairs of the tick (the number `input` takes) and its weight.
+/// The `Load` weight of every tick the scripted run plays from the first tap (`TAP_FROM`: before
+/// it no enemy carries a status, which `Load` does not see) up to 60 ticks past the measured one
+/// (the span `the_caps_are_held_tick_after_tick` holds the caps in): pairs of the tick (the
+/// number `input` takes) and its weight. Counted by instructions, the ticks before the first tap
+/// are 11% lighter (tick 241: 4.60 M against 5.19 M).
 pub fn weights() -> Vec<(u32, u64)> {
     let mut engine = on_hit::with(&stage(), &content());
     on_hit::take_all(&mut engine);
@@ -366,7 +368,9 @@ pub fn weights() -> Vec<(u32, u64)> {
             Outcome::Running,
             "the run ended on {tick}"
         );
-        weights.push((tick, weight(engine.load())));
+        if tick >= TAP_FROM {
+            weights.push((tick, weight(engine.load())));
+        }
     }
     weights
 }
