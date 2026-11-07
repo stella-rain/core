@@ -5,10 +5,10 @@ use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 265_515_498_147_215_253;
+const SIM_V1_SOURCE: u64 = 8_820_648_140_048_360_476;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
-/// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, so the list is closed.
+/// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, and `views.rs`, its own offer views, so the list is closed.
 const SIM_V1_FILES: &[(&str, &str)] = &[
     ("act.rs", include_str!("../sim_v1/act.rs")),
     ("agents.rs", include_str!("../sim_v1/agents.rs")),
@@ -52,6 +52,7 @@ const SIM_V1_FILES: &[(&str, &str)] = &[
     ("state_codec.rs", include_str!("../sim_v1/state_codec.rs")),
     ("state_hash.rs", include_str!("../sim_v1/state_hash.rs")),
     ("stun.rs", include_str!("../sim_v1/stun.rs")),
+    ("views.rs", include_str!("../sim_v1/views.rs")),
     ("world.rs", include_str!("../sim_v1/world.rs")),
     ("zones.rs", include_str!("../sim_v1/zones.rs")),
 ];
@@ -151,5 +152,102 @@ fn sim_v1_imports_nothing_from_the_live_event() {
     assert!(
         found.is_empty(),
         "sim_v1 imports the live event type: {found:?}"
+    );
+}
+
+/// The offer types `sim_v1` owns copies of, in `sim_v1/views.rs`.
+const OFFER_TYPES: [&str; 10] = [
+    "OfferOption",
+    "OfferView",
+    "CandidateView",
+    "ConstellationView",
+    "ConstellationProgress",
+    "ExpertiseOfferView",
+    "ExpertiseCandidateView",
+    "StatOfferView",
+    "OfferKind",
+    "ExpertiseOfferKind",
+];
+
+/// The 1-based lines of `text` where a `crate::snapshot::` path names one of `OFFER_TYPES`, as the
+/// item after it or inside its `{ .. }` list (over any number of lines). Line comments are
+/// blanked first.
+fn live_offer_lines(text: &str) -> Vec<usize> {
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+    let code: String = text
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let prefix = "crate::snapshot::";
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = code[from..].find(prefix).map(|i| i + from) {
+        let after = at + prefix.len();
+        let rest = &code[after..];
+        let named = if rest.starts_with('{') {
+            let mut depth = 0;
+            let mut group = String::new();
+            for c in rest.chars() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => group.push(c),
+                }
+            }
+            group
+        } else {
+            rest.chars().take_while(|&c| is_ident(c)).collect()
+        };
+        if named
+            .split(|c: char| !is_ident(c))
+            .any(|w| OFFER_TYPES.contains(&w))
+        {
+            found.push(code[..at].matches('\n').count() + 1);
+        }
+        from = after;
+    }
+    found
+}
+
+#[test]
+fn the_offer_scan_finds_a_live_import() {
+    let finds = |text: &str| !live_offer_lines(text).is_empty();
+    assert!(finds("use crate::snapshot::OfferOption;"));
+    assert!(finds("use crate::snapshot::{EntityKind, OfferKind};"));
+    assert!(finds(
+        "use crate::snapshot::{\n    EntityKind,\n    ExpertiseOfferKind,\n};"
+    ));
+    assert!(finds("fn f() -> crate::snapshot::OfferView { todo!() }"));
+    assert!(!finds("use crate::snapshot::Press;"));
+    assert!(!finds("use crate::snapshot::{EntityKind, PatternView};"));
+    assert!(!finds("use crate::snapshot::OfferViewer;"));
+    assert!(!finds("use crate::snapshot::{ExpertiseOfferKinds};"));
+    assert!(!finds("use super::views::OfferKind;"));
+    assert!(!finds("// was crate::snapshot::OfferKind"));
+    assert_eq!(
+        live_offer_lines("a\nuse crate::snapshot::{\n  EntityKind,\n  OfferView,\n};"),
+        [2]
+    );
+}
+
+/// The frozen rules own the offer views they build and read (ADR-REPL-2 points 1 to 3): a change
+/// to the live ones edits `engine/v1_events.rs`, never `sim_v1`.
+#[test]
+fn sim_v1_imports_no_live_offer_type() {
+    let mut found = Vec::new();
+    for (path, text) in SIM_V1_FILES {
+        for line in live_offer_lines(text) {
+            found.push(format!("sim_v1/{path}:{line}"));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "sim_v1 imports a live offer type: {found:?}"
     );
 }

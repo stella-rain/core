@@ -12,6 +12,7 @@ use crate::savepoint::codec::{
 };
 
 use super::state::*;
+use super::views::{ExpertiseOfferKind, OfferKind};
 use super::world::RangedPool;
 
 // ---- Attacks, orbs and zones ----
@@ -1048,6 +1049,16 @@ macro_rules! enum_codec {
 }
 
 enum_codec! {
+    OfferKind, "offer kind tag": {
+        OfferKind::Star => 0,
+        OfferKind::Boss => 1,
+    };
+    ExpertiseOfferKind, "expertise offer kind tag": {
+        ExpertiseOfferKind::Common => 0,
+        ExpertiseOfferKind::Style => 1,
+        ExpertiseOfferKind::Upgrade => 2,
+        ExpertiseOfferKind::Capstone => 3,
+    };
     RangedPool, "ranged pool tag": {
         RangedPool::Zone => 0,
         RangedPool::Line => 1,
@@ -1799,7 +1810,7 @@ mod enum_tests {
     use crate::rewards::Rarity;
     use crate::rune::Rune;
     use crate::savepoint::testing::{from_bytes, to_bytes};
-    use crate::snapshot::{ExpertiseOfferKind, OfferKind};
+    use crate::sim_v1::views::{ExpertiseOfferKind, OfferKind};
 
     /// Every variant, in order, is its number; the number after the last is refused.
     fn tags<T: Encode + Decode + PartialEq + std::fmt::Debug>(all: &[T]) {

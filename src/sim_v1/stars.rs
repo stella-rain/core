@@ -24,6 +24,9 @@
 
 use super::World;
 use super::event::DomainEvent;
+use super::views::{
+    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
+};
 use crate::attack::DamageType;
 use crate::constellations;
 use crate::id::{ContentId, EntityId};
@@ -36,9 +39,6 @@ use crate::rng::SplitMix64;
 use crate::rune::Rune;
 use crate::sim_v1::state::{
     Due, HeldRune, OfferState, PlayerState, Progress, StarField, StarState, State,
-};
-use crate::snapshot::{
-    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
 };
 use crate::stage::{RarityWeights, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;

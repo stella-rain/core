@@ -15,7 +15,8 @@ use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::sim_v1;
 use crate::sim_v1::event as v1;
-use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind, Press};
+use crate::sim_v1::views::{ExpertiseOfferKind, OfferKind};
+use crate::snapshot::{EntityKind, Press};
 use std::sync::Arc;
 
 /// One frozen value of each of the 43 variants, with distinct, non-default field values.
@@ -368,7 +369,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
                 by_hand.content.rewards(),
                 by_hand.content.expertise(),
                 state,
-                option,
+                option.into(),
                 &mut frozen,
             );
             crate::engine::pick(&mut e, PlayerIdx::SOLO, 0).unwrap();
@@ -418,4 +419,257 @@ fn the_scratch_never_allocates_after_load() {
         assert_eq!(left.capacity(), scratch, "tick {tick}");
         assert_eq!(e.events.capacity(), events, "tick {tick}");
     }
+}
+
+/// What a version 1 run shows of its offers is pinned: every corpus run in `tests/corpus/v1/runs`
+/// is replayed with its recorded inputs and picks, and the JSON of the snapshot at each open
+/// offer and of the events after each pick is folded into one hash. The offer views the frozen
+/// rules build are moved without changing this (ADR-REPL-2 point 6, ADR-SIM-3).
+#[test]
+fn a_version_1_replay_shows_the_same_offers() {
+    let root = super::savepoint_tests::data_root::data_root().join("tests/corpus/v1");
+    let mut dirs: Vec<_> = std::fs::read_dir(root.join("runs"))
+        .unwrap()
+        .map(|d| d.unwrap().path())
+        .collect();
+    dirs.sort();
+    let (mut folded, mut offers) = (String::new(), 0u32);
+    for dir in dirs {
+        let replay = crate::run_replay::RunReplay::from_bytes(
+            &std::fs::read(dir.join("run.replay")).unwrap(),
+        )
+        .unwrap();
+        let pack = std::fs::read_dir(root.join("packs"))
+            .unwrap()
+            .map(|p| {
+                crate::pack::Pack::from_bytes(&std::fs::read(p.unwrap().path()).unwrap()).unwrap()
+            })
+            .find(|p| crate::content_hash::to_hex(&p.sha256()) == replay.content_sha256)
+            .expect("the run's pack is kept");
+        let (inputs, commands) = replay
+            .step_log(crate::run_replay::MAX_COMMANDS * 100_000)
+            .unwrap()
+            .to_solo()
+            .unwrap();
+        let mut e = Engine::start_with(&replay.setup, pack.content()).unwrap();
+        let mut next = 0;
+        let mut pick_here = |e: &mut Engine, tick: usize, folded: &mut String, offers: &mut u32| {
+            while next < commands.len() && commands[next].tick as usize == tick {
+                if e.offer_open() {
+                    folded.push_str(&serde_json::to_string(&e.snapshot()).unwrap());
+                    *offers += 1;
+                }
+                crate::engine::pick(e, PlayerIdx::SOLO, commands[next].index).unwrap();
+                folded.push_str(&serde_json::to_string(e.events()).unwrap());
+                next += 1;
+            }
+        };
+        pick_here(&mut e, 0, &mut folded, &mut offers);
+        for (tick, input) in inputs.iter().enumerate() {
+            e.step(&[*input, Default::default(), Default::default()]);
+            pick_here(&mut e, tick + 1, &mut folded, &mut offers);
+        }
+        assert_eq!(next, commands.len(), "every pick was made");
+    }
+    assert!(offers > 0, "the corpus opens offers");
+    // Seen in the corpus: star offers and constellations; no stat offer and no expertise offer
+    // (the hand-built values of `the_offer_views_convert_field_by_field` cover those).
+    assert!(folded.contains("\"constellations\":[{"), "a constellation");
+    assert!(folded.contains("\"OfferOpened\""), "a star offer");
+    // Recorded from a run on the commit before the views moved: a pin in source, not generated.
+    assert_eq!(
+        crate::hash::fnv1a64(folded.as_bytes()),
+        12726148840104281884
+    );
+}
+
+#[test]
+fn the_offer_views_convert_field_by_field() {
+    use crate::sim_v1::views as w;
+    use crate::snapshot as live;
+
+    let kinds: [(w::OfferKind, live::OfferKind); 2] = [
+        (w::OfferKind::Star, live::OfferKind::Star),
+        (w::OfferKind::Boss, live::OfferKind::Boss),
+    ];
+    for (frozen, expected) in kinds {
+        assert_eq!(live::OfferKind::from(frozen), expected);
+    }
+    let expertise: [(w::ExpertiseOfferKind, live::ExpertiseOfferKind); 4] = [
+        (
+            w::ExpertiseOfferKind::Common,
+            live::ExpertiseOfferKind::Common,
+        ),
+        (
+            w::ExpertiseOfferKind::Style,
+            live::ExpertiseOfferKind::Style,
+        ),
+        (
+            w::ExpertiseOfferKind::Upgrade,
+            live::ExpertiseOfferKind::Upgrade,
+        ),
+        (
+            w::ExpertiseOfferKind::Capstone,
+            live::ExpertiseOfferKind::Capstone,
+        ),
+    ];
+    for (frozen, expected) in expertise {
+        assert_eq!(live::ExpertiseOfferKind::from(frozen), expected);
+    }
+
+    let options: [(w::OfferOption, live::OfferOption); 4] = [
+        (
+            w::OfferOption::Take { candidate: 1 },
+            live::OfferOption::Take { candidate: 1 },
+        ),
+        (
+            w::OfferOption::Reroll { candidate: 2 },
+            live::OfferOption::Reroll { candidate: 2 },
+        ),
+        (w::OfferOption::Skip, live::OfferOption::Skip),
+        (
+            w::OfferOption::Banish { candidate: 0 },
+            live::OfferOption::Banish { candidate: 0 },
+        ),
+    ];
+    for (frozen, expected) in options {
+        assert_eq!(live::OfferOption::from(frozen), expected);
+        assert_eq!(w::OfferOption::from(expected), frozen);
+    }
+
+    let offer = w::OfferView {
+        kind: w::OfferKind::Boss,
+        rarity: Rarity::Epic,
+        candidates: vec![
+            w::CandidateView {
+                reward: ContentId::from("r1"),
+                rarity: Rarity::Rare,
+                hidden: true,
+                named: false,
+                star: None,
+                constellation: None,
+            },
+            w::CandidateView {
+                reward: ContentId::from("r2"),
+                rarity: Rarity::Legendary,
+                hidden: false,
+                named: true,
+                star: Some("s".into()),
+                constellation: Some(w::ConstellationProgress {
+                    set: ContentId::from("set"),
+                    held: 2,
+                    needed: 3,
+                }),
+            },
+        ],
+        options: vec![
+            w::OfferOption::Take { candidate: 0 },
+            w::OfferOption::Reroll { candidate: 1 },
+            w::OfferOption::Skip,
+        ],
+        rerolls_left: 4,
+        banishes_left: 5,
+    };
+    let converted = live::OfferView::from(offer);
+    assert_eq!(converted.kind, live::OfferKind::Boss);
+    assert_eq!(converted.rarity, Rarity::Epic);
+    assert_eq!(converted.rerolls_left, 4);
+    assert_eq!(converted.banishes_left, 5);
+    assert_eq!(
+        converted.options,
+        [
+            live::OfferOption::Take { candidate: 0 },
+            live::OfferOption::Reroll { candidate: 1 },
+            live::OfferOption::Skip,
+        ]
+    );
+    assert_eq!(
+        converted.candidates,
+        [
+            live::CandidateView {
+                reward: ContentId::from("r1"),
+                rarity: Rarity::Rare,
+                hidden: true,
+                named: false,
+                star: None,
+                constellation: None,
+            },
+            live::CandidateView {
+                reward: ContentId::from("r2"),
+                rarity: Rarity::Legendary,
+                hidden: false,
+                named: true,
+                star: Some("s".into()),
+                constellation: Some(live::ConstellationProgress {
+                    set: ContentId::from("set"),
+                    held: 2,
+                    needed: 3,
+                }),
+            },
+        ]
+    );
+    assert_eq!(
+        serde_json::to_string(&converted).unwrap(),
+        concat!(
+            r#"{"kind":"boss","rarity":"epic","candidates":["#,
+            r#"{"reward":"r1","rarity":"rare","hidden":true},"#,
+            r#"{"reward":"r2","rarity":"legendary","named":true,"star":"s","#,
+            r#""constellation":{"set":"set","held":2,"needed":3}}],"#,
+            r#""options":[{"type":"take","candidate":0},{"type":"reroll","candidate":1},"#,
+            r#"{"type":"skip"}],"rerolls_left":4,"banishes_left":5}"#
+        )
+    );
+
+    let view = live::ConstellationView::from(w::ConstellationView {
+        id: ContentId::from("c"),
+        name: "Crown".into(),
+        held: 1,
+        tier: 2,
+        needed: 3,
+    });
+    assert_eq!(
+        view,
+        live::ConstellationView {
+            id: ContentId::from("c"),
+            name: "Crown".into(),
+            held: 1,
+            tier: 2,
+            needed: 3,
+        }
+    );
+    let stat = live::StatOfferView::from(w::StatOfferView {
+        options: vec![ContentId::from("a"), ContentId::from("b")],
+    });
+    assert_eq!(stat.options, [ContentId::from("a"), ContentId::from("b")]);
+    assert_eq!(
+        serde_json::to_string(&stat).unwrap(),
+        r#"{"options":["a","b"]}"#
+    );
+
+    let offer = live::ExpertiseOfferView::from(w::ExpertiseOfferView {
+        level: 7,
+        kind: w::ExpertiseOfferKind::Upgrade,
+        candidates: vec![w::ExpertiseCandidateView {
+            option: ContentId::from("o"),
+        }],
+        options: vec![w::OfferOption::Take { candidate: 0 }],
+        rerolls_left: 6,
+    });
+    assert_eq!(offer.level, 7);
+    assert_eq!(offer.kind, live::ExpertiseOfferKind::Upgrade);
+    assert_eq!(
+        offer.candidates,
+        [live::ExpertiseCandidateView {
+            option: ContentId::from("o")
+        }]
+    );
+    assert_eq!(offer.options, [live::OfferOption::Take { candidate: 0 }]);
+    assert_eq!(offer.rerolls_left, 6);
+    assert_eq!(
+        serde_json::to_string(&offer).unwrap(),
+        concat!(
+            r#"{"level":7,"kind":"upgrade","candidates":[{"option":"o"}],"#,
+            r#""options":[{"type":"take","candidate":0}],"rerolls_left":6}"#
+        )
+    );
 }

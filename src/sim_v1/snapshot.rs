@@ -370,7 +370,10 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 })
                 .collect()
         }),
-        constellations: constellation_views(content.rewards(), s),
+        constellations: constellation_views(content.rewards(), s)
+            .into_iter()
+            .map(Into::into)
+            .collect(),
         heal_pickups: s.heal_pickups.as_ref().map_or_else(Vec::new, |h| {
             h.iter()
                 .map(|p| HealPickupView { id: p.id, at: p.at })
@@ -381,8 +384,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             xp: p.xp,
             xp_next: xp_next(world, p.level),
             spent: p.spent.clone(),
-            stat_offer: stat_offer_view(s),
-            offer: offer_view(content.rewards(), s),
+            stat_offer: stat_offer_view(s).map(Into::into),
+            offer: offer_view(content.rewards(), s).map(Into::into),
         }),
         expertise: s.expertise.as_ref().map(|g| {
             let (style, path) = expertise_styles_view(world, content.expertise(), g);
@@ -393,7 +396,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 taken: g.taken.clone(),
                 style,
                 path,
-                offer: expertise_offer_view(world, content.expertise(), s),
+                offer: expertise_offer_view(world, content.expertise(), s).map(Into::into),
             }
         }),
         patterns: announced_patterns(world, s),

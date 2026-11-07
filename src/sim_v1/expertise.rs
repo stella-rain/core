@@ -39,15 +39,13 @@
 
 use super::World;
 use super::event::DomainEvent;
+use super::views::{ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption};
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::rng::SplitMix64;
 use crate::sim_v1::state::{AgentSource, ExpertiseGauge, ExpertiseOffer, State};
-use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption,
-};
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
 

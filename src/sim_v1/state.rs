@@ -1,5 +1,6 @@
 //! Every `State` type: the whole state of a run, hashed by `StableHash` (`state_hash.rs`, ADR-SIM-3).
 
+use super::views::{ExpertiseOfferKind, OfferKind};
 use crate::attack::{DamageType, ZoneShape};
 use crate::behaviour::BossCall;
 use crate::engine::Outcome;
@@ -14,7 +15,7 @@ use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
-use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
+use crate::snapshot::EntityKind;
 use crate::validate::{self};
 use std::sync::LazyLock;
 

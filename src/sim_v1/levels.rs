@@ -17,10 +17,10 @@
 
 use super::World;
 use super::event::DomainEvent;
+use super::views::{OfferOption, StatOfferView};
 use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
 use crate::sim_v1::state::{AgentSource, PlayerState, Progress, State};
-use crate::snapshot::{OfferOption, StatOfferView};
 
 /// The highest level; past it experience is no longer counted (ADR-SVC-1: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
