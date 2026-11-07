@@ -381,7 +381,7 @@ fn the_bonuses_that_apply_add_up_into_one_kind() {
 #[test]
 fn the_bonus_multiplies_with_each_match_up_and_never_adds() {
     let list = || vec![pyro(50)];
-    let hit = |profile: Value| first_hit(100, Some("pyro"), Some(profile), list(), &["pyro"]);
+    let hit = |profile: Value| hit_with(100, Some("pyro"), Some(profile), list(), &[("pyro", 0)]);
     // An example: 1.5 × 0.8 = 1.2, never 1 + 0.5 − 0.2.
     assert_eq!(hit(json!({ "strong": ["pyro"] })), 120, "strong");
     assert_eq!(hit(json!({ "resist": "elements" })), 120, "resisted");
@@ -398,8 +398,8 @@ fn a_neutral_attack_gets_no_bonus() {
             bonus("physical", "attack_type_bonus_pct", None, 50, 5),
         ]
     };
-    let taken = ["pyro", "elemental", "physical"];
-    assert_eq!(first_hit(100, None, None, list(), &taken), 100);
+    let held = [("pyro", 0), ("elemental", 1), ("physical", 2)];
+    assert_eq!(hit_with(100, None, None, list(), &held), 100);
 }
 
 #[test]
@@ -534,10 +534,11 @@ fn the_state_hash_holds_the_bonuses() {
         ]
     };
     let stage = targets(10, None, 1, None);
-    let mut a = with(&stage, list());
-    let mut b = with(&stage, list());
-    take_next(&mut a, "pyro");
-    take_next(&mut b, "hydro");
+    let file = || json!({ "rarities": common::rarities(), "rewards": list() });
+    let mut a = common::equip::equipped(&stage, file(), &[("pyro", 0)], 1);
+    let mut b = common::equip::equipped(&stage, file(), &[("hydro", 0)], 1);
+    run_until(&mut a, idle(), 10, |_| false);
+    run_until(&mut b, idle(), 10, |_| false);
     assert_eq!(a.tick(), b.tick());
     assert_ne!(a.state_hash(), b.state_hash());
 }
