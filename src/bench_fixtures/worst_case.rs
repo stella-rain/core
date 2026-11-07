@@ -351,15 +351,28 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// The `Load` weight of every tick the scripted run plays from the first tap (`TAP_FROM`: before
-/// it no enemy carries a status, which `Load` does not see) up to 60 ticks past the measured one
-/// (the span `the_caps_are_held_tick_after_tick` holds the caps in): pairs of the tick (the
-/// number `input` takes) and its weight. Counted by instructions, the ticks before the first tap
-/// are 11% lighter (tick 241: 4.60 M against 5.19 M).
-pub fn weights() -> Vec<(u32, u64)> {
+/// An engine at the start of the scripted run: the main character has taken every rune and
+/// Rune Haste from the stars of the eight enemies that stand in front of it, as a run does
+/// (`on_hit::take_all`).
+fn runes_taken() -> Engine {
     let mut engine = on_hit::with(&stage(), &content());
     on_hit::take_all(&mut engine);
     on_hit::take(&mut engine, HASTE);
+    assert!(
+        engine.tick() < WALK_FROM,
+        "the runes were taken by tick {}",
+        engine.tick()
+    );
+    engine
+}
+
+/// The `Load` weight of every tick the scripted run plays from the first tap (`TAP_FROM`: before
+/// it no enemy carries a status, which `Load` does not see) up to 60 ticks past the measured one
+/// (the span `the_caps_are_held_tick_after_tick` holds the caps in): pairs of the tick (the
+/// number `input` takes) and its weight. Counted by instructions on x86_64, the ticks before the
+/// first tap are lighter (tick 241: 4.60 M against 5.19 M at the measured tick).
+pub fn weights() -> Vec<(u32, u64)> {
+    let mut engine = runes_taken();
     let mut weights = Vec::new();
     for tick in engine.tick() + 1..=WARMUP_TICKS + 60 {
         engine.step(&[input(tick), Default::default(), Default::default()]);
@@ -375,32 +388,24 @@ pub fn weights() -> Vec<(u32, u64)> {
     weights
 }
 
-/// Scans the run for its heaviest ticks by `Load` weight: that weight and every tick that has it
+/// Scans the run for its heaviest ticks by `Load` weight: every tick that has the top weight
 /// (`Load` does not see the charge release, aim assist or rune procs, so a tie is settled by
 /// counting instructions; `tests/worst_case.rs` pins that no tick outweighs the measured one).
-pub fn window() -> (u64, Vec<u32>) {
+pub fn window() -> Vec<u32> {
     let weights = weights();
     let top = weights.iter().map(|&(_, w)| w).max().unwrap_or(0);
-    let ticks = weights
+    weights
         .iter()
         .filter(|&&(_, w)| w == top)
         .map(|&(t, _)| t)
-        .collect();
-    (top, ticks)
+        .collect()
 }
 
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the worst-case tick. The
 /// main character takes every rune and Rune Haste first, from the stars of the eight enemies
 /// that stand in front of it, as a run does (`on_hit::take_all`).
 pub fn warmed_up() -> Engine {
-    let mut engine = on_hit::with(&stage(), &content());
-    on_hit::take_all(&mut engine);
-    on_hit::take(&mut engine, HASTE);
-    assert!(
-        engine.tick() < WALK_FROM,
-        "the runes were taken by tick {}",
-        engine.tick()
-    );
+    let mut engine = runes_taken();
     for tick in engine.tick() + 1..=WARMUP_TICKS {
         engine.step(&[input(tick), Default::default(), Default::default()]);
     }

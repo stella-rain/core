@@ -227,7 +227,13 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
 fn the_measured_tick_is_not_outweighed() {
     let weights = worst_case::weights();
     let measured = worst_case::WARMUP_TICKS + 1;
-    let at = |tick: u32| weights.iter().find(|&&(t, _)| t == tick).unwrap().1;
+    let at = |tick: u32| {
+        weights
+            .iter()
+            .find(|&&(t, _)| t == tick)
+            .expect("the measured tick is at or after the first tap")
+            .1
+    };
     let heavier: Vec<(u32, u64)> = weights
         .iter()
         .copied()

@@ -536,7 +536,7 @@ fn the_equip_peak_is_where_the_scan_finds_it() {
 /// by counting instructions.
 #[test]
 fn the_worst_tick_is_where_the_scan_finds_it() {
-    let (_, heaviest) = worst_case::window();
+    let heaviest = worst_case::window();
     assert!(
         heaviest.contains(&(worst_case::WARMUP_TICKS + 1)),
         "the measured tick is not among the heaviest: {heaviest:?}"
