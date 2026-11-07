@@ -208,6 +208,40 @@ fn first_hit(
         .expect("a hit on the target")
 }
 
+/// The damage of the first step on the tough target, with the `(reward, slot)` pairs of `stars`
+/// equipped at Lv1 before the first tick: `first_hit`'s twin on a stage without small enemies
+/// (so no star drops), over the rewards `list`. A bonus without a bundled twin (the attack-type
+/// and element bonuses) is given the category `attack`.
+fn hit_with(
+    damage: u32,
+    ty: Option<&str>,
+    profile: Option<Value>,
+    mut list: Vec<Value>,
+    stars: &[(&str, usize)],
+) -> u32 {
+    for r in &mut list {
+        if r.get("category").is_none()
+            && matches!(
+                r["effect"].as_str(),
+                Some("attack_type_bonus_pct" | "element_bonus_pct")
+            )
+        {
+            r["category"] = json!("attack");
+        }
+    }
+    let stage = targets(damage, ty, 0, profile);
+    let file = json!({ "rarities": common::rarities(), "rewards": list });
+    let mut e = common::equip::equipped(&stage, file, stars, 1);
+    assert!(e.tick() < TARGET_TICK, "every star held before the target");
+    let wait = TARGET_TICK - e.tick();
+    run_until(&mut e, idle(), wait, |_| false);
+    let target = tough_id(&e);
+    let events = fire_until(&mut e, idle(), 12, |_| false);
+    *damage_on(&events, target)
+        .first()
+        .expect("a hit on the target")
+}
+
 #[test]
 fn the_three_effects_parse_and_a_one_type_bonus_names_its_type() {
     let parsed = rewards(vec![
@@ -276,18 +310,21 @@ fn a_type_bonus_names_its_path_when_refused() {
 fn a_one_type_bonus_raises_its_type_only() {
     let list = || vec![pyro(50), bonus("filler", "max_hp", None, 1, 20)];
     assert_eq!(
-        first_hit(100, Some("pyro"), None, list(), &[]),
+        hit_with(100, Some("pyro"), None, list(), &[]),
         100,
         "none taken"
     );
-    assert_eq!(first_hit(100, Some("pyro"), None, list(), &["pyro"]), 150);
     assert_eq!(
-        first_hit(100, Some("hydro"), None, list(), &["pyro"]),
+        hit_with(100, Some("pyro"), None, list(), &[("pyro", 0)]),
+        150
+    );
+    assert_eq!(
+        hit_with(100, Some("hydro"), None, list(), &[("pyro", 0)]),
         100,
         "another element"
     );
     assert_eq!(
-        first_hit(100, Some("slash"), None, list(), &["pyro"]),
+        hit_with(100, Some("slash"), None, list(), &[("pyro", 0)]),
         100,
         "an attack type"
     );
@@ -298,13 +335,13 @@ fn the_attack_type_bonus_raises_every_attack_type_and_no_element() {
     let list = || vec![bonus("physical", "attack_type_bonus_pct", None, 30, 5)];
     for ty in ["slash", "pierce", "strike"] {
         assert_eq!(
-            first_hit(100, Some(ty), None, list(), &["physical"]),
+            hit_with(100, Some(ty), None, list(), &[("physical", 0)]),
             130,
             "{ty}"
         );
     }
     assert_eq!(
-        first_hit(100, Some("pyro"), None, list(), &["physical"]),
+        hit_with(100, Some("pyro"), None, list(), &[("physical", 0)]),
         100
     );
 }
@@ -314,13 +351,13 @@ fn the_element_bonus_raises_every_element_and_no_attack_type() {
     let list = || vec![bonus("elemental", "element_bonus_pct", None, 30, 5)];
     for ty in ["pyro", "hydro", "electro", "cryo", "anemo", "geo", "dendro"] {
         assert_eq!(
-            first_hit(100, Some(ty), None, list(), &["elemental"]),
+            hit_with(100, Some(ty), None, list(), &[("elemental", 0)]),
             130,
             "{ty}"
         );
     }
     assert_eq!(
-        first_hit(100, Some("slash"), None, list(), &["elemental"]),
+        hit_with(100, Some("slash"), None, list(), &[("elemental", 0)]),
         100
     );
 }
