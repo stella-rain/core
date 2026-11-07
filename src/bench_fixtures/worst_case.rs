@@ -4,7 +4,7 @@
 
 use super::common::on_hit::{self, NEAR_Y};
 use super::common::{self, START_X};
-use crate::engine::Engine;
+use crate::engine::{Engine, Load, Outcome};
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
@@ -335,6 +335,54 @@ pub fn input(tick: u32) -> Input {
             common::idle()
         }
     }
+}
+
+/// The `Load` weight of a tick: the sum of its five counted fields.
+fn weight(load: Load) -> u64 {
+    [
+        load.enemies,
+        load.tasks,
+        load.zones,
+        load.orbs,
+        load.emitter_steps,
+    ]
+    .iter()
+    .map(|&n| u64::from(n))
+    .sum()
+}
+
+/// The `Load` weight of every tick the scripted run plays after the runes are taken, up to 60
+/// ticks past the measured one (the span `the_caps_are_held_tick_after_tick` holds the caps in):
+/// pairs of the tick (the number `input` takes) and its weight.
+pub fn weights() -> Vec<(u32, u64)> {
+    let mut engine = on_hit::with(&stage(), &content());
+    on_hit::take_all(&mut engine);
+    on_hit::take(&mut engine, HASTE);
+    let mut weights = Vec::new();
+    for tick in engine.tick() + 1..=WARMUP_TICKS + 60 {
+        engine.step(&[input(tick), Default::default(), Default::default()]);
+        assert_eq!(
+            engine.outcome(),
+            Outcome::Running,
+            "the run ended on {tick}"
+        );
+        weights.push((tick, weight(engine.load())));
+    }
+    weights
+}
+
+/// Scans the run for its heaviest ticks by `Load` weight: that weight and every tick that has it
+/// (`Load` does not see the charge release, aim assist or rune procs, so a tie is settled by
+/// counting instructions; `tests/worst_case.rs` pins that no tick outweighs the measured one).
+pub fn window() -> (u64, Vec<u32>) {
+    let weights = weights();
+    let top = weights.iter().map(|&(_, w)| w).max().unwrap_or(0);
+    let ticks = weights
+        .iter()
+        .filter(|&&(_, w)| w == top)
+        .map(|&(t, _)| t)
+        .collect();
+    (top, ticks)
 }
 
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the worst-case tick. The

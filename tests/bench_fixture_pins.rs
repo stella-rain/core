@@ -532,6 +532,17 @@ fn the_equip_peak_is_where_the_scan_finds_it() {
     assert_eq!(equip_case::window(), (MINUTE_START, EQUIP_PEAK_TICK));
 }
 
+/// The worst tick is one of the heaviest by `Load` that the scripted run plays; a tie is settled
+/// by counting instructions.
+#[test]
+fn the_worst_tick_is_where_the_scan_finds_it() {
+    let (_, heaviest) = worst_case::window();
+    assert!(
+        heaviest.contains(&(worst_case::WARMUP_TICKS + 1)),
+        "the measured tick is not among the heaviest: {heaviest:?}"
+    );
+}
+
 /// Asserts that `file` holds exactly the benches' cases, each with a bench of `budgets.toml` or
 /// in `UNBUDGETED`.
 fn assert_case_set(file: &toml::Table) {
