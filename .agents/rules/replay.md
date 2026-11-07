@@ -35,16 +35,22 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
 
 - `tests/integration.rs` declares the other files: `cargo test --test integration <file>::`.
   `tests/offer_mode.rs`: the two offer modes (setup reading, the timer, the recorder, a savepoint
-  with an offer open); `tests/offer_rating.rs`: `Engine::offer_ratings`.
+  with an offer open); `tests/offer_rating.rs`: `Engine::offer_ratings`. The equipment mode:
+  `tests/equipment_slots.rs`, `equipment_drops.rs`, `equipment_input.rs`, `equipment_party.rs`,
+  `equipment_pack.rs` (the pack's rules equal what the code was tested with) and
+  `tests/weapon_tree.rs`.
 - `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
   holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
   `stage.json`): `two_time_limit` (2 players), `three_time_limit`, `three_tutorial` (3),
   `join_two` (a solo run that takes slot 1 at tick 600), `leave_hole` (3 players; slot 1 leaves
-  at tick 900, slot 2 leaves, then rejoins), `timed_one` (1 player) and `timed_two` (2) in a
-  `timed` run: slot 0 answers an offer 100 ticks after it opens, the timer closes the rest; bless
-  writes them, `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
+  at tick 900, slot 2 leaves, then rejoins), `two_revive` and `three_revive` (a downed player
+  revived), `timed_one` (1 player) and `timed_two` (2) in a `timed` run: slot 0 answers an
+  offer 100 ticks after it opens, the timer closes the rest; the nine equipment-mode cases
+  `equipment_solo`, `_two`, `_party_1` to `_party_3`, `_equip`, `_craft`, `_levels` and
+  `_lumine` (actions, drops, Starlight, levels; `equipment.md`); bless writes them,
+  `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
   `packs/<sha256>.json` the pinned packs besides the bundled one. `tests/corpus/v<N>/`
   (N >= 1) is a frozen version of the same shape (no `parties/`: `sim_version` 1 has one player)
   plus `manifest.sha256`: never edited (CI `frozen
@@ -62,16 +68,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
 
 A pinned format or hash is never re-pinned: a change is a new version.
 
-- Savepoint: `tests/fixtures/savepoint/v<N>.sha256` per `SAVEPOINT_FORMAT` (now 3,
-  `savepoint/file.rs`; `v1`, `v2` and `v3` are pinned and `tests/savepoint.rs` wants one per
-  older format); `UPDATE_SAVEPOINT_PIN=1` refuses to overwrite an existing file. A file of format
-  1 or 2 is refused as `Format`. The payload starts with a fixed 60-byte `PlayerStats` record
-  (per slot `damage_dealt` u64, `kills` u32, `support` u64; `STATS_RECORD_LEN`, `ledger.rs`),
-  unhashed and trusted like the replay prefix, and a slot outside the party may hold a leaver's
-  totals (`decode_for` ignores the mask). Then the state bytes (`state-hash.md`: the presence
-  byte, the generations, a block per present player, a `timed` run's deadlines). `restore` builds
-  its fresh engine as the party the prefix log ends on, after its last join or leave
-  (`presence_at_end`); a size mismatch is `Damaged` or `PrefixMismatch`.
+- Savepoint: `savepoint.md`.
 - `GOLDEN_HASH` (`tests/engine.rs`) and the extremes pin (`tests/extremes.rs`): a rules change is
   a new `sim_version`. Counts that may only fall: `tests/alloc.rs`, `MEASURED_MOST`
   (`tests/command_cap.rs`), `tests/bench_pins.toml`. `tests/pick_pins.rs` was re-pinned once.

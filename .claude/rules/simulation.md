@@ -37,8 +37,12 @@ outcome changes follow the `schema-change` skill.
   and the expertise offers (`expertise.rs`). A `timed` run keeps a deadline per slot
   (`sync_deadline`, `pick_due`). `offer_rating.rs` rates the candidates of an open star or boss
   offer: `Engine::offer_ratings(player)` returns an `OfferRating` each (categories, `dps_bp`,
-  `set_tier`, the stat changes); read-only, nothing hashed, saved or recorded.
-- `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot. Every present
+  `set_tier`, the stat changes); read-only, nothing hashed, saved or recorded. Equipment mode
+  (`World.equipment_mode`): `build.rs`, `slots.rs` (the swap rules: hit-point fraction, entry
+  cooldown, the savepoint check), `starlight.rs`, `drops.rs`, `equipment.rs`, `loadout.rs`:
+  `equipment.md`; `expertise.rs`: `weapon-tree.md`; a party: `party-equipment.md`.
+- `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot, a member
+  from `Career::member` (slot 0's start career; `party-equipment.md`). Every present
   slot acts in slot order (`player_update` in `schedule.rs`; down, revive, tether and rewards:
   `party-play.md`). A player's number is `generation << 24 | slot`; a rejoin gets a new generation (`state-hash.md`).
 - `sim_v1/`: the frozen rules of `sim_version` 1. It owns its `World`, `State`, snapshot view

@@ -57,6 +57,7 @@ Sources: ADR-SIM-7, ADR-SIM-8, ADR-SAVE-3, ADR-SAVE-6. Joining, leaving and the 
   allocation. A party of one returns at once; the frozen rules have none.
 
 ## Rewards
+- Offers mode only; equipment mode has no offers and its rewards are `party-equipment.md`.
 - Experience (`levels::credit_defeated`) and Stardust (`stardust::credit_defeated`,
   `boss_killed`) go only to a player that is up (`is_up`), in every run, solo included.
 - The shared star drop's tier reads the highest level among up players, among the present ones
