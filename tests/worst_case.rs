@@ -224,6 +224,29 @@ fn the_measured_tick_reaches_every_dynamic_cap() {
 }
 
 #[test]
+fn the_measured_tick_is_not_outweighed() {
+    let weights = worst_case::weights();
+    let measured = worst_case::WARMUP_TICKS + 1;
+    let at = |tick: u32| {
+        weights
+            .iter()
+            .find(|&&(t, _)| t == tick)
+            .expect("the measured tick is at or after the first tap")
+            .1
+    };
+    let heavier: Vec<(u32, u64)> = weights
+        .iter()
+        .copied()
+        .filter(|&(_, w)| w > at(measured))
+        .collect();
+    assert!(
+        heavier.is_empty(),
+        "ticks with more Load than tick {measured} ({}): {heavier:?}",
+        at(measured)
+    );
+}
+
+#[test]
 fn the_caps_are_held_tick_after_tick() {
     let mut engine = worst_case::warmed_up();
     let mut fired = std::collections::BTreeSet::new();
