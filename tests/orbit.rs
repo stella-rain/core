@@ -103,6 +103,14 @@ fn with(stage: &Stage, rewards: Vec<Value>) -> Engine {
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }
 
+/// A run with the orbit `ring` equipped at Lv1 in the first attack slot, on a stage of `waves`
+/// with no stars: no drop and no offer (ADR-SIM-7). The orbit arrives ready.
+fn ring_equipped(waves: Vec<Value>, ring: Value) -> Engine {
+    let stage = stage_full(18_000, Some(far_boss()), waves, vec![]);
+    let file = json!({ "rarities": common::rarities(), "rewards": [ring] });
+    common::equip::equipped(&stage, file, &[("ring", 0)], 1)
+}
+
 /// Fires until an offer is open, then takes the candidate that is `reward`. The orbit's first
 /// round starts on the next tick.
 fn take(e: &mut Engine, reward: &str) {
@@ -163,8 +171,7 @@ const RIGHT: Facing = Facing { x: 65_536, y: 0 };
 
 #[test]
 fn an_orbit_arrives_ready_its_orbs_spaced_evenly_round_the_turn() {
-    let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 2, 60, 120)]);
-    take(&mut e, "ring");
+    let mut e = ring_equipped(vec![], orbit("ring", 2, 60, 120));
     assert_eq!(orbits(&e), [("ring".to_string(), 2, 0)]);
     e.step(&[idle(), Default::default(), Default::default()]);
     // Orb 0 starts straight down the screen, orb 1 half a turn on.
@@ -177,8 +184,7 @@ fn an_orbit_arrives_ready_its_orbs_spaced_evenly_round_the_turn() {
 
 #[test]
 fn the_orbs_turn_every_tick() {
-    let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 1, 60, 120)]);
-    take(&mut e, "ring");
+    let mut e = ring_equipped(vec![], orbit("ring", 1, 60, 120));
     e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(attacks(&e)[0].2, DOWN);
     for _ in 0..6 {
@@ -190,13 +196,11 @@ fn the_orbs_turn_every_tick() {
 
 #[test]
 fn an_orb_hits_what_it_passes_once_a_round_and_rounds_start_every_cooldown() {
-    let mut e = with(
-        &starry(vec![targets(1), beside()]),
-        vec![orbit("ring", 1, 60, 120)],
-    );
-    take(&mut e, "ring");
+    let mut e = ring_equipped(vec![beside()], orbit("ring", 1, 60, 120));
+    // The first step starts the round (its tick 0) and spawns the enemy.
+    e.step(&[idle(), Default::default(), Default::default()]);
     let enemy = the_enemy(&e);
-    let first = e.tick() + 1;
+    let first = e.tick();
     let mut hits = Vec::new();
     for _ in 0..130 {
         e.step(&[idle(), Default::default(), Default::default()]);
@@ -219,8 +223,7 @@ fn an_orb_hits_what_it_passes_once_a_round_and_rounds_start_every_cooldown() {
 
 #[test]
 fn a_round_longer_than_the_cooldown_makes_the_next_wait_for_its_end() {
-    let mut e = with(&starry(vec![targets(1)]), vec![orbit("ring", 1, 150, 120)]);
-    take(&mut e, "ring");
+    let mut e = ring_equipped(vec![], orbit("ring", 1, 150, 120));
     for _ in 0..150 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }

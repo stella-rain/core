@@ -262,3 +262,80 @@ fn the_helper_gives_a_hand_written_pack_its_categories() {
 fn an_effect_the_pack_never_uses_panics_naming_it() {
     equip::category_of_effect("no_such_effect");
 }
+
+// The helper's variant for a test with its own stage skills or constellations.
+
+/// A stage skill star `reward` that gives the skill `skill`, written without a category.
+fn skill_star(reward: &str, skill: &str, amount: u32) -> Value {
+    json!({ "id": reward, "rarity": "common", "effect": "stage_skill", "skill": skill,
+            "amount": amount, "limit": 5 })
+}
+
+/// A skills file's list: one skill `pulse` whose levels each have a 40 tick cooldown.
+fn pulse_skills() -> Value {
+    let level = json!({ "cooldown_ticks": 40,
+        "effects": [{ "type": "self_status", "status": "atk_up", "value_pct": 50,
+                      "duration_ticks": 60 }] });
+    json!([{ "id": "pulse", "icon": "icon_nova", "ahead": 0, "levels": [level, level, level] }])
+}
+
+/// T-a: a stage skill star of the test's own skills file is equipped at the level the star's
+/// amount gives, and arrives cooling, not ready; it is ready once its cooldown has run.
+#[test]
+fn a_custom_skill_star_is_equipped_and_cooling() {
+    let rewards =
+        json!({ "rarities": common::rarities(), "rewards": [skill_star("p", "pulse", 2)] });
+    let parts = equip::Parts {
+        skills: Some(pulse_skills()),
+        ..equip::Parts::default()
+    };
+    let mut e = equip::equipped_in(&stage(), rewards, parts, &[("p", ATTACK)], 1);
+    let skill = e.snapshot().players[0].skill.clone().expect("a skill");
+    assert_eq!((skill.skill.as_str(), skill.level), ("pulse", 2));
+    assert!(!skill.ready, "a skill star arrives cooling");
+    for _ in 0..skill.cooldown_left {
+        common::fire_until(&mut e, common::idle(), 1, |_| false);
+    }
+    assert!(e.snapshot().players[0].skill.as_ref().unwrap().ready);
+}
+
+/// T-b: the sets of `Parts` count their members: the tier at two of two applies with both
+/// equipped, not with one; without the sets nothing applies.
+#[test]
+fn custom_sets_count_their_members() {
+    let named = |id: &str, effect: &str, amount: u32| {
+        json!({ "id": id, "rarity": "epic", "named": true, "star": id, "limit": 1,
+                "effects": [{ "effect": effect, "amount": amount }] })
+    };
+    let rewards = || {
+        json!({ "rarities": common::rarities(), "rewards": [
+            named("m1", "crit_chance_pct", 10), named("m2", "max_hp", 10)
+        ] })
+    };
+    let sets = || {
+        let tier = json!({ "threshold": 2,
+            "effects": [{ "effect": "burst_depth", "amount": 2 }] });
+        let duo = json!({ "id": "duo", "name": "The duo", "members": ["m1", "m2"],
+                          "tiers": [tier] });
+        equip::Parts {
+            sets: Some(json!([duo])),
+            ..equip::Parts::default()
+        }
+    };
+    let depth = |e: &Engine| e.snapshot().players[0].burst_depth;
+    let both = [("m1", ATTACK), ("m2", DEFENCE)];
+    let one = [("m1", ATTACK)];
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), sets(), &both, 1)),
+        2
+    );
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), sets(), &one, 1)),
+        0
+    );
+    let bare = equip::Parts::default();
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), bare, &both, 1)),
+        0
+    );
+}

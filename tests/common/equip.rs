@@ -8,6 +8,7 @@ use crate::common::run::plain_content;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
+use stella_rain_core::constellations::Constellations;
 use stella_rain_core::engine::{ActionError, Engine};
 use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::EquipAction;
@@ -15,6 +16,7 @@ use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::{BuildMode, RunSetup};
 use stella_rain_core::stage::Stage;
+use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::version::Versions;
 
 /// The category the bundled pack gives each first effect (`None`: Growth and the random rune,
@@ -63,6 +65,15 @@ fn with_equipment_rules(mut rewards: Value) -> Value {
     rewards
 }
 
+/// What a test brings besides the rewards file: its own stage skills (the `stage_skills` array of
+/// a skills file) and its own constellations (the `constellations` array). `None` is the bundled
+/// skills and no sets.
+#[derive(Default)]
+pub struct Parts {
+    pub skills: Option<Value>,
+    pub sets: Option<Value>,
+}
+
 /// Starts an equipment-mode, one-player run on `stage` (its `sim_version` is set to the live
 /// rules) over the hand-written rewards file `rewards`, with each `(reward ID, slot)` of `stars`
 /// equipped at `level` (1 to 10). The slots are the layout's: the categories' slots in list
@@ -74,13 +85,25 @@ pub fn try_equipped(
     stars: &[(&str, usize)],
     level: u8,
 ) -> Result<Engine, ActionError> {
-    build(stage, rewards, stars, level).map_err(|(_, refused)| refused)
+    try_equipped_in(stage, rewards, Parts::default(), stars, level)
+}
+
+/// `try_equipped` over the `parts` the test brings.
+pub fn try_equipped_in(
+    stage: &Stage,
+    rewards: Value,
+    parts: Parts,
+    stars: &[(&str, usize)],
+    level: u8,
+) -> Result<Engine, ActionError> {
+    build(stage, rewards, parts, stars, level).map_err(|(_, refused)| refused)
 }
 
 /// `try_equipped`, with the place in `stars` of the star the engine refused.
 fn build(
     stage: &Stage,
     rewards: Value,
+    parts: Parts,
     stars: &[(&str, usize)],
     level: u8,
 ) -> Result<Engine, (usize, ActionError)> {
@@ -91,8 +114,23 @@ fn build(
         .iter()
         .map(|r| ContentId::from(r["id"].as_str().expect("an id")))
         .collect();
-    let rewards = Rewards::parse(rewards.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the rewards file validates");
+    let bytes = rewards.to_string();
+    let mut rewards = match parts.skills {
+        Some(skills) => {
+            let file = serde_json::json!({ "stage_skills": skills }).to_string();
+            let skills = StageSkills::parse(file.as_bytes(), Versions::CURRENT)
+                .unwrap_or_else(|e| panic!("the skills file validates: {e:?}"));
+            Rewards::parse_with(bytes.as_bytes(), Versions::CURRENT, &skills)
+        }
+        None => Rewards::parse(bytes.as_bytes(), Versions::CURRENT),
+    }
+    .unwrap_or_else(|e| panic!("the rewards file validates: {e:?}"));
+    if let Some(sets) = parts.sets {
+        let file = serde_json::json!({ "constellations": sets }).to_string();
+        let sets = Constellations::parse_with(file.as_bytes(), Versions::CURRENT, &rewards)
+            .unwrap_or_else(|e| panic!("the sets validate: {e:?}"));
+        rewards = rewards.with_constellations(sets);
+    }
     let content = RunContent::new(common::design_run_stats(), rewards)
         .with_perk_sets(plain_content().perk_sets().clone());
     let setup = RunSetup {
@@ -123,7 +161,18 @@ fn build(
 
 /// As `try_equipped`, and a refusal panics naming the star, the slot and the `ActionError`.
 pub fn equipped(stage: &Stage, rewards: Value, stars: &[(&str, usize)], level: u8) -> Engine {
-    build(stage, rewards, stars, level).unwrap_or_else(|(at, refused)| {
+    equipped_in(stage, rewards, Parts::default(), stars, level)
+}
+
+/// `equipped` over the `parts` the test brings.
+pub fn equipped_in(
+    stage: &Stage,
+    rewards: Value,
+    parts: Parts,
+    stars: &[(&str, usize)],
+    level: u8,
+) -> Engine {
+    build(stage, rewards, parts, stars, level).unwrap_or_else(|(at, refused)| {
         let (id, slot) = stars[at];
         panic!("equip `{id}` into slot {slot} at Lv{level}: refused with {refused:?}")
     })
