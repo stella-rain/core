@@ -45,10 +45,12 @@ pub fn category_of_effect(effect: &str) -> Option<&'static str> {
 }
 
 /// `rewards`, a hand-written rewards file, with the bundled `equipment` rules and each reward
-/// that has no `category` given the bundled one of its first effect.
+/// that has no `category` (a file that brings its own `equipment` keeps it) given the bundled one of its first effect.
 fn with_equipment_rules(mut rewards: Value) -> Value {
-    let rules = Rewards::bundled().equipment().expect("the pack's rules");
-    rewards["equipment"] = serde_json::to_value(rules).expect("the rules serialise");
+    if rewards.get("equipment").is_none() {
+        let rules = Rewards::bundled().equipment().expect("the pack's rules");
+        rewards["equipment"] = serde_json::to_value(rules).expect("the rules serialise");
+    }
     for r in rewards["rewards"].as_array_mut().expect("a rewards list") {
         let first = r["effects"][0]["effect"].as_str().or(r["effect"].as_str());
         let first = first.expect("a reward has an effect").to_owned();

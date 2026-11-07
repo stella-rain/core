@@ -63,12 +63,8 @@ mod tests {
             "rarities": bundled["rarities"],
             "rewards": [star("crit", "crit_chance_pct", 40), star("hp", "max_hp", 100)],
         });
-        slots_rules(&mut file);
+        crate::sim::starlight::with_equipment_rules(&mut file);
         Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap()
-    }
-
-    fn slots_rules(file: &mut serde_json::Value) {
-        crate::sim::starlight::with_equipment_rules(file);
     }
 
     /// An equipment engine over `rewards()` on the bundled trial stage, nothing equipped.

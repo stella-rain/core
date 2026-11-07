@@ -14,6 +14,7 @@ use stella_rain_core::input::EquipAction;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::{self, BuildMode, RunSetup};
+use stella_rain_core::snapshot::SlotKindView;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::Versions;
@@ -133,10 +134,13 @@ fn script_equipment_fills_the_inventory_and_seeds_the_level() {
     assert_eq!(p.inventory.len(), 1);
     assert_eq!(p.slots[0].level, 3, "the seeded level stays");
     assert!(p.crit_chance_pct > 0, "the star is in the build");
-    assert!(p.crit_chance_pct > 0, "the star is in the build");
 
     let before = e.state_hash();
-    let rune = 9; // the first rune slot of the layout: 5 + 2 + 2 categories' slots
+    let rune = e.snapshot().players[0]
+        .slots
+        .iter()
+        .position(|s| s.kind == SlotKindView::Rune)
+        .expect("the layout has rune slots");
     let refused: [(&[&str], &[Level]); 5] = [
         (&["nope"], &[]),
         (&[], &[(rune, 2)]),

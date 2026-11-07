@@ -505,7 +505,7 @@ impl Engine {
         levels: &[(usize, u8)],
     ) -> Result<(), Error> {
         use crate::limits::{MAX_INVENTORY, MAX_SLOT_LEVEL};
-        use crate::sim::equipment::{Held, SlotKind};
+        use crate::sim::equipment::{EquipSlot, Equipment, Held, SlotKind};
 
         let invalid = |path: &str, message: String| {
             Err(Error::Invalid(vec![Issue {
@@ -535,13 +535,16 @@ impl Engine {
         if equipment.inventory.len() + items.len() > MAX_INVENTORY {
             return invalid("$.inventory", format!("more than {MAX_INVENTORY} items"));
         }
-        let lumine_at = equipment.slots.len();
+        // The slot `slot` addresses: the layout, then the Lumine slot one past it.
+        fn slot_of(equipment: &mut Equipment, slot: usize) -> Option<&mut EquipSlot> {
+            let lumine_at = equipment.slots.len();
+            match slot < lumine_at {
+                true => equipment.slots.get_mut(slot),
+                false => equipment.lumine.as_mut().filter(|_| slot == lumine_at),
+            }
+        }
         for (i, &(slot, level)) in levels.iter().enumerate() {
-            let target = match slot < lumine_at {
-                true => equipment.slots.get(slot),
-                false => equipment.lumine.as_ref().filter(|_| slot == lumine_at),
-            };
-            let ok = target.is_some_and(|s| {
+            let ok = slot_of(equipment, slot).is_some_and(|s| {
                 s.held.is_none() && matches!(s.kind, SlotKind::Category(_) | SlotKind::Lumine)
             });
             if !ok
@@ -558,11 +561,7 @@ impl Engine {
         }
         equipment.inventory.extend(items);
         for &(slot, level) in levels {
-            let target = match slot < lumine_at {
-                true => equipment.slots.get_mut(slot),
-                false => equipment.lumine.as_mut(),
-            };
-            if let Some(target) = target {
+            if let Some(target) = slot_of(equipment, slot) {
                 target.level = level;
             }
         }
