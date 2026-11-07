@@ -57,6 +57,9 @@ fn stage() -> Stage {
     stage
 }
 
+/// A slot and the level to seed it with.
+type Level = (usize, u8);
+
 fn equip(item: u32, slot: u32) -> EquipAction {
     EquipAction::Equip { item, slot }
 }
@@ -134,7 +137,7 @@ fn script_equipment_fills_the_inventory_and_seeds_the_level() {
 
     let before = e.state_hash();
     let rune = 9; // the first rune slot of the layout: 5 + 2 + 2 categories' slots
-    let refused: [(&[&str], &[(usize, u8)]); 5] = [
+    let refused: [(&[&str], &[Level]); 5] = [
         (&["nope"], &[]),
         (&[], &[(rune, 2)]),
         (&[], &[(0, 2)]),
