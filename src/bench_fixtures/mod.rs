@@ -6,6 +6,7 @@
 //!
 //! Behind the `bench` feature; not part of the library's API.
 
+pub mod equip_case;
 pub mod hit_case;
 pub mod party_case;
 pub mod time_limit_case;

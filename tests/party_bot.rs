@@ -8,11 +8,12 @@ use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
-use stella_rain_core::snapshot::EntityKind;
+use stella_rain_core::snapshot::{EntityKind, HeldView, SlotKindView, SwapItem, SwapRating};
 
 use crate::common::run::trial_setup;
 use crate::run_play::{Change, PartyCase};
@@ -29,7 +30,16 @@ pub const NEAR: i64 = 32 * 256;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartyBot {
     pub seed: u64,
+    /// Plays the equipment actions of an equipment run (`action`); off, the bot makes none.
+    pub builds: bool,
 }
+
+/// The bot decides on one tick in this many, per slot.
+pub const ACTION_EVERY: u32 = 30;
+/// How many inventory places the bot rates.
+pub const RATED_ITEMS: usize = 12;
+/// How many craftable stars the bot rates.
+pub const CRAFT_RATED: usize = 8;
 
 /// A local SplitMix64 finaliser over the seed, the slot and a salt.
 pub fn mix(seed: u64, slot: u8, salt: u64) -> u64 {
@@ -177,6 +187,121 @@ impl PartyBot {
         input
     }
 
+    /// Slot `slot`'s equipment decision offset.
+    pub fn action_phase(&self, slot: u8) -> u64 {
+        mix(self.seed, slot, 4) % u64::from(ACTION_EVERY)
+    }
+
+    /// The equipment action `slot` takes at `tick`, if any: only a building bot in an equipment
+    /// run (the player view has slots), a slot that is up, and one tick in `ACTION_EVERY`. In
+    /// order: the tree point; the best rated equip or replace (a replace never lowers a slot);
+    /// extract the rest; with an empty inventory, craft the best rated star it would equip.
+    /// Every action returned has passed `Engine::check_action`.
+    pub fn action(&self, engine: &Engine, slot: u8, tick: u32) -> Option<EquipAction> {
+        if !self.builds
+            || (u64::from(tick) + self.action_phase(slot)) % u64::from(ACTION_EVERY) != 0
+        {
+            return None;
+        }
+        let player = PlayerIdx::new(slot)?;
+        let snap = engine.snapshot();
+        let present = engine.present();
+        let place = (present & ((1u8 << slot) - 1)).count_ones() as usize;
+        let view = snap.players.get(place)?;
+        if view.slots.is_empty() || view.hp == 0 || view.out || view.down.is_some() {
+            return None;
+        }
+        let accepted = |a: EquipAction| engine.check_action(player, a).is_ok();
+        if accepted(EquipAction::TreePick { option: 0 }) {
+            return Some(EquipAction::TreePick { option: 0 });
+        }
+        // A candidate: (dps_bp, an equip, reversed item, reversed slot) -> action.
+        type Key = (i32, bool, std::cmp::Reverse<u32>, std::cmp::Reverse<u32>);
+        let adopted = |rows: Vec<SwapRating>, item: u32| -> Vec<(Key, u32, bool)> {
+            rows.into_iter()
+                .filter(|r| {
+                    if r.replaces {
+                        r.dps_bp > Some(0) && r.level_after >= r.level_before
+                    } else {
+                        r.dps_bp.unwrap_or(0) >= 0
+                    }
+                })
+                .map(|r| {
+                    (
+                        (
+                            r.dps_bp.unwrap_or(0),
+                            !r.replaces,
+                            std::cmp::Reverse(item),
+                            std::cmp::Reverse(r.slot),
+                        ),
+                        r.slot,
+                        r.replaces,
+                    )
+                })
+                .collect()
+        };
+        let mut best: Option<(Key, EquipAction)> = None;
+        for (i, held) in view.inventory.iter().take(RATED_ITEMS).enumerate() {
+            let item = u32::try_from(i).ok()?;
+            let rows = match held {
+                HeldView::Star { .. } => {
+                    adopted(engine.swap_ratings(player, SwapItem::Inventory(item)), item)
+                }
+                HeldView::Rune { .. } => view
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, sv)| sv.kind == SlotKindView::Rune)
+                    .map(|(k, _)| u32::try_from(k).unwrap())
+                    .find(|k| accepted(EquipAction::Equip { item, slot: *k }))
+                    .map(|k| {
+                        (
+                            (0, true, std::cmp::Reverse(item), std::cmp::Reverse(k)),
+                            k,
+                            false,
+                        )
+                    })
+                    .into_iter()
+                    .collect(),
+            };
+            for (key, k, replaces) in rows {
+                let action = if replaces {
+                    EquipAction::Replace { item, slot: k }
+                } else {
+                    EquipAction::Equip { item, slot: k }
+                };
+                if accepted(action) && best.is_none_or(|(b, _)| key > b) {
+                    best = Some((key, action));
+                }
+            }
+        }
+        if let Some((_, action)) = best {
+            return Some(action);
+        }
+        if !view.inventory.is_empty() {
+            let extract = EquipAction::Extract { item: 0 };
+            return accepted(extract).then_some(extract);
+        }
+        let content = RunContent::bundled();
+        let pool = content.rewards().rewards();
+        let mut crafted: Option<(Key, EquipAction)> = None;
+        let candidates = (0..pool.len())
+            .filter(|p| !view.pool_held.get(*p).copied().unwrap_or(true))
+            .filter_map(|p| u32::try_from(p).ok())
+            .filter(|p| accepted(EquipAction::Craft { star: *p }))
+            .take(CRAFT_RATED);
+        for p in candidates {
+            let id = pool[p as usize].id.clone();
+            let rows = adopted(engine.swap_ratings(player, SwapItem::Star(id)), p);
+            for (key, _, _) in rows {
+                if crafted.is_none_or(|(b, _)| key > b) {
+                    crafted = Some((key, EquipAction::Craft { star: p }));
+                }
+            }
+        }
+        crafted.map(|(_, action)| action)
+    }
+
     /// The buttons of `slot` at `tick`.
     pub fn input(&self, engine: &Engine, slot: u8, tick: u32) -> Input {
         self.decide(&sight(engine, slot), slot, tick)
@@ -218,6 +343,7 @@ pub struct RigParty {
     ticks: u32,
     bot_seed: u64,
     equipment: bool,
+    builds: bool,
     changes: Vec<(u32, Change)>,
 }
 
@@ -233,6 +359,7 @@ impl RigParty {
             ticks: 3000,
             bot_seed: 0,
             equipment: false,
+            builds: false,
             changes: vec![],
         }
     }
@@ -266,6 +393,12 @@ impl RigParty {
     /// Equipment mode with the `vanguard` perk set (it regenerates): nothing else changes.
     pub fn equipment(mut self) -> RigParty {
         self.equipment = true;
+        self
+    }
+
+    /// Every slot's bot plays the equipment actions (`PartyBot::action`).
+    pub fn builds(mut self) -> RigParty {
+        self.builds = true;
         self
     }
 
@@ -305,6 +438,7 @@ impl RigParty {
             answer_after: None,
             bot: Some(PartyBot {
                 seed: self.bot_seed,
+                builds: self.builds,
             }),
             script: None,
         }
@@ -321,6 +455,19 @@ pub struct RigRun {
     pub ticks: Vec<[Input; 3]>,
     /// The `Picks` steps in order, each with the world tick it comes before.
     pub picks: Vec<(u32, [Option<u32>; 3])>,
+    /// The `Actions` steps in order, each with the world tick it comes before and the action of
+    /// every slot. Applied after the picks of that tick and before the tick.
+    pub actions: Vec<(u32, [Option<EquipAction>; 3])>,
+}
+
+/// How many actions of each kind one slot made.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ActionCounts {
+    pub equip: u32,
+    pub replace: u32,
+    pub extract: u32,
+    pub craft: u32,
+    pub tree_pick: u32,
 }
 
 impl RigRun {
@@ -334,17 +481,20 @@ impl RigRun {
             range.present == (1u8 << slots.len()) - 1,
             "a rig run holds a party from slot 0 with no hole"
         );
-        let spread = |dense: &[_]| {
+        fn spread<T: Copy>(slots: &[usize], dense: &[Option<T>]) -> [Option<T>; 3] {
             let mut out = [None; 3];
             for (s, v) in slots.iter().zip(dense) {
                 out[*s] = *v;
             }
             out
-        };
-        let (mut ticks, mut picks) = (Vec::new(), Vec::new());
+        }
+        let (mut ticks, mut picks, mut actions) = (Vec::new(), Vec::new(), Vec::new());
         for step in &range.steps {
             match step {
-                RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+                RangeStep::Actions { actions: dense } => {
+                    let world = u32::try_from(ticks.len()).expect("fewer ticks than u32");
+                    actions.push((world, spread(&slots, dense)));
+                }
                 RangeStep::Ticks { run, inputs } => {
                     let mut all = [Input::default(); 3];
                     for (s, input) in slots.iter().zip(inputs) {
@@ -354,7 +504,7 @@ impl RigRun {
                 }
                 RangeStep::Picks { picks: dense } => {
                     let world = u32::try_from(ticks.len()).expect("fewer ticks than u32");
-                    picks.push((world, spread(dense)));
+                    picks.push((world, spread(&slots, dense)));
                 }
                 RangeStep::Join { .. } | RangeStep::Leave { .. } => {
                     panic!("a rig run holds no join or leave")
@@ -365,6 +515,7 @@ impl RigRun {
             n: u8::try_from(slots.len()).unwrap(),
             ticks,
             picks,
+            actions,
         }
     }
 
@@ -403,13 +554,27 @@ impl RigRun {
                 after(engine);
             }
         };
+        let acts_at = |world: u32, engine: &mut Engine| {
+            for (_, acts) in self.actions.iter().filter(|(at, _)| *at == world) {
+                for (slot, action) in acts.iter().enumerate() {
+                    if let Some(action) = action {
+                        let player = PlayerIdx::new(u8::try_from(slot).unwrap()).unwrap();
+                        engine
+                            .act(player, *action)
+                            .unwrap_or_else(|e| panic!("action {action:?} at {world}: {e:?}"));
+                    }
+                }
+            }
+        };
         for t in from..to {
             picks_at(t, engine, &mut after);
+            acts_at(t, engine);
             engine.step(&self.ticks[t as usize]);
             after(engine);
         }
         if to == len {
             picks_at(len, engine, &mut after);
+            acts_at(len, engine);
         }
     }
 
@@ -419,6 +584,24 @@ impl RigRun {
         for (_, picks) in &self.picks {
             for (n, pick) in per.iter_mut().zip(picks) {
                 *n += u32::from(pick.is_some());
+            }
+        }
+        per
+    }
+
+    /// How many actions of each kind each slot made.
+    pub fn actions_per_slot(&self) -> [ActionCounts; 3] {
+        let mut per = [ActionCounts::default(); 3];
+        for (_, acts) in &self.actions {
+            for (c, action) in per.iter_mut().zip(acts) {
+                match action {
+                    Some(EquipAction::Equip { .. }) => c.equip += 1,
+                    Some(EquipAction::Replace { .. }) => c.replace += 1,
+                    Some(EquipAction::Extract { .. }) => c.extract += 1,
+                    Some(EquipAction::Craft { .. }) => c.craft += 1,
+                    Some(EquipAction::TreePick { .. }) => c.tree_pick += 1,
+                    None => {}
+                }
             }
         }
         per
@@ -459,6 +642,36 @@ impl RigRun {
         });
         t
     }
+}
+
+/// Which predicate of a building rig case `replay` (a party of `n`) misses, if any: a run still
+/// `Running` of 3000 ticks and under 64 KiB that verifies to its final hash, every slot with an
+/// `Equip` and an `Extract`; the party of 1 also a `Craft` and a `TreePick`, the party of 3 also
+/// a `Replace` by some slot.
+pub fn rig_builds_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
+    use stella_rain_core::engine::Outcome;
+    let bytes = replay.to_bytes();
+    if replay.ticks != 3000 || bytes.len() >= 64 * 1024 {
+        return Some("3000 ticks, under 64 KiB");
+    }
+    match stella_rain_core::run_replay::verify_run(&bytes) {
+        Ok(v) if v.outcome == Outcome::Running => {}
+        _ => return Some("Running and verifies"),
+    }
+    let per = RigRun::of(replay).actions_per_slot();
+    if per[..usize::from(n)].iter().any(|c| c.equip == 0) {
+        return Some("every slot equips");
+    }
+    if per[..usize::from(n)].iter().any(|c| c.extract == 0) {
+        return Some("every slot extracts");
+    }
+    if n == 1 && (per[0].craft == 0 || per[0].tree_pick == 0) {
+        return Some("a craft and a tree pick");
+    }
+    if n == 3 && per.iter().all(|c| c.replace == 0) {
+        return Some("a replace");
+    }
+    None
 }
 
 /// The downs, revives and outs of a rig run (ADR-SIM-7, ADR-SIM-8). Ticks are the engine's
@@ -512,7 +725,10 @@ mod decisions {
     }
 
     fn bot() -> PartyBot {
-        PartyBot { seed: 7 }
+        PartyBot {
+            seed: 7,
+            builds: false,
+        }
     }
 
     fn up() -> Sight {
@@ -525,7 +741,10 @@ mod decisions {
     /// A seed whose `slot` has `role`.
     fn seed_with_role(slot: u8, role: u64) -> PartyBot {
         (1..)
-            .map(|seed| PartyBot { seed })
+            .map(|seed| PartyBot {
+                seed,
+                builds: false,
+            })
             .find(|b| b.role(slot) == role)
             .unwrap()
     }
@@ -645,7 +864,10 @@ mod decisions {
     #[test]
     fn buttons_follow_the_cadences_and_axes_stay_in_range() {
         for seed in 1..=3 {
-            let b = PartyBot { seed };
+            let b = PartyBot {
+                seed,
+                builds: false,
+            };
             for slot in 0..3u8 {
                 let s = Sight {
                     me: at(5, -9),
@@ -688,7 +910,11 @@ mod decisions {
         }
         let differ = |a: u64, b: u64| {
             (0..3u8).any(|slot| {
-                let (x, y) = (PartyBot { seed: a }, PartyBot { seed: b });
+                let bot = |seed| PartyBot {
+                    seed,
+                    builds: false,
+                };
+                let (x, y) = (bot(a), bot(b));
                 x.role(slot) != y.role(slot)
                     || x.phase(slot) != y.phase(slot)
                     || x.skill_phase(slot) != y.skill_phase(slot)
@@ -784,13 +1010,258 @@ mod decisions {
                 panic!("an offer is open");
             };
             for seed in 1..=5 {
-                let b = PartyBot { seed };
+                let b = PartyBot {
+                    seed,
+                    builds: false,
+                };
                 let got = b.pick(&e, holder, e.tick()).unwrap();
                 assert!(got < options);
                 assert_eq!(Some(got), b.pick(&e, holder, e.tick()));
                 assert!(e.check_pick(player, got).is_ok());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod builds {
+    use super::*;
+    use stella_rain_core::input::EquipAction;
+    use stella_rain_core::snapshot::SwapItem;
+
+    fn building(seed: u64) -> PartyBot {
+        PartyBot { seed, builds: true }
+    }
+
+    fn equipment_engine(n: u8, world: u64) -> Engine {
+        let setup = RigParty::new(n).equipment().seed(world).case("x").setup;
+        Engine::start_party_with(&setup, Pack::bundled().content(), n).unwrap()
+    }
+
+    /// Plays `ticks` ticks of an equipment run of `n` with `bot` on every slot (the actions are
+    /// applied with `Engine::act` before the tick, as the recorder orders them); `see` is called
+    /// for every slot and tick with the engine before the action, the action chosen and the tick.
+    fn drive(
+        n: u8,
+        world: u64,
+        bot: &PartyBot,
+        ticks: u32,
+        mut see: impl FnMut(&Engine, u8, u32, Option<EquipAction>),
+    ) -> Engine {
+        let mut e = equipment_engine(n, world);
+        for t in 0..ticks {
+            if e.outcome() != stella_rain_core::engine::Outcome::Running {
+                break;
+            }
+            let mut inputs = [Input::default(); 3];
+            let mut acts = Vec::new();
+            for s in 0..n {
+                let a = bot.action(&e, s, t);
+                see(&e, s, t, a);
+                inputs[usize::from(s)] = bot.input(&e, s, t);
+                if let Some(a) = a {
+                    acts.push((s, a));
+                }
+            }
+            for (s, a) in acts {
+                e.act(PlayerIdx::new(s).unwrap(), a).unwrap();
+            }
+            e.step(&inputs);
+        }
+        e
+    }
+
+    #[test]
+    fn a_bot_without_builds_makes_no_action() {
+        let bot = PartyBot {
+            seed: 7,
+            builds: false,
+        };
+        drive(3, 1, &bot, 3000, |_, s, t, a| {
+            assert_eq!(a, None, "slot {s} tick {t}");
+        });
+    }
+
+    #[test]
+    fn an_offers_run_gets_no_action() {
+        let setup = RunSetup {
+            mode: "time_limit".into(),
+            seed: 1,
+            ..trial_setup()
+        };
+        let e = Engine::start_party(&setup, 3).unwrap();
+        assert!(e.snapshot().players[0].slots.is_empty());
+        for t in 0..600 {
+            for s in 0..3 {
+                assert_eq!(building(1).action(&e, s, t), None);
+            }
+        }
+    }
+
+    #[test]
+    fn the_cadence_is_one_decision_in_thirty_ticks() {
+        let mut differ = false;
+        for seed in 1..=5 {
+            let b = building(seed);
+            let phases: Vec<u64> = (0..3).map(|s| b.action_phase(s)).collect();
+            assert!(phases.iter().all(|p| *p < 30));
+            differ |= phases.iter().any(|p| *p != phases[0]);
+        }
+        assert!(differ);
+        let b = building(1);
+        let mut decided = 0;
+        drive(3, 1, &b, 3000, |_, s, t, a| {
+            if (u64::from(t) + b.action_phase(s)) % 30 != 0 {
+                assert_eq!(a, None, "slot {s} tick {t}");
+            } else {
+                decided += u32::from(a.is_some());
+            }
+        });
+        assert!(decided > 0, "a building bot acts at least once");
+    }
+
+    #[test]
+    fn every_action_is_accepted() {
+        let b = building(1);
+        let mut proposed = 0u32;
+        drive(3, 1, &b, 3000, |e, s, _, a| {
+            if let Some(a) = a {
+                proposed += 1;
+                assert_eq!(e.check_action(PlayerIdx::new(s).unwrap(), a), Ok(()));
+            }
+        });
+        let replay = RigParty::new(3)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .case("x")
+            .play()
+            .replay();
+        let run = RigRun::of(&replay);
+        let recorded: u32 = run
+            .actions
+            .iter()
+            .map(|(_, per)| u32::try_from(per.iter().flatten().count()).unwrap())
+            .sum();
+        assert!(recorded > 0);
+        assert_eq!(recorded, proposed, "the recorder drops nothing");
+    }
+
+    /// Every decision of a building run of 3, with the engine it was made on.
+    fn decisions(world: u64) -> Vec<(Engine, u8, u32, Option<EquipAction>)> {
+        let mut out = Vec::new();
+        drive(3, world, &building(1), 3000, |e, s, t, a| {
+            if a.is_some() {
+                out.push((e.clone(), s, t, a));
+            }
+        });
+        out
+    }
+
+    #[test]
+    fn the_best_rated_star_goes_in_first() {
+        // A passive bot walks; the first decision of a building bot that equips is checked
+        // against the ratings computed here.
+        let mut checked = 0;
+        for (e, s, _, a) in decisions(1) {
+            let Some(EquipAction::Equip { item, slot } | EquipAction::Replace { item, slot }) = a
+            else {
+                continue;
+            };
+            let p = PlayerIdx::new(s).unwrap();
+            let mut best = None;
+            let inv = e.snapshot().players[usize::from(s)].inventory.len().min(12);
+            for i in 0..u32::try_from(inv).unwrap() {
+                for r in e.swap_ratings(p, SwapItem::Inventory(i)) {
+                    let adopted = if r.replaces {
+                        r.dps_bp > Some(0) && r.level_after >= r.level_before
+                    } else {
+                        r.dps_bp.unwrap_or(0) >= 0
+                    };
+                    if adopted {
+                        let key = (
+                            r.dps_bp.unwrap_or(0),
+                            !r.replaces,
+                            std::cmp::Reverse(i),
+                            std::cmp::Reverse(r.slot),
+                        );
+                        if best.is_none_or(|(k, _, _)| key > k) {
+                            best = Some((key, i, r.slot));
+                        }
+                    }
+                }
+            }
+            if let Some((_, bi, bs)) = best {
+                // A rune is not rated here; only star choices are compared.
+                assert_eq!((item, slot), (bi, bs));
+                checked += 1;
+            }
+        }
+        assert!(checked > 0, "some star equip was compared");
+    }
+
+    #[test]
+    fn a_replace_never_lowers_a_slot() {
+        let mut replaces = 0;
+        for world in 1..=3 {
+            for (e, s, _, a) in decisions(world) {
+                let Some(EquipAction::Replace { item, slot }) = a else {
+                    continue;
+                };
+                replaces += 1;
+                let p = PlayerIdx::new(s).unwrap();
+                let row = e
+                    .swap_ratings(p, SwapItem::Inventory(item))
+                    .into_iter()
+                    .find(|r| r.slot == slot)
+                    .expect("a row for the slot");
+                assert!(row.dps_bp > Some(0) && row.level_after >= row.level_before);
+            }
+        }
+        // A replace is rare early; the corpus case with one is checked in party_run.
+        let _ = replaces;
+    }
+
+    #[test]
+    fn a_tree_point_is_taken_before_anything_else() {
+        let mut seen = 0;
+        for world in 1..=5 {
+            let b = building(1);
+            drive(1, world, &b, 3000, |e, s, t, a| {
+                let ready = e.snapshot().players[usize::from(s)].tree_ready.is_some();
+                if ready && (u64::from(t) + b.action_phase(s)) % 30 == 0 {
+                    assert_eq!(a, Some(EquipAction::TreePick { option: 0 }));
+                    seen += 1;
+                }
+            });
+        }
+        assert!(seen > 0, "a tree point was ready on a decision tick");
+    }
+
+    #[test]
+    fn it_extracts_the_rest_then_crafts_only_what_it_would_equip() {
+        let (mut extracts, mut crafts) = (0, 0);
+        for (e, s, _, a) in decisions(1) {
+            let p = PlayerIdx::new(s).unwrap();
+            let view = &e.snapshot().players[usize::from(s)];
+            match a {
+                Some(EquipAction::Extract { item }) => {
+                    assert_eq!(item, 0);
+                    assert!(!view.inventory.is_empty());
+                    extracts += 1;
+                }
+                Some(EquipAction::Craft { star }) => {
+                    assert!(view.inventory.is_empty());
+                    assert!(!view.pool_held[star as usize]);
+                    crafts += 1;
+                }
+                _ => {}
+            }
+            let _ = p;
+        }
+        assert!(extracts > 0, "something was extracted");
+        let _ = crafts;
     }
 }
 
@@ -824,7 +1295,13 @@ mod rig {
             assert_eq!(case.setup.difficulty, "normal".into());
             assert_eq!(case.setup.offer_mode, OfferMode::Stop);
             assert_eq!(case.ticks, 3000);
-            assert_eq!(case.bot, Some(PartyBot { seed: 5 }));
+            assert_eq!(
+                case.bot,
+                Some(PartyBot {
+                    seed: 5,
+                    builds: false
+                })
+            );
             assert!(case.changes.is_empty());
             assert_eq!(case.answer_after, None);
         }
@@ -930,6 +1407,77 @@ mod rig {
         }
     }
 
+    fn building_replay(n: u8) -> RunReplay {
+        RigParty::new(n)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .case("x")
+            .play()
+            .replay()
+    }
+
+    #[test]
+    fn a_rig_run_with_actions_replays_to_the_recorded_hashes() {
+        let replay = building_replay(3);
+        let run = RigRun::of(&replay);
+        assert!(!run.actions.is_empty());
+        let mut e = fresh(&replay, 3);
+        run.play_onto(&mut e, 0, replay.ticks);
+        assert_eq!(e.state_hash(), hash_of(&replay));
+    }
+
+    #[test]
+    fn actions_apply_after_picks_and_before_the_tick() {
+        let replay = building_replay(2);
+        let run = RigRun::of(&replay);
+        let (at, _) = *run.actions.get(1).expect("two action steps");
+        let mut whole = fresh(&replay, 2);
+        run.play_onto(&mut whole, 0, at + 1);
+        let mut windowed = fresh(&replay, 2);
+        run.play_onto(&mut windowed, 0, at);
+        run.play_onto(&mut windowed, at, at + 1);
+        assert_eq!(windowed.state_hash(), whole.state_hash());
+        // Without the actions of that tick the hash differs.
+        let mut bare = run.clone();
+        bare.actions.retain(|(t, _)| *t != at);
+        let mut skipped = fresh(&replay, 2);
+        bare.play_onto(&mut skipped, 0, at + 1);
+        assert_ne!(skipped.state_hash(), whole.state_hash());
+    }
+
+    #[test]
+    fn actions_per_slot_counts_the_kinds() {
+        let run = RigRun::of(&building_replay(3));
+        let per = run.actions_per_slot();
+        let total: u32 = per
+            .iter()
+            .map(|c| c.equip + c.replace + c.extract + c.craft + c.tree_pick)
+            .sum();
+        let some: usize = run
+            .actions
+            .iter()
+            .map(|(_, a)| a.iter().flatten().count())
+            .sum();
+        assert_eq!(total as usize, some);
+        let revive = RigRun::of(
+            &RigParty::new(3)
+                .seed(1)
+                .bot_seed(1)
+                .case("x")
+                .play()
+                .replay(),
+        );
+        assert!(revive.actions.is_empty());
+        assert!(
+            revive
+                .actions_per_slot()
+                .iter()
+                .all(|c| *c == ActionCounts::default())
+        );
+    }
+
     #[test]
     #[should_panic(expected = "join")]
     fn a_join_in_the_log_is_refused() {
@@ -1000,6 +1548,57 @@ mod search {
                 }
             }
             println!("N={n}: {found} candidates");
+        }
+    }
+
+    /// The search for the building rig cases of the corpus: `cargo test --release --locked --test
+    /// integration search_equipment_rig_seeds -- --ignored --nocapture`. World seeds 1..=100 x
+    /// bot seeds 1..=10, per party size the first that misses no predicate of `rig_builds_miss`;
+    /// widened once to 1..=300 x 1..=20.
+    #[test]
+    #[ignore = "a seed search, run by hand"]
+    fn search_equipment_rig_seeds() {
+        for n in 1..=3u8 {
+            let mut found = None;
+            let mut nearest = ("", 0u8);
+            'scan: for (worlds, bots) in [(1..=100u64, 1..=10u64), (1..=300, 1..=20)] {
+                for seed in worlds {
+                    for bot_seed in bots.clone() {
+                        let case = RigParty::new(n)
+                            .equipment()
+                            .builds()
+                            .seed(seed)
+                            .bot_seed(bot_seed)
+                            .case("x");
+                        let replay = case.play().replay();
+                        match rig_builds_miss(&replay, n) {
+                            None => {
+                                found = Some((seed, bot_seed));
+                                break 'scan;
+                            }
+                            Some(m) => nearest = (m, nearest.1.saturating_add(1)),
+                        }
+                    }
+                }
+            }
+            match found {
+                Some((seed, bot_seed)) => {
+                    let case = RigParty::new(n)
+                        .equipment()
+                        .builds()
+                        .seed(seed)
+                        .bot_seed(bot_seed)
+                        .case("x");
+                    let replay = case.play().replay();
+                    let v = verify_run(&replay.to_bytes()).unwrap();
+                    println!(
+                        "N={n}: seed={seed} bot_seed={bot_seed} stardust={} per_slot={:?}",
+                        v.stardust,
+                        RigRun::of(&replay).actions_per_slot()
+                    );
+                }
+                None => println!("N={n}: NOT FOUND, last miss: {}", nearest.0),
+            }
         }
     }
 }

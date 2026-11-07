@@ -399,7 +399,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
     ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
     ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
@@ -416,6 +416,9 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
     ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
     ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 770),
     ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
+    ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
+    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 1040),
+    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1140),
     ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
@@ -426,6 +429,20 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 18] = [
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
     ("two_revive", [4, 4, 0], 1084, 1264, "4fa15830c3e0a0ee"),
     ("three_revive", [9, 8, 0], 994, 1174, "a93f79bd61c90d48"),
+];
+
+/// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
+/// replace, extract, craft, tree_pick]`. From the seed search, not edited.
+const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
+    ("equipment_rig_1", [[12, 1, 47, 3, 1], [0; 5], [0; 5]]),
+    (
+        "equipment_rig_2",
+        [[12, 0, 37, 1, 1], [11, 0, 41, 3, 1], [0; 5]],
+    ),
+    (
+        "equipment_rig_3",
+        [[12, 2, 50, 2, 1], [11, 1, 54, 4, 0], [12, 2, 50, 2, 1]],
+    ),
 ];
 
 fn parties_dir() -> std::path::PathBuf {
@@ -502,6 +519,20 @@ fn the_rig_cases_go_down_and_are_revived() {
         if name == "three_revive" {
             assert!(tally.revivers.iter().any(|r| *r != 0), "{name}");
         }
+    }
+}
+
+#[test]
+fn the_building_rig_cases_hold_their_predicates() {
+    use crate::party_bot::{RigRun, rig_builds_miss};
+    for (n, (name, want)) in (1u8..).zip(RIG_BUILDS) {
+        let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
+        let replay = case.play().replay();
+        assert_eq!(rig_builds_miss(&replay, n), None, "{name}");
+        let got = RigRun::of(&replay)
+            .actions_per_slot()
+            .map(|c| [c.equip, c.replace, c.extract, c.craft, c.tree_pick]);
+        assert_eq!(got, want, "{name}: actions per slot");
     }
 }
 

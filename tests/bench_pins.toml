@@ -69,3 +69,10 @@ before = "bbbd429944719af1"
 after = "6e9a441c1ff0ef81"
 stage = "d8f22a4e4e735a47"
 input = "f4ae51ae7ab18ba7"
+
+[rollback_equip]
+bench = "rollback_equip"
+before = "fd83c6a3b6f581da"
+after = "2cc5c43d44658ba1"
+stage = "d8f22a4e4e735a47"
+input = "42725cbb18ad956d"
