@@ -299,7 +299,8 @@ fn a_custom_skill_star_is_equipped_and_cooling() {
     assert!(e.snapshot().players[0].skill.as_ref().unwrap().ready);
 }
 
-/// T-b: the sets of `Parts` count their members; without them there is no set.
+/// T-b: the sets of `Parts` count their members: the tier at two of two applies with both
+/// equipped, not with one; without the sets nothing applies.
 #[test]
 fn custom_sets_count_their_members() {
     let named = |id: &str, effect: &str, amount: u32| {
@@ -311,21 +312,30 @@ fn custom_sets_count_their_members() {
             named("m1", "crit_chance_pct", 10), named("m2", "max_hp", 10)
         ] })
     };
-    let sets = json!([{ "id": "duo", "name": "The duo", "members": ["m1", "m2"],
-        "tiers": [{ "threshold": 2, "effects": [{ "effect": "rerolls", "amount": 1 }] }] }]);
-    let stars = [("m1", ATTACK), ("m2", DEFENCE)];
-    let parts = equip::Parts {
-        sets: Some(sets),
-        ..equip::Parts::default()
+    let sets = || {
+        let tier = json!({ "threshold": 2,
+            "effects": [{ "effect": "burst_depth", "amount": 2 }] });
+        let duo = json!({ "id": "duo", "name": "The duo", "members": ["m1", "m2"],
+                          "tiers": [tier] });
+        equip::Parts {
+            sets: Some(json!([duo])),
+            ..equip::Parts::default()
+        }
     };
-    let e = equip::equipped_in(&stage(), rewards(), parts, &stars, 1);
-    let held: Vec<(&str, u8)> = e
-        .snapshot()
-        .constellations
-        .iter()
-        .map(|c| (c.id.as_str(), c.held))
-        .collect();
-    assert_eq!(held, [("duo", 2)]);
-    let none = equip::equipped_in(&stage(), rewards(), equip::Parts::default(), &stars, 1);
-    assert!(none.snapshot().constellations.is_empty());
+    let depth = |e: &Engine| e.snapshot().players[0].burst_depth;
+    let both = [("m1", ATTACK), ("m2", DEFENCE)];
+    let one = [("m1", ATTACK)];
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), sets(), &both, 1)),
+        2
+    );
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), sets(), &one, 1)),
+        0
+    );
+    let bare = equip::Parts::default();
+    assert_eq!(
+        depth(&equip::equipped_in(&stage(), rewards(), bare, &both, 1)),
+        0
+    );
 }
