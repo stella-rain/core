@@ -71,18 +71,21 @@ fn new_equipped_starts_in_equipment_mode_with_the_stage_weapon() {
     assert!(layout > 0, "equipment mode lays the slots out");
     assert!(offers.snapshot().players[0].slots.is_empty());
 
-    for _ in 0..12 {
-        let press = [common::pressing_main(), common::idle(), common::idle()];
-        equipped.step(&press);
-        offers.step(&press);
-    }
-    let attacks = equipped.snapshot().players[0].attacks.clone();
-    assert!(!attacks.is_empty(), "the stage weapon fired");
-    assert_eq!(attacks, offers.snapshot().players[0].attacks);
-    let trial = Engine::start_with(&setup, &content).expect("starts");
+    let trace = |e: &mut Engine| -> Vec<usize> {
+        (0..12)
+            .map(|_| {
+                e.step(&[common::pressing_main(), common::idle(), common::idle()]);
+                e.snapshot().entities.len()
+            })
+            .collect()
+    };
+    let (own, plain) = (trace(&mut equipped), trace(&mut offers));
+    assert!(own.iter().any(|n| *n > 0), "the stage weapon fired");
+    assert_eq!(own, plain, "the same weapon as the stage's own run");
+    let mut trial = Engine::start_with(&setup, &content).expect("starts");
     assert_ne!(
-        trial.snapshot().players[0].attacks,
-        attacks,
+        trace(&mut trial),
+        own,
         "the setup's own stage has another weapon"
     );
 }
@@ -115,15 +118,18 @@ fn script_equipment_fills_the_inventory_and_seeds_the_level() {
     e.script_equipment(me, &["c".into(), "a".into()], &[(0, 3)])
         .expect("scripts");
     assert_eq!(e.snapshot().players[0].inventory.len(), 2);
+    let p = &e.snapshot().players[0];
+    assert_eq!(p.slots[0].level, 3, "the slot carries the seeded level");
     assert_eq!(
-        e.snapshot().players[0].slots[0].level,
-        0,
-        "nothing until an equip"
+        p.crit_chance_pct, 0,
+        "and gives nothing until a star is equipped"
     );
     e.act(me, equip(0, 0)).expect("c fits the Attack slot 0");
     let p = &e.snapshot().players[0];
     assert_eq!(p.inventory.len(), 1);
     assert_eq!(p.slots[0].level, 3, "the seeded level stays");
+    assert!(p.crit_chance_pct > 0, "the star is in the build");
+    assert!(p.crit_chance_pct > 0, "the star is in the build");
 
     let before = e.state_hash();
     let rune = 9; // the first rune slot of the layout: 5 + 2 + 2 categories' slots
