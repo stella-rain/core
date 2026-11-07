@@ -119,16 +119,16 @@ fn build(
         Some(skills) => {
             let file = serde_json::json!({ "stage_skills": skills }).to_string();
             let skills = StageSkills::parse(file.as_bytes(), Versions::CURRENT)
-                .expect("the skills file validates");
+                .unwrap_or_else(|e| panic!("the skills file validates: {e:?}"));
             Rewards::parse_with(bytes.as_bytes(), Versions::CURRENT, &skills)
         }
         None => Rewards::parse(bytes.as_bytes(), Versions::CURRENT),
     }
-    .expect("the rewards file validates");
+    .unwrap_or_else(|e| panic!("the rewards file validates: {e:?}"));
     if let Some(sets) = parts.sets {
         let file = serde_json::json!({ "constellations": sets }).to_string();
         let sets = Constellations::parse_with(file.as_bytes(), Versions::CURRENT, &rewards)
-            .expect("the sets validate");
+            .unwrap_or_else(|e| panic!("the sets validate: {e:?}"));
         rewards = rewards.with_constellations(sets);
     }
     let content = RunContent::new(common::design_run_stats(), rewards)

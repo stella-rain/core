@@ -782,7 +782,14 @@ fn a_tier_that_adds_burst_depth_applies_once() {
             ),
         ],
     );
-    let e = trio_equipped(3, burst, json!([trio]));
+    let mut e = trio_equipped(3, burst, json!([trio]));
+    for _ in 0..30 {
+        e.step(&[
+            crate::common::idle(),
+            Default::default(),
+            Default::default(),
+        ]);
+    }
     assert_eq!(e.snapshot().players[0].burst_depth, 5);
 }
 
