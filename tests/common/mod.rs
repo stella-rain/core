@@ -2,6 +2,7 @@
 //! replay tests.
 #![allow(dead_code)]
 
+pub mod equip;
 pub mod on_hit;
 pub mod run;
 
