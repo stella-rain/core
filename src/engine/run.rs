@@ -300,7 +300,15 @@ impl Run {
                 state,
                 events: frozen,
             } => {
-                sim_v1::choose(version, world, rewards, expertise, state, option, frozen);
+                sim_v1::choose(
+                    version,
+                    world,
+                    rewards,
+                    expertise,
+                    state,
+                    option.into(),
+                    frozen,
+                );
                 events.extend(frozen.drain(..).map(Into::into));
             }
             Run::V2 { world, state } => {
@@ -526,7 +534,10 @@ impl Run {
         player: PlayerIdx,
     ) -> Vec<OfferOption> {
         match self {
-            Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state),
+            Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state)
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             Run::V2 { world, state } => {
                 sim::offer_options(world, rewards, expertise, state, player)
             }
