@@ -6,6 +6,7 @@
 use crate::common;
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rewards::{
     MAX_PICKUP_RADIUS_PCT, MAX_SKILL_COOLDOWN_PCT, RewardEffect, Rewards,
 };
@@ -278,17 +279,22 @@ fn a_pickup_radius_reward_takes_a_star_that_was_out_of_reach() {
         kind("reach", vec![entry("pickup_radius_pct", 30)], 1_000, 5),
         plain("might", 1),
     ];
-    let outcome = |reward: &str| {
-        let mut e = with(&stage, list.clone());
-        next_offer(&mut e);
-        take(&mut e, reward);
-        fire_until(&mut e, idle(), 500, |_| false);
-        (e.offer_open(), e.snapshot().stars.len())
+    // `reach` is equipped (slot 7, the first mobility slot) before the first tick; `might`
+    // equips nothing. The pair is the stars taken from the map and the stars left on it.
+    let outcome = |held: &[(&str, usize)]| {
+        let file = json!({ "rarities": crate::common::rarities(), "rewards": list.clone() });
+        let mut e = common::equip::equipped(&stage, file, held, 1);
+        let seen = fire_until(&mut e, idle(), 500, |_| false);
+        let taken = seen
+            .iter()
+            .filter(|(_, ev)| matches!(ev, DomainEvent::StarTaken { .. }))
+            .count();
+        (taken, e.snapshot().stars.len())
     };
+    assert_eq!(outcome(&[]), (1, 1), "out of reach stays on the map");
     assert_eq!(
-        outcome("might"),
-        (false, 1),
-        "out of reach stays on the map"
+        outcome(&[("reach", 7)]),
+        (2, 0),
+        "30 percent more reaches it"
     );
-    assert_eq!(outcome("reach"), (true, 0), "30 percent more reaches it");
 }
