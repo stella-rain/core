@@ -2,7 +2,40 @@
 //! `tests/common/equip.rs`, which does the same through the engine's actions. Tests import
 //! `equip_stars` in place of repeating the set-then-`refresh` steps by hand.
 
+use super::World;
+use super::equipment::Held;
+use super::slots;
 use super::state::{PlayerIdx, State};
+use crate::rewards::Rewards;
+
+/// Puts each `(place, slot)` of `stars` into its slot of `player`'s equipment at `level`, then
+/// writes the build once, as `slots::apply` does at the end of an equip (`Arrival::Swap`). It is
+/// the set-then-`refresh` of the slot tests as a free function; it refuses nothing (a test of a
+/// refusal calls `act`).
+pub(super) fn equip_stars(
+    world: &World,
+    rewards: &Rewards,
+    state: &mut State,
+    player: PlayerIdx,
+    stars: &[(u16, usize)],
+    level: u8,
+) {
+    let (player_state, career) = state.players.both_mut(player);
+    let before = slots::equipped_levels(&career.equipment);
+    for &(place, slot) in stars {
+        let target = &mut career.equipment.slots[slot];
+        target.held = Some(Held::Star(place));
+        target.level = level;
+    }
+    slots::refresh(
+        world,
+        rewards,
+        player_state,
+        career,
+        &before,
+        slots::Arrival::Swap,
+    );
+}
 
 #[cfg(test)]
 mod tests {
@@ -14,7 +47,6 @@ mod tests {
     use crate::rewards::Rewards;
     use crate::run_content::RunContent;
     use crate::run_setup::{BuildMode, RunSetup};
-    use crate::sim::slots;
     use crate::version::{SIM_VERSION, Versions};
     use serde_json::json;
 
