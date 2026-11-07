@@ -244,8 +244,7 @@ def run(argv):
         identities = parse_identities(
             run_tool("identity list", ["security", "find-identity", "-v", "-p", "codesigning"]).decode("utf-8", "replace"))
         profiles = load_profiles(Path.home(), decode_profile)
-        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        chosen = choose_profile(profiles, phone.udid, identities, now)
+        chosen = choose_profile(profiles, phone.udid, identities, clock())
         app = build_app(root, binary, manifest, chosen)
         xcent = root / "entitlements.xcent"
         xcent.write_bytes(entitlements_plist(chosen.entitlements))
@@ -257,6 +256,11 @@ def run(argv):
         if code != 0:
             raise RunnerError(message)
         return 0
+
+
+def clock():
+    """The one place the runner reads the time (naive UTC); tests replace it."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 
 def main(argv):
