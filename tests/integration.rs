@@ -59,6 +59,7 @@ mod enemy_role_content;
 mod enemy_roles;
 mod engine;
 mod equipment_drops;
+mod equipment_helper;
 mod equipment_input;
 mod equipment_pack;
 mod equipment_party;
