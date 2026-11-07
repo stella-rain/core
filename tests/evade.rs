@@ -254,8 +254,12 @@ fn take(e: &mut Engine) {
 
 #[test]
 fn the_extra_charge_reward_adds_a_charge_that_is_ready() {
-    let mut e = with_extra(&starry(1, Some(3), 1), 1);
-    take(&mut e);
+    // The reward has no bundled twin (no `evade_charge` reward), so it names its category.
+    let file = json!({ "rarities": common::rarities(), "rewards": [
+        { "id": "extra", "rarity": "common", "effect": "evade_charge", "amount": 1,
+          "limit": 5, "category": "defence" }
+    ] });
+    let e = common::equip::equipped(&charged(1, Some(3)), file, &[("extra", 5)], 1);
     let v = view(&e);
     assert_eq!((v.charges, v.ready, v.recovering.len()), (2, 2, 0));
 }
