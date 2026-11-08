@@ -78,9 +78,11 @@ skipped by right. Fuzz, bench and workflow detail: `.claude/rules/benches-fuzz.m
 - **Local and cloud sessions** work on `claude/<task>`; a task may hold several commits and
   gets one PR that says `Closes #N`. `auto-merge.yml` (not GitHub auto-merge) merges it once
   every check on its head is green and deletes the branch. Drafts and PRs that touch
-  `.github/workflows/`, `AGENTS.md`, `CLAUDE.md` or `.claude/rules/` are left to Kade: open such a
-  PR as a draft, and he merges it; `branch-cleanup.yml` deletes their merged branches. Any other branch (Kade's own) is merged by hand. A local session opens
-  the PR with Kade's `gh` login; without it, it prints the commands for Kade.
+  `.github/workflows/`, `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `benches/accepted.toml` or
+  `benches/budgets.toml` (an accepted rise or a raised budget, ADR-SIM-6 point 3) are left to Kade:
+  open such a PR as a draft, and he merges it; `branch-cleanup.yml` deletes their merged branches. Any
+  other branch (Kade's own) is merged by hand. A local session opens the PR with Kade's `gh` login;
+  without it, it prints the commands for Kade.
   `auto-merge.yml` is read from `main`, so a change to it acts only after its own merge.
 - Releases follow the `release-flow` skill. The version is `version` in `Cargo.toml` (`fuzz/Cargo.lock`
   agrees); Candidate generates the release notes from the commits since the last release (`.github/scripts/release.py`).
