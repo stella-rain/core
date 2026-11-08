@@ -7,10 +7,11 @@
 use serde_json::{Value, json};
 use stella_rain_core::stage::Stage;
 
+use crate::common::equip::{Parts, equipped_in};
 use crate::common::*;
 use crate::reward_kinds::{
-    AMOUNT, NEAR_Y, entry, file_of, invalid_at, kind, near, next_offer, parse, plain, starry, take,
-    weapon, with,
+    AMOUNT, NEAR_Y, entry, file_of, invalid_at, kind, near, next_offer, parse, plain, take, weapon,
+    with,
 };
 
 fn ok(effects: Vec<Value>) {
@@ -73,26 +74,19 @@ fn kill_burst_holds_a_percent_a_radius_and_a_depth() {
     invalid_at(&file_of(vec![stray]), depth);
 }
 
-// The effects in a run: a first enemy dies to the weapon and drops the star whose offer holds
-// the reward; a second wave, 400 ticks in, is what the reward acts on.
+// The effects in a run: the star `k` is equipped at Lv1 in slot 0 of an equipment run; a wave
+// 400 ticks in is what the reward acts on.
 
 const SECOND_WAVE: u32 = 400;
 const PX: i32 = 256;
 
 fn two_waves(second: Vec<Value>) -> Stage {
-    let mut waves = vec![wave(
-        1,
-        1,
-        0,
-        enemy(10, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )];
-    waves.extend(second);
-    starry(armed(
-        stage_full(18_000, Some(far_boss()), waves, vec![]),
+    let mut stage = armed(
+        stage_full(18_000, Some(far_boss()), second, vec![]),
         weapon(),
-    ))
+    );
+    stage.sim_version = 2;
+    stage
 }
 
 fn holder(hp: u32, dy_px: i32) -> Value {
@@ -107,19 +101,20 @@ fn holder(hp: u32, dy_px: i32) -> Value {
     )
 }
 
-/// A run that takes `effects` from the first offer (a plain reward when none), then plays
-/// `ticks` more ticks: the events of those ticks as `(tick, JSON)`.
+/// A run with `effects` equipped as the one star `k` (a plain reward when none: no star),
+/// then `ticks` ticks: the events of those ticks as `(tick, JSON)`.
 fn play(stage: &Stage, effects: Vec<Value>, ticks: u32) -> Vec<(u32, Value)> {
     let mut list = vec![plain("a", 1), plain("b", 1), plain("c", 1)];
-    let taken = if effects.is_empty() {
-        "a"
-    } else {
-        list.push(kind("k", effects, 1_000, 2));
-        "k"
-    };
-    let mut e = with(stage, list);
-    next_offer(&mut e);
-    take(&mut e, taken);
+    let mut stars: Vec<(&str, usize)> = vec![];
+    if !effects.is_empty() {
+        // The bundled pack has no `crit_damage_pct` or `burst_depth` to read a category from.
+        let mut k = kind("k", effects, 1_000, 2);
+        k["category"] = json!("attack");
+        list.push(k);
+        stars.push(("k", 0));
+    }
+    let file = json!({ "rarities": rarities(), "rewards": list });
+    let mut e = equipped_in(stage, file, Parts::default(), &stars, 1);
     let mut seen = Vec::new();
     for _ in 0..ticks {
         e.step(&[
@@ -203,7 +198,9 @@ fn crit_chance_and_damage_raise_the_hits_that_roll_a_crit() {
 fn an_echo_repeats_each_hit_once_a_tick_later_at_its_percent() {
     let stage = two_waves(vec![holder(50_000, 0)]);
     let base = damage(of_type(&play(&stage, vec![], 600), "Hit")[0]);
-    let events = play(&stage, vec![entry("echo_hit_pct", 50)], 600);
+    // 595 ticks: a hit lands on the last one and its echo on the tick after (steps hit every
+    // 6 ticks from tick 1), as the window ended in the offers run.
+    let events = play(&stage, vec![entry("echo_hit_pct", 50)], 595);
     let hits = of_type(&events, "Hit");
     let echoes: Vec<_> = hits.iter().filter(|h| flag(h, "echo")).collect();
     let firsts: Vec<_> = hits.iter().filter(|h| !flag(h, "echo")).collect();
@@ -221,7 +218,9 @@ fn an_echo_repeats_each_hit_once_a_tick_later_at_its_percent() {
 #[test]
 fn an_echo_never_echoes() {
     let stage = two_waves(vec![holder(50_000, 0)]);
-    let events = play(&stage, vec![entry("echo_hit_pct", 100)], 600);
+    // 595 ticks: a hit lands on the last one and its echo on the tick after (steps hit every
+    // 6 ticks from tick 1), as the window ended in the offers run.
+    let events = play(&stage, vec![entry("echo_hit_pct", 100)], 595);
     let hits = of_type(&events, "Hit");
     let echoes = hits.iter().filter(|h| flag(h, "echo")).count();
     // As many echoes as hits (less the last, still to come), never an echo of an echo.
