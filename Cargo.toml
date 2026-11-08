@@ -31,7 +31,8 @@ path = "src/bin/content_pack.rs"
 record = []
 # The cases the tick benches count (ADR-SIM-5), built in `bench_fixtures` so that a change to the
 # simulation's API edits `src/` alone. Benches and their tests only; no dependency. It also gates
-# the equipment test seam (`Engine::new_equipped`, `Engine::script_equipment`).
+# the equipment test seam (ADR-SIM-7): `Engine::new_equipped`, `Engine::script_equipment`,
+# `Engine::script_runes` and `Engine::script_expertise`.
 bench = []
 
 [dependencies]
