@@ -17,8 +17,9 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-6, ADR-SVC-1, ADR-REPL-5, ADR-CONT-5.
 ## Benches (`benches/`)
 
 All count instructions with `iai-callgrind` on cases from `src/bench_fixtures/`; each target is a key of
-`benches/budgets.toml`, which CI reads for the list. They build stages at the live `sim_version`
-(`bench_fixtures/common/mod.rs`), as `tests/alloc.rs` does: `sim_v1` and the v1 event adapter are not benched.
+`benches/budgets.toml` (the list CI reads). They build stages at the live `sim_version`
+(`bench_fixtures/common/mod.rs`) like `tests/alloc.rs`; `sim_v1` and the v1 event adapter are not benched. The `bench`
+feature (`Cargo.toml`) gates those cases and the equipment test seam (`equipment.md`).
 
 - `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-5 (260 enemies, 32 orbs, 128 zones, DIR1), every rune,
   Rune Haste and each damage-over-time status on every enemy, a fresh stack to push apart and aim assist over all 260.
@@ -43,10 +44,9 @@ All count instructions with `iai-callgrind` on cases from `src/bench_fixtures/`;
 ## Tick cost gate
 
 - `cargo bench` runs every target of `benches/budgets.toml` (needs `valgrind`, `iai-callgrind-runner` 0.16.1). CI
-  (`rust.yml`, ADR-SIM-5, ADR-SIM-6) runs both architectures: the budgets of `benches/budgets.toml` block on every run
-  (`bench_budget.py`); a case that rose over +2% against the base commit (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails
-  unless a new `benches/accepted.toml` entry covers it (`[[accepted]]`: bench, case, arch, base, count, reason, pr;
-  append-only; Kade merges).
+  (`rust.yml`, ADR-SIM-5 and 6) runs both architectures: those budgets block on every run (`bench_budget.py`); a case
+  over +2% on the base commit (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a `benches/accepted.toml` entry
+  covers it (`[[accepted]]`: bench, case, arch, base, count, reason, pr; append-only; Kade merges).
 - A case is compared with the base commit when its `before`, `stage` and `input` pins are equal there and here and its
   bench file and `benches/support/` are unchanged (`bench_pins.py`, ADR-SIM-6 point 5); `after` is pinned only. A
   moved case prints "case moved: not compared", is not gated (`bench_alarm.py --cases`); budgets still block it.
