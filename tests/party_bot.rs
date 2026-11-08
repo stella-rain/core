@@ -118,6 +118,11 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
 }
 
 impl PartyBot {
+    /// The solo build bot: call `action` with slot 0.
+    pub fn building(seed: u64) -> PartyBot {
+        PartyBot { seed, builds: true }
+    }
+
     /// Slot `slot`'s attack cadence offset.
     pub fn phase(&self, slot: u8) -> u64 {
         mix(self.seed, slot, 1) % 40
