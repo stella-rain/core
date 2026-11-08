@@ -12,7 +12,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, RunRecorder};
-use stella_rain_core::run_setup::{OfferMode, RunSetup};
+use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
 use stella_rain_core::snapshot::HeldView;
 
 /// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
@@ -71,6 +71,55 @@ pub fn first_point_tick() -> u32 {
         }
     }
     panic!("the script gains no level before tick {STEER_FROM}");
+}
+
+/// The commands of an equipment-mode solo run for up to `ticks` ticks, played through a
+/// `RunRecorder`: `input` steers, and `bot` chooses the one `EquipAction` a tick (slot 0), which
+/// the recorder applies and records. No offer opens in equipment mode, so no `Command::Choose`.
+pub fn play_equipment_run_with(
+    setup: &RunSetup,
+    content: &RunContent,
+    ticks: u32,
+    input: impl Fn(&Engine, u32) -> Input,
+    bot: &PartyBot,
+) -> Vec<Command> {
+    assert!(
+        setup.build_mode == BuildMode::Equipment,
+        "the equipment twin needs build_mode Equipment; use play_run_with for offers"
+    );
+    let mut rec = RunRecorder::start_with(setup, content).unwrap();
+    let mut out = Vec::new();
+    common::equip_run::play(&mut rec, ticks, |rec, t| {
+        let mut step = input(rec.engine(), t);
+        step.action = bot.action(rec.engine(), 0, t);
+        out.push(Command::Step(step));
+        [step, Default::default(), Default::default()]
+    });
+    out
+}
+
+/// `play_equipment_run_with` with `run_input` steering, `content` in place of the bundled files.
+pub fn play_equipment_run_in(
+    setup: &RunSetup,
+    content: &RunContent,
+    ticks: u32,
+    bot: &PartyBot,
+) -> Vec<Command> {
+    play_equipment_run_with(setup, content, ticks, run_input, bot)
+}
+
+/// `play_equipment_run_in` with the bundled content.
+pub fn play_equipment_run_from(setup: &RunSetup, ticks: u32, bot: &PartyBot) -> Vec<Command> {
+    play_equipment_run_in(setup, RunContent::bundled(), ticks, bot)
+}
+
+/// `play_equipment_run_from` the trial's setup in equipment mode.
+pub fn play_equipment_run(ticks: u32, bot: &PartyBot) -> Vec<Command> {
+    play_equipment_run_from(
+        &common::equip_run::equipment_setup(trial_setup()),
+        ticks,
+        bot,
+    )
 }
 
 /// How near (1/256 pixel) a scripted slot walks up to the enemy it hunts: 32 pixels.

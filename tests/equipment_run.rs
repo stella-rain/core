@@ -5,8 +5,8 @@ use crate::common::equip_run::{equipment_setup, play};
 use crate::common::run::{time_limit_setup, trial_setup};
 use crate::party_bot::{PartyBot, RigParty, RigRun};
 use crate::run_play::{
-    EQUIP_RIG_SEEDS, equipment_rig, party_inputs_with, play_equipment_run_in,
-    play_equipment_run_with,
+    EQUIP_RIG_SEEDS, equipment_rig, party_inputs_with, play_equipment_run, play_equipment_run_from,
+    play_equipment_run_in, play_equipment_run_with,
 };
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
@@ -18,7 +18,7 @@ use stella_rain_core::validate::limits::MAX_TICKS;
 /// The world seed of `a_run_plays_to_its_end_with_the_zone_bot`: the first seed of 1..=20 whose
 /// `time_limit` equipment run, played by the zone bot with a building `PartyBot` (bot seed 1),
 /// ends before `MAX_TICKS` (`search_equipment_end_seed`).
-const END_SEED: u64 = 0;
+const END_SEED: u64 = 1;
 const END_BOT_SEED: u64 = 1;
 
 fn rig_1() -> RigParty {
@@ -186,7 +186,7 @@ fn a_bot_without_builds_records_no_action() {
 #[should_panic(expected = "needs build_mode Equipment")]
 fn the_twin_refuses_an_offers_setup() {
     let bot = PartyBot::building(1);
-    play_equipment_run_in(&trial_setup(), RunContent::bundled(), 10, &bot);
+    play_equipment_run_from(&trial_setup(), 10, &bot);
 }
 
 #[test]
@@ -260,4 +260,13 @@ fn search_equipment_end_seed() {
         let ended = commands.len() < usize::try_from(MAX_TICKS).unwrap();
         println!("seed={seed} ticks={} ended={ended}", commands.len());
     }
+}
+
+#[test]
+fn the_trial_wrapper_plays_the_trial_in_equipment_mode() {
+    let bot = PartyBot::building(1);
+    let commands = play_equipment_run(300, &bot);
+    assert_eq!(commands.len(), 300);
+    let setup = equipment_setup(trial_setup());
+    assert_eq!(commands, play_equipment_run_from(&setup, 300, &bot));
 }
