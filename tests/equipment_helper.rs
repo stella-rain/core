@@ -9,6 +9,9 @@ use crate::common::equip;
 use crate::common::run::{plain_content, plain_setup};
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
+use stella_rain_core::expertise::Expertise;
+use stella_rain_core::limits::MAX_INVENTORY;
+use stella_rain_core::rune::Rune;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::EquipAction;
 use stella_rain_core::rewards::Rewards;
@@ -156,6 +159,142 @@ fn script_equipment_fills_the_inventory_and_seeds_the_level() {
         );
         assert_eq!(e.state_hash(), before, "a refusal changes nothing");
     }
+}
+
+/// The first rune slot and the one after it, in the layout.
+fn rune_slots_of(e: &Engine) -> (u32, u32) {
+    let at: Vec<u32> = e.snapshot().players[0]
+        .slots
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.kind == SlotKindView::Rune)
+        .map(|(i, _)| u32::try_from(i).unwrap())
+        .collect();
+    (at[0], at[1])
+}
+
+/// T-r1: scripted runes fill the inventory in order; an equip into a rune slot puts the rune
+/// into the build ready, in slot order; the same rune twice is refused the second time.
+#[test]
+fn script_runes_fills_the_inventory_and_a_rune_equips_into_a_rune_slot() {
+    let (stage, content, setup) = (stage(), content(), setup());
+    let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+    let me = PlayerIdx::SOLO;
+    let (first, second) = rune_slots_of(&e);
+    e.script_runes(me, &[Rune::Thunder, Rune::Bleed, Rune::Thunder])
+        .expect("scripts");
+    assert_eq!(e.snapshot().players[0].inventory.len(), 3);
+    e.act(me, equip(0, first)).expect("thunder fits a rune slot");
+    let runes = &e.snapshot().players[0].runes;
+    assert_eq!(runes.iter().map(|r| r.rune).collect::<Vec<_>>(), [Rune::Thunder]);
+    assert_eq!(runes[0].cooldown_left, 0, "a rune equipped arrives ready");
+    e.act(me, equip(0, second)).expect("bleed fits the next");
+    let runes = &e.snapshot().players[0].runes;
+    assert_eq!(
+        runes.iter().map(|r| r.rune).collect::<Vec<_>>(),
+        [Rune::Thunder, Rune::Bleed]
+    );
+    assert!(
+        e.act(me, equip(0, second + 1)).is_err(),
+        "the same rune twice is refused"
+    );
+}
+
+/// T-r2: a rune in a category slot is refused; too many items, and the old rules, are
+/// `Error::Invalid` and change nothing.
+#[test]
+fn script_runes_refuses_what_it_cannot_do() {
+    let (stage, content, setup) = (stage(), content(), setup());
+    let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+    let me = PlayerIdx::SOLO;
+    e.script_runes(me, &[Rune::Thunder]).expect("scripts");
+    assert!(e.act(me, equip(0, 0)).is_err(), "a rune does not fit slot 0");
+
+    let before = e.state_hash();
+    let too_many = vec![Rune::Thunder; MAX_INVENTORY];
+    assert!(matches!(
+        e.script_runes(me, &too_many),
+        Err(Error::Invalid(_))
+    ));
+    assert_eq!(e.state_hash(), before, "a refusal changes nothing");
+    assert_eq!(e.snapshot().players[0].inventory.len(), 1);
+
+    let mut old = stage.clone();
+    old.sim_version = 1;
+    let mut v1 = Engine::new_equipped(&old, &content, &setup).expect("starts");
+    let Err(Error::Invalid(issues)) = v1.script_runes(me, &[Rune::Thunder]) else {
+        panic!("the old rules hold no equipment");
+    };
+    assert_eq!(issues[0].path, "$.run");
+}
+
+/// A stage whose one wave gives 10 points per kill, and the expertise file with thresholds
+/// 10, 20 .. 100.
+fn expertise_content() -> RunContent {
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the test expertise");
+    content().with_expertise(expertise)
+}
+
+fn expertise_stage() -> Stage {
+    let mut w = common::wave(
+        1,
+        1,
+        0,
+        common::enemy(1, common::hold(common::START_X, common::START_Y - 90_000), json!([])),
+        common::START_X,
+        common::START_Y - 90_000,
+    );
+    w["expertise"] = json!({ "hit": 0, "kill": 10 });
+    let mut stage = common::stage_full(600, Some(common::far_boss()), vec![w], vec![]);
+    stage.sim_version = 2;
+    stage
+}
+
+fn idle_tick(e: &mut Engine) {
+    e.step(&[common::idle(), common::idle(), common::idle()]);
+}
+
+/// T-x1: 210 points are levels 1 to 6 (10+20+..+60), and the level rises on the next tick.
+#[test]
+fn script_expertise_adds_points_that_level_on_the_next_tick() {
+    let (stage, content, setup) = (expertise_stage(), expertise_content(), setup());
+    let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+    e.script_expertise(PlayerIdx::SOLO, 210).expect("scripts");
+    idle_tick(&mut e);
+    let gauge = e.snapshot().expertise.clone().expect("a gauge");
+    assert_eq!((gauge.level, gauge.points), (6, 0));
+}
+
+/// T-x2: seeds add: 100 and 100 are 200.
+#[test]
+fn script_expertise_adds_to_the_points_a_kill_gave() {
+    let (stage, content, setup) = (expertise_stage(), expertise_content(), setup());
+    let run = |seeds: &[u32]| {
+        let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+        for &n in seeds {
+            e.script_expertise(PlayerIdx::SOLO, n).expect("scripts");
+        }
+        idle_tick(&mut e);
+        let gauge = e.snapshot().expertise.clone().expect("a gauge");
+        ((gauge.level, gauge.points), e.state_hash())
+    };
+    assert_eq!(run(&[100, 100]), run(&[200]));
+}
+
+/// T-x3: a stage that gives no points has no gauge to seed.
+#[test]
+fn script_expertise_refuses_a_stage_without_a_gauge() {
+    let (stage, content, setup) = (stage(), expertise_content(), setup());
+    let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+    let before = e.state_hash();
+    let Err(Error::Invalid(issues)) = e.script_expertise(PlayerIdx::SOLO, 10) else {
+        panic!("no gauge");
+    };
+    assert_eq!(issues[0].path, "$.expertise");
+    assert_eq!(e.state_hash(), before);
 }
 
 // The helper `common::equip`: stars on a hand-built stage, written without categories.
