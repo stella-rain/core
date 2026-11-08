@@ -14,13 +14,15 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
+use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
-use stella_rain_core::snapshot::OfferOption;
+use stella_rain_core::stage::Stage;
 
 use crate::common;
 
+use common::equip::{Parts, equipped_in, rune_slot, wait_for_tough};
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};
 use common::*;
@@ -48,22 +50,79 @@ fn cooldown(e: &Engine) -> u32 {
     cooldown_of(e, Rune::Explosion)
 }
 
-/// The stage with seven small enemies and the tough target, every rune taken from their
-/// stars. The last small enemy's kill may fire explosion, whose cooldown is over long before
-/// the target arrives.
-fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(
-        &stage(7, target),
-        &content(vec![random_rune()], None, runes),
+/// The stage of the equipped runs: `waves` alone, no small enemies and no stars.
+fn target_stage(waves: Vec<Value>) -> Stage {
+    let mut stage = armed(
+        stage_full(18_000, Some(far_boss()), waves, vec![]),
+        weapon(),
     );
-    take_all(&mut e);
-    e
+    stage.sim_version = 2;
+    stage
+}
+
+/// An equipment run of `waves` over `rewards` (read with `skills`), with `stars` (reward, slot)
+/// equipped at Lv1 and, when `rune` is true, the seven runes in seven rune slots: the build
+/// the tests used to play to by seven offers and picks. Every rune is ready; a stage skill
+/// star arrives cooling, so a test that presses one sets its cooldown to 1 and `wait_ready`s.
+fn equipped_run(
+    runes: Runes,
+    waves: Vec<Value>,
+    rewards: Vec<Value>,
+    skills: Option<Value>,
+    stars: &[(&str, usize)],
+    rune: bool,
+) -> Engine {
+    // A rewards file holds at least one reward; this one is never equipped.
+    let mut rewards = rewards;
+    rewards.push(
+        json!({ "id": "filler", "rarity": "common", "effect": "max_hp", "amount": 1,
+                         "limit": 2 }),
+    );
+    let mut file = json!({ "rarities": common::rarities(), "rewards": rewards });
+    let mut rules = serde_json::to_value(Rewards::bundled().equipment().expect("rules")).unwrap();
+    rules["rune_slots"] = json!(Rune::ALL.len());
+    file["equipment"] = rules;
+    let equip_runes = match rune {
+        true => Rune::ALL
+            .into_iter()
+            .enumerate()
+            .map(|(n, r)| (r, rune_slot(&file, n)))
+            .collect(),
+        false => vec![],
+    };
+    let parts = Parts {
+        skills,
+        runes: Some(runes),
+        equip_runes,
+        ..Parts::default()
+    };
+    equipped_in(&target_stage(waves), file, parts, stars, 1)
+}
+
+/// Steps idle until the stage skill is ready.
+fn wait_ready(e: &mut Engine) {
+    for _ in 0..30 {
+        if e.snapshot().players[0]
+            .skill
+            .as_ref()
+            .is_some_and(|s| s.ready)
+        {
+            return;
+        }
+        e.step(&[idle(), Default::default(), Default::default()]);
+    }
+    panic!("the stage skill never became ready");
+}
+
+/// Every rune equipped, the tough `target` alone on the stage.
+fn holding(runes: Runes, target: Value) -> Engine {
+    equipped_run(runes, vec![target], vec![], None, &[], true)
 }
 
 #[test]
 fn a_combo_step_hit_fires_an_explosion_around_the_point_hit() {
     let mut e = holding(runes(30, BLAST, 2, None), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     // The step's hit on the tick the press starts it.
     e.step(&[once(start)(start), Default::default(), Default::default()]);
@@ -105,13 +164,14 @@ fn the_explosion_hits_everything_around_the_point() {
         START_X,
         NEAR_Y - 5_120,
     );
-    let mut s = stage(7, tough(0, None, None));
-    s.waves.push(serde_json::from_value(behind).unwrap());
-    let mut e = with(
-        &s,
-        &content(vec![random_rune()], None, runes(30, BLAST, 2, None)),
+    let mut e = equipped_run(
+        runes(30, BLAST, 2, None),
+        vec![tough(0, None, None), behind],
+        vec![],
+        None,
+        &[],
+        true,
     );
-    take_all(&mut e);
     while e.tick() < TARGET_TICK {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -137,7 +197,7 @@ fn the_explosion_hits_everything_around_the_point() {
 #[test]
 fn its_cooldown_blocks_a_second_fire_until_it_reaches_0() {
     let mut e = holding(runes(30, BLAST, 2, None), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     // A step every 6 ticks, each hitting.
     let seen = hits(&mut e, target, 200, |t| firing(idle(), t));
     let steps = of(&seen, 10);
@@ -157,7 +217,7 @@ fn its_cooldown_blocks_a_second_fire_until_it_reaches_0() {
 #[test]
 fn the_cooldown_counts_down_each_tick() {
     let mut e = holding(runes(30, BLAST, 2, None), tough(0, None, None));
-    wait_for_target(&mut e);
+    wait_for_tough(&mut e);
     let start = e.tick();
     let mut left = Vec::new();
     for _ in 0..33 {
@@ -174,24 +234,15 @@ fn the_cooldown_counts_down_each_tick() {
 
 #[test]
 fn without_the_rune_a_step_fires_nothing() {
-    let mut e = with(
-        &stage(3, tough(0, None, None)),
-        &content(vec![random_rune()], None, runes(30, BLAST, 2, None)),
+    let mut e = equipped_run(
+        runes(30, BLAST, 2, None),
+        vec![tough(0, None, None)],
+        vec![],
+        None,
+        &[],
+        false,
     );
-    // The star's offer is skipped.
-    fire_until(&mut e, idle(), 600, Engine::offer_open);
-    let skip = e
-        .snapshot()
-        .progress
-        .unwrap()
-        .offer
-        .unwrap()
-        .options
-        .iter()
-        .position(|o| *o == OfferOption::Skip)
-        .unwrap();
-    common::pick(&mut e, u32::try_from(skip).unwrap()).unwrap();
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let seen = hits(&mut e, target, 100, |t| firing(idle(), t));
     assert!(of(&seen, BLAST).is_empty());
     assert!(
@@ -206,7 +257,7 @@ fn without_the_rune_a_step_fires_nothing() {
 fn its_hits_fire_no_rune_one_blast_for_one_step() {
     // A cooldown of 2: had the blast's own hit fired explosion again, a second blast would land.
     let mut e = holding(runes(2, BLAST, 2, None), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 60, once(start));
     assert_eq!(of(&seen, 10).len(), 1);
@@ -217,7 +268,7 @@ fn its_hits_fire_no_rune_one_blast_for_one_step() {
 fn its_hits_give_no_expertise() {
     // The target gives 1 point a hit: one step's hit, not the blast's.
     let mut e = holding(runes(30, BLAST, 2, None), tough(0, None, Some(1)));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 20, once(start));
     assert_eq!(of(&seen, BLAST).len(), 1, "the blast landed");
@@ -252,13 +303,15 @@ fn an_orbit_s_hits_fire_no_explosion() {
         START_X + 10_240,
         START_Y
     ));
-    let mut e = with(
-        &stage(8, target),
-        &content(vec![random_rune(), orbit], None, runes(30, BLAST, 2, None)),
+    let mut e = equipped_run(
+        runes(30, BLAST, 2, None),
+        vec![target],
+        vec![orbit],
+        None,
+        &[("orbit", 0)],
+        true,
     );
-    take_all(&mut e);
-    take(&mut e, "orbit");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let seen = hits(&mut e, target, 240, |_| idle());
     assert!(!of(&seen, 7).is_empty(), "the orb hits: {seen:?}");
     assert!(of(&seen, BLAST).is_empty(), "{seen:?}");
@@ -271,7 +324,7 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
     let ahead = 25_600;
     let nova = json!({ "id": "nova", "icon": "icon_nova",
         "ahead": ahead,
-        "levels": [{ "cooldown_ticks": 120, "effects": [{ "type": "attack", "attack": { "inline": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [{ "type": "attack", "attack": { "inline": [
             { "kind": "active", "ticks": 20, "damage": 7,
               "hit_box": { "type": "circle", "offset": { "forward": ahead }, "radius": 8_192 } }
         ] } }] }] });
@@ -289,17 +342,16 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
         START_X,
         START_Y - ahead
     ));
-    let mut e = with(
-        &stage(8, target),
-        &content(
-            vec![random_rune(), reward],
-            Some(json!([nova])),
-            runes(30, BLAST, 2, None),
-        ),
+    let mut e = equipped_run(
+        runes(30, BLAST, 2, None),
+        vec![target],
+        vec![reward],
+        Some(json!([nova])),
+        &[("nova_r", 0)],
+        true,
     );
-    take_all(&mut e);
-    take(&mut e, "nova_r");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 40, |t| Input {
         skill: t == start,
@@ -314,26 +366,27 @@ fn a_stage_skill_s_hits_fire_no_explosion() {
 /// the war cry's atk-up of 100 used before the step: `(base, step's hit, blast's hit)`.
 fn boosted(ty: Option<&str>) -> (u32, u32) {
     let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
-        "levels": [{ "cooldown_ticks": 1_000, "effects": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
         ] }] });
     let rewards = vec![
-        random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
                 "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "pyro", "rarity": "common", "effect": "type_bonus_pct", "type": "pyro",
                 "amount": 50, "limit": 2 }),
     ];
     let weak = json!({ "weak": ["pyro"] });
-    let mut e = with(
-        &stage(9, tough(0, Some(weak), None)),
-        &content(rewards, Some(json!([war_cry])), runes(30, 10, 2, ty)),
+    let mut e = equipped_run(
+        runes(30, 10, 2, ty),
+        vec![tough(0, Some(weak), None)],
+        rewards,
+        Some(json!([war_cry])),
+        &[("war_cry_r", 0), ("pyro", 1)],
+        true,
     );
-    take_all(&mut e);
-    take(&mut e, "war_cry_r");
-    take(&mut e, "pyro");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     e.step(&[
         Input {
             skill: true,
@@ -365,8 +418,8 @@ fn the_state_hash_holds_the_cooldown() {
     // The same run with explosion's cooldown 30 or 40: the same until the first blast.
     let mut a = holding(runes(30, BLAST, 2, None), tough(0, None, None));
     let mut b = holding(runes(40, BLAST, 2, None), tough(0, None, None));
-    wait_for_target(&mut a);
-    wait_for_target(&mut b);
+    wait_for_tough(&mut a);
+    wait_for_tough(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
     a.step(&[once(start)(start), Default::default(), Default::default()]);

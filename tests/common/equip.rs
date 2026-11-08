@@ -237,3 +237,16 @@ pub fn equipped_in(
         }
     })
 }
+
+/// Steps idle until the tough target of `on_hit` is on the map, and returns its ID: the first
+/// enemy with 2 to 100 000 hit points. An equipped run has no small enemies, so the boss (more
+/// hit points) is the first one standing and `on_hit::wait_for_target` would take it.
+pub fn wait_for_tough(e: &mut Engine) -> stella_rain_core::id::EntityId {
+    common::on_hit::wait_for_target(e);
+    e.snapshot()
+        .entities
+        .iter()
+        .find(|en| en.hp > 1 && en.hp <= 100_000)
+        .map(|en| en.id)
+        .expect("the tough target")
+}

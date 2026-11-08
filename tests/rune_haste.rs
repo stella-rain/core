@@ -24,7 +24,7 @@ use stella_rain_core::version::Versions;
 
 use crate::common;
 
-use common::equip::{Parts, equipped_in, rune_slot};
+use common::equip::{Parts, equipped_in, rune_slot, wait_for_tough};
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};
 use common::*;
@@ -105,19 +105,6 @@ fn equipped_with(runes: Runes, amount: u32, star: bool) -> Engine {
     };
     let stars: &[(&str, usize)] = if star { &[("h1", 0)] } else { &[] };
     equipped_in(&target_stage(), rewards, parts, stars, 1)
-}
-
-/// Steps idle until the tough target is on the map, and returns its ID: the enemy of 100 000
-/// hit points (with no small enemies the boss is the other one standing, `wait_for_target`
-/// would take it first).
-fn wait_for_tough(e: &mut Engine) -> EntityId {
-    wait_for_target(e);
-    e.snapshot()
-        .entities
-        .iter()
-        .find(|en| en.hp > 1 && en.hp <= 100_000)
-        .map(|en| en.id)
-        .expect("the tough target")
 }
 
 /// The cooldowns left, right after the first step's hit, of the four on-hit runes.
