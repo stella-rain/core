@@ -10,11 +10,14 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use stella_rain_core::constellations::Constellations;
 use stella_rain_core::engine::{ActionError, Engine};
+use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::EquipAction;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::rune::Rune;
+use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::version::Versions;
@@ -72,6 +75,37 @@ fn with_equipment_rules(mut rewards: Value) -> Value {
 pub struct Parts {
     pub skills: Option<Value>,
     pub sets: Option<Value>,
+    /// The runes file of the run (`RunContent::with_runes`); `None` is the bundled one.
+    pub runes: Option<Runes>,
+    /// The expertise file of the run (`RunContent::with_expertise`); `None` is the bundled one.
+    pub expertise: Option<Expertise>,
+    /// Each rune and the layout slot (`rune_slot`) it is equipped into, after the stars.
+    pub equip_runes: Vec<(Rune, usize)>,
+    /// Weapon expertise points seeded before the first tick (`Engine::script_expertise`); the
+    /// level rises on the first tick. 0 seeds nothing.
+    pub expertise_points: u32,
+}
+
+/// The layout slot of rune slot `n` of the `equipment` object `rewards` brings (the bundled one
+/// when it brings none): the categories' slots, then `n`.
+pub fn rune_slot(rewards: &Value, n: usize) -> usize {
+    let categories = match rewards.get("equipment") {
+        Some(rules) => rules["categories"].clone(),
+        None => serde_json::to_value(
+            &Rewards::bundled()
+                .equipment()
+                .expect("the pack's rules")
+                .categories,
+        )
+        .expect("the categories serialise"),
+    };
+    let slots: u64 = categories
+        .as_array()
+        .expect("a category list")
+        .iter()
+        .map(|c| c["slots"].as_u64().expect("a slot count"))
+        .sum();
+    usize::try_from(slots).expect("a count") + n
 }
 
 /// Starts an equipment-mode, one-player run on `stage` (its `sim_version` is set to the live
@@ -99,7 +133,8 @@ pub fn try_equipped_in(
     build(stage, rewards, parts, stars, level).map_err(|(_, refused)| refused)
 }
 
-/// `try_equipped`, with the place in `stars` of the star the engine refused.
+/// `try_equipped`, with the place of the star the engine refused: in `stars`, then in
+/// `parts.equip_runes`.
 fn build(
     stage: &Stage,
     rewards: Value,
@@ -131,8 +166,14 @@ fn build(
             .unwrap_or_else(|e| panic!("the sets validate: {e:?}"));
         rewards = rewards.with_constellations(sets);
     }
-    let content = RunContent::new(common::design_run_stats(), rewards)
+    let mut content = RunContent::new(common::design_run_stats(), rewards)
         .with_perk_sets(plain_content().perk_sets().clone());
+    if let Some(runes) = parts.runes {
+        content = content.with_runes(runes);
+    }
+    if let Some(expertise) = parts.expertise {
+        content = content.with_expertise(expertise);
+    }
     let setup = RunSetup {
         build_mode: BuildMode::Equipment,
         perk_set: "plain".into(),
@@ -149,7 +190,20 @@ fn build(
     engine
         .script_equipment(PlayerIdx::SOLO, &held, &levels)
         .expect("the stars and slots are the layout's");
-    for (at, &(_, slot)) in stars.iter().enumerate() {
+    let runes: Vec<Rune> = parts.equip_runes.iter().map(|&(r, _)| r).collect();
+    engine
+        .script_runes(PlayerIdx::SOLO, &runes)
+        .expect("the runes fit the inventory");
+    if parts.expertise_points > 0 {
+        engine
+            .script_expertise(PlayerIdx::SOLO, parts.expertise_points)
+            .expect("the stage gives expertise points");
+    }
+    let slots = stars
+        .iter()
+        .map(|&(_, slot)| slot)
+        .chain(parts.equip_runes.iter().map(|&(_, slot)| slot));
+    for (at, slot) in slots.enumerate() {
         let slot = u32::try_from(slot).expect("a slot");
         let equip = EquipAction::Equip { item: 0, slot };
         engine
@@ -172,8 +226,14 @@ pub fn equipped_in(
     stars: &[(&str, usize)],
     level: u8,
 ) -> Engine {
-    build(stage, rewards, parts, stars, level).unwrap_or_else(|(at, refused)| {
-        let (id, slot) = stars[at];
-        panic!("equip `{id}` into slot {slot} at Lv{level}: refused with {refused:?}")
+    let runes = parts.equip_runes.clone();
+    build(stage, rewards, parts, stars, level).unwrap_or_else(|(at, refused)| match stars.get(at) {
+        Some(&(id, slot)) => {
+            panic!("equip `{id}` into slot {slot} at Lv{level}: refused with {refused:?}")
+        }
+        None => {
+            let (rune, slot) = runes[at - stars.len()];
+            panic!("equip `{rune:?}` into slot {slot}: refused with {refused:?}")
+        }
     })
 }

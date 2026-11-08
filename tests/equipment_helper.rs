@@ -10,13 +10,13 @@ use crate::common::run::{plain_content, plain_setup};
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
-use stella_rain_core::limits::MAX_INVENTORY;
-use stella_rain_core::rune::Rune;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::EquipAction;
+use stella_rain_core::limits::MAX_INVENTORY;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::{self, BuildMode, RunSetup};
+use stella_rain_core::rune::Rune;
 use stella_rain_core::snapshot::SlotKindView;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
@@ -184,9 +184,13 @@ fn script_runes_fills_the_inventory_and_a_rune_equips_into_a_rune_slot() {
     e.script_runes(me, &[Rune::Thunder, Rune::Bleed, Rune::Thunder])
         .expect("scripts");
     assert_eq!(e.snapshot().players[0].inventory.len(), 3);
-    e.act(me, equip(0, first)).expect("thunder fits a rune slot");
+    e.act(me, equip(0, first))
+        .expect("thunder fits a rune slot");
     let runes = &e.snapshot().players[0].runes;
-    assert_eq!(runes.iter().map(|r| r.rune).collect::<Vec<_>>(), [Rune::Thunder]);
+    assert_eq!(
+        runes.iter().map(|r| r.rune).collect::<Vec<_>>(),
+        [Rune::Thunder]
+    );
     assert_eq!(runes[0].cooldown_left, 0, "a rune equipped arrives ready");
     e.act(me, equip(0, second)).expect("bleed fits the next");
     let runes = &e.snapshot().players[0].runes;
@@ -208,7 +212,10 @@ fn script_runes_refuses_what_it_cannot_do() {
     let mut e = Engine::new_equipped(&stage, &content, &setup).expect("starts");
     let me = PlayerIdx::SOLO;
     e.script_runes(me, &[Rune::Thunder]).expect("scripts");
-    assert!(e.act(me, equip(0, 0)).is_err(), "a rune does not fit slot 0");
+    assert!(
+        e.act(me, equip(0, 0)).is_err(),
+        "a rune does not fit slot 0"
+    );
 
     let before = e.state_hash();
     let too_many = vec![Rune::Thunder; MAX_INVENTORY];
@@ -243,12 +250,18 @@ fn expertise_stage() -> Stage {
         1,
         1,
         0,
-        common::enemy(1, common::hold(common::START_X, common::START_Y - 90_000), json!([])),
+        common::enemy(
+            1,
+            common::hold(common::START_X, common::START_Y - 90_000),
+            json!([]),
+        ),
         common::START_X,
         common::START_Y - 90_000,
     );
     w["expertise"] = json!({ "hit": 0, "kill": 10 });
-    let mut stage = common::stage_full(600, Some(common::far_boss()), vec![w], vec![]);
+    let stage = common::stage_full(600, Some(common::far_boss()), vec![w], vec![]);
+    // A preset weapon: the weapon tree reads the expertise file's styles of its preset.
+    let mut stage = common::armed(stage, json!({ "preset": { "id": "giant_sword" } }));
     stage.sim_version = 2;
     stage
 }
@@ -541,13 +554,21 @@ fn equipped_in_holds_runes() {
         ..equip::Parts::default()
     };
     let mut e = equip::equipped_in(&target_stage(), one_star(), parts, &[], 1);
-    let held: Vec<Rune> = e.snapshot().players[0].runes.iter().map(|r| r.rune).collect();
+    let held: Vec<Rune> = e.snapshot().players[0]
+        .runes
+        .iter()
+        .map(|r| r.rune)
+        .collect();
     assert_eq!(held, [Rune::Thunder, Rune::Burn]);
     while e.tick() < common::on_hit::TARGET_TICK {
         idle_tick(&mut e);
     }
     let start = e.tick();
-    e.step(&[common::on_hit::once(start)(start), common::idle(), common::idle()]);
+    e.step(&[
+        common::on_hit::once(start)(start),
+        common::idle(),
+        common::idle(),
+    ]);
     assert_eq!(common::on_hit::cooldown_of(&e, Rune::Thunder), 77);
 }
 
@@ -582,6 +603,9 @@ fn equipped_in_seeds_expertise() {
 
     let mut plain = equip::equipped(&expertise_stage(), one_star(), &stars, 1);
     idle_tick(&mut plain);
-    assert_eq!(plain.snapshot().expertise.clone().expect("a gauge").level, 0);
+    assert_eq!(
+        plain.snapshot().expertise.clone().expect("a gauge").level,
+        0
+    );
     assert!(plain.snapshot().players[0].tree_ready.is_none());
 }
