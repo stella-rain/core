@@ -478,3 +478,110 @@ fn custom_sets_count_their_members() {
         0
     );
 }
+
+// The helper's variant for a test that equips runes or seeds weapon expertise.
+
+/// A stage with one tough target in reach at tick 300 and the tests' one-step weapon.
+fn target_stage() -> Stage {
+    let mut stage = common::armed(
+        common::stage_full(
+            18_000,
+            Some(common::far_boss()),
+            vec![common::on_hit::tough(0, None, None)],
+            vec![],
+        ),
+        common::on_hit::weapon(),
+    );
+    stage.sim_version = 2;
+    stage
+}
+
+fn one_star() -> Value {
+    json!({ "rarities": common::rarities(), "rewards": [star("c", "attack", "crit_chance_pct", 40)] })
+}
+
+/// A runes file whose four on-hit runes land far away; thunder's cooldown is 77.
+fn runes_file() -> stella_rain_core::runes::Runes {
+    use common::on_hit::{far, runes_of};
+    let on_hit = ["explosion", "thunder", "boomerang", "homing_missiles"]
+        .into_iter()
+        .map(|r| {
+            let mut e = far(r);
+            if r == "thunder" {
+                e["cooldown_ticks"] = json!(77);
+            }
+            e
+        })
+        .collect();
+    runes_of(on_hit)
+}
+
+/// T-h1: `Parts.equip_runes` equips runes in the slots given (slot order is the runes' order);
+/// the test's own runes file is the run's; `rune_slot` is the categories' slots plus n, for the
+/// bundled rules and for a file that brings its own; a rune in a category slot panics naming it.
+#[test]
+fn equipped_in_holds_runes() {
+    let rules = Rewards::bundled().equipment().expect("rules").clone();
+    let categories: usize = rules.categories.iter().map(|c| usize::from(c.slots)).sum();
+    assert_eq!(equip::rune_slot(&one_star(), 1), categories + 1);
+    let mut seven = one_star();
+    let mut own = serde_json::to_value(&rules).unwrap();
+    own["rune_slots"] = 7.into();
+    seven["equipment"] = own;
+    for n in 0..7 {
+        assert_eq!(equip::rune_slot(&seven, n), categories + n);
+    }
+
+    let parts = equip::Parts {
+        runes: Some(runes_file()),
+        equip_runes: vec![
+            (Rune::Thunder, equip::rune_slot(&one_star(), 0)),
+            (Rune::Burn, equip::rune_slot(&one_star(), 1)),
+        ],
+        ..equip::Parts::default()
+    };
+    let mut e = equip::equipped_in(&target_stage(), one_star(), parts, &[], 1);
+    let held: Vec<Rune> = e.snapshot().players[0].runes.iter().map(|r| r.rune).collect();
+    assert_eq!(held, [Rune::Thunder, Rune::Burn]);
+    while e.tick() < common::on_hit::TARGET_TICK {
+        idle_tick(&mut e);
+    }
+    let start = e.tick();
+    e.step(&[common::on_hit::once(start)(start), common::idle(), common::idle()]);
+    assert_eq!(common::on_hit::cooldown_of(&e, Rune::Thunder), 77);
+}
+
+#[test]
+#[should_panic(expected = "equip `Thunder` into slot 0")]
+fn a_rune_in_a_category_slot_panics_naming_it() {
+    let parts = equip::Parts {
+        equip_runes: vec![(Rune::Thunder, 0)],
+        ..equip::Parts::default()
+    };
+    equip::equipped_in(&target_stage(), one_star(), parts, &[], 1);
+}
+
+/// T-h2: `Parts.expertise_points` seeds the gauge of the test's expertise file: after one idle
+/// tick it is at level 6 with tree points to spend; the same stars without it are at level 0.
+#[test]
+fn equipped_in_seeds_expertise() {
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
+    let parts = equip::Parts {
+        expertise: Some(expertise),
+        expertise_points: 210,
+        ..equip::Parts::default()
+    };
+    let stars = [("c", ATTACK)];
+    let mut seeded = equip::equipped_in(&expertise_stage(), one_star(), parts, &stars, 1);
+    idle_tick(&mut seeded);
+    let gauge = seeded.snapshot().expertise.clone().expect("a gauge");
+    assert_eq!(gauge.level, 6);
+    assert!(seeded.snapshot().players[0].tree_ready.is_some());
+
+    let mut plain = equip::equipped(&expertise_stage(), one_star(), &stars, 1);
+    idle_tick(&mut plain);
+    assert_eq!(plain.snapshot().expertise.clone().expect("a gauge").level, 0);
+    assert!(plain.snapshot().players[0].tree_ready.is_none());
+}
