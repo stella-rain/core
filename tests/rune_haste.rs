@@ -19,10 +19,12 @@ use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
+use stella_rain_core::stage::Stage;
 use stella_rain_core::version::Versions;
 
 use crate::common;
 
+use common::equip::{Parts, equipped_in, rune_slot};
 use common::on_hit::*;
 use common::run::{run_input, trial_setup};
 use common::*;
@@ -73,6 +75,51 @@ fn holding(runes: Runes, rewards: Vec<Value>, picks: &[&str]) -> Engine {
     e
 }
 
+/// The stage of the equipped runs: the tough target alone, no small enemies and no stars.
+fn target_stage() -> Stage {
+    let mut stage = armed(
+        stage_full(18_000, Some(far_boss()), vec![tough(0, None, None)], vec![]),
+        weapon(),
+    );
+    stage.sim_version = 2;
+    stage
+}
+
+/// The run of `target_stage` with the seven runes equipped (seven rune slots) and, when `star`
+/// is true, the Rune Haste star `h1` of `amount` percent in slot 0, all at Lv1: the same
+/// build as `holding` with the picks `[]` or `["h1"]`, in one call.
+fn equipped_with(runes: Runes, amount: u32, star: bool) -> Engine {
+    let mut rewards =
+        json!({ "rarities": common::rarities(), "rewards": [haste("h1", amount, 2)] });
+    let mut rules = serde_json::to_value(Rewards::bundled().equipment().expect("rules")).unwrap();
+    rules["rune_slots"] = json!(Rune::ALL.len());
+    rewards["equipment"] = rules;
+    let parts = Parts {
+        runes: Some(runes),
+        equip_runes: Rune::ALL
+            .into_iter()
+            .enumerate()
+            .map(|(n, r)| (r, rune_slot(&rewards, n)))
+            .collect(),
+        ..Parts::default()
+    };
+    let stars: &[(&str, usize)] = if star { &[("h1", 0)] } else { &[] };
+    equipped_in(&target_stage(), rewards, parts, stars, 1)
+}
+
+/// Steps idle until the tough target is on the map, and returns its ID: the enemy of 100 000
+/// hit points (with no small enemies the boss is the other one standing, `wait_for_target`
+/// would take it first).
+fn wait_for_tough(e: &mut Engine) -> EntityId {
+    wait_for_target(e);
+    e.snapshot()
+        .entities
+        .iter()
+        .find(|en| en.hp > 1 && en.hp <= 100_000)
+        .map(|en| en.id)
+        .expect("the tough target")
+}
+
 /// The cooldowns left, right after the first step's hit, of the four on-hit runes.
 fn cooldowns_after_a_hit(e: &mut Engine) -> Vec<u32> {
     wait_for_target(e);
@@ -121,9 +168,9 @@ fn a_rune_haste_reward_is_a_stat_like_effect_bounded_like_the_others() {
 
 #[test]
 fn without_haste_the_cooldowns_and_the_interval_are_the_files() {
-    let mut e = holding(runes(120, 30), vec![], &[]);
+    let mut e = equipped_with(runes(120, 30), 50, false);
     assert_eq!(cooldowns_after_a_hit(&mut e), [120; 4]);
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     assert_eq!(bleed_of(&e, target).next_tick_in, 30);
 }
 
@@ -131,7 +178,7 @@ fn without_haste_the_cooldowns_and_the_interval_are_the_files() {
 fn haste_shortens_each_on_hit_rune_s_cooldown_to_ticks_times_100_over_100_plus_h() {
     // 120 × 100 / 150 = 80; 7 × 100 / 200 = 3.5, up to 4; 30 × 100 / 125 = 24.
     for (cooldown, h, left) in [(120, 50, 80), (7, 100, 4), (30, 25, 24), (31, 25, 25)] {
-        let mut e = holding(runes(cooldown, 30), vec![haste("h1", h, 2)], &["h1"]);
+        let mut e = equipped_with(runes(cooldown, 30), h, true);
         assert_eq!(
             cooldowns_after_a_hit(&mut e),
             [left; 4],
@@ -155,15 +202,15 @@ fn the_formula_rounds_up_and_floors_at_one_tick() {
 #[test]
 fn a_cooldown_never_reaches_zero() {
     // The shortest cooldown a file allows here, its attack's 4 ticks: 4 × 100 / 400 = 1.
-    let mut e = holding(runes(4, 30), vec![haste("h1", MAX_HASTE, 2)], &["h1"]);
+    let mut e = equipped_with(runes(4, 30), MAX_HASTE, true);
     assert_eq!(cooldowns_after_a_hit(&mut e), [1; 4]);
 }
 
 #[test]
 fn haste_shortens_a_damage_over_time_interval_as_it_is_applied() {
     // 30 × 100 / 150 = 20: the first tick 20 after the hit, then every 20.
-    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 2)], &["h1"]);
-    let target = wait_for_target(&mut e);
+    let mut e = equipped_with(runes(120, 30), 50, true);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 100, once(start));
     let hit = start + 1;
@@ -174,8 +221,8 @@ fn haste_shortens_a_damage_over_time_interval_as_it_is_applied() {
 #[test]
 fn every_damage_over_time_kind_is_shortened() {
     // Poison and burn, 600 ticks: 600 × 100 / 150 = 400.
-    let mut e = holding(runes(120, 30), vec![haste("h1", 50, 2)], &["h1"]);
-    let target = wait_for_target(&mut e);
+    let mut e = equipped_with(runes(120, 30), 50, true);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     let on = e
