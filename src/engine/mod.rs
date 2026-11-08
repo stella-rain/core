@@ -568,6 +568,71 @@ impl Engine {
         Ok(())
     }
 
+    /// For tests and benches only, under the `bench` feature, before the first tick: pushes the
+    /// runes `runes` onto `player`'s inventory in order, as a drop would. A rune reaches the
+    /// build by an `Equip` into a rune slot (a duplicate is refused there, not here). Only the
+    /// live rules (`Run::V2`) hold equipment. Anything it cannot do is `Error::Invalid` and
+    /// nothing changes: the old rules, no such player, an inventory past `MAX_INVENTORY`.
+    #[cfg(feature = "bench")]
+    #[doc(hidden)]
+    pub fn script_runes(
+        &mut self,
+        player: PlayerIdx,
+        runes: &[crate::rune::Rune],
+    ) -> Result<(), Error> {
+        use crate::limits::MAX_INVENTORY;
+        use crate::sim::equipment::Held;
+
+        let invalid = |path: &str, message: String| {
+            Err(Error::Invalid(vec![Issue {
+                path: path.into(),
+                message,
+            }]))
+        };
+        let Run::V2 { state, .. } = &mut self.run else {
+            return invalid("$.run", "equipment needs the live rules".into());
+        };
+        if !state.players.is_present(player) {
+            return invalid("$.player", "no such player in the party".into());
+        }
+        let equipment = &mut state.players.career_mut(player).equipment;
+        if equipment.inventory.len() + runes.len() > MAX_INVENTORY {
+            return invalid("$.inventory", format!("more than {MAX_INVENTORY} items"));
+        }
+        equipment
+            .inventory
+            .extend(runes.iter().map(|&r| Held::Rune(r)));
+        Ok(())
+    }
+
+    /// For tests and benches only, under the `bench` feature, before the first tick: adds
+    /// `points` to `player`'s weapon expertise gauge, as a kill's points would. The level rises
+    /// on the next tick, so its base set and tree points arise by the rules' own path. A
+    /// savepoint or replay of such a run is not the setup's own (as `new_equipped`). Only the
+    /// live rules (`Run::V2`) hold equipment. Anything it cannot do is `Error::Invalid` and
+    /// nothing changes: the old rules, no such player, a stage that gives no expertise points.
+    #[cfg(feature = "bench")]
+    #[doc(hidden)]
+    pub fn script_expertise(&mut self, player: PlayerIdx, points: u32) -> Result<(), Error> {
+        let invalid = |path: &str, message: String| {
+            Err(Error::Invalid(vec![Issue {
+                path: path.into(),
+                message,
+            }]))
+        };
+        let Run::V2 { state, .. } = &mut self.run else {
+            return invalid("$.run", "equipment needs the live rules".into());
+        };
+        if !state.players.is_present(player) {
+            return invalid("$.player", "no such player in the party".into());
+        }
+        let Some(gauge) = state.players.career_mut(player).expertise.as_mut() else {
+            return invalid("$.expertise", "the stage gives no expertise points".into());
+        };
+        gauge.points = gauge.points.saturating_add(points);
+        Ok(())
+    }
+
     /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file: its
     /// waves, and its bosses as they come (`TICK`'s first step).
     pub fn start_time_limit(

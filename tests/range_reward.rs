@@ -8,9 +8,9 @@
 use serde_json::{Value, json};
 use stella_rain_core::attack::HitBox;
 use stella_rain_core::engine::Engine;
-use stella_rain_core::event::DomainEvent;
 use stella_rain_core::expertise::Expertise;
-use stella_rain_core::input::Input;
+use stella_rain_core::id::PlayerIdx;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::rewards::{MAX_RANGE_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
@@ -19,6 +19,7 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::version::Versions;
 
 use crate::common;
+use crate::common::equip::{Parts, equipped_in};
 
 use common::*;
 
@@ -239,72 +240,78 @@ fn holding_a_range_reward_leaves_another_offered() {
     assert_eq!(e.snapshot().players[0].range_pct, 30);
 }
 
-/// The expertise option `id` of `effect` and `amount`, common.
-fn option(id: &str, effect: &str, amount: u32) -> Value {
-    json!({ "id": id, "effect": effect, "amount": amount })
-}
-
+/// The expertise range and the range reward add into one widening. The weapon tree (equipment
+/// mode) gives the range: the first style's first upgrade is a `range_pct` of 20, taken by
+/// `TreePick` once 210 points (levels 1 to 6) are seeded. The weapon's sets give no stat, so the
+/// numbers are the star's 30 and the upgrade's 20.
 #[test]
-fn the_expertise_range_option_and_the_range_reward_add_into_one_widening() {
-    // The `giant_sword` as Main: its first step a slash, an arc of 32 pixels 8 pixels ahead after 4
-    // ticks of wind-up. A kill of 10 points reaches expertise level 1, whose
-    // offer opens before the kill's star's.
+fn the_range_upgrade_and_the_range_star_add_into_one_widening() {
+    // The `giant_sword` as Main: its first step a slash, an arc of 32 pixels 8 pixels ahead after
+    // 4 ticks of wind-up. The one enemy is far away: it only gives the stage its points.
+    let far = START_Y - 90_000;
     let mut w = wave(
         1,
         1,
         0,
-        enemy(1, hold(START_X, NEAR_Y), json!([])),
+        enemy(1_000_000, hold(START_X, far), json!([])),
         START_X,
-        NEAR_Y,
+        far,
     );
     w["expertise"] = json!({ "hit": 0, "kill": 10 });
-    let stage = starry(armed(
+    let mut stage = armed(
         stage_full(18_000, Some(far_boss()), vec![w], vec![]),
         json!({ "preset": { "id": "giant_sword" } }),
-    ));
+    );
+    stage.sim_version = 2;
     let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
-        w["common"] = json!([option("wide", "range_pct", 20)]);
+        if w["weapon"] != "giant_sword" {
+            continue;
+        }
+        w["base"] = json!([]);
+        for style in w["styles"].as_array_mut().unwrap() {
+            style["stats"] = json!([]);
+        }
+        w["styles"][0]["upgrade_1"] =
+            json!([{ "id": "wide", "effect": "range_pct", "amount": 20 }]);
     }
     let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test expertise");
-    let content = RunContent::new(
-        RunStats::bundled().clone(),
-        rewards(vec![range("reach", 30, 2)]),
-    )
-    .with_expertise(expertise);
-    let mut e = Engine::new_with(&stage, &content).expect("the test stage is valid");
     let arc = |forward: i32, radius: i32| {
         hit_box(
             json!({ "type": "arc", "offset": { "forward": forward }, "radius": radius,
                         "half_angle": 15_360 }),
         )
     };
+    let build = |stars: &[(&str, usize)], points: u32| {
+        let file = json!({ "rarities": common::rarities(), "rewards": [range("reach", 30, 2)] });
+        let parts = Parts {
+            expertise: Some(expertise.clone()),
+            expertise_points: points,
+            ..Parts::default()
+        };
+        equipped_in(&stage, file, parts, stars, 1)
+    };
+    // The step's own arc, with nothing equipped and no points.
+    let mut bare = build(&[], 0);
+    assert_eq!(swing(&mut bare), arc(2_048, 8_192));
 
+    // The star alone widens it by 30 percent (reach is a mobility star, slot 8).
+    let mut e = build(&[("reach", 8)], 210);
     e.step(&[idle(), Default::default(), Default::default()]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    assert_eq!(swing(&mut e), arc(2_048, 8_192));
-    for _ in 0..30 {
-        if e.offer_open() {
-            break;
-        }
-        e.step(&[idle(), Default::default(), Default::default()]);
-    }
-    assert!(e.offer_open(), "the expertise offer");
-    common::pick(&mut e, 0).unwrap();
-    assert_eq!(
-        e.events().first(),
-        Some(&DomainEvent::ExpertiseOptionTaken {
-            option: "wide".into(),
-            taken: 1,
-        })
-    );
-    assert!(e.offer_open(), "the star's offer");
-    take(&mut e, "reach");
+    assert_eq!(e.snapshot().expertise.as_ref().map(|g| g.level), Some(6));
     assert_eq!(e.snapshot().players[0].range_pct, 30);
+    assert_eq!(swing(&mut e), arc(2_662, 10_649));
 
-    // 20 + 30 percent: radius and offset half again.
+    // The style, then its first upgrade (20 percent): 50 percent, radius and offset half again.
+    let me = PlayerIdx::SOLO;
+    e.act(me, EquipAction::TreePick { option: 0 })
+        .expect("the style");
+    e.act(me, EquipAction::TreePick { option: 0 })
+        .expect("the upgrade");
+    // The star's own 30 stays the player's; the upgrade's 20 is the weapon gauge's.
+    assert_eq!(e.snapshot().players[0].range_pct, 30);
     assert_eq!(swing(&mut e), arc(3_072, 12_288));
 }
 

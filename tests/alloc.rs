@@ -832,49 +832,26 @@ fn elite_rows() -> Vec<Row> {
     rows
 }
 
-/// A stage skill used every 10 ticks, field 2: one enemy dies, its star offers the skill, the
-/// run takes it, and then presses `skill` each tick.
+/// A stage skill used every 10 ticks, field 2: the run starts with the skill star equipped
+/// (ADR-SIM-7; it arrives cooling for its 10 ticks, which the 30 warm-up ticks cover), then
+/// presses `skill` every other tick.
 fn skill_rows() -> Vec<Row> {
+    use crate::common::equip::{Parts, equipped_in};
     use crate::common::*;
     use serde_json::json;
-    use stella_rain_core::rewards::Rewards;
-    use stella_rain_core::snapshot::OfferOption;
-    use stella_rain_core::stage_skill::StageSkills;
-    let near_y = START_Y - 8_192;
-    let waves = vec![wave(
-        1,
-        1,
-        6,
-        enemy(10, hold(START_X, near_y), json!([])),
-        START_X,
-        near_y,
-    )];
-    let mut stage = stage_full(18_000, Some(far_boss()), waves, vec![]);
-    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
-    stage.stars = Some(
-        serde_json::from_value(json!({
-            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-            "rerolls": 0, "banishes": 0,
-            "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
-        }))
-        .unwrap(),
-    );
-    let skills = json!({ "stage_skills": [{ "id": "nova", "icon": "icon_nova", "ahead": 25_600,
+    let mut stage = stage_full(18_000, Some(far_boss()), vec![], vec![]);
+    stage.sim_version = 2;
+    let skills = json!([{ "id": "nova", "icon": "icon_nova", "ahead": 25_600,
         "levels": [{ "cooldown_ticks": 10, "effects": [{ "type": "pull", "radius": 10_000,
-            "strength": 100, "duration_ticks": 5 }] }] }] });
-    let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT).unwrap();
+            "strength": 100, "duration_ticks": 5 }] }] }]);
     let file = json!({ "rarities": rarities(), "rewards": [
         { "id": "nova_reward", "rarity": "common", "effect": "stage_skill", "skill": "nova",
           "amount": 1, "limit": 5 }] });
-    let rewards =
-        Rewards::parse_with(file.to_string().as_bytes(), Versions::CURRENT, &skills).unwrap();
-    let content = RunContent::new(design_run_stats(), rewards);
-    let mut e = Engine::new_with(&stage, &content).expect("the test stage is valid");
-    fire_until(&mut e, idle(), 1200, Engine::offer_open);
-    let option = OfferOption::Take { candidate: 0 };
-    let offer = e.snapshot().progress.unwrap().offer.unwrap();
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(&mut e, u32::try_from(index).unwrap()).unwrap();
+    let parts = Parts {
+        skills: Some(skills),
+        ..Parts::default()
+    };
+    let mut e = equipped_in(&stage, file, parts, &[("nova_reward", 0)], 1);
     measure(
         &mut e,
         30,
