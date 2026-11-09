@@ -679,6 +679,45 @@ pub fn rig_builds_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
     None
 }
 
+/// Which predicate of an equipment revive case `replay` (a party of `n`, 2 or 3) misses, if any:
+/// at most 3000 ticks and under 64 KiB, a down, a revive, every revived player had been down and
+/// has hit points, no `PlayerOut` before the first revive, slots 1 and 2 make at least 2 actions
+/// together, and for 3 a revive made by a slot other than 0.
+pub fn equipment_revive_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
+    if replay.ticks > 3000 || replay.to_bytes().len() >= 64 * 1024 {
+        return Some("at most 3000 ticks, under 64 KiB");
+    }
+    let run = RigRun::of(replay);
+    let tally = run.tally(replay);
+    if tally.downed < 1 {
+        return Some("a down");
+    }
+    if tally.revived < 1 {
+        return Some("a revive");
+    }
+    if !tally.revived_were_down {
+        return Some("revived players were down");
+    }
+    if !tally.revived_have_hp {
+        return Some("revived players have hit points");
+    }
+    if tally
+        .first_out
+        .is_some_and(|out| !tally.first_revive.is_some_and(|r| r < out))
+    {
+        return Some("no out before the first revive");
+    }
+    let per = run.actions_per_slot();
+    let acts = |c: &ActionCounts| c.equip + c.replace + c.extract + c.craft + c.tree_pick;
+    if acts(&per[1]) + acts(&per[2]) < 2 {
+        return Some("slots 1 and 2 make at least 2 actions");
+    }
+    if n == 3 && !tally.revivers.iter().any(|r| *r != 0) {
+        return Some("a revive by a slot other than 0");
+    }
+    None
+}
+
 /// The downs, revives and outs of a rig run (ADR-SIM-7, ADR-SIM-8). Ticks are the engine's
 /// tick count after the step the event came in.
 #[derive(Clone, Debug, PartialEq, Eq)]

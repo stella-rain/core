@@ -628,11 +628,73 @@ pub fn equipment_rig(n: u8) -> PartyCase {
         .case(name)
 }
 
-/// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
-/// seeds are found where, in the middle of the run, each answers an offer of its own): the
-/// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
-/// is cleared; in time_limit slot 1 answers in the middle of the run and slot 2 is not offered one
-/// (no seed of 1 to 300 gives both).
+/// The (name, world seed, bot seed) of the seven movable party cases: the first pair of
+/// `search_corpus_party_seeds` (world 1..=20 x bot 1..=20) that delivers the case's promise
+/// (`party_promise_miss`).
+pub const PARTY_SEEDS: [(&str, u64, u64); 7] = [
+    ("two_time_limit", 1, 6),
+    ("three_time_limit", 1, 1),
+    ("three_tutorial", 19, 11),
+    ("join_two", 1, 3),
+    ("leave_hole", 1, 1),
+    ("two_revive", 1, 6),
+    ("three_revive", 1, 4),
+];
+
+/// The equipment party case `name` of `PARTY_SEEDS`.
+fn seeded(name: &'static str) -> PartyCase {
+    let (_, world, bot) = PARTY_SEEDS
+        .iter()
+        .copied()
+        .find(|(n, ..)| *n == name)
+        .expect("a seeded party case");
+    party_case(name, world, bot)
+}
+
+/// The tutorial mode's own time limit, `modes.tutorial.length_ticks` in `content/pack.json`:
+/// the longest `three_tutorial` is played.
+pub const TUTORIAL_TICKS: u32 = 10800;
+
+/// The seven movable party cases as equipment cases from a (world seed, bot seed): the party,
+/// the mode and the joins and leaves of `name`, every slot a `PartyBot` that builds (ADR-SIM-7).
+pub fn party_case(name: &'static str, world: u64, bot: u64) -> PartyCase {
+    let (n, mode, changes) = match name {
+        "two_time_limit" => (2, "time_limit", vec![]),
+        "three_time_limit" => (3, "time_limit", vec![]),
+        "three_tutorial" => (3, "tutorial", vec![]),
+        "join_two" => (1, "time_limit", vec![(600, Change::Join(1))]),
+        "leave_hole" => (
+            3,
+            "time_limit",
+            vec![
+                (900, Change::Leave(1)),
+                (1500, Change::Leave(2)),
+                (2100, Change::Join(2)),
+            ],
+        ),
+        "two_revive" => (2, "time_limit", vec![]),
+        "three_revive" => (3, "time_limit", vec![]),
+        _ => panic!("{name} is not a movable party case"),
+    };
+    let ticks = if name == "three_tutorial" {
+        TUTORIAL_TICKS
+    } else {
+        3000
+    };
+    RigParty::new(n)
+        .equipment()
+        .builds()
+        .mode(mode)
+        .ticks(ticks)
+        .seed(world)
+        .bot_seed(bot)
+        .changes(changes)
+        .case(name)
+}
+
+/// The party cases. Seven are equipment cases from `PARTY_SEEDS` (every slot a `PartyBot` that
+/// builds, ADR-SIM-7); the two timed cases stay offers-era (`validate` refuses a timer in
+/// equipment mode), played by the zone bot and the scripted slots; then the equipment cases.
 pub fn party_cases() -> Vec<PartyCase> {
     let at = |mode: &str, seed: u64| RunSetup {
         mode: mode.into(),
@@ -644,63 +706,14 @@ pub fn party_cases() -> Vec<PartyCase> {
         ..at("time_limit", seed)
     };
     vec![
-        PartyCase {
-            name: "two_time_limit",
-            setup: at("time_limit", 40),
-            party: 2,
-            ticks: 3000,
-            changes: vec![],
-            answer_after: None,
-            bot: None,
-            script: None,
-        },
-        PartyCase {
-            name: "three_tutorial",
-            setup: at("tutorial", 76),
-            party: 3,
-            ticks: 3000,
-            changes: vec![],
-            answer_after: None,
-            bot: None,
-            script: None,
-        },
-        PartyCase {
-            name: "three_time_limit",
-            setup: at("time_limit", 4),
-            party: 3,
-            ticks: 3000,
-            changes: vec![],
-            answer_after: None,
-            bot: None,
-            script: None,
-        },
-        // A solo run that takes slot 1 at tick 600; slot 1 answers an offer after it.
-        PartyCase {
-            name: "join_two",
-            setup: at("time_limit", 1),
-            party: 1,
-            ticks: 3000,
-            changes: vec![(600, Change::Join(1))],
-            answer_after: None,
-            bot: None,
-            script: None,
-        },
+        seeded("two_time_limit"),
+        seeded("three_tutorial"),
+        seeded("three_time_limit"),
+        // A solo run that takes slot 1 at tick 600; slot 1 acts after it.
+        seeded("join_two"),
         // A party of 3 that loses slot 1 (a hole, 0b101) and slot 2 (alone), then takes slot 2
-        // back (0b101); slot 2 answers an offer inside the first hole window.
-        PartyCase {
-            name: "leave_hole",
-            setup: at("time_limit", 2),
-            party: 3,
-            ticks: 3000,
-            changes: vec![
-                (900, Change::Leave(1)),
-                (1500, Change::Leave(2)),
-                (2100, Change::Join(2)),
-            ],
-            answer_after: None,
-            bot: None,
-            script: None,
-        },
+        // back (0b101); slot 2 acts inside the first hole window.
+        seeded("leave_hole"),
         // A timed party of one: the world keeps running with an offer open; slot 0 answers every
         // second offer 100 ticks after it opened and the timer closes the rest.
         PartyCase {
@@ -725,12 +738,6 @@ pub fn party_cases() -> Vec<PartyCase> {
             bot: None,
             script: None,
         },
-        // The rig cases: every slot played by a `PartyBot`, a player goes down and is revived by
-        // a teammate holding `interact`. The seeds are the first of a search (`search_rig_seeds`
-        // in `party_bot.rs`): world seeds 1..=300 x bot seeds 1..=20, `time_limit`, normal, 3000
-        // ticks, in that scan order; a run of at most 3000 ticks and under 64 KiB with a down and a
-        // revive of a downed player, no out before the first revive, and the picks of slots 1
-        // and 2 adding up to at least two. For three, also a revive made by a slot other than 0.
         // The equipment cases: the scripted tutorial parties of 1 and of 2 in equipment mode, 3000
         // ticks. Every member ends holding a star and a rune; the seeds are the first of a search
         // (`search_equipment_seeds` in `equipment_drops.rs`): world seeds 1..=60, one scan per
@@ -761,7 +768,9 @@ pub fn party_cases() -> Vec<PartyCase> {
         equipment_rig(1),
         equipment_rig(2),
         equipment_rig(3),
-        RigParty::new(2).seed(1).bot_seed(3).case("two_revive"),
-        RigParty::new(3).seed(1).bot_seed(1).case("three_revive"),
+        // The revive cases: a player goes down and is revived by a teammate holding `interact`
+        // (`equipment_revive_miss` in `party_bot.rs`; seeds in `PARTY_SEEDS`).
+        seeded("two_revive"),
+        seeded("three_revive"),
     ]
 }
