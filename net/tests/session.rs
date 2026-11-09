@@ -252,3 +252,198 @@ fn the_window_bounds_the_predicted_ticks_and_a_wait_changes_nothing() {
         );
     }
 }
+
+use stella_rain_net::session::SessionError;
+use stella_rain_net::wire::{InputFrame, MAX_FRAME_INPUTS};
+
+fn pair(window: u32) -> (Session, Script) {
+    let config = Config {
+        window,
+        ..Config::new(slot(0))
+    };
+    (
+        Session::new(engine(2), config).unwrap(),
+        script(2, 200, 2, None),
+    )
+}
+
+#[test]
+fn an_ack_is_range_checked_and_never_lowers() {
+    let (mut a, s) = pair(4);
+    for t in 0..5u32 {
+        a.receive_inputs(slot(1), &frame_of(&s, 1, t, t)).unwrap();
+        a.advance(&s.eff[t as usize + 2][0]).unwrap();
+    }
+    let len = a.tick() + 2;
+    assert_eq!(a.ack(slot(1), len), Ok(()));
+    assert_eq!(a.ack(slot(1), len + 1), Err(SessionError::AckBeyondSent));
+    assert_eq!(a.ack(slot(0), 1), Err(SessionError::NotARemoteSlot));
+    assert_eq!(a.ack(slot(2), 1), Err(SessionError::NotARemoteSlot));
+    assert_eq!(a.ack(slot(1), 1), Ok(()), "an older ack is ignored");
+}
+
+#[test]
+fn unacknowledged_local_inputs_stop_at_one_frame_and_an_ack_makes_room() {
+    let (mut a, s) = pair(4);
+    let mut steps = 0u32;
+    let step = |a: &mut Session, steps: &mut u32| -> bool {
+        let t = *steps;
+        a.receive_inputs(slot(1), &frame_of(&s, 1, t, t)).unwrap();
+        let out = a.advance(&s.eff[t as usize + 2][0]).unwrap();
+        if out.waiting.is_none() {
+            *steps += 1;
+        } else {
+            assert_eq!(out.waiting, Some(Wait::Unacked));
+        }
+        out.waiting.is_none()
+    };
+    while step(&mut a, &mut steps) {}
+    assert_eq!(steps as usize, MAX_FRAME_INPUTS - 2);
+    let before = (a.tick(), a.engine().state_hash());
+    a.ack(slot(1), 10).unwrap();
+    a.ack(slot(1), 4).unwrap();
+    let mut more = 0;
+    while step(&mut a, &mut steps) {
+        more += 1;
+    }
+    assert!(before.0 < a.tick());
+    assert_eq!(more, 10);
+    assert_eq!(a.local_frame(10).unwrap().inputs.len(), MAX_FRAME_INPUTS);
+}
+
+#[test]
+fn receive_inputs_checks_the_sender_and_the_range() {
+    let (mut a, s) = pair(4);
+    // Delay 2, window 4, tick 0: the last accepted tick is 0 + 2 * 2 + 4 + 1 = 9.
+    assert_eq!(
+        a.receive_inputs(slot(0), &frame_of(&s, 0, 0, 0)),
+        Err(SessionError::NotARemoteSlot)
+    );
+    assert_eq!(
+        a.receive_inputs(slot(2), &frame_of(&s, 1, 0, 0)),
+        Err(SessionError::NotARemoteSlot),
+        "slot 2 is not in the party"
+    );
+    assert_eq!(
+        a.receive_inputs(slot(1), &frame_of(&s, 0, 0, 0)),
+        Err(SessionError::SlotMismatch)
+    );
+    assert_eq!(
+        a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 10)),
+        Err(SessionError::TooFarAhead)
+    );
+    assert_eq!(a.next_tick(slot(1)), 0, "a refused frame inserts nothing");
+    assert_eq!(a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 9)), Ok(()));
+    assert_eq!(a.next_tick(slot(1)), 10);
+    let near_max = InputFrame {
+        slot: slot(1),
+        start_tick: u32::MAX - 1,
+        inputs: vec![WireInput::default(); 3],
+    };
+    assert_eq!(
+        a.receive_inputs(slot(1), &near_max),
+        Err(SessionError::TooFarAhead)
+    );
+}
+
+#[test]
+fn a_repeat_is_ignored_a_different_value_conflicts_and_a_frame_lands_whole_or_not_at_all() {
+    let (mut a, s) = pair(4);
+    a.receive_inputs(slot(1), &frame_of(&s, 1, 2, 2)).unwrap();
+    // The same frame again: Ok, and no rollback at the next call.
+    a.receive_inputs(slot(1), &frame_of(&s, 1, 2, 2)).unwrap();
+    let mut changed = frame_of(&s, 1, 0, 3);
+    changed.inputs[2].main = !changed.inputs[2].main;
+    let hash = a.engine().state_hash();
+    assert_eq!(
+        a.receive_inputs(slot(1), &changed),
+        Err(SessionError::Conflict)
+    );
+    assert_eq!(
+        a.next_tick(slot(1)),
+        0,
+        "the valid entries before it were not kept"
+    );
+    assert_eq!(a.engine().state_hash(), hash);
+    a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 3)).unwrap();
+    assert_eq!(a.next_tick(slot(1)), 4);
+    let out = a.advance(&s.eff[2][0]).unwrap();
+    assert_eq!((out.rolled_back, out.waiting), (0, None));
+}
+
+#[test]
+fn an_input_older_than_the_pruned_floor_is_ignored() {
+    let (mut a, s) = pair(4);
+    for t in 0..20u32 {
+        a.receive_inputs(slot(1), &frame_of(&s, 1, t, t)).unwrap();
+        a.ack(slot(1), a.tick() + 2).unwrap();
+        a.advance(&s.eff[t as usize + 2][0]).unwrap();
+    }
+    let mut old = frame_of(&s, 1, 0, 0);
+    old.inputs[0].main = !old.inputs[0].main;
+    assert_eq!(a.receive_inputs(slot(1), &old), Ok(()));
+    let out = a.advance(&s.eff[22][0]).unwrap();
+    assert_eq!(out.rolled_back, 0);
+}
+
+#[test]
+fn leave_is_range_checked() {
+    let (mut a, s) = pair(4);
+    assert_eq!(a.leave(slot(0), 5), Err(SessionError::FirstSlotLeaves));
+    assert_eq!(a.leave(slot(2), 5), Err(SessionError::NotARemoteSlot));
+    assert_eq!(a.leave(slot(1), 100), Err(SessionError::TooFarAhead));
+    a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 5)).unwrap();
+    assert_eq!(a.leave(slot(1), 5), Err(SessionError::LeaveAfterInputs));
+    assert_eq!(a.leave(slot(1), 6), Ok(()));
+    assert_eq!(a.leave(slot(1), 6), Ok(()), "the same stamp again");
+    assert_eq!(a.leave(slot(1), 7), Err(SessionError::Conflict));
+    // Inputs at or after the stamp are refused, whole.
+    assert_eq!(
+        a.receive_inputs(slot(1), &frame_of(&s, 1, 5, 6)),
+        Err(SessionError::SlotLeft)
+    );
+    assert_eq!(a.receive_inputs(slot(1), &frame_of(&s, 1, 3, 5)), Ok(()));
+}
+
+#[test]
+fn the_local_slot_leaves_with_its_own_stamp_after_its_queued_inputs() {
+    let s = script(2, 100, 2, None);
+    let config = Config::new(slot(1));
+    let mut b = Session::new(engine(2), config).unwrap();
+    for t in 0..3u32 {
+        b.receive_inputs(slot(0), &frame_of(&s, 0, t, t)).unwrap();
+        b.advance(&s.eff[t as usize + 2][1]).unwrap();
+    }
+    // Inputs are queued for ticks 0 to 4.
+    assert_eq!(b.leave(slot(1), 4), Err(SessionError::LeaveAfterInputs));
+    assert_eq!(b.leave(slot(1), 5), Ok(()));
+    // Given inputs are no longer queued past the stamp.
+    b.receive_inputs(slot(0), &frame_of(&s, 0, 3, 3)).unwrap();
+    b.advance(&s.eff[5][1]).unwrap();
+    assert_eq!(b.local_frame(5), None);
+}
+
+#[test]
+fn a_leave_stamped_behind_the_tick_rolls_back_and_the_leaver_counts_as_confirmed() {
+    let s = script(2, 60, 2, Some((slot(1), 20)));
+    let oracle = straight(&s, 2);
+    let (mut a, _) = pair(4);
+    for t in 0..20u32 {
+        a.receive_inputs(slot(1), &frame_of(&s, 1, t, t)).unwrap();
+        a.ack(slot(1), a.tick() + 2).unwrap();
+        assert_eq!(a.advance(&s.eff[t as usize + 2][0]).unwrap().waiting, None);
+    }
+    // B left before tick 20, and A does not know: it predicts B for ticks 20 to 22.
+    for t in 20..23usize {
+        a.ack(slot(1), a.tick() + 2).unwrap();
+        assert_eq!(a.advance(&s.eff[t + 2][0]).unwrap().waiting, None);
+    }
+    assert_eq!(a.tick(), 23);
+    a.leave(slot(1), 20).unwrap();
+    a.ack(slot(1), a.tick() + 2).unwrap();
+    let out = a.advance(&s.eff[25][0]).unwrap();
+    assert_eq!((out.rolled_back, out.waiting), (3, None));
+    assert_eq!(a.hash_after(24), Some(oracle[24]));
+    assert!(a.confirmed() >= 24, "the leaver is no longer waited for");
+    assert_eq!(a.engine().present(), 0b001);
+}

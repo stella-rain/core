@@ -275,6 +275,7 @@ pub struct CallStat {
 enum Msg {
     Frame(InputFrame),
     Ack(u32),
+    Leave(u32),
 }
 
 struct Pending {
@@ -303,7 +304,9 @@ pub struct Mesh<'a> {
     pub round: u32,
     script: &'a Script,
     delay: u32,
-    stop: u32,
+    stops: Vec<u32>,
+    leaver: Option<(usize, u32)>,
+    announced: bool,
     taken: Vec<u32>,
     acked: Vec<[u32; 3]>,
     pending: Vec<Pending>,
@@ -339,7 +342,9 @@ impl<'a> Mesh<'a> {
             round: 0,
             script,
             delay,
-            stop,
+            stops: vec![stop; usize::from(n)],
+            leaver: None,
+            announced: false,
             taken: vec![0; usize::from(n)],
             acked: vec![[0; 3]; usize::from(n)],
             pending: Vec::new(),
@@ -349,10 +354,27 @@ impl<'a> Mesh<'a> {
         }
     }
 
+    /// Slot `who` leaves before tick `at`: it announces that `delay` calls ahead, stops
+    /// advancing at `at` and is sent no more frames.
+    pub fn leaver(mut self, who: usize, at: u32) -> Mesh<'a> {
+        self.stops[who] = at;
+        self.leaver = Some((who, at));
+        self
+    }
+
+    /// Whether session `i` has left: it is the leaver and has stopped.
+    fn gone(&self, i: usize) -> bool {
+        self.leaver
+            .is_some_and(|(who, at)| who == i && self.sessions[i].tick() >= at)
+    }
+
     /// Whether every session has reached its stop tick. A session confirms ticks inside
     /// `advance`, so what arrives after a session stopped stays unconfirmed.
     pub fn done(&self) -> bool {
-        self.sessions.iter().all(|s| s.tick() >= self.stop)
+        self.sessions
+            .iter()
+            .zip(&self.stops)
+            .all(|(s, stop)| s.tick() >= *stop)
     }
 
     /// Runs rounds until `done` or `limit` rounds have passed.
@@ -375,6 +397,9 @@ impl<'a> Mesh<'a> {
         let mut due = due;
         due.sort_by_key(|p| (p.due, p.seq));
         for p in due {
+            if self.gone(p.to) && matches!(p.msg, Msg::Frame(_) | Msg::Leave(_)) {
+                continue;
+            }
             let from = slot(u8::try_from(p.from).expect("small"));
             match p.msg {
                 Msg::Frame(frame) => self.sessions[p.to]
@@ -384,10 +409,22 @@ impl<'a> Mesh<'a> {
                     self.sessions[p.to].ack(from, next).expect("a valid ack");
                     self.acked[p.to][p.from] = self.acked[p.to][p.from].max(next);
                 }
+                Msg::Leave(at) => self.sessions[p.to].leave(from, at).expect("a valid leave"),
             }
         }
         for i in 0..self.sessions.len() {
-            if self.sessions[i].tick() < self.stop {
+            if let Some((who, at)) = self.leaver
+                && who == i
+                && !self.announced
+                && self.taken[i] + self.delay == at
+            {
+                let me = slot(u8::try_from(i).expect("small"));
+                self.sessions[i]
+                    .leave(me, at)
+                    .expect("the leaver announces");
+                self.announced = true;
+            }
+            if self.sessions[i].tick() < self.stops[i] {
                 let k = self.taken[i] + self.delay;
                 let input = self
                     .script
@@ -407,9 +444,13 @@ impl<'a> Mesh<'a> {
                 if i == j {
                     continue;
                 }
-                let mut msgs = vec![Msg::Ack(
+                let mut msgs = Vec::new();
+                if self.announced && self.leaver.is_some_and(|(who, _)| who == i) {
+                    msgs.push(Msg::Leave(self.leaver.map_or(0, |(_, at)| at)));
+                }
+                msgs.push(Msg::Ack(
                     self.sessions[i].next_tick(slot(u8::try_from(j).expect("small"))),
-                )];
+                ));
                 if let Some(mut frame) = self.sessions[i].local_frame(self.acked[i][j]) {
                     if let Some(tamper) = self.tamper.as_mut() {
                         tamper(i, j, &mut frame);

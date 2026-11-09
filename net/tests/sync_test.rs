@@ -4,7 +4,7 @@
 mod support;
 
 use stella_rain_net::session::Wait;
-use support::{Mesh, script, straight};
+use support::{Mesh, Xorshift, script, slot, straight};
 
 const STOP: u32 = 612;
 const DELAY: u32 = 2;
@@ -101,4 +101,44 @@ fn a_mutated_input_delivered_late_makes_the_sync_test_fail() {
     mesh.run(1200);
     let c = mesh.sessions[0].confirmed();
     assert_ne!(mesh.sessions[0].hash_after(c), Some(oracle[c as usize]));
+}
+
+#[test]
+fn jittered_messages_and_a_leave_still_agree_with_the_straight_run() {
+    const TICKS: u32 = 900;
+    const LEAVE: u32 = 300;
+    let s = script(3, TICKS, DELAY, Some((slot(2), LEAVE)));
+    let oracle = straight(&s, 3);
+    for seed in [7u64, 99] {
+        let mut rng = Xorshift::new(seed);
+        let lateness = Box::new(move |_, _, _| DELAY + u32::try_from(rng.below(5)).unwrap());
+        let mut mesh = Mesh::new(&s, 3, DELAY, WINDOW, TICKS, lateness).leaver(2, LEAVE);
+        for _ in 0..2400 {
+            if mesh.done() {
+                break;
+            }
+            mesh.round();
+            mesh.check(&oracle);
+        }
+        assert!(mesh.done(), "seed {seed}");
+        let crossed = mesh.calls[..2].iter().flatten().any(|c| {
+            c.out.rolled_back > 0
+                && c.tick_before - c.out.rolled_back <= LEAVE
+                && LEAVE < c.tick_before
+        });
+        assert!(crossed, "seed {seed}: no rollback crossed the leave");
+        let c = mesh.sessions[..2]
+            .iter()
+            .map(|s| s.confirmed())
+            .min()
+            .unwrap();
+        assert!(c >= TICKS - 12, "seed {seed}: confirmed {c}");
+        for session in &mesh.sessions[..2] {
+            assert_eq!(
+                session.hash_after(c),
+                Some(oracle[c as usize]),
+                "seed {seed}"
+            );
+        }
+    }
 }
