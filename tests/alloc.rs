@@ -434,8 +434,7 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
 /// the allocator (DIR1).
 #[test]
 fn a_horde_at_the_cap_allocates_nothing_after_load() {
-    let mut e = Engine::new_with(&time_limit_case::stage(), &crate::common::design_content())
-        .expect("the run starts");
+    let mut e = time_limit_case::start();
     let mut grew = Vec::new();
     for tick in 1..=time_limit_case::WARMUP_TICKS + STEADY_TICKS {
         let counts = counted3(|| {

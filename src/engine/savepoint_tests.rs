@@ -654,14 +654,15 @@ fn a_decoded_ledger_goes_on_counting_where_the_original_does() {
 #[cfg(feature = "bench")]
 #[test]
 fn encoded_size_of_the_bench_fixtures() {
-    use crate::bench_fixtures;
+    use crate::bench_fixtures::{self, offers_cases};
     use crate::savepoint::Encode;
-    // The state read here is the frozen version's (`savepoint_parts`): build the cases at 1.
+    // The state read here is the frozen version's (`savepoint_parts`): build the cases at 1, in
+    // offers mode (the equipped cases build the live rules only).
     let engines = Engine::forced(1, || {
         [
-            ("worst_tick", bench_fixtures::worst_tick().engine),
-            ("hit_tick", bench_fixtures::hit_tick().engine),
-            ("time_limit_tick", bench_fixtures::time_limit_tick().engine),
+            ("worst_tick", offers_cases::worst_tick().engine),
+            ("hit_tick", offers_cases::hit_tick().engine),
+            ("time_limit_tick", offers_cases::time_limit_tick().engine),
             (
                 "worst_minute_peak",
                 bench_fixtures::worst_minute_peak().engine,

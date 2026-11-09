@@ -336,7 +336,7 @@ fn a_version_1_engine_streams_the_frozen_events_in_order() {
     let bench_fixtures::Case {
         engine: mut e,
         input,
-    } = Engine::forced(1, bench_fixtures::worst_tick);
+    } = Engine::forced(1, bench_fixtures::offers_cases::worst_tick);
     let mut by_hand = e.clone();
     let mut total = 0;
     for _ in 0..60 {
@@ -395,7 +395,8 @@ fn v1_room(e: &Engine) -> (usize, usize) {
 
 #[test]
 fn the_scratch_is_reserved_at_load_and_after_a_clone() {
-    let bench_fixtures::Case { engine, .. } = Engine::forced(1, bench_fixtures::worst_tick);
+    let bench_fixtures::Case { engine, .. } =
+        Engine::forced(1, bench_fixtures::offers_cases::worst_tick);
     for e in [&engine, &engine.clone()] {
         let (capacity, room) = v1_room(e);
         assert!(capacity >= room, "{capacity} < {room}");
@@ -407,7 +408,7 @@ fn the_scratch_never_allocates_after_load() {
     let bench_fixtures::Case {
         engine: mut e,
         input,
-    } = Engine::forced(1, bench_fixtures::worst_tick);
+    } = Engine::forced(1, bench_fixtures::offers_cases::worst_tick);
     let (scratch, _) = v1_room(&e);
     let events = e.events.capacity();
     for tick in 1..=120 {
