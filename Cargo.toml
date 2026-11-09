@@ -14,6 +14,12 @@ exclude = ["/xtask/"]
 # 85% of its time on 62 copies of the same work.
 autotests = false
 
+# Two packages: this one (the default member, so every command without `-p` still selects core
+# alone) and the rollback netcode crate in `net/`. `fuzz/` and `xtask/` own their workspaces.
+[workspace]
+members = [".", "net"]
+exclude = ["fuzz", "xtask"]
+
 [lib]
 name = "stella_rain_core"
 

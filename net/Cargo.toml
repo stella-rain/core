@@ -1,0 +1,25 @@
+[package]
+name = "stella-rain-net"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Rollback netcode for Stella Rain: input exchange, prediction and re-simulation over the engine's public API"
+repository = "https://github.com/stella-rain/core"
+publish = false
+
+[dependencies]
+# The engine, through its public API only. First-party; no third-party dependency without Kade.
+stella-rain-core = { path = ".." }
+
+# No `unsafe` (no test here needs one, so `forbid`), and every public item is documented.
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+# The same checked-conversion rule as core (ADR-SIM-3).
+[lints.clippy]
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
+cast_possible_wrap = "deny"
+cast_lossless = "deny"
