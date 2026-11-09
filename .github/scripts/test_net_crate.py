@@ -95,7 +95,7 @@ class Lock(unittest.TestCase):
         net = pkgs["stella-rain-net"]
         self.assertEqual(net["version"], "0.0.0")
         self.assertEqual(net["dependencies"], ["stella-rain-core"])
-        self.assertEqual(pkgs["stella-rain-core"]["version"], "0.4.0")
+        self.assertEqual(pkgs["stella-rain-core"]["version"], toml_of("Cargo.toml")["package"]["version"])
 
 
 class Deny(unittest.TestCase):
