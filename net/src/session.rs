@@ -219,9 +219,20 @@ impl<S: Save> Session<S> {
                 waiting: Some(Wait::Window),
             });
         }
-        let queue = &mut self.queues[self.config.local.get()];
-        let at = queue.next_tick();
-        let _ = queue.set(at, WireInput::from_input(local));
+        let local_slot = self.config.local.get();
+        let queues_input =
+            self.leaves[local_slot].is_none_or(|l| self.queues[local_slot].next_tick() < l);
+        if queues_input && self.unacked_full() {
+            return Ok(Advance {
+                rolled_back,
+                waiting: Some(Wait::Unacked),
+            });
+        }
+        if queues_input {
+            let queue = &mut self.queues[local_slot];
+            let at = queue.next_tick();
+            let _ = queue.set(at, WireInput::from_input(local));
+        }
         self.step_tick(self.tick);
         self.tick += 1;
         self.settle();
@@ -231,33 +242,84 @@ impl<S: Save> Session<S> {
         })
     }
 
-    /// Takes the inputs of the remote slot `from`.
+    /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error
+    /// nothing was inserted. An input older than what was pruned is ignored; one already held
+    /// is a no-op if equal.
     pub fn receive_inputs(
         &mut self,
         from: PlayerIdx,
         frame: &InputFrame,
     ) -> Result<(), SessionError> {
-        for (i, input) in frame.inputs.iter().enumerate() {
-            let tick = frame
-                .start_tick
-                .saturating_add(u32::try_from(i).unwrap_or(u32::MAX));
-            self.queues[from.get()]
-                .set(tick, *input)
+        let s = self.remote_slot(from)?;
+        if frame.slot != from {
+            return Err(SessionError::SlotMismatch);
+        }
+        let Some(count) = u32::try_from(frame.inputs.len())
+            .ok()
+            .and_then(|n| n.checked_sub(1))
+        else {
+            return Ok(());
+        };
+        let last = frame
+            .start_tick
+            .checked_add(count)
+            .ok_or(SessionError::TooFarAhead)?;
+        if self.leaves[s].is_some_and(|l| last >= l) {
+            return Err(SessionError::SlotLeft);
+        }
+        if last > self.farthest() {
+            return Err(SessionError::TooFarAhead);
+        }
+        let ticks = frame.start_tick..=last;
+        for (tick, input) in ticks.clone().zip(&frame.inputs) {
+            self.queues[s]
+                .check(tick, input)
                 .map_err(|_| SessionError::Conflict)?;
+        }
+        for (tick, input) in ticks.zip(&frame.inputs) {
+            let _ = self.queues[s].set(tick, *input);
         }
         Ok(())
     }
 
-    /// The remote slot `from` has every local input below `next_tick`.
+    /// The remote slot `from` has every local input below `next_tick`. An ack beyond the inputs
+    /// queued is refused; one below the held ack is ignored.
     pub fn ack(&mut self, from: PlayerIdx, next_tick: u32) -> Result<(), SessionError> {
-        let held = &mut self.acked[from.get()];
-        *held = (*held).max(next_tick);
+        let s = self.remote_slot(from)?;
+        if next_tick > self.queues[self.config.local.get()].next_tick() {
+            return Err(SessionError::AckBeyondSent);
+        }
+        self.acked[s] = self.acked[s].max(next_tick);
         Ok(())
     }
 
-    /// The slot `from` leaves before tick `tick` is stepped.
-    pub fn leave(&mut self, _from: PlayerIdx, _tick: u32) -> Result<(), SessionError> {
-        todo!()
+    /// The slot `from` leaves before tick `tick` is stepped; the local slot calls it with its
+    /// own, and queues no input from that tick on. Slot 0 never leaves (the engine refuses it).
+    /// A stamp behind the tick this session is on is a misprediction repaired by the next
+    /// [`Session::advance`].
+    pub fn leave(&mut self, from: PlayerIdx, tick: u32) -> Result<(), SessionError> {
+        let s = from.get();
+        if s == 0 {
+            return Err(SessionError::FirstSlotLeaves);
+        }
+        if self.start_present >> s & 1 == 0 {
+            return Err(SessionError::NotARemoteSlot);
+        }
+        if let Some(held) = self.leaves[s] {
+            return if held == tick {
+                Ok(())
+            } else {
+                Err(SessionError::Conflict)
+            };
+        }
+        if self.queues[s].highest().is_some_and(|h| tick <= h) {
+            return Err(SessionError::LeaveAfterInputs);
+        }
+        if tick > self.farthest() {
+            return Err(SessionError::TooFarAhead);
+        }
+        self.leaves[s] = Some(tick);
+        Ok(())
     }
 
     /// The local inputs from `from_tick`, at most [`crate::wire::MAX_FRAME_INPUTS`], or `None`
@@ -379,17 +441,54 @@ impl<S: Save> Session<S> {
         }
     }
 
+    /// The slot index of `from` if it is a remote slot of the starting party.
+    fn remote_slot(&self, from: PlayerIdx) -> Result<usize, SessionError> {
+        let s = from.get();
+        if s == self.config.local.get() || self.start_present >> s & 1 == 0 {
+            return Err(SessionError::NotARemoteSlot);
+        }
+        Ok(s)
+    }
+
+    /// The last tick a peer within the window can have sent an input or a leave for.
+    fn farthest(&self) -> u32 {
+        self.tick
+            .saturating_add(self.config.delay.saturating_mul(2))
+            .saturating_add(self.config.window)
+            .saturating_add(1)
+    }
+
     /// The remote slots of the starting party.
     fn remote_slots(&self) -> impl Iterator<Item = usize> + '_ {
         let local = self.config.local.get();
         (0..3).filter(move |s| *s != local && self.start_present >> s & 1 == 1)
     }
 
+    /// The remote slots still in the run at the tick this session is on.
+    fn peers(&self) -> impl Iterator<Item = usize> + '_ {
+        self.remote_slots()
+            .filter(|s| self.leaves[*s].is_none_or(|l| l > self.tick))
+    }
+
     /// The first tick whose inputs some remote slot has not sent; `None` with no remote slot.
+    /// A slot with a stamped leave is known once it has sent every input below the stamp.
     fn known(&self) -> Option<u32> {
         self.remote_slots()
+            .filter(|s| self.leaves[*s].is_none_or(|l| self.queues[*s].next_tick() < l))
             .map(|s| self.queues[s].next_tick())
             .min()
+    }
+
+    /// Whether queueing one more local input would leave a peer more unacknowledged inputs than
+    /// a frame carries.
+    fn unacked_full(&self) -> bool {
+        let after = self.queues[self.config.local.get()]
+            .next_tick()
+            .saturating_add(1);
+        self.peers().any(|s| {
+            usize::try_from(after.saturating_sub(self.acked[s])).unwrap_or(usize::MAX)
+                > MAX_FRAME_INPUTS
+        })
     }
 
     /// Whether the next tick may be stepped: all its remote inputs are known, or fewer than
@@ -436,7 +535,7 @@ impl<S: Save> Session<S> {
         }
         self.save.forget_before(self.confirmed);
         let acked = self
-            .remote_slots()
+            .peers()
             .map(|s| self.acked[s])
             .min()
             .map_or(self.confirmed, |a| a.min(self.confirmed));

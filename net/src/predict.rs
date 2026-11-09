@@ -1,7 +1,5 @@
 //! One slot's inputs by tick, and the prediction for the ticks not received yet. Crate-private:
 //! the session owns one queue per slot.
-// The session does not use the queue until the next commits; this allow goes with them.
-#![allow(dead_code)]
 
 use std::collections::VecDeque;
 
