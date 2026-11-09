@@ -116,6 +116,8 @@ pub struct RulesFile {
     /// Ticks a timed run's open offer waits for a pick before its first option is taken
     /// (ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.
     /// Absent: 300, so a pack published before the key existed still reads.
+    // Read by no run since the offer timer left; kept for pack compatibility. Its doc is the
+    // schema's text and moves with the key.
     #[serde(default = "default_offer_timer_ticks")]
     pub offer_timer_ticks: u32,
     /// The percent of a player's damage that applies when 1, 2 or 3 players are present
@@ -264,7 +266,7 @@ impl Rules {
         self.file.offer_size
     }
 
-    /// Ticks a timed offer waits for a pick (ADR-SIM-7 point 4).
+    /// The pack's `offer_timer_ticks`; read by no run (kept for pack compatibility).
     pub fn offer_timer_ticks(&self) -> u32 {
         self.file.offer_timer_ticks
     }

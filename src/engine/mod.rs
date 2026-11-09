@@ -696,17 +696,10 @@ impl Engine {
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
-        let timed = self.offer_mode() == OfferMode::Timed;
-        if self.offer_open() && !timed {
+        if self.offer_open() {
             self.take_picks(inputs);
             return;
         }
-        // In a timed run the picks are taken first, before the world's tick; the tick's own
-        // events (and the timer's pick, inside it) are folded after them.
-        if timed {
-            self.take_picks(inputs);
-        }
-        let mark = self.events.len();
         if self.runs_its_version() {
             self.run.step(
                 self.content.rewards(),
@@ -719,11 +712,7 @@ impl Engine {
             // `new` validated the version; fail closed if that ever stops being true.
             self.run.fail();
         }
-        if timed {
-            self.observe_tick_from(mark);
-        } else {
-            self.observe_tick();
-        }
+        self.observe_tick();
     }
 
     /// Takes, for each present player in `PlayerIdx` order, the pick of its input that
@@ -1004,16 +993,9 @@ impl Engine {
     }
 
     fn observe_tick(&mut self) {
-        self.observe_tick_from(0);
-    }
-
-    /// As `observe_tick`, over the events from `mark` on: the picks before a timed tick were
-    /// folded by `take`.
-    fn observe_tick_from(&mut self, mark: usize) {
-        let events = &self.events[mark..];
-        self.run.observe_tick(&mut self.ledger, events);
+        self.run.observe_tick(&mut self.ledger, &self.events);
         self.counted
-            .observe(self.content.rewards(), events, &mut self.player_stats);
+            .observe(self.content.rewards(), &self.events, &mut self.player_stats);
     }
 
     fn observe_choice(&mut self) {
@@ -1068,11 +1050,6 @@ impl Engine {
     /// An offer is open: `step` does nothing until `choose` closes it (ADR-REPL-5).
     pub fn offer_open(&self) -> bool {
         self.run.offer_open()
-    }
-
-    /// Whether an open offer stops the world (ADR-SIM-7 point 4).
-    pub fn offer_mode(&self) -> OfferMode {
-        self.run.offer_mode()
     }
 
     /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-3).
