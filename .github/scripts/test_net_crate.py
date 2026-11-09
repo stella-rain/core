@@ -88,7 +88,7 @@ class NetManifest(unittest.TestCase):
         self.assertTrue(src.startswith("//!"))
         self.assertEqual(
             [l for l in src.splitlines() if l.startswith("pub ")],
-            ["pub mod transport;", "pub mod wire;"],
+            ["pub mod save;", "pub mod session;", "pub mod transport;", "pub mod wire;"],
         )
 
 
