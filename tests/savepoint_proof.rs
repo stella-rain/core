@@ -381,18 +381,20 @@ run_cases!(
     tutorial,
 );
 
-/// The run cases of each tree, as (offer open, enemy mid-attack, player mid-attack) seen
-/// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below.
+/// The run cases of `current/`, as (offer open, enemy mid-attack, player mid-attack) seen
+/// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
+/// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
+/// `v1/` runs: `tutorial()` below reads one.
 const FEATURES: [(&str, bool, bool, bool); 9] = [
-    ("easy", true, true, true),
-    ("elites", true, true, true),
-    ("rainy", true, true, true),
-    ("stage_skill", true, true, true),
-    ("time_limit", true, true, true),
-    ("time_limit_kill", true, false, true),
-    ("time_limit_overtime", true, false, true),
-    ("trial", true, true, true),
-    ("tutorial", true, true, true),
+    ("easy", false, true, true),
+    ("elites", false, true, true),
+    ("rainy", false, true, true),
+    ("stage_skill", false, true, true),
+    ("time_limit", false, true, true),
+    ("time_limit_kill", false, false, true),
+    ("time_limit_overtime", false, false, true),
+    ("trial", false, true, true),
+    ("tutorial", false, true, true),
 ];
 
 #[test]
@@ -416,6 +418,7 @@ fn the_case_lists_are_the_directories() {
 
 #[test]
 fn the_cuts_cover_an_open_offer_and_a_mid_attack() {
+    let mut moved = Vec::new();
     for (name, offer, enemy, player) in FEATURES {
         let case = load_case("current", name);
         let r = reference(&case);
@@ -424,12 +427,13 @@ fn the_cuts_cover_an_open_offer_and_a_mid_attack() {
             r.enemy_mid.iter().any(|f| *f),
             r.player_mid.iter().any(|f| *f),
         );
-        assert_eq!(
-            seen,
-            (offer, enemy, player),
-            "the corpus changed: update FEATURES, the suite no longer covers an open offer or a \
-             mid-attack in {name}"
-        );
+        if seen != (offer, enemy, player) {
+            moved.push(format!(
+                "    (\"{name}\", {}, {}, {}),",
+                seen.0, seen.1, seen.2
+            ));
+            continue;
+        }
         let at = cuts(&r);
         assert!(at.len() <= 12 && at.windows(2).all(|w| w[0] < w[1]));
         if offer {
@@ -446,6 +450,11 @@ fn the_cuts_cover_an_open_offer_and_a_mid_attack() {
             );
         }
     }
+    assert!(
+        moved.is_empty(),
+        "the corpus changed: update FEATURES, computed:\n{}",
+        moved.join("\n")
+    );
 }
 
 #[test]
@@ -462,8 +471,13 @@ fn the_cuts_are_deterministic() {
 // case, the cut and what differs.
 
 fn tutorial() -> (Case, Reference) {
-    let case = load_case("current", "tutorial");
+    // The frozen offers-era tutorial: an equipment run opens no offer.
+    let case = load_case("v1", "tutorial");
     let r = reference(&case);
+    assert!(
+        r.offer.iter().any(|f| *f),
+        "the frozen tutorial opens an offer"
+    );
     (case, r)
 }
 
@@ -477,7 +491,7 @@ fn a_restore_that_runs_one_tick_too_far_is_named() {
         rec
     };
     let err = check_run(&case, &r, &[100], &too_far).unwrap_err();
-    assert!(err.contains("current/tutorial cut 100"), "{err}");
+    assert!(err.contains("v1/tutorial cut 100"), "{err}");
     assert!(err.contains("diverges first on tick 101"), "{err}");
 }
 
@@ -493,7 +507,7 @@ fn a_restore_with_the_wrong_hash_is_named() {
 #[test]
 fn a_restore_with_another_runs_ledger_is_seen_though_the_hash_matches() {
     let (_, tutorial_ref) = tutorial();
-    let trial = reference(&load_case("current", "trial"));
+    let trial = reference(&load_case("v1", "trial"));
     assert_eq!(same_end(&tutorial_ref.end, &trial.end), Some("ledger"));
     // The checker compares the state the hash does not hold, not the hash alone.
     let mut other = tutorial_ref.end.clone();
