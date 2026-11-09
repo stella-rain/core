@@ -472,7 +472,9 @@ fn others_actions(steps: &RunSteps) -> usize {
 /// `two_time_limit` and `three_time_limit` run on at 3000 ticks and slots 1 and 2 make at least 2
 /// actions, `three_tutorial` clears and the same, `join_two` takes slot 1 at tick 600 and slot 1
 /// acts after it, `leave_hole` has the masks 0b111, 0b101, 0b001, 0b101 and slot 2 acts inside the
-/// first hole (900..=1500), `two_revive` and `three_revive` are `equipment_revive_miss`.
+/// first hole (900..=1500), `two_revive` and `three_revive` are `equipment_revive_miss`. A name
+/// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
+/// table needs its promise here.
 pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
     use stella_rain_core::run_setup::{BuildMode, OfferMode};
     let bytes = replay.to_bytes();
@@ -580,7 +582,8 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
         "two_revive" | "three_revive" => {
             crate::party_bot::equipment_revive_miss(replay, steps.party).map(str::to_string)
         }
-        _ => None,
+        n if n.starts_with("equipment_") => None,
+        other => Some(format!("no promise for the case `{other}`")),
     }
 }
 
@@ -886,6 +889,28 @@ fn a_savepoint_after_a_rejoin_resumes_to_the_same_hashes() {
 }
 
 // G. The promises report what they miss.
+
+/// A name no promise knows is a miss, not a hit; an equipment case that adds no promise of its own
+/// and an offers-era case (which returns before the name is read) stay hits.
+#[test]
+fn an_unknown_case_name_is_a_miss() {
+    use crate::run_play::party_case;
+    let play = |case: crate::run_play::PartyCase| case.play().replay();
+    let two = play(party_case("two_time_limit", 1, 1));
+    let miss = party_promise_miss("no_such_case", &two).expect("an unknown name");
+    assert!(
+        miss.contains("no promise for the case `no_such_case`"),
+        "{miss}"
+    );
+    assert_eq!(party_promise_miss("equipment_party_2", &two), None);
+    let timed = party_cases()
+        .into_iter()
+        .find(|case| case.name == "timed_one")
+        .expect("the timed_one case")
+        .play()
+        .replay();
+    assert_eq!(party_promise_miss("timed_one", &timed), None);
+}
 
 #[test]
 fn the_party_promises_name_what_a_run_misses() {

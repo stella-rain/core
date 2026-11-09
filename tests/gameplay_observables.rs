@@ -121,10 +121,6 @@ fn minute_case() -> String {
     let mut run = Run::fast_forwarded(0);
     let mut sha = Sha256::new();
     for i in 0..MINUTE_PLAYED {
-        while run.engine.offer_open() {
-            let choice = stella_rain_core::bench_fixtures::worst_minute_case::OFFER_CHOICE;
-            crate::common::pick(&mut run.engine, choice).expect("the first option is taken");
-        }
         let input = input_at(run.engine.tick());
         run.engine
             .step(&[input, Default::default(), Default::default()]);
@@ -246,7 +242,7 @@ const PINS: &[(&str, &str)] = &[
     ("bench/hit_tick", "f64f9481e1da100e"),
     ("bench/hit_tick_spread", "1217dc2a143d9ddc"),
     ("bench/time_limit_tick", "52a6f5c095f3df15"),
-    ("bench/worst_minute", "9beac86633a54d7b"),
+    ("bench/worst_minute", "2b17eb6f9e66ad70"),
     ("bench/worst_tick", "0972107bae166f97"),
     ("runs/easy", "630771e5439fde6e"),
     ("runs/elites", "20016aa5001f8af8"),

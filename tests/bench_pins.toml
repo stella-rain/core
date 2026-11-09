@@ -7,8 +7,8 @@
 #          (`stella-rain/bench-stage/v1`; the minute cases have no stage part: the content
 #          hash and `before` cover their stage)
 #   input  the first 16 hex of SHA-256 over the measured input's JSON; for a minute case over
-#          the start tick, the tick count, the option an open offer takes and the JSON of
-#          every played `Input` (`input_at`) (`stella-rain/bench-input/v2`)
+#          the start tick, the tick count and the JSON of every played `Input` (`input_at`)
+#          (`stella-rain/bench-input/v3`; the tick cases keep `v2`)
 # Hashes are strings: TOML integers are i64 and these u64 values overflow it.
 # A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
 # Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` (only the exact value `1`; CI
@@ -44,17 +44,17 @@ input = "c8f0ff41826bb896"
 
 [worst_minute]
 bench = "worst_minute"
-before = "ea0999331efbaa03"
-after = "267108dd203b8b1d"
+before = "4cb7a8438f2e0966"
+after = "e55cd8cc2019fe5c"
 stage = "d8f22a4e4e735a47"
-input = "f529d1fcf6015867"
+input = "17fcaa911e675ec7"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
-before = "8c0077da4c15c41e"
-after = "cb1284a1f49dd34d"
+before = "6db35c21807b9c0a"
+after = "4dd227402c69e3bc"
 stage = "d8f22a4e4e735a47"
-input = "4f39ec612666549a"
+input = "def61785f5993616"
 
 [worst_tick_3p]
 bench = "worst_tick_3p"
@@ -65,10 +65,10 @@ input = "ce2422ff60f961b0"
 
 [rollback]
 bench = "rollback"
-before = "bbbd429944719af1"
-after = "6e9a441c1ff0ef81"
+before = "f58ef0b567a397bc"
+after = "3b7426509b2b98c8"
 stage = "d8f22a4e4e735a47"
-input = "f4ae51ae7ab18ba7"
+input = "22e23fc640006991"
 
 [rollback_equip]
 bench = "rollback_equip"

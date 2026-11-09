@@ -98,20 +98,17 @@ fn the_copy_equals_the_original_on_the_bench_cases() {
 
 #[test]
 fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
-    use bench_fixtures::worst_minute_case::{Run, input_at};
-    let (mut a, mut b) = both(|| Run::fast_forwarded(0));
+    use bench_fixtures::worst_minute_case::input_at;
+    // The minute in offers mode: the fixture runs in equipment mode, which version 1 lacks.
+    let (mut a, mut b) = both(super::players_api_tests::offers_minute);
     for tick in 1..=600 {
-        for run in [&mut a, &mut b] {
-            while run.engine.offer_open() {
-                crate::engine::pick(&mut run.engine, crate::id::PlayerIdx::SOLO, 0).unwrap();
+        for e in [&mut a, &mut b] {
+            while e.offer_open() {
+                crate::engine::pick(e, crate::id::PlayerIdx::SOLO, 0).unwrap();
             }
-            run.engine.step(&[
-                input_at(run.engine.tick()),
-                Default::default(),
-                Default::default(),
-            ]);
+            e.step(&[input_at(e.tick()), Default::default(), Default::default()]);
         }
-        assert_same_tick(&a.engine, &b.engine, "worst_minute", tick);
+        assert_same_tick(&a, &b, "worst_minute (offers mode)", tick);
     }
 }
 

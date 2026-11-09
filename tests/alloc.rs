@@ -203,21 +203,21 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// (`golem`) of the earlier tick's `EliteSpawned`, dropped by `events.clear()`. EVENT-ARC: a
 /// `ContentId` is an `Arc<str>` cloned from its definition, so the free is gone and it is 0, 0, 0. `worst_tick` 786 -> 3 allocs, the frees unchanged: its
 /// allocations were the `ContentId` strings of the entities' assets and statuses, now shared.
-/// `worst_minute` covers the whole minute, with its wave spawns, death bursts and offers, which
-/// `Run::play` chooses. PICKUP-64: stars are taken from 64 px, so the player holds a type bonus
+/// `worst_minute` covers the whole minute, with its wave spawns and death bursts. PICKUP-64: stars are taken from 64 px, so the player holds a type bonus
 /// and meets more defeats in the minute; that took it to 1,570 allocs (the boxed type bonus of
 /// each launch, and two `Vec`s per defeat and per aim assist's targets), and the three are in
 /// `Scratch` or inline now: 427 allocs, 2 reallocs, 426 frees -> 13, 0, 8 (the expertise offers'
 /// `Vec`s, a hooked orb's hook and path, the boss's and a shrine's entity), and `worst_tick`
 /// 3 -> 1 (aim assist's two). `worst_minute_peak` stays 0, 0, 0 on its new tick. A hooked orb
-/// keeps its hook and path inline and firing it builds no list, so `worst_minute` is 9, 0, 8.
+/// keeps its hook and path inline and firing it builds no list, so `worst_minute` was 9, 0, 8. It
+/// runs in equipment mode now (no offer, no expertise offer's `Vec`s, no orb): 3, 0, 2.
 /// The cases are built by `bench_fixtures`, outside the count.
 pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
     ("worst_tick", pin(1, 0, 1)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
-    ("worst_minute", pin(9, 0, 8)),
+    ("worst_minute", pin(3, 0, 2)),
     ("worst_minute_peak", pin(0, 0, 0)),
 ];
 
@@ -225,11 +225,12 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// by case: today's counts, not zero. The three-player tick allocates as the solo one does; the
 /// rollback is the clone's allocations plus the 8 ticks'. The clone copies the content too: the
 /// six new rewards, the equipment rules and the weapon sets add 47 (6 + 3 + 38), none a tick's.
-/// The rule of `BENCH_TICK_ALLOCS` holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const so
+/// The rollback fixture runs in equipment mode now (1741, 13, 8 before; the saved engine is a
+/// different run, so the clone and its ticks allocate a little differently). The rule of `BENCH_TICK_ALLOCS` holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const so
 /// that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(1741, 13, 8)),
+    ("rollback", pin(1744, 14, 8)),
     ("rollback_equip", pin(1859, 26, 119)),
 ];
 
@@ -337,19 +338,17 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 
 /// The dense minute's plain ticks allocate nothing (T1b): attacks launched with a type bonus
 /// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
-/// and rule firings. A tick that spawns or loses an elite, opens an offer or does anything else
-/// outside this list is left out: it builds an entity or an offer, which is by design. So is a
-/// tick that begins with an offer open, whose pick `Run::play` takes first. A tick that emits
+/// and rule firings. A tick that spawns or loses an elite or does anything else
+/// outside this list is left out: it builds an entity, which is by design. A tick that emits
 /// an orb or fires its hook is plain like any other: a hooked orb keeps its hook and path inline.
+/// The minute runs in equipment mode, where its main character emits no orb, so no tick of it is a
+/// hooked-orb tick; the orb's own counts are the worst tick's (`worst_tick`, 1, 0, 1).
 #[test]
 fn the_dense_minutes_plain_ticks_allocate_nothing() {
     use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
     let mut run = bench_fixtures::worst_minute();
-    let (mut launched, mut defeated, mut hooked) = (0, 0, 0_usize);
+    let (mut launched, mut defeated) = (0, 0);
     for tick in 0..MINUTE_TICKS {
-        // `play` answers an open offer first: that pick frees the offer's candidates and event.
-        let picked = run.engine.offer_open();
-        let orbs = run.engine.load().orbs;
         let counts = counted3(|| run.play(1));
         let events = run.engine.events();
         let plain = events.iter().all(|ev| {
@@ -364,13 +363,8 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
                     | DomainEvent::EnemyRelocated { .. }
             )
         });
-        let emitted = run.engine.load().orbs > orbs;
-        if picked || !plain {
+        if !plain {
             continue;
-        }
-        if HOOKED_ORB_TICKS.contains(&tick) {
-            assert!(emitted, "minute tick {tick}: no orb was emitted");
-            hooked += 1;
         }
         launched += usize::from(
             events
@@ -386,16 +380,7 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
     }
     assert!(launched > 100, "only {launched} launch ticks reached");
     assert!(defeated > 50, "only {defeated} ticks with a defeat reached");
-    assert_eq!(
-        hooked,
-        HOOKED_ORB_TICKS.len(),
-        "every tick that emits a hooked orb was checked"
-    );
 }
-
-/// The minute's ticks (an offset from the minute's start) where a hooked orb is emitted, which
-/// the test above must reach and find allocation-free.
-const HOOKED_ORB_TICKS: [u32; 1] = [3514];
 
 /// A crowd that climbs to the cap and then stays there allocates nothing after load (DIR1,
 /// ADR-SIM-5 point 4): every per-enemy buffer is reserved to the run's cap when the engine
