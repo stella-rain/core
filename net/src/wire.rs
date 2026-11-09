@@ -61,13 +61,35 @@ pub struct WireInput {
 impl WireInput {
     /// The wire form of `input`; a stick axis of −128 becomes −127, as a replay block does.
     pub fn from_input(input: &Input) -> WireInput {
-        let _ = input;
-        todo!("from_input")
+        WireInput {
+            move_x: input.move_x.max(-i8::MAX),
+            move_y: input.move_y.max(-i8::MAX),
+            main: input.main,
+            smash: input.smash,
+            evade: input.evade,
+            skill: input.skill,
+            assist: input.assist,
+            auto: input.auto,
+            interact: input.interact,
+            action: input.action,
+        }
     }
 
     /// The core input this wire input stands for.
     pub fn to_input(&self) -> Input {
-        todo!("to_input")
+        Input {
+            move_x: self.move_x,
+            move_y: self.move_y,
+            main: self.main,
+            smash: self.smash,
+            evade: self.evade,
+            skill: self.skill,
+            assist: self.assist,
+            auto: self.auto,
+            interact: self.interact,
+            action: self.action,
+            ..Input::default()
+        }
     }
 }
 
@@ -157,6 +179,10 @@ impl<'a> Reader<'a> {
         Ok(head)
     }
 
+    fn u8(&mut self) -> Result<u8, WireError> {
+        Ok(self.take(1)?[0])
+    }
+
     fn u32(&mut self) -> Result<u32, WireError> {
         let b = self.take(4)?;
         Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
@@ -200,15 +226,139 @@ fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
     })
 }
 
+fn slot_byte(slot: PlayerIdx) -> u8 {
+    // A slot is 0 to 2, so the conversion cannot fail.
+    u8::try_from(slot.get()).unwrap_or(u8::MAX)
+}
+
+fn read_slot(r: &mut Reader<'_>) -> Result<PlayerIdx, WireError> {
+    PlayerIdx::new(r.u8()?).ok_or(WireError::SlotOutOfRange)
+}
+
+const FLAG_ACTION: u8 = 0x80;
+const STICK_REFUSED: i8 = i8::MIN;
+
+fn encode_entry(w: &WireInput, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if w.move_x == STICK_REFUSED || w.move_y == STICK_REFUSED {
+        return Err(WireError::StickOutOfRange);
+    }
+    let flags = u8::from(w.evade)
+        | u8::from(w.main) << 1
+        | u8::from(w.smash) << 2
+        | u8::from(w.skill) << 3
+        | u8::from(w.assist) << 4
+        | u8::from(w.auto) << 5
+        | u8::from(w.interact) << 6
+        | if w.action.is_some() { FLAG_ACTION } else { 0 };
+    out.push(flags);
+    out.extend_from_slice(&w.move_x.to_le_bytes());
+    out.extend_from_slice(&w.move_y.to_le_bytes());
+    if let Some(action) = w.action {
+        let (kind, operands): (u8, &[u32]) = match &action {
+            EquipAction::Equip { item, slot } => (1, &[*item, *slot]),
+            EquipAction::Replace { item, slot } => (2, &[*item, *slot]),
+            EquipAction::Extract { item } => (3, &[*item]),
+            EquipAction::Craft { star } => (4, &[*star]),
+            EquipAction::TreePick { option } => (5, &[*option]),
+        };
+        out.push(kind);
+        for n in operands {
+            out.extend_from_slice(&n.to_le_bytes());
+        }
+    }
+    Ok(())
+}
+
+fn decode_entry(r: &mut Reader<'_>) -> Result<WireInput, WireError> {
+    let flags = r.u8()?;
+    let move_x = i8::from_le_bytes([r.u8()?]);
+    let move_y = i8::from_le_bytes([r.u8()?]);
+    if move_x == STICK_REFUSED || move_y == STICK_REFUSED {
+        return Err(WireError::StickOutOfRange);
+    }
+    let action = if flags & FLAG_ACTION != 0 {
+        let kind = r.u8()?;
+        Some(match kind {
+            1 => EquipAction::Equip {
+                item: r.u32()?,
+                slot: r.u32()?,
+            },
+            2 => EquipAction::Replace {
+                item: r.u32()?,
+                slot: r.u32()?,
+            },
+            3 => EquipAction::Extract { item: r.u32()? },
+            4 => EquipAction::Craft { star: r.u32()? },
+            5 => EquipAction::TreePick { option: r.u32()? },
+            other => return Err(WireError::UnknownActionKind(other)),
+        })
+    } else {
+        None
+    };
+    Ok(WireInput {
+        move_x,
+        move_y,
+        evade: flags & 1 != 0,
+        main: flags & 2 != 0,
+        smash: flags & 4 != 0,
+        skill: flags & 8 != 0,
+        assist: flags & 16 != 0,
+        auto: flags & 32 != 0,
+        interact: flags & 64 != 0,
+        action,
+    })
+}
+
+fn encode_input(f: &InputFrame, out: &mut Vec<u8>) -> Result<(), WireError> {
+    let count = u8::try_from(f.inputs.len())
+        .ok()
+        .filter(|n| (1..=MAX_FRAME_INPUTS_U8).contains(n))
+        .ok_or(WireError::CountOutOfRange)?;
+    f.start_tick
+        .checked_add(u32::from(count) - 1)
+        .ok_or(WireError::TickOverflow)?;
+    out.push(TAG_INPUT);
+    out.push(slot_byte(f.slot));
+    out.extend_from_slice(&f.start_tick.to_le_bytes());
+    out.push(count);
+    for w in &f.inputs {
+        encode_entry(w, out)?;
+    }
+    Ok(())
+}
+
+fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
+    let slot = read_slot(r)?;
+    let start_tick = r.u32()?;
+    let count = r.u8()?;
+    if !(1..=MAX_FRAME_INPUTS_U8).contains(&count) {
+        return Err(WireError::CountOutOfRange);
+    }
+    start_tick
+        .checked_add(u32::from(count) - 1)
+        .ok_or(WireError::TickOverflow)?;
+    let mut inputs = Vec::with_capacity(usize::from(count));
+    for _ in 0..count {
+        inputs.push(decode_entry(r)?);
+    }
+    Ok(InputFrame {
+        slot,
+        start_tick,
+        inputs,
+    })
+}
+
+const MAX_FRAME_INPUTS_U8: u8 = 32;
+const _: () = assert!(MAX_FRAME_INPUTS == MAX_FRAME_INPUTS_U8 as usize);
+
 impl Packet {
     /// The one byte string of this packet, or the rule it breaks.
     pub fn encode(&self) -> Result<Vec<u8>, WireError> {
         let mut out = Vec::new();
         match self {
             Packet::Hello(h) => encode_hello(h, &mut out)?,
-            Packet::Input(_) | Packet::Ack(_) | Packet::Checkpoint(_) | Packet::Bye(_) => {
-                todo!("encode")
-            }
+            Packet::Input(f) => encode_input(f, &mut out)?,
+            Packet::Ack(_) | Packet::Checkpoint(_) | Packet::Bye(_) => todo!("encode"),
         }
         Ok(out)
     }
@@ -222,7 +372,8 @@ impl Packet {
         let mut r = Reader { rest: body };
         let packet = match tag {
             TAG_HELLO => Packet::Hello(decode_hello(&mut r)?),
-            TAG_INPUT | TAG_ACK | TAG_CHECKPOINT | TAG_BYE => todo!("decode"),
+            TAG_INPUT => Packet::Input(decode_input(&mut r)?),
+            TAG_ACK | TAG_CHECKPOINT | TAG_BYE => todo!("decode"),
             other => return Err(WireError::UnknownTag(other)),
         };
         r.finish()?;
