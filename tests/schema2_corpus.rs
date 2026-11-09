@@ -3,6 +3,7 @@
 //! verifies and reaches the same ticks, final hash, outcome and command count. The simulation
 //! did not move; only the file format did.
 
+use crate::common::run_steps::RunSteps;
 use crate::common::schema_1_form;
 use crate::corpus::case_content;
 use crate::data_root::data_root;
@@ -25,11 +26,18 @@ fn cases(kind: &str) -> Vec<PathBuf> {
 fn schema_2_cases_are_their_schema_1_forms() {
     let runs = cases("runs");
     assert!(runs.len() >= 9);
-    for case in runs {
+    let (mut checked, mut skipped) = (0, 0);
+    for case in &runs {
         let name = case.display();
         let two = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
         assert_eq!(two.setup.schema_version, 2, "{name}");
         assert_eq!(two.commands, "", "{name}");
+        // A case that holds equipment actions has no schema 1 form.
+        if RunSteps::of(&two).has_actions() {
+            skipped += 1;
+            continue;
+        }
+        checked += 1;
         let one = schema_1_form(&two);
         assert_eq!(one.setup.schema_version, 1, "{name}");
         let content = case_content(&case).unwrap();
@@ -48,6 +56,7 @@ fn schema_2_cases_are_their_schema_1_forms() {
             "{name}"
         );
     }
+    assert_eq!(checked + skipped, runs.len());
     let stages = cases("stages");
     assert!(stages.len() >= 16);
     for case in stages {

@@ -2,6 +2,7 @@
 //! wire, replays are recorded and verified byte for byte as before, and a version 1 run takes a
 //! one-entry slice.
 
+use crate::common::run_steps;
 use crate::corpus::{case_content, check_case};
 use crate::data_root::data_root;
 use serde_json::json;
@@ -11,9 +12,7 @@ use stella_rain_core::engine::{ChoiceError, Engine};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
-use stella_rain_core::run_replay::{
-    self, Command, CommandKind, RunRecorder, RunReplay, RunReplayError,
-};
+use stella_rain_core::run_replay::{self, RunRecorder, RunReplay, RunReplayError};
 use stella_rain_core::validate::parse_and_validate;
 
 #[test]
@@ -34,25 +33,6 @@ fn pick_is_not_in_the_wire() {
     );
 }
 
-/// A run replay's commands in the order they were made.
-fn commands_of(run: &RunReplay) -> Vec<Command> {
-    let inputs = run.unpack_inputs(u32::MAX).unwrap();
-    let between = run.unpack_commands().unwrap();
-    let mut next = between.iter().peekable();
-    let command = |c: &run_replay::TickCommand| match c.kind {
-        CommandKind::Choose => Command::Choose(c.index),
-    };
-    let mut out = Vec::new();
-    for (tick, input) in (0u32..).zip(inputs) {
-        while let Some(c) = next.next_if(|c| c.tick == tick) {
-            out.push(command(c));
-        }
-        out.push(Command::Step(input));
-    }
-    out.extend(next.map(command));
-    out
-}
-
 fn run_cases(tree: &str) -> Vec<PathBuf> {
     let dir = data_root().join("tests/corpus").join(tree).join("runs");
     let mut cases: Vec<_> = fs::read_dir(dir)
@@ -71,7 +51,8 @@ fn picks_leave_the_replay_bytes_alone() {
             let run = RunReplay::from_bytes(&bytes).unwrap();
             let content = case_content(&case).unwrap();
             let recorded =
-                run_replay::record_run_with(&run.setup, &content, &commands_of(&run)).unwrap();
+                run_replay::record_run_with(&run.setup, &content, &run_steps::commands(&run))
+                    .unwrap();
             let name = case.display();
             // The recorder writes schema 2; a frozen schema 1 file is compared in its form.
             let recorded = if run.setup.schema_version == 1 {

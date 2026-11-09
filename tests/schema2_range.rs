@@ -7,7 +7,7 @@ use crate::common::schema_1_form;
 use crate::data_root::data_root;
 use std::fs;
 use stella_rain_core::base64;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_replay::{RunReplay, RunReplayError};
 use stella_rain_core::{RangeStep, StepRange, read_step_range};
 
@@ -40,13 +40,14 @@ fn raw_of(replay: &RunReplay) -> Vec<u8> {
 enum Entry {
     Tick(Vec<Input>),
     Picks(Vec<Option<u32>>),
+    Actions(Vec<Option<EquipAction>>),
 }
 
 fn expand(steps: &[RangeStep]) -> Vec<Entry> {
     let mut out = Vec::new();
     for step in steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { actions } => out.push(Entry::Actions(actions.clone())),
             RangeStep::Ticks { run, inputs } => {
                 out.extend((0..*run).map(|_| Entry::Tick(inputs.clone())));
             }
@@ -67,7 +68,11 @@ fn oracle(full: &StepRange, ticks: u32, a: u32, b: u32) -> Vec<Entry> {
     let mut world = 0u32;
     for step in &full.steps {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
+            RangeStep::Actions { actions } => {
+                if (a <= world && world < b) || (a < b && b == ticks && world == ticks) {
+                    out.push(Entry::Actions(actions.clone()));
+                }
+            }
             RangeStep::Ticks { run, inputs } => {
                 for t in world..world + run {
                     if a <= t && t < b {
