@@ -326,7 +326,7 @@ fn the_corpus_reaches_every_tally() {
 // --- built stages -------------------------------------------------------------------------------
 
 /// The elites the corpus `time_limit` case kills (computed from the blessed file).
-const TIME_LIMIT_ELITE_KILLS: u32 = 0;
+const TIME_LIMIT_ELITE_KILLS: u32 = 3;
 
 const CX: i32 = 20_000;
 const CY: i32 = 30_000;
