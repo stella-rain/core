@@ -5680,21 +5680,6 @@
         }
       ]
     },
-    "OfferMode": {
-      "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a\nreplay names its own mode (ADR-REPL-5 point 2); the countdown's length is the pack's\n`offer_timer_ticks`.",
-      "oneOf": [
-        {
-          "const": "stop",
-          "description": "An open offer stops the world until a pick answers it: today's behaviour.",
-          "type": "string"
-        },
-        {
-          "const": "timed",
-          "description": "The world keeps running while an offer is open, a pick travels in the input of any\nstep, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a\npick of its first option, derived and not recorded (ADR-REPL-5 point 5). Needs\n`sim_version` 2.",
-          "type": "string"
-        }
-      ]
-    },
     "OfferOption": {
       "description": "One option of an open offer; `candidate` is a place in its candidates, from 0.",
       "oneOf": [
@@ -7785,10 +7770,6 @@
         "mode": {
           "$ref": "#/$defs/ContentId",
           "description": "A mode ID: the content the run plays."
-        },
-        "offer_mode": {
-          "$ref": "#/$defs/OfferMode",
-          "description": "Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup\nwritten before the mode existed reads as it always did. Never `timed` in equipment\nmode: nothing is offered."
         },
         "perk_set": {
           "$ref": "#/$defs/ContentId",

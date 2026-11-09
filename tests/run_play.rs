@@ -12,7 +12,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, RunRecorder};
-use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
+use stella_rain_core::run_setup::{BuildMode, RunSetup};
 use stella_rain_core::snapshot::HeldView;
 
 /// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
@@ -219,25 +219,16 @@ pub enum Change {
 
 /// A party of `n` played from `setup` for up to `ticks` ticks, every offer answered by its slot
 /// (one pick at a time between ticks); each of `changes` (world tick, change) is applied before
-/// that tick's step. In a timed run no offer waits for a pick: slot 0 answers an offer (option 0)
-/// `answer_after` ticks after it opened, every second offer of its own, in the input of a tick;
-/// the other slots never answer, and an offer nobody answers is closed by the timer. `None`
-/// answers nothing. With a `bot` it plays every present slot and picks every offer.
+/// that tick's step. With a `bot` it plays every present slot and picks every offer.
 pub fn play_party_with(
     setup: &RunSetup,
     n: u8,
     ticks: u32,
     changes: &[(u32, Change)],
-    answer_after: Option<u32>,
     bot: Option<&PartyBot>,
     script: Option<&EquipScript>,
 ) -> RunRecorder {
-    let timed = setup.offer_mode == OfferMode::Timed;
-    assert!(bot.is_none() || !timed, "a timed bot case is not built");
     let mut rec = RunRecorder::start_party(setup, n).unwrap();
-    let slot0 = PlayerIdx::SOLO;
-    // The world tick slot 0's current offer opened on, and the offers it has met.
-    let (mut open_since, mut met): (Option<u32>, u32) = (None, 0);
     for t in 0..ticks {
         for (_, change) in changes.iter().filter(|(at, _)| *at == t) {
             match *change {
@@ -245,9 +236,7 @@ pub fn play_party_with(
                 Change::Leave(s) => rec.leave(PlayerIdx::new(s).unwrap()).unwrap(),
             }
         }
-        if !timed {
-            answer_party_offers_with(&mut rec, bot);
-        }
+        answer_party_offers_with(&mut rec, bot);
         if rec.engine().outcome() != Outcome::Running {
             break;
         }
@@ -255,36 +244,9 @@ pub fn play_party_with(
         if let Some(script) = script {
             inputs[0].action = script.action(rec.engine(), t);
         }
-        if timed {
-            if rec.engine().check_pick(slot0, 0).is_ok() {
-                let since = *open_since.get_or_insert_with(|| {
-                    met += 1;
-                    rec.engine().tick()
-                });
-                let waited = rec.engine().tick() - since;
-                if met % 2 == 1 && answer_after.is_some_and(|n| waited >= n) {
-                    inputs[0].pick = Some(0);
-                    open_since = None;
-                }
-            } else {
-                open_since = None;
-            }
-        }
         rec.step(&inputs).unwrap();
-        // An offer taken (by a pick or by the timer) ends the wait: the next one counts afresh.
-        if timed
-            && rec
-                .engine()
-                .events()
-                .iter()
-                .any(|ev| matches!(ev, stella_rain_core::event::DomainEvent::RewardTaken { .. }))
-        {
-            open_since = None;
-        }
     }
-    if !timed {
-        answer_party_offers_with(&mut rec, bot);
-    }
+    answer_party_offers_with(&mut rec, bot);
     rec
 }
 
@@ -297,9 +259,6 @@ pub struct PartyCase {
     pub ticks: u32,
     /// Joins and leaves, by world tick.
     pub changes: Vec<(u32, Change)>,
-    /// A timed case: the ticks slot 0 waits after an offer opens before it answers it (every
-    /// second one); `None` answers none and leaves them to the timer.
-    pub answer_after: Option<u32>,
     /// A bot that plays every slot and picks every offer; `None` is the zone bot and the
     /// scripted slots, option 0 for every offer.
     pub bot: Option<PartyBot>,
@@ -454,7 +413,6 @@ impl PartyCase {
             self.party,
             self.ticks,
             &self.changes,
-            self.answer_after,
             self.bot.as_ref(),
             self.script.as_ref(),
         )
@@ -474,7 +432,6 @@ fn equipment(name: &'static str, party: u8) -> PartyCase {
         party,
         ticks: 3000,
         changes: vec![],
-        answer_after: None,
         bot: None,
         script: None,
     }
@@ -693,18 +650,8 @@ pub fn party_case(name: &'static str, world: u64, bot: u64) -> PartyCase {
 }
 
 /// The party cases. Seven are equipment cases from `PARTY_SEEDS` (every slot a `PartyBot` that
-/// builds, ADR-SIM-7); the two timed cases stay offers-era (`validate` refuses a timer in
-/// equipment mode), played by the zone bot and the scripted slots; then the equipment cases.
+/// builds, ADR-SIM-7); then the equipment cases, played by the zone bot and the scripted slots.
 pub fn party_cases() -> Vec<PartyCase> {
-    let at = |mode: &str, seed: u64| RunSetup {
-        mode: mode.into(),
-        seed,
-        ..trial_setup()
-    };
-    let timed = |seed: u64| RunSetup {
-        offer_mode: OfferMode::Timed,
-        ..at("time_limit", seed)
-    };
     vec![
         seeded("two_time_limit"),
         seeded("three_tutorial"),
@@ -714,30 +661,6 @@ pub fn party_cases() -> Vec<PartyCase> {
         // A party of 3 that loses slot 1 (a hole, 0b101) and slot 2 (alone), then takes slot 2
         // back (0b101); slot 2 acts inside the first hole window.
         seeded("leave_hole"),
-        // A timed party of one: the world keeps running with an offer open; slot 0 answers every
-        // second offer 100 ticks after it opened and the timer closes the rest.
-        PartyCase {
-            name: "timed_one",
-            setup: timed(1),
-            party: 1,
-            ticks: 3000,
-            changes: vec![],
-            answer_after: Some(100),
-            bot: None,
-            script: None,
-        },
-        // A timed party of two: slot 0 answers as above, slot 1 never does, so the timer
-        // closes every offer of slot 1.
-        PartyCase {
-            name: "timed_two",
-            setup: timed(1),
-            party: 2,
-            ticks: 3000,
-            changes: vec![],
-            answer_after: Some(100),
-            bot: None,
-            script: None,
-        },
         // The equipment cases: the scripted tutorial parties of 1 and of 2 in equipment mode, 3000
         // ticks. Every member ends holding a star and a rune; the seeds are the first of a search
         // (`search_equipment_seeds` in `equipment_drops.rs`): world seeds 1..=60, one scan per

@@ -73,14 +73,6 @@ impl Streams {
     }
 }
 
-/// The world tick on which each slot's open offer is picked for it, in a timed run: `None` for a
-/// slot with no offer open and for an absent slot. The countdown is state, so it is in the hash
-/// and the savepoint (ADR-SIM-3 point 2, ADR-SAVE-4 point 1).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct OfferTimer {
-    pub due: [Option<u32>; MAX_PLAYERS as usize],
-}
-
 /// The whole state of a run. Everything here is in the state hash (`StableHash`, in
 /// `state_hash.rs`) except the fields that impl marks `_  // not hashed: <why>`: content, derived
 /// values and buffers.
@@ -95,8 +87,6 @@ pub(crate) struct State {
     pub outcome: Outcome,
     /// The players, by slot (`Players::id` is a slot's entity number now): one now (ADR-SIM-7).
     pub players: Players,
-    /// The deadlines of a timed run's open offers (ADR-SIM-7 point 4); `None` in a `stop` run.
-    pub offer_timer: Option<OfferTimer>,
     pub boss: Option<BossState>,
     /// The allies that act on their own, in entity-ID order.
     pub companions: Vec<AgentState>,

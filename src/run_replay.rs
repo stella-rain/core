@@ -55,7 +55,7 @@ use crate::replay::{
     block_of, hash_from_hex, hash_to_hex, input_of_block, read_varint, unpack, write_varint,
 };
 use crate::run_content::RunContent;
-use crate::run_setup::{self, OfferMode, RunSetup};
+use crate::run_setup::{self, RunSetup};
 use crate::savepoint::{self, SavepointError};
 use crate::step_log::{MAX_PRESENCE_CHANGES, Record, StepLog, StepRange, read_step_range};
 use crate::validate;
@@ -929,32 +929,12 @@ impl RunRecorder {
                 ended_at: self.engine.tick(),
             });
         }
-        let timed = self.engine.offer_mode() == OfferMode::Timed;
-        if self.engine.offer_open() && !timed {
+        if self.engine.offer_open() {
             return Err(RunReplayError::OfferOpen {
                 tick: self.engine.tick(),
             });
         }
-        // A timed run takes the picks of the inputs first (ADR-REPL-5): the ones the engine
-        // accepts are recorded as one PICKS step, the rest are ignored as the engine ignores
-        // them, and the tick runs on the inputs without picks, so the log holds no pick in a tick.
         let mut cleared = *inputs;
-        if timed {
-            let mask = self.engine.present();
-            let mut picks = [None; MAX_PLAYERS as usize];
-            for (slot, input) in cleared.iter_mut().enumerate() {
-                let accepted = PlayerIdx::new(u8::try_from(slot).unwrap_or(u8::MAX))
-                    .zip(input.pick)
-                    .filter(|(player, k)| {
-                        mask >> player.get() & 1 == 1 && self.engine.check_pick(*player, *k).is_ok()
-                    });
-                picks[slot] = accepted.map(|(_, k)| k);
-                input.pick = None;
-            }
-            if picks.iter().any(Option::is_some) {
-                self.picks(&picks)?;
-            }
-        }
         // The actions the engine accepts are recorded as one ACTIONS step, the rest are ignored
         // as a refused pick is; the tick runs on inputs without actions, so the log holds none
         // in a TICKS block.
@@ -1394,7 +1374,7 @@ fn resimulate(
                             ended_at: engine.tick(),
                         });
                     }
-                    if engine.offer_open() && engine.offer_mode() == OfferMode::Stop {
+                    if engine.offer_open() {
                         return Err(RunReplayError::OfferOpen {
                             tick: engine.tick(),
                         });

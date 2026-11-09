@@ -538,3 +538,25 @@ fn a_run_is_hurt_for_as_long_as_its_own_rules_say() {
     assert_eq!(hits(Rules::bundled().clone()), 1);
     assert!(hits(rules_with(&[("hit_invulnerable_ticks", 0)])) > 1);
 }
+
+#[test]
+fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
+    use stella_rain_core::rules::MAX_OFFER_TIMER_TICKS;
+    assert_eq!(Rules::bundled().offer_timer_ticks(), 300);
+    assert_eq!(MAX_OFFER_TIMER_TICKS, 3600);
+    let bundled: serde_json::Value =
+        serde_json::from_slice(stella_rain_core::pack::ContentFiles::bundled_file("rules"))
+            .unwrap();
+    let versions = stella_rain_core::version::Versions::CURRENT;
+    let with = |n: u32| {
+        let mut v = bundled.clone();
+        v["offer_timer_ticks"] = serde_json::json!(n);
+        Rules::parse(v.to_string().as_bytes(), versions)
+    };
+    assert!(with(1).is_ok());
+    assert!(with(3600).is_ok());
+    for bad in [0, 3601] {
+        let msg = format!("{:?}", with(bad).unwrap_err());
+        assert!(msg.contains("offer_timer_ticks"), "{msg}");
+    }
+}

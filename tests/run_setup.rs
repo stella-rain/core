@@ -634,11 +634,7 @@ fn equipment_mode_needs_sim_version_2() {
 
 #[test]
 fn equipment_mode_refuses_what_offers_mode_uses() {
-    use stella_rain_core::run_setup::{CarriedStar, OfferMode};
-    let timed = issue(
-        "$.offer_mode",
-        "not set in equipment mode: nothing is offered",
-    );
+    use stella_rain_core::run_setup::CarriedStar;
     let carried = issue(
         "$.carried",
         "none in equipment mode: the Lumine star is the one star a run starts with",
@@ -655,13 +651,6 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
         reward: "max_hp_common".into(),
     };
     let one = |s: RunSetup| found(&s);
-    assert_eq!(
-        one(RunSetup {
-            offer_mode: OfferMode::Timed,
-            ..equipment()
-        }),
-        vec![timed.clone()]
-    );
     assert_eq!(
         one(RunSetup {
             carried: vec![star.clone()],
@@ -685,17 +674,15 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
     );
     assert_eq!(
         one(RunSetup {
-            offer_mode: OfferMode::Timed,
             carried: vec![star],
             extra_rerolls: 2,
             pick_stats: true,
             ..equipment()
         }),
-        [timed, carried, rerolls, stats]
+        [carried, rerolls, stats]
     );
     // `stop` is the default and reads as absent; a plain equipment setup is valid.
     let plain = RunSetup {
-        offer_mode: OfferMode::Stop,
         lumine: 10,
         ..equipment()
     };
@@ -859,4 +846,50 @@ fn an_equipment_setup_starts_and_any_other_issue_is_reported() {
     );
     // An offers setup is unaffected.
     assert!(Engine::start(&RunSetup::default()).is_ok());
+}
+
+/// A default setup's JSON with `offer_mode` added (the mode left core: the key is unknown).
+fn setup_json_naming_offer_mode(mode: &str) -> serde_json::Value {
+    let mut v = serde_json::to_value(RunSetup::default()).unwrap();
+    assert!(
+        v.get("offer_mode").is_none(),
+        "a default setup names no mode"
+    );
+    v["offer_mode"] = mode.into();
+    v
+}
+
+#[test]
+fn a_setup_naming_offer_mode_is_refused_as_an_unknown_field() {
+    for mode in ["stop", "timed"] {
+        let v = setup_json_naming_offer_mode(mode);
+        assert!(
+            serde_json::from_value::<RunSetup>(v.clone()).is_err(),
+            "{mode}"
+        );
+        let err = run_setup::parse_and_validate(v.to_string().as_bytes()).unwrap_err();
+        assert!(matches!(err, Error::Parse { .. }), "{mode}: {err:?}");
+    }
+}
+
+#[test]
+fn a_replay_whose_setup_names_offer_mode_is_refused() {
+    use stella_rain_core::run_replay::{RunRecorder, RunReplay};
+    let bytes = RunRecorder::start(&RunSetup::default())
+        .unwrap()
+        .replay()
+        .to_bytes();
+    assert!(RunReplay::from_bytes(&bytes).is_ok());
+    let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["setup"]["offer_mode"] = "stop".into();
+    assert!(RunReplay::from_bytes(v.to_string().as_bytes()).is_err());
+}
+
+#[test]
+fn the_checked_in_schema_has_no_offer_mode() {
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
+    assert!(!text.contains("\"offer_mode\""));
+    assert!(!text.contains("\"OfferMode\""));
 }
