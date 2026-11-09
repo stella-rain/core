@@ -1,4 +1,4 @@
-//! Rollback netcode for Stella Rain (ADR-NET-1, ADR-NET-2).
+//! Rollback netcode for Stella Rain.
 //!
 //! A sans-IO session over the public API of `stella-rain-core`: it takes inputs and ticks in,
 //! hands messages and re-simulation requests out, and owns no sockets, clocks, threads or

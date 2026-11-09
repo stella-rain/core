@@ -5,8 +5,6 @@ paths:
 
 # The net crate
 
-Sources: ADR-NET-1, ADR-NET-2.
-
 `net/` is the package `stella-rain-net`: sans-IO rollback netcode (input exchange, prediction and
 re-simulation) over the public API of `stella-rain-core`. It ships in core's own release; its
 version stays `0.0.0` and `publish = false`.

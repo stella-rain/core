@@ -37,12 +37,12 @@ exceptions = [
 [bans]
 multiple-versions = "warn"
 deny = [
-    # Netcode libraries ruled out: the rollback session is written in `net/` (ADR-NET-1).
+    # Netcode libraries ruled out: the rollback session is written in `net/`.
     { crate = "ggrs", reason = "rollback netcode is written in stella-rain-net, not taken from a library" },
     { crate = "bevy_ggrs", reason = "rollback netcode is written in stella-rain-net, not taken from a library" },
     { crate = "backroll", reason = "rollback netcode is written in stella-rain-net, not taken from a library" },
     { crate = "matchbox_socket", reason = "transport belongs to the app; stella-rain-net is sans-IO" },
-    # I/O and async crates the sans-IO net crate must not link (ADR-NET-2). A later task that
+    # I/O and async crates the sans-IO net crate must not link. A later task that
     # needs one asks Kade and edits this list.
     { crate = "tokio", reason = "stella-rain-net is sans-IO: no async runtime" },
     { crate = "async-std", reason = "stella-rain-net is sans-IO: no async runtime" },

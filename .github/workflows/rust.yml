@@ -329,7 +329,7 @@ jobs:
             cargo check --locked --all-targets --target "$t"
           done
 
-  # The `net/` crate (`stella-rain-net`, ADR-NET-1): the commands above select core alone (the
+  # The `net/` crate (`stella-rain-net`): the commands above select core alone (the
   # workspace's default member), so net has its own fmt, clippy, tests, docs and mobile check.
   net:
     name: net crate fmt, clippy, tests and mobile check
