@@ -3,7 +3,6 @@
 //! was fed (`StateHasher::trace`), not only the digest.
 
 use super::state::{Career, MAX_PLAYERS, PlayerIdx, Players, State};
-use crate::bench_fixtures::worst_case;
 use crate::engine::{Engine, Run};
 use crate::hash::{StableHash, StateHasher};
 use crate::id::EntityId;
@@ -74,7 +73,7 @@ fn tail(s: &State) -> Vec<u8> {
 }
 
 fn warm() -> State {
-    live(&worst_case::warmed_up()).clone()
+    live(&crate::bench_fixtures::offers_cases::worst_warmed_up()).clone()
 }
 
 #[test]

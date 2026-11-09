@@ -17,6 +17,12 @@ pub(crate) fn worst_stage() -> Stage {
     worst_case::stage()
 }
 
+/// The worst case's content as it was: the random rune and Rune Haste rewards to pick from, no
+/// `equipment` object.
+pub(crate) fn worst_content() -> crate::run_content::RunContent {
+    worst_case::content()
+}
+
 /// The engine of the worst case at the start of the scripted run: every rune and Rune Haste taken
 /// from the offers of the first eight enemies' stars.
 fn worst_runes_taken() -> Engine {

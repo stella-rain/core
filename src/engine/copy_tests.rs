@@ -89,11 +89,12 @@ fn same_for(case: (Case, Case), ticks: u32, what: &str) {
 
 #[test]
 fn the_copy_equals_the_original_on_the_bench_cases() {
-    same_for(both(bench_fixtures::worst_tick), 30, "worst_tick");
-    same_for(both(bench_fixtures::hit_tick), 30, "hit_tick");
+    use bench_fixtures::offers_cases;
+    same_for(both(offers_cases::worst_tick), 30, "worst_tick");
+    same_for(both(offers_cases::hit_tick), 30, "hit_tick");
     // The `time_limit_tick` case builds its horde through `Engine::new_with`: it covers the
     // conversion of the horde spec and state at the `Run` boundary.
-    same_for(both(bench_fixtures::time_limit_tick), 30, "time_limit_tick");
+    same_for(both(offers_cases::time_limit_tick), 30, "time_limit_tick");
 }
 
 #[test]
