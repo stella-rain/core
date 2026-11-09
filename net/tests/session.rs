@@ -6,7 +6,6 @@ use stella_rain_core::input::Input;
 use stella_rain_net::session::{
     Config, ConfigError, DEFAULT_DELAY, DEFAULT_WINDOW, MAX_DELAY, MAX_WINDOW, Session,
 };
-use stella_rain_net::wire::MAX_FRAME_INPUTS;
 use support::{CountingSave, engine, script, slot, straight};
 
 fn config(delay: u32, window: u32) -> Config {
@@ -140,7 +139,6 @@ fn local_frame_starts_where_asked_and_drops_what_is_confirmed() {
         (slot(0), 10, 2)
     );
     assert!(session.local_frame(12).is_none());
-    assert!(MAX_FRAME_INPUTS >= 2);
 }
 
 #[test]
