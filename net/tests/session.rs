@@ -3,10 +3,12 @@
 mod support;
 
 use stella_rain_core::input::Input;
+use stella_rain_net::session::Wait;
 use stella_rain_net::session::{
     Config, ConfigError, DEFAULT_DELAY, DEFAULT_WINDOW, MAX_DELAY, MAX_WINDOW, Session,
 };
-use support::{CountingSave, engine, script, slot, straight};
+use stella_rain_net::wire::WireInput;
+use support::{CountingSave, Script, engine, frame_of, script, slot, straight};
 
 fn config(delay: u32, window: u32) -> Config {
     Config {
@@ -151,4 +153,102 @@ fn a_session_saves_once_per_stepped_tick_and_never_loads_without_a_peer() {
     let log = counting.0.borrow();
     assert_eq!((log.saves, log.loads), (50, 0));
     assert!(log.max_held <= 5);
+}
+
+fn first_action(s: &Script, who: usize) -> usize {
+    s.eff
+        .iter()
+        .position(|row| row[who].action.is_some())
+        .expect("the script holds an action")
+}
+
+#[test]
+fn a_predicted_remote_input_repeats_without_its_action_and_is_corrected_in_one_rollback() {
+    let s = script(2, 400, 2, None);
+    let oracle = straight(&s, 2);
+    let m = first_action(&s, 1);
+    assert!(m + 10 < 400);
+    let m32 = u32::try_from(m).unwrap();
+    let mut a = Session::new(engine(2), Config::new(slot(0))).unwrap();
+    let call = |a: &mut Session, k: usize| {
+        a.ack(slot(1), a.tick() + 2).unwrap();
+        a.advance(&s.eff[k + 2][0]).unwrap()
+    };
+    // B's input for tick r is here before A's call r, up to its first action.
+    for r in 0..=m {
+        let r32 = u32::try_from(r).unwrap();
+        a.receive_inputs(slot(1), &frame_of(&s, 1, r32, r32))
+            .unwrap();
+        assert_eq!(call(&mut a, r).waiting, None);
+    }
+    // Then nothing: four ticks are predicted, the fifth call waits.
+    for r in m + 1..=m + 4 {
+        assert_eq!(call(&mut a, r).waiting, None);
+    }
+    let held = a.tick();
+    let out = call(&mut a, m + 5);
+    assert_eq!((out.waiting, out.rolled_back), (Some(Wait::Window), 0));
+    assert_eq!(a.tick(), held);
+    // B's input at the action tick repeated, its action never.
+    let mut predicted = s.clone();
+    for row in &mut predicted.eff[m + 1..] {
+        row[1] = Input {
+            action: None,
+            ..s.eff[m][1]
+        };
+    }
+    assert_eq!(
+        a.engine().state_hash(),
+        straight(&predicted, 2)[m + 5],
+        "A predicted B's last input without its action"
+    );
+    // The real inputs arrive in one frame: A re-simulates from the first tick that differs.
+    let guess = WireInput::from_input(&s.eff[m][1]);
+    let guess = WireInput {
+        action: None,
+        ..guess
+    };
+    let first_diff = (m + 1..=m + 4)
+        .find(|t| WireInput::from_input(&s.eff[*t][1]) != guess)
+        .map_or(0, |t| (m + 5) - t);
+    a.receive_inputs(slot(1), &frame_of(&s, 1, m32 + 1, m32 + 4))
+        .unwrap();
+    let out = call(&mut a, m + 5);
+    assert_eq!(out.waiting, None);
+    assert_eq!(usize::try_from(out.rolled_back).unwrap(), first_diff);
+    assert_eq!(a.hash_after(m32 + 5), Some(oracle[m + 5]));
+}
+
+#[test]
+fn the_window_bounds_the_predicted_ticks_and_a_wait_changes_nothing() {
+    let s = script(2, 100, 2, None);
+    for window in [0u32, 1, 4, 16] {
+        let counting = CountingSave::default();
+        let config = Config {
+            window,
+            ..Config::new(slot(0))
+        };
+        let mut a = Session::with_save(engine(2), config, counting.clone()).unwrap();
+        let mut stepped = 0;
+        while a.advance(&s.eff[stepped + 2][0]).unwrap().waiting.is_none() {
+            stepped += 1;
+            assert!(stepped <= 20);
+        }
+        assert_eq!(stepped, window as usize, "window {window}");
+        let (tick, hash, frame) = (a.tick(), a.engine().state_hash(), a.local_frame(0));
+        let out = a.advance(&s.eff[stepped + 2][0]).unwrap();
+        assert_eq!((out.waiting, out.rolled_back), (Some(Wait::Window), 0));
+        assert_eq!(
+            (a.tick(), a.engine().state_hash(), a.local_frame(0)),
+            (tick, hash, frame)
+        );
+        // The missing inputs let the next call step.
+        a.receive_inputs(slot(1), &frame_of(&s, 1, 0, window + 3))
+            .unwrap();
+        assert_eq!(a.advance(&s.eff[stepped + 2][0]).unwrap().waiting, None);
+        assert!(
+            counting.0.borrow().max_held <= window as usize + 1,
+            "window {window}"
+        );
+    }
 }

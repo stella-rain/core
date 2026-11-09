@@ -248,3 +248,245 @@ impl stella_rain_net::save::Save for CountingSave {
         log.saved = log.saved.split_off(&tick);
     }
 }
+
+use stella_rain_net::session::{Advance, Config, Session, Wait};
+use stella_rain_net::wire::{InputFrame, WireInput};
+
+/// The wire form of `who`'s scripted inputs for ticks `from..=to`, as a peer sends them.
+pub fn frame_of(script: &Script, who: u8, from: u32, to: u32) -> InputFrame {
+    InputFrame {
+        slot: slot(who),
+        start_tick: from,
+        inputs: (from..=to)
+            .map(|t| WireInput::from_input(&script.eff[t as usize][usize::from(who)]))
+            .collect(),
+    }
+}
+
+/// What one `advance` call of a mesh session did.
+#[derive(Clone, Copy, Debug)]
+pub struct CallStat {
+    /// The session's tick before the call.
+    pub tick_before: u32,
+    /// What the call returned.
+    pub out: Advance,
+}
+
+enum Msg {
+    Frame(InputFrame),
+    Ack(u32),
+}
+
+struct Pending {
+    due: u32,
+    seq: u64,
+    from: usize,
+    to: usize,
+    msg: Msg,
+}
+
+/// The lateness, in rounds, of the message `from -> to` sent in `round`.
+pub type Lateness<'a> = Box<dyn FnMut(usize, usize, u32) -> u32 + 'a>;
+/// A change made to a frame as it is sent: `from`, `to`, the frame.
+pub type Tamper<'a> = Box<dyn FnMut(usize, usize, &mut InputFrame) + 'a>;
+
+/// `n` sessions that exchange frames and acks with a delay per message. One round: the messages
+/// due are delivered, every session that has not reached its stop tick advances once on its
+/// scripted input (a waiting call is tried again next round with the same input), then every
+/// session sends each peer its unacknowledged inputs and an ack. No loss and no duplicate.
+pub struct Mesh<'a> {
+    /// The sessions, by slot.
+    pub sessions: Vec<Session>,
+    /// Every `advance` call of each session.
+    pub calls: Vec<Vec<CallStat>>,
+    /// The next round.
+    pub round: u32,
+    script: &'a Script,
+    delay: u32,
+    stop: u32,
+    taken: Vec<u32>,
+    acked: Vec<[u32; 3]>,
+    pending: Vec<Pending>,
+    seq: u64,
+    lateness: Lateness<'a>,
+    /// Changes a frame as it is sent, if set.
+    pub tamper: Option<Tamper<'a>>,
+}
+
+impl<'a> Mesh<'a> {
+    /// `n` sessions on `script`, each stopping at `stop` ticks.
+    pub fn new(
+        script: &'a Script,
+        n: u8,
+        delay: u32,
+        window: u32,
+        stop: u32,
+        lateness: Lateness<'a>,
+    ) -> Mesh<'a> {
+        let sessions = (0..n)
+            .map(|i| {
+                let config = Config {
+                    delay,
+                    window,
+                    ..Config::new(slot(i))
+                };
+                Session::new(engine(n), config).expect("a valid config")
+            })
+            .collect();
+        Mesh {
+            sessions,
+            calls: vec![Vec::new(); usize::from(n)],
+            round: 0,
+            script,
+            delay,
+            stop,
+            taken: vec![0; usize::from(n)],
+            acked: vec![[0; 3]; usize::from(n)],
+            pending: Vec::new(),
+            seq: 0,
+            lateness,
+            tamper: None,
+        }
+    }
+
+    /// Whether every session has reached its stop tick and confirmed it.
+    pub fn done(&self) -> bool {
+        self.sessions
+            .iter()
+            .all(|s| s.tick() >= self.stop && s.confirmed() >= self.stop)
+    }
+
+    /// Runs rounds until `done` or `limit` rounds have passed.
+    pub fn run(&mut self, limit: u32) {
+        for _ in 0..limit {
+            if self.done() {
+                break;
+            }
+            self.round();
+        }
+    }
+
+    /// One round.
+    pub fn round(&mut self) {
+        let round = self.round;
+        let (due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
+            .into_iter()
+            .partition(|p| p.due <= round);
+        self.pending = later;
+        let mut due = due;
+        due.sort_by_key(|p| (p.due, p.seq));
+        for p in due {
+            let from = slot(u8::try_from(p.from).expect("small"));
+            match p.msg {
+                Msg::Frame(frame) => self.sessions[p.to]
+                    .receive_inputs(from, &frame)
+                    .expect("a valid frame"),
+                Msg::Ack(next) => {
+                    self.sessions[p.to].ack(from, next).expect("a valid ack");
+                    self.acked[p.to][p.from] = self.acked[p.to][p.from].max(next);
+                }
+            }
+        }
+        for i in 0..self.sessions.len() {
+            if self.sessions[i].tick() < self.stop {
+                let k = self.taken[i] + self.delay;
+                let input = self
+                    .script
+                    .eff
+                    .get(k as usize)
+                    .map_or_else(Default::default, |row| row[i]);
+                let tick_before = self.sessions[i].tick();
+                let out = self.sessions[i].advance(&input).expect("advance");
+                if out.waiting.is_none() {
+                    self.taken[i] += 1;
+                }
+                self.calls[i].push(CallStat { tick_before, out });
+            }
+        }
+        for i in 0..self.sessions.len() {
+            for j in 0..self.sessions.len() {
+                if i == j {
+                    continue;
+                }
+                let mut msgs = vec![Msg::Ack(
+                    self.sessions[i].next_tick(slot(u8::try_from(j).expect("small"))),
+                )];
+                if let Some(mut frame) = self.sessions[i].local_frame(self.acked[i][j]) {
+                    if let Some(tamper) = self.tamper.as_mut() {
+                        tamper(i, j, &mut frame);
+                    }
+                    msgs.push(Msg::Frame(frame));
+                }
+                for msg in msgs {
+                    let lat = (self.lateness)(i, j, round);
+                    self.seq += 1;
+                    self.pending.push(Pending {
+                        due: round + lat,
+                        seq: self.seq,
+                        from: i,
+                        to: j,
+                        msg,
+                    });
+                }
+            }
+        }
+        self.round += 1;
+    }
+
+    /// The window holds and every confirmed hash is the straight run's.
+    pub fn check(&self, oracle: &[u64]) {
+        for (i, s) in self.sessions.iter().enumerate() {
+            assert!(
+                s.tick() - s.confirmed() <= s.config().window,
+                "session {i}: tick {} confirmed {}",
+                s.tick(),
+                s.confirmed()
+            );
+            assert_eq!(
+                s.hash_after(s.confirmed()),
+                Some(oracle[s.confirmed() as usize]),
+                "session {i} at confirmed tick {}",
+                s.confirmed()
+            );
+        }
+    }
+
+    /// Whether any call re-simulated a tick that holds an action.
+    pub fn rolled_over_an_action(&self) -> bool {
+        self.calls.iter().flatten().any(|c| {
+            (c.tick_before - c.out.rolled_back..c.tick_before).any(|t| {
+                self.script.eff[t as usize]
+                    .iter()
+                    .any(|input| input.action.is_some())
+            })
+        })
+    }
+
+    /// The most ticks one call re-simulated.
+    pub fn max_rolled(&self) -> u32 {
+        self.calls
+            .iter()
+            .flatten()
+            .map(|c| c.out.rolled_back)
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// The ticks re-simulated over the run.
+    pub fn total_rolled(&self) -> u64 {
+        self.calls
+            .iter()
+            .flatten()
+            .map(|c| u64::from(c.out.rolled_back))
+            .sum()
+    }
+
+    /// How many calls waited, for any reason, or for `reason` only.
+    pub fn waits(&self, reason: Option<Wait>) -> usize {
+        self.calls
+            .iter()
+            .flatten()
+            .filter(|c| c.out.waiting.is_some() && (reason.is_none() || c.out.waiting == reason))
+            .count()
+    }
+}
