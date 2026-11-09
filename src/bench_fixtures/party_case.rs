@@ -7,8 +7,7 @@
 //! The tick case is `worst_case::warmed_up` (420 ticks) with slots 1 and 2 joined and one step
 //! with both pressing Main, so that the measured tick 422 is the first on which they land hits.
 //! The rollback case is the bundled `time_limit` mode of `worst_minute_case`, started for three
-//! players: slot 0 plays the solo script, slot 1 the same on the other parity, slot 2 as slot 0,
-//! and every open offer takes option 0 in all three slots.
+//! players in equipment mode (no offer ever opens): slot 0 plays the solo script, slot 1 the same on the other parity, slot 2 as slot 0.
 //!
 //! The struct is named `Case` and the rollback takes the saved `Engine` itself, so that the drop
 //! guard (`.github/scripts/bench_drop_guard.py`, which matches `Engine`, `Run` and `Case`) covers
@@ -19,7 +18,7 @@ use super::worst_minute_case::{self, MINUTE_START, MINUTE_TICKS, input_at};
 use crate::engine::{Engine, Load};
 use crate::id::PlayerIdx;
 use crate::input::Input;
-use crate::run_setup::RunSetup;
+use crate::run_setup::{BuildMode, RunSetup};
 
 /// The ticks played before the heaviest tick of the three-player dense minute (`window` finds
 /// it; `tests/bench_fixture_pins.rs` pins it).
@@ -80,11 +79,8 @@ pub fn minute_inputs(tick: u32) -> [Input; 3] {
     [input_at(tick), input_at(tick + 1), input_at(tick)]
 }
 
-/// Answers the open offers (option 0 in every slot), then steps the tick.
+/// Steps the tick (equipment mode opens no offer).
 fn play_tick(engine: &mut Engine) {
-    while engine.offer_open() {
-        engine.step(&[Input::picking(worst_minute_case::OFFER_CHOICE); 3]);
-    }
     engine.step(&minute_inputs(engine.tick()));
 }
 
@@ -93,6 +89,7 @@ fn fast_forwarded(ticks: u32) -> Engine {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: SEED,
+        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     let mut engine = Engine::start_party_with(&setup, &worst_minute_case::content(), 3)
@@ -103,7 +100,7 @@ fn fast_forwarded(ticks: u32) -> Engine {
     engine
 }
 
-/// The engine the rollback restores: the run `PEAK_TICK_3P` ticks in, with no offer open.
+/// The engine the rollback restores: the run `PEAK_TICK_3P` ticks in, with no offer open (equipment mode opens none).
 pub fn saved() -> Engine {
     fast_forwarded(PEAK_TICK_3P)
 }

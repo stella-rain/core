@@ -440,9 +440,6 @@ fn the_rollback_restores_and_plays_eight_ticks() {
     assert_eq!(played.tick(), PEAK_TICK_3P + ROLLBACK_TICKS);
     let mut direct = party_case::saved();
     for _ in 0..ROLLBACK_TICKS {
-        while direct.offer_open() {
-            direct.step(&[Input::picking(0); 3]);
-        }
         direct.step(&party_case::minute_inputs(direct.tick()));
     }
     assert_eq!(played.state_hash(), direct.state_hash());
