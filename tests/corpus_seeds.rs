@@ -167,14 +167,11 @@ fn the_search_reports_a_hit_and_a_miss() {
         assert!(hit.hit, "{}", hit.line);
     }
     // The same run under a promise it does not keep is a miss that says which assertion failed.
-    let quiet = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
     let miss = run_pair(&tree, "tutorial", 1, 1, &|dir| {
         let bytes = fs::read(dir.join("run.replay")).unwrap();
         let v = run_replay::verify_run_with(&bytes, &case_content(dir).unwrap()).unwrap();
         assert_eq!(v.outcome, Outcome::Failed, "the outcome of `tutorial`");
     });
-    std::panic::set_hook(quiet);
     assert!(!miss.hit, "{}", miss.line);
     assert!(
         miss.line

@@ -1496,17 +1496,14 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
             ("time_limit", setup, None, commands)
         }
         "easy" | "rainy" => {
-            let setup = equipment_setup(RunSetup {
+            let difficulty = RunSetup {
                 difficulty: name.into(),
                 ..limited
-            });
+            };
+            let setup = equipment_setup(difficulty);
             let commands = play_equipment_run_from(&setup, 6_000, &bot);
-            (
-                if name == "easy" { "easy" } else { "rainy" },
-                setup,
-                None,
-                commands,
-            )
+            let case = if name == "easy" { "easy" } else { "rainy" };
+            (case, setup, None, commands)
         }
         "time_limit_kill" => {
             let (_, content) = short_time_limit(12_000);
