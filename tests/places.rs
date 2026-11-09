@@ -2,7 +2,8 @@
 //! `snapshot()` shows for those fields, on every tick, and change nothing.
 
 use crate::common;
-use crate::corpus::{apply, case_content, corpus_dir, runs_dir};
+use crate::common::run_steps::{self, RunSteps, Step};
+use crate::corpus::{case_content, corpus_dir, runs_dir};
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -11,7 +12,6 @@ use std::path::{Path, PathBuf};
 use stella_rain_core::engine::{Engine, Place, Places};
 use stella_rain_core::replay::Replay;
 use stella_rain_core::run_replay::RunReplay;
-use stella_rain_core::run_setup;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::validate::parse_and_validate;
 
@@ -115,23 +115,12 @@ fn walk_corpus() -> Seen {
     for case in cases(&runs_dir()) {
         let recorded = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
         let content = case_content(&case).unwrap();
-        let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).unwrap();
-        let inputs = recorded
-            .unpack_inputs(run_setup::max_replay_ticks(
-                &recorded.setup,
-                &stage,
-                content.time_limit(),
-            ))
-            .unwrap();
-        let commands = recorded.unpack_commands().unwrap();
-        let mut engine = Engine::start_with(&recorded.setup, &content).unwrap();
-        let mut next = commands.iter().peekable();
-        for input in inputs {
-            while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-                apply(&mut engine, c).unwrap();
+        let mut engine = run_steps::start(&recorded, &content);
+        for step in RunSteps::of(&recorded).steps() {
+            run_steps::apply(&mut engine, step);
+            if matches!(step, Step::Tick(_)) {
+                note(&mut seen, &engine, &mut places);
             }
-            engine.step(&[input, Default::default(), Default::default()]);
-            note(&mut seen, &engine, &mut places);
         }
     }
     seen
