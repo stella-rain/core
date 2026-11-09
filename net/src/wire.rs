@@ -13,6 +13,7 @@ use std::fmt;
 
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
+use stella_rain_core::run_replay::CHECKPOINT_TICKS;
 
 /// The wire protocol version, one integer; any change to the wire raises it.
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -351,6 +352,61 @@ fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
 const MAX_FRAME_INPUTS_U8: u8 = 32;
 const _: () = assert!(MAX_FRAME_INPUTS == MAX_FRAME_INPUTS_U8 as usize);
 
+fn encode_ack(a: &Ack, out: &mut Vec<u8>) {
+    out.push(TAG_ACK);
+    out.push(slot_byte(a.slot));
+    out.extend_from_slice(&a.next_tick.to_le_bytes());
+}
+
+fn checkpoint_tick_ok(tick: u32) -> bool {
+    tick != 0 && tick % CHECKPOINT_TICKS == 0
+}
+
+fn encode_checkpoint(c: &Checkpoint, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if !checkpoint_tick_ok(c.tick) {
+        return Err(WireError::CheckpointTick);
+    }
+    out.push(TAG_CHECKPOINT);
+    out.push(slot_byte(c.slot));
+    out.extend_from_slice(&c.tick.to_le_bytes());
+    out.extend_from_slice(&c.hash.to_le_bytes());
+    Ok(())
+}
+
+fn decode_checkpoint(r: &mut Reader<'_>) -> Result<Checkpoint, WireError> {
+    let slot = read_slot(r)?;
+    let tick = r.u32()?;
+    if !checkpoint_tick_ok(tick) {
+        return Err(WireError::CheckpointTick);
+    }
+    let b = r.take(8)?;
+    let hash = u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
+    Ok(Checkpoint { slot, tick, hash })
+}
+
+fn encode_bye(b: &Bye, out: &mut Vec<u8>) {
+    out.push(TAG_BYE);
+    out.push(slot_byte(b.slot));
+    out.extend_from_slice(&b.tick.to_le_bytes());
+    out.push(match b.reason {
+        ByeReason::Left => 1,
+        ByeReason::Desync => 2,
+        ByeReason::Refused => 3,
+    });
+}
+
+fn decode_bye(r: &mut Reader<'_>) -> Result<Bye, WireError> {
+    let slot = read_slot(r)?;
+    let tick = r.u32()?;
+    let reason = match r.u8()? {
+        1 => ByeReason::Left,
+        2 => ByeReason::Desync,
+        3 => ByeReason::Refused,
+        other => return Err(WireError::UnknownReason(other)),
+    };
+    Ok(Bye { slot, tick, reason })
+}
+
 impl Packet {
     /// The one byte string of this packet, or the rule it breaks.
     pub fn encode(&self) -> Result<Vec<u8>, WireError> {
@@ -358,7 +414,9 @@ impl Packet {
         match self {
             Packet::Hello(h) => encode_hello(h, &mut out)?,
             Packet::Input(f) => encode_input(f, &mut out)?,
-            Packet::Ack(_) | Packet::Checkpoint(_) | Packet::Bye(_) => todo!("encode"),
+            Packet::Ack(a) => encode_ack(a, &mut out),
+            Packet::Checkpoint(c) => encode_checkpoint(c, &mut out)?,
+            Packet::Bye(b) => encode_bye(b, &mut out),
         }
         Ok(out)
     }
@@ -373,7 +431,12 @@ impl Packet {
         let packet = match tag {
             TAG_HELLO => Packet::Hello(decode_hello(&mut r)?),
             TAG_INPUT => Packet::Input(decode_input(&mut r)?),
-            TAG_ACK | TAG_CHECKPOINT | TAG_BYE => todo!("decode"),
+            TAG_ACK => Packet::Ack(Ack {
+                slot: read_slot(&mut r)?,
+                next_tick: r.u32()?,
+            }),
+            TAG_CHECKPOINT => Packet::Checkpoint(decode_checkpoint(&mut r)?),
+            TAG_BYE => Packet::Bye(decode_bye(&mut r)?),
             other => return Err(WireError::UnknownTag(other)),
         };
         r.finish()?;
