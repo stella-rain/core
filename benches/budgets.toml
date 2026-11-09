@@ -52,8 +52,10 @@ x86_64 = 5_600_000
 
 # rollback_session: one rolling-back Session::advance of the rollback_equip case at window 4 and
 # 16 (rollback_session_w4, rollback_session_w16, the largest is expected to be _w16) and one
-# CloneRing save (clone_ring_save). PLACEHOLDER: 12_400_000, the frame ceiling of ADR-SIM-5,
-# until the first CI count replaces it by the margin rule above; never above that ceiling.
+# CloneRing save (clone_ring_save). CI run 42721277452 at head 4cb25d5, x86_64: w4 12,108,363,
+# w16 39,071,489, save 886,712; arm64: largest case (w16) 39,248,692. The margin rule gives
+# 43,000,000 (x86_64) and 43,200,000 (arm64), over the frame ceiling of ADR-SIM-5 (12.4 M), so
+# the budget stays at that ceiling (a placeholder, Kade's call, ADR-SIM-6) and the target fails it.
 [rollback_session]
 arm64 = 12_400_000
 x86_64 = 12_400_000
