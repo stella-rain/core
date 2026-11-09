@@ -277,7 +277,7 @@ mod tests {
     /// T6: version 1 keeps the six totals it released and ignores an effect it never had.
     #[test]
     fn sim_v1_ignores_an_effect_it_never_had() {
-        let case = Engine::forced(1, bench_fixtures::worst_tick);
+        let case = Engine::forced(1, bench_fixtures::offers_cases::worst_tick);
         let Run::V1 { state, .. } = case.engine.run() else {
             panic!("version 1");
         };

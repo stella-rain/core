@@ -2,11 +2,13 @@
 //! `benches/time_limit_tick.rs`, which counts its instructions, and `tests/time_limit_case.rs`,
 //! which checks that the measured tick has the load it claims.
 
-use crate::engine::Engine;
+use crate::engine::{Engine, Outcome};
+use crate::event::DomainEvent;
+use crate::id::EntityId;
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
-use crate::run_setup::{self, RunSetup};
+use crate::run_setup::{self, BuildMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
 use crate::time_limit::TimeLimit;
@@ -14,16 +16,16 @@ use crate::validate;
 use crate::validate::limits::{MAX_AGENT_HP, MAX_PLAYER_HP};
 use crate::version::Versions;
 
-/// Ticks before the measured tick: the horde has all arrived (the cap of 260 is reached on tick
-/// 76) and the measured tick is one on which the main character's Main weapon hits
+/// Ticks before the measured tick, in equipment mode: the horde has all arrived (the cap of 260 is
+/// reached on tick 76) and the measured tick is one on which the main character's Main weapon hits
 /// (`tests/time_limit_case.rs`) and the most attacks are in progress while the horde is at the
 /// cap. Since BR1a nothing fires a projectile, so the load is zones, the crowd's rules and the
-/// melee: of the ticks from 76 to 2,500 (a placeholder for how long the horde keeps its cap) on
-/// which the Main weapon hits and 260 enemies stand, tick 1,027 has the most attacks running (3)
-/// and then the most zones (124), under the 840 px view (tick 1,999 before it). Chosen
-/// by the engine's `Load`, not by an instruction count: valgrind was not at hand (BR1a). The
-/// Sword's chain is five A's deep (ADR-REPL-5), so its tap-every-other-tick cycle is long.
-pub const WARMUP_TICKS: u32 = 1_026;
+/// melee: of the ticks from 77 to 2,500 (a placeholder for how long the horde keeps its cap) on
+/// which the Main weapon hits and 260 enemies stand, tick 295 has the most attacks running (3) and
+/// then the most zones (118). Found by `window`, which reads the engine's `Load`, not an
+/// instruction count; `tests/time_limit_case.rs` pins that the constant is where the scan puts it.
+/// In offers mode the same scan gave tick 1,027 (3 attacks, 124 zones): the run differs.
+pub const WARMUP_TICKS: u32 = 294;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.
 const STAGE_LENGTH_TICKS: u32 = 18_000;
@@ -133,7 +135,7 @@ pub fn input(tick: u32) -> Input {
 
 /// The bundled content with an enemy's attack at 100 stored, as the case was measured: the
 /// scripted input does not dodge, and the bundled 10,000 would end the run before the tick.
-fn content() -> RunContent {
+pub(crate) fn content() -> RunContent {
     let mut v: serde_json::Value =
         serde_json::from_slice(ContentFiles::bundled_file("run_stats")).unwrap();
     v["enemy_attack_damage"] = serde_json::json!(100);
@@ -141,9 +143,60 @@ fn content() -> RunContent {
     RunContent::new(stats, RunContent::bundled().rewards().clone())
 }
 
+/// The run's engine before its first tick, in equipment mode (ADR-SIM-7): the mode's stage and the
+/// bundled content, started through `Engine::new_equipped` with the setup's seed.
+pub fn start() -> Engine {
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        ..setup()
+    };
+    Engine::new_equipped(&stage(), &content(), &setup).expect("the run starts")
+}
+
+/// The first tick the scan of `window` reads and the last (a placeholder for how long the horde
+/// keeps its cap: the cap of 260 is reached on tick 76).
+const SCAN: std::ops::RangeInclusive<u32> = 77..=2_500;
+
+/// Whether the main character's Main weapon landed a hit on the tick the engine just played.
+fn main_hits(engine: &Engine) -> bool {
+    engine
+        .events()
+        .iter()
+        .any(|e| matches!(e, DomainEvent::Hit { source, .. } if *source == EntityId(0)))
+}
+
+/// Scans the run for its heaviest tick: of the ticks `SCAN` plays on which the Main weapon hits
+/// and 260 enemies stand, the one with the most attacks running, then the
+/// most zones, the first on a tie. Returns the tick (the number `input` takes) with its tasks and
+/// zones, as the engine's `Load` reads them. `WARMUP_TICKS` is that tick minus one
+/// (`tests/time_limit_case.rs`).
+pub fn window() -> (u32, u32, u32) {
+    let cap = u32::from(super::enemy_cap());
+    let mut engine = start();
+    let mut best = (0, 0, 0);
+    for tick in 1..=*SCAN.end() {
+        engine.step(&[input(tick), Default::default(), Default::default()]);
+        assert_eq!(
+            engine.outcome(),
+            Outcome::Running,
+            "the run ended on {tick}"
+        );
+        let load = engine.load();
+        if SCAN.contains(&tick)
+            && main_hits(&engine)
+            && load.enemies == cap
+            && (load.tasks, load.zones) > (best.1, best.2)
+        {
+            best = (tick, load.tasks, load.zones);
+        }
+    }
+    assert!(best.0 > 0, "a tick with the horde at its cap");
+    best
+}
+
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the measured tick.
 pub fn warmed_up() -> Engine {
-    let mut engine = Engine::new_with(&stage(), &content()).expect("the run starts");
+    let mut engine = start();
     for tick in 1..=WARMUP_TICKS {
         engine.step(&[input(tick), Default::default(), Default::default()]);
     }

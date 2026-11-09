@@ -239,11 +239,11 @@ fn dir_digests(sub: &str, digest: fn(&Path) -> String) -> Vec<(String, String)> 
 /// The pins: first 16 hex of the digest, one per case. Set from the first run on the code before
 /// the entity numbers moved; they are hand-written and move only with a new observable.
 const PINS: &[(&str, &str)] = &[
-    ("bench/hit_tick", "f64f9481e1da100e"),
-    ("bench/hit_tick_spread", "1217dc2a143d9ddc"),
-    ("bench/time_limit_tick", "52a6f5c095f3df15"),
+    ("bench/hit_tick", "417dacf52347d9d4"),
+    ("bench/hit_tick_spread", "0c234bd40ff7a55d"),
+    ("bench/time_limit_tick", "81f6f742d510154e"),
     ("bench/worst_minute", "2b17eb6f9e66ad70"),
-    ("bench/worst_tick", "0972107bae166f97"),
+    ("bench/worst_tick", "4e09ff4c176f4f07"),
     ("runs/easy", "630771e5439fde6e"),
     ("runs/elites", "20016aa5001f8af8"),
     ("runs/rainy", "8b38730cd96fdc7e"),

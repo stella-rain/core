@@ -472,7 +472,7 @@ mod offers {
 
     /// A party of `mask` over the worst case, whose slot 0 holds offers with every field set.
     fn party(mask: u8) -> State {
-        let e = worst_case::warmed_up();
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
         let mut s = live(&e).1.clone();
         s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
         let c = s.players.career_mut(PlayerIdx::SOLO);
@@ -533,10 +533,18 @@ mod offers {
 
     #[test]
     fn a_slot_0_offer_stream_is_the_one_the_run_started_with() {
-        let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+        let e = Engine::new_with(
+            &crate::bench_fixtures::offers_cases::worst_stage(),
+            &crate::bench_fixtures::offers_cases::worst_content(),
+        )
+        .expect("starts");
         let (_, s) = live(&e);
         assert!(s.players.career(PlayerIdx::SOLO).offers.is_some());
-        let again = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
+        let again = Engine::new_with(
+            &crate::bench_fixtures::offers_cases::worst_stage(),
+            &crate::bench_fixtures::offers_cases::worst_content(),
+        )
+        .expect("starts");
         assert_eq!(
             s.players.career(PlayerIdx::SOLO).offer,
             live(&again).1.players.career(PlayerIdx::SOLO).offer
@@ -670,7 +678,7 @@ mod offers {
 
     #[test]
     fn reserve_makes_room_in_each_present_slots_due() {
-        let e = worst_case::warmed_up();
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
         let (world, s) = live(&e);
         let cap = usize::from(
             world
@@ -1031,7 +1039,7 @@ mod route {
 
     /// The worst case as a party of `n`.
     fn party(n: u8) -> Engine {
-        worst_case::warmed_up().into_party(n)
+        crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(n)
     }
 
     fn state_mut(e: &mut Engine) -> &mut State {
@@ -1105,7 +1113,7 @@ mod route {
 
     #[test]
     fn of_id_names_the_present_slot_of_an_entity_number() {
-        let e = worst_case::warmed_up();
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
         let ps = ps(&e);
         let p = Players::with_mask(0b011, ps.clone());
         assert_eq!(p.of_id(EntityId(0)), Some(PlayerIdx::SOLO));
@@ -1389,7 +1397,7 @@ mod route {
 
     #[test]
     fn xp_and_stardust_are_shared_by_every_present_player() {
-        let e = worst_case::warmed_up().into_party(3);
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(3);
         let (w, s) = live(&e);
         let (mut w, mut s) = (w.clone(), s.clone());
         w.stage.stardust = Some(crate::stage::StardustFactor {
@@ -1436,7 +1444,7 @@ mod route {
 
     #[test]
     fn an_absent_slot_earns_nothing_and_nothing_panics() {
-        let e = worst_case::warmed_up();
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
         let (w, s) = live(&e);
         let (w, mut s) = (w.clone(), s.clone());
         s.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&s.players);
@@ -1452,7 +1460,7 @@ mod route {
     #[test]
     fn the_lowest_slot_takes_the_star_both_circles_cover() {
         use super::super::state::StarState;
-        let e = worst_case::warmed_up().into_party(2);
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(2);
         let (w, s) = live(&e);
         let (w, mut s) = (w.clone(), s.clone());
         let due = |s: &State, i: u8| s.players.career(slot(i)).offers.as_ref().unwrap().due.len();
@@ -1491,7 +1499,7 @@ mod route {
 
     #[test]
     fn a_boss_kill_makes_a_boss_offer_due_to_each_present_player() {
-        let e = worst_case::warmed_up().into_party(3);
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(3);
         let (w, s) = live(&e);
         let (w, mut s) = (w.clone(), s.clone());
         super::super::stars::boss_killed(&w, &mut s);

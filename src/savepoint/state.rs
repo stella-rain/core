@@ -788,7 +788,7 @@ mod players_tests {
         use crate::savepoint::DecodeError;
         use crate::sim::equipment::{EquipSlot, Held, SlotKind};
 
-        let e = worst_case::warmed_up().into_party(2);
+        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(2);
         let Run::V2 { world, state } = e.run() else {
             panic!("the live rules")
         };
@@ -870,11 +870,11 @@ mod players_tests {
 
     #[test]
     fn slot_0s_career_round_trips_and_its_presence_is_checked() {
-        use crate::bench_fixtures::time_limit_case;
+        use crate::bench_fixtures::{offers_cases, time_limit_case};
         use crate::savepoint::DecodeError;
         use crate::savepoint::state::{decode_state, encode_state};
 
-        let e = time_limit_case::warmed_up();
+        let e = offers_cases::time_limit_tick().engine;
         let fresh = Engine::new_with(&time_limit_case::stage(), e.content()).unwrap();
         let (
             Run::V2 { state: before, .. },
@@ -1187,7 +1187,7 @@ mod offers_tests {
     //! Slot 0's star offers and offer generator sit where the star field and the run's generator
     //! were: they round-trip through format 1 and the shape check names the offers' lists.
 
-    use crate::bench_fixtures::{time_limit_case, worst_case};
+    use crate::bench_fixtures::{offers_cases, time_limit_case, worst_case};
     use crate::engine::{Engine, Run};
     use crate::id::PlayerIdx;
     use crate::savepoint::DecodeError;
@@ -1220,12 +1220,12 @@ mod offers_tests {
         let mut opened = 0;
         for (e, stage, input) in [
             (
-                worst_case::warmed_up(),
-                worst_case::stage(),
+                offers_cases::worst_warmed_up(),
+                offers_cases::worst_stage(),
                 worst_case::input as fn(u32) -> _,
             ),
             (
-                time_limit_case::warmed_up(),
+                offers_cases::time_limit_tick().engine,
                 time_limit_case::stage(),
                 time_limit_case::input,
             ),
@@ -1259,8 +1259,8 @@ mod offers_tests {
 
     #[test]
     fn the_shape_check_refuses_an_offers_list_of_the_wrong_length() {
-        let e = worst_case::warmed_up();
-        let fresh = Engine::new_with(&worst_case::stage(), e.content()).unwrap();
+        let e = offers_cases::worst_warmed_up();
+        let fresh = Engine::new_with(&offers_cases::worst_stage(), e.content()).unwrap();
         let (Run::V2 { state: s, .. }, Run::V2 { state: blank, .. }) = (e.run(), fresh.run())
         else {
             panic!("the live rules")
@@ -1288,7 +1288,7 @@ mod career_rest_tests {
     //! Slot 0's expertise gauge, Stardust and regeneration sit where the run's single ones were:
     //! they round-trip through format 1 and the shape check names their presence and lengths.
 
-    use crate::bench_fixtures::{time_limit_case, worst_case};
+    use crate::bench_fixtures::{offers_cases, time_limit_case};
     use crate::engine::{Engine, Run};
     use crate::id::PlayerIdx;
     use crate::savepoint::DecodeError;
@@ -1300,8 +1300,11 @@ mod career_rest_tests {
     fn slot_0s_gauge_stardust_and_regen_round_trip() {
         let mut gauges = 0;
         for (e, stage) in [
-            (worst_case::warmed_up(), worst_case::stage()),
-            (time_limit_case::warmed_up(), time_limit_case::stage()),
+            (offers_cases::worst_warmed_up(), offers_cases::worst_stage()),
+            (
+                offers_cases::time_limit_tick().engine,
+                time_limit_case::stage(),
+            ),
         ] {
             let fresh = Engine::new_with(&stage, e.content()).unwrap();
             // The cases earn nothing in their warm-up, so the values are set on a copy.
@@ -1342,8 +1345,11 @@ mod career_rest_tests {
     fn the_shape_check_names_the_gauge_and_stardust() {
         let mut checked = 0;
         for (e, stage) in [
-            (worst_case::warmed_up(), worst_case::stage()),
-            (time_limit_case::warmed_up(), time_limit_case::stage()),
+            (offers_cases::worst_warmed_up(), offers_cases::worst_stage()),
+            (
+                offers_cases::time_limit_tick().engine,
+                time_limit_case::stage(),
+            ),
         ] {
             let fresh = Engine::new_with(&stage, e.content()).unwrap();
             let (Run::V2 { state, .. }, Run::V2 { state: blank, .. }) = (e.run(), fresh.run())

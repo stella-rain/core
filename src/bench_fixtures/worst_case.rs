@@ -2,13 +2,18 @@
 //! instructions, and `tests/worst_case.rs`, which checks that it really reaches every dynamic
 //! cap: a benchmark of a tick that does not would pass without measuring the worst case.
 
-use super::common::on_hit::{self, NEAR_Y};
-use super::common::{self, START_X};
+use super::common::on_hit;
+use super::common::{self};
 use crate::engine::{Engine, Load, Outcome};
-use crate::input::Input;
+use crate::id::PlayerIdx;
+use crate::input::{EquipAction, Input};
 use crate::pack::ContentFiles;
+use crate::rewards::Rewards;
 use crate::run_content::RunContent;
+use crate::run_setup::{BuildMode, RunSetup};
+use crate::rune::Rune;
 use crate::runes::{MAX_DOT_STACKS, Runes};
+use crate::snapshot::SlotKindView;
 use crate::stage::Stage;
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_ELITES_ALIVE};
 use crate::version::Versions;
@@ -18,8 +23,8 @@ use serde_json::{Value, json};
 /// statuses are at their stack cap, and the main character is charged.
 pub const WARMUP_TICKS: u32 = 420;
 
-/// The tick the crowd start to arrive: after the main character has taken every rune and
-/// Rune Haste from the first eight enemies' stars (`take_runes`).
+/// The tick the crowd start to arrive: after the main character has walked into place
+/// (`WALK_FROM`).
 pub const WAVES_AT: u32 = 150;
 
 /// The tick the shooter that lays a warning line arrives: after the boss and the companions have
@@ -32,7 +37,7 @@ const LINE_SHOOTER_DX: i32 = 160 * 256;
 
 /// The tick the main character sets off for the enemies, and the ticks it walks left and up
 /// before it stands about 36,000 units from them with every enemy inside its step.
-const WALK_FROM: u32 = 100;
+pub(crate) const WALK_FROM: u32 = 100;
 const WALK_LEFT_TICKS: u32 = 40;
 const WALK_UP_TICKS: u32 = 140;
 
@@ -43,9 +48,8 @@ const TAP_FROM: u32 = WALK_FROM + WALK_LEFT_TICKS + WALK_UP_TICKS + 4;
 /// Ticks the main character charges before it lets go on the measured tick.
 const CHARGE_TICKS: u32 = 24;
 
-/// The Rune Haste reward: the most one gives (`DEFAULT_MAX_RUNE_HASTE_PCT`), so that the picks reach
-/// the cap.
-const HASTE: &str = "haste";
+/// The Rune Haste reward's ID.
+pub(crate) const HASTE: &str = "haste";
 
 /// Where the enemies stand.
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
@@ -71,9 +75,9 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// longer than the case, so each holds its token. The 32 orbs (`MAX_ORBS_ALIVE`) fly slowly
 /// for 600 ticks and burst into nothing. No other projectile is alive or made.
 ///
-/// The main character is a run that holds every rune: before the enemies arrive it
-/// kills eight small ones in front of it and takes the seven runes and Rune Haste of 300 percent
-/// (`DEFAULT_MAX_RUNE_HASTE_PCT`) from their stars, as a run does, through `Engine::new_with`. It then
+/// The main character is a run in equipment mode that holds every rune: it starts through
+/// `Engine::new_equipped` with the seven runes in its rune slots and Rune Haste of 300 percent
+/// (`DEFAULT_MAX_RUNE_HASTE_PCT`) in slot 0 (`start`), and no offer ever opens. It
 /// walks to the left of the enemies, about 36,000 units from them (out of the 128-pixel arcs of their
 /// attacks), where its Main weapon's step, a circle of 256
 /// pixels, lands on all of them every tick: each hit puts a stack of bleed, poison and burn
@@ -162,14 +166,7 @@ pub fn stage() -> Stage {
         common::hold(x, y),
         json!([volley(line_shot), back]),
     );
-    let mut waves = vec![common::wave(
-        1,
-        PICKS,
-        6,
-        common::enemy(1, common::hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )];
+    let mut waves = Vec::new();
     // The shooters arrive first, so that their runs take their tokens and attack tasks before
     // the crowd's swings fill the 256; then 496 enemies in five streams of waves.
     // The one that lays the line arrives on tick 2, before the companions' cleaves fill the free
@@ -177,7 +174,7 @@ pub fn stage() -> Stage {
     // stack.
     // It spawns in view of the main character's start (RA1b, DS82), so that RA1's off-view rule
     // lets its ranged attack start on arrival; its rules send it back to the stack as the others.
-    let (line_x, line_y) = (START_X + LINE_SHOOTER_DX, common::START_Y);
+    let (line_x, line_y) = (common::START_X + LINE_SHOOTER_DX, common::START_Y);
     waves.push(common::wave(
         LINE_SHOOTER_AT,
         1,
@@ -259,6 +256,8 @@ pub fn stage() -> Stage {
         common::stage_full(18_000, Some(boss), waves, vec![guard; 4]),
         main,
     );
+    // Levels and stars are kept from the offers-mode stage: the readers of the state (progress,
+    // the star field) need them, and in equipment mode nothing opens an offer from them.
     stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
     stage.stars = Some(
         serde_json::from_value(json!({
@@ -289,17 +288,17 @@ const ELITE_BASES: [&str; 3] = ["bat", "fairy_a", "horns_2"];
 /// (a placeholder; the main character stands 36,000 units away, so they fire on every tick).
 const ELITE_RANGE: i32 = 51_200;
 
-/// The first enemies the main character kills, for the stars that give it every rune and Rune
-/// Haste: seven runes, then the Rune Haste reward.
-const PICKS: u16 = 8;
+/// The Rune Haste reward: 300 percent (`DEFAULT_MAX_RUNE_HASTE_PCT`), the cap, and a `limit` of 2 (a
+/// limit above 1 does not stack in the build). Without a `category`: the offers-mode content of
+/// `offers_cases` reads it as is.
+pub(crate) fn haste() -> Value {
+    json!({ "id": HASTE, "rarity": "common", "effect": "rune_haste",
+            "amount": 300, "limit": 2 })
+}
 
-/// The run's content: the random rune and Rune Haste of 300 percent (`DEFAULT_MAX_RUNE_HASTE_PCT`) to
-/// pick from, the bundled on-hit runes, and damage-over-time runes that stack to the cap
-/// (`MAX_DOT_STACKS`), last for 600 ticks and tick every 4, which full Rune Haste makes every
-/// tick.
-pub fn content() -> RunContent {
-    let haste = json!({ "id": HASTE, "rarity": "common", "effect": "rune_haste",
-                        "amount": 300, "limit": 2 });
+/// The bundled on-hit runes and damage-over-time runes that stack to the cap (`MAX_DOT_STACKS`),
+/// last for 600 ticks and tick every 4, which full Rune Haste makes every tick.
+pub(crate) fn runes() -> Runes {
     let mut file: Value =
         serde_json::from_slice(ContentFiles::bundled_file("runes")).expect("the bundled runes");
     let dots: Vec<Value> = ["bleed", "poison", "burn"]
@@ -307,9 +306,60 @@ pub fn content() -> RunContent {
         .map(|r| on_hit::dot(r, 4, 600, 1, MAX_DOT_STACKS))
         .collect();
     file["damage_over_time"] = json!(dots);
-    let runes =
-        Runes::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the worst-case runes");
-    on_hit::content(vec![on_hit::random_rune(), haste], None, runes)
+    Runes::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the worst-case runes")
+}
+
+/// The equipment rules of the run: the bundled ones with a rune slot for every rune
+/// (`Rune::ALL`), as `tests/rune_haste.rs` has them.
+fn equipment() -> Value {
+    let rules = Rewards::bundled().equipment().expect("the pack's rules");
+    let mut rules = serde_json::to_value(rules).expect("the rules serialise");
+    rules["rune_slots"] = json!(Rune::ALL.len());
+    rules
+}
+
+/// The run's content: the random rune and Rune Haste (an `attack` reward, as the bundled
+/// `rune_haste_*` are) over the equipment rules of `equipment`, and `runes`.
+pub fn content() -> RunContent {
+    let mut haste = haste();
+    haste["category"] = json!("attack");
+    let file = json!({ "rarities": on_hit::rarities(), "rewards": [on_hit::random_rune(), haste],
+                       "equipment": equipment() });
+    on_hit::content_of(file, None, runes())
+}
+
+/// An engine at the start of the scripted run: in equipment mode (`Engine::new_equipped`, the
+/// stage's seed), with Rune Haste in slot 0 (`script_equipment`) and the seven runes in the rune
+/// slots (`script_runes`, then an `Equip` each), all at Lv1, before tick 1.
+pub fn start() -> Engine {
+    let stage = stage();
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        seed: u64::from(stage.seed),
+        ..RunSetup::default()
+    };
+    let mut engine = Engine::new_equipped(&stage, &content(), &setup).expect("the run starts");
+    engine
+        .script_equipment(PlayerIdx::SOLO, &[HASTE.into()], &[(0, 1)])
+        .expect("Rune Haste is scripted");
+    engine
+        .script_runes(PlayerIdx::SOLO, &Rune::ALL)
+        .expect("the runes are scripted");
+    // The first rune slot comes from the layout itself: the categories' slots, then the rune
+    // slots. An equip takes its item out of the inventory, so the next one is item 0 again.
+    let slots = engine.snapshot().players[0].slots.clone();
+    let first_rune = slots
+        .iter()
+        .position(|s| s.kind == SlotKindView::Rune)
+        .expect("a rune slot");
+    let first_rune = u32::try_from(first_rune).expect("a slot index");
+    let targets = std::iter::once(0).chain((0..).map(|n| first_rune + n));
+    for slot in targets.take(1 + Rune::ALL.len()) {
+        engine
+            .act(PlayerIdx::SOLO, EquipAction::Equip { item: 0, slot })
+            .expect("an accepted equip");
+    }
+    engine
 }
 
 /// The input of tick `tick` (from 1) once the runes are taken: the main character walks left
@@ -351,28 +401,13 @@ fn weight(load: Load) -> u64 {
     .sum()
 }
 
-/// An engine at the start of the scripted run: the main character has taken every rune and
-/// Rune Haste from the stars of the eight enemies that stand in front of it, as a run does
-/// (`on_hit::take_all`).
-fn runes_taken() -> Engine {
-    let mut engine = on_hit::with(&stage(), &content());
-    on_hit::take_all(&mut engine);
-    on_hit::take(&mut engine, HASTE);
-    assert!(
-        engine.tick() < WALK_FROM,
-        "the runes were taken by tick {}",
-        engine.tick()
-    );
-    engine
-}
-
 /// The `Load` weight of every tick the scripted run plays from the first tap (`TAP_FROM`: before
 /// it no enemy carries a status, which `Load` does not see) up to 60 ticks past the measured one
 /// (the span `the_caps_are_held_tick_after_tick` holds the caps in): pairs of the tick (the
 /// number `input` takes) and its weight. Counted by instructions on x86_64, the ticks before the
 /// first tap are lighter (tick 241: 4.60 M against 5.19 M at the measured tick).
 pub fn weights() -> Vec<(u32, u64)> {
-    let mut engine = runes_taken();
+    let mut engine = start();
     let mut weights = Vec::new();
     for tick in engine.tick() + 1..=WARMUP_TICKS + 60 {
         engine.step(&[input(tick), Default::default(), Default::default()]);
@@ -402,10 +437,9 @@ pub fn window() -> Vec<u32> {
 }
 
 /// An engine `WARMUP_TICKS` ticks into the run: the next `step` is the worst-case tick. The
-/// main character takes every rune and Rune Haste first, from the stars of the eight enemies
-/// that stand in front of it, as a run does (`on_hit::take_all`).
+/// main character holds every rune and Rune Haste from the start (`start`).
 pub fn warmed_up() -> Engine {
-    let mut engine = runes_taken();
+    let mut engine = start();
     for tick in engine.tick() + 1..=WARMUP_TICKS {
         engine.step(&[input(tick), Default::default(), Default::default()]);
     }

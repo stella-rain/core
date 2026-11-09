@@ -1,12 +1,20 @@
 //! The rune helpers of the worst case (a copy of the subset of `tests/common/on_hit.rs` it uses).
 
-use super::{START_Y, design_run_stats, firing, idle};
+#[cfg(test)]
+use super::START_Y;
+use super::design_run_stats;
+#[cfg(test)]
+use super::{firing, idle};
+#[cfg(test)]
 use crate::engine::Engine;
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
+#[cfg(test)]
 use crate::rune::Rune;
 use crate::runes::Runes;
+#[cfg(test)]
 use crate::snapshot::OfferOption;
+#[cfg(test)]
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
 use crate::version::Versions;
@@ -14,6 +22,7 @@ use serde_json::{Value, json};
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
 /// taken at once, and inside the step's hit box.
+#[cfg(test)]
 pub const NEAR_Y: i32 = START_Y - 8_192;
 
 pub fn random_rune() -> Value {
@@ -24,7 +33,7 @@ pub fn random_rune() -> Value {
 
 /// The `rarities` list of a rewards file: what each rarity costs in Lumine, as the bundled file
 /// has it.
-fn rarities() -> Value {
+pub fn rarities() -> Value {
     json!([
         { "rarity": "common", "lumine_cost": 1 },
         { "rarity": "uncommon", "lumine_cost": 2 },
@@ -36,8 +45,19 @@ fn rarities() -> Value {
 }
 
 /// The run content of `rewards` (read with `skills`, when given) and `runes`.
+#[cfg(test)]
 pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "rarities": rarities(), "rewards": rewards }).to_string();
+    content_of(
+        json!({ "rarities": rarities(), "rewards": rewards }),
+        skills,
+        runes,
+    )
+}
+
+/// The run content of the rewards file `file` (read with `skills`, when given) and `runes`: a file
+/// that carries an `equipment` object runs in equipment mode.
+pub fn content_of(file: Value, skills: Option<Value>, runes: Runes) -> RunContent {
+    let file = file.to_string();
     let rewards = match skills {
         Some(skills) => {
             let skills = json!({ "stage_skills": skills });
@@ -51,11 +71,13 @@ pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunC
     RunContent::new(design_run_stats(), rewards).with_runes(runes)
 }
 
+#[cfg(test)]
 pub fn with(stage: &Stage, content: &RunContent) -> Engine {
     Engine::new_with(stage, content).expect("the case stage is valid")
 }
 
 /// Fires until an offer is open, then takes the candidate that is `reward`.
+#[cfg(test)]
 pub fn take(e: &mut Engine, reward: &str) {
     for _ in 0..600 {
         e.step(&[
@@ -91,6 +113,7 @@ pub fn take(e: &mut Engine, reward: &str) {
 
 /// Takes the random rune from the next seven offers: the Main holds every rune, in the order
 /// drawn.
+#[cfg(test)]
 pub fn take_all(e: &mut Engine) {
     for _ in Rune::ALL {
         take(e, "random_rune");

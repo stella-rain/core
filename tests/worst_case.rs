@@ -363,8 +363,9 @@ fn the_shooters_stand_in_the_view_of_the_main_character() {
 fn the_line_shooter_arrives_in_view_of_the_main_character() {
     // RA1 bars a ranged start outside the 840 x 360 view, so the shooter that lays the warning
     // line must already be in view when it arrives (tick 2), or the companions take its zone
-    // place first (RA1b, DS82). On tick 2 the only enemies are the first wave and that shooter.
-    let mut engine = Engine::new_with(&worst_case::stage(), &worst_case::content()).unwrap();
+    // place first (RA1b, DS82). The run starts with its runes in hand and no first wave, so on tick 3
+    // the only enemy is that shooter (the crowd arrives at `WAVES_AT`).
+    let mut engine = worst_case::start();
     for tick in 1..=3 {
         engine.step(&[
             worst_case::input(tick),
@@ -379,7 +380,11 @@ fn the_line_shooter_arrives_in_view_of_the_main_character() {
         .iter()
         .filter(|e| e.kind == EntityKind::Enemy)
         .collect();
-    assert!(enemies.len() >= 2, "enemies on tick 3: {}", enemies.len());
+    assert_eq!(
+        enemies.len(),
+        1,
+        "the line shooter is the only enemy on tick 3"
+    );
     for e in enemies {
         let (dx, dy) = ((e.at.x.0 - me.x.0).abs(), (e.at.y.0 - me.y.0).abs());
         assert!(dx <= 420 * 256, "{:?} is {dx} units off on x", e.id);

@@ -130,3 +130,14 @@ fn the_measured_tick_holds_the_horde_a_boss_and_the_main_characters_hits() {
         .count();
     assert!(hits >= 1, "the Main weapon hits on the measured tick");
 }
+
+#[test]
+fn the_measured_tick_is_the_heaviest_of_the_scan() {
+    let (tick, tasks, zones) = time_limit_case::window();
+    assert_eq!(
+        tick,
+        time_limit_case::WARMUP_TICKS + 1,
+        "{tasks} tasks, {zones} zones"
+    );
+    assert!(tasks >= 1 && zones >= 1);
+}
