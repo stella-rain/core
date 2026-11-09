@@ -638,3 +638,79 @@ fn random_inputs_keep_every_invariant() {
         }
     }
 }
+
+// --- Stop runs (ADR-SIM-7 point 4) ---------------------------------------------------------------
+
+mod stop_runs {
+    use crate::common;
+    use stella_rain_core::engine::Engine;
+    use stella_rain_core::input::Input;
+    use stella_rain_core::run_replay::{RunRecorder, RunReplayError};
+    use stella_rain_core::run_setup::RunSetup;
+
+    fn d() -> Input {
+        Input::default()
+    }
+
+    /// One step with the scripted bot.
+    fn bot_step(e: &mut Engine) {
+        let i = common::run::run_input(e, e.tick());
+        e.step(&[i, d(), d()]);
+    }
+
+    /// Plays `e` with the bot until the first offer is open; returns the tick it opened on.
+    fn until_offer(e: &mut Engine) -> u32 {
+        while !e.offer_open() {
+            assert!(e.tick() < 3000, "no offer before tick 3000");
+            bot_step(e);
+        }
+        e.tick()
+    }
+
+    /// The state hash of the stop engine after 600 bot steps (a pick is a step), recorded on the base
+    /// build before the mode existed and re-pinned for the per-player layout and the slot generations, then for the 11 stat totals, then for the 13 totals and the weapon-set tenths, then for the six new rewards that lengthen the hashed `taken` and `banished`.
+    const STOP_HASH_600: u64 = 1_470_263_959_013_208_322;
+
+    #[test]
+    fn stop_is_byte_identical_to_the_base() {
+        let mut e = Engine::start(&RunSetup::default()).unwrap();
+        for _ in 0..600 {
+            if e.offer_open() {
+                common::pick(&mut e, 0).unwrap();
+            } else {
+                bot_step(&mut e);
+            }
+        }
+        assert_eq!((e.state_hash(), e.tick()), (STOP_HASH_600, 594));
+    }
+
+    #[test]
+    fn stop_with_an_offer_open_stops_the_world() {
+        let mut e = Engine::start(&RunSetup {
+            pick_stats: true,
+            ..RunSetup::default()
+        })
+        .unwrap();
+        let t = until_offer(&mut e);
+        let h = e.state_hash();
+        e.step(&[d(), d(), d()]);
+        assert_eq!((e.tick(), e.state_hash()), (t, h));
+        e.step(&[Input::picking(0), d(), d()]);
+        assert_eq!(e.tick(), t);
+        assert!(!e.offer_open() || e.state_hash() != h);
+        let mut r = RunRecorder::start(&RunSetup {
+            pick_stats: true,
+            ..RunSetup::default()
+        })
+        .unwrap();
+        while !r.engine().offer_open() {
+            let i = common::run::run_input(r.engine(), r.engine().tick());
+            r.step(&[i, d(), d()]).unwrap();
+        }
+        let tick = r.engine().tick();
+        assert!(matches!(
+            r.step(&[d(), d(), d()]),
+            Err(RunReplayError::OfferOpen { tick: t }) if t == tick
+        ));
+    }
+}
