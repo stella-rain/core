@@ -180,3 +180,71 @@ fn the_search_reports_a_hit_and_a_miss() {
         miss.line
     );
 }
+
+// The seven movable party cases (ADR-SIM-7, ADR-SIM-3).
+
+/// The seven party cases the search moves to equipment mode.
+const PARTY_NAMES: [&str; 7] = [
+    "two_time_limit",
+    "three_time_limit",
+    "three_tutorial",
+    "join_two",
+    "leave_hole",
+    "two_revive",
+    "three_revive",
+];
+
+/// Plays `name` from (`world`, `bot`) in memory and checks its promise: one line
+/// `case world bot outcome ticks hit|miss: <first missed predicate>`.
+fn party_pair(name: &'static str, world: u64, bot: u64) -> Pair {
+    let replay = crate::run_play::party_case(name, world, bot)
+        .play()
+        .replay();
+    let miss = crate::party_run::party_promise_miss(name, &replay);
+    let head = match run_replay::verify_run(&replay.to_bytes()) {
+        Ok(v) => format!("{name} {world} {bot} {:?} {}", v.outcome, v.ticks),
+        Err(e) => format!("{name} {world} {bot} unverified {e:?}"),
+    };
+    match miss {
+        None => Pair {
+            hit: true,
+            line: format!("{head} hit"),
+        },
+        Some(why) => Pair {
+            hit: false,
+            line: format!("{head} miss: {why}"),
+        },
+    }
+}
+
+/// Searches a party case over world seeds 1..=20 x bot seeds 1..=20 (world outer, bot inner),
+/// prints a line per pair and stops at the first hit.
+fn search_party(name: &'static str) -> Option<(u64, u64)> {
+    for world in 1..=20 {
+        for bot in 1..=20 {
+            let pair = party_pair(name, world, bot);
+            println!("{}", pair.line);
+            if pair.hit {
+                println!("SEED {name} world {world} bot {bot}");
+                return Some((world, bot));
+            }
+        }
+    }
+    println!("NOHIT {name}");
+    None
+}
+
+/// `cargo test --release --locked --test integration search_corpus_party_seeds -- --ignored
+/// --nocapture`.
+#[test]
+#[ignore = "a seed search, run by hand"]
+fn search_corpus_party_seeds() {
+    let quiet = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let missing: Vec<_> = PARTY_NAMES
+        .into_iter()
+        .filter(|name| search_party(name).is_none())
+        .collect();
+    std::panic::set_hook(quiet);
+    assert!(missing.is_empty(), "no seed delivers: {missing:?}");
+}

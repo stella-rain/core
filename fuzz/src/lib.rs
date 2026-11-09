@@ -389,13 +389,13 @@ pub fn savepoint_recorder(cut: Option<u32>) -> RunRecorder {
     recorder_until(&run, cut)
 }
 
-/// The party run of the savepoint target: a corpus party case (3 players, the time_limit mode),
-/// in which slots 1 and 2 answer an offer of their own in the middle of the run.
+/// The party run of the savepoint target: a corpus party case (3 players, the time_limit mode,
+/// equipment mode), in which slots 1 and 2 make equipment actions in the middle of the run.
 const PARTY_RUN: &[u8] =
     include_bytes!("../../tests/corpus/current/parties/three_time_limit/run.replay");
 
-/// The ticks the party target's prefixes are cut at: running, and with the first offer of
-/// slot 1 or 2 open (found in the run's step log).
+/// The ticks the party target's prefixes are cut at: running, and at the first action of
+/// slot 1 or 2 (found in the run's step log).
 fn party_cuts() -> [u32; 2] {
     let run = RunReplay::from_bytes(PARTY_RUN).expect("the party run is a run replay");
     let range = run
@@ -405,7 +405,8 @@ fn party_cuts() -> [u32; 2] {
     for step in &range.steps {
         match step {
             RangeStep::Ticks { run, .. } => world += run,
-            RangeStep::Picks { picks } if picks[1..].iter().any(Option::is_some) => {
+            // The entries are dense by the present mask; the case starts with all three slots.
+            RangeStep::Actions { actions } if actions[1..].iter().any(Option::is_some) => {
                 return [150, world];
             }
             RangeStep::Picks { .. }
@@ -414,7 +415,7 @@ fn party_cuts() -> [u32; 2] {
             | RangeStep::Leave { .. } => {}
         }
     }
-    panic!("a pick by slot 1 or 2");
+    panic!("an action by slot 1 or 2");
 }
 
 /// The party run of the savepoint target played to `cut` ticks (before the picks that follow
@@ -577,7 +578,7 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
             party_recorder(Some(150)).save(),
         ),
         (
-            "valid-party-open".to_owned(),
+            "valid-party-action".to_owned(),
             party_recorder(Some(party_cuts()[1])).save(),
         ),
         (

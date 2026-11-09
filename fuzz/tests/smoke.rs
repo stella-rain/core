@@ -984,12 +984,12 @@ fn a_party_savepoint_gets_past_the_loader() {
     let running = party_recorder(Some(150));
     assert_eq!(running.engine().players(), 3);
     assert!(savepoint_load(&running.save()), "party, tick 150");
-    // The cut where slot 1 or 2 holds an open offer.
+    // The cut at the first action of slot 1 or 2.
     let (_, open_seed) = savepoint_seeds()
         .into_iter()
-        .find(|(name, _)| name == "valid-party-open")
-        .expect("the party open seed");
-    assert!(savepoint_load(&open_seed), "party, offer open");
+        .find(|(name, _)| name == "valid-party-action")
+        .expect("the party action seed");
+    assert!(savepoint_load(&open_seed), "party, action pending");
     // The party run whole is cut by its tick limit while still running, so it loads too; a
     // savepoint of a tick no prefix holds does not.
     assert!(savepoint_load(&party_recorder(None).save()), "party, whole");
