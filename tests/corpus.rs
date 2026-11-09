@@ -1391,7 +1391,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// and answering its offers on the way, with every kind of option; and the same from another
 /// seed, whose run takes a stage skill from an elite's star and uses it.
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
-type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
+pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 
 fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
@@ -1489,6 +1489,104 @@ fn run_definitions() -> Vec<RunDefinition> {
             elites_commands,
         ),
     ]
+}
+
+/// The run cases in equipment mode (ADR-SIM-7): the case `name` played from the world seed `seed`
+/// with the building bot `PartyBot::building(bot_seed)`, steered as the offers-era case was. The
+/// seed search (`corpus_seeds.rs`) and `run_definitions` both build a case here.
+pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> RunDefinition {
+    use crate::party_bot::PartyBot;
+    use crate::run_play::{
+        play_equipment_run_from, play_equipment_run_in, play_equipment_run_with,
+    };
+    use common::equip_run::equipment_setup;
+    use common::run::{TRIAL_LENGTH, time_limit_setup, trial_setup};
+    let bot = PartyBot::building(bot_seed);
+    let bundled = RunContent::bundled();
+    let base = RunSetup {
+        seed,
+        ..trial_setup()
+    };
+    let limited = RunSetup {
+        seed,
+        ..time_limit_setup()
+    };
+    let pack = |case: &str| Some(override_pack(case));
+    match name {
+        "tutorial" => {
+            let setup = equipment_setup(RunSetup {
+                mode: "tutorial".into(),
+                ..base
+            });
+            let commands = play_equipment_run_with(&setup, bundled, 10_800, boss_input, &bot);
+            ("tutorial", setup, None, commands)
+        }
+        "trial" => {
+            let setup = equipment_setup(base);
+            let commands = play_equipment_run_from(&setup, TRIAL_LENGTH, &bot);
+            ("trial", setup, None, commands)
+        }
+        "stage_skill" => {
+            // Every point on attack: the priority keeps that run.
+            let setup = equipment_setup(RunSetup {
+                stat_priority: vec!["attack".into()],
+                star_pool: Some(vec!["black_hole_rare".into()]),
+                ..base
+            });
+            let content = bundled.clone().with_run_stats(common::design_run_stats());
+            let commands = play_equipment_run_in(&setup, &content, TRIAL_LENGTH, &bot);
+            ("stage_skill", setup, pack("stage_skill"), commands)
+        }
+        "time_limit" => {
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_from(&setup, MAX_TICKS, &bot);
+            ("time_limit", setup, None, commands)
+        }
+        "easy" | "rainy" => {
+            let setup = equipment_setup(RunSetup {
+                difficulty: name.into(),
+                ..limited
+            });
+            let commands = play_equipment_run_from(&setup, 6_000, &bot);
+            (
+                if name == "easy" { "easy" } else { "rainy" },
+                setup,
+                None,
+                commands,
+            )
+        }
+        "time_limit_kill" => {
+            let (_, content) = short_time_limit(12_000);
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_with(&setup, &content, 20_060, boss_input, &bot);
+            ("time_limit_kill", setup, pack("time_limit_kill"), commands)
+        }
+        "time_limit_overtime" => {
+            let (_, content) = short_time_limit(540);
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_with(&setup, &content, 600, boss_input, &bot);
+            (
+                "time_limit_overtime",
+                setup,
+                pack("time_limit_overtime"),
+                commands,
+            )
+        }
+        "elites" => {
+            let (_, content) = elites_time_limit();
+            let setup = equipment_setup(limited);
+            let script = EliteScript::default();
+            let commands = play_equipment_run_with(
+                &setup,
+                &content,
+                ELITES_TICKS,
+                |e, t| script.input(e, t),
+                &bot,
+            );
+            ("elites", setup, pack("elites"), commands)
+        }
+        other => panic!("no run case `{other}`"),
+    }
 }
 
 /// The ticks of the `elites` run: its length and its overtime.
