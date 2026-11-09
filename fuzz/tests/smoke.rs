@@ -943,6 +943,22 @@ fn write_step_log_range_seeds() {
     }
 }
 
+/// Writes the seeds of `net_decode` to the folder `NET_SEEDS_DIR` names, for a `cargo fuzz run`
+/// (they are generated, never committed): `packet-00.bin` to `packet-05.bin`.
+#[test]
+#[ignore = "writes files: set NET_SEEDS_DIR"]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a tool, not simulation code: it reads the folder"
+)]
+fn write_net_seeds() {
+    let dir = std::env::var("NET_SEEDS_DIR").expect("NET_SEEDS_DIR names the folder");
+    fs::create_dir_all(&dir).expect("the seed folder");
+    for (i, bytes) in net_seeds().into_iter().enumerate() {
+        fs::write(Path::new(&dir).join(format!("packet-{i:02}.bin")), bytes).expect("a seed file");
+    }
+}
+
 /// The most ticks the `step_log_range` seeds may claim in all, counting the seeds the target's
 /// oracle runs on (those at or under `EXPAND_LIMIT`, 65,536 ticks). Each seed is swept by
 /// `every_prefix_and_flipped_byte_of_the_seeds_is_survived`, so this bounds the cost of that
