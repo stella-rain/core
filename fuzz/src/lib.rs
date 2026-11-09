@@ -405,6 +405,7 @@ fn party_cuts() -> [u32; 2] {
     for step in &range.steps {
         match step {
             RangeStep::Ticks { run, .. } => world += run,
+            // The entries are dense by the present mask; the case starts with all three slots.
             RangeStep::Actions { actions } if actions[1..].iter().any(Option::is_some) => {
                 return [150, world];
             }

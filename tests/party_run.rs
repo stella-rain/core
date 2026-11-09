@@ -392,8 +392,8 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1100),
 ];
 
-/// The equipment actions each moved case holds per slot (Some entries of its ACTIONS steps), read
-/// from the file; zero for the cases that make none. From the blessed files, not edited.
+/// The equipment actions each of the seven moved cases holds per slot (Some entries of its ACTIONS
+/// steps). From the blessed files, not edited.
 const ACTIONS: [(&str, [u32; 3]); 7] = [
     ("two_time_limit", [51, 56, 0]),
     ("three_time_limit", [67, 70, 67]),

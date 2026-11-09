@@ -651,7 +651,7 @@ fn seeded(name: &'static str) -> PartyCase {
     party_case(name, world, bot)
 }
 
-/// The tutorial mode's own time limit, `modes.tutorial.length_ticks` (`content/pack.json:6839`):
+/// The tutorial mode's own time limit, `modes.tutorial.length_ticks` in `content/pack.json`:
 /// the longest `three_tutorial` is played.
 pub const TUTORIAL_TICKS: u32 = 10800;
 
