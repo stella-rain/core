@@ -16,10 +16,12 @@ use super::hash_coverage_tests::{engine, full_state};
 use super::run::v1::State;
 use super::*;
 use crate::id::EntityId;
+use crate::input::EquipAction;
 use crate::pack::Pack;
 use crate::replay::Replay;
-use crate::run_replay::{CommandKind, RunReplay, TickCommand};
+use crate::run_replay::RunReplay;
 use crate::savepoint::{DecodeError, encode_state};
+use crate::step_log::RangeStep;
 use crate::validate::parse_and_validate;
 
 type Decoded = Result<(State, RunLedger, Counted), DecodeError>;
@@ -375,8 +377,59 @@ fn bytes_are_checked() {
 struct Case {
     name: String,
     start: Box<dyn Fn() -> Engine>,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
+    steps: Vec<Step>,
+}
+
+/// One step of a solo case: a world tick, or a pick or an equipment action, which do not advance
+/// the world (ADR-REPL-5).
+#[derive(Clone, Copy)]
+enum Step {
+    Tick(Input),
+    Pick(u32),
+    Act(EquipAction),
+}
+
+/// The steps of a solo run, either schema, read through `step_range` (a pick or an action keeps
+/// its place before the tick it was made on).
+fn steps_of(replay: &RunReplay) -> Vec<Step> {
+    let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+    assert_eq!(range.present, 1, "a solo run");
+    let mut out = Vec::new();
+    for step in range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                out.extend((0..run).map(|_| Step::Tick(inputs[0])));
+            }
+            RangeStep::Picks { picks } => out.push(Step::Pick(picks[0].unwrap())),
+            RangeStep::Actions { actions } => out.push(Step::Act(actions[0].unwrap())),
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => panic!("a solo run"),
+        }
+    }
+    out
+}
+
+fn apply_step(engine: &mut Engine, step: Step) {
+    match step {
+        Step::Tick(input) => engine.step(&[input, Default::default(), Default::default()]),
+        Step::Pick(i) => crate::engine::pick(engine, crate::id::PlayerIdx::SOLO, i).unwrap(),
+        Step::Act(a) => engine.act(crate::id::PlayerIdx::SOLO, a).unwrap(),
+    }
+}
+
+/// Applies the steps from `next` on up to and including the next tick; false, and nothing
+/// applied, when the case holds no more ticks.
+fn advance(engine: &mut Engine, steps: &[Step], next: &mut usize) -> bool {
+    let Some(tick) = steps[*next..]
+        .iter()
+        .position(|s| matches!(s, Step::Tick(_)))
+    else {
+        return false;
+    };
+    for step in &steps[*next..=*next + tick] {
+        apply_step(engine, *step);
+    }
+    *next += tick + 1;
+    true
 }
 
 fn pack_of(tree: &Path, case: &Path) -> Pack {
@@ -415,16 +468,14 @@ fn cases(tree: &str) -> Vec<Case> {
             start: Box::new(move || {
                 Engine::forced(1, || Engine::new_with(&stage, pack.content()).unwrap())
             }),
-            inputs,
-            commands: Vec::new(),
+            steps: inputs.into_iter().map(Step::Tick).collect(),
         });
     }
     for dir in dirs("runs") {
         let name = format!("{tree}/runs/{}", dir.file_name().unwrap().to_string_lossy());
         let recorded =
             RunReplay::from_bytes(&std::fs::read(dir.join("run.replay")).unwrap()).unwrap();
-        let inputs = recorded.unpack_inputs(u32::MAX).unwrap();
-        let commands = recorded.unpack_commands().unwrap();
+        let steps = steps_of(&recorded);
         let pack = pack_of(&tree_dir, &dir);
         let setup = recorded.setup.clone();
         out.push(Case {
@@ -432,23 +483,10 @@ fn cases(tree: &str) -> Vec<Case> {
             start: Box::new(move || {
                 Engine::forced(1, || Engine::start_with(&setup, pack.content()).unwrap())
             }),
-            inputs,
-            commands,
+            steps,
         });
     }
     out
-}
-
-/// The commands due before the step of the engine's tick, from `next` on.
-fn apply_due(engine: &mut Engine, commands: &[TickCommand], next: &mut usize) {
-    while let Some(c) = commands.get(*next).filter(|c| c.tick == engine.tick()) {
-        match c.kind {
-            CommandKind::Choose => {
-                crate::engine::pick(engine, crate::id::PlayerIdx::SOLO, c.index).unwrap()
-            }
-        }
-        *next += 1;
-    }
 }
 
 /// Saves `engine` at its tick and checks what a resume must give back.
@@ -505,13 +543,10 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
     let mut original = engine.clone();
     let (mut a, mut b) = (next, next);
     for i in 0..30 {
-        let Some(input) = case.inputs.get(engine.tick() as usize + i).copied() else {
+        if !advance(&mut original, &case.steps, &mut a) {
             break;
-        };
-        apply_due(&mut original, &case.commands, &mut a);
-        apply_due(&mut resumed, &case.commands, &mut b);
-        original.step(&[input, Default::default(), Default::default()]);
-        resumed.step(&[input, Default::default(), Default::default()]);
+        }
+        assert!(advance(&mut resumed, &case.steps, &mut b));
         assert_eq!(
             resumed.state_hash(),
             original.state_hash(),
@@ -527,18 +562,20 @@ fn corpus_round_trip() {
         for case in cases(tree) {
             let mut engine = (case.start)();
             let mut next = 0;
-            let last = case.inputs.len();
+            let last = case
+                .steps
+                .iter()
+                .filter(|s| matches!(s, Step::Tick(_)))
+                .count();
             for tick in 0..=last {
-                let before_commands = next;
                 let wants = tick == 0 || tick % 60 == 0 || tick == last || engine.offer_open();
                 if wants {
-                    check_savepoint(&case, &engine, before_commands);
+                    check_savepoint(&case, &engine, next);
                 }
                 if tick == last {
                     break;
                 }
-                apply_due(&mut engine, &case.commands, &mut next);
-                engine.step(&[case.inputs[tick], Default::default(), Default::default()]);
+                assert!(advance(&mut engine, &case.steps, &mut next));
             }
         }
     }
