@@ -10,7 +10,7 @@
 //! clone of boundary `t - d` stepped tick by tick up to boundary `t`. Integer arithmetic only.
 
 use crate::common::run::trial_setup;
-use crate::party_bot::RigRun;
+use crate::party_bot::{RigParty, RigRun};
 use crate::run_play::party_cases;
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
@@ -23,7 +23,12 @@ use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{CHECKPOINT_TICKS, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 
-/// The rig cases: a player goes down and is revived, every slot played by a bot.
+/// The offers revive runs this file builds itself (offers mode, no corpus file and no pin): the
+/// party, the bot seed and the world seed 1 of the old revive search. A pick is an offer's answer,
+/// which an equipment run has none of, so the offers rollback semantics stay tested on these
+/// until the offers path goes (a window that starts on an open offer replays its pick first; an
+/// altered pick is caught).
+const OFFERS_CASES: [(&str, u8, u64); 2] = [("two_revive", 2, 3), ("three_revive", 3, 1)];
 const RIG_CASES: [&str; 2] = ["two_revive", "three_revive"];
 /// The rollback window, in ticks.
 const MAX_DEPTH: u32 = 8;
@@ -113,8 +118,21 @@ fn case(name: &'static str) -> Case {
     Case { name, replay, rig }
 }
 
+/// An offers revive run of `OFFERS_CASES`, played once.
+fn offers_case(name: &'static str) -> Case {
+    let (_, n, bot_seed) = *OFFERS_CASES.iter().find(|(c, ..)| *c == name).unwrap();
+    let replay = RigParty::new(n)
+        .seed(1)
+        .bot_seed(bot_seed)
+        .case(name)
+        .play()
+        .replay();
+    let rig = RigRun::of(&replay);
+    Case { name, replay, rig }
+}
+
 fn cases() -> Vec<Case> {
-    RIG_CASES.iter().map(|name| case(name)).collect()
+    RIG_CASES.iter().map(|name| offers_case(name)).collect()
 }
 
 /// Plays `rig` forward from a fresh engine, saving every boundary in a ring; at the boundaries in
@@ -427,7 +445,7 @@ const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 100, 0, 1), ("three_re
 
 fn neg_case(name: &str) -> (Case, u32, usize, u32) {
     let (name, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
-    (case(name), k, i, alt)
+    (offers_case(name), k, i, alt)
 }
 
 /// The hash at boundaries 0 to `upto` of `rig` played forward. An altered run is played only as
@@ -538,8 +556,15 @@ fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
     }
 }
 
-/// The building rig cases: every slot equips, extracts and the like, recorded as ACTIONS steps.
-const EQUIP_CASES: [&str; 3] = ["equipment_rig_1", "equipment_rig_2", "equipment_rig_3"];
+/// The building rig cases and the revive cases: every slot equips, extracts and the like,
+/// recorded as ACTIONS steps; the revive cases hold a revive too.
+const EQUIP_CASES: [&str; 5] = [
+    "equipment_rig_1",
+    "equipment_rig_2",
+    "equipment_rig_3",
+    "two_revive",
+    "three_revive",
+];
 /// The stride of the equipment cases' windows, the same as `STRIDE`: every second boundary, every
 /// depth. The whole module stays under 30 s in `cargo test --release` (12.4 s measured at 2; 4 was the
 /// first try and the module took 10.6 s).
@@ -577,6 +602,9 @@ fn a_rollback_of_every_depth_agrees_in_the_equipment_cases() {
         // S2: windows replay actions, and some start just before an ACTIONS step.
         assert!(report.actions_replayed > 0, "{}: an action", case.name);
         assert!(report.on_action > 0, "{}: a window on an action", case.name);
+        if RIG_CASES.contains(&case.name) {
+            assert!(report.revives > 0, "{}: a revive is replayed", case.name);
+        }
     }
 }
 

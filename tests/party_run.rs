@@ -392,6 +392,30 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
 ];
 
+/// The equipment actions each moved case holds per slot (Some entries of its ACTIONS steps), read
+/// from the file; zero for the cases that make none. From the blessed files, not edited.
+const ACTIONS: [(&str, [u32; 3]); 7] = [
+    ("two_time_limit", [0, 0, 0]),
+    ("three_time_limit", [0, 0, 0]),
+    ("three_tutorial", [0, 0, 0]),
+    ("join_two", [0, 0, 0]),
+    ("leave_hole", [0, 0, 0]),
+    ("two_revive", [0, 0, 0]),
+    ("three_revive", [0, 0, 0]),
+];
+
+fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
+    let mut per = [0u32; 3];
+    for step in RunSteps::of(replay).steps() {
+        if let Step::Actions(actions) = step {
+            for (n, action) in per.iter_mut().zip(actions) {
+                *n += u32::from(action.is_some());
+            }
+        }
+    }
+    per
+}
+
 /// What the rig cases hold of downs and revives: per case the counts of `PlayerDowned`,
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
@@ -581,6 +605,10 @@ fn the_party_cases_are_what_the_table_says() {
             "{}",
             case.name
         );
+        if let Some(want) = ACTIONS.iter().find(|row| row.0 == case.name) {
+            assert_eq!(actions_per_slot(&replay), want.1, "{}: actions", case.name);
+            assert!(RunSteps::of(&replay).has_actions(), "{}", case.name);
+        }
     }
     assert_eq!(party_cases().len(), TABLE.len());
 }
@@ -657,9 +685,9 @@ fn drive(rec: &mut RunRecorder, steps: &[Step]) {
     }
 }
 
-/// Three cuts: early, with an offer open, and one tick before the end. The open one is where
-/// slot 1 or 2 holds an offer when that is before the last tick, else the first offer, else (no
-/// offer opens) the middle of the run.
+/// Three cuts: early, with a step pending, and one tick before the end. The middle one is where
+/// slot 1 or 2 holds an offer or makes an action when that is before the last tick, else the first
+/// such step, else (none) the middle of the run.
 fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
     let steps = RunSteps::of(recorded);
     let mut world = 0;
@@ -673,12 +701,18 @@ fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
                     other.get_or_insert(world);
                 }
             }
+            // An equipment case opens no offer (ADR-SIM-7): its open cut is an action by slot 1 or 2.
+            Step::Actions(actions) if world + 1 < recorded.ticks => {
+                any.get_or_insert(world);
+                if actions[1..].iter().any(Option::is_some) {
+                    other.get_or_insert(world);
+                }
+            }
             _ => {}
         }
     }
     [
         early,
-        // An equipment case opens no offer (ADR-SIM-7): its middle cut is the middle of the run.
         other.or(any).unwrap_or(recorded.ticks / 2),
         recorded.ticks - 1,
     ]
@@ -725,7 +759,7 @@ fn the_change_cases_hold_what_they_are_for() {
         let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
         case.play().replay()
     };
-    // join_two: slot 1 answers an offer after its join at tick 600.
+    // join_two: slot 1 acts after its join at tick 600.
     let join = find("join_two");
     let steps = RunSteps::of(&join);
     let (mut world, mut mask, mut after) = (0u32, (1u8 << steps.party) - 1, 0);
@@ -736,35 +770,37 @@ fn the_change_cases_hold_what_they_are_for() {
                 assert_eq!((slot.get(), world), (1usize, 600));
                 mask |= 1u8 << slot.get();
             }
-            Step::Picks(picks) if mask == 0b011 && picks[1].is_some() => {
+            Step::Actions(actions) if mask == 0b011 && actions[1].is_some() => {
                 assert!(world > 600);
                 after += 1;
             }
             _ => {}
         }
     }
-    assert!(after >= 1);
-    // leave_hole: a Picks step of length 2 falls in the first window (0b101), the hole is
-    // closed by the second leave and reopened by the join.
+    assert!(after >= 1, "slot 1 makes an action after its join");
+    // leave_hole: slot 2 acts inside the first hole (0b101, 900..=1500); the hole is closed by
+    // the second leave and reopened by the join.
     let hole = find("leave_hole");
     let steps = RunSteps::of(&hole);
     let (mut world, mut masks, mut two) = (0u32, vec![(1u8 << steps.party) - 1], 0);
     for step in steps.steps() {
         match step {
-            Step::Actions(_) => unreachable!("no equipment action here"),
             Step::Tick(_) => world += 1,
             Step::Join(slot) => masks.push(masks.last().unwrap() | 1u8 << slot.get()),
             Step::Leave(slot) => masks.push(masks.last().unwrap() & !(1u8 << slot.get())),
-            Step::Picks(_) => {
-                // A Picks step holds one entry per present slot: two while the mask is 0b101.
-                if masks.last().unwrap().count_ones() == 2 && (900..=1500).contains(&world) {
+            Step::Actions(actions) => {
+                if *masks.last().unwrap() == 0b101
+                    && actions[2].is_some()
+                    && (900..=1500).contains(&world)
+                {
                     two += 1;
                 }
             }
+            Step::Picks(_) => unreachable!("no offer opens in equipment mode"),
         }
     }
     assert_eq!(masks, [0b111, 0b101, 0b001, 0b101]);
-    assert!(two >= 1, "a Picks step inside the hole holds two entries");
+    assert!(two >= 1, "slot 2 acts inside the hole");
 }
 
 #[test]
