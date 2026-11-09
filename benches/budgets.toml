@@ -6,17 +6,18 @@
 # room up to the cap. Every budget is about 10% over what CI counted on that head, rounded up to
 # the next 100,000 (a single tick) or 100,000,000 (worst_minute), never over the 12.4 M frame
 # ceiling above (ADR-SIM-5). A change of the crowd target or the headroom re-baselines them.
-# CI counts (arm64 / x86_64) of the Rust run on 3fd4e61, the largest case of each target:
-#   worst_tick           4,583,940 /     5,190,006
-#   hit_tick             4,047,153 /     4,340,250   (hit_tick_spread, 2,097,952 / 2,285,268, is inside it)
-#   time_limit_tick        620,042 /       704,243
-#   worst_minute     1,267,383,601 / 1,398,147,875
-#   worst_minute_peak      407,576 /       464,555
-#   worst_tick_3p        5,230,405 /     5,885,695
-#   rollback             4,109,928 /     4,605,740
-#   rollback_equip       4,513,342 /     5,037,908
+# CI counts (arm64 / x86_64) of the Rust run on 308c394, the largest case of each target:
+#   worst_tick           4,582,168 /     5,209,747
+#   hit_tick             4,048,753 /     4,341,854   (hit_tick_spread, 2,099,552 / 2,286,872, is inside it)
+#   time_limit_tick        618,386 /       710,310
+#   worst_minute     1,303,881,864 / 1,438,260,698
+#   worst_minute_peak      363,139 /       412,062
+#   worst_tick_3p        5,221,724 /     5,868,800
+#   rollback             4,011,319 /     4,489,420
+#   rollback_equip       4,513,342 /     5,037,800
+# time_limit_tick measures tick 295 since the stage bench fixtures run in equipment mode.
 # worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,301 to
-# 10,900), worst_minute_peak its heaviest tick by load (tick 10,714, `tests/worst_minute.rs`).
+# 10,900), worst_minute_peak its heaviest tick by load (tick 10,800, `tests/worst_minute.rs`).
 [worst_tick]
 arm64 = 5_100_000
 x86_64 = 5_800_000
