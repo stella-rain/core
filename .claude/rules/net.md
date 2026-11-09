@@ -12,7 +12,8 @@ version stays `0.0.0` and `publish = false`.
 ## Rules
 
 - Public API: nothing is `pub` without a doc comment and a test. `missing_docs` is `deny`.
-- Read core through its public API only, never through `src/` internals. Core never depends on net.
+- Read core through its public API only, never through `src/` internals. Core never depends on net, except as a dev-dependency of one bench
+  (`benches/rollback_session.rs`).
 - `unsafe_code = "forbid"` (core can only `deny`, because `tests/alloc.rs` needs one `expect`).
   The four cast lints are `deny`, as in core.
 - No third-party dependency without Kade: the only dependency is `stella-rain-core` by path.
