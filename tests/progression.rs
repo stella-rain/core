@@ -2,7 +2,7 @@
 //! the difficulties a clear opens and a new save's unlocks come from the run's content files.
 //! "Today" is what the app computes at c3d1c43 (`tally.rs`, `setup.rs`, `migrations.rs`).
 
-use crate::common;
+use crate::common::run_steps::{self, RunSteps};
 use proptest::prelude::*;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome};
@@ -13,7 +13,7 @@ use stella_rain_core::progression::{
     settle, starting_unlocks,
 };
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{CommandKind, RunReplay};
+use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::stardust::MAX_BANK_CAP;
 use stella_rain_core::validate::limits::MAX_RUN_STARDUST;
 
@@ -213,15 +213,8 @@ fn a_result_exists_only_for_an_ended_run() {
     let mut engine = Engine::start_with(&replay.setup, RunContent::bundled()).unwrap();
     assert_eq!(RunResult::from_run(&replay.setup, &engine), None);
 
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            match c.kind {
-                CommandKind::Choose => common::pick(&mut engine, c.index).unwrap(),
-            }
-        }
-        engine.step(&[input, Default::default(), Default::default()]);
+    for step in RunSteps::of(&replay).steps() {
+        run_steps::apply(&mut engine, step);
     }
     let result = RunResult::from_run(&replay.setup, &engine).expect("the run ended");
     let outcome = match engine.outcome() {

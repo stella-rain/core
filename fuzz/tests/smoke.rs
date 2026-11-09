@@ -11,7 +11,10 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
-use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, RunReplayError};
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_replay::{
+    Command, RunRecorder, RunReplay, RunReplayError, record_run_with,
+};
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
@@ -114,6 +117,18 @@ fn run_prefixes() -> Vec<Vec<u8>> {
             recorder.replay().to_bytes()
         })
         .collect()
+}
+
+/// `commands` is the inverse of `record_run_with` on every run case that plays on the bundled
+/// pack: recorded again, the commands give the file back byte for byte.
+#[test]
+fn the_commands_of_a_run_record_the_run_again() {
+    for bytes in run_replays() {
+        let run = RunReplay::from_bytes(&bytes).expect("a corpus run replay");
+        let again = record_run_with(&run.setup, RunContent::bundled(), &commands(&run))
+            .expect("the commands record");
+        assert_eq!(again.to_bytes(), bytes);
+    }
 }
 
 /// The seeds are the whole corpus: a case moved out of `current/` or left unread would shrink

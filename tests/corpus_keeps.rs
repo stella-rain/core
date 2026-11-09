@@ -13,7 +13,8 @@ use stella_rain_core::replay::Replay;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::validate::parse_and_validate;
 
-use crate::corpus::{apply, current_dir};
+use crate::common::run_steps::{self, RunSteps};
+use crate::corpus::current_dir;
 use crate::corpus_pins::{case_dirs, case_pack, run_case_pack};
 
 /// One case: name, ticks played, `Debug` of the outcome, the rewards taken as `id=count` and the
@@ -121,17 +122,12 @@ fn run_row(case: &Path) -> (u32, String, String, u32) {
     let bytes = std::fs::read(case.join("run.replay")).expect("run.replay");
     let recorded = RunReplay::from_bytes(&bytes).expect("the run replay parses");
     let pack = run_case_pack(case, &bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
-    let mut engine = Engine::start_with(&recorded.setup, pack.content()).expect("the run starts");
-    let commands = recorded.unpack_commands().expect("commands");
-    let mut next = commands.iter().peekable();
-    let inputs = recorded.unpack_inputs(u32::MAX).expect("inputs");
-    for input in &inputs {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).expect("a recorded command applies");
-        }
-        engine.step(&[*input, Default::default(), Default::default()]);
+    let mut engine = run_steps::start(&recorded, pack.content());
+    let steps = RunSteps::of(&recorded);
+    for step in steps.steps() {
+        run_steps::apply(&mut engine, step);
     }
-    observed(&engine, inputs.len())
+    observed(&engine, steps.ticks as usize)
 }
 
 fn rows() -> Vec<(String, (u32, String, String, u32))> {

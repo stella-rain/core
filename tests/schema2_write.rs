@@ -3,6 +3,7 @@
 //! writer keeps `interact`, and a schema 1 file of each type still loads and verifies
 //! (ADR-REPL-2).
 
+use crate::common::run_steps;
 use crate::corpus::case_content;
 use crate::corpus_pins::case_pack;
 use crate::data_root::data_root;
@@ -12,9 +13,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
-use stella_rain_core::run_replay::{
-    self, Command, CommandKind, RunRecorder, RunReplay, verify_run_with,
-};
+use stella_rain_core::run_replay::{self, Command, RunRecorder, RunReplay, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::Savepoint;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION};
@@ -36,25 +35,6 @@ fn read_run(case: &Path) -> RunReplay {
     RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap()
 }
 
-/// A run replay's commands in the order they were made, from its solo views.
-fn commands_of(run: &RunReplay) -> Vec<Command> {
-    let inputs = run.unpack_inputs(u32::MAX).unwrap();
-    let between = run.unpack_commands().unwrap();
-    let mut next = between.iter().peekable();
-    let command = |c: &run_replay::TickCommand| match c.kind {
-        CommandKind::Choose => Command::Choose(c.index),
-    };
-    let mut out = Vec::new();
-    for (tick, input) in (0u32..).zip(inputs) {
-        while let Some(c) = next.next_if(|c| c.tick == tick) {
-            out.push(command(c));
-        }
-        out.push(Command::Step(input));
-    }
-    out.extend(next.map(command));
-    out
-}
-
 #[test]
 fn the_versions_the_writers_write() {
     assert_eq!(SCHEMA_VERSION, 2);
@@ -71,7 +51,8 @@ fn a_recorded_run_is_a_step_log() {
     let old = read_run(&case);
     assert!(!old.commands.is_empty(), "the case holds picks");
     let content = case_content(&case).unwrap();
-    let recorded = run_replay::record_run_with(&old.setup, &content, &commands_of(&old)).unwrap();
+    let recorded =
+        run_replay::record_run_with(&old.setup, &content, &run_steps::commands(&old)).unwrap();
     assert_eq!(recorded.setup.schema_version, 2);
     assert_eq!(recorded.commands, "");
     assert_eq!(recorded.ticks, old.ticks);
@@ -90,7 +71,7 @@ fn recorded_replays_have_no_command_list() {
         let old = read_run(&case);
         let content = case_content(&case).unwrap();
         let mut rec = RunRecorder::start_with(&old.setup, &content).unwrap();
-        for command in commands_of(&old) {
+        for command in run_steps::commands(&old) {
             match command {
                 Command::Step(input) => rec
                     .step(&[input, Default::default(), Default::default()])
@@ -145,7 +126,8 @@ fn the_unpack_views_read_both_schemas() {
     for case in run_cases("v1") {
         let old = read_run(&case);
         let content = case_content(&case).unwrap();
-        let two = run_replay::record_run_with(&old.setup, &content, &commands_of(&old)).unwrap();
+        let two =
+            run_replay::record_run_with(&old.setup, &content, &run_steps::commands(&old)).unwrap();
         assert_eq!(two.setup.schema_version, 2);
         let name = case.display();
         let inputs = two.unpack_inputs(u32::MAX).unwrap();
@@ -194,7 +176,7 @@ fn resume_from_a_schema_2_replay_works() {
     let mut whole = RunRecorder::start_with_pack(&old.setup, &pack).unwrap();
     let mut cut = None;
     let mut ticks = 0;
-    for command in commands_of(&old) {
+    for command in run_steps::commands(&old) {
         match command {
             Command::Step(input) => {
                 whole
@@ -212,7 +194,7 @@ fn resume_from_a_schema_2_replay_works() {
     assert_eq!(prefix.setup.schema_version, 2);
     let mut resumed = RunRecorder::resume_with_pack(&prefix, &pack).unwrap();
     let mut seen = 0;
-    for command in commands_of(&old) {
+    for command in run_steps::commands(&old) {
         match command {
             Command::Step(input) => {
                 seen += 1;

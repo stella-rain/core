@@ -26,7 +26,8 @@ use stella_rain_core::replay::Replay;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::validate::parse_and_validate;
 
-use crate::corpus::{apply, current_dir};
+use crate::common::run_steps::{self, RunSteps, Step};
+use crate::corpus::current_dir;
 use crate::corpus_pins::{case_dirs, case_pack, run_case_pack};
 
 /// How many entity numbers the player slots reserve beyond the one slot a solo party holds.
@@ -37,8 +38,6 @@ const SNAPSHOT_STRIDE: u32 = 30;
 const BENCH_TICKS: u32 = 120;
 /// The ticks of the dense minute case.
 const MINUTE_PLAYED: u32 = 600;
-/// The ticks a run case plays at most.
-const RUN_TICKS: u32 = u32::MAX;
 
 /// An entity ID as the pre-reservation numbering had it.
 fn map(n: u32) -> u32 {
@@ -202,18 +201,22 @@ fn run_digest(case: &Path) -> String {
     let bytes = std::fs::read(case.join("run.replay")).expect("run.replay");
     let recorded = RunReplay::from_bytes(&bytes).expect("the run replay parses");
     let pack = run_case_pack(case, &bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
-    let mut engine = Engine::start_with(&recorded.setup, pack.content()).expect("the run starts");
-    let commands = recorded.unpack_commands().expect("commands");
-    let mut next = commands.iter().peekable();
-    let inputs = recorded.unpack_inputs(u32::MAX).expect("inputs");
-    let played = inputs.len().min(RUN_TICKS as usize);
+    let mut engine = run_steps::start(&recorded, pack.content());
+    let steps = RunSteps::of(&recorded);
+    let played = steps.ticks;
     let mut sha = Sha256::new();
-    for (i, input) in inputs.iter().take(played).enumerate() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).expect("a recorded command applies");
+    for step in steps.steps() {
+        if engine.tick() >= played {
+            break;
         }
-        engine.step(&[*input, Default::default(), Default::default()]);
-        observe_tick(&mut sha, &engine, sampled(engine.tick(), i + 1 == played));
+        run_steps::apply(&mut engine, step);
+        if matches!(step, Step::Tick(_)) {
+            observe_tick(
+                &mut sha,
+                &engine,
+                sampled(engine.tick(), engine.tick() == played),
+            );
+        }
     }
     observe_end(&mut sha, &engine);
     hex16(sha)

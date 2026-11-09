@@ -6,6 +6,7 @@ pub mod equip;
 pub mod equip_run;
 pub mod on_hit;
 pub mod run;
+pub mod run_steps;
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -475,6 +476,10 @@ pub fn schema_1_form(
     if replay.setup.schema_version < 2 {
         return replay.clone();
     }
+    assert!(
+        !run_steps::RunSteps::of(replay).has_actions(),
+        "an equipment run has no schema 1 form"
+    );
     let inputs = replay.unpack_inputs(u32::MAX).unwrap();
     let commands = replay.unpack_commands().unwrap();
     let mut one = replay.clone();

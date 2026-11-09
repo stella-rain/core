@@ -3,8 +3,8 @@
 //! commands. The constants were taken once and stayed unchanged through the move of picks into
 //! `Input`; the hashes were re-pinned for the per-player hash layout and again for the slot generations and then for the six new rewards that lengthen the hashed lists (ADR-SIM-3), and the
 //! event counts and ticks, which say what the choices did, did not move.
-use crate::corpus::{apply, case_content, runs_dir};
-use stella_rain_core::engine::Engine;
+use crate::common::run_steps::{self, RunSteps, Step};
+use crate::corpus::{case_content, runs_dir};
 use stella_rain_core::run_replay::RunReplay;
 
 type Pin = (u64, usize, u32);
@@ -14,19 +14,16 @@ fn after_commands(name: &str, take: usize) -> Vec<Pin> {
     let case = runs_dir().join(name);
     let content = case_content(&case).unwrap();
     let replay = RunReplay::from_bytes(&std::fs::read(case.join("run.replay")).unwrap()).unwrap();
-    let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
+    let mut engine = run_steps::start(&replay, &content);
     let mut seen = Vec::new();
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).unwrap();
-            seen.push((engine.state_hash(), engine.events().len(), engine.tick()));
-        }
-        if seen.len() >= take {
+    for step in RunSteps::of(&replay).steps() {
+        if matches!(step, Step::Tick(_)) && seen.len() >= take {
             break;
         }
-        engine.step(&[input, Default::default(), Default::default()]);
+        run_steps::apply(&mut engine, step);
+        if matches!(step, Step::Picks(_)) {
+            seen.push((engine.state_hash(), engine.events().len(), engine.tick()));
+        }
     }
     seen
 }

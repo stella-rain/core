@@ -4,11 +4,10 @@
 //! from domain events and state observations, matching the rules previously kept in
 //! the app wrapper's `Tally`.
 
-use crate::common;
+use crate::common::run_steps::{self, RunSteps};
 use std::fs;
 
 use stella_rain_core::attack::{DamageType, MatchUp};
-use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::kinds::{KindIndex, KindTable};
@@ -240,21 +239,9 @@ fn corpus_run_computes_expected_ledger() {
     let path = crate::corpus::runs_dir().join("trial/run.replay");
     let replay_bytes = fs::read(path).expect("corpus run replay must exist");
     let replay = RunReplay::from_bytes(&replay_bytes).unwrap();
-    let inputs = replay.unpack_inputs(replay.ticks).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
-    let content = RunContent::bundled();
-    let mut engine = Engine::start_with(&replay.setup, content).unwrap();
-
-    for input in inputs.iter() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            match c.kind {
-                stella_rain_core::run_replay::CommandKind::Choose => {
-                    common::pick(&mut engine, c.index).unwrap();
-                }
-            }
-        }
-        engine.step(&[*input, Default::default(), Default::default()]);
+    let mut engine = run_steps::start(&replay, RunContent::bundled());
+    for step in RunSteps::of(&replay).steps() {
+        run_steps::apply(&mut engine, step);
     }
 
     let ledger = engine.ledger();

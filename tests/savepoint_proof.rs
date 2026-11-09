@@ -9,6 +9,7 @@
 //! the stage cases through it).
 
 use crate::common;
+use crate::common::run_steps::{self, RunSteps, Step};
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
 use std::path::PathBuf;
@@ -19,7 +20,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::ledger::RunLedger;
 use stella_rain_core::pack::{ContentFiles, Pack};
 use stella_rain_core::rng::{TAG_ATTACK, derive};
-use stella_rain_core::run_replay::{RunRecorder, RunReplay, RunReplayError, TickCommand};
+use stella_rain_core::run_replay::{RunRecorder, RunReplay, RunReplayError};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::Snapshot;
 
@@ -32,36 +33,25 @@ struct Case {
     label: String,
     recorded: RunReplay,
     pack: Pack,
-    inputs: Vec<Input>,
-    commands: Vec<TickCommand>,
+    steps: RunSteps,
 }
 
 /// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
 /// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
 /// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
 /// to the frozen file's. A file already at the written schema is returned as it is.
-fn written_form(
-    file: &RunReplay,
-    pack: &Pack,
-    inputs: &[Input],
-    commands: &[TickCommand],
-) -> RunReplay {
+fn written_form(file: &RunReplay, pack: &Pack, steps: &RunSteps) -> RunReplay {
     if file.setup.schema_version >= 2 {
         return file.clone();
     }
     let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
-    let mut at = apply_commands(&mut rec, commands, 0, 0).unwrap();
-    for (i, input) in (0u32..).zip(inputs) {
-        at = apply_commands(&mut rec, commands, at, i).unwrap();
-        rec.step(&[*input, Default::default(), Default::default()])
-            .unwrap();
+    for step in steps.steps() {
+        run_steps::apply_to(&mut rec, step);
     }
-    apply_commands(&mut rec, commands, at, file.ticks).unwrap();
     let written = rec.replay();
     assert_eq!(written.setup.schema_version, 2);
     assert_eq!(written.commands, "");
-    assert_eq!(written.unpack_inputs(file.ticks).unwrap(), inputs);
-    assert_eq!(written.unpack_commands().unwrap(), commands);
+    assert_eq!(&RunSteps::of(&written), steps);
     assert_eq!(
         (
             &written.ticks,
@@ -93,15 +83,13 @@ fn load_case(tree: &str, name: &str) -> Case {
     let bytes = fs::read(dir.join("run.replay")).unwrap();
     let file = RunReplay::from_bytes(&bytes).unwrap();
     let pack = run_case_pack(&dir, &bytes).unwrap();
-    let inputs = file.unpack_inputs(file.ticks).unwrap();
-    let commands = file.unpack_commands().unwrap();
-    let recorded = written_form(&file, &pack, &inputs, &commands);
+    let steps = RunSteps::of(&file);
+    let recorded = written_form(&file, &pack, &steps);
     Case {
         label: format!("{tree}/{name}"),
         recorded,
         pack,
-        inputs,
-        commands,
+        steps,
     }
 }
 
@@ -202,41 +190,21 @@ impl Reference {
     }
 }
 
-/// Applies the commands at `tick` from `at` on; returns where the next ones start.
-fn apply_commands(
-    rec: &mut RunRecorder,
-    commands: &[TickCommand],
-    mut at: usize,
-    tick: u32,
-) -> Result<usize, String> {
-    while at < commands.len() && commands[at].tick == tick {
-        rec.choose(PlayerIdx::SOLO, commands[at].index)
-            .map_err(|e| format!("choose at tick {tick}: {e:?}"))?;
-        at += 1;
-    }
-    Ok(at)
-}
-
-/// Plays the case from `rec` at tick `from` to its last tick, commands before each input as the
-/// run did, calling `visit(t, rec)` right after tick `t` and before the commands that follow it.
+/// Plays the case from `rec` at tick `from` to its last step, the picks before each tick as
+/// the run made them, calling `visit(t, rec)` right after tick `t` and before the steps that
+/// follow it.
 fn play_from(
     case: &Case,
     mut rec: RunRecorder,
     from: u32,
     mut visit: impl FnMut(u32, &RunRecorder) -> Result<(), String>,
 ) -> Result<RunRecorder, String> {
-    let mut at = case.commands.partition_point(|c| c.tick < from);
-    for i in from..case.recorded.ticks {
-        at = apply_commands(&mut rec, &case.commands, at, i)?;
-        rec.step(&[
-            case.inputs[i as usize],
-            Default::default(),
-            Default::default(),
-        ])
-        .map_err(|e| format!("{}: step {}: {e:?}", case.label, i + 1))?;
-        visit(i + 1, &rec)?;
+    for step in &case.steps.steps()[case.steps.at(from)..] {
+        run_steps::apply_to(&mut rec, step);
+        if matches!(step, Step::Tick(_)) {
+            visit(rec.engine().tick(), &rec)?;
+        }
     }
-    apply_commands(&mut rec, &case.commands, at, case.recorded.ticks)?;
     Ok(rec)
 }
 
@@ -599,8 +567,7 @@ fn rand_attack_case() -> (Case, Reference) {
     let recorded = rec.replay();
     let case = Case {
         label: "fixture/tutorial_rand_attack".to_owned(),
-        inputs: recorded.unpack_inputs(recorded.ticks).unwrap(),
-        commands: recorded.unpack_commands().unwrap(),
+        steps: RunSteps::of(&recorded),
         recorded,
         pack,
     };
@@ -654,7 +621,13 @@ fn the_fixture_run_is_running_at_its_last_tick() {
     let (case, r) = rand_attack_case();
     assert_eq!(r.end.outcome, Outcome::Running);
     assert_eq!(r.ticks(), RAND_TICKS);
-    assert!(!case.commands.is_empty(), "no offer was answered");
+    assert!(
+        case.steps
+            .steps()
+            .iter()
+            .any(|s| matches!(s, Step::Picks(_))),
+        "no offer was answered"
+    );
 }
 
 #[test]

@@ -134,6 +134,7 @@ mod run_play;
 mod run_replay;
 mod run_setup;
 mod run_stats;
+mod run_steps;
 mod rune_haste;
 mod runes;
 mod runes_file;

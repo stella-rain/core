@@ -10,10 +10,11 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use stella_rain_core::version::Versions;
 
+use crate::common::run_steps::{self, RunSteps, Step};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{CommandKind, RunReplay};
+use stella_rain_core::run_replay::RunReplay;
 
 thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
@@ -531,22 +532,18 @@ pub(crate) fn peak_bytes() -> i64 {
 fn peak_heap_of_the_worst_minute_is_under_16_mib() {
     let dir = crate::data_root::data_root().join("tests/corpus/current/runs/time_limit");
     let replay = RunReplay::from_bytes(&std::fs::read(dir.join("run.replay")).unwrap()).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let inputs = replay.unpack_inputs(u32::MAX).unwrap();
+    // The steps are built before `start`, as the inputs were: a bare engine only, since a
+    // recorder's records would count in the measured heap.
+    let steps = RunSteps::of(&replay);
     let start = live_bytes();
-    let mut engine = Engine::start_with(&replay.setup, RunContent::bundled()).unwrap();
-    let mut next = commands.iter().peekable();
+    let mut engine =
+        Engine::start_party_with(&replay.setup, RunContent::bundled(), steps.party).unwrap();
     // The peak of each minute of the run, in bytes held beyond what the test held before.
     let mut minutes = Vec::new();
     reset_peak();
-    for (i, input) in inputs.into_iter().enumerate() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            match c.kind {
-                CommandKind::Choose => common::pick(&mut engine, c.index).unwrap(),
-            }
-        }
-        engine.step(&[input, Default::default(), Default::default()]);
-        if (i + 1) % MINUTE_TICKS == 0 {
+    for step in steps.steps() {
+        run_steps::apply(&mut engine, step);
+        if matches!(step, Step::Tick(_)) && engine.tick() as usize % MINUTE_TICKS == 0 {
             minutes.push(peak_bytes() - start);
             reset_peak();
         }
