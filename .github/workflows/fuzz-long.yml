@@ -111,6 +111,15 @@ jobs:
           STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_step_log_range_seeds -- --ignored
           test -n "$(find seeds/step_log_range -type f)"
           find seeds/step_log_range -type f | wc -l
+      - name: Seeds for net_decode
+        if: matrix.target == 'net_decode'
+        run: |
+          set -eu
+          # Generated, not committed: the bytes move with PROTOCOL_VERSION and the wire layout. The test
+          # runs in fuzz/, so the folder is absolute: cargo fuzz reads seeds/net of the root.
+          NET_SEEDS_DIR="$PWD/seeds/net" cargo test --manifest-path fuzz/Cargo.toml --locked --test smoke write_net_seeds -- --ignored
+          test -n "$(find seeds/net -type f)"
+          find seeds/net -type f | wc -l
       - name: Fuzz ${{ matrix.target }}
         env:
           TARGET: ${{ matrix.target }}
@@ -126,6 +135,7 @@ jobs:
             pack_load) seeds=seeds/pack max_len=1048577 ;;
             savepoint_load) seeds=seeds/savepoint ;;
             step_log_range) seeds=seeds/step_log_range ;;
+            net_decode) seeds=seeds/net ;;
             *) seeds= ;;
           esac
           mkdir -p "fuzz/corpus/$TARGET"
