@@ -22,7 +22,7 @@ use crate::kinds::KindTable;
 use crate::ledger::{Counted, PlayerStats, RunLedger};
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
-use crate::run_setup::{self, BuildMode, OfferMode, RunSetup};
+use crate::run_setup::{self, BuildMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
 use crate::snapshot::{OfferOption, OfferRating, SwapItem, SwapRating};
@@ -370,7 +370,6 @@ impl Engine {
                 pick_stats,
                 setup: None,
                 party: 1,
-                offer_mode: OfferMode::Stop,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -434,7 +433,6 @@ impl Engine {
                 pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party,
-                offer_mode: setup.offer_mode,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -481,7 +479,6 @@ impl Engine {
                 pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party: 1,
-                offer_mode: setup.offer_mode,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
@@ -675,7 +672,6 @@ impl Engine {
                 pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party,
-                offer_mode: setup.offer_mode,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;

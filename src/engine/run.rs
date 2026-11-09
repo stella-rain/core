@@ -71,8 +71,6 @@ pub(crate) struct Build<'a> {
     pub setup: Option<&'a RunSetup>,
     /// The players in the party, 1 to `MAX_PLAYERS`; version 1 has one.
     pub party: u8,
-    /// Whether an open offer stops the world; a stage run alone is `Stop`.
-    pub offer_mode: crate::run_setup::OfferMode,
 }
 
 /// What a run takes from its difficulty, as plain values.
@@ -108,12 +106,6 @@ impl Run {
     }
 
     fn new_v1(b: Build<'_>) -> Result<Run, Issue> {
-        if b.offer_mode == crate::run_setup::OfferMode::Timed {
-            return Err(Issue {
-                path: "$.offer_mode".into(),
-                message: "timed offers need sim_version 2".into(),
-            });
-        }
         if b.party != 1 {
             return Err(Issue {
                 path: "$.party".into(),

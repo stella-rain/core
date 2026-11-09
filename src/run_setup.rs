@@ -53,31 +53,9 @@ pub struct CarriedStar {
     pub reward: ContentId,
 }
 
-/// Whether an open offer stops the world (ADR-SIM-7 point 4). A field of the run's setup, so a
-/// replay names its own mode (ADR-REPL-5 point 2); the countdown's length is the pack's
-/// `offer_timer_ticks`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OfferMode {
-    /// An open offer stops the world until a pick answers it: today's behaviour.
-    #[default]
-    Stop,
-    /// The world keeps running while an offer is open, a pick travels in the input of any
-    /// step, and an offer still open `offer_timer_ticks` ticks after it opened is closed by a
-    /// pick of its first option, derived and not recorded (ADR-REPL-5 point 5). Needs
-    /// `sim_version` 2.
-    Timed,
-}
-
 impl BuildMode {
     fn is_offers(&self) -> bool {
         *self == BuildMode::Offers
-    }
-}
-
-impl OfferMode {
-    fn is_stop(&self) -> bool {
-        *self == OfferMode::Stop
     }
 }
 
@@ -165,11 +143,6 @@ pub struct RunSetup {
     /// equipment mode.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`, so a setup
-    /// written before the mode existed reads as it always did. Never `timed` in equipment
-    /// mode: nothing is offered.
-    #[serde(default, skip_serializing_if = "OfferMode::is_stop")]
-    pub offer_mode: OfferMode,
     /// How the run builds its character (ADR-SIM-7 points 4 and 7): the whole party's, one value
     /// until a per-party setup exists. Absent: `offers`, so a setup written before the mode
     /// existed reads as it always did.
@@ -206,7 +179,6 @@ impl Default for RunSetup {
             starting_rune: None,
             stat_priority: Vec::new(),
             pick_stats: false,
-            offer_mode: OfferMode::Stop,
             build_mode: BuildMode::Offers,
             lumine_star: None,
         }
@@ -286,9 +258,6 @@ struct RunSetupFile {
     /// equipment mode.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pick_stats: bool,
-    /// Whether an open offer stops the world (ADR-SIM-7 point 4). Absent: `stop`.
-    #[serde(default)]
-    offer_mode: OfferMode,
     /// How the run builds its character. Absent: `offers`.
     #[serde(default)]
     build_mode: BuildMode,
@@ -335,7 +304,6 @@ impl TryFrom<RunSetupFile> for RunSetup {
             starting_rune: f.starting_rune,
             stat_priority: f.stat_priority,
             pick_stats: f.pick_stats,
-            offer_mode: f.offer_mode,
             build_mode: f.build_mode,
             lumine_star: f.lumine_star,
         })
@@ -556,12 +524,6 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
                 "equipment mode needs sim_version 2".into(),
             );
         }
-        if setup.offer_mode == OfferMode::Timed {
-            issue(
-                "$.offer_mode".into(),
-                "not set in equipment mode: nothing is offered".into(),
-            );
-        }
         if !setup.carried.is_empty() {
             issue(
                 "$.carried".into(),
@@ -612,12 +574,6 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
 pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> {
     validate(setup)?;
     let mut issues = Vec::new();
-    if setup.offer_mode == OfferMode::Timed && setup.sim_version < 2 {
-        issues.push(Issue {
-            path: "$.offer_mode".into(),
-            message: "timed offers need sim_version 2".into(),
-        });
-    }
     if content.perk_sets().index_of(&setup.perk_set).is_none() {
         issues.push(Issue {
             path: "$.perk_set".into(),

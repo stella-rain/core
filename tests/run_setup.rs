@@ -868,7 +868,7 @@ fn a_setup_naming_offer_mode_is_refused_as_an_unknown_field() {
             "{mode}"
         );
         let err = run_setup::parse_and_validate(v.to_string().as_bytes()).unwrap_err();
-        assert!(format!("{err:?}").contains("offer_mode"), "{mode}: {err:?}");
+        assert!(matches!(err, Error::Parse { .. }), "{mode}: {err:?}");
     }
 }
 
