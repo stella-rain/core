@@ -2,10 +2,10 @@
 //! as the events said them. A resumed run reports the tally of the same run played straight, and
 //! the tally equals a fold of the events the way the app counts them.
 
+use crate::common::run_steps::{self, RunSteps, Step};
 use crate::common::{self, *};
 use crate::corpus::runs_dir;
 use crate::corpus_pins::case_pack;
-use stella_rain_core::id::PlayerIdx;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use serde_json::{Value, json};
 use stella_rain_core::engine::{Engine, Outcome, Tally};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::run_replay::{CommandKind, RunRecorder, RunReplay};
+use stella_rain_core::run_replay::{RunRecorder, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::EntityKind;
 
@@ -109,27 +109,15 @@ fn walk(
     let recorded = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
     let pack = case_pack(&case).unwrap();
     let mut rec = RunRecorder::start_with_pack(&recorded.setup, &pack).unwrap();
-    let commands = recorded.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
     let mut fold = Fold::default();
     let mut ordinal = 0;
-    'run: for input in recorded.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == rec.engine().tick()) {
-            match c.kind {
-                CommandKind::Choose => rec.choose(PlayerIdx::SOLO, c.index).unwrap(),
-            }
-            ordinal += 1;
-            let counted = fold.add(rec.engine().events());
-            f(&rec, ordinal, counted, &fold);
-            if stop_at == Some(ordinal) {
-                break 'run;
-            }
-        }
-        if rec.engine().outcome() != Outcome::Running || rec.engine().offer_open() {
+    for step in RunSteps::of(&recorded).steps() {
+        if matches!(step, Step::Tick(_))
+            && (rec.engine().outcome() != Outcome::Running || rec.engine().offer_open())
+        {
             break;
         }
-        rec.step(&[input, Default::default(), Default::default()])
-            .unwrap();
+        run_steps::apply_to(&mut rec, step);
         ordinal += 1;
         let counted = fold.add(rec.engine().events());
         f(&rec, ordinal, counted, &fold);
