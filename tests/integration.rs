@@ -133,6 +133,7 @@ mod run_loadout;
 mod run_play;
 mod run_replay;
 mod run_setup;
+mod run_steps;
 mod run_stats;
 mod rune_haste;
 mod runes;
