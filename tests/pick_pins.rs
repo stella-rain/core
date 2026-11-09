@@ -1,15 +1,15 @@
-//! Pins what a choice does before it moves into the input (ADR-REPL-5): for corpus run cases
-//! that hold commands, the state hash, the number of events and the tick after each of the first
-//! commands. The constants were taken once and stayed unchanged through the move of picks into
-//! `Input`; the hashes were re-pinned for the per-player hash layout and again for the slot generations and then for the six new rewards that lengthen the hashed lists (ADR-SIM-3), and the
-//! event counts and ticks, which say what the choices did, did not move.
+//! Pins what a choice does when it enters the step log (ADR-REPL-5, ADR-SIM-7): for corpus run
+//! cases, the state hash, the number of events and the tick after each of the first equipment
+//! actions (the run cases are equipment runs: no offer opens, so no PICKS step; each of the first
+//! six ACTIONS steps takes the place of the first six picks the offers-era pins held). The
+//! constants are what the blessed files compute (ADR-SIM-3).
 use crate::common::run_steps::{self, RunSteps, Step};
 use crate::corpus::{case_content, runs_dir};
 use stella_rain_core::run_replay::RunReplay;
 
 type Pin = (u64, usize, u32);
 
-/// The (hash, events, tick) after each of the first `take` commands of run case `name`.
+/// The (hash, events, tick) after each of the first `take` ACTIONS steps of run case `name`.
 fn after_commands(name: &str, take: usize) -> Vec<Pin> {
     let case = runs_dir().join(name);
     let content = case_content(&case).unwrap();
@@ -21,48 +21,47 @@ fn after_commands(name: &str, take: usize) -> Vec<Pin> {
             break;
         }
         run_steps::apply(&mut engine, step);
-        if matches!(step, Step::Picks(_)) {
+        if matches!(step, Step::Actions(_)) {
             seen.push((engine.state_hash(), engine.events().len(), engine.tick()));
         }
     }
     seen
 }
 
-/// The first six commands of three run cases, which between them take star, level and
-/// expertise offers: the state hash, the events and the tick after each, taken on the code
-/// where `choose` is its own method.
+/// The first six equipment actions of three run cases: the state hash, the events and the tick
+/// after each.
 const PINS: [(&str, [Pin; 6]); 3] = [
     (
         "easy",
         [
-            (17117895086852862318, 1, 128),
-            (7616054199903736465, 2, 128),
-            (6972137321315370495, 1, 128),
-            (1836394631138400559, 1, 177),
-            (17044189276531530617, 2, 263),
-            (1138776114179265986, 1, 263),
+            (15373035537714819308, 0, 142),
+            (1188971751525923911, 3, 202),
+            (16556548393670711982, 0, 262),
+            (9082092075595902726, 0, 292),
+            (11860052105243039688, 3, 322),
+            (17877435619128160330, 0, 352),
         ],
     ),
     (
         "elites",
         [
-            (5838056326134554884, 1, 4161),
-            (7945712485010896719, 2, 4161),
-            (4868091848243456022, 1, 4161),
-            (9150931298935964537, 1, 4166),
-            (11923648164717174844, 1, 4167),
-            (11227868491310892799, 1, 4571),
+            (14470112924262184256, 0, 4039),
+            (6196528020749832898, 0, 23119),
+            (8270932808395225994, 0, 23149),
+            (13750384682124744663, 0, 23179),
+            (2266286503337886961, 0, 24319),
+            (15377724959504386313, 0, 46819),
         ],
     ),
     (
         "rainy",
         [
-            (11328778091010703298, 1, 177),
-            (14886896750937530136, 2, 177),
-            (3417663741640201406, 1, 177),
-            (13177262495326042801, 1, 248),
-            (7985982310849542212, 1, 297),
-            (1163686814899249746, 1, 488),
+            (15054778341186555137, 3, 202),
+            (4512563832467928062, 0, 262),
+            (2526813088110314490, 0, 352),
+            (13423378008874116400, 0, 382),
+            (18361484826215154697, 0, 412),
+            (5763681066869071904, 0, 442),
         ],
     ),
 ];

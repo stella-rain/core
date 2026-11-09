@@ -629,12 +629,16 @@ fn a_real_savepoint_gets_past_the_loader() {
         savepoint_load(&savepoint_recorder(Some(150)).save()),
         "tick 150"
     );
-    // The corpus run is cut where its offer is open and before it ends: a re-bless that moves
-    // either fails here, not silently in the target.
-    let open = savepoint_recorder(Some(230));
-    assert_eq!(open.engine().tick(), 230);
-    assert!(open.engine().offer_open(), "the offer at tick 230 is open");
-    assert!(savepoint_load(&open.save()), "tick 230, offer open");
+    // The corpus run is cut before it ends: a re-bless that moves this fails here, not silently in
+    // the target. The run is an equipment run, which opens no offer, so the savepoint at tick 230
+    // is a running run's, as the one at tick 150 is.
+    let late = savepoint_recorder(Some(230));
+    assert_eq!(late.engine().tick(), 230);
+    assert!(
+        !late.engine().offer_open(),
+        "an equipment run opens no offer"
+    );
+    assert!(savepoint_load(&late.save()), "tick 230");
     // A savepoint of a tick no prefix of the target holds, and a finished run's.
     assert!(!savepoint_load(&savepoint_recorder(Some(100)).save()));
     assert!(!savepoint_load(&savepoint_recorder(None).save()));
@@ -804,6 +808,14 @@ fn equipment_action_regression() -> PathBuf {
         .join("regressions")
         .join("replay_load")
         .join("equipment-action.replay")
+}
+
+/// Writes the regression from `equipment_action_replay`, after a re-bless of `runs/tutorial`:
+/// `cargo test --test smoke rewrite_the_equipment_action_regression -- --ignored`.
+#[test]
+#[ignore = "rewrites a committed file, run by hand after a re-bless"]
+fn rewrite_the_equipment_action_regression() {
+    fs::write(equipment_action_regression(), equipment_action_replay()).expect("the regression");
 }
 
 #[test]

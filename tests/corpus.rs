@@ -28,7 +28,7 @@ use crate::corpus_pins::{
     case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
     run_case_pack, write_case_json, write_pack_file,
 };
-use crate::run_play::{PartyCase, party_cases, play_run_with};
+use crate::run_play::{PartyCase, party_cases};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -36,13 +36,13 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
+use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
@@ -1387,108 +1387,156 @@ pub(crate) fn definitions() -> Vec<Definition> {
     ]
 }
 
-/// The run cases: the trial mode played until the main character falls, raising its stats by priority
-/// and answering its offers on the way, with every kind of option; and the same from another
-/// seed, whose run takes a stage skill from an elite's star and uses it.
+/// The run cases (ADR-SIM-7, ADR-REPL-5), all played in equipment mode by the building bot, each
+/// from the seeds `search_corpus_run_seeds` found (`tests/common/run.rs`): the tutorial, the trial,
+/// a run that takes the black hole from an elite's star and uses it, the time_limit mode and its
+/// easy and rainy difficulties, the two short modes that end by the boss's kill and by the
+/// overtime, and the elites run.
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
-type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
+pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 
 fn run_definitions() -> Vec<RunDefinition> {
-    use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TIME_LIMIT_SEED, TRIAL_LENGTH, time_limit_setup,
-        trial_setup,
+        ELITES_BOT_SEED, ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
+        STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
+        TRIAL_BOT_SEED, TRIAL_SEED, trial_setup,
     };
-    // `STAGE_SKILL_SEED` was found with every point on attack: the priority keeps that run.
-    let stage_skill = RunSetup {
-        seed: STAGE_SKILL_SEED,
-        stat_priority: vec!["attack".into()],
-        star_pool: Some(vec!["black_hole_rare".into()]),
-        ..trial_setup()
-    };
-    let stage_skill_content = RunContent::bundled()
-        .clone()
-        .with_run_stats(common::design_run_stats());
-    let stage_skill_commands = play_run_in(&stage_skill, &stage_skill_content, TRIAL_LENGTH);
-    // The time_limit mode's waves around the main character, played until it falls (it does
-    // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
-    let time_limit = RunSetup {
-        seed: TIME_LIMIT_SEED,
-        ..time_limit_setup()
-    };
-    let time_limit_commands = play_run_from(&time_limit, MAX_TICKS);
-    // The time_limit mode on easy and on rainy: the enemies' hit points and damage
-    // scaled, the stars inside the rarity range; easy with its own boss times and level table.
-    let easy = RunSetup {
-        difficulty: "easy".into(),
-        ..time_limit_setup()
-    };
-    let easy_commands = play_run_from(&easy, 6_000);
-    let rainy = RunSetup {
-        difficulty: "rainy".into(),
-        ..time_limit_setup()
-    };
-    let rainy_commands = play_run_from(&rainy, 6_000);
-    // Two short modes with no waves and the final boss at tick 60, the only boss: in the first
-    // the overtime is long enough for the main character to kill it (it does, at tick 8098);
-    // in the second it ends at tick 600 with the boss alive.
-    let (_, kill_content) = short_time_limit(12_000);
-    let kill_setup = RunSetup {
-        seed: KILL_SEED,
-        ..time_limit_setup()
-    };
-    let kill_commands = play_run_with(&kill_setup, &kill_content, 20_060, boss_input);
-    let (_, overtime_content) = short_time_limit(540);
-    let kill_setup_2 = time_limit_setup();
-    let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
-    // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
-    // mode file, below.
-    let (_, elites_content) = elites_time_limit();
-    let elites_setup = RunSetup {
-        seed: ELITES_SEED,
-        ..time_limit_setup()
-    };
-    let elites_script = EliteScript::default();
-    let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
-        elites_script.input(e, t)
-    });
-    // The tutorial mode: three minutes of bats and one weak golem, which the bot kills.
-    let tutorial = RunSetup {
-        mode: "tutorial".into(),
-        ..trial_setup()
-    };
-    let tutorial_commands = play_run_with(&tutorial, RunContent::bundled(), 10_800, boss_input);
+    // The cases that keep the world seed they had play it with the bot's first seed.
+    let kept = trial_setup().seed;
     vec![
-        ("tutorial", tutorial, None, tutorial_commands),
-        ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
-        (
-            "stage_skill",
-            stage_skill,
-            Some(override_pack("stage_skill")),
-            stage_skill_commands,
-        ),
-        ("time_limit", time_limit, None, time_limit_commands),
-        ("easy", easy, None, easy_commands),
-        ("rainy", rainy, None, rainy_commands),
-        (
-            "time_limit_kill",
-            kill_setup,
-            Some(override_pack("time_limit_kill")),
-            kill_commands,
-        ),
-        (
-            "time_limit_overtime",
-            kill_setup_2,
-            Some(override_pack("time_limit_overtime")),
-            overtime_commands,
-        ),
-        (
-            "elites",
-            elites_setup,
-            Some(override_pack("elites")),
-            elites_commands,
-        ),
+        // Three minutes of bats and one weak golem, which the bot kills.
+        equipment_run_definition("tutorial", kept, KEPT_BOT_SEED),
+        equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED),
+        // Every point on attack; an elite's rare star offers the black hole.
+        equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED),
+        // The time_limit mode's waves around the main character, played until it falls just
+        // short of MAX_TICKS (the bosses are in `tests/time_limit_run.rs`).
+        equipment_run_definition("time_limit", TIME_LIMIT_SEED, TIME_LIMIT_BOT_SEED),
+        // The same on easy and on rainy: the enemies' hit points and damage scaled, the stars
+        // inside the rarity range; easy with its own boss times and level table.
+        equipment_run_definition("easy", kept, KEPT_BOT_SEED),
+        equipment_run_definition("rainy", kept, KEPT_BOT_SEED),
+        // Two short modes with no waves and the final boss at tick 60, the only boss: in the
+        // first the overtime is long enough for the main character to kill it; the second ends
+        // at tick 600 with the boss alive.
+        equipment_run_definition("time_limit_kill", KILL_SEED, KILL_BOT_SEED),
+        equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED),
+        // Every elite type, the cap of 5 reached, and each elite's event.
+        equipment_run_definition("elites", ELITES_SEED, ELITES_BOT_SEED),
     ]
+}
+
+/// The offers-era `trial` run, recorded in the test with the offers path that stays until the
+/// offers path goes (the readers whose intent needs a run with PICKS steps use it).
+pub(crate) fn offers_trial_run() -> RunReplay {
+    let commands = crate::run_play::play_run(common::run::TRIAL_LENGTH);
+    run_replay::record_run_with_pack(&common::run::trial_setup(), Pack::bundled(), &commands)
+        .unwrap()
+}
+
+/// The offers-era `time_limit` run (the seed of its first record), recorded in the test.
+pub(crate) fn offers_time_limit_run() -> RunReplay {
+    let setup = RunSetup {
+        seed: common::run::OFFERS_TIME_LIMIT_SEED,
+        ..common::run::time_limit_setup()
+    };
+    let commands = crate::run_play::play_run_from(&setup, MAX_TICKS);
+    run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
+}
+
+/// The run cases in equipment mode (ADR-SIM-7): the case `name` played from the world seed `seed`
+/// with the building bot `PartyBot::building(bot_seed)`, steered as the offers-era case was. The
+/// seed search (`corpus_seeds.rs`) and `run_definitions` both build a case here.
+pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> RunDefinition {
+    use crate::party_bot::PartyBot;
+    use crate::run_play::{
+        play_equipment_run_from, play_equipment_run_in, play_equipment_run_with,
+    };
+    use common::equip_run::equipment_setup;
+    use common::run::{TRIAL_LENGTH, time_limit_setup, trial_setup};
+    let bot = PartyBot::building(bot_seed);
+    let bundled = RunContent::bundled();
+    let base = RunSetup {
+        seed,
+        ..trial_setup()
+    };
+    let limited = RunSetup {
+        seed,
+        ..time_limit_setup()
+    };
+    let pack = |case: &str| Some(override_pack(case));
+    match name {
+        "tutorial" => {
+            let setup = equipment_setup(RunSetup {
+                mode: "tutorial".into(),
+                ..base
+            });
+            let commands = play_equipment_run_with(&setup, bundled, 10_800, boss_input, &bot);
+            ("tutorial", setup, None, commands)
+        }
+        "trial" => {
+            let setup = equipment_setup(base);
+            let commands = play_equipment_run_from(&setup, TRIAL_LENGTH, &bot);
+            ("trial", setup, None, commands)
+        }
+        "stage_skill" => {
+            // Every point on attack: the priority keeps that run.
+            let setup = equipment_setup(RunSetup {
+                stat_priority: vec!["attack".into()],
+                star_pool: Some(vec!["black_hole_rare".into()]),
+                ..base
+            });
+            let content = bundled.clone().with_run_stats(common::design_run_stats());
+            let commands = play_equipment_run_in(&setup, &content, TRIAL_LENGTH, &bot);
+            ("stage_skill", setup, pack("stage_skill"), commands)
+        }
+        "time_limit" => {
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_from(&setup, MAX_TICKS, &bot);
+            ("time_limit", setup, None, commands)
+        }
+        "easy" | "rainy" => {
+            let difficulty = RunSetup {
+                difficulty: name.into(),
+                ..limited
+            };
+            let setup = equipment_setup(difficulty);
+            let commands = play_equipment_run_from(&setup, 6_000, &bot);
+            let case = if name == "easy" { "easy" } else { "rainy" };
+            (case, setup, None, commands)
+        }
+        "time_limit_kill" => {
+            let (_, content) = short_time_limit(12_000);
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_with(&setup, &content, 20_060, boss_input, &bot);
+            ("time_limit_kill", setup, pack("time_limit_kill"), commands)
+        }
+        "time_limit_overtime" => {
+            let (_, content) = short_time_limit(540);
+            let setup = equipment_setup(limited);
+            let commands = play_equipment_run_with(&setup, &content, 600, boss_input, &bot);
+            (
+                "time_limit_overtime",
+                setup,
+                pack("time_limit_overtime"),
+                commands,
+            )
+        }
+        "elites" => {
+            let (_, content) = elites_time_limit();
+            let setup = equipment_setup(limited);
+            let script = EliteScript::default();
+            let commands = play_equipment_run_with(
+                &setup,
+                &content,
+                ELITES_TICKS,
+                |e, t| script.input(e, t),
+                &bot,
+            );
+            ("elites", setup, pack("elites"), commands)
+        }
+        other => panic!("no run case `{other}`"),
+    }
 }
 
 /// The ticks of the `elites` run: its length and its overtime.
@@ -1725,13 +1773,13 @@ fn boss_input(engine: &Engine, tick: u32) -> Input {
 }
 
 /// What a run case does, re-simulated from its file.
-struct RunCase {
-    /// The kind of option each choice takes.
-    kinds: Vec<std::mem::Discriminant<OfferOption>>,
+pub(crate) struct RunCase {
+    /// The kind of each equipment action slot 0 takes (the run holds no offer and no PICKS step).
+    pub(crate) kinds: Vec<std::mem::Discriminant<EquipAction>>,
     /// Each stage skill used, with the level it is used at.
-    used: Vec<(String, u8)>,
+    pub(crate) used: Vec<(String, u8)>,
     /// How many hits got each match-up: weak, strong, resisted, none.
-    match_ups: [u32; 4],
+    pub(crate) match_ups: [u32; 4],
 }
 
 /// A run case re-simulated from its file, which must verify and end by the main character falling.
@@ -1741,8 +1789,13 @@ fn replay_run_case(name: &str) -> RunCase {
 
 /// A run case re-simulated from its file, which must verify and end in `outcome`.
 fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
-    let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
-    let content = case_content(&runs_dir().join(name)).unwrap();
+    replay_run_case_at(&runs_dir().join(name), name, outcome)
+}
+
+/// `replay_run_case_ending` for the case in the folder `case` (named `name` in messages).
+pub(crate) fn replay_run_case_at(case: &Path, name: &str, outcome: Outcome) -> RunCase {
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let content = case_content(case).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
@@ -1753,13 +1806,8 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
     let mut raised = false;
     for step in steps.steps() {
-        if let Step::Picks([Some(index), ..]) = step {
-            let s = engine.snapshot();
-            let options = match s.expertise.and_then(|g| g.offer) {
-                Some(offer) => offer.options,
-                None => s.progress.unwrap().offer.unwrap().options,
-            };
-            kinds.push(std::mem::discriminant(&options[*index as usize]));
+        if let Step::Actions([Some(action), ..]) = step {
+            kinds.push(std::mem::discriminant(action));
         }
         run_steps::apply(&mut engine, step);
         if !matches!(step, Step::Tick(_)) {
@@ -1792,71 +1840,103 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     }
 }
 
-#[test]
-fn the_run_cases_are_what_their_names_say() {
-    // Re-simulated, the trial's choices take each kind of option at least once.
-    let kinds = replay_run_case("trial").kinds;
-    use OfferOption::{Banish, Reroll, Skip, Take};
-    for kind in [
-        Take { candidate: 0 },
-        Reroll { candidate: 0 },
-        Skip,
-        Banish { candidate: 0 },
-    ] {
+/// The trial's actions take each kind of equipment action at least once: equip, replace,
+/// extract, craft and a tree pick.
+pub(crate) fn assert_five_kinds(kinds: &[std::mem::Discriminant<EquipAction>]) {
+    use EquipAction::{Craft, Equip, Extract, Replace, TreePick};
+    let all = [
+        ("equip", Equip { item: 0, slot: 0 }),
+        ("replace", Replace { item: 0, slot: 0 }),
+        ("extract", Extract { item: 0 }),
+        ("craft", Craft { star: 0 }),
+        ("tree pick", TreePick { option: 0 }),
+    ];
+    for (name, kind) in all {
         assert!(
             kinds.contains(&std::mem::discriminant(&kind)),
-            "no {kind:?} in the run case"
+            "no {name} in the run case"
         );
     }
-    // The time_limit run ends with the main character falling, after level-ups.
-    // The healing keeps the scripted main character alive to the end of its script (MAX_TICKS,
-    // the most ticks a replay the fuzz targets read may hold), where it used to fall.
-    replay_run_case_ending("time_limit", Outcome::Running);
+}
+
+/// A short time_limit run ends by the final boss's kill or by the overtime limit.
+pub(crate) fn assert_short_run_at(
+    case: &Path,
+    name: &str,
+    outcome: Outcome,
+    ticks: Option<u32>,
+    boss_alive: bool,
+) {
+    let content = case_content(case).unwrap();
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
+    assert_eq!(verified.outcome, outcome, "`{name}` ends");
+    if let Some(ticks) = ticks {
+        assert_eq!(
+            verified.ticks, ticks,
+            "`{name}` ends at the length and the overtime"
+        );
+    }
+    let replay = RunReplay::from_bytes(&bytes).unwrap();
+    let mut engine = run_steps::start(&replay, &content);
+    for step in RunSteps::of(&replay).steps() {
+        run_steps::apply(&mut engine, step);
+    }
+    let boss = engine
+        .snapshot()
+        .entities
+        .into_iter()
+        .find(|v| v.kind == EntityKind::Boss);
+    assert_eq!(
+        boss.is_some_and(|b| b.hp > 0),
+        boss_alive,
+        "`{name}`: the final boss"
+    );
+    let last = engine.events();
+    let ended = if outcome == Outcome::Cleared {
+        DomainEvent::StageCleared
+    } else {
+        DomainEvent::StageFailed
+    };
+    assert!(last.contains(&ended), "`{name}` reports {ended:?}");
+}
+
+/// The `time_limit` run is the longest equipment run: it ends Failed, after level-ups, within a
+/// tenth of MAX_TICKS (the most ticks a replay the fuzz targets read may hold) but short of it.
+pub(crate) fn assert_longest_run(case: &Path) {
+    replay_run_case_at(case, "time_limit", Outcome::Failed);
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &case_content(case).unwrap()).unwrap();
+    assert!(
+        verified.ticks < MAX_TICKS && verified.ticks >= MAX_TICKS / 10 * 9,
+        "`time_limit` ends just short of {MAX_TICKS}: {}",
+        verified.ticks
+    );
+}
+
+/// An elite's rare star offers the black hole, taken, then used each time it is ready.
+pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
+    assert!(
+        !used.is_empty() && used.iter().all(|u| *u == ("black_hole".into(), 1)),
+        "the black hole is used: {used:?}"
+    );
+}
+
+#[test]
+fn the_run_cases_are_what_their_names_say() {
+    // Re-simulated, the trial's actions take each kind of equipment action at least once.
+    assert_five_kinds(&replay_run_case("trial").kinds);
+    // The time_limit run is the longest equipment run: it ends with the main character falling
+    // just short of the time limit (the offers-era healing that kept it alive to MAX_TICKS is gone).
+    assert_longest_run(&runs_dir().join("time_limit"));
     // The short time_limit runs end by the final boss's kill and by the overtime limit.
     for (name, outcome, ticks, boss_alive) in [
         ("time_limit_kill", Outcome::Cleared, None, false),
         ("time_limit_overtime", Outcome::Failed, Some(600), true),
     ] {
-        let case = runs_dir().join(name);
-        let content = case_content(&case).unwrap();
-        let bytes = fs::read(case.join("run.replay")).unwrap();
-        let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
-        assert_eq!(verified.outcome, outcome, "`{name}` ends");
-        if let Some(ticks) = ticks {
-            assert_eq!(
-                verified.ticks, ticks,
-                "`{name}` ends at the length and the overtime"
-            );
-        }
-        let replay = RunReplay::from_bytes(&bytes).unwrap();
-        let mut engine = run_steps::start(&replay, &content);
-        for step in RunSteps::of(&replay).steps() {
-            run_steps::apply(&mut engine, step);
-        }
-        let boss = engine
-            .snapshot()
-            .entities
-            .into_iter()
-            .find(|v| v.kind == EntityKind::Boss);
-        assert_eq!(
-            boss.is_some_and(|b| b.hp > 0),
-            boss_alive,
-            "`{name}`: the final boss"
-        );
-        let last = engine.events();
-        let ended = if outcome == Outcome::Cleared {
-            DomainEvent::StageCleared
-        } else {
-            DomainEvent::StageFailed
-        };
-        assert!(last.contains(&ended), "`{name}` reports {ended:?}");
+        assert_short_run_at(&runs_dir().join(name), name, outcome, ticks, boss_alive);
     }
-    // An elite's rare star offers the black hole, taken, then used each time it is ready.
-    let used = replay_run_case("stage_skill").used;
-    assert!(
-        !used.is_empty() && used.iter().all(|u| *u == ("black_hole".into(), 1)),
-        "the black hole is used: {used:?}"
-    );
+    assert_stage_skill(&replay_run_case("stage_skill").used);
 }
 
 /// The kind of elite a spawned one is, told from what the snapshot shows of it on the tick it
@@ -1877,7 +1957,7 @@ fn elite_kind(asset: &str, hp: u32, aura: bool) -> &'static str {
 
 /// What the `elites` run case does, found by re-simulating it from its file.
 #[derive(Default)]
-struct EliteReach {
+pub(crate) struct EliteReach {
     /// Each elite spawned: its kind and the tick it came.
     spawned: Vec<(EntityId, &'static str, u32)>,
     /// The most elites alive at once (a disguised mimic counts).
@@ -1912,8 +1992,12 @@ impl EliteReach {
 }
 
 fn elite_reach(name: &str) -> EliteReach {
-    let case = runs_dir().join(name);
-    let content = case_content(&case).unwrap();
+    elite_reach_at(&runs_dir().join(name), name)
+}
+
+/// `elite_reach` for the case in the folder `case` (named `name` in messages).
+pub(crate) fn elite_reach_at(case: &Path, name: &str) -> EliteReach {
+    let content = case_content(case).unwrap();
     let bytes = fs::read(case.join("run.replay")).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(
@@ -1994,7 +2078,11 @@ fn elite_reach(name: &str) -> EliteReach {
 
 #[test]
 fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
-    let r = elite_reach("elites");
+    assert_elites(&elite_reach("elites"));
+}
+
+/// What the `elites` run promises: every elite type, the cap, and each elite's event.
+pub(crate) fn assert_elites(r: &EliteReach) {
     // Every elite type spawns.
     for kind in ["low", "mid", "high", "goblin", "leader", "shrine", "mimic"] {
         assert!(!r.of(kind).is_empty(), "no {kind} spawns: {:?}", r.spawned);
@@ -2063,7 +2151,11 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
 fn the_trial_run_case_hits_every_match_up() {
     // The trial's weapons have damage types and its enemies placeholder profiles, so
     // the recorded run lands weak, strong, resisted and neutral hits.
-    let [weak, strong, resisted, none] = replay_run_case("trial").match_ups;
+    assert_match_ups(replay_run_case("trial").match_ups);
+}
+
+/// Every match-up is hit at least once.
+pub(crate) fn assert_match_ups([weak, strong, resisted, none]: [u32; 4]) {
     assert!(
         weak > 0 && strong > 0 && resisted > 0 && none > 0,
         "hits by match-up: weak {weak}, strong {strong}, resisted {resisted}, none {none}"

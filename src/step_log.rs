@@ -760,7 +760,9 @@ mod tests {
     use crate::base64;
     use crate::engine::ChoiceError;
     use crate::input::Input;
-    use crate::run_replay::{MAX_COMMANDS, RunReplay, RunReplayError, verify_run};
+    use crate::run_replay::{
+        MAX_COMMANDS, RunReplay, RunReplayError, RunVerified, verify_run_with,
+    };
 
     fn hex(text: &str) -> Vec<u8> {
         text.split_whitespace()
@@ -956,14 +958,67 @@ mod tests {
         one
     }
 
-    fn corpus_runs() -> Vec<(String, Vec<u8>)> {
-        corpus_files()
+    /// `verify_run` for a run on the bundled content, or else for a frozen run or a copy of one:
+    /// with the first frozen content that does not refuse it as another content (the runs are pinned to the bundled pack or to one of the
+    /// frozen packs, and verify only with the content they were frozen with).
+    fn verify_run(bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
+        let mut last = crate::run_replay::verify_run(bytes);
+        if last != Err(RunReplayError::ContentChanged) {
+            return last;
+        }
+        for (name, _) in corpus_files()
             .into_iter()
+            .filter(|(n, _)| n.starts_with("v1/"))
+        {
+            last = verify_run_with(bytes, &content_of(&name));
+            if last != Err(RunReplayError::ContentChanged) {
+                break;
+            }
+        }
+        last
+    }
+
+    #[allow(dead_code, reason = "shared with tests/, which uses more of it")]
+    mod data_root {
+        include!("../tests/data_root.rs");
+    }
+
+    /// The content a corpus run (`"v1/easy"`) plays with: the pack its `case.json` pins, which is
+    /// in its tree's `packs/` when it is not the bundled one. The frozen runs verify only with the
+    /// content they were frozen with.
+    fn content_of(name: &str) -> crate::run_content::RunContent {
+        let (tree, case) = name.split_once('/').unwrap();
+        let root = data_root::data_root().join("tests/corpus");
+        let pin: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join(tree).join("runs").join(case).join("case.json")).unwrap(),
+        )
+        .unwrap();
+        let file = root
+            .join(tree)
+            .join("packs")
+            .join(format!("{}.json", pin["pack_sha256"].as_str().unwrap()));
+        match std::fs::read(file) {
+            Ok(bytes) => crate::pack::Pack::from_bytes(&bytes)
+                .unwrap()
+                .content()
+                .clone(),
+            Err(_) => crate::run_content::RunContent::bundled().clone(),
+        }
+    }
+
+    /// The frozen `v1/` runs in their schema 1 form: they are offers-era runs by design. A
+    /// `current/` run is an equipment run, which has no solo view (`to_solo` refuses its actions).
+    fn corpus_runs() -> Vec<(String, Vec<u8>)> {
+        let runs: Vec<_> = corpus_files()
+            .into_iter()
+            .filter(|(name, _)| name.starts_with("v1/"))
             .map(|(name, bytes)| {
                 let one = schema_1_form(&RunReplay::from_bytes(&bytes).unwrap());
                 (name, one.to_bytes())
             })
-            .collect()
+            .collect();
+        assert_eq!(runs.len(), 9, "the frozen run cases are read");
+        runs
     }
 
     /// Every run case of the corpus, current and frozen, as (name, bytes) as they are filed.
@@ -1095,8 +1150,12 @@ mod tests {
     fn run_with_picks() -> RunReplay {
         corpus_runs()
             .into_iter()
-            .map(|(_, bytes)| RunReplay::from_bytes(&bytes).unwrap())
-            .find(|r| !r.unpack_commands().unwrap().is_empty() && verify_run(&r.to_bytes()).is_ok())
+            .map(|(name, bytes)| (name, RunReplay::from_bytes(&bytes).unwrap()))
+            .find(|(name, r)| {
+                !r.unpack_commands().unwrap().is_empty()
+                    && verify_run_with(&r.to_bytes(), &content_of(name)).is_ok()
+            })
+            .map(|(_, r)| r)
             .expect("a run with picks")
     }
 
@@ -1107,14 +1166,23 @@ mod tests {
             let one = RunReplay::from_bytes(&bytes).unwrap();
             let two = schema_2_of(&one);
             assert_eq!(two.setup.schema_version, 2);
-            let expected = verify_run(&bytes);
+            let content = content_of(&name);
+            let expected = verify_run_with(&bytes, &content);
             // A case pinned to another pack is checked by the corpus test with its pack.
             if expected == Err(RunReplayError::ContentChanged) {
-                assert_eq!(verify_run(&two.to_bytes()), expected, "{name}");
+                assert_eq!(
+                    verify_run_with(&two.to_bytes(), &content),
+                    expected,
+                    "{name}"
+                );
                 continue;
             }
             assert!(expected.is_ok(), "{name}: {expected:?}");
-            assert_eq!(verify_run(&two.to_bytes()), expected, "{name}");
+            assert_eq!(
+                verify_run_with(&two.to_bytes(), &content),
+                expected,
+                "{name}"
+            );
             verified += 1;
         }
         assert!(
@@ -1335,6 +1403,7 @@ mod tests {
     enum Entry {
         Tick(Vec<Input>),
         Picks(Vec<Option<u32>>),
+        Actions(Vec<Option<EquipAction>>),
     }
 
     /// The full decode, expanded to one entry per tick and cut to `a..b` by the rule written out
@@ -1360,8 +1429,16 @@ mod tests {
                         out.push(Entry::Picks(picks.clone()));
                     }
                 }
-                Record::Join { .. } | Record::Leave { .. } | Record::Actions { .. } => {
-                    unreachable!("these logs hold no join, leave or action")
+                Record::Actions { actions } => {
+                    // An ACTIONS step does not advance the world: in a range as a PICKS is.
+                    let inside =
+                        (a <= world && world < b) || (a < b && b == ticks && world == ticks);
+                    if inside {
+                        out.push(Entry::Actions(actions.clone()));
+                    }
+                }
+                Record::Join { .. } | Record::Leave { .. } => {
+                    unreachable!("these logs hold no join or leave")
                 }
             }
         }
@@ -1378,8 +1455,9 @@ mod tests {
                     }
                 }
                 RangeStep::Picks { picks } => out.push(Entry::Picks(picks.clone())),
-                RangeStep::Join { .. } | RangeStep::Leave { .. } | RangeStep::Actions { .. } => {
-                    unreachable!("these logs hold no join, leave or action")
+                RangeStep::Actions { actions } => out.push(Entry::Actions(actions.clone())),
+                RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                    unreachable!("these logs hold no join or leave")
                 }
             }
         }

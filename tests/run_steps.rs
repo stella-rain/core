@@ -106,20 +106,28 @@ fn every_run_case_replays_to_its_checkpoints() {
         let steps = RunSteps::of(&replay);
         let name = case.display().to_string();
         assert_eq!(steps.party, 1, "{name}");
-        assert!(
-            !steps.has_actions(),
-            "{name}: the corpus holds no equipment run in runs/"
+        // Every current case is an equipment run (only `tutorial`, shorter than the bot's first
+        // decision, holds no action); the frozen offers-era runs hold none.
+        let frozen = case.starts_with(frozen_runs_dir());
+        let acts = count(&steps, |s| matches!(s, Step::Actions(_)));
+        assert_eq!(
+            acts > 0,
+            !frozen && case.file_name().is_some_and(|n| n != "tutorial"),
+            "{name}: {acts} ACTIONS steps"
         );
+        assert_eq!(steps.has_actions(), acts > 0, "{name}");
         assert_eq!(
             count(&steps, |s| matches!(s, Step::Tick(_))),
             replay.ticks as usize,
             "{name}"
         );
-        assert_eq!(
-            count(&steps, |s| matches!(s, Step::Picks(_))),
-            replay.unpack_commands().unwrap().len(),
-            "{name}"
-        );
+        // An offers run holds one PICKS step per command; an equipment run opens no offer.
+        let picks = count(&steps, |s| matches!(s, Step::Picks(_)));
+        if frozen {
+            assert_eq!(picks, replay.unpack_commands().unwrap().len(), "{name}");
+        } else {
+            assert_eq!(picks, 0, "{name}: an equipment run holds no PICKS step");
+        }
         // No corpus run ends with a trailing pick: a reader may apply every step.
         assert_eq!(steps.at(replay.ticks), steps.steps().len(), "{name}");
         replay_to_checkpoints(&replay, pack.content());
@@ -192,7 +200,8 @@ fn schema_1_form_refuses_an_equipment_run() {
 
 #[test]
 fn at_finds_the_first_step_of_a_tick() {
-    let (replay, _, pack) = load(&runs_dir().join("tutorial"));
+    // The frozen offers-era tutorial: an equipment run opens no offer and holds no PICKS step.
+    let (replay, _, pack) = load(&frozen_runs_dir().join("tutorial"));
     let steps = RunSteps::of(&replay);
     let at = steps.at(230);
     assert!(matches!(steps.steps()[at], Step::Picks(_)));
