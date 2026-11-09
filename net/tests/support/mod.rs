@@ -197,3 +197,54 @@ pub fn straight(script: &Script, n: u8) -> Vec<u64> {
     }
     hashes
 }
+
+/// What a [`CountingSave`] has seen.
+#[derive(Default)]
+pub struct SaveLog {
+    saved: std::collections::BTreeMap<u32, Engine>,
+    /// Calls to `save`.
+    pub saves: u32,
+    /// Calls to `load`.
+    pub loads: u32,
+    /// The most saves held at once, measured after every `save`.
+    pub max_held: usize,
+}
+
+impl SaveLog {
+    /// How many saves are held now.
+    pub fn held(&self) -> usize {
+        self.saved.len()
+    }
+}
+
+/// A [`Save`] with no capacity of its own: it holds what the session has not forgotten, so a
+/// test sees how many saves the session keeps, and counts the calls. The handle is shared: keep
+/// a clone to read the log while the session owns the other.
+#[derive(Clone, Default)]
+pub struct CountingSave(pub std::rc::Rc<std::cell::RefCell<SaveLog>>);
+
+impl stella_rain_net::save::Save for CountingSave {
+    fn save(&mut self, tick: u32, engine: &Engine) {
+        let mut log = self.0.borrow_mut();
+        log.saves += 1;
+        log.saved.insert(tick, engine.clone());
+        log.max_held = log.max_held.max(log.saved.len());
+    }
+
+    fn load(&mut self, tick: u32, engine: &mut Engine) -> bool {
+        let mut log = self.0.borrow_mut();
+        log.loads += 1;
+        match log.saved.get(&tick) {
+            Some(saved) => {
+                *engine = saved.clone();
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn forget_before(&mut self, tick: u32) {
+        let mut log = self.0.borrow_mut();
+        log.saved = log.saved.split_off(&tick);
+    }
+}
