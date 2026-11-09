@@ -479,6 +479,85 @@ fn the_minute_fixtures_run_in_equipment_mode_and_open_no_offer() {
     assert!(!equip.offer_open());
 }
 
+/// The stage fixtures start in equipment mode (ADR-SIM-5, ADR-SIM-7): the main character has
+/// equipment slots, the worst tick's seven runes and Rune Haste are equipped, and no offer opens.
+#[test]
+fn the_stage_fixtures_run_in_equipment_mode() {
+    use stella_rain_core::rune::Rune;
+    use stella_rain_core::snapshot::{HeldView, SlotKindView};
+
+    let worst = worst_case_engine();
+    let slots = &worst.snapshot().players[0].slots;
+    let runes: Vec<Rune> = slots
+        .iter()
+        .filter(|s| s.kind == SlotKindView::Rune)
+        .filter_map(|s| match s.held {
+            Some(HeldView::Rune { rune }) => Some(rune),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(runes, Rune::ALL, "every rune, in the rune slots");
+    assert!(
+        matches!(&slots[0].held, Some(HeldView::Star { id, .. }) if id.as_str() == "haste"),
+        "Rune Haste in slot 0"
+    );
+
+    type Inputs = fn(u32) -> Input;
+    let cases: [(&str, Engine, Inputs); 5] = [
+        (
+            "worst_tick",
+            bench_fixtures::worst_tick().engine,
+            worst_case::input,
+        ),
+        (
+            "hit_tick",
+            bench_fixtures::hit_tick().engine,
+            hit_case::input,
+        ),
+        (
+            "hit_tick_spread",
+            bench_fixtures::hit_tick_spread().engine,
+            hit_case::input,
+        ),
+        (
+            "time_limit_tick",
+            bench_fixtures::time_limit_tick().engine,
+            time_limit_case::input,
+        ),
+        (
+            "worst_tick_3p",
+            party_case::worst_tick_3p().engine,
+            worst_case::input,
+        ),
+    ];
+    for (name, mut engine, input) in cases {
+        let view = &engine.snapshot().players[0];
+        assert!(!view.slots.is_empty(), "{name} is in equipment mode");
+        let held_runes = view
+            .slots
+            .iter()
+            .filter(|s| matches!(s.held, Some(HeldView::Rune { .. })))
+            .count();
+        let wants = if name.starts_with("worst_tick") {
+            Rune::ALL.len()
+        } else {
+            0
+        };
+        assert_eq!(held_runes, wants, "{name} runes equipped");
+        for _ in 0..120 {
+            assert!(!engine.offer_open(), "{name} opens no offer");
+            let tick = engine.tick() + 1;
+            let mut inputs = [Input::default(), Input::default(), Input::default()];
+            inputs[0] = input(tick);
+            engine.step(&inputs);
+        }
+    }
+}
+
+fn worst_case_engine() -> Engine {
+    bench_fixtures::worst_tick().engine
+}
+
 /// E1: the equipment rollback's saved engine.
 #[test]
 fn the_equip_saved_engine() {
