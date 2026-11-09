@@ -480,8 +480,15 @@ fn cases(tree: &str) -> Vec<Case> {
         let setup = recorded.setup.clone();
         out.push(Case {
             name,
+            // An equipment run needs the live rules (the frozen version 1 has no equipment: its
+            // actions are `NotBuilt`), so it is not forced to the frozen state's codec; an offers
+            // run is, as the stages above.
             start: Box::new(move || {
-                Engine::forced(1, || Engine::start_with(&setup, pack.content()).unwrap())
+                if setup.build_mode == crate::run_setup::BuildMode::Equipment {
+                    Engine::start_with(&setup, pack.content()).unwrap()
+                } else {
+                    Engine::forced(1, || Engine::start_with(&setup, pack.content()).unwrap())
+                }
             }),
             steps,
         });
@@ -556,11 +563,45 @@ fn check_savepoint(case: &Case, engine: &Engine, next: usize) {
     }
 }
 
+/// `check_savepoint` for a run of the live rules (an equipment run, whose state is not version
+/// 1's): the decode swaps the saved parts into a fresh engine, which has the original's hash and
+/// bytes and goes on 30 ticks as the original does.
+fn check_live_savepoint(case: &Case, engine: &Engine, next: usize) {
+    let at = format!("{} tick {}", case.name, engine.tick());
+    let bytes = encode_state(engine);
+    let fresh = (case.start)();
+    let (state, ledger, counted, stats) =
+        crate::savepoint::decode_state(&bytes, &fresh).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+    let mut resumed = fresh.with_saved(state, ledger, counted, stats);
+    assert_eq!(resumed.state_hash(), engine.state_hash(), "{at}: hash");
+    assert_eq!(encode_state(&resumed), bytes, "{at}: re-encoded bytes");
+    let mut original = engine.clone();
+    let (mut a, mut b) = (next, next);
+    for i in 0..30 {
+        if !advance(&mut original, &case.steps, &mut a) {
+            break;
+        }
+        assert!(advance(&mut resumed, &case.steps, &mut b));
+        assert_eq!(
+            resumed.state_hash(),
+            original.state_hash(),
+            "{at}: {} ticks after the resume",
+            i + 1
+        );
+    }
+}
+
 #[test]
 fn corpus_round_trip() {
+    let (mut live, mut actions) = (0, 0);
     for tree in ["current", "v1"] {
         for case in cases(tree) {
             let mut engine = (case.start)();
+            actions += case
+                .steps
+                .iter()
+                .filter(|s| matches!(s, Step::Act(_)))
+                .count();
             let mut next = 0;
             let last = case
                 .steps
@@ -569,7 +610,10 @@ fn corpus_round_trip() {
                 .count();
             for tick in 0..=last {
                 let wants = tick == 0 || tick % 60 == 0 || tick == last || engine.offer_open();
-                if wants {
+                if wants && matches!(engine.run(), Run::V2 { .. }) {
+                    live += 1;
+                    check_live_savepoint(&case, &engine, next);
+                } else if wants {
                     check_savepoint(&case, &engine, next);
                 }
                 if tick == last {
@@ -579,6 +623,12 @@ fn corpus_round_trip() {
             }
         }
     }
+    // Not vacuous: the equipment runs of `current/` go through the live round trip, actions
+    // included.
+    assert!(
+        live > 100 && actions > 0,
+        "{live} live checks, {actions} actions"
+    );
 }
 
 #[test]
