@@ -121,10 +121,6 @@ fn minute_case() -> String {
     let mut run = Run::fast_forwarded(0);
     let mut sha = Sha256::new();
     for i in 0..MINUTE_PLAYED {
-        while run.engine.offer_open() {
-            let choice = stella_rain_core::bench_fixtures::worst_minute_case::OFFER_CHOICE;
-            crate::common::pick(&mut run.engine, choice).expect("the first option is taken");
-        }
         let input = input_at(run.engine.tick());
         run.engine
             .step(&[input, Default::default(), Default::default()]);

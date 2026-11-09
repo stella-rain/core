@@ -19,15 +19,23 @@ pub(super) fn p1() -> PlayerIdx {
 /// An engine and the input that plays it.
 type Case = (Engine, fn(u32) -> Input);
 
+/// The dense minute of the `time_limit` mode in offers mode, at its start: the bench fixture runs
+/// in equipment mode, where no offer opens, so a test that needs offers builds it here.
+pub(super) fn offers_minute() -> Engine {
+    let setup = crate::run_setup::RunSetup {
+        mode: "time_limit".into(),
+        seed: 1,
+        ..crate::run_setup::RunSetup::default()
+    };
+    Engine::start_with(&setup, &worst_minute_case::content()).expect("the offers minute starts")
+}
+
 /// An engine with an offer open, from the first of the walks that reaches one. 1500 ticks: with
-/// the 64-pixel pickup circle the worst minute's warm-up takes its stars before the walk, and
+/// the 64-pixel pickup circle the offers minute's warm-up takes its stars before the walk, and
 /// its first offer after it opens 1293 ticks in.
 pub(super) fn with_offer() -> Engine {
     let cases: [Case; 5] = [
-        (
-            worst_minute_case::worst_minute().engine,
-            worst_minute_case::input_at,
-        ),
+        (offers_minute(), worst_minute_case::input_at),
         (
             Engine::new(&orb_cage()).expect("the stage runs"),
             worst_minute_case::input_at,

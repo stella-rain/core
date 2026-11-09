@@ -337,9 +337,8 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 
 /// The dense minute's plain ticks allocate nothing (T1b): attacks launched with a type bonus
 /// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
-/// and rule firings. A tick that spawns or loses an elite, opens an offer or does anything else
-/// outside this list is left out: it builds an entity or an offer, which is by design. So is a
-/// tick that begins with an offer open, whose pick `Run::play` takes first. A tick that emits
+/// and rule firings. A tick that spawns or loses an elite or does anything else
+/// outside this list is left out: it builds an entity, which is by design. A tick that emits
 /// an orb or fires its hook is plain like any other: a hooked orb keeps its hook and path inline.
 #[test]
 fn the_dense_minutes_plain_ticks_allocate_nothing() {
@@ -347,8 +346,6 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
     let mut run = bench_fixtures::worst_minute();
     let (mut launched, mut defeated, mut hooked) = (0, 0, 0_usize);
     for tick in 0..MINUTE_TICKS {
-        // `play` answers an open offer first: that pick frees the offer's candidates and event.
-        let picked = run.engine.offer_open();
         let orbs = run.engine.load().orbs;
         let counts = counted3(|| run.play(1));
         let events = run.engine.events();
@@ -365,7 +362,7 @@ fn the_dense_minutes_plain_ticks_allocate_nothing() {
             )
         });
         let emitted = run.engine.load().orbs > orbs;
-        if picked || !plain {
+        if !plain {
             continue;
         }
         if HOOKED_ORB_TICKS.contains(&tick) {

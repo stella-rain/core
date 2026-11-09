@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use stella_rain_core::bench_fixtures::equip_case::{self, EQUIP_PEAK_TICK, ROLLBACK_ACTIONS};
 use stella_rain_core::bench_fixtures::party_case::{self, PEAK_TICK_3P, ROLLBACK_TICKS};
 use stella_rain_core::bench_fixtures::worst_minute_case::{
-    MINUTE_START, MINUTE_TICKS, OFFER_CHOICE, Run, input_at, worst_minute_window,
+    MINUTE_START, MINUTE_TICKS, Run, input_at, worst_minute_window,
 };
 use stella_rain_core::bench_fixtures::{self, Case, hit_case, time_limit_case, worst_case};
 use stella_rain_core::engine::Engine;
@@ -43,8 +43,8 @@ const HEADER: &str = "\
 #          (`stella-rain/bench-stage/v1`; the minute cases have no stage part: the content
 #          hash and `before` cover their stage)
 #   input  the first 16 hex of SHA-256 over the measured input's JSON; for a minute case over
-#          the start tick, the tick count, the option an open offer takes and the JSON of
-#          every played `Input` (`input_at`) (`stella-rain/bench-input/v2`)
+#          the start tick, the tick count and the JSON of every played `Input` (`input_at`)
+#          (`stella-rain/bench-input/v3`; the tick cases keep `v2`)
 # Hashes are strings: TOML integers are i64 and these u64 values overflow it.
 # A case is comparable when `before`, `stage` and `input` are equal; `after` is pinned only.
 # Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins` (only the exact value `1`; CI
@@ -182,8 +182,8 @@ fn content_hash(engine: &Engine, mode: &str) -> [u8; 32] {
     content_sha256_with(mode, engine.content()).expect("the mode's content hashes")
 }
 
-/// The digest of a minute case's input: the start tick, the tick count, the option an open offer
-/// takes and every `Input` the script gives for the ticks `start..start + ticks`.
+/// The digest of a minute case's input: the start tick, the tick count
+/// and every `Input` the script gives for the ticks `start..start + ticks`.
 fn minute_input_digest<I: serde::Serialize>(
     start: u32,
     ticks: u32,
@@ -195,13 +195,11 @@ fn minute_input_digest<I: serde::Serialize>(
         played.push(b'\n');
     }
     digest(&[
-        b"stella-rain/bench-input/v2\n",
+        b"stella-rain/bench-input/v3\n",
         b"start:",
         start.to_string().as_bytes(),
         b"ticks:",
         ticks.to_string().as_bytes(),
-        b"offer:",
-        OFFER_CHOICE.to_string().as_bytes(),
         b"\n",
         &played,
     ])
