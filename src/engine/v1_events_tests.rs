@@ -674,3 +674,55 @@ fn the_offer_views_convert_field_by_field() {
         )
     );
 }
+
+/// A frozen run still stops on a stat or expertise offer and takes its pick, but its snapshot
+/// shows no such offer and its event stream names none of the four events that left the live
+/// rules (ADR-REPL-2 point 6, ADR-SIM-7).
+#[test]
+fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
+    const GONE: [&str; 4] = [
+        "StatOfferOpened",
+        "ExpertiseOfferOpened",
+        "ExpertiseOptionTaken",
+        "ExpertiseCandidateReplaced",
+    ];
+    let pack = crate::pack::Pack::from_bytes(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack");
+    let content = pack.content();
+    let bytes: &[u8] = include_bytes!("../../tests/corpus/v1/runs/trial/run.replay");
+    let recorded = crate::run_replay::RunReplay::from_bytes(bytes).expect("a run replay");
+    let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).expect("a stage");
+    let inputs = recorded
+        .unpack_inputs(run_setup::max_replay_ticks(
+            &recorded.setup,
+            &stage,
+            content.time_limit(),
+        ))
+        .expect("inputs");
+    let commands = recorded.unpack_commands().expect("commands");
+    let mut e = Engine::start_with(&recorded.setup, content).expect("the run starts");
+    let mut next = commands.iter().peekable();
+    let mut level_offers = 0;
+    for input in inputs {
+        while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
+            assert!(e.offer_open(), "a recorded pick answers an open offer");
+            let star = e.snapshot().progress.is_some_and(|p| p.offer.is_some());
+            level_offers += usize::from(!star);
+            crate::engine::pick(&mut e, PlayerIdx::SOLO, c.index).expect("a recorded choice");
+        }
+        e.step(&[input, Default::default(), Default::default()]);
+        let snap = serde_json::to_value(e.snapshot()).unwrap();
+        assert!(snap["progress"].get("stat_offer").is_none());
+        assert!(snap["expertise"].get("offer").is_none());
+        for event in e.events() {
+            let name = serde_json::to_value(event).unwrap()["type"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            assert!(!GONE.contains(&name.as_str()), "{name}");
+        }
+    }
+    assert!(level_offers > 0, "the run took a stat or expertise offer");
+}

@@ -1105,3 +1105,15 @@ fn a_replay_whose_setup_names_offer_mode_is_refused() {
         assert!(!replay_load(forged.as_bytes()), "{mode}");
     }
 }
+
+#[test]
+fn a_replay_whose_setup_names_pick_stats_is_refused() {
+    // The stat offer left the setup: its key is an unknown field, refused without a panic.
+    let bytes =
+        fs::read(root().join("tests/corpus/current/parties/two_time_limit/run.replay")).unwrap();
+    assert!(replay_load(&bytes));
+    let text = String::from_utf8(bytes).unwrap();
+    let forged = text.replace("\"sim_version\":2", "\"pick_stats\":true,\"sim_version\":2");
+    assert_ne!(forged, text);
+    assert!(!replay_load(forged.as_bytes()));
+}
