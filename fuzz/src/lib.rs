@@ -22,7 +22,7 @@ use stella_rain_core::progression::{Bank, RunOutcome, RunResult, settle};
 use stella_rain_core::replay::{self, Replay};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{self, Command, CommandKind, RunRecorder, RunReplay};
+use stella_rain_core::run_replay::{self, Command, RunRecorder, RunReplay};
 use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::runes::Runes;
@@ -685,26 +685,40 @@ pub fn savepoint_seeds() -> Vec<(String, Vec<u8>)> {
     seeds
 }
 
-/// A solo run replay's commands in the order they were made (a party has no solo view and
-/// panics here): before each tick the commands that carry the tick before it, then its input;
-/// at the end the commands of the last tick.
+/// A solo run replay's commands in the order they were made, read from its step log, so a run
+/// with equipment actions is covered: a pick is a `Choose`, an action rides in the `Input.action`
+/// of the tick that follows it, as `record_run_with` takes it. A party has no solo commands and
+/// panics here, as does an action that does not directly precede its tick.
 pub fn commands(run: &RunReplay) -> Vec<Command> {
-    let inputs = run
-        .unpack_inputs(MAX_TICKS)
-        .expect("verified inputs unpack");
-    let between = run.unpack_commands().expect("verified commands unpack");
-    let mut next = between.iter().peekable();
-    let command = |c: &run_replay::TickCommand| match c.kind {
-        CommandKind::Choose => Command::Choose(c.index),
-    };
+    let range = run
+        .step_range(0, run.ticks, MAX_TICKS)
+        .expect("a verified step log reads");
+    assert_eq!(range.present, 1, "a party has no solo commands");
     let mut out = Vec::new();
-    for (tick, input) in (0u32..).zip(inputs) {
-        while let Some(c) = next.next_if(|c| c.tick == tick) {
-            out.push(command(c));
+    let mut action = None;
+    for step in &range.steps {
+        match step {
+            RangeStep::Ticks { run, inputs } => {
+                for _ in 0..*run {
+                    let mut input = inputs[0];
+                    input.action = action.take();
+                    out.push(Command::Step(input));
+                }
+            }
+            RangeStep::Picks { picks } => {
+                assert!(action.is_none(), "an action must precede its tick");
+                out.push(Command::Choose(picks[0].expect("a solo pick")));
+            }
+            RangeStep::Actions { actions } => {
+                assert!(action.is_none(), "an action must precede its tick");
+                action = Some(actions[0].expect("a solo action"));
+            }
+            RangeStep::Join { .. } | RangeStep::Leave { .. } => {
+                panic!("a party has no solo commands")
+            }
         }
-        out.push(Command::Step(input));
     }
-    out.extend(next.map(command));
+    assert!(action.is_none(), "an action must precede its tick");
     out
 }
 
