@@ -142,13 +142,13 @@ fn specs() -> [Spec; 12] {
             id: "rollback_session_w4",
             bench: "rollback_session",
             mode: "time_limit",
-            kind: Kind::SessionRollback(stella_rain_net::DEFAULT_WINDOW),
+            kind: Kind::SessionRollback(stella_rain_net::session::DEFAULT_WINDOW),
         },
         Spec {
             id: "rollback_session_w16",
             bench: "rollback_session",
             mode: "time_limit",
-            kind: Kind::SessionRollback(stella_rain_net::MAX_WINDOW),
+            kind: Kind::SessionRollback(stella_rain_net::session::MAX_WINDOW),
         },
         Spec {
             id: "clone_ring_save",
@@ -331,7 +331,10 @@ fn measure(spec: &Spec) -> Pins {
             std::mem::forget(prepared);
         }
         Kind::RingSave => {
-            let (ring, engine) = (CloneRing::new(session_case::RING_CAPACITY), equip_case::saved());
+            let (ring, engine) = (
+                CloneRing::new(session_case::RING_CAPACITY),
+                equip_case::saved(),
+            );
             before = hash_hex(engine.state_hash());
             stage = digest(&[
                 b"stella-rain/bench-stage/v1\n",
@@ -507,7 +510,7 @@ fn corrected_run(window: u32) -> Engine {
 /// S1: driven through its public calls, the session reproduces the saved engine of the case.
 #[test]
 fn the_session_setup_reaches_the_rollback_equip_saved_engine() {
-    let session = session_case::at_peak(stella_rain_net::DEFAULT_WINDOW);
+    let session = session_case::at_peak(stella_rain_net::session::DEFAULT_WINDOW);
     assert_eq!(session.tick(), EQUIP_PEAK_TICK);
     assert_eq!(session.confirmed(), EQUIP_PEAK_TICK);
     assert_eq!(session.engine().tick(), EQUIP_PEAK_TICK);
@@ -520,7 +523,10 @@ fn the_session_setup_reaches_the_rollback_equip_saved_engine() {
 /// S2: the measured advance re-simulates exactly the window and lands on the corrected run.
 #[test]
 fn the_session_rollback_re_simulates_the_window() {
-    for w in [stella_rain_net::DEFAULT_WINDOW, stella_rain_net::MAX_WINDOW] {
+    for w in [
+        stella_rain_net::session::DEFAULT_WINDOW,
+        stella_rain_net::session::MAX_WINDOW,
+    ] {
         let mut p = session_case::driven(w);
         assert_eq!(p.session.tick(), EQUIP_PEAK_TICK + w);
         assert_eq!(p.session.confirmed(), EQUIP_PEAK_TICK);
@@ -541,7 +547,7 @@ fn the_session_rollback_re_simulates_the_window() {
 #[test]
 fn the_session_window_equips_and_extracts() {
     let before = equip_case::saved().snapshot();
-    let after = session_case::rollback(session_case::driven(stella_rain_net::MAX_WINDOW))
+    let after = session_case::rollback(session_case::driven(stella_rain_net::session::MAX_WINDOW))
         .session
         .engine()
         .snapshot();
@@ -555,7 +561,8 @@ fn the_session_window_equips_and_extracts() {
 fn the_ring_save_is_one_clone() {
     let engine = equip_case::saved();
     let hash = engine.state_hash();
-    let (ring, engine) = session_case::save_once((CloneRing::new(session_case::RING_CAPACITY), engine));
+    let (ring, engine) =
+        session_case::save_once((CloneRing::new(session_case::RING_CAPACITY), engine));
     assert_eq!(ring.held(), 1);
     assert_eq!(engine.state_hash(), hash);
 }
