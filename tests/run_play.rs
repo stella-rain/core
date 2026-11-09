@@ -628,6 +628,37 @@ pub fn equipment_rig(n: u8) -> PartyCase {
         .case(name)
 }
 
+/// The seven movable party cases as equipment cases from a (world seed, bot seed): the party,
+/// the mode and the joins and leaves of `name`, every slot a `PartyBot` that builds (ADR-SIM-7).
+pub fn party_case(name: &'static str, world: u64, bot: u64) -> PartyCase {
+    let (n, mode, changes) = match name {
+        "two_time_limit" => (2, "time_limit", vec![]),
+        "three_time_limit" => (3, "time_limit", vec![]),
+        "three_tutorial" => (3, "tutorial", vec![]),
+        "join_two" => (1, "time_limit", vec![(600, Change::Join(1))]),
+        "leave_hole" => (
+            3,
+            "time_limit",
+            vec![
+                (900, Change::Leave(1)),
+                (1500, Change::Leave(2)),
+                (2100, Change::Join(2)),
+            ],
+        ),
+        "two_revive" => (2, "time_limit", vec![]),
+        "three_revive" => (3, "time_limit", vec![]),
+        _ => panic!("{name} is not a movable party case"),
+    };
+    RigParty::new(n)
+        .equipment()
+        .builds()
+        .mode(mode)
+        .seed(world)
+        .bot_seed(bot)
+        .changes(changes)
+        .case(name)
+}
+
 /// The party cases. Slots 1 and 2 get an offer of their own only in some modes and seeds (the
 /// seeds are found where, in the middle of the run, each answers an offer of its own): the
 /// time_limit mode for two and for three. In the tutorial both slots answer, but only as the run
