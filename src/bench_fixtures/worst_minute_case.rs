@@ -41,7 +41,7 @@ const BOSS_TICK: u32 = 9_000;
 const SPAWN_SPAN_TICKS: u32 = 14_000;
 
 /// The run's seed (a placeholder: any that reaches the caps).
-const SEED: u64 = 1;
+pub(crate) const SEED: u64 = 1;
 
 /// The bundled mode with the dense schedule (see the module).
 fn mode() -> TimeLimit {

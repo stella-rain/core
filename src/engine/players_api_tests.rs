@@ -24,7 +24,7 @@ type Case = (Engine, fn(u32) -> Input);
 pub(super) fn offers_minute() -> Engine {
     let setup = crate::run_setup::RunSetup {
         mode: "time_limit".into(),
-        seed: 1,
+        seed: worst_minute_case::SEED,
         ..crate::run_setup::RunSetup::default()
     };
     Engine::start_with(&setup, &worst_minute_case::content()).expect("the offers minute starts")

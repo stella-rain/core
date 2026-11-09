@@ -7,7 +7,8 @@
 //! The tick case is `worst_case::warmed_up` (420 ticks) with slots 1 and 2 joined and one step
 //! with both pressing Main, so that the measured tick 422 is the first on which they land hits.
 //! The rollback case is the bundled `time_limit` mode of `worst_minute_case`, started for three
-//! players in equipment mode (no offer ever opens): slot 0 plays the solo script, slot 1 the same on the other parity, slot 2 as slot 0.
+//! players in equipment mode (no offer ever opens): slot 0 plays the solo script, slot 1 the
+//! same on the other parity, slot 2 as slot 0.
 //!
 //! The struct is named `Case` and the rollback takes the saved `Engine` itself, so that the drop
 //! guard (`.github/scripts/bench_drop_guard.py`, which matches `Engine`, `Run` and `Case`) covers
@@ -100,7 +101,8 @@ fn fast_forwarded(ticks: u32) -> Engine {
     engine
 }
 
-/// The engine the rollback restores: the run `PEAK_TICK_3P` ticks in, with no offer open (equipment mode opens none).
+/// The engine the rollback restores: the run `PEAK_TICK_3P` ticks in, with no offer open
+/// (equipment mode opens none).
 pub fn saved() -> Engine {
     fast_forwarded(PEAK_TICK_3P)
 }

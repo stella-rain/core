@@ -108,7 +108,7 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
             }
             e.step(&[input_at(e.tick()), Default::default(), Default::default()]);
         }
-        assert_same_tick(&a, &b, "worst_minute", tick);
+        assert_same_tick(&a, &b, "worst_minute (offers mode)", tick);
     }
 }
 

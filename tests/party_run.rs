@@ -472,7 +472,9 @@ fn others_actions(steps: &RunSteps) -> usize {
 /// `two_time_limit` and `three_time_limit` run on at 3000 ticks and slots 1 and 2 make at least 2
 /// actions, `three_tutorial` clears and the same, `join_two` takes slot 1 at tick 600 and slot 1
 /// acts after it, `leave_hole` has the masks 0b111, 0b101, 0b001, 0b101 and slot 2 acts inside the
-/// first hole (900..=1500), `two_revive` and `three_revive` are `equipment_revive_miss`.
+/// first hole (900..=1500), `two_revive` and `three_revive` are `equipment_revive_miss`. A name
+/// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
+/// table needs its promise here.
 pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
     use stella_rain_core::run_setup::{BuildMode, OfferMode};
     let bytes = replay.to_bytes();
