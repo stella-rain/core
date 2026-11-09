@@ -978,12 +978,17 @@ mod tests {
         last
     }
 
+    #[allow(dead_code, reason = "shared with tests/, which uses more of it")]
+    mod data_root {
+        include!("../tests/data_root.rs");
+    }
+
     /// The content a corpus run (`"v1/easy"`) plays with: the pack its `case.json` pins, which is
     /// in its tree's `packs/` when it is not the bundled one. The frozen runs verify only with the
     /// content they were frozen with.
     fn content_of(name: &str) -> crate::run_content::RunContent {
         let (tree, case) = name.split_once('/').unwrap();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
+        let root = data_root::data_root().join("tests/corpus");
         let pin: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join(tree).join("runs").join(case).join("case.json")).unwrap(),
         )
