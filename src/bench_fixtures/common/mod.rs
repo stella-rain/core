@@ -51,6 +51,7 @@ pub fn armed(mut stage: Stage, weapon: Value) -> Stage {
 
 /// `input` with `main` pressed on the tick after a step at `tick` when `tick` is a multiple of
 /// 6: the Main weapon fires every 6 ticks from the first.
+#[cfg(test)]
 pub fn firing(input: Input, tick: u32) -> Input {
     Input {
         main: tick % 6 == 0,

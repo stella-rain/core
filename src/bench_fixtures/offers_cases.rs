@@ -10,23 +10,43 @@ use super::common::{self, on_hit};
 use super::{Case, hit_case, time_limit_case, worst_case};
 use crate::engine::{Engine, Outcome};
 use crate::stage::Stage;
+use serde_json::json;
 
-/// The worst case's stage as it was: the first wave of `PICKS` one-hit-point enemies whose stars
-/// give the runes, and the `levels` and `stars` those offers need.
+/// The worst case's stage as it was: the equipment stage with, first in its list, a wave of
+/// `PICKS` one-hit-point enemies whose stars give the runes (its `levels` and `stars` are the
+/// equipment stage's).
 pub(crate) fn worst_stage() -> Stage {
-    worst_case::stage()
+    const PICKS: u16 = 8;
+    let mut stage = worst_case::stage();
+    stage.waves.insert(
+        0,
+        serde_json::from_value(common::wave(
+            1,
+            PICKS,
+            6,
+            common::enemy(1, common::hold(common::START_X, on_hit::NEAR_Y), json!([])),
+            common::START_X,
+            on_hit::NEAR_Y,
+        ))
+        .expect("the wave parses"),
+    );
+    stage
 }
 
 /// The worst case's content as it was: the random rune and Rune Haste rewards to pick from, no
 /// `equipment` object.
 pub(crate) fn worst_content() -> crate::run_content::RunContent {
-    worst_case::content()
+    on_hit::content(
+        vec![on_hit::random_rune(), worst_case::haste()],
+        None,
+        worst_case::runes(),
+    )
 }
 
 /// The engine of the worst case at the start of the scripted run: every rune and Rune Haste taken
 /// from the offers of the first eight enemies' stars.
 fn worst_runes_taken() -> Engine {
-    let mut engine = on_hit::with(&worst_stage(), &worst_case::content());
+    let mut engine = on_hit::with(&worst_stage(), &worst_content());
     on_hit::take_all(&mut engine);
     on_hit::take(&mut engine, worst_case::HASTE);
     assert!(
