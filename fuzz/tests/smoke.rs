@@ -634,7 +634,10 @@ fn a_real_savepoint_gets_past_the_loader() {
     // is a running run's, as the one at tick 150 is.
     let late = savepoint_recorder(Some(230));
     assert_eq!(late.engine().tick(), 230);
-    assert!(!late.engine().offer_open(), "an equipment run opens no offer");
+    assert!(
+        !late.engine().offer_open(),
+        "an equipment run opens no offer"
+    );
     assert!(savepoint_load(&late.save()), "tick 230");
     // A savepoint of a tick no prefix of the target holds, and a finished run's.
     assert!(!savepoint_load(&savepoint_recorder(Some(100)).save()));
@@ -805,6 +808,14 @@ fn equipment_action_regression() -> PathBuf {
         .join("regressions")
         .join("replay_load")
         .join("equipment-action.replay")
+}
+
+/// Writes the regression from `equipment_action_replay`, after a re-bless of `runs/tutorial`:
+/// `cargo test --test smoke rewrite_the_equipment_action_regression -- --ignored`.
+#[test]
+#[ignore = "rewrites a committed file, run by hand after a re-bless"]
+fn rewrite_the_equipment_action_regression() {
+    fs::write(equipment_action_regression(), equipment_action_replay()).expect("the regression");
 }
 
 #[test]
