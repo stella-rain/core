@@ -112,7 +112,7 @@ fn every_run_case_replays_to_its_checkpoints() {
         let acts = count(&steps, |s| matches!(s, Step::Actions(_)));
         assert_eq!(
             acts > 0,
-            !frozen && !name.ends_with("/tutorial"),
+            !frozen && case.file_name().is_some_and(|n| n != "tutorial"),
             "{name}: {acts} ACTIONS steps"
         );
         assert_eq!(steps.has_actions(), acts > 0, "{name}");
