@@ -248,5 +248,6 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
     assert_eq!(hashes, PINNED_SPREAD, "{hashes:x?}");
 }
 
-const PINNED_CLUSTERED: [u64; 3] = [0xbc4b4dad685d40e1, 0x4517e45e07f1ae30, 0x06df8722da2f9dc0];
-const PINNED_SPREAD: [u64; 3] = [0x5e0ddf1439185e5b, 0x923bbc85ebca3eff, 0x1ac05ed672cdd885];
+/// Re-pinned when the case moved to equipment mode (the equipment section is in the hash).
+const PINNED_CLUSTERED: [u64; 3] = [0xe4aa9b3a2758ca20, 0x2d3e98601ee2035b, 0x1d7ae5de6f949a0b];
+const PINNED_SPREAD: [u64; 3] = [0x620f7affafb5160e, 0xcb63351bad3fc842, 0xf0ee68cdce6b2154];

@@ -7,6 +7,7 @@ use crate::engine::Engine;
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
+use crate::run_setup::{BuildMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
 use crate::version::Versions;
@@ -133,8 +134,21 @@ pub fn design_run_stats() -> RunStats {
     RunStats::parse(v.to_string().as_bytes(), Versions::CURRENT).expect("the case run stats")
 }
 
+/// The run of `stage` over `content` in equipment mode (ADR-SIM-7): the setup's seed is the
+/// stage's, everything else the default (no perk set, the whole star pool). The stage is the
+/// case's own, so no offer ever opens.
+pub fn equipped(stage: &Stage, content: &RunContent) -> Engine {
+    let setup = RunSetup {
+        build_mode: BuildMode::Equipment,
+        seed: u64::from(stage.seed),
+        ..RunSetup::default()
+    };
+    Engine::new_equipped(stage, content, &setup).expect("the case stage is valid")
+}
+
+/// `equipped` over the cases' shared content (`design_content`).
 pub fn engine(stage: &Stage) -> Engine {
-    Engine::new_with(stage, &design_content()).expect("the case stage is valid")
+    equipped(stage, &design_content())
 }
 
 pub fn companion(hp: u32, movement: Value, rules: Value) -> Value {
