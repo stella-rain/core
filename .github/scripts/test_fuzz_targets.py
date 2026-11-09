@@ -276,6 +276,13 @@ class FuzzLongYml(unittest.TestCase):
         self.assertIn("if: matrix.target == 'step_log_range'", fuzz)
         self.assertLess(fuzz.index(STEP_GEN), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
 
+    def test_net_arm_and_step(self):
+        fuzz = job_block(self.text, "fuzz")
+        self.assertIn(NET_ARM, fuzz)
+        self.assertIn(NET_GEN, fuzz)
+        self.assertIn("if: matrix.target == 'net_decode'", fuzz)
+        self.assertLess(fuzz.index(NET_GEN), fuzz.index('cargo "+$FUZZ_NIGHTLY" fuzz run'))
+
     def test_every_arm_has_a_producer(self):
         producers(self, job_block(self.text, "fuzz"))
 
