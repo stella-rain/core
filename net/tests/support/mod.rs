@@ -349,11 +349,10 @@ impl<'a> Mesh<'a> {
         }
     }
 
-    /// Whether every session has reached its stop tick and confirmed it.
+    /// Whether every session has reached its stop tick. A session confirms ticks inside
+    /// `advance`, so what arrives after a session stopped stays unconfirmed.
     pub fn done(&self) -> bool {
-        self.sessions
-            .iter()
-            .all(|s| s.tick() >= self.stop && s.confirmed() >= self.stop)
+        self.sessions.iter().all(|s| s.tick() >= self.stop)
     }
 
     /// Runs rounds until `done` or `limit` rounds have passed.

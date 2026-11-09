@@ -6,8 +6,6 @@
 //! [`Session::receive_inputs`], [`Session::ack`] and [`Session::leave`]), it holds no handshake,
 //! it does not balance frame advantage between peers, it does not exchange checkpoints and it
 //! does not stop on a desync.
-#![allow(dead_code)]
-
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -213,14 +211,22 @@ impl<S: Save> Session<S> {
     /// tick a late input contradicts. Waits, changing nothing else, when the window is full or
     /// too many local inputs are unacknowledged.
     pub fn advance(&mut self, local: &Input) -> Result<Advance, SessionError> {
-        let local_slot = self.config.local.get();
-        let at = self.queues[local_slot].next_tick();
-        let _ = self.queues[local_slot].set(at, WireInput::from_input(local));
+        let rolled_back = self.reconcile()?;
+        self.settle();
+        if !self.may_step() {
+            return Ok(Advance {
+                rolled_back,
+                waiting: Some(Wait::Window),
+            });
+        }
+        let queue = &mut self.queues[self.config.local.get()];
+        let at = queue.next_tick();
+        let _ = queue.set(at, WireInput::from_input(local));
         self.step_tick(self.tick);
         self.tick += 1;
         self.settle();
         Ok(Advance {
-            rolled_back: 0,
+            rolled_back,
             waiting: None,
         })
     }
@@ -228,15 +234,25 @@ impl<S: Save> Session<S> {
     /// Takes the inputs of the remote slot `from`.
     pub fn receive_inputs(
         &mut self,
-        _from: PlayerIdx,
-        _frame: &InputFrame,
+        from: PlayerIdx,
+        frame: &InputFrame,
     ) -> Result<(), SessionError> {
-        todo!()
+        for (i, input) in frame.inputs.iter().enumerate() {
+            let tick = frame
+                .start_tick
+                .saturating_add(u32::try_from(i).unwrap_or(u32::MAX));
+            self.queues[from.get()]
+                .set(tick, *input)
+                .map_err(|_| SessionError::Conflict)?;
+        }
+        Ok(())
     }
 
     /// The remote slot `from` has every local input below `next_tick`.
-    pub fn ack(&mut self, _from: PlayerIdx, _next_tick: u32) -> Result<(), SessionError> {
-        todo!()
+    pub fn ack(&mut self, from: PlayerIdx, next_tick: u32) -> Result<(), SessionError> {
+        let held = &mut self.acked[from.get()];
+        *held = (*held).max(next_tick);
+        Ok(())
     }
 
     /// The slot `from` leaves before tick `tick` is stepped.
@@ -363,9 +379,52 @@ impl<S: Save> Session<S> {
         }
     }
 
+    /// The remote slots of the starting party.
+    fn remote_slots(&self) -> impl Iterator<Item = usize> + '_ {
+        let local = self.config.local.get();
+        (0..3).filter(move |s| *s != local && self.start_present >> s & 1 == 1)
+    }
+
+    /// The first tick whose inputs some remote slot has not sent; `None` with no remote slot.
+    fn known(&self) -> Option<u32> {
+        self.remote_slots()
+            .map(|s| self.queues[s].next_tick())
+            .min()
+    }
+
+    /// Whether the next tick may be stepped: all its remote inputs are known, or fewer than
+    /// `window` ticks are predicted already.
+    fn may_step(&self) -> bool {
+        self.known()
+            .is_none_or(|k| self.tick < k || self.tick - k < self.config.window)
+    }
+
+    /// Re-simulates from the earliest tick whose stepped inputs differ from what is known now,
+    /// and returns how many ticks that was.
+    fn reconcile(&mut self) -> Result<u32, SessionError> {
+        let first = (self.record_base..self.tick).find(|t| {
+            let at = usize::try_from(*t - self.record_base).unwrap_or(usize::MAX);
+            let (inputs, leaves) = self.inputs_for(*t);
+            self.records
+                .get(at)
+                .is_none_or(|r| r.inputs != inputs || r.leaves != leaves)
+        });
+        let Some(from) = first else {
+            return Ok(0);
+        };
+        if !self.save.load(from, &mut self.engine) {
+            return Err(SessionError::SaveMissing);
+        }
+        for t in from..self.tick {
+            self.step_tick(t);
+        }
+        Ok(self.tick - from)
+    }
+
     /// Moves the confirmed tick and drops what is behind it.
     fn settle(&mut self) {
-        self.confirmed = self.confirmed.max(self.tick);
+        let confirmed = self.known().map_or(self.tick, |k| k.min(self.tick));
+        self.confirmed = self.confirmed.max(confirmed);
         while self.record_base < self.confirmed {
             self.records.pop_front();
             self.record_base += 1;
@@ -376,12 +435,14 @@ impl<S: Save> Session<S> {
             self.hash_base += 1;
         }
         self.save.forget_before(self.confirmed);
+        let acked = self
+            .remote_slots()
+            .map(|s| self.acked[s])
+            .min()
+            .map_or(self.confirmed, |a| a.min(self.confirmed));
         let local = self.config.local.get();
         for (s, queue) in self.queues.iter_mut().enumerate() {
-            if s != local {
-                queue.prune_below(self.confirmed);
-            }
+            queue.prune_below(if s == local { acked } else { self.confirmed });
         }
-        self.queues[local].prune_below(self.confirmed);
     }
 }

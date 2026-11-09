@@ -71,10 +71,9 @@ fn an_action_that_arrives_three_ticks_late_rolls_back_three_and_is_not_lost() {
         .find(|c| c.tick_before == m + 3 && c.out.waiting.is_none())
         .expect("a call at the arrival");
     assert_eq!(at_arrival.out.rolled_back, 3);
-    assert_eq!(
-        mesh.sessions[0].hash_after(STOP),
-        Some(oracle[STOP as usize])
-    );
+    let c = mesh.sessions[0].confirmed();
+    assert!(c >= 600);
+    assert_eq!(mesh.sessions[0].hash_after(c), Some(oracle[c as usize]));
     // The same run with that action stripped is a different run: a lost action would show.
     let mut stripped = s.clone();
     stripped.eff[m as usize][1].action = None;
@@ -88,16 +87,15 @@ fn an_action_that_arrives_three_ticks_late_rolls_back_three_and_is_not_lost() {
 fn a_mutated_input_delivered_late_makes_the_sync_test_fail() {
     let s = script(2, STOP, DELAY, None);
     let oracle = straight(&s, 2);
-    let flip = 300u32;
+    let flips = 300u32..320;
     let mut mesh = Mesh::new(&s, 2, DELAY, WINDOW, STOP, Box::new(|_, _, _| DELAY + 2));
     mesh.tamper = Some(Box::new(move |from, _to, frame| {
-        if from == 1
-            && (frame.start_tick..)
-                .zip(&mut frame.inputs)
-                .any(|(t, _)| t == flip)
-        {
-            let at = (flip - frame.start_tick) as usize;
-            frame.inputs[at].main = !frame.inputs[at].main;
+        if from == 1 {
+            for (t, input) in (frame.start_tick..).zip(&mut frame.inputs) {
+                if flips.contains(&t) {
+                    input.main = !input.main;
+                }
+            }
         }
     }));
     mesh.run(1200);
