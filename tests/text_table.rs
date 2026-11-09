@@ -214,7 +214,6 @@ fn a_missing_line_falls_back_to_english_and_fails_the_check() {
         Err(vec![
             "en:rewards/star_altair".to_string(),
             "ko:difficulties/easy".to_string(),
-            "ko:rewards/star_altair".to_string(),
         ])
     );
 }

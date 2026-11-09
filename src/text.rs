@@ -242,3 +242,162 @@ impl TextTable {
         }
     }
 }
+
+/// The locale every missing string falls back to, and the source text (ADR-CONT-8 points 5, 8).
+pub const FALLBACK_LOCALE: &str = "en";
+
+/// The primary locale (ADR-CONT-8 point 1); the app, not core, uses it as the default.
+pub const PRIMARY_LOCALE: &str = "ko";
+
+/// The locales core ships text for, primary first. A new language adds a code here and a file
+/// `content/text.<code>.json` (ADR-CONT-8 point 1).
+pub const SHIPPED_LOCALES: [&str; 2] = ["ko", "en"];
+
+/// Whether `code` is a locale code: two or three lowercase ASCII letters.
+pub fn is_locale_code(code: &str) -> bool {
+    (2..=3).contains(&code.len()) && code.bytes().all(|b| b.is_ascii_lowercase())
+}
+
+/// Why a set of text tables was refused. Messages carry locale codes only, never text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TextSetError {
+    /// A locale code that is not two or three lowercase ASCII letters.
+    Locale { code: String },
+    /// There is no table for the fallback locale `en`.
+    NoFallback,
+    /// Two tables for one locale.
+    Duplicate { locale: String },
+    /// A locale's table was refused.
+    Table { locale: String, error: TextError },
+}
+
+impl fmt::Display for TextSetError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Locale { code } => {
+                write!(f, "`{}` is not a locale code", code.escape_debug())
+            }
+            Self::NoFallback => {
+                write!(f, "no text table for the fallback locale {FALLBACK_LOCALE}")
+            }
+            Self::Duplicate { locale } => write!(f, "two text tables for locale {locale}"),
+            Self::Table { locale, error } => write!(f, "text table {locale}: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for TextSetError {}
+
+/// The text tables of every locale, with the English table always present.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextSet {
+    tables: BTreeMap<String, TextTable>,
+}
+
+impl TextSet {
+    /// The bundled tables: (locale code, file bytes), primary first.
+    pub const BUNDLED: [(&'static str, &'static [u8]); 2] = [
+        ("ko", include_bytes!("../content/text.ko.json")),
+        ("en", TextTable::BUNDLED),
+    ];
+
+    /// The bundled set parsed once.
+    pub fn bundled() -> &'static TextSet {
+        static BUNDLED: OnceLock<TextSet> = OnceLock::new();
+        BUNDLED.get_or_init(|| {
+            TextSet::from_files(&Self::BUNDLED).expect("the bundled text tables are valid")
+        })
+    }
+
+    /// Parse a set from (locale code, untrusted file bytes) pairs; `en` must be among them.
+    pub fn from_files(files: &[(&str, &[u8])]) -> Result<Self, TextSetError> {
+        let mut tables = BTreeMap::new();
+        for (code, bytes) in files {
+            if !is_locale_code(code) {
+                return Err(TextSetError::Locale {
+                    code: (*code).to_string(),
+                });
+            }
+            if tables.contains_key(*code) {
+                return Err(TextSetError::Duplicate {
+                    locale: (*code).to_string(),
+                });
+            }
+            let table = TextTable::from_bytes(bytes).map_err(|error| TextSetError::Table {
+                locale: (*code).to_string(),
+                error,
+            })?;
+            tables.insert((*code).to_string(), table);
+        }
+        if !tables.contains_key(FALLBACK_LOCALE) {
+            return Err(TextSetError::NoFallback);
+        }
+        Ok(Self { tables })
+    }
+
+    /// The locale codes in the set, sorted.
+    pub fn locales(&self) -> impl Iterator<Item = &str> {
+        self.tables.keys().map(String::as_str)
+    }
+
+    /// One locale's table, with no fallback.
+    pub fn table(&self, locale: &str) -> Option<&TextTable> {
+        self.tables.get(locale)
+    }
+
+    /// The entry for `key` in `locale`, else in English, with the locale it came from. An
+    /// unknown locale reads as English; `None` only when English lacks the key.
+    pub fn lookup(&self, locale: &str, key: &str) -> Option<(&TextEntry, &str)> {
+        if let Some((code, table)) = self.tables.get_key_value(locale)
+            && let Some(entry) = table.get(key)
+        {
+            return Some((entry, code.as_str()));
+        }
+        let (code, table) = self.tables.get_key_value(FALLBACK_LOCALE)?;
+        table.get(key).map(|entry| (entry, code.as_str()))
+    }
+
+    /// Title for `file` and `id` in `locale`, falling back to English.
+    pub fn title(&self, locale: &str, file: &str, id: &str) -> Option<&str> {
+        self.lookup(locale, &format!("{file}/{id}"))
+            .map(|(e, _)| e.title.as_str())
+    }
+
+    /// Description for `file` and `id` in `locale`, falling back to English.
+    pub fn description(&self, locale: &str, file: &str, id: &str) -> Option<&str> {
+        self.lookup(locale, &format!("{file}/{id}"))
+            .map(|(e, _)| e.description.as_str())
+    }
+
+    /// Check that every locale in the set has text for every shown ID of `pack`. The error
+    /// holds sorted `"<locale>:<key>"` entries.
+    pub fn check_pack(&self, pack: &Pack) -> Result<(), Vec<String>> {
+        let mut missing = Vec::new();
+        for (locale, table) in &self.tables {
+            if let Err(keys) = table.check_pack(pack) {
+                missing.extend(keys.into_iter().map(|key| format!("{locale}:{key}")));
+            }
+        }
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            missing.sort();
+            Err(missing)
+        }
+    }
+
+    /// Check that the set has a table for every `SHIPPED_LOCALES` code; the error lists the
+    /// codes it lacks.
+    pub fn check_shipped(&self) -> Result<(), Vec<String>> {
+        let missing: Vec<String> = SHIPPED_LOCALES
+            .iter()
+            .filter(|code| !self.tables.contains_key(**code))
+            .map(|code| (*code).to_string())
+            .collect();
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(missing)
+        }
+    }
+}
