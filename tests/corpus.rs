@@ -1396,20 +1396,10 @@ pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Co
 fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED, STAGE_SKILL_SEED, TIME_LIMIT_SEED,
-        TRIAL_LENGTH, time_limit_setup, trial_setup,
+        ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED, STAGE_SKILL_BOT_SEED,
+        STAGE_SKILL_SEED, TIME_LIMIT_SEED, TRIAL_BOT_SEED, TRIAL_SEED, time_limit_setup,
+        trial_setup,
     };
-    // `STAGE_SKILL_SEED` was found with every point on attack: the priority keeps that run.
-    let stage_skill = RunSetup {
-        seed: STAGE_SKILL_SEED,
-        stat_priority: vec!["attack".into()],
-        star_pool: Some(vec!["black_hole_rare".into()]),
-        ..trial_setup()
-    };
-    let stage_skill_content = RunContent::bundled()
-        .clone()
-        .with_run_stats(common::design_run_stats());
-    let stage_skill_commands = play_run_in(&stage_skill, &stage_skill_content, TRIAL_LENGTH);
     // The time_limit mode's waves around the main character, played until it falls (it does
     // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
     let time_limit = RunSetup {
@@ -1448,15 +1438,15 @@ fn run_definitions() -> Vec<RunDefinition> {
     let tutorial = equipment_run_definition("tutorial", kept, KEPT_BOT_SEED);
     let kill = equipment_run_definition("time_limit_kill", KILL_SEED, KILL_BOT_SEED);
     let overtime = equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED);
+    // The trial and the stage skill run (every point on attack, an elite's rare star offering the
+    // black hole): the seeds the search found.
+    let trial = equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED);
+    let stage_skill =
+        equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED);
     vec![
         tutorial,
-        ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
-        (
-            "stage_skill",
-            stage_skill,
-            Some(override_pack("stage_skill")),
-            stage_skill_commands,
-        ),
+        trial,
+        stage_skill,
         ("time_limit", time_limit, None, time_limit_commands),
         ("easy", easy, None, easy_commands),
         ("rainy", rainy, None, rainy_commands),
