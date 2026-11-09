@@ -430,6 +430,36 @@ fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
     per
 }
 
+/// The first promise of the party case `name` that `replay` misses, if any (`None` is a hit): the
+/// run verifies, at most 3000 ticks, under 64 KiB, and in an offers-era case with no joins or
+/// leaves slots 1 and 2 answer at least 2 offers.
+pub(crate) fn party_promise_miss(_name: &str, replay: &RunReplay) -> Option<String> {
+    let bytes = replay.to_bytes();
+    if verify_run(&bytes).is_err() {
+        return Some("the run verifies".into());
+    }
+    if replay.ticks > 3000 {
+        return Some(format!("at most 3000 ticks, not {}", replay.ticks));
+    }
+    if bytes.len() >= 64 * 1024 {
+        return Some("the file is under 64 KiB".into());
+    }
+    let steps = RunSteps::of(replay);
+    let changes = steps
+        .steps()
+        .iter()
+        .any(|s| matches!(s, Step::Join(_) | Step::Leave(_)));
+    let offers = replay.setup.build_mode == stella_rain_core::run_setup::BuildMode::Offers
+        && replay.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Stop;
+    if offers && !changes {
+        let per = picks_per_slot(replay);
+        if per[1] + per[2] < 2 {
+            return Some(format!("slots 1 and 2 answer offers: {per:?}"));
+        }
+    }
+    None
+}
+
 #[test]
 fn the_party_cases_are_what_the_table_says() {
     for case in party_cases() {
@@ -445,16 +475,12 @@ fn the_party_cases_are_what_the_table_says() {
         );
         let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
         assert_eq!(got, *want);
-        let per = picks_per_slot(&replay);
-        // Equipment mode offers no stars, so slots 1 and 2 answer few offers there.
-        if case.changes.is_empty()
-            && case.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Stop
-            && case.setup.build_mode == stella_rain_core::run_setup::BuildMode::Offers
-        {
-            assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
-        }
-        assert!(replay.ticks <= 3000);
-        assert!(replay.to_bytes().len() < 64 * 1024);
+        assert_eq!(
+            party_promise_miss(case.name, &replay),
+            None,
+            "{}",
+            case.name
+        );
     }
     assert_eq!(party_cases().len(), TABLE.len());
 }
