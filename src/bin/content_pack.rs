@@ -3,7 +3,7 @@
 //! untrusted, so this uses the same size limit and validation as the game.
 //!
 //! ```text
-//! content-pack verify FILE [--text TEXT_FILE]  (FILE, TEXT_FILE may be - for standard input)
+//! content-pack verify FILE [--text TEXT_FILE | --text-dir DIR]  (FILE, TEXT_FILE may be - for standard input)
 //! content-pack export [DIR]
 //! content-pack unpack PACK DIR
 //! content-pack compare --numbers-only BASE_DIR HEAD_DIR
@@ -16,7 +16,10 @@
 //! as `name: value` lines, and `export` writes the pack
 //! to standard output. Without DIR, `export` writes the pack built into this binary; with DIR
 //! (core's `content/`, as `unpack` takes it; the mode files in `DIR/../modes`), the pack of the
-//! files there. `unpack` (ADR-CONT-4) checks PACK as `verify` does, then writes the files it
+//! files there. `--text` checks one text table; `--text-dir` reads `DIR/text.<code>.json` for every
+//! locale code (two or three lowercase letters) and checks that each shipped locale has a file,
+//! English among them, and text for every shown ID (ADR-CONT-8), the two options excluding each
+//! other. `unpack` (ADR-CONT-4) checks PACK as `verify` does, then writes the files it
 //! holds into DIR (core's `content/`; the three mode files into `modes/` beside it), each as the
 //! file on its own, LF, so that `export` of those files gives PACK byte for byte; a pack that
 //! `export` would not write that way is refused. A file an optional slot of the pack lacks is
@@ -32,14 +35,15 @@ use std::process::ExitCode;
 
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::pack::{CompareError, ContentFiles, Pack};
-use stella_rain_core::text::TextTable;
+use stella_rain_core::text::{TextSet, TextTable, is_locale_code};
 
-const USAGE: &str = "usage: content-pack verify FILE [--text TEXT_FILE]\n       \
+const USAGE: &str = "usage: content-pack verify FILE [--text TEXT_FILE | --text-dir DIR]\n       \
                      content-pack export [DIR]\n       \
                      content-pack unpack PACK DIR\n       \
                      content-pack compare --numbers-only BASE_DIR HEAD_DIR\n       \
                      content-pack catalogue\n\
-                     FILE, PACK and TEXT_FILE may be - for standard input. unpack writes the pack's \
+                     FILE, PACK and TEXT_FILE may be - for standard input. --text-dir checks every \
+                     text.<code>.json in DIR against every shown ID. unpack writes the pack's \
                      files into DIR (core's content/) and its mode files into modes/ beside \
                      it, and leaves content/pack.json to export. Without DIR, export writes the pack built \
                      into this binary; with DIR (core's content/, as unpack), the pack of the \
@@ -97,6 +101,49 @@ fn read_text(path: &str) -> Result<Vec<u8>, Failure> {
         .map_err(|e| Failure::Usage(format!("cannot read {path}: {}", e.kind())))
 }
 
+/// Reads `DIR/text.<code>.json` for every valid locale code into a set, then checks that every
+/// shipped locale is there and that each has text for every shown ID of `pack`.
+fn check_text_dir(pack: &Pack, dir: &Path) -> Result<(), Failure> {
+    let unreadable =
+        |e: std::io::Error| Failure::Usage(format!("cannot read the text directory: {}", e.kind()));
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(unreadable)? {
+        let path = entry.map_err(unreadable)?.path();
+        let code = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_prefix("text.")?.strip_suffix(".json"))
+            .filter(|c| is_locale_code(c))
+            .map(str::to_string);
+        if let Some(code) = code
+            && path.is_file()
+        {
+            let bytes = read_text(&path.to_string_lossy())?;
+            files.push((code, bytes));
+        }
+    }
+    files.sort();
+    let pairs: Vec<(&str, &[u8])> = files
+        .iter()
+        .map(|(code, bytes)| (code.as_str(), bytes.as_slice()))
+        .collect();
+    let set = TextSet::from_files(&pairs).map_err(|e| Failure::NotValid(e.to_string()))?;
+    if let Err(lacking) = set.check_shipped() {
+        return Err(Failure::NotValid(format!(
+            "missing locale files: {}",
+            lacking.join(", ")
+        )));
+    }
+    if let Err(missing) = pack.check_texts(&set) {
+        return Err(Failure::NotValid(format!(
+            "missing text for {} IDs: {}",
+            missing.len(),
+            missing.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 fn run(args: Vec<String>) -> Result<(), Failure> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     if args.is_empty() {
@@ -122,6 +169,7 @@ fn run(args: Vec<String>) -> Result<(), Failure> {
 fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
     let mut pack_path = None;
     let mut text_path = None;
+    let mut text_dir = None;
     let mut i = 0;
     while i < args.len() {
         if args[i] == "--text" {
@@ -130,12 +178,21 @@ fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
                 return Err(Failure::Usage("missing argument for --text".into()));
             }
             text_path = Some(args[i]);
+        } else if args[i] == "--text-dir" {
+            i += 1;
+            if i >= args.len() {
+                return Err(Failure::Usage("missing argument for --text-dir".into()));
+            }
+            text_dir = Some(args[i]);
         } else if pack_path.is_none() {
             pack_path = Some(args[i]);
         } else {
             return Err(Failure::Usage(USAGE.into()));
         }
         i += 1;
+    }
+    if text_path.is_some() && text_dir.is_some() {
+        return Err(Failure::Usage(USAGE.into()));
     }
     let Some(path) = pack_path else {
         return Err(Failure::Usage(USAGE.into()));
@@ -153,6 +210,9 @@ fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
                 missing.join(", ")
             )));
         }
+    }
+    if let Some(dir) = text_dir {
+        check_text_dir(&pack, Path::new(dir))?;
     }
     println!("sha256: {}", to_hex(&pack.sha256()));
     println!("sim_version: {}", pack.sim_version());

@@ -11,7 +11,7 @@
 //! mode's 4,143 spawns, 1.4 times each wave's count, in four minutes, not twenty), a mid-boss comes inside the
 //! minute (`BOSS_TICK`) and the elite cap is `MAX_ELITES_ALIVE`. The elite minutes (the mode's own: every
 //! whole minute that is no boss time, so ticks 3,600 and 7,200 before the minute) bring its elites. The main character taps its Main weapon every other tick
-//! and the choices of the level-ups it opens take the first option. The seed is `SEED`. The
+//! in equipment mode (ADR-SIM-7), where no offer opens, so nothing answers anything between ticks. The seed is `SEED`. The
 //! `enemy_attack_damage` is the 100 of the other cases, which the 50,000 hit points of the
 //! trial's main character survive. Reaching the minute is not counted; where the heaviest tick
 //! is (`worst_minute_window`, by the unweighted sum of the five fields of `Load`, the first
@@ -22,7 +22,7 @@ use crate::engine::{Engine, Load};
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
-use crate::run_setup::RunSetup;
+use crate::run_setup::{BuildMode, RunSetup};
 use crate::run_stats::RunStats;
 use crate::time_limit::TimeLimit;
 use crate::validate::limits::MAX_ELITES_ALIVE;
@@ -41,7 +41,7 @@ const BOSS_TICK: u32 = 9_000;
 const SPAWN_SPAN_TICKS: u32 = 14_000;
 
 /// The run's seed (a placeholder: any that reaches the caps).
-const SEED: u64 = 1;
+pub(crate) const SEED: u64 = 1;
 
 /// The bundled mode with the dense schedule (see the module).
 fn mode() -> TimeLimit {
@@ -67,9 +67,6 @@ pub(crate) fn content() -> RunContent {
     RunContent::new(stats, RunContent::bundled().rewards().clone()).with_time_limit(mode())
 }
 
-/// The option an open offer takes between ticks.
-pub const OFFER_CHOICE: u32 = 0;
-
 /// The input stepped at `tick` (the tick the engine is at before the step): the main weapon is
 /// tapped every other tick. `Run::play` reads it, and so does the digest of
 /// `tests/bench_fixture_pins.rs`, so the two cannot drift.
@@ -91,6 +88,7 @@ impl Run {
         let setup = RunSetup {
             mode: "time_limit".into(),
             seed: SEED,
+            build_mode: BuildMode::Equipment,
             ..RunSetup::default()
         };
         let content = content();
@@ -100,12 +98,9 @@ impl Run {
         run
     }
 
-    /// Plays the next `ticks` ticks: an open offer takes its first option between them.
+    /// Plays the next `ticks` ticks.
     pub fn play(&mut self, ticks: u32) {
         for _ in 0..ticks {
-            while self.engine.offer_open() {
-                crate::bench_fixtures::take_option(&mut self.engine, OFFER_CHOICE);
-            }
             self.engine.step(&[
                 input_at(self.engine.tick()),
                 Default::default(),

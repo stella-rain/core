@@ -15,7 +15,7 @@ use super::party_case::{ROLLBACK_TICKS, minute_inputs};
 use super::worst_minute_case::{self, MINUTE_START, MINUTE_TICKS};
 use crate::engine::{Engine, Load};
 use crate::id::PlayerIdx;
-use crate::input::{EquipAction, Input};
+use crate::input::EquipAction;
 use crate::run_setup::{BuildMode, RunSetup};
 use crate::snapshot::{SlotKindView, SlotView};
 
@@ -83,11 +83,8 @@ fn kept_empty(slots: &[SlotView]) -> Option<u32> {
     u32::try_from(last).ok()
 }
 
-/// Answers the open offers (option 0 in every slot), applies the ramp-up, then steps the tick.
+/// Applies the ramp-up, then steps the tick (equipment mode opens no offer).
 fn play_tick(engine: &mut Engine) {
-    while engine.offer_open() {
-        engine.step(&[Input::picking(worst_minute_case::OFFER_CHOICE); 3]);
-    }
     let tick = engine.tick();
     for s in 0..3 {
         if let Some(action) = ramp(engine, s, tick) {
@@ -113,8 +110,7 @@ fn fast_forwarded(ticks: u32) -> Engine {
     engine
 }
 
-/// The engine the rollback restores: the run `EQUIP_PEAK_TICK` ticks in, with no offer open and
-/// no action pending.
+/// The engine the rollback restores: the run `EQUIP_PEAK_TICK` ticks in, with no action pending.
 pub fn saved() -> Engine {
     fast_forwarded(EQUIP_PEAK_TICK)
 }

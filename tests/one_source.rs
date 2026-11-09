@@ -87,6 +87,7 @@ fn only_the_pack_and_text_are_compiled_into_the_library() {
         [
             "src/pack.rs:../content/pack.json",
             "src/text.rs:../content/text.en.json",
+            "src/text.rs:../content/text.ko.json",
         ]
     );
 }

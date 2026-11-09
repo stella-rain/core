@@ -4,7 +4,7 @@
 //! what their play does to the run.
 
 use crate::common::run::trial_setup;
-use crate::common::run_steps::RunSteps;
+use crate::common::run_steps::{RunSteps, Step, apply_to};
 use crate::run_play::party_cases;
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
@@ -60,18 +60,6 @@ fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
         };
     }
     inputs
-}
-
-/// A record's dense entries, one per slot of `mask`, placed at their slots.
-fn slots<T: Copy + Default>(mask: u8, dense: &[T]) -> [T; 3] {
-    let mut all = [T::default(); 3];
-    let mut from = dense.iter();
-    for (slot, to) in all.iter_mut().enumerate() {
-        if mask >> slot & 1 == 1 {
-            *to = *from.next().unwrap();
-        }
-    }
-    all
 }
 
 fn step_party(rec: &mut RunRecorder, n: u8, tick: u32) {
@@ -338,22 +326,10 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
     let recorded = RunReplay::from_bytes(&bytes).unwrap();
     let pack = crate::corpus_pins::case_pack(case).unwrap();
     let mut rec = RunRecorder::start_with_pack(&recorded.setup, &pack).unwrap();
-    let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
-    assert_eq!(range.present, 0b1);
-    for step in &range.steps {
-        match step {
-            RangeStep::Actions { actions } => rec
-                .actions(&slots(rec.engine().present(), actions))
-                .unwrap(),
-            RangeStep::Ticks { run, inputs } => {
-                for _ in 0..*run {
-                    rec.step(&slots(rec.engine().present(), inputs)).unwrap();
-                }
-            }
-            RangeStep::Picks { picks } => rec.picks(&slots(rec.engine().present(), picks)).unwrap(),
-            RangeStep::Join { slot: s } => rec.join(slot(*s)).unwrap(),
-            RangeStep::Leave { slot: s } => rec.leave(slot(*s)).unwrap(),
-        }
+    let steps = RunSteps::of(&recorded);
+    assert_eq!(steps.party, 1);
+    for step in steps.steps() {
+        apply_to(&mut rec, step);
     }
     (recorded, rec.replay())
 }
@@ -393,11 +369,11 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
-    ("two_time_limit", 3000, Outcome::Running, [81, 3, 0], 1290),
-    ("three_time_limit", 3000, Outcome::Running, [78, 2, 2], 1240),
-    ("three_tutorial", 1282, Outcome::Cleared, [10, 1, 1], 0),
-    ("join_two", 3000, Outcome::Running, [71, 1, 0], 1190),
-    ("leave_hole", 3000, Outcome::Running, [69, 1, 5], 1280),
+    ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
+    ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
+    ("three_tutorial", 7854, Outcome::Cleared, [0, 0, 0], 0),
+    ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
+    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 990),
     ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
     ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -412,16 +388,40 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
     ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
     ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 1040),
     ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1140),
-    ("two_revive", 3000, Outcome::Running, [58, 4, 0], 870),
-    ("three_revive", 3000, Outcome::Running, [53, 4, 5], 920),
+    ("two_revive", 3000, Outcome::Running, [0, 0, 0], 1040),
+    ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1100),
 ];
+
+/// The equipment actions each of the seven moved cases holds per slot (Some entries of its ACTIONS
+/// steps). From the blessed files, not edited.
+const ACTIONS: [(&str, [u32; 3]); 7] = [
+    ("two_time_limit", [51, 56, 0]),
+    ("three_time_limit", [67, 70, 67]),
+    ("three_tutorial", [7, 7, 7]),
+    ("join_two", [49, 48, 0]),
+    ("leave_hole", [64, 14, 45]),
+    ("two_revive", [51, 56, 0]),
+    ("three_revive", [56, 59, 55]),
+];
+
+fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
+    let mut per = [0u32; 3];
+    for step in RunSteps::of(replay).steps() {
+        if let Step::Actions(actions) = step {
+            for (n, action) in per.iter_mut().zip(actions) {
+                *n += u32::from(action.is_some());
+            }
+        }
+    }
+    per
+}
 
 /// What the rig cases hold of downs and revives: per case the counts of `PlayerDowned`,
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [4, 4, 0], 1084, 1264, "4fa15830c3e0a0ee"),
-    ("three_revive", [9, 8, 0], 994, 1174, "a93f79bd61c90d48"),
+    ("two_revive", [2, 2, 0], 2074, 2254, "a820c8c173c4dedc"),
+    ("three_revive", [3, 3, 0], 2074, 2254, "be2d4d4688298ca3"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
@@ -443,23 +443,148 @@ fn parties_dir() -> std::path::PathBuf {
 }
 
 fn picks_per_slot(replay: &RunReplay) -> [u32; 3] {
-    let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
     let mut per = [0u32; 3];
-    let mut mask = range.present;
-    for step in &range.steps {
-        match step {
-            RangeStep::Actions { .. } => {}
-            RangeStep::Picks { picks } => {
-                for (s, p) in (0..3).filter(|s| mask >> s & 1 == 1).zip(picks) {
-                    per[s] += u32::from(p.is_some());
-                }
+    for step in RunSteps::of(replay).steps() {
+        if let Step::Picks(picks) = step {
+            for (n, pick) in per.iter_mut().zip(picks) {
+                *n += u32::from(pick.is_some());
             }
-            RangeStep::Join { slot } => mask |= 1 << slot,
-            RangeStep::Leave { slot } => mask &= !(1 << slot),
-            RangeStep::Ticks { .. } => {}
         }
     }
     per
+}
+
+/// How many equipment actions slots 1 and 2 made in all.
+fn others_actions(steps: &RunSteps) -> usize {
+    steps
+        .steps()
+        .iter()
+        .map(|s| match s {
+            Step::Actions(a) => a[1..].iter().flatten().count(),
+            _ => 0,
+        })
+        .sum()
+}
+
+/// The first promise of the party case `name` that `replay` misses, if any (`None` is a hit).
+/// Every case: the run verifies, at most 3000 ticks, under 64 KiB. An offers-era case with no joins
+/// or leaves: slots 1 and 2 answer at least 2 offers. An equipment case (ADR-SIM-7) by its name:
+/// `two_time_limit` and `three_time_limit` run on at 3000 ticks and slots 1 and 2 make at least 2
+/// actions, `three_tutorial` clears and the same, `join_two` takes slot 1 at tick 600 and slot 1
+/// acts after it, `leave_hole` has the masks 0b111, 0b101, 0b001, 0b101 and slot 2 acts inside the
+/// first hole (900..=1500), `two_revive` and `three_revive` are `equipment_revive_miss`. A name
+/// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
+/// table needs its promise here.
+pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
+    use stella_rain_core::run_setup::{BuildMode, OfferMode};
+    let bytes = replay.to_bytes();
+    let Ok(verified) = verify_run(&bytes) else {
+        return Some("the run verifies".into());
+    };
+    // The tutorial is played to its own time limit, the rest to 3000 ticks.
+    let cap = if name == "three_tutorial" {
+        crate::run_play::TUTORIAL_TICKS
+    } else {
+        3000
+    };
+    if replay.ticks > cap {
+        return Some(format!("at most {cap} ticks, not {}", replay.ticks));
+    }
+    if bytes.len() >= 64 * 1024 {
+        return Some("the file is under 64 KiB".into());
+    }
+    let steps = RunSteps::of(replay);
+    let changes = steps
+        .steps()
+        .iter()
+        .any(|s| matches!(s, Step::Join(_) | Step::Leave(_)));
+    if replay.setup.build_mode == BuildMode::Offers {
+        if replay.setup.offer_mode == OfferMode::Stop && !changes {
+            let per = picks_per_slot(replay);
+            if per[1] + per[2] < 2 {
+                return Some(format!("slots 1 and 2 answer offers: {per:?}"));
+            }
+        }
+        return None;
+    }
+    let running = |outcome: Outcome| {
+        if replay.ticks == 3000 && outcome == Outcome::Running {
+            None
+        } else {
+            Some(format!(
+                "Running at 3000 ticks, not {outcome:?} at {}",
+                replay.ticks
+            ))
+        }
+    };
+    let others = others_actions(&steps);
+    match name {
+        "two_time_limit" | "three_time_limit" => {
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
+            (others < 2).then(|| format!("slots 1 and 2 make at least 2 actions, not {others}"))
+        }
+        "three_tutorial" => {
+            if verified.outcome != Outcome::Cleared {
+                return Some(format!("Cleared, not {:?}", verified.outcome));
+            }
+            (others < 2).then(|| format!("slots 1 and 2 make at least 2 actions, not {others}"))
+        }
+        "join_two" => {
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
+            let (mut world, mut mask, mut joined, mut after) = (0u32, 0b1u8, None, false);
+            for step in steps.steps() {
+                match step {
+                    Step::Tick(_) => world += 1,
+                    Step::Join(slot) => {
+                        joined = Some((slot.get(), world));
+                        mask |= 1u8 << slot.get();
+                    }
+                    Step::Actions(a) if mask == 0b011 && a[1].is_some() && world > 600 => {
+                        after = true;
+                    }
+                    _ => {}
+                }
+            }
+            if joined != Some((1, 600)) {
+                return Some(format!("slot 1 joins at tick 600, not {joined:?}"));
+            }
+            (!after).then(|| "slot 1 acts after its join".to_string())
+        }
+        "leave_hole" => {
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
+            let (mut world, mut masks, mut acts) = (0u32, vec![(1u8 << steps.party) - 1], false);
+            for step in steps.steps() {
+                match step {
+                    Step::Tick(_) => world += 1,
+                    Step::Join(slot) => masks.push(masks.last().unwrap() | 1u8 << slot.get()),
+                    Step::Leave(slot) => masks.push(masks.last().unwrap() & !(1u8 << slot.get())),
+                    Step::Actions(a)
+                        if a[2].is_some()
+                            && *masks.last().unwrap() == 0b101
+                            && (900..=1500).contains(&world) =>
+                    {
+                        acts = true;
+                    }
+                    _ => {}
+                }
+            }
+            if masks != [0b111, 0b101, 0b001, 0b101] {
+                return Some(format!("the masks 7, 5, 1, 5, not {masks:?}"));
+            }
+            (!acts).then(|| "slot 2 acts inside the first hole".to_string())
+        }
+        "two_revive" | "three_revive" => {
+            crate::party_bot::equipment_revive_miss(replay, steps.party).map(str::to_string)
+        }
+        n if n.starts_with("equipment_") => None,
+        other => Some(format!("no promise for the case `{other}`")),
+    }
 }
 
 #[test]
@@ -477,16 +602,16 @@ fn the_party_cases_are_what_the_table_says() {
         );
         let want = TABLE.iter().find(|row| row.0 == case.name).unwrap();
         assert_eq!(got, *want);
-        let per = picks_per_slot(&replay);
-        // Equipment mode offers no stars, so slots 1 and 2 answer few offers there.
-        if case.changes.is_empty()
-            && case.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Stop
-            && case.setup.build_mode == stella_rain_core::run_setup::BuildMode::Offers
-        {
-            assert!(per[1] + per[2] >= 2, "slots 1 and 2 answer offers: {per:?}");
+        assert_eq!(
+            party_promise_miss(case.name, &replay),
+            None,
+            "{}",
+            case.name
+        );
+        if let Some(want) = ACTIONS.iter().find(|row| row.0 == case.name) {
+            assert_eq!(actions_per_slot(&replay), want.1, "{}: actions", case.name);
+            assert!(RunSteps::of(&replay).has_actions(), "{}", case.name);
         }
-        assert!(replay.ticks <= 3000);
-        assert!(replay.to_bytes().len() < 64 * 1024);
     }
     assert_eq!(party_cases().len(), TABLE.len());
 }
@@ -552,51 +677,45 @@ fn the_party_case_files_are_the_recording_and_verify() {
 /// made at `cut` (so an offer may be open).
 fn recorder_at(recorded: &RunReplay, party: u8, cut: u32) -> RunRecorder {
     let mut rec = RunRecorder::start_party_with_pack(&recorded.setup, pack(), party).unwrap();
-    drive(&mut rec, &recorded.step_range(0, cut, u32::MAX).unwrap());
+    let steps = RunSteps::of(recorded);
+    drive(&mut rec, &steps.steps()[..steps.at(cut)]);
     rec
 }
 
-fn drive(rec: &mut RunRecorder, range: &StepRange) {
-    for step in &range.steps {
-        match step {
-            RangeStep::Actions { actions } => rec
-                .actions(&slots(rec.engine().present(), actions))
-                .unwrap(),
-            RangeStep::Ticks { run, inputs } => {
-                for _ in 0..*run {
-                    rec.step(&slots(rec.engine().present(), inputs)).unwrap();
-                }
-            }
-            RangeStep::Picks { picks } => rec.picks(&slots(rec.engine().present(), picks)).unwrap(),
-            RangeStep::Join { slot: s } => rec.join(slot(*s)).unwrap(),
-            RangeStep::Leave { slot: s } => rec.leave(slot(*s)).unwrap(),
-        }
+fn drive(rec: &mut RunRecorder, steps: &[Step]) {
+    for step in steps {
+        apply_to(rec, step);
     }
 }
 
-/// Three cuts: early, with an offer open, and one tick before the end. The open one is where
-/// slot 1 or 2 holds an offer when that is before the last tick, else the first offer, else (no
-/// offer opens) the middle of the run.
+/// Three cuts: early, with a step pending, and one tick before the end. The middle one is where
+/// slot 1 or 2 holds an offer or makes an action when that is before the last tick, else the first
+/// such step, else (none) the middle of the run.
 fn cuts(recorded: &RunReplay, early: u32) -> [u32; 3] {
-    let range = recorded.step_range(0, recorded.ticks, u32::MAX).unwrap();
+    let steps = RunSteps::of(recorded);
     let mut world = 0;
     let (mut other, mut any) = (None, None);
-    for step in &range.steps {
+    for step in steps.steps() {
         match step {
-            RangeStep::Actions { .. } => {}
-            RangeStep::Ticks { run, .. } => world += run,
-            RangeStep::Picks { picks } if world + 1 < recorded.ticks => {
+            Step::Tick(_) => world += 1,
+            Step::Picks(picks) if world + 1 < recorded.ticks => {
                 any.get_or_insert(world);
                 if picks[1..].iter().any(Option::is_some) {
                     other.get_or_insert(world);
                 }
             }
-            RangeStep::Picks { .. } | RangeStep::Join { .. } | RangeStep::Leave { .. } => {}
+            // An equipment case opens no offer (ADR-SIM-7): its open cut is an action by slot 1 or 2.
+            Step::Actions(actions) if world + 1 < recorded.ticks => {
+                any.get_or_insert(world);
+                if actions[1..].iter().any(Option::is_some) {
+                    other.get_or_insert(world);
+                }
+            }
+            _ => {}
         }
     }
     [
         early,
-        // An equipment case opens no offer (ADR-SIM-7): its middle cut is the middle of the run.
         other.or(any).unwrap_or(recorded.ticks / 2),
         recorded.ticks - 1,
     ]
@@ -612,12 +731,13 @@ fn the_party_cases_resume_and_save_at_three_cuts() {
         for cut in cuts(&recorded, early) {
             let live = recorder_at(&recorded, case.party, cut);
             let prefix = live.replay();
-            let rest = recorded.step_range(cut, recorded.ticks, u32::MAX).unwrap();
+            let all = RunSteps::of(&recorded);
+            let rest = &all.steps()[all.at(cut)..];
             let mut by_replay = RunRecorder::resume_with_pack(&prefix, pack()).unwrap();
             let mut by_save =
                 RunRecorder::resume_from_savepoint(&live.save(), &prefix, pack()).unwrap();
-            drive(&mut by_replay, &rest);
-            drive(&mut by_save, &rest);
+            drive(&mut by_replay, rest);
+            drive(&mut by_save, rest);
             for done in [&by_replay, &by_save] {
                 let replay = done.replay();
                 assert_eq!(
@@ -642,45 +762,48 @@ fn the_change_cases_hold_what_they_are_for() {
         let case = party_cases().into_iter().find(|c| c.name == name).unwrap();
         case.play().replay()
     };
-    // join_two: slot 1 answers an offer after its join at tick 600.
+    // join_two: slot 1 acts after its join at tick 600.
     let join = find("join_two");
-    let range = join.step_range(0, join.ticks, u32::MAX).unwrap();
-    let (mut world, mut mask, mut after) = (0u32, range.present, 0);
-    for step in &range.steps {
+    let steps = RunSteps::of(&join);
+    let (mut world, mut mask, mut after) = (0u32, (1u8 << steps.party) - 1, 0);
+    for step in steps.steps() {
         match step {
-            RangeStep::Ticks { run, .. } => world += run,
-            RangeStep::Join { slot } => {
-                assert_eq!((*slot, world), (1, 600));
-                mask |= 1 << slot;
+            Step::Tick(_) => world += 1,
+            Step::Join(slot) => {
+                assert_eq!((slot.get(), world), (1usize, 600));
+                mask |= 1u8 << slot.get();
             }
-            RangeStep::Picks { picks } if mask == 0b011 && picks[1].is_some() => {
+            Step::Actions(actions) if mask == 0b011 && actions[1].is_some() => {
                 assert!(world > 600);
                 after += 1;
             }
             _ => {}
         }
     }
-    assert!(after >= 1);
-    // leave_hole: a Picks step of length 2 falls in the first window (0b101), the hole is
-    // closed by the second leave and reopened by the join.
+    assert!(after >= 1, "slot 1 makes an action after its join");
+    // leave_hole: slot 2 acts inside the first hole (0b101, 900..=1500); the hole is closed by
+    // the second leave and reopened by the join.
     let hole = find("leave_hole");
-    let range = hole.step_range(0, hole.ticks, u32::MAX).unwrap();
-    let (mut world, mut masks, mut two) = (0u32, vec![range.present], 0);
-    for step in &range.steps {
+    let steps = RunSteps::of(&hole);
+    let (mut world, mut masks, mut two) = (0u32, vec![(1u8 << steps.party) - 1], 0);
+    for step in steps.steps() {
         match step {
-            RangeStep::Actions { .. } => unreachable!("no equipment action here"),
-            RangeStep::Ticks { run, .. } => world += run,
-            RangeStep::Join { slot } => masks.push(masks.last().unwrap() | 1 << slot),
-            RangeStep::Leave { slot } => masks.push(masks.last().unwrap() & !(1 << slot)),
-            RangeStep::Picks { picks } => {
-                if picks.len() == 2 && (900..=1500).contains(&world) {
+            Step::Tick(_) => world += 1,
+            Step::Join(slot) => masks.push(masks.last().unwrap() | 1u8 << slot.get()),
+            Step::Leave(slot) => masks.push(masks.last().unwrap() & !(1u8 << slot.get())),
+            Step::Actions(actions) => {
+                if *masks.last().unwrap() == 0b101
+                    && actions[2].is_some()
+                    && (900..=1500).contains(&world)
+                {
                     two += 1;
                 }
             }
+            Step::Picks(_) => unreachable!("no offer opens in equipment mode"),
         }
     }
     assert_eq!(masks, [0b111, 0b101, 0b001, 0b101]);
-    assert!(two >= 1, "a Picks step inside the hole holds two entries");
+    assert!(two >= 1, "slot 2 acts inside the hole");
 }
 
 #[test]
@@ -691,7 +814,7 @@ fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
         .filter(|c| c.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Timed)
     {
         let replay = case.play().replay();
-        let range = replay.step_range(0, replay.ticks, u32::MAX).unwrap();
+        let steps = RunSteps::of(&replay);
         let mut rec = RunRecorder::start_party(&case.setup, case.party).unwrap();
         let mut taken = 0usize;
         let mut count = |rec: &RunRecorder| {
@@ -702,21 +825,13 @@ fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
                 .filter(|ev| matches!(ev, DomainEvent::RewardTaken { .. }))
                 .count();
         };
-        for step in &range.steps {
-            match step {
-                RangeStep::Actions { .. } => unreachable!("no equipment action here"),
-                RangeStep::Ticks { run, inputs } => {
-                    for _ in 0..*run {
-                        rec.step(&slots(rec.engine().present(), inputs)).unwrap();
-                        count(&rec);
-                    }
-                }
-                RangeStep::Picks { picks } => {
-                    rec.picks(&slots(rec.engine().present(), picks)).unwrap();
-                    count(&rec);
-                }
-                RangeStep::Join { .. } | RangeStep::Leave { .. } => unreachable!(),
-            }
+        for step in steps.steps() {
+            assert!(
+                matches!(step, Step::Tick(_) | Step::Picks(_)),
+                "a timed case holds only ticks and picks"
+            );
+            apply_to(&mut rec, step);
+            count(&rec);
         }
         let picked = picks_per_slot(&replay).iter().sum::<u32>() as usize;
         assert!(picked >= 1, "{}: a pick closed an offer", case.name);
@@ -771,4 +886,74 @@ fn a_savepoint_after_a_rejoin_resumes_to_the_same_hashes() {
         );
     }
     assert_eq!(resumed.replay().to_bytes(), live.replay().to_bytes());
+}
+
+// G. The promises report what they miss.
+
+/// A name no promise knows is a miss, not a hit; an equipment case that adds no promise of its own
+/// and an offers-era case (which returns before the name is read) stay hits.
+#[test]
+fn an_unknown_case_name_is_a_miss() {
+    use crate::run_play::party_case;
+    let play = |case: crate::run_play::PartyCase| case.play().replay();
+    let two = play(party_case("two_time_limit", 1, 1));
+    let miss = party_promise_miss("no_such_case", &two).expect("an unknown name");
+    assert!(
+        miss.contains("no promise for the case `no_such_case`"),
+        "{miss}"
+    );
+    assert_eq!(party_promise_miss("equipment_party_2", &two), None);
+    let timed = party_cases()
+        .into_iter()
+        .find(|case| case.name == "timed_one")
+        .expect("the timed_one case")
+        .play()
+        .replay();
+    assert_eq!(party_promise_miss("timed_one", &timed), None);
+}
+
+#[test]
+fn the_party_promises_name_what_a_run_misses() {
+    use crate::party_bot::{RigParty, equipment_revive_miss};
+    use crate::run_play::{Change, party_case};
+    let play = |case: crate::run_play::PartyCase| case.play().replay();
+    // A run that keeps only the common promises is a hit under a name that adds none.
+    let two = play(party_case("two_time_limit", 1, 1));
+    assert_eq!(party_promise_miss("equipment_party_2", &two), None);
+    // The same runs under promises they cannot meet name the miss.
+    let three = play(party_case("three_time_limit", 1, 1));
+    let tutorial = party_promise_miss("three_tutorial", &three).expect("a Running run");
+    assert!(tutorial.contains("Cleared"), "{tutorial}");
+    let hole = party_promise_miss("leave_hole", &two).expect("no leave");
+    assert!(hole.contains("masks") || hole.contains("Running"), "{hole}");
+    let late = play(
+        RigParty::new(1)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .changes(vec![(700, Change::Join(1))])
+            .case("join_two"),
+    );
+    let joined = party_promise_miss("join_two", &late).expect("joined at 700");
+    assert!(
+        joined.contains("tick 600") || joined.contains("Running"),
+        "{joined}"
+    );
+    // A run that fails early is no Running run: join_two (1, 1) ends Failed before 3000 ticks.
+    let failed = play(party_case("join_two", 1, 1));
+    assert_ne!(failed.ticks, 3000, "the run this test needs fails early");
+    let miss = party_promise_miss("join_two", &failed).expect("not Running at 3000");
+    assert!(miss.contains("Running at 3000"), "{miss}");
+    // A run with no down is no revive case.
+    let solo = play(
+        RigParty::new(2)
+            .equipment()
+            .builds()
+            .seed(1)
+            .bot_seed(1)
+            .ticks(60)
+            .case("two_revive"),
+    );
+    assert_eq!(equipment_revive_miss(&solo, 2), Some("a down"));
 }
