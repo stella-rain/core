@@ -1085,3 +1085,20 @@ pub fn step_log_range(data: &[u8]) -> bool {
     }
     full.is_ok()
 }
+
+/// Decodes `data` as a net packet (ADR-SVC-1): bytes from a peer are untrusted, so any bytes must
+/// give an error or a packet, never a panic, and a packet that decodes must encode back to
+/// exactly those bytes (one encoding per packet). Returns whether the bytes decoded.
+pub fn net_decode(data: &[u8]) -> bool {
+    match stella_rain_net::wire::Packet::decode(data) {
+        Ok(packet) => {
+            assert_eq!(
+                packet.encode().as_deref(),
+                Ok(data),
+                "a packet re-encodes to other bytes"
+            );
+            true
+        }
+        Err(_) => false,
+    }
+}
