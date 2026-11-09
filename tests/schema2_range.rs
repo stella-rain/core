@@ -171,6 +171,19 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
 }
 
 #[test]
+fn an_equipment_run_reads_like_its_oracle() {
+    let two = crate::run_play::equipment_rig(1).play().replay();
+    let ticks = two.ticks;
+    let full = read_step_range(&raw_of(&two), ticks, MAX, 0, ticks).unwrap();
+    let acts = |e: &[Entry]| e.iter().filter(|e| matches!(e, Entry::Actions(_))).count();
+    assert!(acts(&expand(&full.steps)) > 0, "the rig run holds actions");
+    for (a, b) in ranges(ticks, 0x2545_f491_4f6c_dd1d) {
+        let got = two.step_range(a, b, MAX).unwrap();
+        assert_eq!(expand(&got.steps), oracle(&full, ticks, a, b), "{a}..{b}");
+    }
+}
+
+#[test]
 fn a_schema_1_form_of_a_case_reads_the_same_ranges() {
     let two = replay("current", "stage_skill");
     let one = schema_1_form(&two);
