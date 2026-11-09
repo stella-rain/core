@@ -8,6 +8,8 @@
 
 pub mod equip_case;
 pub mod hit_case;
+#[cfg(test)]
+pub(crate) mod offers_cases;
 pub mod party_case;
 pub mod time_limit_case;
 pub mod worst_case;

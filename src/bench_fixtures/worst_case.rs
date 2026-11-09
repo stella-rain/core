@@ -32,7 +32,7 @@ const LINE_SHOOTER_DX: i32 = 160 * 256;
 
 /// The tick the main character sets off for the enemies, and the ticks it walks left and up
 /// before it stands about 36,000 units from them with every enemy inside its step.
-const WALK_FROM: u32 = 100;
+pub(crate) const WALK_FROM: u32 = 100;
 const WALK_LEFT_TICKS: u32 = 40;
 const WALK_UP_TICKS: u32 = 140;
 
@@ -45,7 +45,7 @@ const CHARGE_TICKS: u32 = 24;
 
 /// The Rune Haste reward: the most one gives (`DEFAULT_MAX_RUNE_HASTE_PCT`), so that the picks reach
 /// the cap.
-const HASTE: &str = "haste";
+pub(crate) const HASTE: &str = "haste";
 
 /// Where the enemies stand.
 pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
@@ -291,7 +291,7 @@ const ELITE_RANGE: i32 = 51_200;
 
 /// The first enemies the main character kills, for the stars that give it every rune and Rune
 /// Haste: seven runes, then the Rune Haste reward.
-const PICKS: u16 = 8;
+pub(crate) const PICKS: u16 = 8;
 
 /// The run's content: the random rune and Rune Haste of 300 percent (`DEFAULT_MAX_RUNE_HASTE_PCT`) to
 /// pick from, the bundled on-hit runes, and damage-over-time runes that stack to the cap
