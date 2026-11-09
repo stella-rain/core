@@ -576,6 +576,11 @@ impl Pack {
     pub fn check_text(&self, text: &crate::text::TextTable) -> Result<(), Vec<String>> {
         text.check_pack(self)
     }
+
+    /// Checks that every shown content ID in this pack has text in every locale of `set`.
+    pub fn check_texts(&self, set: &crate::text::TextSet) -> Result<(), Vec<String>> {
+        set.check_pack(self)
+    }
 }
 
 impl From<Pack> for RunContent {

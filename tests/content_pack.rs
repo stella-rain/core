@@ -154,6 +154,157 @@ fn verify_says_when_a_pack_lists_no_starting_unlocks() {
     );
 }
 
+/// A scratch directory holding text files, removed when the test ends.
+struct TextDir(PathBuf);
+
+impl TextDir {
+    fn new(name: &str, files: &[(&str, &[u8])]) -> TextDir {
+        let dir = std::env::temp_dir().join(format!("text-dir-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (file, bytes) in files {
+            std::fs::write(dir.join(file), bytes).unwrap();
+        }
+        TextDir(dir)
+    }
+
+    fn path(&self) -> &str {
+        self.0.to_str().unwrap()
+    }
+}
+
+impl Drop for TextDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn verify_text_dir(dir: &TextDir) -> Output {
+    let pack = Scratch::new(
+        &format!("td-{}.json", dir.0.file_name().unwrap().to_str().unwrap()),
+        Pack::BUNDLED,
+    );
+    run(&["verify", pack.path(), "--text-dir", dir.path()], b"")
+}
+
+#[test]
+fn text_dir_of_both_bundled_files_passes() {
+    let en = stella_rain_core::text::TextTable::BUNDLED;
+    let dir = TextDir::new(
+        "ok",
+        &[
+            ("text.en.json", en),
+            ("text.ko.json", en),
+            ("notes.txt", b"x"),
+        ],
+    );
+    let out = verify_text_dir(&dir);
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert!(text(&out.stdout).starts_with("sha256: "));
+}
+
+#[test]
+fn text_dir_without_the_ko_file_names_ko() {
+    let en = stella_rain_core::text::TextTable::BUNDLED;
+    let dir = TextDir::new("noko", &[("text.en.json", en)]);
+    let out = verify_text_dir(&dir);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(
+        text(&out.stderr).contains("missing locale files: ko"),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+#[test]
+fn text_dir_with_a_line_missing_names_the_id_not_the_text() {
+    let en = stella_rain_core::text::TextTable::BUNDLED;
+    let mut v: Value = serde_json::from_slice(en).unwrap();
+    let description = v["difficulties/easy"]["description"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    v.as_object_mut().unwrap().remove("difficulties/easy");
+    let ko = serde_json::to_vec(&v).unwrap();
+    let dir = TextDir::new("gap", &[("text.en.json", en), ("text.ko.json", &ko)]);
+    let out = verify_text_dir(&dir);
+    assert_eq!(out.status.code(), Some(1));
+    let err = text(&out.stderr);
+    assert!(
+        err.contains("missing text for 1 IDs: ko:difficulties/easy"),
+        "{err}"
+    );
+    assert!(
+        description.is_empty() || !err.contains(&description),
+        "{err}"
+    );
+}
+
+#[test]
+fn text_dir_without_english_is_not_valid() {
+    let en = stella_rain_core::text::TextTable::BUNDLED;
+    let dir = TextDir::new("noen", &[("text.ko.json", en)]);
+    let out = verify_text_dir(&dir);
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
+}
+
+#[test]
+fn text_and_text_dir_together_are_a_usage_error() {
+    let en = stella_rain_core::text::TextTable::BUNDLED;
+    let dir = TextDir::new("both", &[("text.en.json", en), ("text.ko.json", en)]);
+    let file = Scratch::new("both-text.json", en);
+    let pack = Scratch::new("both-pack.json", Pack::BUNDLED);
+    let out = run(
+        &[
+            "verify",
+            pack.path(),
+            "--text",
+            file.path(),
+            "--text-dir",
+            dir.path(),
+        ],
+        b"",
+    );
+    assert_eq!(out.status.code(), Some(2));
+    assert!(text(&out.stderr).contains("usage: content-pack"));
+}
+
+#[test]
+fn an_unreadable_text_dir_is_a_usage_error() {
+    let pack = Scratch::new("nodir-pack.json", Pack::BUNDLED);
+    let out = run(&["verify", pack.path(), "--text-dir", "/no/such/dir"], b"");
+    assert_eq!(out.status.code(), Some(2));
+}
+
+#[test]
+fn text_alone_still_checks_one_table() {
+    let en = Scratch::new(
+        "single-text.json",
+        stella_rain_core::text::TextTable::BUNDLED,
+    );
+    let pack = Scratch::new("single-pack.json", Pack::BUNDLED);
+    let out = run(&["verify", pack.path(), "--text", en.path()], b"");
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+}
+
+#[test]
+fn help_names_text_dir() {
+    let out = run(&["--help"], b"");
+    assert!(text(&out.stdout).contains("--text-dir"));
+}
+
+#[test]
+fn a_typo_fix_in_the_ko_text_moves_no_pack_byte() {
+    let tree = Tree::copy("ko-typo");
+    let path = tree.content().join("text.ko.json");
+    let mut v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    v["difficulties/easy"]["title"] = json!("Edited");
+    std::fs::write(&path, serde_json::to_vec(&v).unwrap()).unwrap();
+    let out = export_dir(&tree.content());
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert_eq!(out.stdout, Pack::BUNDLED);
+}
+
 /// A copy of core's `content/` and `modes/` as `<tmp>/<name>/content` and `<tmp>/<name>/modes`,
 /// removed when the test ends.
 struct Tree(PathBuf);
