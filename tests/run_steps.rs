@@ -9,13 +9,10 @@ use crate::party_bot::RigRun;
 use crate::run_play::equipment_rig;
 use std::path::{Path, PathBuf};
 use stella_rain_core::engine::Engine;
-use stella_rain_core::input::EquipAction;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_from_hex, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{
-    Command, RunRecorder, RunReplay, RunReplayError, record_run_with,
-};
+use stella_rain_core::run_replay::{Command, RunReplay, RunReplayError, record_run_with};
 
 /// The building equipment rig of one player: a run with equipment actions and no pick.
 fn rig_run() -> RunReplay {
@@ -109,7 +106,10 @@ fn every_run_case_replays_to_its_checkpoints() {
         let steps = RunSteps::of(&replay);
         let name = case.display().to_string();
         assert_eq!(steps.party, 1, "{name}");
-        assert!(!steps.has_actions(), "{name}: the corpus holds no equipment run in runs/");
+        assert!(
+            !steps.has_actions(),
+            "{name}: the corpus holds no equipment run in runs/"
+        );
         assert_eq!(
             count(&steps, |s| matches!(s, Step::Tick(_))),
             replay.ticks as usize,
