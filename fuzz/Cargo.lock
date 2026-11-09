@@ -314,6 +314,14 @@ dependencies = [
  "miniz_oxide",
  "serde_json",
  "stella-rain-core",
+ "stella-rain-net",
+]
+
+[[package]]
+name = "stella-rain-net"
+version = "0.0.0"
+dependencies = [
+ "stella-rain-core",
 ]
 
 [[package]]

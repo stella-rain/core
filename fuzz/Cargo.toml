@@ -26,6 +26,7 @@ libfuzzer-sys = "0.4"
 miniz_oxide = "0.8"
 serde_json = "1"
 stella-rain-core = { path = ".." }
+stella-rain-net = { path = "../net" }
 
 [[bin]]
 name = "stage_parse"
@@ -93,6 +94,13 @@ bench = false
 [[bin]]
 name = "step_log_range"
 path = "fuzz_targets/step_log_range.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "net_decode"
+path = "fuzz_targets/net_decode.rs"
 test = false
 doc = false
 bench = false
