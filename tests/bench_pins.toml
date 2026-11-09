@@ -76,3 +76,24 @@ before = "fd83c6a3b6f581da"
 after = "2cc5c43d44658ba1"
 stage = "d8f22a4e4e735a47"
 input = "42725cbb18ad956d"
+
+[rollback_session_w4]
+bench = "rollback_session"
+before = "988b96b7a459bd8f"
+after = "3f5b415ae0a4d8ce"
+stage = "d8f22a4e4e735a47"
+input = "a4037a748a2245f2"
+
+[rollback_session_w16]
+bench = "rollback_session"
+before = "f67c994cc0aca601"
+after = "fab1800290af97d9"
+stage = "d8f22a4e4e735a47"
+input = "1b21bd1854ce783f"
+
+[clone_ring_save]
+bench = "rollback_session"
+before = "fd83c6a3b6f581da"
+after = "fd83c6a3b6f581da"
+stage = "d8f22a4e4e735a47"
+input = "3f5be22dc234d8d3"
