@@ -557,6 +557,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "stella-rain-net"
+version = "0.0.0"
+dependencies = [
+ "stella-rain-core",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -11,6 +11,7 @@
 # unless a new entry of benches/accepted.toml covers it (ADR-SIM-6 points 1 and 3); and the dependency audit (`cargo deny`, deny.toml), whose advisories change
 # without a PR, which the weekly run catches. They are jobs of this workflow because
 # auto-merge.yml waits for the workflows it names.
+# The `net/` crate has its own job (`net`): the other jobs select core alone.
 # A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
 # Rust job waits on it (a push to main and every run off a PR run every job). `rust checks`
 # always runs and fails when a job it needs failed, was cancelled, or was skipped though it had
@@ -326,6 +327,36 @@ jobs:
       - run: |
           for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
             cargo check --locked --all-targets --target "$t"
+          done
+
+  # The `net/` crate (`stella-rain-net`): the commands above select core alone (the
+  # workspace's default member), so net has its own fmt, clippy, tests, docs and mobile check.
+  net:
+    name: net crate fmt, clippy, tests and mobile check
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy \
+            --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt -p stella-rain-net --check
+      - run: cargo clippy -p stella-rain-net --all-targets --locked -- -D warnings
+      - run: cargo test -p stella-rain-net --locked
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc -p stella-rain-net --no-deps --locked
+      - run: |
+          for t in aarch64-apple-ios aarch64-linux-android x86_64-linux-android; do
+            cargo check -p stella-rain-net --locked --all-targets --target "$t"
           done
 
   fuzz-stable:
@@ -822,7 +853,7 @@ jobs:
   # `what changed` says no; every other skipped, failed or cancelled job fails this one.
   checks:
     name: rust checks
-    needs: [changes, fuzz-changes, lint, bless, frozen, test, cross, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
+    needs: [changes, fuzz-changes, lint, bless, frozen, test, cross, net, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
