@@ -860,3 +860,49 @@ fn an_equipment_setup_starts_and_any_other_issue_is_reported() {
     // An offers setup is unaffected.
     assert!(Engine::start(&RunSetup::default()).is_ok());
 }
+
+/// A default setup's JSON with `offer_mode` added (the mode left core: the key is unknown).
+fn setup_json_naming_offer_mode(mode: &str) -> serde_json::Value {
+    let mut v = serde_json::to_value(RunSetup::default()).unwrap();
+    assert!(
+        v.get("offer_mode").is_none(),
+        "a default setup names no mode"
+    );
+    v["offer_mode"] = mode.into();
+    v
+}
+
+#[test]
+fn a_setup_naming_offer_mode_is_refused_as_an_unknown_field() {
+    for mode in ["stop", "timed"] {
+        let v = setup_json_naming_offer_mode(mode);
+        assert!(
+            serde_json::from_value::<RunSetup>(v.clone()).is_err(),
+            "{mode}"
+        );
+        let err = run_setup::parse_and_validate(v.to_string().as_bytes()).unwrap_err();
+        assert!(format!("{err:?}").contains("offer_mode"), "{mode}: {err:?}");
+    }
+}
+
+#[test]
+fn a_replay_whose_setup_names_offer_mode_is_refused() {
+    use stella_rain_core::run_replay::{RunRecorder, RunReplay};
+    let bytes = RunRecorder::start(&RunSetup::default())
+        .unwrap()
+        .replay()
+        .to_bytes();
+    assert!(RunReplay::from_bytes(&bytes).is_ok());
+    let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["setup"]["offer_mode"] = "stop".into();
+    assert!(RunReplay::from_bytes(v.to_string().as_bytes()).is_err());
+}
+
+#[test]
+fn the_checked_in_schema_has_no_offer_mode() {
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
+    assert!(!text.contains("\"offer_mode\""));
+    assert!(!text.contains("\"OfferMode\""));
+}
