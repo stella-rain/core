@@ -54,7 +54,7 @@ impl RunSteps {
         let range = replay
             .step_range(0, replay.ticks, u32::MAX)
             .unwrap_or_else(|e| panic!("a recorded step log: {e:?}"));
-        let party = range.present.count_ones() as u8;
+        let party = u8::try_from(range.present.count_ones()).unwrap();
         let mut mask = range.present;
         let (mut steps, mut first) = (Vec::new(), vec![0]);
         for step in &range.steps {
@@ -120,7 +120,7 @@ pub fn apply(engine: &mut Engine, step: &Step) {
             for (slot, pick) in picks.iter().enumerate() {
                 if let Some(index) = *pick {
                     engine
-                        .check_pick(player(slot as u8), index)
+                        .check_pick(player(u8::try_from(slot).unwrap()), index)
                         .unwrap_or_else(|e| panic!("pick {index} of slot {slot}: {e:?}"));
                     inputs[slot] = Input::picking(index);
                 }
@@ -130,7 +130,7 @@ pub fn apply(engine: &mut Engine, step: &Step) {
         Step::Actions(actions) => {
             for (slot, action) in actions.iter().enumerate() {
                 if let Some(action) = *action {
-                    let who = player(slot as u8);
+                    let who = player(u8::try_from(slot).unwrap());
                     engine
                         .check_action(who, action)
                         .unwrap_or_else(|e| panic!("action {action:?} of slot {slot}: {e:?}"));

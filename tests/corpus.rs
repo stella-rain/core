@@ -207,11 +207,11 @@ fn dump_second(
         let path = dir.join(format!("tick-{tick:05}.json"));
         fs::write(path, serde_json::to_vec_pretty(&file).unwrap()).unwrap();
     };
-    let mut engine = run_steps::start(&recorded, content);
+    let mut engine = run_steps::start(recorded, content);
     if from == 0 {
         dump(&engine);
     }
-    for step in RunSteps::of(&recorded).steps() {
+    for step in RunSteps::of(recorded).steps() {
         run_steps::apply(&mut engine, step);
         if !matches!(step, Step::Tick(_)) {
             continue;

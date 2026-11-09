@@ -40,7 +40,7 @@ fn schema_2_cases_are_their_schema_1_forms() {
         checked += 1;
         let one = schema_1_form(&two);
         assert_eq!(one.setup.schema_version, 1, "{name}");
-        let content = case_content(&case).unwrap();
+        let content = case_content(case).unwrap();
         let (a, b) = (
             verify_run_with(&two.to_bytes(), &content).unwrap(),
             verify_run_with(&one.to_bytes(), &content).unwrap(),

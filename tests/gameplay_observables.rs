@@ -38,8 +38,6 @@ const SNAPSHOT_STRIDE: u32 = 30;
 const BENCH_TICKS: u32 = 120;
 /// The ticks of the dense minute case.
 const MINUTE_PLAYED: u32 = 600;
-/// The ticks a run case plays at most.
-const RUN_TICKS: u32 = u32::MAX;
 
 /// An entity ID as the pre-reservation numbering had it.
 fn map(n: u32) -> u32 {
@@ -205,7 +203,7 @@ fn run_digest(case: &Path) -> String {
     let pack = run_case_pack(case, &bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
     let mut engine = run_steps::start(&recorded, pack.content());
     let steps = RunSteps::of(&recorded);
-    let played = steps.ticks.min(RUN_TICKS);
+    let played = steps.ticks;
     let mut sha = Sha256::new();
     for step in steps.steps() {
         if engine.tick() >= played {

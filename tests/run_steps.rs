@@ -217,6 +217,6 @@ fn at_finds_the_first_step_of_a_tick() {
     let ticks_before = steps.steps()[..first]
         .iter()
         .filter(|s| matches!(s, Step::Tick(_)))
-        .count() as u32;
-    assert_eq!(steps.at(ticks_before), first);
+        .count();
+    assert_eq!(steps.at(u32::try_from(ticks_before).unwrap()), first);
 }
