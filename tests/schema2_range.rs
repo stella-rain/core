@@ -123,11 +123,12 @@ fn ranges(ticks: u32, seed: u64) -> Vec<(u32, u32)> {
 
 #[test]
 fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
-    let mut same_runs = 0;
+    let (mut same_runs, mut frozen_read) = (0, 0);
     for name in names() {
         let two = replay("current", &name);
         let one = replay("v1", &name);
         assert_eq!(one.setup.schema_version, 1, "{name}");
+        frozen_read += 1;
         let ticks = two.ticks;
         let full = read_step_range(&raw_of(&two), ticks, MAX, 0, ticks).unwrap();
         // The frozen file holds the run as version 1 recorded it. Where the current run is
@@ -162,11 +163,15 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
         }
         assert_eq!(two.step_range(0, ticks, MAX).unwrap(), full, "{name}");
     }
-    // Not vacuous: the cases whose run the 64 px circle did not move still hold the same run in
-    // both schemas, and those are compared one against the other.
-    assert!(
-        same_runs >= 4,
-        "only {same_runs} cases hold one run in both schemas"
+    // Every current case is an equipment run, which is never its frozen offers file; each of the
+    // 9 frozen files was read against its own log.
+    assert_eq!(
+        same_runs, 0,
+        "every current case is an equipment run, which is never its frozen offers file"
+    );
+    assert_eq!(
+        frozen_read, 9,
+        "the frozen files read against their own log"
     );
 }
 
@@ -185,7 +190,14 @@ fn an_equipment_run_reads_like_its_oracle() {
 
 #[test]
 fn a_schema_1_form_of_a_case_reads_the_same_ranges() {
-    let two = replay("current", "stage_skill");
+    // An equipment case has no schema 1 form: the offers-era trial run, recorded here, has one.
+    let two = crate::corpus::offers_trial_run();
+    let picks = crate::common::run_steps::RunSteps::of(&two)
+        .steps()
+        .iter()
+        .filter(|s| matches!(s, crate::common::run_steps::Step::Picks(_)))
+        .count();
+    assert!(picks > 0, "the run holds PICKS steps");
     let one = schema_1_form(&two);
     for (a, b) in ranges(two.ticks, 7) {
         assert_eq!(

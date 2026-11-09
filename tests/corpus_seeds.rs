@@ -5,11 +5,10 @@
 //! predicate decides: a case with no hit is reported, never changed.
 
 use crate::common::run::trial_setup;
-use crate::common::run_steps::{RunSteps, Step};
 use crate::corpus::{
-    RunDefinition, assert_elites, assert_longest_run, assert_match_ups, assert_short_run_at,
-    assert_stage_skill, case_content, elite_reach_at, equipment_run_definition, replay_run_case_at,
-    write_atomic,
+    RunDefinition, assert_elites, assert_five_kinds, assert_longest_run, assert_match_ups,
+    assert_short_run_at, assert_stage_skill, case_content, elite_reach_at,
+    equipment_run_definition, replay_run_case_at, write_atomic,
 };
 use crate::corpus_pins::{write_case_json, write_pack_file};
 use std::fs;
@@ -17,43 +16,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::Outcome;
-use stella_rain_core::input::EquipAction;
 use stella_rain_core::pack::Pack;
-use stella_rain_core::run_replay::{self, RunReplay};
+use stella_rain_core::run_replay;
 use stella_rain_core::validate::limits::MAX_TICKS;
-
-/// The five kinds of equipment action, as discriminants of a probe of each.
-fn five_kinds() -> [std::mem::Discriminant<EquipAction>; 5] {
-    use EquipAction::{Craft, Equip, Extract, Replace, TreePick};
-    [
-        std::mem::discriminant(&Equip { item: 0, slot: 0 }),
-        std::mem::discriminant(&Replace { item: 0, slot: 0 }),
-        std::mem::discriminant(&Extract { item: 0 }),
-        std::mem::discriminant(&Craft { star: 0 }),
-        std::mem::discriminant(&TreePick { option: 0 }),
-    ]
-}
-
-/// The kind of each equipment action slot 0 takes in the run case `case`, in order.
-pub(crate) fn action_kinds(case: &Path) -> Vec<std::mem::Discriminant<EquipAction>> {
-    let bytes = fs::read(case.join("run.replay")).unwrap();
-    let replay = RunReplay::from_bytes(&bytes).unwrap();
-    let mut kinds = Vec::new();
-    for step in RunSteps::of(&replay).steps() {
-        if let Step::Actions([Some(a), ..]) = step {
-            kinds.push(std::mem::discriminant(a));
-        }
-    }
-    kinds
-}
-
-/// Every kind of equipment action is taken at least once.
-pub(crate) fn assert_five_kinds(kinds: &[std::mem::Discriminant<EquipAction>]) {
-    let names = ["equip", "replace", "extract", "craft", "tree pick"];
-    for (kind, name) in five_kinds().iter().zip(names) {
-        assert!(kinds.contains(kind), "no {name} in the run case");
-    }
-}
 
 /// The case's promise on the written candidate `case` (named `name`): the corpus tests' assertions.
 fn promise(name: &str, case: &Path) {
@@ -65,7 +30,7 @@ fn promise(name: &str, case: &Path) {
         }
         "trial" => {
             let run = replay_run_case_at(case, name, Outcome::Failed);
-            assert_five_kinds(&action_kinds(case));
+            assert_five_kinds(&run.kinds);
             assert_match_ups(run.match_ups);
         }
         "stage_skill" => assert_stage_skill(&replay_run_case_at(case, name, Outcome::Failed).used),

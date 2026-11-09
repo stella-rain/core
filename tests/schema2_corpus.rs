@@ -3,13 +3,14 @@
 //! verifies and reaches the same ticks, final hash, outcome and command count. The simulation
 //! did not move; only the file format did.
 
-use crate::common::run_steps::RunSteps;
+use crate::common::run_steps::{RunSteps, Step};
 use crate::common::schema_1_form;
 use crate::corpus::case_content;
 use crate::data_root::data_root;
 use std::fs;
 use std::path::PathBuf;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
+use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{RunReplay, verify_run_with};
 
 fn cases(kind: &str) -> Vec<PathBuf> {
@@ -20,6 +21,31 @@ fn cases(kind: &str) -> Vec<PathBuf> {
         .collect();
     cases.sort();
     cases
+}
+
+/// `two` and its schema 1 form verify and reach the same ticks, final hash, outcome, command count
+/// and Stardust, and share the file's ticks, final hash and checkpoints.
+fn assert_is_its_schema_1_form(
+    name: &dyn std::fmt::Display,
+    two: &RunReplay,
+    content: &RunContent,
+) {
+    let one = schema_1_form(two);
+    assert_eq!(one.setup.schema_version, 1, "{name}");
+    let (a, b) = (
+        verify_run_with(&two.to_bytes(), content).unwrap(),
+        verify_run_with(&one.to_bytes(), content).unwrap(),
+    );
+    assert_eq!(
+        (a.ticks, a.final_hash, a.outcome, a.commands, a.stardust),
+        (b.ticks, b.final_hash, b.outcome, b.commands, b.stardust),
+        "{name}"
+    );
+    assert_eq!(
+        (&one.ticks, &one.final_hash, &one.checkpoints),
+        (&two.ticks, &two.final_hash, &two.checkpoints),
+        "{name}"
+    );
 }
 
 #[test]
@@ -38,25 +64,25 @@ fn schema_2_cases_are_their_schema_1_forms() {
             continue;
         }
         checked += 1;
-        let one = schema_1_form(&two);
-        assert_eq!(one.setup.schema_version, 1, "{name}");
-        let content = case_content(case).unwrap();
-        let (a, b) = (
-            verify_run_with(&two.to_bytes(), &content).unwrap(),
-            verify_run_with(&one.to_bytes(), &content).unwrap(),
-        );
-        assert_eq!(
-            (a.ticks, a.final_hash, a.outcome, a.commands, a.stardust),
-            (b.ticks, b.final_hash, b.outcome, b.commands, b.stardust),
-            "{name}"
-        );
-        assert_eq!(
-            (&one.ticks, &one.final_hash, &one.checkpoints),
-            (&two.ticks, &two.final_hash, &two.checkpoints),
-            "{name}"
-        );
+        assert_is_its_schema_1_form(&name, &two, &case_content(case).unwrap());
     }
     assert_eq!(checked + skipped, runs.len());
+    // Every case is an equipment run: only the tutorial, which is shorter than the bot's first
+    // decision, holds no action; the other 8 hold at least a tree pick.
+    assert_eq!(
+        (checked, skipped),
+        (1, 8),
+        "the cases with and without actions"
+    );
+    // A run with offers is still its schema 1 form: the offers-era trial, recorded here.
+    let trial = crate::corpus::offers_trial_run();
+    assert!(
+        RunSteps::of(&trial)
+            .steps()
+            .iter()
+            .any(|s| matches!(s, Step::Picks(_)))
+    );
+    assert_is_its_schema_1_form(&"offers trial", &trial, RunContent::bundled());
     let stages = cases("stages");
     assert!(stages.len() >= 16);
     for case in stages {

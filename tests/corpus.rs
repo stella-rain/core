@@ -36,13 +36,13 @@ use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::input::Input;
+use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::{EntityKind, OfferOption, Snapshot};
+use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::validate::parse_and_validate;
@@ -1426,6 +1426,24 @@ fn run_definitions() -> Vec<RunDefinition> {
     ]
 }
 
+/// The offers-era `trial` run, recorded in the test with the offers path that stays until the
+/// offers path goes (the readers whose intent needs a run with PICKS steps use it).
+pub(crate) fn offers_trial_run() -> RunReplay {
+    let commands = crate::run_play::play_run(common::run::TRIAL_LENGTH);
+    run_replay::record_run_with_pack(&common::run::trial_setup(), Pack::bundled(), &commands)
+        .unwrap()
+}
+
+/// The offers-era `time_limit` run (the seed of its first record), recorded in the test.
+pub(crate) fn offers_time_limit_run() -> RunReplay {
+    let setup = RunSetup {
+        seed: common::run::OFFERS_TIME_LIMIT_SEED,
+        ..common::run::time_limit_setup()
+    };
+    let commands = crate::run_play::play_run_from(&setup, MAX_TICKS);
+    run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
+}
+
 /// The run cases in equipment mode (ADR-SIM-7): the case `name` played from the world seed `seed`
 /// with the building bot `PartyBot::building(bot_seed)`, steered as the offers-era case was. The
 /// seed search (`corpus_seeds.rs`) and `run_definitions` both build a case here.
@@ -1759,8 +1777,8 @@ fn boss_input(engine: &Engine, tick: u32) -> Input {
 
 /// What a run case does, re-simulated from its file.
 pub(crate) struct RunCase {
-    /// The kind of option each choice takes.
-    pub(crate) kinds: Vec<std::mem::Discriminant<OfferOption>>,
+    /// The kind of each equipment action slot 0 takes (the run holds no offer and no PICKS step).
+    pub(crate) kinds: Vec<std::mem::Discriminant<EquipAction>>,
     /// Each stage skill used, with the level it is used at.
     pub(crate) used: Vec<(String, u8)>,
     /// How many hits got each match-up: weak, strong, resisted, none.
@@ -1791,13 +1809,8 @@ pub(crate) fn replay_run_case_at(case: &Path, name: &str, outcome: Outcome) -> R
     let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
     let mut raised = false;
     for step in steps.steps() {
-        if let Step::Picks([Some(index), ..]) = step {
-            let s = engine.snapshot();
-            let options = match s.expertise.and_then(|g| g.offer) {
-                Some(offer) => offer.options,
-                None => s.progress.unwrap().offer.unwrap().options,
-            };
-            kinds.push(std::mem::discriminant(&options[*index as usize]));
+        if let Step::Actions([Some(action), ..]) = step {
+            kinds.push(std::mem::discriminant(action));
         }
         run_steps::apply(&mut engine, step);
         if !matches!(step, Step::Tick(_)) {
@@ -1830,18 +1843,21 @@ pub(crate) fn replay_run_case_at(case: &Path, name: &str, outcome: Outcome) -> R
     }
 }
 
-/// The trial's choices take each kind of option at least once.
-pub(crate) fn assert_trial_kinds(kinds: &[std::mem::Discriminant<OfferOption>]) {
-    use OfferOption::{Banish, Reroll, Skip, Take};
-    for kind in [
-        Take { candidate: 0 },
-        Reroll { candidate: 0 },
-        Skip,
-        Banish { candidate: 0 },
-    ] {
+/// The trial's actions take each kind of equipment action at least once: equip, replace,
+/// extract, craft and a tree pick.
+pub(crate) fn assert_five_kinds(kinds: &[std::mem::Discriminant<EquipAction>]) {
+    use EquipAction::{Craft, Equip, Extract, Replace, TreePick};
+    let all = [
+        ("equip", Equip { item: 0, slot: 0 }),
+        ("replace", Replace { item: 0, slot: 0 }),
+        ("extract", Extract { item: 0 }),
+        ("craft", Craft { star: 0 }),
+        ("tree pick", TreePick { option: 0 }),
+    ];
+    for (name, kind) in all {
         assert!(
             kinds.contains(&std::mem::discriminant(&kind)),
-            "no {kind:?} in the run case"
+            "no {name} in the run case"
         );
     }
 }
@@ -1911,8 +1927,8 @@ pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
 
 #[test]
 fn the_run_cases_are_what_their_names_say() {
-    // Re-simulated, the trial's choices take each kind of option at least once.
-    assert_trial_kinds(&replay_run_case("trial").kinds);
+    // Re-simulated, the trial's actions take each kind of equipment action at least once.
+    assert_five_kinds(&replay_run_case("trial").kinds);
     // The time_limit run is the longest equipment run: it ends with the main character falling
     // just short of the time limit (the offers-era healing that kept it alive to MAX_TICKS is gone).
     assert_longest_run(&runs_dir().join("time_limit"));

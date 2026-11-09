@@ -6,6 +6,7 @@ use crate::common::run_steps::{self, RunSteps, Step};
 use crate::common::{self, *};
 use crate::corpus::runs_dir;
 use crate::corpus_pins::case_pack;
+use stella_rain_core::pack::Pack;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -98,20 +99,61 @@ fn case_names() -> Vec<String> {
     names
 }
 
-/// Plays a run case through a recorder, calling `f(recorder, ordinal, counted)` after every step
+/// A run the tally tests walk: a corpus case (equipment mode) or the offers-era `time_limit` run,
+/// which the test records itself with the offers path (only the offers path emits `RewardTaken`
+/// and `Constellation`, so only it has a taken reward, a named star or a tier to count).
+struct Run {
+    name: String,
+    replay: RunReplay,
+    pack: Pack,
+}
+
+/// The name the offers-era `time_limit` run goes by in these tests.
+const OFFERS_TIME_LIMIT: &str = "offers time_limit";
+
+fn offers_time_limit() -> Run {
+    Run {
+        name: OFFERS_TIME_LIMIT.into(),
+        replay: crate::corpus::offers_time_limit_run(),
+        pack: Pack::bundled().clone(),
+    }
+}
+
+fn corpus_runs() -> Vec<Run> {
+    case_names()
+        .into_iter()
+        .map(|name| {
+            let case: PathBuf = runs_dir().join(&name);
+            let replay =
+                RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+            Run {
+                pack: case_pack(&case).unwrap(),
+                replay,
+                name,
+            }
+        })
+        .collect()
+}
+
+/// The corpus cases and the offers-era `time_limit` run.
+fn all_runs() -> Vec<Run> {
+    let mut runs = corpus_runs();
+    runs.push(offers_time_limit());
+    runs
+}
+
+/// Plays a run through a recorder, calling `f(recorder, ordinal, counted)` after every step
 /// and every choice, where `counted` says the last events changed the fold. Returns the fold.
 fn walk(
-    name: &str,
+    run: &Run,
     stop_at: Option<usize>,
     mut f: impl FnMut(&RunRecorder, usize, bool, &Fold),
 ) -> Fold {
-    let case: PathBuf = runs_dir().join(name);
-    let recorded = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
-    let pack = case_pack(&case).unwrap();
-    let mut rec = RunRecorder::start_with_pack(&recorded.setup, &pack).unwrap();
+    let recorded = &run.replay;
+    let mut rec = RunRecorder::start_with_pack(&recorded.setup, &run.pack).unwrap();
     let mut fold = Fold::default();
     let mut ordinal = 0;
-    for step in RunSteps::of(&recorded).steps() {
+    for step in RunSteps::of(recorded).steps() {
         if matches!(step, Step::Tick(_))
             && (rec.engine().outcome() != Outcome::Running || rec.engine().offer_open())
         {
@@ -130,15 +172,16 @@ fn walk(
 
 #[test]
 fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
-    let names = case_names();
+    let runs = all_runs();
     for must in ["easy", "rainy", "time_limit", "trial", "tutorial"] {
-        assert!(names.iter().any(|n| n == must), "no run case {must}");
+        assert!(runs.iter().any(|r| r.name == must), "no run case {must}");
     }
-    for name in &names {
+    for run in &runs {
+        let name = &run.name;
         // First pass: where the tally changes, and the first open offer and choice.
         let mut changes = Vec::new();
         let mut first_offer = None;
-        let end = walk(name, None, |rec, ordinal, counted, _| {
+        let end = walk(run, None, |rec, ordinal, counted, _| {
             if counted {
                 changes.push(ordinal);
             }
@@ -161,11 +204,11 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
         }
         cuts.sort_unstable();
         cuts.dedup();
-        let pack = case_pack(&runs_dir().join(name)).unwrap();
+        let pack = &run.pack;
         let mut compared = 0;
         for cut in cuts {
             let mut at = None;
-            walk(name, Some(cut), |rec, ordinal, _, fold| {
+            walk(run, Some(cut), |rec, ordinal, _, fold| {
                 if ordinal == cut {
                     at = Some((rec.clone(), fold.plain()));
                 }
@@ -179,7 +222,7 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
                 straight, folded,
                 "{name}: straight tally vs the fold at {cut}"
             );
-            let resumed = RunRecorder::resume_with_pack(&rec.replay(), &pack).unwrap();
+            let resumed = RunRecorder::resume_with_pack(&rec.replay(), pack).unwrap();
             assert_eq!(
                 plain(resumed.engine().tally()),
                 straight,
@@ -189,7 +232,7 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
             compared += 1;
         }
         assert!(compared > 0, "{name}: no cut compared");
-        if ["easy", "rainy", "time_limit"].contains(&name.as_str()) {
+        if ["easy", "rainy", "time_limit", OFFERS_TIME_LIMIT].contains(&name.as_str()) {
             assert!(end.kills > 0, "{name}: no kills");
         }
         eprintln!(
@@ -202,9 +245,10 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
 #[test]
 fn the_tally_equals_a_fold_of_the_events_on_every_corpus_run() {
     let mut cases = 0;
-    for name in case_names() {
+    for run in all_runs() {
+        let name = &run.name;
         let mut compared = 0;
-        let end = walk(&name, None, |rec, _, counted, fold| {
+        let end = walk(&run, None, |rec, _, counted, fold| {
             if counted {
                 assert_eq!(
                     plain(rec.engine().tally()),
@@ -218,7 +262,7 @@ fn the_tally_equals_a_fold_of_the_events_on_every_corpus_run() {
         assert!(compared > 0 || end.kills == 0, "{name}");
         cases += 1;
     }
-    assert!(cases >= 9, "{cases} run cases");
+    assert!(cases >= 10, "{cases} run cases");
 }
 
 #[test]
@@ -226,9 +270,10 @@ fn the_corpus_reaches_every_tally() {
     let mut sum = Fold::default();
     let mut named_max = 0;
     let mut tiers_seen = BTreeMap::new();
-    for name in case_names() {
+    for run in all_runs() {
+        let name = &run.name;
         let mut last: Option<Plain> = None;
-        let end = walk(&name, None, |rec, _, _, _| {
+        let end = walk(&run, None, |rec, _, _, _| {
             last = Some(plain(rec.engine().tally()));
         });
         assert_eq!(last.unwrap(), end.plain(), "{name}: the tally at the end");
@@ -253,16 +298,35 @@ fn the_corpus_reaches_every_tally() {
     assert!(!sum.taken.is_empty(), "no reward taken in the corpus");
     assert!(named_max > 0, "no named star in the corpus");
     assert!(!tiers_seen.is_empty(), "no tier in the corpus");
-    // The kills of a run that ends in an engine tally agree with the engine's last fold.
-    let tl = walk("time_limit", None, |_, _, _, _| {});
+    // The offers-era `time_limit` run (the old case's seed) still names at least 11 stars.
+    let tl = walk(&offers_time_limit(), None, |_, _, _, _| {});
     assert!(
         tl.named.len() >= 11,
         "time_limit names {} stars",
         tl.named.len()
     );
+    // The corpus `time_limit` case is an equipment run: its tally holds the kills only, because
+    // only the offers path emits `RewardTaken` and `Constellation`.
+    let corpus_tl = corpus_runs()
+        .into_iter()
+        .find(|r| r.name == "time_limit")
+        .unwrap();
+    let tl = walk(&corpus_tl, None, |_, _, _, _| {});
+    assert!(tl.kills > 0, "the corpus time_limit kills");
+    assert_eq!(
+        tl.elite_kills, TIME_LIMIT_ELITE_KILLS,
+        "elite kills of the corpus time_limit"
+    );
+    assert!(
+        tl.taken.is_empty() && tl.named.is_empty() && tl.tiers.is_empty(),
+        "an equipment run counts no reward, star or tier"
+    );
 }
 
 // --- built stages -------------------------------------------------------------------------------
+
+/// The elites the corpus `time_limit` case kills (computed from the blessed file).
+const TIME_LIMIT_ELITE_KILLS: u32 = 0;
 
 const CX: i32 = 20_000;
 const CY: i32 = 30_000;
@@ -385,7 +449,11 @@ fn a_carried_star_is_held_but_not_taken() {
 #[test]
 fn a_cloned_engine_keeps_its_tally() {
     let mut last = None;
-    walk("easy", None, |rec, _, _, _| {
+    let easy = corpus_runs()
+        .into_iter()
+        .find(|r| r.name == "easy")
+        .unwrap();
+    walk(&easy, None, |rec, _, _, _| {
         last = Some(rec.engine().clone())
     });
     let e = last.unwrap();
