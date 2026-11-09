@@ -81,12 +81,15 @@ class NetManifest(unittest.TestCase):
         for lint in ("cast_possible_truncation", "cast_sign_loss", "cast_possible_wrap", "cast_lossless"):
             self.assertEqual(self.m["lints"]["clippy"][lint], "deny")
 
-    def test_lib_is_empty_and_documented(self):
+    def test_lib_declares_only_its_modules_and_is_documented(self):
         src = read_root("net/src/lib.rs")
         self.assertIn("#![forbid(unsafe_code)]", src)
         self.assertIn("#![deny(missing_docs)]", src)
         self.assertTrue(src.startswith("//!"))
-        self.assertEqual([l for l in src.splitlines() if l.startswith("pub ")], [])
+        self.assertEqual(
+            [l for l in src.splitlines() if l.startswith("pub ")],
+            ["pub mod transport;", "pub mod wire;"],
+        )
 
 
 class Lock(unittest.TestCase):

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::id::PlayerIdx;
+use stella_rain_core::input::EquipAction;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_content::RunContent;
@@ -19,15 +20,15 @@ use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core_fuzz::{
-    MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, pack_load, packs_load,
-    party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes, savepoint_recorder,
-    savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range, step_log_range_input,
-    timed_recorder,
+    MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, net_decode, pack_load,
+    packs_load, party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes,
+    savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range,
+    step_log_range_input, timed_recorder,
 };
 
 type Target = fn(&[u8]) -> bool;
 
-const TARGETS: [(&str, Target); 10] = [
+const TARGETS: [(&str, Target); 11] = [
     ("stage_parse", stage_parse),
     ("stage_run", stage_run),
     ("replay_load", replay_load),
@@ -38,6 +39,7 @@ const TARGETS: [(&str, Target); 10] = [
     ("minisign_verify", minisign_verify),
     ("savepoint_load", savepoint_load),
     ("step_log_range", step_log_range),
+    ("net_decode", net_decode),
 ];
 
 fn root() -> PathBuf {
@@ -262,6 +264,78 @@ fn a_real_pack_gets_past_the_loader_and_runs() {
     );
 }
 
+/// One packet of each kind, and a frame with an action, built through net's own API: the seeds
+/// of `net_decode`.
+fn net_seeds() -> Vec<Vec<u8>> {
+    use stella_rain_net::wire::{
+        Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, Packet, WireInput,
+    };
+    let slot = |i| PlayerIdx::new(i).unwrap();
+    let mut pack_hash = [0u8; 32];
+    for (i, b) in pack_hash.iter_mut().enumerate() {
+        *b = u8::try_from(i).unwrap();
+    }
+    let walk = WireInput {
+        move_x: 127,
+        move_y: -127,
+        evade: true,
+        main: true,
+        ..WireInput::default()
+    };
+    let equip = WireInput {
+        interact: true,
+        action: Some(EquipAction::Equip { item: 7, slot: 2 }),
+        ..WireInput::default()
+    };
+    let tree = WireInput {
+        action: Some(EquipAction::TreePick { option: 1 }),
+        ..WireInput::default()
+    };
+    [
+        Packet::Hello(Hello {
+            protocol: 1,
+            sim_version: 2,
+            pack_hash,
+        }),
+        Packet::Input(InputFrame {
+            slot: slot(0),
+            start_tick: 0,
+            inputs: vec![WireInput::default()],
+        }),
+        Packet::Input(InputFrame {
+            slot: slot(1),
+            start_tick: 258,
+            inputs: vec![walk, equip, tree],
+        }),
+        Packet::Ack(Ack {
+            slot: slot(2),
+            next_tick: 259,
+        }),
+        Packet::Checkpoint(Checkpoint {
+            slot: slot(0),
+            tick: 3600,
+            hash: 0x0123_4567_89ab_cdef,
+        }),
+        Packet::Bye(Bye {
+            slot: slot(1),
+            tick: 7200,
+            reason: ByeReason::Left,
+        }),
+    ]
+    .iter()
+    .map(|p| p.encode().expect("a seed packet encodes"))
+    .collect()
+}
+
+#[test]
+fn every_net_seed_decodes_and_the_empty_and_noise_do_not() {
+    for (i, seed) in net_seeds().iter().enumerate() {
+        assert!(net_decode(seed), "seed {i}");
+    }
+    assert!(!net_decode(&[]));
+    assert!(!net_decode(&[0xff; 64]));
+}
+
 #[test]
 fn garbage_is_rejected_without_a_panic() {
     let long_run = [b'{'; 5000];
@@ -460,6 +534,9 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             .map(|(_, bytes)| bytes)
             .collect();
     }
+    if target == "net_decode" {
+        return net_seeds();
+    }
     if target == "pack_load" {
         return vec![Pack::BUNDLED.to_vec(), pack_with_constellations()];
     }
@@ -619,7 +696,7 @@ fn every_target_has_a_file_and_the_other_way_round() {
     files.sort();
     let mut listed: Vec<&str> = TARGETS.iter().map(|t| t.0).collect();
     listed.sort_unstable();
-    assert_eq!(TARGETS.len(), 10);
+    assert_eq!(TARGETS.len(), 11);
     assert_eq!(files, listed);
 }
 
