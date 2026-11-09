@@ -13,6 +13,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{BuildMode, RunSetup};
 use crate::rune::Rune;
 use crate::runes::{MAX_DOT_STACKS, Runes};
+use crate::snapshot::SlotKindView;
 use crate::stage::Stage;
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_ELITES_ALIVE};
 use crate::version::Versions;
@@ -344,17 +345,16 @@ pub fn start() -> Engine {
     engine
         .script_runes(PlayerIdx::SOLO, &Rune::ALL)
         .expect("the runes are scripted");
-    // The layout: the categories' slots in list order, then the rune slots. An equip takes its
-    // item out of the inventory, so the next one is item 0 again.
-    let first_rune_slot = equipment()["categories"]
-        .as_array()
-        .expect("a category list")
+    // The first rune slot comes from the layout itself: the categories' slots, then the rune
+    // slots. An equip takes its item out of the inventory, so the next one is item 0 again.
+    let slots = engine.snapshot().players[0].slots.clone();
+    let first_rune = slots
         .iter()
-        .map(|c| c["slots"].as_u64().expect("a slot count"))
-        .sum::<u64>();
-    let first_rune_slot = u32::try_from(first_rune_slot).expect("a slot index");
-    let slots = std::iter::once(0).chain((0..).map(|n| first_rune_slot + n));
-    for slot in slots.take(1 + Rune::ALL.len()) {
+        .position(|s| s.kind == SlotKindView::Rune)
+        .expect("a rune slot");
+    let first_rune = u32::try_from(first_rune).expect("a slot index");
+    let targets = std::iter::once(0).chain((0..).map(|n| first_rune + n));
+    for slot in targets.take(1 + Rune::ALL.len()) {
         engine
             .act(PlayerIdx::SOLO, EquipAction::Equip { item: 0, slot })
             .expect("an accepted equip");

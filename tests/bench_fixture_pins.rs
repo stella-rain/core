@@ -486,7 +486,7 @@ fn the_stage_fixtures_run_in_equipment_mode() {
     use stella_rain_core::rune::Rune;
     use stella_rain_core::snapshot::{HeldView, SlotKindView};
 
-    let worst = worst_case_engine();
+    let worst = bench_fixtures::worst_tick().engine;
     let slots = &worst.snapshot().players[0].slots;
     let runes: Vec<Rune> = slots
         .iter()
@@ -503,34 +503,40 @@ fn the_stage_fixtures_run_in_equipment_mode() {
     );
 
     type Inputs = fn(u32) -> Input;
-    let cases: [(&str, Engine, Inputs); 5] = [
+    let seven = Rune::ALL.len();
+    let cases: [(&str, Engine, Inputs, usize); 5] = [
         (
             "worst_tick",
             bench_fixtures::worst_tick().engine,
             worst_case::input,
+            seven,
         ),
         (
             "hit_tick",
             bench_fixtures::hit_tick().engine,
             hit_case::input,
+            0,
         ),
         (
             "hit_tick_spread",
             bench_fixtures::hit_tick_spread().engine,
             hit_case::input,
+            0,
         ),
         (
             "time_limit_tick",
             bench_fixtures::time_limit_tick().engine,
             time_limit_case::input,
+            0,
         ),
         (
             "worst_tick_3p",
             party_case::worst_tick_3p().engine,
             worst_case::input,
+            seven,
         ),
     ];
-    for (name, mut engine, input) in cases {
+    for (name, mut engine, input, runes) in cases {
         let view = &engine.snapshot().players[0];
         assert!(!view.slots.is_empty(), "{name} is in equipment mode");
         let held_runes = view
@@ -538,12 +544,7 @@ fn the_stage_fixtures_run_in_equipment_mode() {
             .iter()
             .filter(|s| matches!(s.held, Some(HeldView::Rune { .. })))
             .count();
-        let wants = if name.starts_with("worst_tick") {
-            Rune::ALL.len()
-        } else {
-            0
-        };
-        assert_eq!(held_runes, wants, "{name} runes equipped");
+        assert_eq!(held_runes, runes, "{name} runes equipped");
         for _ in 0..120 {
             assert!(!engine.offer_open(), "{name} opens no offer");
             let tick = engine.tick() + 1;
@@ -552,10 +553,6 @@ fn the_stage_fixtures_run_in_equipment_mode() {
             engine.step(&inputs);
         }
     }
-}
-
-fn worst_case_engine() -> Engine {
-    bench_fixtures::worst_tick().engine
 }
 
 /// E1: the equipment rollback's saved engine.
