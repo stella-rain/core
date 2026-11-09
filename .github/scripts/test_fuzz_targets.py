@@ -72,6 +72,11 @@ STEP_GEN = (
     'STEP_LOG_RANGE_SEEDS_DIR="$PWD/seeds/step_log_range" cargo test --manifest-path fuzz/Cargo.toml --locked '
     "--test smoke write_step_log_range_seeds -- --ignored"
 )
+NET_ARM = "net_decode) seeds=seeds/net ;;"
+NET_GEN = (
+    'NET_SEEDS_DIR="$PWD/seeds/net" cargo test --manifest-path fuzz/Cargo.toml --locked '
+    "--test smoke write_net_seeds -- --ignored"
+)
 
 
 def real_targets():
@@ -149,6 +154,11 @@ class Smoke(unittest.TestCase):
         self.assertRegex(text, r"#\[ignore[^\]]*\][^{]*?fn write_step_log_range_seeds")
         self.assertIn("STEP_LOG_RANGE_SEEDS_DIR", text)
 
+    def test_the_net_seed_writer_exists(self):
+        text = read("fuzz", "tests", "smoke.rs")
+        self.assertRegex(text, r"#\[ignore[^\]]*\][^{]*?fn write_net_seeds")
+        self.assertIn("NET_SEEDS_DIR", text)
+
 
 class RustYml(unittest.TestCase):
     def setUp(self):
@@ -181,6 +191,11 @@ class RustYml(unittest.TestCase):
         self.assertIn(STEP_GEN, self.block)
         self.assertLess(self.block.index(STEP_GEN), self.block.index("fuzz_targets.py words"))
 
+    def test_net_arm_and_step(self):
+        self.assertIn(NET_ARM, self.block)
+        self.assertIn(NET_GEN, self.block)
+        self.assertLess(self.block.index(NET_GEN), self.block.index("fuzz_targets.py words"))
+
     def test_every_arm_has_a_producer(self):
         producers(self, self.block)
 
@@ -209,6 +224,14 @@ class FuzzChanges(unittest.TestCase):
         m = re.search(r"git diff --name-only .*?\)\n", block, re.S)
         self.assertTrue(m, "no git diff path list")
         self.assertIn("src/step_log.rs", m.group(0).split())
+
+    def test_the_path_list_holds_net(self):
+        block = job_block(read(".github", "workflows", "rust.yml"), "fuzz-changes")
+        m = re.search(r"git diff --name-only .*?\)\n", block, re.S)
+        self.assertTrue(m, "no git diff path list")
+        words = m.group(0).split()
+        for word in ("net", "fuzz", ".github/workflows/rust.yml)"):
+            self.assertIn(word, words)
 
 
 class FuzzLongYml(unittest.TestCase):
