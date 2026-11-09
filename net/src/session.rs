@@ -32,9 +32,12 @@ pub const MAX_DELAY: u32 = 16;
 pub struct Config {
     /// The slot this session plays.
     pub local: PlayerIdx,
-    /// Ticks between a local input being given and being stepped.
+    /// Ticks between a local input being given and being stepped. Every peer of a party uses
+    /// the same delay: the range checks on frames and leave ticks assume it.
     pub delay: u32,
-    /// The most ticks predicted past the confirmed one.
+    /// The most ticks predicted past the confirmed one. A window of 0 is lockstep: it never
+    /// rolls back, but it needs a delay of at least 1, because with delay 0 and a remote peer
+    /// no input exists for the first tick before it is wanted.
     pub window: u32,
 }
 

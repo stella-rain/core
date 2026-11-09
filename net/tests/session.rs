@@ -471,3 +471,66 @@ fn the_session_and_its_support_never_name_the_offer_choice() {
         }
     }
 }
+
+/// A [`Save`](stella_rain_net::save::Save) that keeps nothing: every load fails.
+struct Forgetful;
+
+impl stella_rain_net::save::Save for Forgetful {
+    fn save(&mut self, _tick: u32, _engine: &stella_rain_core::engine::Engine) {}
+
+    fn load(&mut self, _tick: u32, _engine: &mut stella_rain_core::engine::Engine) -> bool {
+        false
+    }
+
+    fn forget_before(&mut self, _tick: u32) {}
+}
+
+#[test]
+fn a_save_that_lost_a_held_tick_fails_closed_and_changes_nothing() {
+    let s = script(2, 40, 2, None);
+    let mut a = Session::with_save(engine(2), Config::new(slot(0)), Forgetful).unwrap();
+    for t in 0..3usize {
+        assert_eq!(a.advance(&s.eff[t + 2][0]).unwrap().waiting, None);
+    }
+    // Tick 2 was predicted neutral for B; the real input is not.
+    a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 2)).unwrap();
+    let before = (a.tick(), a.engine().state_hash());
+    assert_eq!(
+        a.advance(&s.eff[5][0]).err(),
+        Some(SessionError::SaveMissing)
+    );
+    assert_eq!((a.tick(), a.engine().state_hash()), before);
+    assert_eq!(
+        a.advance(&s.eff[5][0]).err(),
+        Some(SessionError::SaveMissing),
+        "it does not recover by itself"
+    );
+    assert!(!SessionError::SaveMissing.to_string().is_empty());
+}
+
+#[test]
+fn the_config_is_what_the_session_was_given() {
+    let config = Config {
+        delay: 3,
+        window: 5,
+        ..Config::new(slot(1))
+    };
+    let session = Session::new(engine(2), config).unwrap();
+    assert_eq!(session.config(), &config);
+}
+
+#[test]
+fn window_zero_needs_a_delay_of_one_to_step_in_lockstep() {
+    // With delay 0 no input for tick 0 exists before the call, so neither side can start.
+    let config = Config {
+        delay: 0,
+        window: 0,
+        ..Config::new(slot(0))
+    };
+    let mut a = Session::new(engine(2), config).unwrap();
+    for _ in 0..3 {
+        let out = a.advance(&Input::default()).unwrap();
+        assert_eq!(out.waiting, Some(Wait::Window));
+    }
+    assert_eq!(a.tick(), 0);
+}

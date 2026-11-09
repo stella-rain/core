@@ -142,3 +142,20 @@ fn jittered_messages_and_a_leave_still_agree_with_the_straight_run() {
         }
     }
 }
+
+#[test]
+fn window_zero_with_delay_one_is_lockstep_and_never_rolls_back() {
+    let s = script(3, STOP, 1, None);
+    let oracle = straight(&s, 3);
+    let mut mesh = Mesh::new(&s, 3, 1, 0, STOP, Box::new(|_, _, _| 1));
+    for _ in 0..1200 {
+        if mesh.done() {
+            break;
+        }
+        mesh.round();
+        mesh.check(&oracle);
+    }
+    assert!(mesh.done());
+    assert_eq!(mesh.total_rolled(), 0);
+    assert!(mesh.sessions.iter().all(|s| s.confirmed() >= STOP - 1));
+}
