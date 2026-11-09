@@ -454,6 +454,36 @@ fn the_party_peak_is_where_the_scan_finds_it() {
     assert_eq!(party_case::window(), (MINUTE_START, PEAK_TICK_3P));
 }
 
+/// The minute fixtures run in equipment mode: the main character has equipment slots and no
+/// level-up offer ever opens (ADR-SIM-5, ADR-SIM-7).
+#[test]
+fn the_minute_fixtures_run_in_equipment_mode_and_open_no_offer() {
+    let mut run = bench_fixtures::worst_minute();
+    assert!(
+        !run.engine.snapshot().players[0].slots.is_empty(),
+        "the worst minute is in equipment mode"
+    );
+    for _ in 0..600 {
+        assert!(!run.engine.offer_open());
+        run.play(1);
+    }
+    let mut party = party_case::saved();
+    assert!(
+        !party.snapshot().players[0].slots.is_empty(),
+        "the party case is in equipment mode"
+    );
+    for _ in 0..600 {
+        assert!(!party.offer_open());
+        party.step(&party_case::minute_inputs(party.tick()));
+    }
+    let equip = equip_case::saved();
+    assert!(
+        !equip.snapshot().players[0].slots.is_empty(),
+        "the equipment case is in equipment mode"
+    );
+    assert!(!equip.offer_open());
+}
+
 /// E1: the equipment rollback's saved engine.
 #[test]
 fn the_equip_saved_engine() {
