@@ -1725,13 +1725,13 @@ fn boss_input(engine: &Engine, tick: u32) -> Input {
 }
 
 /// What a run case does, re-simulated from its file.
-struct RunCase {
+pub(crate) struct RunCase {
     /// The kind of option each choice takes.
-    kinds: Vec<std::mem::Discriminant<OfferOption>>,
+    pub(crate) kinds: Vec<std::mem::Discriminant<OfferOption>>,
     /// Each stage skill used, with the level it is used at.
-    used: Vec<(String, u8)>,
+    pub(crate) used: Vec<(String, u8)>,
     /// How many hits got each match-up: weak, strong, resisted, none.
-    match_ups: [u32; 4],
+    pub(crate) match_ups: [u32; 4],
 }
 
 /// A run case re-simulated from its file, which must verify and end by the main character falling.
@@ -1741,8 +1741,13 @@ fn replay_run_case(name: &str) -> RunCase {
 
 /// A run case re-simulated from its file, which must verify and end in `outcome`.
 fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
-    let bytes = fs::read(runs_dir().join(name).join("run.replay")).unwrap();
-    let content = case_content(&runs_dir().join(name)).unwrap();
+    replay_run_case_at(&runs_dir().join(name), name, outcome)
+}
+
+/// `replay_run_case_ending` for the case in the folder `case` (named `name` in messages).
+pub(crate) fn replay_run_case_at(case: &Path, name: &str, outcome: Outcome) -> RunCase {
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let content = case_content(case).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
@@ -1792,10 +1797,8 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     }
 }
 
-#[test]
-fn the_run_cases_are_what_their_names_say() {
-    // Re-simulated, the trial's choices take each kind of option at least once.
-    let kinds = replay_run_case("trial").kinds;
+/// The trial's choices take each kind of option at least once.
+pub(crate) fn assert_trial_kinds(kinds: &[std::mem::Discriminant<OfferOption>]) {
     use OfferOption::{Banish, Reroll, Skip, Take};
     for kind in [
         Take { candidate: 0 },
@@ -1808,6 +1811,62 @@ fn the_run_cases_are_what_their_names_say() {
             "no {kind:?} in the run case"
         );
     }
+}
+
+/// A short time_limit run ends by the final boss's kill or by the overtime limit.
+pub(crate) fn assert_short_run_at(
+    case: &Path,
+    name: &str,
+    outcome: Outcome,
+    ticks: Option<u32>,
+    boss_alive: bool,
+) {
+    let content = case_content(case).unwrap();
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
+    assert_eq!(verified.outcome, outcome, "`{name}` ends");
+    if let Some(ticks) = ticks {
+        assert_eq!(
+            verified.ticks, ticks,
+            "`{name}` ends at the length and the overtime"
+        );
+    }
+    let replay = RunReplay::from_bytes(&bytes).unwrap();
+    let mut engine = run_steps::start(&replay, &content);
+    for step in RunSteps::of(&replay).steps() {
+        run_steps::apply(&mut engine, step);
+    }
+    let boss = engine
+        .snapshot()
+        .entities
+        .into_iter()
+        .find(|v| v.kind == EntityKind::Boss);
+    assert_eq!(
+        boss.is_some_and(|b| b.hp > 0),
+        boss_alive,
+        "`{name}`: the final boss"
+    );
+    let last = engine.events();
+    let ended = if outcome == Outcome::Cleared {
+        DomainEvent::StageCleared
+    } else {
+        DomainEvent::StageFailed
+    };
+    assert!(last.contains(&ended), "`{name}` reports {ended:?}");
+}
+
+/// An elite's rare star offers the black hole, taken, then used each time it is ready.
+pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
+    assert!(
+        !used.is_empty() && used.iter().all(|u| *u == ("black_hole".into(), 1)),
+        "the black hole is used: {used:?}"
+    );
+}
+
+#[test]
+fn the_run_cases_are_what_their_names_say() {
+    // Re-simulated, the trial's choices take each kind of option at least once.
+    assert_trial_kinds(&replay_run_case("trial").kinds);
     // The time_limit run ends with the main character falling, after level-ups.
     // The healing keeps the scripted main character alive to the end of its script (MAX_TICKS,
     // the most ticks a replay the fuzz targets read may hold), where it used to fall.
@@ -1817,46 +1876,9 @@ fn the_run_cases_are_what_their_names_say() {
         ("time_limit_kill", Outcome::Cleared, None, false),
         ("time_limit_overtime", Outcome::Failed, Some(600), true),
     ] {
-        let case = runs_dir().join(name);
-        let content = case_content(&case).unwrap();
-        let bytes = fs::read(case.join("run.replay")).unwrap();
-        let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
-        assert_eq!(verified.outcome, outcome, "`{name}` ends");
-        if let Some(ticks) = ticks {
-            assert_eq!(
-                verified.ticks, ticks,
-                "`{name}` ends at the length and the overtime"
-            );
-        }
-        let replay = RunReplay::from_bytes(&bytes).unwrap();
-        let mut engine = run_steps::start(&replay, &content);
-        for step in RunSteps::of(&replay).steps() {
-            run_steps::apply(&mut engine, step);
-        }
-        let boss = engine
-            .snapshot()
-            .entities
-            .into_iter()
-            .find(|v| v.kind == EntityKind::Boss);
-        assert_eq!(
-            boss.is_some_and(|b| b.hp > 0),
-            boss_alive,
-            "`{name}`: the final boss"
-        );
-        let last = engine.events();
-        let ended = if outcome == Outcome::Cleared {
-            DomainEvent::StageCleared
-        } else {
-            DomainEvent::StageFailed
-        };
-        assert!(last.contains(&ended), "`{name}` reports {ended:?}");
+        assert_short_run_at(&runs_dir().join(name), name, outcome, ticks, boss_alive);
     }
-    // An elite's rare star offers the black hole, taken, then used each time it is ready.
-    let used = replay_run_case("stage_skill").used;
-    assert!(
-        !used.is_empty() && used.iter().all(|u| *u == ("black_hole".into(), 1)),
-        "the black hole is used: {used:?}"
-    );
+    assert_stage_skill(&replay_run_case("stage_skill").used);
 }
 
 /// The kind of elite a spawned one is, told from what the snapshot shows of it on the tick it
@@ -1877,7 +1899,7 @@ fn elite_kind(asset: &str, hp: u32, aura: bool) -> &'static str {
 
 /// What the `elites` run case does, found by re-simulating it from its file.
 #[derive(Default)]
-struct EliteReach {
+pub(crate) struct EliteReach {
     /// Each elite spawned: its kind and the tick it came.
     spawned: Vec<(EntityId, &'static str, u32)>,
     /// The most elites alive at once (a disguised mimic counts).
@@ -1912,8 +1934,12 @@ impl EliteReach {
 }
 
 fn elite_reach(name: &str) -> EliteReach {
-    let case = runs_dir().join(name);
-    let content = case_content(&case).unwrap();
+    elite_reach_at(&runs_dir().join(name), name)
+}
+
+/// `elite_reach` for the case in the folder `case` (named `name` in messages).
+pub(crate) fn elite_reach_at(case: &Path, name: &str) -> EliteReach {
+    let content = case_content(case).unwrap();
     let bytes = fs::read(case.join("run.replay")).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(
@@ -1994,7 +2020,11 @@ fn elite_reach(name: &str) -> EliteReach {
 
 #[test]
 fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
-    let r = elite_reach("elites");
+    assert_elites(&elite_reach("elites"));
+}
+
+/// What the `elites` run promises: every elite type, the cap, and each elite's event.
+pub(crate) fn assert_elites(r: &EliteReach) {
     // Every elite type spawns.
     for kind in ["low", "mid", "high", "goblin", "leader", "shrine", "mimic"] {
         assert!(!r.of(kind).is_empty(), "no {kind} spawns: {:?}", r.spawned);
@@ -2063,7 +2093,11 @@ fn the_elites_run_case_meets_every_elite_type_and_a_full_cap() {
 fn the_trial_run_case_hits_every_match_up() {
     // The trial's weapons have damage types and its enemies placeholder profiles, so
     // the recorded run lands weak, strong, resisted and neutral hits.
-    let [weak, strong, resisted, none] = replay_run_case("trial").match_ups;
+    assert_match_ups(replay_run_case("trial").match_ups);
+}
+
+/// Every match-up is hit at least once.
+pub(crate) fn assert_match_ups([weak, strong, resisted, none]: [u32; 4]) {
     assert!(
         weak > 0 && strong > 0 && resisted > 0 && none > 0,
         "hits by match-up: weak {weak}, strong {strong}, resisted {resisted}, none {none}"
