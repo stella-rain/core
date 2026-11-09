@@ -12,25 +12,49 @@ use stella_rain_core::version::Versions;
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
 
-/// The seed of the `stage_skill` run case: a seed where the run kills an elite whose rare star
-/// offers the black hole, takes it, and uses it twice and nothing else. The first one from 11 up
-/// under the ranged tokens (RA1); 11 took the hex as well once the tokens moved the run, and 15
-/// the aegis under the rectangle leash (LS1), where 11 takes the black hole again.
-pub const STAGE_SKILL_SEED: u64 = 11;
+/// The seed of the offers-era `time_limit` run that `tests/tally.rs` and the schema 2 readers still
+/// record in the test with the offers path: the first seed where it names at least 11 stars
+/// (`tests/tally.rs`) with the 840 px view; the trial's seed names 8.
+pub const OFFERS_TIME_LIMIT_SEED: u64 = 1;
 
-/// The seed of the `time_limit_kill` run case: with it the hand-played fight against the final
-/// boss ends in its kill, as the case's name says. Under the Vindictus shape seed
-/// 20261010 ends with the main character falling. Of seeds 1 to 10, seeds 1, 2, 4, 5 and 8 end in
-/// a kill; this one is the lowest.
+/// The bot seed of a run case that keeps the world seed it had (`tutorial`, `time_limit_overtime`,
+/// `easy`, `rainy`): the building bot's first seed.
+pub const KEPT_BOT_SEED: u64 = 1;
+
+/// The world seed of the `stage_skill` run case, found by `search_corpus_run_seeds`: the first
+/// world seed in 1..=20 (with `STAGE_SKILL_BOT_SEED`) whose equipment run uses the black hole and
+/// nothing else, and ends Failed.
+pub const STAGE_SKILL_SEED: u64 = 1;
+/// The building bot's seed of the `stage_skill` run case (world seed 1, bot seed 1 never uses a
+/// skill; this is the first bot seed that does).
+pub const STAGE_SKILL_BOT_SEED: u64 = 2;
+
+/// The world seed of the `time_limit_kill` run case, found by `search_corpus_run_seeds`: the first
+/// world seed in 1..=20 where the hand-played fight against the final boss ends in its kill.
 pub const KILL_SEED: u64 = 1;
+/// The building bot's seed of the `time_limit_kill` run case (the first).
+pub const KILL_BOT_SEED: u64 = 1;
 
-/// The seed of the `elites` run case: the first seed under R1's streams where the scripted run
-/// still leaves a shrine and a mimic on the map when the boss calls (checked 1 to 40).
-pub const ELITES_SEED: u64 = 5;
+/// The world seed of the `elites` run case, found by `search_corpus_run_seeds`: the first world
+/// seed in 1..=20 (with `ELITES_BOT_SEED`) where the scripted run meets every elite type, hits the
+/// cap of 5, and leaves a shrine and a mimic on the map when the boss calls.
+pub const ELITES_SEED: u64 = 4;
+/// The building bot's seed of the `elites` run case.
+pub const ELITES_BOT_SEED: u64 = 11;
 
-/// The seed of the `time_limit` run case: the first seed where the case still names at least 11
-/// stars (`tests/tally.rs`) with the 840 px view; the trial's seed names 8.
-pub const TIME_LIMIT_SEED: u64 = 1;
+/// The world seed of the `trial` run case, found by `search_corpus_run_seeds`: the first world
+/// seed in 1..=20 (with `TRIAL_BOT_SEED`) whose run takes every kind of equipment action (equip,
+/// replace, extract, craft, tree pick), hits all four match-ups and ends Failed.
+pub const TRIAL_SEED: u64 = 4;
+/// The building bot's seed of the `trial` run case.
+pub const TRIAL_BOT_SEED: u64 = 12;
+
+/// The world seed of the `time_limit` run case: the longest equipment run of the search, which
+/// ends just short of the time limit (the offers-era healing that kept the run alive to the limit
+/// is gone), found by `search_corpus_run_seeds`.
+pub const TIME_LIMIT_SEED: u64 = 2;
+/// The building bot's seed of the `time_limit` run case.
+pub const TIME_LIMIT_BOT_SEED: u64 = 14;
 
 /// The seed of the runes reroll test: the first seed under R1's streams where the first offer
 /// after the reroll holds the three other rewards.

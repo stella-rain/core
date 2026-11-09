@@ -1396,8 +1396,8 @@ pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Co
 fn run_definitions() -> Vec<RunDefinition> {
     use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KILL_SEED, STAGE_SKILL_SEED, TIME_LIMIT_SEED, TRIAL_LENGTH, time_limit_setup,
-        trial_setup,
+        ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED, STAGE_SKILL_SEED, TIME_LIMIT_SEED,
+        TRIAL_LENGTH, time_limit_setup, trial_setup,
     };
     // `STAGE_SKILL_SEED` was found with every point on attack: the priority keeps that run.
     let stage_skill = RunSetup {
@@ -1429,18 +1429,6 @@ fn run_definitions() -> Vec<RunDefinition> {
         ..time_limit_setup()
     };
     let rainy_commands = play_run_from(&rainy, 6_000);
-    // Two short modes with no waves and the final boss at tick 60, the only boss: in the first
-    // the overtime is long enough for the main character to kill it (it does, at tick 8098);
-    // in the second it ends at tick 600 with the boss alive.
-    let (_, kill_content) = short_time_limit(12_000);
-    let kill_setup = RunSetup {
-        seed: KILL_SEED,
-        ..time_limit_setup()
-    };
-    let kill_commands = play_run_with(&kill_setup, &kill_content, 20_060, boss_input);
-    let (_, overtime_content) = short_time_limit(540);
-    let kill_setup_2 = time_limit_setup();
-    let overtime_commands = play_run_with(&kill_setup_2, &overtime_content, 600, boss_input);
     // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
     // mode file, below.
     let (_, elites_content) = elites_time_limit();
@@ -1452,14 +1440,16 @@ fn run_definitions() -> Vec<RunDefinition> {
     let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
         elites_script.input(e, t)
     });
-    // The tutorial mode: three minutes of bats and one weak golem, which the bot kills.
-    let tutorial = RunSetup {
-        mode: "tutorial".into(),
-        ..trial_setup()
-    };
-    let tutorial_commands = play_run_with(&tutorial, RunContent::bundled(), 10_800, boss_input);
+    // Equipment mode (ADR-SIM-7), the seeds `search_corpus_run_seeds` found: the tutorial (three
+    // minutes of bats and one weak golem, which the bot kills) and two short modes with no waves
+    // and the final boss at tick 60, the only boss: in the first the overtime is long enough for
+    // the main character to kill it; in the second it ends at tick 600 with the boss alive.
+    let kept = trial_setup().seed;
+    let tutorial = equipment_run_definition("tutorial", kept, KEPT_BOT_SEED);
+    let kill = equipment_run_definition("time_limit_kill", KILL_SEED, KILL_BOT_SEED);
+    let overtime = equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED);
     vec![
-        ("tutorial", tutorial, None, tutorial_commands),
+        tutorial,
         ("trial", trial_setup(), None, play_run(TRIAL_LENGTH)),
         (
             "stage_skill",
@@ -1470,18 +1460,8 @@ fn run_definitions() -> Vec<RunDefinition> {
         ("time_limit", time_limit, None, time_limit_commands),
         ("easy", easy, None, easy_commands),
         ("rainy", rainy, None, rainy_commands),
-        (
-            "time_limit_kill",
-            kill_setup,
-            Some(override_pack("time_limit_kill")),
-            kill_commands,
-        ),
-        (
-            "time_limit_overtime",
-            kill_setup_2,
-            Some(override_pack("time_limit_overtime")),
-            overtime_commands,
-        ),
+        kill,
+        overtime,
         (
             "elites",
             elites_setup,
