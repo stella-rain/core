@@ -4,6 +4,7 @@
 //! what their play does to the run.
 
 use crate::common::run::trial_setup;
+use crate::common::run_steps::RunSteps;
 use crate::run_play::party_cases;
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
@@ -373,16 +374,8 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
             assert_eq!(now.final_hash, was.final_hash, "{name}");
             assert_eq!(now.checkpoints, was.checkpoints, "{name}");
             assert_eq!(now.ticks, was.ticks, "{name}");
-            assert_eq!(
-                now.unpack_inputs(u32::MAX).unwrap(),
-                was.unpack_inputs(u32::MAX).unwrap(),
-                "{name}"
-            );
-            assert_eq!(
-                now.unpack_commands().unwrap(),
-                was.unpack_commands().unwrap(),
-                "{name}"
-            );
+            // The steps carry picks and actions, which the solo views refuse in an equipment run.
+            assert_eq!(RunSteps::of(&now), RunSteps::of(&was), "{name}");
             if was.setup.schema_version >= 2 {
                 assert_eq!(now.inputs, was.inputs, "{name}: the bytes");
             }
