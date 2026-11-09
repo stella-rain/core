@@ -33,8 +33,9 @@ pub struct Hello {
     pub pack_hash: [u8; 32],
 }
 
-/// One tick of one player's input, as it travels: the named fields of core's `Input` and
-/// nothing else. A stick axis is −127 to 127.
+/// One tick of one player's input, as it travels: the stick, the buttons, the switches and the
+/// equipment action of core's `Input`. The choice made from an open offer is not on the wire: it
+/// is not predicted or exchanged here. A stick axis is −127 to 127.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WireInput {
     /// Stick x, −127 to 127.
@@ -228,8 +229,11 @@ fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
 }
 
 fn slot_byte(slot: PlayerIdx) -> u8 {
-    // A slot is 0 to 2, so the conversion cannot fail.
-    u8::try_from(slot.get()).unwrap_or(u8::MAX)
+    match slot {
+        PlayerIdx::First => 0,
+        PlayerIdx::Second => 1,
+        PlayerIdx::Third => 2,
+    }
 }
 
 fn read_slot(r: &mut Reader<'_>) -> Result<PlayerIdx, WireError> {
@@ -313,7 +317,7 @@ fn decode_entry(r: &mut Reader<'_>) -> Result<WireInput, WireError> {
 fn encode_input(f: &InputFrame, out: &mut Vec<u8>) -> Result<(), WireError> {
     let count = u8::try_from(f.inputs.len())
         .ok()
-        .filter(|n| (1..=MAX_FRAME_INPUTS_U8).contains(n))
+        .filter(|n| (1..=MAX_FRAME_INPUTS).contains(&usize::from(*n)))
         .ok_or(WireError::CountOutOfRange)?;
     f.start_tick
         .checked_add(u32::from(count) - 1)
@@ -332,7 +336,7 @@ fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
     let slot = read_slot(r)?;
     let start_tick = r.u32()?;
     let count = r.u8()?;
-    if !(1..=MAX_FRAME_INPUTS_U8).contains(&count) {
+    if !(1..=MAX_FRAME_INPUTS).contains(&usize::from(count)) {
         return Err(WireError::CountOutOfRange);
     }
     start_tick
@@ -348,9 +352,6 @@ fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
         inputs,
     })
 }
-
-const MAX_FRAME_INPUTS_U8: u8 = 32;
-const _: () = assert!(MAX_FRAME_INPUTS == MAX_FRAME_INPUTS_U8 as usize);
 
 fn encode_ack(a: &Ack, out: &mut Vec<u8>) {
     out.push(TAG_ACK);
@@ -417,6 +418,9 @@ impl Packet {
             Packet::Ack(a) => encode_ack(a, &mut out),
             Packet::Checkpoint(c) => encode_checkpoint(c, &mut out)?,
             Packet::Bye(b) => encode_bye(b, &mut out),
+        }
+        if out.len() > MAX_PACKET_LEN {
+            return Err(WireError::TooLong);
         }
         Ok(out)
     }

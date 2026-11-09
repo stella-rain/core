@@ -33,6 +33,9 @@ impl std::error::Error for TransportError {}
 /// reordered, and the transport never retries one. `send` and `recv` never block; an
 /// implementation owns no clock and no thread. A message over
 /// [`crate::wire::MAX_PACKET_LEN`] is refused with [`TransportError::TooLarge`].
+///
+/// The slot `recv` returns is the one the path vouches for; it is not read from the packet, whose
+/// own slot field a peer can set to anything. A peer is never the sender's own slot.
 pub trait Transport {
     /// Sends one message to the peer in slot `to`.
     fn send(&mut self, to: PlayerIdx, packet: &[u8]) -> Result<(), TransportError>;
