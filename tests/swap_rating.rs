@@ -26,7 +26,6 @@ fn case(seed: u64, ticks: u32) -> PartyCase {
         party: 1,
         ticks,
         changes: vec![],
-        answer_after: None,
         bot: None,
         script: None,
     }

@@ -10,7 +10,7 @@ use crate::event::{DomainEvent, HitKind};
 use crate::id::EntityId;
 use crate::input::Input;
 use crate::rewards::Rarity;
-use crate::run_setup::{OfferMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 use crate::snapshot::OfferKind;
 use crate::stage::{RarityWeights, Tier};
@@ -101,16 +101,11 @@ fn queued_offers_are_dropped_when_a_player_goes_out() {
 
 // --- offers of a downed and an out player (ADR-SIM-7 point 4) ----------------------------------
 
-/// A party engine, `timed` or not, to edit and to open offers on.
-fn engine(n: u8, timed: bool) -> Engine {
+/// A party engine to edit and to open offers on.
+fn engine(n: u8) -> Engine {
     let setup = RunSetup {
         seed: 20_261_104,
         pick_stats: true,
-        offer_mode: if timed {
-            OfferMode::Timed
-        } else {
-            OfferMode::Stop
-        },
         ..RunSetup::default()
     };
     Engine::start_party(&setup, n).expect("a party")
@@ -158,7 +153,7 @@ fn lethal(e: &mut Engine, i: u8) {
 
 #[test]
 fn a_downed_player_takes_a_due_stat_offer_on_the_tick_it_opens() {
-    let mut e = engine(2, true);
+    let mut e = engine(2);
     down(st(&mut e), 1);
     stat_offers_due(&mut e, 1, 1);
     e.open_offers_for_test();
@@ -173,7 +168,6 @@ fn a_downed_player_takes_a_due_stat_offer_on_the_tick_it_opens() {
             .offers_due,
         0
     );
-    assert_eq!(s.offer_timer.as_ref().unwrap().due[1], None);
     assert_eq!(
         count(&e, |ev| matches!(ev, DomainEvent::StatRaised { .. })),
         1
@@ -182,7 +176,7 @@ fn a_downed_player_takes_a_due_stat_offer_on_the_tick_it_opens() {
 
 #[test]
 fn a_downed_player_takes_its_whole_queue_on_one_tick() {
-    let mut e = engine(2, true);
+    let mut e = engine(2);
     down(st(&mut e), 1);
     st(&mut e)
         .players
@@ -205,7 +199,7 @@ fn a_downed_player_takes_its_whole_queue_on_one_tick() {
 
 #[test]
 fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
-    let mut e = engine(2, true);
+    let mut e = engine(2);
     stat_offers_due(&mut e, 1, 2);
     e.open_offers_for_test();
     assert!(offer_open_for(st(&mut e), slot(1)));
@@ -223,7 +217,6 @@ fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
             .offers_due,
         0
     );
-    assert_eq!(s.offer_timer.as_ref().unwrap().due[1], None);
     assert_eq!(
         count(&e, |ev| matches!(ev, DomainEvent::StatRaised { .. })),
         2
@@ -231,28 +224,8 @@ fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
 }
 
 #[test]
-fn a_player_that_is_up_opens_one_offer_with_the_full_timer() {
-    let mut e = engine(2, true);
-    stat_offers_due(&mut e, 0, 2);
-    e.open_offers_for_test();
-    let s = st(&mut e);
-    assert!(offer_open_for(s, slot(0)));
-    assert_eq!(
-        s.players
-            .career(slot(0))
-            .progress
-            .as_ref()
-            .unwrap()
-            .offers_due,
-        1
-    );
-    let want = s.tick + 300;
-    assert_eq!(s.offer_timer.as_ref().unwrap().due[0], Some(want));
-}
-
-#[test]
 fn an_out_player_opens_nothing_and_loses_what_is_queued() {
-    let mut e = engine(2, true);
+    let mut e = engine(2);
     out(st(&mut e), 1);
     stat_offers_due(&mut e, 1, 2);
     st(&mut e)
@@ -269,38 +242,12 @@ fn an_out_player_opens_nothing_and_loses_what_is_queued() {
     let career = s.players.career(slot(1));
     assert_eq!(career.progress.as_ref().unwrap().offers_due, 0);
     assert!(career.offers.as_ref().unwrap().due.is_empty());
-    assert_eq!(s.offer_timer.as_ref().unwrap().due[1], None);
     assert_eq!(
         count(&e, |ev| matches!(
             ev,
             DomainEvent::StatOfferOpened { .. } | DomainEvent::OfferOpened { .. }
         )),
         0
-    );
-}
-
-/// A timed engine: the offer open for slot 1 is taken on the tick it goes down.
-#[test]
-fn an_offer_open_when_a_player_goes_down_closes_on_that_tick() {
-    let mut e = engine(2, true);
-    st(&mut e)
-        .players
-        .career_mut(slot(1))
-        .offers
-        .as_mut()
-        .unwrap()
-        .due
-        .push(star_due());
-    e.step(&idle());
-    assert!(offer_open_for(st(&mut e), slot(1)));
-    assert!(!e.offer_ratings(slot(1)).is_empty());
-    lethal(&mut e, 1);
-    e.step(&idle());
-    assert!(!offer_open_for(st(&mut e), slot(1)));
-    assert!(e.offer_ratings(slot(1)).is_empty());
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
-        1
     );
 }
 
@@ -348,7 +295,7 @@ fn max_hp_raises_the_most_and_heals_only_a_player_that_is_up() {
 
 #[test]
 fn a_stat_offer_of_max_hp_taken_while_downed_leaves_the_player_down() {
-    let mut e = engine(2, false);
+    let mut e = engine(2);
     let s = st(&mut e);
     down(s, 1);
     s.players[slot(1)].max_hp = 100;
@@ -381,7 +328,7 @@ fn a_stat_offer_of_max_hp_taken_while_downed_leaves_the_player_down() {
 /// A state with one enemy at 0 hit points that gives a great deal of experience, and the run's
 /// stats spent by priority with MaxHp first.
 fn level_up_state(n: u8) -> (World, State) {
-    let mut e = engine(n, false);
+    let mut e = engine(n);
     for _ in 0..1200 {
         if !st(&mut e).enemies.is_empty() {
             break;
@@ -603,7 +550,7 @@ fn the_boss_rarity_is_held_inside_the_difficulty_range() {
 #[test]
 fn a_players_boss_candidates_come_from_its_own_stream() {
     let candidates = |n: u8| {
-        let mut e = engine(n, false);
+        let mut e = engine(n);
         let Run::V2 { world, state } = e.run_mut() else {
             panic!("the live rules")
         };
@@ -626,7 +573,7 @@ fn a_players_boss_candidates_come_from_its_own_stream() {
 /// the tick.
 #[test]
 fn a_step_takes_a_downed_players_offer_in_a_stop_run() {
-    let mut e = engine(2, false);
+    let mut e = engine(2);
     down(st(&mut e), 1);
     st(&mut e)
         .players

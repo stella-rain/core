@@ -12,7 +12,7 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
-use stella_rain_core::run_setup::{BuildMode, OfferMode, RunSetup};
+use stella_rain_core::run_setup::{BuildMode, RunSetup};
 use stella_rain_core::snapshot::{EntityKind, HeldView, SlotKindView, SwapItem, SwapRating};
 
 use crate::common::run::trial_setup;
@@ -413,7 +413,7 @@ impl RigParty {
         self
     }
 
-    /// The corpus case `name`: a `stop` run, no joins or leaves, no timed answers.
+    /// The corpus case `name`: a `stop` run, no joins or leaves.
     pub fn case(&self, name: &'static str) -> PartyCase {
         let setup = RunSetup {
             mode: self.mode.as_str().into(),
@@ -430,17 +430,12 @@ impl RigParty {
         } else {
             setup
         };
-        assert!(
-            setup.offer_mode == OfferMode::Stop,
-            "a timed bot case is not built"
-        );
         PartyCase {
             name,
             setup,
             party: self.n,
             ticks: self.ticks,
             changes: self.changes.clone(),
-            answer_after: None,
             bot: Some(PartyBot {
                 seed: self.bot_seed,
                 builds: self.builds,
@@ -1337,7 +1332,6 @@ mod rig {
             assert_eq!(case.setup.mode, "time_limit".into());
             assert_eq!(case.setup.seed, 9);
             assert_eq!(case.setup.difficulty, "normal".into());
-            assert_eq!(case.setup.offer_mode, OfferMode::Stop);
             assert_eq!(case.ticks, 3000);
             assert_eq!(
                 case.bot,
@@ -1347,7 +1341,6 @@ mod rig {
                 })
             );
             assert!(case.changes.is_empty());
-            assert_eq!(case.answer_after, None);
         }
         let case = RigParty::new(2)
             .mode("tutorial")

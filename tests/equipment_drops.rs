@@ -115,7 +115,6 @@ mod search {
             party: n,
             ticks: 3000,
             changes: vec![],
-            answer_after: None,
             bot: None,
             script: None,
         }

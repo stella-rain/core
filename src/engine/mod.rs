@@ -1173,8 +1173,6 @@ mod horde_tests;
 #[cfg(test)]
 mod move_index_tests;
 #[cfg(test)]
-mod offer_timer_tests;
-#[cfg(test)]
 mod party_tests;
 #[cfg(test)]
 mod pick_tests;

@@ -634,11 +634,7 @@ fn equipment_mode_needs_sim_version_2() {
 
 #[test]
 fn equipment_mode_refuses_what_offers_mode_uses() {
-    use stella_rain_core::run_setup::{CarriedStar, OfferMode};
-    let timed = issue(
-        "$.offer_mode",
-        "not set in equipment mode: nothing is offered",
-    );
+    use stella_rain_core::run_setup::CarriedStar;
     let carried = issue(
         "$.carried",
         "none in equipment mode: the Lumine star is the one star a run starts with",
@@ -655,13 +651,6 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
         reward: "max_hp_common".into(),
     };
     let one = |s: RunSetup| found(&s);
-    assert_eq!(
-        one(RunSetup {
-            offer_mode: OfferMode::Timed,
-            ..equipment()
-        }),
-        vec![timed.clone()]
-    );
     assert_eq!(
         one(RunSetup {
             carried: vec![star.clone()],
@@ -685,17 +674,15 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
     );
     assert_eq!(
         one(RunSetup {
-            offer_mode: OfferMode::Timed,
             carried: vec![star],
             extra_rerolls: 2,
             pick_stats: true,
             ..equipment()
         }),
-        [timed, carried, rerolls, stats]
+        [carried, rerolls, stats]
     );
     // `stop` is the default and reads as absent; a plain equipment setup is valid.
     let plain = RunSetup {
-        offer_mode: OfferMode::Stop,
         lumine: 10,
         ..equipment()
     };

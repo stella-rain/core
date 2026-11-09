@@ -368,14 +368,12 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
-const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 21] = [
+const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
     ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
     ("three_tutorial", 7854, Outcome::Cleared, [0, 0, 0], 0),
     ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
     ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 990),
-    ("timed_one", 3000, Outcome::Running, [7, 0, 0], 1080),
-    ("timed_two", 3000, Outcome::Running, [8, 0, 0], 950),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -476,7 +474,7 @@ fn others_actions(steps: &RunSteps) -> usize {
 /// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
 /// table needs its promise here.
 pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
-    use stella_rain_core::run_setup::{BuildMode, OfferMode};
+    use stella_rain_core::run_setup::BuildMode;
     let bytes = replay.to_bytes();
     let Ok(verified) = verify_run(&bytes) else {
         return Some("the run verifies".into());
@@ -499,7 +497,7 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
         .iter()
         .any(|s| matches!(s, Step::Join(_) | Step::Leave(_)));
     if replay.setup.build_mode == BuildMode::Offers {
-        if replay.setup.offer_mode == OfferMode::Stop && !changes {
+        if !changes {
             let per = picks_per_slot(replay);
             if per[1] + per[2] < 2 {
                 return Some(format!("slots 1 and 2 answer offers: {per:?}"));
@@ -806,44 +804,6 @@ fn the_change_cases_hold_what_they_are_for() {
     assert!(two >= 1, "slot 2 acts inside the hole");
 }
 
-#[test]
-fn the_timed_cases_close_offers_by_the_timer_and_by_a_pick() {
-    use stella_rain_core::event::DomainEvent;
-    for case in party_cases()
-        .into_iter()
-        .filter(|c| c.setup.offer_mode == stella_rain_core::run_setup::OfferMode::Timed)
-    {
-        let replay = case.play().replay();
-        let steps = RunSteps::of(&replay);
-        let mut rec = RunRecorder::start_party(&case.setup, case.party).unwrap();
-        let mut taken = 0usize;
-        let mut count = |rec: &RunRecorder| {
-            taken += rec
-                .engine()
-                .events()
-                .iter()
-                .filter(|ev| matches!(ev, DomainEvent::RewardTaken { .. }))
-                .count();
-        };
-        for step in steps.steps() {
-            assert!(
-                matches!(step, Step::Tick(_) | Step::Picks(_)),
-                "a timed case holds only ticks and picks"
-            );
-            apply_to(&mut rec, step);
-            count(&rec);
-        }
-        let picked = picks_per_slot(&replay).iter().sum::<u32>() as usize;
-        assert!(picked >= 1, "{}: a pick closed an offer", case.name);
-        assert!(
-            taken > picked,
-            "{}: the timer closed an offer ({taken} taken, {picked} picked)",
-            case.name
-        );
-        assert_eq!(rec.replay().to_bytes(), replay.to_bytes(), "{}", case.name);
-    }
-}
-
 // D. A slot that leaves and joins with no step between.
 
 #[test]
@@ -903,13 +863,13 @@ fn an_unknown_case_name_is_a_miss() {
         "{miss}"
     );
     assert_eq!(party_promise_miss("equipment_party_2", &two), None);
-    let timed = party_cases()
+    let join = party_cases()
         .into_iter()
-        .find(|case| case.name == "timed_one")
-        .expect("the timed_one case")
+        .find(|case| case.name == "join_two")
+        .expect("the join_two case")
         .play()
         .replay();
-    assert_eq!(party_promise_miss("timed_one", &timed), None);
+    assert_eq!(party_promise_miss("join_two", &join), None);
 }
 
 #[test]
