@@ -169,57 +169,45 @@ impl TextTable {
         &self.entries
     }
 
-    /// Check that every shown ID in `pack` has a corresponding entry in this table.
-    pub fn check_pack(&self, pack: &Pack) -> Result<(), Vec<String>> {
-        let mut missing = Vec::new();
+    /// The sorted, deduped keys `"<file>/<id>"` that every shown content ID of `pack` needs.
+    pub fn shown_keys(pack: &Pack) -> Vec<String> {
+        let mut keys = Vec::new();
 
         // 1. difficulties
         for d in pack.content().difficulties().list() {
             let key = format!("difficulties/{}", d.id.as_str());
-            if !self.entries.contains_key(&key) {
-                missing.push(key);
-            }
+            keys.push(key);
         }
 
         // 2. run_stats
         for s in pack.content().run_stats().stats() {
             let key = format!("run_stats/{}", s.id.as_str());
-            if !self.entries.contains_key(&key) {
-                missing.push(key);
-            }
+            keys.push(key);
         }
 
         // 3. rewards
         for r in pack.content().rewards().rewards() {
             let key = format!("rewards/{}", r.id.as_str());
-            if !self.entries.contains_key(&key) {
-                missing.push(key);
-            }
+            keys.push(key);
         }
 
         // 4. stage_skills
         for s in pack.content().stage_skills().skills() {
             let key = format!("stage_skills/{}", s.id.as_str());
-            if !self.entries.contains_key(&key) {
-                missing.push(key);
-            }
+            keys.push(key);
         }
 
         // 5. perk_sets
         for p in pack.content().perk_sets().sets() {
             let key = format!("perk_sets/{}", p.id.as_str());
-            if !self.entries.contains_key(&key) {
-                missing.push(key);
-            }
+            keys.push(key);
         }
 
         // 6. expertise
         for w in pack.content().expertise().weapons() {
             for style in &w.styles {
                 let key = format!("expertise/{}", style.id.as_str());
-                if !self.entries.contains_key(&key) {
-                    missing.push(key);
-                }
+                keys.push(key);
                 for u in style
                     .upgrade_1
                     .iter()
@@ -227,24 +215,29 @@ impl TextTable {
                     .chain(&style.capstone)
                 {
                     let ukey = format!("expertise/{}", u.id.as_str());
-                    if !self.entries.contains_key(&ukey) {
-                        missing.push(ukey);
-                    }
+                    keys.push(ukey);
                 }
             }
             for c in &w.common {
                 let key = format!("expertise/{}", c.id.as_str());
-                if !self.entries.contains_key(&key) {
-                    missing.push(key);
-                }
+                keys.push(key);
             }
         }
 
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
+    /// Check that every shown ID in `pack` has a corresponding entry in this table.
+    pub fn check_pack(&self, pack: &Pack) -> Result<(), Vec<String>> {
+        let missing: Vec<String> = Self::shown_keys(pack)
+            .into_iter()
+            .filter(|key| !self.entries.contains_key(key))
+            .collect();
         if missing.is_empty() {
             Ok(())
         } else {
-            missing.sort();
-            missing.dedup();
             Err(missing)
         }
     }
