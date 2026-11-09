@@ -7,8 +7,9 @@
 use crate::common::run::trial_setup;
 use crate::common::run_steps::{RunSteps, Step};
 use crate::corpus::{
-    RunDefinition, assert_elites, assert_match_ups, assert_short_run_at, assert_stage_skill,
-    case_content, elite_reach_at, equipment_run_definition, replay_run_case_at, write_atomic,
+    RunDefinition, assert_elites, assert_longest_run, assert_match_ups, assert_short_run_at,
+    assert_stage_skill, case_content, elite_reach_at, equipment_run_definition, replay_run_case_at,
+    write_atomic,
 };
 use crate::corpus_pins::{write_case_json, write_pack_file};
 use std::fs;
@@ -68,9 +69,7 @@ fn promise(name: &str, case: &Path) {
             assert_match_ups(run.match_ups);
         }
         "stage_skill" => assert_stage_skill(&replay_run_case_at(case, name, Outcome::Failed).used),
-        "time_limit" => {
-            replay_run_case_at(case, name, Outcome::Running);
-        }
+        "time_limit" => assert_longest_run(case),
         "time_limit_kill" => assert_short_run_at(case, name, Outcome::Cleared, None, false),
         "time_limit_overtime" => {
             assert_short_run_at(case, name, Outcome::Failed, Some(600), true);

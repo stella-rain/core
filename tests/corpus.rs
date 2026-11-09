@@ -28,7 +28,7 @@ use crate::corpus_pins::{
     case_pack, check_frozen_tree, ensure_writable, is_frozen_name, override_pack, prune_packs,
     run_case_pack, write_case_json, write_pack_file,
 };
-use crate::run_play::{PartyCase, party_cases, play_run_with};
+use crate::run_play::{PartyCase, party_cases};
 use common::*;
 use serde_json::{Value, json};
 use stella_rain_core::attack::MatchUp;
@@ -1387,77 +1387,42 @@ pub(crate) fn definitions() -> Vec<Definition> {
     ]
 }
 
-/// The run cases: the trial mode played until the main character falls, raising its stats by priority
-/// and answering its offers on the way, with every kind of option; and the same from another
-/// seed, whose run takes a stage skill from an elite's star and uses it.
+/// The run cases (ADR-SIM-7, ADR-REPL-5), all played in equipment mode by the building bot, each
+/// from the seeds `search_corpus_run_seeds` found (`tests/common/run.rs`): the tutorial, the trial,
+/// a run that takes the black hole from an elite's star and uses it, the time_limit mode and its
+/// easy and rainy difficulties, the two short modes that end by the boss's kill and by the
+/// overtime, and the elites run.
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
 pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 
 fn run_definitions() -> Vec<RunDefinition> {
-    use crate::run_play::{play_run, play_run_from, play_run_in};
     use common::run::{
-        ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED, STAGE_SKILL_BOT_SEED,
-        STAGE_SKILL_SEED, TIME_LIMIT_SEED, TRIAL_BOT_SEED, TRIAL_SEED, time_limit_setup,
-        trial_setup,
+        ELITES_BOT_SEED, ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
+        STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
+        TRIAL_BOT_SEED, TRIAL_SEED, trial_setup,
     };
-    // The time_limit mode's waves around the main character, played until it falls (it does
-    // before the first boss time; the bosses are in `tests/time_limit_run.rs`).
-    let time_limit = RunSetup {
-        seed: TIME_LIMIT_SEED,
-        ..time_limit_setup()
-    };
-    let time_limit_commands = play_run_from(&time_limit, MAX_TICKS);
-    // The time_limit mode on easy and on rainy: the enemies' hit points and damage
-    // scaled, the stars inside the rarity range; easy with its own boss times and level table.
-    let easy = RunSetup {
-        difficulty: "easy".into(),
-        ..time_limit_setup()
-    };
-    let easy_commands = play_run_from(&easy, 6_000);
-    let rainy = RunSetup {
-        difficulty: "rainy".into(),
-        ..time_limit_setup()
-    };
-    let rainy_commands = play_run_from(&rainy, 6_000);
-    // The elites run: every elite type, the cap of 5 reached, and each elite's event; its own
-    // mode file, below.
-    let (_, elites_content) = elites_time_limit();
-    let elites_setup = RunSetup {
-        seed: ELITES_SEED,
-        ..time_limit_setup()
-    };
-    let elites_script = EliteScript::default();
-    let elites_commands = play_run_with(&elites_setup, &elites_content, ELITES_TICKS, |e, t| {
-        elites_script.input(e, t)
-    });
-    // Equipment mode (ADR-SIM-7), the seeds `search_corpus_run_seeds` found: the tutorial (three
-    // minutes of bats and one weak golem, which the bot kills) and two short modes with no waves
-    // and the final boss at tick 60, the only boss: in the first the overtime is long enough for
-    // the main character to kill it; in the second it ends at tick 600 with the boss alive.
+    // The cases that keep the world seed they had play it with the bot's first seed.
     let kept = trial_setup().seed;
-    let tutorial = equipment_run_definition("tutorial", kept, KEPT_BOT_SEED);
-    let kill = equipment_run_definition("time_limit_kill", KILL_SEED, KILL_BOT_SEED);
-    let overtime = equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED);
-    // The trial and the stage skill run (every point on attack, an elite's rare star offering the
-    // black hole): the seeds the search found.
-    let trial = equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED);
-    let stage_skill =
-        equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED);
     vec![
-        tutorial,
-        trial,
-        stage_skill,
-        ("time_limit", time_limit, None, time_limit_commands),
-        ("easy", easy, None, easy_commands),
-        ("rainy", rainy, None, rainy_commands),
-        kill,
-        overtime,
-        (
-            "elites",
-            elites_setup,
-            Some(override_pack("elites")),
-            elites_commands,
-        ),
+        // Three minutes of bats and one weak golem, which the bot kills.
+        equipment_run_definition("tutorial", kept, KEPT_BOT_SEED),
+        equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED),
+        // Every point on attack; an elite's rare star offers the black hole.
+        equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED),
+        // The time_limit mode's waves around the main character, played until it falls just
+        // short of MAX_TICKS (the bosses are in `tests/time_limit_run.rs`).
+        equipment_run_definition("time_limit", TIME_LIMIT_SEED, TIME_LIMIT_BOT_SEED),
+        // The same on easy and on rainy: the enemies' hit points and damage scaled, the stars
+        // inside the rarity range; easy with its own boss times and level table.
+        equipment_run_definition("easy", kept, KEPT_BOT_SEED),
+        equipment_run_definition("rainy", kept, KEPT_BOT_SEED),
+        // Two short modes with no waves and the final boss at tick 60, the only boss: in the
+        // first the overtime is long enough for the main character to kill it; the second ends
+        // at tick 600 with the boss alive.
+        equipment_run_definition("time_limit_kill", KILL_SEED, KILL_BOT_SEED),
+        equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED),
+        // Every elite type, the cap of 5 reached, and each elite's event.
+        equipment_run_definition("elites", ELITES_SEED, ELITES_BOT_SEED),
     ]
 }
 
@@ -1923,6 +1888,19 @@ pub(crate) fn assert_short_run_at(
     assert!(last.contains(&ended), "`{name}` reports {ended:?}");
 }
 
+/// The `time_limit` run is the longest equipment run: it ends Failed, after level-ups, within a
+/// tenth of MAX_TICKS (the most ticks a replay the fuzz targets read may hold) but short of it.
+pub(crate) fn assert_longest_run(case: &Path) {
+    replay_run_case_at(case, "time_limit", Outcome::Failed);
+    let bytes = fs::read(case.join("run.replay")).unwrap();
+    let verified = run_replay::verify_run_with(&bytes, &case_content(case).unwrap()).unwrap();
+    assert!(
+        verified.ticks < MAX_TICKS && verified.ticks >= MAX_TICKS / 10 * 9,
+        "`time_limit` ends just short of {MAX_TICKS}: {}",
+        verified.ticks
+    );
+}
+
 /// An elite's rare star offers the black hole, taken, then used each time it is ready.
 pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
     assert!(
@@ -1935,10 +1913,9 @@ pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
 fn the_run_cases_are_what_their_names_say() {
     // Re-simulated, the trial's choices take each kind of option at least once.
     assert_trial_kinds(&replay_run_case("trial").kinds);
-    // The time_limit run ends with the main character falling, after level-ups.
-    // The healing keeps the scripted main character alive to the end of its script (MAX_TICKS,
-    // the most ticks a replay the fuzz targets read may hold), where it used to fall.
-    replay_run_case_ending("time_limit", Outcome::Running);
+    // The time_limit run is the longest equipment run: it ends with the main character falling
+    // just short of the time limit (the offers-era healing that kept it alive to MAX_TICKS is gone).
+    assert_longest_run(&runs_dir().join("time_limit"));
     // The short time_limit runs end by the final boss's kill and by the overtime limit.
     for (name, outcome, ticks, boss_alive) in [
         ("time_limit_kill", Outcome::Cleared, None, false),
