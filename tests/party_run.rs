@@ -455,8 +455,14 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
     let Ok(verified) = verify_run(&bytes) else {
         return Some("the run verifies".into());
     };
-    if replay.ticks > 3000 {
-        return Some(format!("at most 3000 ticks, not {}", replay.ticks));
+    // The tutorial is played to its own time limit, the rest to 3000 ticks.
+    let cap = if name == "three_tutorial" {
+        crate::run_play::TUTORIAL_TICKS
+    } else {
+        3000
+    };
+    if replay.ticks > cap {
+        return Some(format!("at most {cap} ticks, not {}", replay.ticks));
     }
     if bytes.len() >= 64 * 1024 {
         return Some("the file is under 64 KiB".into());
@@ -488,7 +494,9 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
     let others = others_actions(&steps);
     match name {
         "two_time_limit" | "three_time_limit" => {
-            running(verified.outcome)?;
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
             (others < 2).then(|| format!("slots 1 and 2 make at least 2 actions, not {others}"))
         }
         "three_tutorial" => {
@@ -498,7 +506,9 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
             (others < 2).then(|| format!("slots 1 and 2 make at least 2 actions, not {others}"))
         }
         "join_two" => {
-            running(verified.outcome)?;
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
             let (mut world, mut mask, mut joined, mut after) = (0u32, 0b1u8, None, false);
             for step in steps.steps() {
                 match step {
@@ -519,7 +529,9 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
             (!after).then(|| "slot 1 acts after its join".to_string())
         }
         "leave_hole" => {
-            running(verified.outcome)?;
+            if let Some(miss) = running(verified.outcome) {
+                return Some(miss);
+            }
             let (mut world, mut masks, mut acts) = (0u32, vec![(1u8 << steps.party) - 1], false);
             for step in steps.steps() {
                 match step {
@@ -867,6 +879,11 @@ fn the_party_promises_name_what_a_run_misses() {
         joined.contains("tick 600") || joined.contains("Running"),
         "{joined}"
     );
+    // A run that fails early is no Running run: join_two (1, 1) ends Failed before 3000 ticks.
+    let failed = play(party_case("join_two", 1, 1));
+    assert_ne!(failed.ticks, 3000, "the run this test needs fails early");
+    let miss = party_promise_miss("join_two", &failed).expect("not Running at 3000");
+    assert!(miss.contains("Running at 3000"), "{miss}");
     // A run with no down is no revive case.
     let solo = play(
         RigParty::new(2)

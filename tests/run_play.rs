@@ -628,6 +628,10 @@ pub fn equipment_rig(n: u8) -> PartyCase {
         .case(name)
 }
 
+/// The tutorial mode's own time limit, `modes.tutorial.length_ticks` (`content/pack.json:6839`):
+/// the longest `three_tutorial` is played.
+pub const TUTORIAL_TICKS: u32 = 10800;
+
 /// The seven movable party cases as equipment cases from a (world seed, bot seed): the party,
 /// the mode and the joins and leaves of `name`, every slot a `PartyBot` that builds (ADR-SIM-7).
 pub fn party_case(name: &'static str, world: u64, bot: u64) -> PartyCase {
@@ -649,10 +653,16 @@ pub fn party_case(name: &'static str, world: u64, bot: u64) -> PartyCase {
         "three_revive" => (3, "time_limit", vec![]),
         _ => panic!("{name} is not a movable party case"),
     };
+    let ticks = if name == "three_tutorial" {
+        TUTORIAL_TICKS
+    } else {
+        3000
+    };
     RigParty::new(n)
         .equipment()
         .builds()
         .mode(mode)
+        .ticks(ticks)
         .seed(world)
         .bot_seed(bot)
         .changes(changes)
