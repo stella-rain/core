@@ -153,8 +153,8 @@ fn bot_input(engine: &Engine, who: PlayerIdx, tick: u32, rng: &mut Xorshift) -> 
             .filter(|a| engine.check_action(who, *a).is_ok())
             .collect();
         if !accepted.is_empty() {
-            let pick = usize::try_from(rng.below(accepted.len() as u64)).expect("small");
-            input.action = Some(accepted[pick]);
+            let chosen = usize::try_from(rng.below(accepted.len() as u64)).expect("small");
+            input.action = Some(accepted[chosen]);
         }
     }
     input
