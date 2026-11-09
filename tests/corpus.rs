@@ -18,6 +18,7 @@
 //! setup names a mode bundled in `core`; the stage cases' folders each hold one.
 
 use crate::common;
+use crate::common::run_steps::{self, RunSteps, Step};
 use stella_rain_core::version::Versions;
 
 use std::fs;
@@ -206,17 +207,15 @@ fn dump_second(
         let path = dir.join(format!("tick-{tick:05}.json"));
         fs::write(path, serde_json::to_vec_pretty(&file).unwrap()).unwrap();
     };
-    let mut engine = Engine::start_with(&recorded.setup, content).unwrap();
-    let commands = recorded.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
+    let mut engine = run_steps::start(&recorded, content);
     if from == 0 {
         dump(&engine);
     }
-    for input in recorded.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).unwrap();
+    for step in RunSteps::of(&recorded).steps() {
+        run_steps::apply(&mut engine, step);
+        if !matches!(step, Step::Tick(_)) {
+            continue;
         }
-        engine.step(&[input, Default::default(), Default::default()]);
         if engine.tick() >= from {
             dump(&engine);
         }
@@ -1747,25 +1746,25 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
     assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
     let replay = RunReplay::from_bytes(&bytes).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    assert_eq!(verified.commands, u32::try_from(commands.len()).unwrap());
-    let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
-    let mut next = commands.iter().peekable();
+    let steps = RunSteps::of(&replay);
+    let picks = steps.steps().iter().filter(|s| matches!(s, Step::Picks(_)));
+    assert_eq!(verified.commands, u32::try_from(picks.count()).unwrap());
+    let mut engine = run_steps::start(&replay, &content);
     let (mut kinds, mut used, mut match_ups) = (Vec::new(), Vec::new(), [0; 4]);
     let mut raised = false;
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            if c.kind == CommandKind::Choose {
-                let s = engine.snapshot();
-                let options = match s.expertise.and_then(|g| g.offer) {
-                    Some(offer) => offer.options,
-                    None => s.progress.unwrap().offer.unwrap().options,
-                };
-                kinds.push(std::mem::discriminant(&options[c.index as usize]));
-                common::pick(&mut engine, c.index).unwrap();
-            }
+    for step in steps.steps() {
+        if let Step::Picks([Some(index), ..]) = step {
+            let s = engine.snapshot();
+            let options = match s.expertise.and_then(|g| g.offer) {
+                Some(offer) => offer.options,
+                None => s.progress.unwrap().offer.unwrap().options,
+            };
+            kinds.push(std::mem::discriminant(&options[*index as usize]));
         }
-        engine.step(&[input, Default::default(), Default::default()]);
+        run_steps::apply(&mut engine, step);
+        if !matches!(step, Step::Tick(_)) {
+            continue;
+        }
         for e in engine.events() {
             match e {
                 DomainEvent::StageSkillUsed { skill, level } => {
@@ -1830,14 +1829,9 @@ fn the_run_cases_are_what_their_names_say() {
             );
         }
         let replay = RunReplay::from_bytes(&bytes).unwrap();
-        let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
-        let commands = replay.unpack_commands().unwrap();
-        let mut next = commands.iter().peekable();
-        for input in replay.unpack_inputs(u32::MAX).unwrap() {
-            while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-                apply(&mut engine, c).unwrap();
-            }
-            engine.step(&[input, Default::default(), Default::default()]);
+        let mut engine = run_steps::start(&replay, &content);
+        for step in RunSteps::of(&replay).steps() {
+            run_steps::apply(&mut engine, step);
         }
         let boss = engine
             .snapshot()
@@ -1929,16 +1923,14 @@ fn elite_reach(name: &str) -> EliteReach {
     );
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let mode = content.time_limit();
-    let mut engine = Engine::start_with(&replay.setup, &content).unwrap();
-    let commands = replay.unpack_commands().unwrap();
-    let mut next = commands.iter().peekable();
+    let mut engine = run_steps::start(&replay, &content);
     let mut r = EliteReach::default();
     let mut hp = engine.snapshot().players[0].hp;
-    for input in replay.unpack_inputs(u32::MAX).unwrap() {
-        while let Some(c) = next.next_if(|c| c.tick == engine.tick()) {
-            apply(&mut engine, c).unwrap();
+    for step in RunSteps::of(&replay).steps() {
+        run_steps::apply(&mut engine, step);
+        if !matches!(step, Step::Tick(_)) {
+            continue;
         }
-        engine.step(&[input, Default::default(), Default::default()]);
         let (tick, s) = (engine.tick(), engine.snapshot());
         let alive: Vec<_> = s
             .entities
