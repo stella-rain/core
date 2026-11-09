@@ -1,6 +1,6 @@
 //! One slot's inputs by tick, and the prediction for the ticks not received yet. Crate-private:
 //! the session owns one queue per slot.
-// The skeleton has no bodies yet; this allow goes when they are written.
+// The session does not use the queue until the next commits; this allow goes with them.
 #![allow(dead_code)]
 
 use std::collections::VecDeque;
@@ -33,39 +33,67 @@ impl InputQueue {
 
     /// The first tick not received: every tick below it is held (or pruned).
     pub(crate) fn next_tick(&self) -> u32 {
-        todo!()
+        self.next
     }
 
     /// The highest tick received, if any.
     pub(crate) fn highest(&self) -> Option<u32> {
-        todo!()
+        self.highest
     }
 
     /// The input held for `tick`, if received and not pruned.
-    pub(crate) fn get(&self, _tick: u32) -> Option<WireInput> {
-        todo!()
+    pub(crate) fn get(&self, tick: u32) -> Option<WireInput> {
+        let at = usize::try_from(tick.checked_sub(self.floor)?).ok()?;
+        self.slots.get(at).copied().flatten()
     }
 
     /// Whether setting `input` at `tick` would conflict with the held one.
-    pub(crate) fn check(&self, _tick: u32, _input: &WireInput) -> Result<(), Conflict> {
-        todo!()
+    pub(crate) fn check(&self, tick: u32, input: &WireInput) -> Result<(), Conflict> {
+        match self.get(tick) {
+            Some(held) if held != *input => Err(Conflict),
+            _ => Ok(()),
+        }
     }
 
     /// Holds `input` for `tick`. The same value again changes nothing; a different one is a
     /// [`Conflict`]; a tick below the floor is ignored.
-    pub(crate) fn set(&mut self, _tick: u32, _input: WireInput) -> Result<(), Conflict> {
-        todo!()
+    pub(crate) fn set(&mut self, tick: u32, input: WireInput) -> Result<(), Conflict> {
+        let Some(at) = tick.checked_sub(self.floor) else {
+            return Ok(());
+        };
+        self.check(tick, &input)?;
+        let at = usize::try_from(at).map_err(|_| Conflict)?;
+        while self.slots.len() <= at {
+            self.slots.push_back(None);
+        }
+        self.slots[at] = Some(input);
+        self.highest = Some(self.highest.map_or(tick, |h| h.max(tick)));
+        while self.get(self.next).is_some() {
+            self.next += 1;
+        }
+        Ok(())
     }
 
     /// The input to step at `tick`: the one received, else the last received before it with its
     /// action cleared, else neutral. An action is never predicted.
-    pub(crate) fn predicted(&self, _tick: u32) -> WireInput {
-        todo!()
+    pub(crate) fn predicted(&self, tick: u32) -> WireInput {
+        if let Some(held) = self.get(tick) {
+            return held;
+        }
+        let last = self.next.checked_sub(1).and_then(|t| self.get(t));
+        last.map_or_else(WireInput::default, |held| WireInput {
+            action: None,
+            ..held
+        })
     }
 
     /// Drops the ticks below `tick`, keeping the last contiguous one for the prediction.
-    pub(crate) fn prune_below(&mut self, _tick: u32) {
-        todo!()
+    pub(crate) fn prune_below(&mut self, tick: u32) {
+        let target = tick.min(self.next.saturating_sub(1));
+        while self.floor < target {
+            self.slots.pop_front();
+            self.floor += 1;
+        }
     }
 
     /// The first tick still held.
@@ -74,8 +102,8 @@ impl InputQueue {
     }
 
     /// Up to `max` contiguous received inputs from `from`.
-    pub(crate) fn run_from(&self, _from: u32, _max: usize) -> Vec<WireInput> {
-        todo!()
+    pub(crate) fn run_from(&self, from: u32, max: usize) -> Vec<WireInput> {
+        (from..).map_while(|t| self.get(t)).take(max).collect()
     }
 }
 

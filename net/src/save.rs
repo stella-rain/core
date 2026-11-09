@@ -1,8 +1,6 @@
 //! The save seam: how a session keeps the engine's state at the start of recent ticks so it can
 //! go back to one. [`CloneRing`] keeps clones of the engine; a cheaper save can replace it behind
 //! [`Save`] without touching the session.
-// The skeleton has no bodies yet; this allow goes when they are written.
-#![allow(dead_code)]
 
 use std::collections::VecDeque;
 
@@ -42,20 +40,33 @@ impl CloneRing {
 
     /// How many saves the ring holds now.
     pub fn held(&self) -> usize {
-        todo!()
+        self.saved.len()
     }
 }
 
 impl Save for CloneRing {
-    fn save(&mut self, _tick: u32, _engine: &Engine) {
-        todo!()
+    fn save(&mut self, tick: u32, engine: &Engine) {
+        if let Some(slot) = self.saved.iter_mut().find(|(t, _)| *t == tick) {
+            slot.1 = engine.clone();
+            return;
+        }
+        self.saved.push_back((tick, engine.clone()));
+        while self.saved.len() > self.capacity {
+            self.saved.pop_front();
+        }
     }
 
-    fn load(&mut self, _tick: u32, _engine: &mut Engine) -> bool {
-        todo!()
+    fn load(&mut self, tick: u32, engine: &mut Engine) -> bool {
+        match self.saved.iter().find(|(t, _)| *t == tick) {
+            Some((_, saved)) => {
+                *engine = saved.clone();
+                true
+            }
+            None => false,
+        }
     }
 
-    fn forget_before(&mut self, _tick: u32) {
-        todo!()
+    fn forget_before(&mut self, tick: u32) {
+        self.saved.retain(|(t, _)| *t >= tick);
     }
 }
