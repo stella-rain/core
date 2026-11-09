@@ -139,16 +139,94 @@ pub enum Packet {
     Bye(Bye),
 }
 
+const TAG_HELLO: u8 = 0x01;
+const TAG_INPUT: u8 = 0x02;
+const TAG_ACK: u8 = 0x03;
+const TAG_CHECKPOINT: u8 = 0x04;
+const TAG_BYE: u8 = 0x05;
+
+/// A cursor over untrusted bytes: every read says `Truncated` instead of panicking.
+struct Reader<'a> {
+    rest: &'a [u8],
+}
+
+impl<'a> Reader<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8], WireError> {
+        let (head, rest) = self.rest.split_at_checked(n).ok_or(WireError::Truncated)?;
+        self.rest = rest;
+        Ok(head)
+    }
+
+    fn u32(&mut self) -> Result<u32, WireError> {
+        let b = self.take(4)?;
+        Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    }
+
+    fn finish(self) -> Result<(), WireError> {
+        if self.rest.is_empty() {
+            Ok(())
+        } else {
+            Err(WireError::TrailingBytes)
+        }
+    }
+}
+
+fn encode_hello(h: &Hello, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if h.protocol == 0 || h.sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    out.push(TAG_HELLO);
+    out.extend_from_slice(&h.protocol.to_le_bytes());
+    out.extend_from_slice(&h.sim_version.to_le_bytes());
+    out.extend_from_slice(&h.pack_hash);
+    Ok(())
+}
+
+fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
+    let protocol = r.u32()?;
+    if protocol == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    let sim_version = r.u32()?;
+    if sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    let mut pack_hash = [0u8; 32];
+    pack_hash.copy_from_slice(r.take(32)?);
+    Ok(Hello {
+        protocol,
+        sim_version,
+        pack_hash,
+    })
+}
+
 impl Packet {
     /// The one byte string of this packet, or the rule it breaks.
     pub fn encode(&self) -> Result<Vec<u8>, WireError> {
-        todo!("encode")
+        let mut out = Vec::new();
+        match self {
+            Packet::Hello(h) => encode_hello(h, &mut out)?,
+            Packet::Input(_) | Packet::Ack(_) | Packet::Checkpoint(_) | Packet::Bye(_) => {
+                todo!("encode")
+            }
+        }
+        Ok(out)
     }
 
     /// The packet `bytes` hold, or the first rule they break.
     pub fn decode(bytes: &[u8]) -> Result<Packet, WireError> {
-        let _ = bytes;
-        todo!("decode")
+        if bytes.len() > MAX_PACKET_LEN {
+            return Err(WireError::TooLong);
+        }
+        let (&tag, body) = bytes.split_first().ok_or(WireError::Empty)?;
+        let mut r = Reader { rest: body };
+        let packet = match tag {
+            TAG_HELLO => Packet::Hello(decode_hello(&mut r)?),
+            TAG_INPUT | TAG_ACK | TAG_CHECKPOINT | TAG_BYE => todo!("decode"),
+            other => return Err(WireError::UnknownTag(other)),
+        };
+        r.finish()?;
+        Ok(packet)
     }
 }
 
