@@ -1,5 +1,5 @@
 //! The expertise gauge, in a stage whose enemies or boss give expertise
-//! points: one gauge for the one weapon, from level 0 with no highest level; and its offers
+//! points: one gauge for the one weapon, from level 0 with no highest level; and its tree
 //! (ADR-REPL-5).
 //!
 //! A hit by an attack of an A or a B step of the combo adds its target's points per hit, and a
@@ -14,33 +14,15 @@
 //! the content maximum. Once the need stops growing, the levels left are one division, so a
 //! tick's cost stays bounded however many levels its points cross.
 //!
-//! Each level reached is due an offer, in level order, of the kind the stage's level table gives
-//! (`stage::LevelTable`): the weapon's three styles at the table's style level, the
-//! chosen style's first and second upgrades at its upgrade levels and its capstone at its
-//! capstone level; every other level is a common offer. A common offer draws `offer_size`
-//! (`rules.json`) candidates from the weapon's common pool, from the run's generator, leaving out the
-//! candidates it already holds; with fewer left it holds those, and with none it does not open.
-//! Its options are the candidates, then a reroll of each while the run has rerolls (shared with
-//! the stars' offers) and another option could come; never a skip or a banish. Taking an option
-//! adds its effect as a reward of that kind does, a range option widening the combo steps as a
-//! range reward does, and counts it. No option has a stack limit and none leaves the pool by
-//! being taken.
-//!
-//! A style, upgrade or capstone offer is not drawn: it shows its fixed choices in the content's
-//! order, takes nothing from the generator, and its options are the choices alone: no reroll,
-//! skip or banish. Taking one applies its effect as a common option's does; the style is held
-//! for the run, and its upgrades and capstone are kept in level order. An inline weapon has no
-//! expertise content, so none of its levels opens, its style's included; and an upgrade or
-//! capstone level with no style chosen opens nothing (fail closed: the table puts the style
-//! first, so for a weapon with content a style is always chosen before them).
-//!
-//! Past the table's last level (at most 10) every level is a common offer; with no pool the
-//! levels due are passed over at once, so the offers' cost stays bounded too.
-//!
-//! In the equipment build no expertise offer opens and nothing stops the world. A common level
-//! only raises the weapon level: it adds no stat, takes no option and emits no event. The
-//! levels of the table are tree points, held until the player takes them by `TreePick`, in
-//! path order (style, upgrade, upgrade, capstone).
+//! No level opens an offer and nothing stops the world, in every mode. A level only raises the
+//! weapon level: it adds no stat, takes no option, draws nothing and emits no event. The levels
+//! of the stage's level table (`stage::LevelTable`) are tree points: the weapon's three styles
+//! at the style level, the chosen style's first and second upgrades at its upgrade levels and
+//! its capstone at its capstone level. A point is held until the player takes it by `TreePick`,
+//! in path order (style, upgrade, upgrade, capstone); taking one applies its effect and records
+//! its place. An inline weapon has no expertise content, so none of its levels is a tree point;
+//! an upgrade or capstone level with no style chosen holds nothing (fail closed: the table
+//! puts the style first).
 
 use super::World;
 use crate::expertise::{
@@ -175,7 +157,7 @@ fn content<'a>(stage: &World, expertise: &'a Expertise) -> Option<&'a WeaponExpe
     }
 }
 
-/// One choice an offer can hold: a common option, a style, or a choice of a style's path.
+/// One choice of the tree: a style, or a choice of a style's path.
 pub(super) struct Choice<'a> {
     pub(super) id: &'a ContentId,
     pub(super) effect: ExpertiseEffect,
@@ -192,9 +174,9 @@ impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
     }
 }
 
-/// The fixed choices of level `level`'s style, upgrade or capstone offer, in the content's
+/// The fixed choices of level `level`'s style, upgrade or capstone point, in the content's
 /// order: the styles, or the chosen style's upgrades or capstone. Empty with no content, at a
-/// common level, or at an upgrade or capstone level with no style chosen.
+/// level that is no tree level, or at an upgrade or capstone level with no style chosen.
 fn fixed<'a>(
     stage: &World,
     expertise: &'a Expertise,
@@ -228,8 +210,6 @@ fn fixed<'a>(
         _ => Vec::new(),
     }
 }
-
-// --- the equipment build: automatic common levels ---------------------------------------------
 
 // --- the equipment build: the weapon's stat sets ----------------------------------------------
 
