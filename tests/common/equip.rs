@@ -178,7 +178,6 @@ fn build(
         build_mode: BuildMode::Equipment,
         perk_set: "plain".into(),
         star_pool: Some(ids),
-        pick_stats: false,
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };

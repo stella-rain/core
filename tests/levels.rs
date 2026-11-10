@@ -167,8 +167,7 @@ fn effect_stage() -> Stage {
 
 /// An engine on `stage` at its first level-up, which raised the stat with `effect`.
 fn after_spending(stage: &Stage, effect: StatEffect) -> Engine {
-    let mut e =
-        Engine::new_with_stats(stage, RunContent::bundled(), &[id_of(effect)], false).unwrap();
+    let mut e = Engine::new_with_stats(stage, RunContent::bundled(), &[id_of(effect)]).unwrap();
     until_level_up(&mut e, 600);
     e
 }
@@ -318,7 +317,7 @@ fn a_stat_added_in_the_content_works_with_no_code() {
     let stats = with_attack_plus();
     let content = RunContent::new(stats.clone(), Rewards::bundled().clone());
     let stage = leveled(&[1], vec![targets(20, None)]);
-    let mut e = Engine::new_with_stats(&stage, &content, &["attack_plus".into()], false).unwrap();
+    let mut e = Engine::new_with_stats(&stage, &content, &["attack_plus".into()]).unwrap();
     let seen = fire_until(&mut e, idle(), 1200, |e| level(e) > 3);
     assert_eq!(spent(&e).len(), stats.stats().len());
     let raised: Vec<_> = seen
@@ -352,7 +351,7 @@ fn stats_with_the_same_effect_add_up() {
         stage.waves.push(serde_json::from_value(tough).unwrap());
         let priority: Vec<ContentId> = priority.iter().map(|id| (*id).into()).collect();
         let content = RunContent::new(stats.clone(), Rewards::bundled().clone());
-        let mut e = Engine::new_with_stats(&stage, &content, &priority, false).unwrap();
+        let mut e = Engine::new_with_stats(&stage, &content, &priority).unwrap();
         fire_until(&mut e, idle(), 199, |e| level(e) >= 4);
         let mut seen = Vec::new();
         for _ in 0..200 {
@@ -392,7 +391,6 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
@@ -494,7 +492,7 @@ fn xp_pct_acts_on_one_kill() {
     );
     stage.waves[1].xp = Some(10);
     let content = RunContent::new(stats, Rewards::bundled().clone());
-    let mut e = Engine::new_with_stats(&stage, &content, &["xp_plus".into()], false).unwrap();
+    let mut e = Engine::new_with_stats(&stage, &content, &["xp_plus".into()]).unwrap();
     fire_until(&mut e, idle(), 200, |e| level(e) >= 2);
     fire_until(&mut e, idle(), 600, |e| {
         e.snapshot().progress.unwrap().xp > 0
@@ -508,7 +506,7 @@ fn xp_pct_acts_on_one_kill() {
 /// An engine on `stage` whose level-ups follow `priority` (run stat IDs).
 fn engine_with_stats(stage: &Stage, priority: &[&str]) -> Engine {
     let priority: Vec<ContentId> = priority.iter().map(|id| (*id).into()).collect();
-    Engine::new_with_stats(stage, RunContent::bundled(), &priority, false).unwrap()
+    Engine::new_with_stats(stage, RunContent::bundled(), &priority).unwrap()
 }
 
 fn level(e: &Engine) -> u32 {

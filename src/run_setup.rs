@@ -135,14 +135,9 @@ pub struct RunSetup {
     /// The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,
     /// at most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,
     /// then the stats this list leaves out in the run stats file's order; empty is that order
-    /// alone. With `pick_stats` the stats are offered instead.
+    /// alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stat_priority: Vec<ContentId>,
-    /// Each level reached opens an offer of the stats below their limit, answered through
-    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in
-    /// equipment mode.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub pick_stats: bool,
     /// How the run builds its character (ADR-SIM-7 points 4 and 7): the whole party's, one value
     /// until a per-party setup exists. Absent: `offers`, so a setup written before the mode
     /// existed reads as it always did.
@@ -178,7 +173,6 @@ impl Default for RunSetup {
             lumine: 0,
             starting_rune: None,
             stat_priority: Vec::new(),
-            pick_stats: false,
             build_mode: BuildMode::Offers,
             lumine_star: None,
         }
@@ -250,14 +244,9 @@ struct RunSetupFile {
     /// The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,
     /// at most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,
     /// then the stats this list leaves out in the run stats file's order; empty is that order
-    /// alone. With `pick_stats` the stats are offered instead.
+    /// alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stat_priority: Vec<ContentId>,
-    /// Each level reached opens an offer of the stats below their limit, answered through
-    /// `Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in
-    /// equipment mode.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pick_stats: bool,
     /// How the run builds its character. Absent: `offers`.
     #[serde(default)]
     build_mode: BuildMode,
@@ -303,7 +292,6 @@ impl TryFrom<RunSetupFile> for RunSetup {
             lumine: f.lumine,
             starting_rune: f.starting_rune,
             stat_priority: f.stat_priority,
-            pick_stats: f.pick_stats,
             build_mode: f.build_mode,
             lumine_star: f.lumine_star,
         })
@@ -534,12 +522,6 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
             issue(
                 "$.extra_rerolls".into(),
                 "none in equipment mode: there are no rerolls".into(),
-            );
-        }
-        if setup.pick_stats {
-            issue(
-                "$.pick_stats".into(),
-                "off in equipment mode: level stats follow the stat priority list".into(),
             );
         }
     }

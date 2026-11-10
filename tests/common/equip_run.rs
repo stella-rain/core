@@ -7,8 +7,7 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::RunRecorder;
 use stella_rain_core::run_setup::{BuildMode, RunSetup};
 
-/// `setup` in equipment mode, every other field kept. `pick_stats` is left as it is (off is the
-/// default, and the only value equipment mode accepts).
+/// `setup` in equipment mode, every other field kept.
 pub fn equipment_setup(setup: RunSetup) -> RunSetup {
     RunSetup {
         build_mode: BuildMode::Equipment,

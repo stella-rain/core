@@ -35,7 +35,6 @@ fn setup() -> RunSetup {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     }

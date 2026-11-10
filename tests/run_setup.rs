@@ -32,7 +32,6 @@ fn setup() -> RunSetup {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     }
@@ -643,10 +642,6 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
         "$.extra_rerolls",
         "none in equipment mode: there are no rerolls",
     );
-    let stats = issue(
-        "$.pick_stats",
-        "off in equipment mode: level stats follow the stat priority list",
-    );
     let star = CarriedStar {
         reward: "max_hp_common".into(),
     };
@@ -667,19 +662,11 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
     );
     assert_eq!(
         one(RunSetup {
-            pick_stats: true,
-            ..equipment()
-        }),
-        vec![stats.clone()]
-    );
-    assert_eq!(
-        one(RunSetup {
             carried: vec![star],
             extra_rerolls: 2,
-            pick_stats: true,
             ..equipment()
         }),
-        [carried, rerolls, stats]
+        [carried, rerolls]
     );
     // `stop` is the default and reads as absent; a plain equipment setup is valid.
     let plain = RunSetup {

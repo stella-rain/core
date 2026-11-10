@@ -339,16 +339,15 @@ impl Engine {
 
     /// As `new`, with `content` in place of the bundled files (ADR-CONT-1).
     pub fn new_with(stage: &Stage, content: &RunContent) -> Result<Engine, Error> {
-        Engine::new_with_stats(stage, content, &[], false)
+        Engine::new_with_stats(stage, content, &[])
     }
 
-    /// As `new_with`, with the level-ups spent as a setup's `stat_priority` and `pick_stats` say
+    /// As `new_with`, with the level-ups spent as a setup's `stat_priority` says
     /// (DS18): for a stage that has no setup. The IDs are those of `content`'s run stats.
     pub fn new_with_stats(
         stage: &Stage,
         content: &RunContent,
         stat_priority: &[ContentId],
-        pick_stats: bool,
     ) -> Result<Engine, Error> {
         validate::validate(stage)?;
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
@@ -367,7 +366,6 @@ impl Engine {
                 difficulty: None,
                 seed,
                 stat_priority,
-                pick_stats,
                 setup: None,
                 party: 1,
             },
@@ -430,7 +428,6 @@ impl Engine {
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
                 stat_priority: &setup.stat_priority,
-                pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party,
             },
@@ -476,7 +473,6 @@ impl Engine {
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
                 stat_priority: &setup.stat_priority,
-                pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party: 1,
             },
@@ -669,7 +665,6 @@ impl Engine {
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
                 stat_priority: &setup.stat_priority,
-                pick_stats: setup.pick_stats,
                 setup: Some(setup),
                 party,
             },

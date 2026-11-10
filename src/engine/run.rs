@@ -66,7 +66,6 @@ pub(crate) struct Build<'a> {
     pub difficulty: Option<Difficulty>,
     pub seed: u64,
     pub stat_priority: &'a [ContentId],
-    pub pick_stats: bool,
     /// `None` for a stage run alone: no loadout.
     pub setup: Option<&'a RunSetup>,
     /// The players in the party, 1 to `MAX_PLAYERS`; version 1 has one.

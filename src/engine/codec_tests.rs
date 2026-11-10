@@ -391,7 +391,6 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
