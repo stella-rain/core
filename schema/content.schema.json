@@ -847,21 +847,6 @@
       },
       "type": "object"
     },
-    "BuildMode": {
-      "description": "How a run builds its character: from offers (today) or from stars that drop, are crafted and\nare equipped (ADR-SIM-7 points 4 and 7). A field of the run's setup, one value for the whole\nparty; needs `sim_version` 2 for equipment.",
-      "oneOf": [
-        {
-          "const": "offers",
-          "description": "The run builds from offers: today's behaviour.",
-          "type": "string"
-        },
-        {
-          "const": "equipment",
-          "description": "The run builds from stars that drop, are crafted and are equipped.",
-          "type": "string"
-        }
-      ]
-    },
     "CallElites": {
       "additionalProperties": false,
       "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
@@ -7539,12 +7524,8 @@
       "additionalProperties": false,
       "description": "What a run starts from: built by the app from local storage when a run starts, and stored\nin the run's replay (ADR-REPL-5).",
       "properties": {
-        "build_mode": {
-          "$ref": "#/$defs/BuildMode",
-          "description": "How the run builds its character (ADR-SIM-7 points 4 and 7): the whole party's, one value\nuntil a per-party setup exists. Absent: `offers`, so a setup written before the mode\nexisted reads as it always did."
-        },
         "carried": {
-          "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.\nNone in equipment mode.",
+          "description": "The stars the run starts holding, at most `MAX_CARRIED_STARS`: each\napplies at tick 0 as if picked from an offer, in this order, and counts toward its\nreward's stack limit. Their costs (the rewards file's `rarities`) add up to at most `lumine`.\nNone at `sim_version` 2.",
           "items": {
             "$ref": "#/$defs/CarriedStar"
           },
@@ -7563,7 +7544,7 @@
           "type": "integer"
         },
         "lumine": {
-          "description": "The level of the Lumine upgrade, at most `MAX_LUMINE`: in equipment mode the cap of the\nLumine star's rarity (ADR-SAVE-7 point 9), in offers mode the budget of `carried`.",
+          "description": "The level of the Lumine upgrade, at most `MAX_LUMINE`: at `sim_version` 2 the cap of the\nLumine star's rarity (ADR-SAVE-7 point 9), at 1 the budget of `carried`.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -7578,7 +7559,7 @@
               "type": "null"
             }
           ],
-          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only in equipment mode."
+          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2."
         },
         "mode": {
           "$ref": "#/$defs/ContentId",
@@ -7613,7 +7594,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards\nan offer may hold, and in equipment mode the stars drops roll from, crafting draws from\nand the Lumine star is picked from; each at most once. Absent: every reward in the file.",
+          "description": "The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards\nan offer may hold at `sim_version` 1, and at 2 the stars drops roll from, crafting draws from\nand the Lumine star is picked from; each at most once. Absent: every reward in the file.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
