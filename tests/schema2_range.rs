@@ -126,26 +126,36 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
     let (mut same_runs, mut frozen_read) = (0, 0);
     for name in names() {
         let two = replay("current", &name);
-        let one = replay("v1", &name);
-        assert_eq!(one.setup.schema_version, 1, "{name}");
-        frozen_read += 1;
         let ticks = two.ticks;
         let full = read_step_range(&raw_of(&two), ticks, MAX, 0, ticks).unwrap();
-        // The frozen file holds the run as version 1 recorded it. Where the current run is
-        // another one (the 64 px pickup circle moved its picks and inputs), the cross-schema
-        // equality has nothing to compare; the frozen file is then read against its own whole
-        // log, so that every case is still read at both schemas.
-        let old_full = one.step_range(0, one.ticks, MAX).unwrap();
-        let same_run = one.ticks == ticks && old_full == full;
-        same_runs += usize::from(same_run);
-        if !same_run {
-            for (a, b) in ranges(one.ticks, 0x2545_f491_4f6c_dd1d) {
-                let old = one.step_range(a, b, MAX).unwrap();
-                assert_eq!(
-                    expand(&old.steps),
-                    oracle(&old_full, one.ticks, a, b),
-                    "{name} {a}..{b} at schema 1, against its own log"
-                );
+        // A case recorded after `v1/` was frozen has no frozen file: it is read at the current
+        // schema only.
+        let frozen = data_root()
+            .join("tests/corpus/v1/runs")
+            .join(&name)
+            .join("run.replay")
+            .exists();
+        let one = frozen.then(|| replay("v1", &name));
+        let mut same_run = false;
+        if let Some(one) = &one {
+            assert_eq!(one.setup.schema_version, 1, "{name}");
+            frozen_read += 1;
+            // The frozen file holds the run as version 1 recorded it. Where the current run is
+            // another one (the 64 px pickup circle moved its picks and inputs), the cross-schema
+            // equality has nothing to compare; the frozen file is then read against its own whole
+            // log, so that every case is still read at both schemas.
+            let old_full = one.step_range(0, one.ticks, MAX).unwrap();
+            same_run = one.ticks == ticks && old_full == full;
+            same_runs += usize::from(same_run);
+            if !same_run {
+                for (a, b) in ranges(one.ticks, 0x2545_f491_4f6c_dd1d) {
+                    let old = one.step_range(a, b, MAX).unwrap();
+                    assert_eq!(
+                        expand(&old.steps),
+                        oracle(&old_full, one.ticks, a, b),
+                        "{name} {a}..{b} at schema 1, against its own log"
+                    );
+                }
             }
         }
         for (a, b) in ranges(ticks, 0x2545_f491_4f6c_dd1d) {
@@ -157,7 +167,7 @@ fn every_corpus_case_reads_like_its_oracle_at_both_schemas() {
             );
             // The rule is on ticks, not on how the file is stored.
             if same_run {
-                let old = one.step_range(a, b, MAX).unwrap();
+                let old = one.as_ref().unwrap().step_range(a, b, MAX).unwrap();
                 assert_eq!(old, got, "{name} {a}..{b} at schema 1");
             }
         }

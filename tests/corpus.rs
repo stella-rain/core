@@ -1381,12 +1381,17 @@ pub(crate) fn definitions() -> Vec<Definition> {
 }
 
 /// The run cases (ADR-SIM-7, ADR-REPL-5), all played in equipment mode by the building bot, each
-/// from the seeds `search_corpus_run_seeds` found (`tests/common/run.rs`): the tutorial, the trial,
+/// from the seeds `search_corpus_run_seeds` found (`tests/common/run.rs`): the tutorial, its
+/// opening cut at `TUTORIAL_OPENING_TICKS`, the trial,
 /// a run that takes the black hole from an elite's star and uses it, the time_limit mode and its
 /// easy and rainy difficulties, the two short modes that end by the boss's kill and by the
 /// overtime, and the elites run.
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
 pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
+
+/// How long the `tutorial_opening` case runs: under the tick of the bot's first equipment action
+/// (the first tree pick, step 292), so the case holds no action.
+const TUTORIAL_OPENING_TICKS: u32 = 240;
 
 fn run_definitions() -> Vec<RunDefinition> {
     use common::run::{
@@ -1399,6 +1404,9 @@ fn run_definitions() -> Vec<RunDefinition> {
     vec![
         // Three minutes of bats and one weak golem, which the bot kills.
         equipment_run_definition("tutorial", kept, KEPT_BOT_SEED),
+        // The tutorial's first 240 ticks: it ends before the bot's first equipment action, so it
+        // is the one case that holds none (`schema2_corpus`).
+        equipment_run_definition("tutorial_opening", kept, KEPT_BOT_SEED),
         equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED),
         // Every point on attack; an elite's rare star offers the black hole.
         equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED),
@@ -1471,6 +1479,15 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
             });
             let commands = play_equipment_run_with(&setup, bundled, 10_800, boss_input, &bot);
             ("tutorial", setup, None, commands)
+        }
+        "tutorial_opening" => {
+            let setup = equipment_setup(RunSetup {
+                mode: "tutorial".into(),
+                ..base
+            });
+            let commands =
+                play_equipment_run_with(&setup, bundled, TUTORIAL_OPENING_TICKS, boss_input, &bot);
+            ("tutorial_opening", setup, None, commands)
         }
         "trial" => {
             let setup = equipment_setup(base);

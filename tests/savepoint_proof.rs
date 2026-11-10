@@ -334,7 +334,13 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
     .map(|_| ())
 }
 
+/// Run cases recorded after `v1/` was frozen: only `current/` holds them.
+const CURRENT_ONLY: &[&str] = &["tutorial_opening"];
+
 fn prove(tree: &str, name: &str, sweep: bool) {
+    if tree == "v1" && CURRENT_ONLY.contains(&name) {
+        return;
+    }
     let case = load_case(tree, name);
     let r = reference(&case);
     let at = if sweep { sweep_cuts(&r) } else { cuts(&r) };
@@ -379,13 +385,14 @@ run_cases!(
     time_limit_overtime,
     trial,
     tutorial,
+    tutorial_opening,
 );
 
 /// The run cases of `current/`, as (offer open, enemy mid-attack, player mid-attack) seen
 /// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
 /// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
 /// `v1/` runs: `tutorial()` below reads one.
-const FEATURES: [(&str, bool, bool, bool); 9] = [
+const FEATURES: [(&str, bool, bool, bool); 10] = [
     ("easy", false, true, true),
     ("elites", false, true, true),
     ("rainy", false, true, true),
@@ -395,6 +402,8 @@ const FEATURES: [(&str, bool, bool, bool); 9] = [
     ("time_limit_overtime", false, false, true),
     ("trial", false, true, true),
     ("tutorial", false, true, true),
+    // Placeholder flags until the case is blessed; the guard's computed values replace them.
+    ("tutorial_opening", false, false, false),
 ];
 
 #[test]
@@ -405,7 +414,11 @@ fn the_case_lists_are_the_directories() {
             .iter()
             .map(|d| d.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
-        let mut listed: Vec<&str> = RUN_CASES.to_vec();
+        let mut listed: Vec<&str> = RUN_CASES
+            .iter()
+            .copied()
+            .filter(|n| tree == "current" || !CURRENT_ONLY.contains(n))
+            .collect();
         listed.sort_unstable();
         assert_eq!(
             names, listed,
