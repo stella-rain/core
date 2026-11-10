@@ -31,7 +31,7 @@ pub struct StarPick {
 }
 
 /// A run's ledger of counts and bestiary encounters, verified with the replay (ADR-BRDG-6).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunLedger {
     /// Kill statistics: `kills.<weapon>.<class>` and `slain.<kind_id>`.
@@ -50,6 +50,71 @@ pub struct RunLedger {
     boss_kill_idx: usize,
     #[serde(skip)]
     slain_indices: Vec<usize>,
+}
+
+impl Clone for RunLedger {
+    fn clone(&self) -> RunLedger {
+        let RunLedger {
+            kills,
+            bestiary,
+            picks,
+            skill_uses,
+            enemy_kill_idx,
+            elite_kill_idx,
+            boss_kill_idx,
+            slain_indices,
+        } = self;
+        RunLedger {
+            kills: kills.clone(),
+            bestiary: bestiary.clone(),
+            picks: picks.clone(),
+            skill_uses: skill_uses.clone(),
+            enemy_kill_idx: *enemy_kill_idx,
+            elite_kill_idx: *elite_kill_idx,
+            boss_kill_idx: *boss_kill_idx,
+            slain_indices: slain_indices.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &RunLedger) {
+        let RunLedger {
+            kills,
+            bestiary,
+            picks,
+            skill_uses,
+            enemy_kill_idx,
+            elite_kill_idx,
+            boss_kill_idx,
+            slain_indices,
+        } = self;
+        let RunLedger {
+            kills: s_kills,
+            bestiary: s_bestiary,
+            picks: s_picks,
+            skill_uses: s_skill_uses,
+            enemy_kill_idx: s_enemy_kill_idx,
+            elite_kill_idx: s_elite_kill_idx,
+            boss_kill_idx: s_boss_kill_idx,
+            slain_indices: s_slain_indices,
+        } = source;
+        // A tuple has no `clone_from`: each name is copied in place, so a kill list the same
+        // length as the source's allocates nothing.
+        kills.truncate(s_kills.len());
+        for (to, (name, count)) in kills.iter_mut().zip(s_kills) {
+            to.0.clone_from(name);
+            to.1 = *count;
+        }
+        let held = kills.len();
+        kills.extend_from_slice(&s_kills[held..]);
+        bestiary.clone_from(s_bestiary);
+        picks.clone_from(s_picks);
+        skill_uses.clone_from(s_skill_uses);
+        *enemy_kill_idx = *s_enemy_kill_idx;
+        *elite_kill_idx = *s_elite_kill_idx;
+        *boss_kill_idx = *s_boss_kill_idx;
+        slain_indices.clone_from(s_slain_indices);
+    }
 }
 
 /// What the ledger reads of an enemy: each rules module's `AgentState` says it (ADR-REPL-2), so
@@ -379,7 +444,7 @@ pub(crate) fn rarity_str(rarity: Rarity) -> &'static str {
 
 /// The run's HUD tallies, counted from the events the way the app counts them and kept outside
 /// the hashed state (ADR-BRDG-6): a carried star, which emits no event, is not in them.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Counted {
     pub(crate) kills: u32,
     /// The count the last `RewardTaken` of each reward carried, per reward of the run's file; 0 = never.
@@ -387,6 +452,43 @@ pub(crate) struct Counted {
     /// The tier the last `Constellation` of each set carried, per set; 0 = none.
     pub(crate) tiers: Vec<u8>,
     pub(crate) named: Vec<Arc<str>>,
+}
+
+impl Clone for Counted {
+    fn clone(&self) -> Counted {
+        let Counted {
+            kills,
+            taken,
+            tiers,
+            named,
+        } = self;
+        Counted {
+            kills: *kills,
+            taken: taken.clone(),
+            tiers: tiers.clone(),
+            named: named.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Counted) {
+        let Counted {
+            kills,
+            taken,
+            tiers,
+            named,
+        } = self;
+        let Counted {
+            kills: s_kills,
+            taken: s_taken,
+            tiers: s_tiers,
+            named: s_named,
+        } = source;
+        *kills = *s_kills;
+        taken.clone_from(s_taken);
+        tiers.clone_from(s_tiers);
+        named.clone_from(s_named);
+    }
 }
 
 impl Counted {

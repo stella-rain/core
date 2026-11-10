@@ -52,12 +52,14 @@ arm64 = 5_000_000
 x86_64 = 5_600_000
 
 # rollback_session: one rolling-back Session::advance of the rollback_equip case at window 4 and
-# 16 (rollback_session_w4, rollback_session_w16, the largest is _w16) and one CloneRing save
-# (clone_ring_save). Counts from CI run 42721277452 at head 4cb25d5, x86_64 / arm64: w16
-# 39,071,489 / 39,248,692, w4 12,108,363 (x86_64), one save 886,712 (x86_64); the budget is the
-# margin rule's ceil(count * 1.1 / 100_000) * 100_000 of the largest case. This target is OVER
-# the 12.4 M frame ceiling of ADR-SIM-5, because the clone ring clones an engine on every stepped
-# tick; the budget is re-set once a cheaper in-place save lands. Until then it catches regressions.
+# 16 (rollback_session_w4, rollback_session_w16, the largest is _w16), one CloneRing save into an
+# empty ring (clone_ring_save) and one into a reused slot of a full ring (clone_ring_resave). The
+# ring saves and restores in place. Counts from CI run 42769475044 at head 21a5cd4, x86_64 / arm64:
+# w16 11,355,356 / 9,747,306, w4 3,591,607 / 3,092,354, clone_ring_save 279,868 / 165,648,
+# clone_ring_resave 92,096 / 42,010 (before, one save was 886,712 on x86_64 and w16 39,071,489 /
+# 39,248,692). The budget is the margin rule's ceil(count * 1.1 / 100_000) * 100_000 of the
+# largest case. The counts are under the 12.4 M frame ceiling of ADR-SIM-5; the x86_64 budget,
+# with its margin, is 100,000 above it.
 [rollback_session]
-arm64 = 43_200_000
-x86_64 = 43_000_000
+arm64 = 10_800_000
+x86_64 = 12_500_000

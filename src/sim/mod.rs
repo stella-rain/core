@@ -625,7 +625,7 @@ fn unreserved_state(
         }),
         heal_pickups: stage.heal.as_ref().map(|_| Vec::new()),
         match_ups: *content.match_ups(),
-        runes: content.runes().clone(),
+        runes: std::sync::Arc::new(content.runes().clone()),
         stun: run_stats.stun(),
         max_attack_speed_pct: run_stats.max_attack_speed_pct(),
         enemy_attack_damage: run_stats.enemy_attack_damage(),
@@ -635,7 +635,7 @@ fn unreserved_state(
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
         echoes: Vec::new(),
-        kinds,
+        kinds: std::sync::Arc::new(kinds),
     }
 }
 

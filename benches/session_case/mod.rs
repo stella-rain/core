@@ -17,7 +17,8 @@ use stella_rain_net::save::{CloneRing, Save};
 use stella_rain_net::session::{Config, Session};
 use stella_rain_net::wire::{InputFrame, WireInput};
 
-/// The capacity of the ring of `clone_ring_save`: any capacity above 1 never evicts.
+/// The capacity of the ring of `clone_ring_save` and `clone_ring_resave`: any capacity above 1
+/// never evicts on a first fill.
 pub const RING_CAPACITY: usize = 5;
 
 /// A session one `advance` away from the rollback, and the input that `advance` is given.
@@ -128,5 +129,19 @@ pub fn rollback(mut prepared: Prepared) -> Prepared {
 #[inline]
 pub fn save_once((mut ring, engine): (CloneRing, Engine)) -> (CloneRing, Engine) {
     ring.save(engine.tick(), &engine);
+    (ring, engine)
+}
+
+/// The fixture of `clone_ring_resave`: a ring that has filled once, holding `RING_CAPACITY` saves
+/// of the saved engine at the `RING_CAPACITY` ticks before its own, and that engine. The next
+/// save lands on the oldest slot, reused in place.
+pub fn full_ring() -> (CloneRing, Engine) {
+    let engine = equip_case::saved();
+    let mut ring = CloneRing::new(RING_CAPACITY);
+    let tick = engine.tick();
+    let held = u32::try_from(RING_CAPACITY).expect("a small capacity");
+    for back in (1..=held).rev() {
+        ring.save(tick - back, &engine);
+    }
     (ring, engine)
 }

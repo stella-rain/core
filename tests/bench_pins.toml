@@ -97,3 +97,10 @@ before = "4cd6e24a9787265c"
 after = "4cd6e24a9787265c"
 stage = "d8f22a4e4e735a47"
 input = "3f5be22dc234d8d3"
+
+[clone_ring_resave]
+bench = "rollback_session"
+before = "4cd6e24a9787265c"
+after = "4cd6e24a9787265c"
+stage = "d8f22a4e4e735a47"
+input = "5cd36d0a5b90f1c9"

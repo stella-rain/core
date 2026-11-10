@@ -71,6 +71,8 @@ enum Kind {
     SessionRollback(u32),
     /// One `CloneRing` save of the saved engine (`session_case::save_once`).
     RingSave,
+    /// One `CloneRing` save into the oldest slot of a full ring (`session_case::full_ring`).
+    RingResave,
 }
 
 struct Spec {
@@ -82,7 +84,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 12] {
+fn specs() -> [Spec; 13] {
     [
         Spec {
             id: "worst_tick",
@@ -155,6 +157,12 @@ fn specs() -> [Spec; 12] {
             bench: "rollback_session",
             mode: "time_limit",
             kind: Kind::RingSave,
+        },
+        Spec {
+            id: "clone_ring_resave",
+            bench: "rollback_session",
+            mode: "time_limit",
+            kind: Kind::RingResave,
         },
     ]
 }
@@ -349,6 +357,23 @@ fn measure(spec: &Spec) -> Pins {
             after = hash_hex(engine.state_hash());
             std::mem::forget((ring, engine));
         }
+        Kind::RingResave => {
+            let (ring, engine) = session_case::full_ring();
+            before = hash_hex(engine.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&engine, spec.mode),
+            ]);
+            input = digest(&[
+                b"stella-rain/bench-input-session-save/v1\n",
+                b"capacity:",
+                session_case::RING_CAPACITY.to_string().as_bytes(),
+                b"ring:full",
+            ]);
+            let (ring, engine) = session_case::save_once((ring, engine));
+            after = hash_hex(engine.state_hash());
+            std::mem::forget((ring, engine));
+        }
         Kind::Run(run, ticks) => {
             let mut run = run();
             before = hash_hex(run.engine.state_hash());
@@ -487,6 +512,11 @@ fn the_ring_save_is_the_benches_case() {
     check("clone_ring_save");
 }
 
+#[test]
+fn the_ring_resave_is_the_benches_case() {
+    check("clone_ring_resave");
+}
+
 /// A straight engine from the saved one, `window` ticks played with the window's recorded
 /// actions applied before the tick they come before.
 fn corrected_run(window: u32) -> Engine {
@@ -564,6 +594,17 @@ fn the_ring_save_is_one_clone() {
     let (ring, engine) =
         session_case::save_once((CloneRing::new(session_case::RING_CAPACITY), engine));
     assert_eq!(ring.held(), 1);
+    assert_eq!(engine.state_hash(), hash);
+}
+
+/// The resave case: a full ring, one more save reuses a slot, and the engine is unchanged.
+#[test]
+fn the_ring_resave_reuses_a_slot() {
+    let (ring, engine) = session_case::full_ring();
+    assert_eq!(ring.held(), session_case::RING_CAPACITY);
+    let hash = engine.state_hash();
+    let (ring, engine) = session_case::save_once((ring, engine));
+    assert_eq!(ring.held(), session_case::RING_CAPACITY);
     assert_eq!(engine.state_hash(), hash);
 }
 

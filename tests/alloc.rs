@@ -226,13 +226,14 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// rollback is the clone's allocations plus the 8 ticks'. A clone shares the engine's world and
 /// content behind `Arc`s and copies only the state: `rollback` fell 1744 -> 368 allocs and
 /// `rollback_equip` 1859 -> 483 (reallocs and frees unchanged); the level-offer fields leaving the
-/// gauge and progress took 4 more off each, to 364 and 479. The rule of `BENCH_TICK_ALLOCS`
+/// gauge and progress took 4 more off each, to 364 and 479; `State.kinds` and `State.runes`
+/// behind `Arc` took 7 more off each, to 357 and 472. The rule of `BENCH_TICK_ALLOCS`
 /// holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(364, 14, 8)),
-    ("rollback_equip", pin(479, 26, 119)),
+    ("rollback", pin(357, 14, 8)),
+    ("rollback_equip", pin(472, 26, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
@@ -280,6 +281,21 @@ fn the_rollback_allocates_as_pinned() {
         party_pinned("rollback"),
         "rollback: (allocs, reallocs, frees)"
     );
+}
+
+/// A slot made by a clone and given one `clone_from` already holds the room an engine needs, so
+/// a copy from the engine it holds calls the allocator for nothing.
+#[test]
+fn clone_from_of_a_warmed_slot_allocates_nothing() {
+    for (name, saved) in [
+        ("equip", bench_fixtures::equip_case::saved()),
+        ("party", bench_fixtures::party_case::saved()),
+    ] {
+        let mut slot = saved.clone();
+        slot.clone_from(&saved);
+        let counts = counted3(|| slot.clone_from(&saved));
+        assert_eq!(counts, pin(0, 0, 0), "{name}: (allocs, reallocs, frees)");
+    }
 }
 
 fn pinned(case: &str) -> Allocs {
