@@ -4,6 +4,8 @@
 //! larger variant's `World` and `State` and a tag. A version's events are its own types too:
 //! version 1 emits `sim_v1::event::DomainEvent`, which `v1_events` adapts into the engine's list.
 
+use std::sync::Arc;
+
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::id::{ContentId, PlayerIdx};
@@ -38,7 +40,7 @@ pub(crate) enum Run {
     },
     /// Version 2, the live rules (`sim`).
     V2 {
-        world: sim::World,
+        world: Arc<sim::World>,
         state: sim::state::State,
     },
 }
@@ -209,7 +211,10 @@ impl Run {
             state.players = sim::state::Players::party(b.party, &state.players, state.crit_seed);
             sim::reserve(&world, &mut state);
         }
-        Ok(Run::V2 { world, state })
+        Ok(Run::V2 {
+            world: Arc::new(world),
+            state,
+        })
     }
 
     /// The `sim_version` whose rules this state belongs to.

@@ -213,7 +213,7 @@ mod tests {
     fn start() -> (World, State) {
         let e = Engine::new_with(&worst_case::stage(), &worst_case::content()).expect("starts");
         match e.run() {
-            Run::V2 { world, state } => (world.clone(), state.clone()),
+            Run::V2 { world, state } => (World::clone(world), state.clone()),
             Run::V1 { .. } => panic!("the live rules"),
         }
     }

@@ -1,6 +1,8 @@
 //! The soft tether (ADR-SIM-7): it pulls the up players farthest from the party's centre back
 //! past `TETHER_RANGE`, never moves a dashing, downed or out player, and costs solo nothing.
 
+use std::sync::Arc;
+
 use super::player::{TETHER_PULL_DIV, TETHER_RANGE, tether};
 use super::state::{PlayerIdx, State};
 use super::{World, schedule};
@@ -45,7 +47,10 @@ fn start(n: u8, at: &[Point]) -> Engine {
 
 fn live_mut(e: &mut Engine) -> (&mut World, &mut State) {
     match e.run_mut() {
-        Run::V2 { world, state } => (world, state),
+        Run::V2 { world, state } => (
+            Arc::get_mut(world).expect("the engine has not been cloned"),
+            state,
+        ),
         Run::V1 { .. } => panic!("the live rules"),
     }
 }

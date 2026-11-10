@@ -29,7 +29,7 @@ pub(super) fn party(n: u8) -> (World, State) {
     let Run::V2 { world, state } = e.run() else {
         panic!("the live rules")
     };
-    (world.clone(), state.clone())
+    (World::clone(world), state.clone())
 }
 
 pub(super) fn down(s: &mut State, i: u8) {
@@ -269,7 +269,7 @@ fn level_up_state(n: u8) -> (World, State) {
     let Run::V2 { world, state } = e.run() else {
         panic!("the live rules")
     };
-    let (mut world, mut s) = (world.clone(), state.clone());
+    let (mut world, mut s) = (World::clone(world), state.clone());
     assert!(!s.enemies.is_empty(), "an enemy to defeat");
     s.enemies[0].hp = 0;
     s.enemies[0].burst = false;

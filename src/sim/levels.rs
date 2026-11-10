@@ -310,7 +310,7 @@ mod tests {
             progress: Some(progress),
             ..Career::default()
         };
-        (world.clone(), s, one)
+        (World::clone(world), s, one)
     }
 
     #[test]

@@ -693,7 +693,7 @@ mod party_tests {
             p.at.y.0 = 0;
         }
         s.companions.clear();
-        (world.clone(), s)
+        (World::clone(world), s)
     }
 
     fn swing(at: Point, radius: i32, friendly: bool, owner: EntityId) -> Swing {
@@ -1077,7 +1077,7 @@ mod party_tests {
         s.companions.clear();
         let me = slot(0).id();
         add_run(&mut s, &template, me, crate::sim::player::COMBO_SLOT);
-        (world.clone(), s)
+        (World::clone(world), s)
     }
 
     #[test]

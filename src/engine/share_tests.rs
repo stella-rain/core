@@ -1,11 +1,13 @@
 //! An engine's immutable run data (`sim::World` and `RunContent`) is shared by a clone, not copied.
 
+use std::sync::Arc;
+
 use super::*;
 use crate::bench_fixtures::{equip_case, party_case};
 
-fn world_ptr(engine: &Engine) -> *const crate::sim::World {
+fn world_of(engine: &Engine) -> &Arc<crate::sim::World> {
     match engine.run() {
-        Run::V2 { world, .. } => std::ptr::from_ref::<crate::sim::World>(world),
+        Run::V2 { world, .. } => world,
         Run::V1 { .. } => panic!("the live rules run version 2"),
     }
 }
@@ -27,7 +29,8 @@ fn an_engine_clone_shares_its_world_and_content() {
         let mut c = e.clone();
         let same = |e: &Engine, c: &Engine| {
             assert!(std::ptr::eq(e.content(), c.content()), "the content");
-            assert_eq!(world_ptr(e), world_ptr(c), "the world");
+            assert!(Arc::ptr_eq(world_of(e), world_of(c)), "the world");
+            assert_eq!(Arc::strong_count(world_of(e)), 2);
         };
         same(&e, &c);
         for _ in 0..5 {
@@ -37,6 +40,7 @@ fn an_engine_clone_shares_its_world_and_content() {
         }
         same(&e, &c);
         drop(c);
+        assert_eq!(Arc::strong_count(world_of(&e)), 1);
     }
 }
 
