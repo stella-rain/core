@@ -83,7 +83,11 @@ fn schema_2_cases_are_their_schema_1_forms() {
             .iter()
             .any(|s| matches!(s, Step::Picks(_)))
     );
-    assert_is_its_schema_1_form(&"offers trial", &trial, RunContent::bundled());
+    assert_is_its_schema_1_form(
+        &"offers trial",
+        &trial,
+        crate::corpus::offers_pack().content(),
+    );
     let stages = cases("stages");
     assert!(stages.len() >= 16);
     for case in stages {

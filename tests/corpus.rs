@@ -1434,8 +1434,16 @@ pub(crate) fn offers_trial_run() -> RunReplay {
         sim_version: 1,
         ..common::run::trial_setup()
     };
-    let commands = crate::run_play::play_run_from(&setup, common::run::TRIAL_LENGTH);
-    run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
+    let pack = offers_pack();
+    let commands = crate::run_play::play_run_in(&setup, pack.content(), common::run::TRIAL_LENGTH);
+    run_replay::record_run_with_pack(&setup, &pack, &commands).unwrap()
+}
+
+/// The pack the frozen `v1` trial case pins: the offers-era content, whose trial golem does not
+/// chase, so a `sim_version` 1 trial still starts on it (the bundled trial chases and the chase
+/// needs `sim_version` 2).
+pub(crate) fn offers_pack() -> Pack {
+    case_pack(&crate::data_root::data_root().join("tests/corpus/v1/runs/trial")).unwrap()
 }
 
 /// The offers-era `time_limit` run (the seed of its first record), recorded in the test at
