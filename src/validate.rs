@@ -172,6 +172,8 @@ pub mod limits {
     pub const MAX_NUMBER: i32 = 1_000_000;
     /// A length in 1/256 pixels: 1,024 pixels.
     pub const MAX_LEN: i32 = 262_144;
+    /// The most a boss walks a tick (1/256 pixel): the top of `rules.json`'s `player_speed`.
+    pub const MAX_CHASE_SPEED: i32 = 4_096;
     /// A hurt circle radius in 1/256 pixels: 256 pixels.
     pub const MAX_RADIUS: i32 = 65_536;
     /// The portrait field in 1/256 pixels (360 by 640 pixels), the map of a stage without one,
@@ -699,6 +701,16 @@ impl<'a> Ctx<'a> {
         }
         if let Some(boss) = &s.boss {
             self.key("boss", |c| c.boss(boss));
+            if let Some(at) = boss.arrives_at_tick.filter(|_| self.sim_version >= 2) {
+                self.key("boss", |c| {
+                    c.within(
+                        "arrives_at_tick",
+                        i64::from(at),
+                        1,
+                        i64::from(s.length_ticks) - 1,
+                    )
+                });
+            }
         }
         if let Some(levels) = &s.levels {
             self.key("levels", |c| c.levels(levels));
@@ -1431,6 +1443,30 @@ impl<'a> Ctx<'a> {
         }
         if let Some(points) = &b.expertise {
             self.expertise_points(points);
+        }
+        if let Some(chase) = &b.chase {
+            self.key("chase", |c| {
+                if c.sim_version < 2 {
+                    c.fail("needs sim_version 2");
+                    return;
+                }
+                c.within(
+                    "speed",
+                    i64::from(chase.speed.0),
+                    1,
+                    i64::from(MAX_CHASE_SPEED),
+                );
+                let longer = c.map.width.0.max(c.map.height.0);
+                c.within(
+                    "stop_distance",
+                    i64::from(chase.stop_distance.0),
+                    1,
+                    i64::from(longer),
+                );
+            });
+        }
+        if b.arrives_at_tick.is_some() && self.sim_version < 2 {
+            self.key("arrives_at_tick", |c| c.fail("needs sim_version 2"));
         }
         if let Some(call) = &b.call_elites {
             self.key("call_elites", |c| {

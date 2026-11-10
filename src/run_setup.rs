@@ -802,6 +802,18 @@ pub(crate) fn difficulty_of<'a>(
 /// A run start checks them, and so does a pack's load, so a pack that loads starts a run.
 pub(crate) fn check_bosses(placeholder: &Stage, mode: &TimeLimit) -> Result<(), Error> {
     for (k, def) in mode.bosses().iter().enumerate() {
+        // A mode file's boss comes at `boss_ticks`; it does not chase or arrive on its own.
+        for (field, set) in [
+            ("chase", def.chase.is_some()),
+            ("arrives_at_tick", def.arrives_at_tick.is_some()),
+        ] {
+            if set {
+                return Err(Error::Invalid(vec![Issue {
+                    path: format!("$.bosses[{k}].{field}"),
+                    message: "none in a mode file: a boss's time is `boss_ticks`".into(),
+                }]));
+            }
+        }
         let mut with_boss = placeholder.clone();
         with_boss.boss = Some(def.clone());
         validate::validate(&with_boss).map_err(|e| match e {

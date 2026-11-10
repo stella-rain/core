@@ -539,6 +539,19 @@ impl World {
             }
         }
         let rules = content.rules();
+        // A boss that outruns a player cannot be kited.
+        if let Some(chase) = bosses.iter().find_map(|b| b.boss.chase)
+            && chase.speed.0 >= rules.player_speed().0
+        {
+            return Err(Issue {
+                path: "$.boss.chase.speed".into(),
+                message: format!(
+                    "below the players' speed, {} (found {})",
+                    rules.player_speed().0,
+                    chase.speed.0
+                ),
+            });
+        }
         let target = stage.crowd_target.unwrap_or_else(|| rules.crowd_target());
         let mut world = World {
             crowd_target: rules.resolved_target(Some(target)),
