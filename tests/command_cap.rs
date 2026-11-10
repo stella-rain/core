@@ -4,7 +4,10 @@
 //! offer and spends every point as soon as it has one.
 
 use crate::common;
+use crate::common::run::run_input_for;
 use serde_json::json;
+use stella_rain_core::engine::Outcome;
+use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
@@ -12,6 +15,7 @@ use stella_rain_core::run_replay::{
     verify_run_with,
 };
 use stella_rain_core::run_setup::RunSetup;
+use stella_rain_core::snapshot::{EntityKind, OfferOption};
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::version::Versions;
 
@@ -63,6 +67,67 @@ pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
     }
 }
 
+/// How the bot answers an offer.
+#[derive(Clone, Copy, Debug)]
+pub enum Bot {
+    /// Takes candidate 0.
+    Takes,
+    /// Rerolls and banishes as long as it may, then takes candidate 0: the most commands an
+    /// offer can cost.
+    Spends,
+}
+
+/// What a bot's run came to.
+pub struct Played {
+    pub replay: RunReplay,
+    pub commands: usize,
+    pub outcome: Outcome,
+}
+
+/// Plays `setup` to its end (the length and the overtime, or the final boss's kill).
+pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
+    let mut run = RunRecorder::start_with(setup, content).unwrap();
+    let mut tick = 0;
+    while run.engine().outcome() == Outcome::Running {
+        answer_offers(&mut run, bot);
+        let input = run_input_for(run.engine(), tick, &[EntityKind::Enemy], u32::MAX);
+        run.step(&[input, Default::default(), Default::default()])
+            .unwrap();
+        tick += 1;
+    }
+    answer_offers(&mut run, bot);
+    let replay = run.replay();
+    let commands = replay.unpack_commands().unwrap().len();
+    Played {
+        replay,
+        commands,
+        outcome: run.engine().outcome(),
+    }
+}
+
+fn answer_offers(run: &mut RunRecorder, bot: Bot) {
+    while run.engine().offer_open() {
+        let snapshot = run.engine().snapshot();
+        // No star offer is shown: a frozen run's stat or expertise offer, which has no view.
+        if snapshot.progress.as_ref().is_none_or(|p| p.offer.is_none()) {
+            run.choose(PlayerIdx::SOLO, 0).unwrap();
+            continue;
+        }
+        let options = snapshot.progress.and_then(|p| p.offer).unwrap().options;
+        let find = |wanted: fn(&OfferOption) -> bool| options.iter().position(wanted);
+        let pick = match bot {
+            Bot::Takes => None,
+            Bot::Spends => find(|o| matches!(o, OfferOption::Reroll { .. }))
+                .or_else(|| find(|o| matches!(o, OfferOption::Banish { .. }))),
+        };
+        let pick = pick
+            .or_else(|| find(|o| *o == OfferOption::Take { candidate: 0 }))
+            .unwrap_or(0);
+        run.choose(PlayerIdx::SOLO, u32::try_from(pick).unwrap())
+            .unwrap();
+    }
+}
+
 /// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
 /// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); 400 once the
 /// setup's `pick_stats` left (the frozen rules no longer open a stat offer for each level-up).
@@ -98,15 +163,28 @@ fn the_cap_is_twice_the_longest_run_or_more() {
 }
 
 #[test]
+fn a_bot_s_short_run_records_and_verifies_within_the_cap() {
+    let content = short_content();
+    for bot in [Bot::Takes, Bot::Spends] {
+        let played = play(&content, &setup(1, "normal", 20), bot);
+        assert!(
+            played.commands > 0,
+            "{bot:?} answers an offer or spends a point"
+        );
+        assert!(played.commands <= MAX_COMMANDS as usize);
+        let verified = verify_run_with(&played.replay.to_bytes(), &content)
+            .unwrap_or_else(|e| panic!("{bot:?}: {e}"));
+        assert_eq!(verified.commands as usize, played.commands);
+        assert_eq!(verified.outcome, played.outcome);
+    }
+}
+
+#[test]
 fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
     let content = short_content();
     // The recorder writes schema 2, which has no command list: the crafted file is schema 1.
-    let mut run = RunRecorder::start_with(&setup(1, "normal", 20), &content).unwrap();
-    for _ in 0..20 {
-        run.step(&[Default::default(), Default::default(), Default::default()])
-            .unwrap();
-    }
-    let mut replay = crate::common::schema_1_form(&run.replay());
+    let mut replay =
+        crate::common::schema_1_form(&play(&content, &setup(1, "normal", 20), Bot::Takes).replay);
     let choices = |n: u32| -> String {
         let commands: Vec<TickCommand> = (0..n)
             .map(|_| TickCommand {
@@ -135,4 +213,45 @@ fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
             limit: MAX_COMMANDS
         })
     );
+}
+
+/// The difficulties that keep the mode's full length (`easy` halves it).
+const LONG: [&str; 3] = ["normal", "hard", "rainy"];
+
+/// The most commands of the longest runs measured, over `SEEDS` seeds and every long difficulty
+/// and both bots, with the run setup's extra rerolls at their most. Slow (minutes in release),
+/// so `#[ignore]`d: `cargo test --release --test integration command_cap:: -- --ignored --nocapture`.
+#[test]
+#[ignore = "the measurement of MAX_COMMANDS: minutes in release"]
+fn measure_the_longest_run() {
+    let content = undying_content();
+    let mut most = 0;
+    let mut longest = None;
+    for difficulty in LONG {
+        for seed in 1..=5 {
+            for bot in [Bot::Takes, Bot::Spends] {
+                let played = play(&content, &setup(seed, difficulty, 20), bot);
+                println!(
+                    "difficulty {difficulty} seed {seed} {bot:?}: {} commands, {} ticks, {:?}",
+                    played.commands, played.replay.ticks, played.outcome
+                );
+                if played.commands > most {
+                    most = played.commands;
+                    longest = Some(played.replay);
+                }
+            }
+        }
+    }
+    println!("most commands: {most}");
+    assert!(
+        most == MEASURED_MOST,
+        "a run takes {most} commands: re-pin MEASURED_MOST"
+    );
+    assert!(
+        2 * most <= MAX_COMMANDS as usize,
+        "MAX_COMMANDS is under twice {most}"
+    );
+    // The longest run records within the cap and verifies from its file.
+    let verified = verify_run_with(&longest.unwrap().to_bytes(), &content).unwrap();
+    assert_eq!(verified.commands as usize, most);
 }
