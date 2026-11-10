@@ -614,8 +614,8 @@ fn the_party_cases_are_what_the_table_says() {
     assert_eq!(party_cases().len(), TABLE.len());
 }
 
-/// The tick after 1260 (the last bat spawn) at which no enemy is left on the field in the run of
-/// `replay`, and the tick the run ended.
+/// The first tick after 1260 (the last bat spawn) at which no enemy is on the field in the run of
+/// `replay`; `None` when the run ends first.
 fn first_empty_field(case: &crate::run_play::PartyCase, replay: &RunReplay) -> Option<u32> {
     use crate::party_bot::RigRun;
     use stella_rain_core::snapshot::EntityKind;
@@ -645,7 +645,10 @@ fn the_tutorial_party_clears_with_its_build_out_of_it() {
         let replay = case.play().replay();
         let verified = verify_run(&replay.to_bytes()).unwrap();
         assert_eq!(verified.outcome, Outcome::Cleared, "({world}, {bot})");
-        let empty = first_empty_field(&case, &replay).expect("the bats die");
+        // The bots walk to the boss while the field is empty, even before the first bat: when the
+        // boss dies before the field is empty after the last spawn, the clear tick is the bound's
+        // start.
+        let empty = first_empty_field(&case, &replay).unwrap_or(verified.ticks);
         assert!(
             verified.ticks <= empty + 2000,
             "({world}, {bot}): cleared at {}, field empty at {empty}",

@@ -60,6 +60,7 @@ pub struct Sight {
     /// The teammates that are up.
     pub up_mates: Vec<(u8, Point)>,
     pub star: Option<Point>,
+    /// The nearest enemy; with none on the field, the nearest boss (a boss part stays out).
     pub enemy: Option<Point>,
 }
 
@@ -98,6 +99,13 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
         }
     }
     let mine = &snap.players[place(slot)];
+    let nearest = |kind: EntityKind| {
+        snap.entities
+            .iter()
+            .filter(|v| v.kind == kind)
+            .map(|v| v.at)
+            .min_by_key(|at| d2(*at, me))
+    };
     Sight {
         me,
         up: mine.hp > 0 && !mine.out && mine.down.is_none(),
@@ -108,12 +116,7 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
             .iter()
             .map(|st| st.at)
             .min_by_key(|at| d2(*at, me)),
-        enemy: snap
-            .entities
-            .iter()
-            .filter(|v| v.kind == EntityKind::Enemy)
-            .map(|v| v.at)
-            .min_by_key(|at| d2(*at, me)),
+        enemy: nearest(EntityKind::Enemy).or_else(|| nearest(EntityKind::Boss)),
     }
 }
 
@@ -141,7 +144,7 @@ impl PartyBot {
     /// The buttons of a slot that sees `s` at `tick`: nothing when it is not up; else it walks
     /// to the downed teammate it is the nearest up slot to (ties to the lower slot) and holds
     /// `interact` inside `HOLD_AT`, standing still and not attacking; else a collector goes to
-    /// the nearest star and a fighter to the nearest enemy until within `NEAR`, then to the other.
+    /// the nearest star and a fighter to the nearest enemy (the boss once none is left) until within `NEAR`, then to the other.
     /// `main` and `skill` follow the slot's cadences; it never evades, which would leave the
     /// revive range.
     pub fn decide(&self, s: &Sight, slot: u8, tick: u32) -> Input {
