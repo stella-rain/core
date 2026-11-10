@@ -335,7 +335,7 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
 }
 
 /// Run cases recorded after `v1/` was frozen: only `current/` holds them.
-const CURRENT_ONLY: &[&str] = &["tutorial_opening"];
+const CURRENT_ONLY: &[&str] = &["tutorial_opening", "trial_kinds"];
 
 fn prove(tree: &str, name: &str, sweep: bool) {
     if tree == "v1" && CURRENT_ONLY.contains(&name) {
@@ -384,6 +384,7 @@ run_cases!(
     time_limit_kill,
     time_limit_overtime,
     trial,
+    trial_kinds,
     tutorial,
     tutorial_opening,
 );
@@ -392,7 +393,7 @@ run_cases!(
 /// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
 /// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
 /// `v1/` runs: `tutorial()` below reads one.
-const FEATURES: [(&str, bool, bool, bool); 10] = [
+const FEATURES: [(&str, bool, bool, bool); 11] = [
     ("easy", false, true, true),
     ("elites", false, true, true),
     ("rainy", false, true, true),
@@ -401,6 +402,7 @@ const FEATURES: [(&str, bool, bool, bool); 10] = [
     ("time_limit_kill", false, false, true),
     ("time_limit_overtime", false, false, true),
     ("trial", false, true, true),
+    ("trial_kinds", false, true, true),
     ("tutorial", false, true, true),
     ("tutorial_opening", false, true, true),
 ];
