@@ -6,6 +6,8 @@
 use crate::common;
 use crate::common::run::run_input_for;
 use serde_json::json;
+use std::fs;
+use std::path::PathBuf;
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::perk_sets::PerkSets;
@@ -215,31 +217,45 @@ fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
     );
 }
 
-/// The difficulties that keep the mode's full length (`easy` halves it).
-const LONG: [&str; 3] = ["normal", "hard", "rainy"];
+/// The case folders of the frozen v1 runs, in name order.
+fn v1_run_cases() -> Vec<PathBuf> {
+    let mut cases: Vec<PathBuf> =
+        fs::read_dir(crate::data_root::data_root().join("tests/corpus/v1/runs"))
+            .expect("tests/corpus/v1/runs exists")
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.is_dir())
+            .collect();
+    cases.sort();
+    assert!(
+        cases.len() >= 5,
+        "the v1 corpus has {} run cases, want at least 5",
+        cases.len()
+    );
+    cases
+}
 
-/// The most commands of the longest runs measured, over `SEEDS` seeds and every long difficulty
-/// and both bots, with the run setup's extra rerolls at their most. Slow (minutes in release),
-/// so `#[ignore]`d: `cargo test --release --test integration command_cap:: -- --ignored --nocapture`.
+/// The most commands of a frozen v1 run (`tests/corpus/v1/runs`), which a run's file holds as its
+/// command list. Read from the files, so fast; `#[ignore]`d only because the deep tier runs it
+/// by name: `cargo test --release --test integration command_cap:: -- --ignored --nocapture`.
 #[test]
-#[ignore = "the measurement of MAX_COMMANDS: minutes in release"]
+#[ignore = "the measurement of MAX_COMMANDS: the deep tier runs it by name"]
 fn measure_the_longest_run() {
-    let content = undying_content();
     let mut most = 0;
     let mut longest = None;
-    for difficulty in LONG {
-        for seed in 1..=5 {
-            for bot in [Bot::Takes, Bot::Spends] {
-                let played = play(&content, &setup(seed, difficulty, 20), bot);
-                println!(
-                    "difficulty {difficulty} seed {seed} {bot:?}: {} commands, {} ticks, {:?}",
-                    played.commands, played.replay.ticks, played.outcome
-                );
-                if played.commands > most {
-                    most = played.commands;
-                    longest = Some(played.replay);
-                }
-            }
+    for case in v1_run_cases() {
+        let bytes = fs::read(case.join("run.replay")).unwrap();
+        let n = RunReplay::from_bytes(&bytes)
+            .unwrap()
+            .unpack_commands()
+            .unwrap()
+            .len();
+        println!(
+            "case {}: {n} commands",
+            case.file_name().unwrap().to_string_lossy()
+        );
+        if n > most {
+            most = n;
+            longest = Some((case, bytes));
         }
     }
     println!("most commands: {most}");
@@ -251,7 +267,9 @@ fn measure_the_longest_run() {
         2 * most <= MAX_COMMANDS as usize,
         "MAX_COMMANDS is under twice {most}"
     );
-    // The longest run records within the cap and verifies from its file.
-    let verified = verify_run_with(&longest.unwrap().to_bytes(), &content).unwrap();
+    // The longest run verifies from its file, on the pack its case pins.
+    let (case, bytes) = longest.unwrap();
+    let content = crate::corpus_pins::case_pack(&case).unwrap();
+    let verified = verify_run_with(&bytes, content.content()).unwrap();
     assert_eq!(verified.commands as usize, most);
 }
