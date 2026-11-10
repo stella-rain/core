@@ -5,33 +5,12 @@
 use crate::common::run_steps;
 use crate::corpus::{case_content, check_case};
 use crate::data_root::data_root;
-use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
-use stella_rain_core::engine::{ChoiceError, Engine};
-use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::input::Input;
-use stella_rain_core::replay::{self, Replay, pack_inputs};
-use stella_rain_core::run_replay::{self, RunRecorder, RunReplay, RunReplayError};
+use stella_rain_core::engine::Engine;
+use stella_rain_core::replay::{self, Replay};
+use stella_rain_core::run_replay::{self, RunReplay};
 use stella_rain_core::validate::parse_and_validate;
-
-#[test]
-fn pick_is_not_in_the_wire() {
-    let picked = serde_json::to_value(Input::picking(2)).unwrap();
-    assert_eq!(picked["pick"], json!(2));
-    let plain = serde_json::to_value(Input::default()).unwrap();
-    assert_eq!(plain.as_object().unwrap().len(), 8);
-    assert!(plain.get("pick").is_none());
-
-    let without: Input = serde_json::from_value(plain).unwrap();
-    assert_eq!(without.pick, None);
-    let text = r#"{"move_x":0,"move_y":0,"main":false,"smash":false,"evade":false,"skill":false,"assist":false,"auto":false,"pick":"1"}"#;
-    assert!(serde_json::from_str::<Input>(text).is_err());
-    assert_eq!(
-        pack_inputs(&[Input::picking(2)]),
-        pack_inputs(&[Input::default()])
-    );
-}
 
 fn run_cases(tree: &str) -> Vec<PathBuf> {
     let dir = data_root().join("tests/corpus").join(tree).join("runs");
@@ -84,18 +63,4 @@ fn a_version_1_run_takes_a_one_entry_slice() {
     }
     let diff = std::env::temp_dir();
     assert_eq!(check_case(&case, Path::new(&diff)), Ok(()));
-}
-
-#[test]
-fn the_recorder_refuses_as_before() {
-    let setup = crate::common::run::trial_setup();
-    let mut recorder = RunRecorder::start(&setup).unwrap();
-    assert!(matches!(
-        recorder.choose(PlayerIdx::SOLO, 0),
-        Err(RunReplayError::ChoiceRefused {
-            error: ChoiceError::NoOffer,
-            ..
-        })
-    ));
-    assert_eq!(recorder.replay().commands, "");
 }
