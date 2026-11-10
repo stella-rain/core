@@ -5,10 +5,14 @@
 #![allow(dead_code)]
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_net::transport::{Transport, TransportError};
+use stella_rain_net::wire::MAX_PACKET_LEN;
+
+use super::Xorshift;
 
 /// What the network does to a message. Every rate is in permille (0 to 1000).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,7 +75,27 @@ pub struct Delivery {
     pub len: usize,
 }
 
-struct Inner {}
+/// A copy in flight.
+struct Queued {
+    from: u8,
+    to: u8,
+    bytes: Vec<u8>,
+}
+
+struct Inner {
+    peers: u8,
+    impair: Impair,
+    round: u32,
+    seq: u64,
+    /// One generator per directed link, indexed `3 * from + to`.
+    rngs: Vec<Xorshift>,
+    /// Copies in flight, ordered by `(due round, seq)`.
+    queue: BTreeMap<(u32, u64), Queued>,
+    /// The highest `seq` delivered on each link, indexed `3 * from + to`.
+    last_seq: [Option<u64>; 9],
+    stats: Stats,
+    trace: Vec<Delivery>,
+}
 
 /// The network: the clock (`step_round`) and the books (`stats`, `trace`).
 pub struct SimNet {
@@ -88,41 +112,130 @@ pub struct SimEndpoint {
 impl SimNet {
     /// A network for 2 or 3 peers; a permille above 1000 or another peer count panics.
     pub fn new(peers: u8, seed: u64, impair: Impair) -> SimNet {
-        todo!("{peers} {seed} {impair:?}")
+        assert!((2..=3).contains(&peers), "a simnet has 2 or 3 peers");
+        for permille in [impair.loss, impair.reorder, impair.duplicate] {
+            assert!(permille <= 1000, "a permille is at most 1000");
+        }
+        let rngs = (0..9u64)
+            .map(|link| {
+                let (from, to) = (link / 3, link % 3);
+                Xorshift::new(seed ^ (1 + 3 * from + to).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+            })
+            .collect();
+        SimNet {
+            inner: Rc::new(RefCell::new(Inner {
+                peers,
+                impair,
+                round: 0,
+                seq: 0,
+                rngs,
+                queue: BTreeMap::new(),
+                last_seq: [None; 9],
+                stats: Stats::default(),
+                trace: Vec::new(),
+            })),
+        }
     }
 
     /// The handle of the peer in `slot`.
     pub fn endpoint(&self, slot: u8) -> SimEndpoint {
-        todo!("{slot}")
+        assert!(slot < self.inner.borrow().peers, "no such peer");
+        SimEndpoint {
+            slot,
+            inner: Rc::clone(&self.inner),
+        }
     }
 
     /// Moves time on by one round.
     pub fn step_round(&self) {
-        todo!()
+        self.inner.borrow_mut().round += 1;
     }
 
     /// The current round, from 0.
     pub fn round(&self) -> u32 {
-        todo!()
+        self.inner.borrow().round
     }
 
     /// The counters so far.
     pub fn stats(&self) -> Stats {
-        todo!()
+        self.inner.borrow().stats
     }
 
     /// Every delivery so far, in the order `recv` returned them.
     pub fn trace(&self) -> Vec<Delivery> {
-        todo!()
+        self.inner.borrow().trace.clone()
     }
 }
 
 impl Transport for SimEndpoint {
     fn send(&mut self, to: PlayerIdx, packet: &[u8]) -> Result<(), TransportError> {
-        todo!("{} {to:?} {}", self.slot, packet.len())
+        if packet.len() > MAX_PACKET_LEN {
+            return Err(TransportError::TooLarge);
+        }
+        let mut net = self.inner.borrow_mut();
+        let to = u8::try_from(to.get()).expect("a slot is small");
+        if to == self.slot || to >= net.peers {
+            return Err(TransportError::Closed);
+        }
+        net.stats.sent += 1;
+        let link = usize::from(3 * self.slot + to);
+        let impair = net.impair;
+        let lost = net.rngs[link].below(1000) < u64::from(impair.loss);
+        if lost {
+            net.stats.lost += 1;
+            return Ok(());
+        }
+        let copies = if net.rngs[link].below(1000) < u64::from(impair.duplicate) {
+            net.stats.duplicated += 1;
+            2
+        } else {
+            1
+        };
+        for _ in 0..copies {
+            let rng = &mut net.rngs[link];
+            let mut delay = impair.latency;
+            delay += u32::try_from(rng.below(u64::from(impair.jitter) + 1)).expect("small");
+            if rng.below(1000) < u64::from(impair.reorder) {
+                delay +=
+                    1 + u32::try_from(rng.below(u64::from(impair.reorder_extra))).expect("small");
+            }
+            net.seq += 1;
+            let key = (net.round + delay, net.seq);
+            net.queue.insert(
+                key,
+                Queued {
+                    from: self.slot,
+                    to,
+                    bytes: packet.to_vec(),
+                },
+            );
+        }
+        Ok(())
     }
 
     fn recv(&mut self) -> Option<(PlayerIdx, Vec<u8>)> {
-        todo!("{}", self.slot)
+        let mut net = self.inner.borrow_mut();
+        let round = net.round;
+        let key = net
+            .queue
+            .range(..=(round, u64::MAX))
+            .find(|(_, q)| q.to == self.slot)
+            .map(|(key, _)| *key)?;
+        let queued = net.queue.remove(&key).expect("the key was just found");
+        let link = usize::from(3 * queued.from + queued.to);
+        net.stats.delivered += 1;
+        if net.last_seq[link].is_some_and(|last| key.1 < last) {
+            net.stats.reordered += 1;
+        }
+        net.last_seq[link] = net.last_seq[link].max(Some(key.1));
+        net.trace.push(Delivery {
+            round,
+            from: queued.from,
+            to: queued.to,
+            seq: key.1,
+            len: queued.bytes.len(),
+        });
+        let from = PlayerIdx::new(queued.from).expect("a slot below 3");
+        Some((from, queued.bytes))
     }
 }
