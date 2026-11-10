@@ -28,7 +28,7 @@ use super::{Load, Outcome, Places};
 // The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-7). One run
 // is held per engine, so the size difference costs nothing.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Run {
     /// Version 1, the frozen first rules (`sim_v1`).
     V1 {
@@ -44,6 +44,44 @@ pub(crate) enum Run {
         world: Arc<sim::World>,
         state: sim::state::State,
     },
+}
+
+impl Clone for Run {
+    fn clone(&self) -> Run {
+        match self {
+            Run::V1 {
+                world,
+                state,
+                events,
+            } => Run::V1 {
+                world: world.clone(),
+                state: state.clone(),
+                events: events.clone(),
+            },
+            Run::V2 { world, state } => Run::V2 {
+                world: world.clone(),
+                state: state.clone(),
+            },
+        }
+    }
+
+    /// The live rules copy their state into the one already held; the frozen rules, and a copy
+    /// between two versions, are a clone (only the live rules are in place).
+    fn clone_from(&mut self, source: &Run) {
+        match (&mut *self, source) {
+            (
+                Run::V2 { world, state },
+                Run::V2 {
+                    world: s_world,
+                    state: s_state,
+                },
+            ) => {
+                world.clone_from(s_world);
+                state.clone_from(s_state);
+            }
+            _ => *self = source.clone(),
+        }
+    }
 }
 
 /// The state of a savepoint, of the version that wrote it.
@@ -558,6 +596,11 @@ impl Run {
             Run::V1 { state, .. } => sim_v1::snapshot::places(state, out),
             Run::V2 { state, .. } => sim::snapshot::places(state, out),
         }
+    }
+
+    /// Whether this is the live rules, the ones a copy is made in place for.
+    pub(crate) fn is_live(&self) -> bool {
+        matches!(self, Run::V2 { .. })
     }
 
     /// Reserves the room a run holds from load, so a clone's first ticks do not grow it (DIR1).

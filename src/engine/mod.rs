@@ -232,23 +232,82 @@ impl Clone for Engine {
     /// A clone keeps the room the run reserved at load: a derived clone of a `Vec` has only its
     /// length, and the clone's first ticks would grow them (DIR1).
     fn clone(&self) -> Engine {
-        let mut run = self.run.clone();
+        let Engine {
+            content,
+            run,
+            events,
+            load,
+            ledger,
+            counted,
+            player_stats,
+            joiner,
+            #[cfg(test)]
+            forced,
+        } = self;
+        let mut run = run.clone();
         run.reserve();
         Engine {
-            content: self.content.clone(),
+            content: content.clone(),
             events: {
-                let mut events = self.events.clone();
+                let mut events = events.clone();
                 events.reserve(run.events_room().saturating_sub(events.len()));
                 events
             },
             run,
-            load: self.load,
-            ledger: self.ledger.clone(),
-            counted: self.counted.clone(),
-            player_stats: self.player_stats.clone(),
-            joiner: self.joiner.clone(),
+            load: *load,
+            ledger: ledger.clone(),
+            counted: counted.clone(),
+            player_stats: player_stats.clone(),
+            joiner: joiner.clone(),
             #[cfg(test)]
-            forced: self.forced,
+            forced: *forced,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds. A slot made by a
+    /// clone holds the room the run reserved, and a copy from the engine it was made from, or
+    /// from one of its own run, needs no more, so nothing is reserved here. A run that is not of
+    /// the live rules on both sides is a clone.
+    fn clone_from(&mut self, source: &Engine) {
+        if !(self.run.is_live() && source.run.is_live()) {
+            *self = source.clone();
+            return;
+        }
+        let Engine {
+            content,
+            run,
+            events,
+            load,
+            ledger,
+            counted,
+            player_stats,
+            joiner,
+            #[cfg(test)]
+            forced,
+        } = self;
+        let Engine {
+            content: s_content,
+            run: s_run,
+            events: s_events,
+            load: s_load,
+            ledger: s_ledger,
+            counted: s_counted,
+            player_stats: s_player_stats,
+            joiner: s_joiner,
+            #[cfg(test)]
+                forced: s_forced,
+        } = source;
+        content.clone_from(s_content);
+        run.clone_from(s_run);
+        events.clone_from(s_events);
+        *load = *s_load;
+        ledger.clone_from(s_ledger);
+        counted.clone_from(s_counted);
+        player_stats.clone_from(s_player_stats);
+        joiner.clone_from(s_joiner);
+        #[cfg(test)]
+        {
+            *forced = *s_forced;
         }
     }
 }
