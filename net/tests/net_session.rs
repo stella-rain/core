@@ -413,7 +413,12 @@ fn one_delay_and_window_per_party() {
     // The bound that makes one value per party a rule: tick + 2 * delay + window + 1.
     let tap = Tap::new();
     let mut s = solo(2, &tap, settings);
-    tap.push(slot(1), &Packet::Hello(hello()));
+    let peer = Hello {
+        delay: settings.delay,
+        window: settings.window,
+        ..hello()
+    };
+    tap.push(slot(1), &Packet::Hello(peer));
     tap.push(slot(1), &frame(1, 0, 13));
     s.poll().expect("poll");
     assert_eq!(s.session().next_tick(slot(1)), 14);

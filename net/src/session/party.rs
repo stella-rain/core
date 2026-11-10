@@ -23,9 +23,9 @@ pub const CHECKPOINTS_IN_FLIGHT: usize = 2;
 /// How many checkpoints are kept per slot.
 pub const CHECKPOINTS_KEPT: usize = 8;
 
-/// The one delay and window of a party. Every peer must be built from the same value: a frame
-/// is accepted only up to `tick + 2 * delay + window + 1`, so peers whose delay plus window
-/// differ by more than 2 refuse each other's inputs.
+/// The one delay and window of a party. Every peer must be built from the same value: the hello
+/// carries both and the handshake refuses a peer whose delay or window differs (ADR-NET-6
+/// point 3), so no input frame is exchanged between peers set up differently.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PartySettings {
     /// Ticks between a local input being given and being stepped.
@@ -50,7 +50,8 @@ pub struct NetConfig {
     pub local: PlayerIdx,
     /// The delay and window of the party.
     pub settings: PartySettings,
-    /// What this session says about itself in the handshake.
+    /// What this session says about itself in the handshake. Its `delay` and `window` are
+    /// replaced by those of `settings`, the one source.
     pub hello: Hello,
     /// The frame-advantage skew at which a session waits; `u32::MAX` turns the wait off.
     pub max_skew: u32,
@@ -315,7 +316,11 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             session,
             transport,
             local: config.local,
-            hello: config.hello,
+            hello: Hello {
+                delay: config.settings.delay,
+                window: config.settings.window,
+                ..config.hello
+            },
             max_skew: config.max_skew,
             party: u8::try_from(present.count_ones()).unwrap_or(3),
             peers,
@@ -449,7 +454,12 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     /// Maps one packet of peer `p` (its slot is the path's, never the packet's).
     fn map(&mut self, p: usize, packet: Packet) {
         let from = self.peers[p].slot;
-        if !self.peers[p].hello_ok && !matches!(packet, Packet::Hello(_) | Packet::Bye(_)) {
+        if !self.peers[p].hello_ok
+            && !matches!(
+                packet,
+                Packet::Hello(_) | Packet::HelloV1(_) | Packet::Bye(_)
+            )
+        {
             self.stats.dropped += 1;
             return;
         }
@@ -470,7 +480,14 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 return;
             }
             Packet::HelloV1(_) => {
+                // A protocol 1 peer: refused if it is the first hello, ignored after a good one.
                 self.stats.dropped += 1;
+                if !self.peers[p].hello_ok {
+                    self.stop(StopReason::Refused {
+                        slot: from,
+                        why: Refusal::Protocol,
+                    });
+                }
                 return;
             }
             Packet::Input(frame) => self.session.receive_inputs(from, &frame).is_ok(),
@@ -722,6 +739,10 @@ fn refusal(ours: &Hello, theirs: &Hello) -> Option<Refusal> {
         Some(Refusal::SimVersion)
     } else if ours.pack_hash != theirs.pack_hash {
         Some(Refusal::Pack)
+    } else if ours.delay != theirs.delay {
+        Some(Refusal::Delay)
+    } else if ours.window != theirs.window {
+        Some(Refusal::Window)
     } else {
         None
     }
