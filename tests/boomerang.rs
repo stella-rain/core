@@ -19,6 +19,7 @@ use stella_rain_core::runes::Runes;
 
 use crate::common;
 
+use common::equip::wait_for_tough;
 use common::on_hit::*;
 use common::*;
 
@@ -47,14 +48,9 @@ fn runes(cooldown: u32, damage: u32, right: i32) -> Runes {
     ])
 }
 
-/// The stage with seven small enemies and the tough target, every rune taken from its star.
+/// The stage with the tough target alone, every rune equipped.
 fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(
-        &stage(7, target),
-        &content(vec![random_rune()], None, runes),
-    );
-    take_all(&mut e);
-    e
+    every_rune_held(&target_stage(vec![target]), runes, vec![], None, &[])
 }
 
 fn cooldown(e: &Engine) -> u32 {
@@ -78,7 +74,7 @@ fn point(x: i32, y: i32) -> Point {
 #[test]
 fn a_combo_step_hit_throws_it_out_to_the_point_hit_and_back() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     let thrown = e.tick();
@@ -131,13 +127,13 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
         START_X + right,
         START_Y - 4_096,
     );
-    let mut s = stage(7, tough(0, None, None));
-    s.waves.push(serde_json::from_value(beside).unwrap());
-    let mut e = with(
-        &s,
-        &content(vec![random_rune()], None, runes(60, THROW, right)),
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, None, None), beside]),
+        runes(60, THROW, right),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
     while e.tick() < TARGET_TICK + 1 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -173,7 +169,7 @@ fn it_hits_an_enemy_on_its_way_once_out_and_once_back() {
 #[test]
 fn it_comes_back_to_where_the_main_character_has_moved() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
-    wait_for_target(&mut e);
+    wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     for _ in 0..LEG - 1 {
@@ -196,7 +192,7 @@ fn it_comes_back_to_where_the_main_character_has_moved() {
 #[test]
 fn its_cooldown_blocks_a_second_throw_until_it_reaches_0() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let seen = hits(&mut e, target, 300, |t| firing(idle(), t));
     let steps = of(&seen, 10);
     let throws = of(&seen, THROW);
@@ -232,7 +228,7 @@ fn held_with_explosion_and_thunder_each_fires_on_its_own_cooldown() {
         far("homing_missiles"),
     ]);
     let mut e = holding(runes, tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_eq!(
@@ -273,7 +269,7 @@ fn its_hits_fire_no_rune() {
         far("homing_missiles"),
     ]);
     let mut e = holding(runes, tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 60, once(start));
     assert_eq!(of(&seen, 10).len(), 1);
@@ -285,7 +281,7 @@ fn its_hits_fire_no_rune() {
 fn its_hits_give_no_expertise() {
     // The target gives 1 point a hit: the step's, not the throw's two.
     let mut e = holding(runes(60, THROW, 0), tough(0, None, Some(1)));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 20, once(start));
     assert_eq!(of(&seen, THROW).len(), 2, "the throw landed");
@@ -296,25 +292,26 @@ fn its_hits_give_no_expertise() {
 /// war cry's atk-up of 100 used before the step: `(step's hit, the throw's two)`.
 fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
-        "levels": [{ "cooldown_ticks": 1_000, "effects": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
         ] }] });
     let rewards = vec![
-        random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
                 "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct",
                 "type": ty, "amount": 50, "limit": 2 }),
     ];
-    let mut e = with(
-        &stage(9, tough(0, Some(profile), None)),
-        &content(rewards, Some(json!([war_cry])), runes(60, 10, 0)),
+    // The stage skill star arrives cooling for its cooldown: 1 tick, then ready.
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, Some(profile), None)]),
+        runes(60, 10, 0),
+        rewards,
+        Some(json!([war_cry])),
+        &[("war_cry_r", 0), ("bonus", 1)],
     );
-    take_all(&mut e);
-    take(&mut e, "war_cry_r");
-    take(&mut e, "bonus");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     e.step(&[
         Input {
             skill: true,
@@ -351,7 +348,7 @@ fn a_neutral_throw_gets_atk_up_but_no_type_bonus_or_match_up() {
 #[test]
 fn no_orb_comes_from_it() {
     let mut e = holding(runes(60, THROW, 0), tough(0, None, None));
-    wait_for_target(&mut e);
+    wait_for_tough(&mut e);
     let start = e.tick();
     for _ in 0..2 * LEG + 2 {
         e.step(&[
@@ -379,8 +376,8 @@ fn the_state_hash_holds_its_flight() {
         ]),
         tough(0, None, None),
     );
-    wait_for_target(&mut a);
-    wait_for_target(&mut b);
+    wait_for_tough(&mut a);
+    wait_for_tough(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
     a.step(&[once(start)(start), Default::default(), Default::default()]);
