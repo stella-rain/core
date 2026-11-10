@@ -1,8 +1,10 @@
 //! What a run's setup brings in at tick 0: the perk set's
 //! effects, the auto combo, the rune pool and the starting rune. They apply
-//! before the first step, in this order: the perk set, then the starting rune, then the Lumine star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn; the star
-//! is in the build from tick 0, its stats, skill, orbit and set count included). Nothing is
-//! drawn for any of them, so the generator's order is unchanged.
+//! before the first step, in this order: the perk set, then the starting rune, then the Lumine
+//! star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn; the star is in the build from tick 0, its
+//! stats, skill, orbit and set count included). Nothing is drawn for any of them, so the
+//! generator's order is unchanged. The live rules take no carried stars: the setup validator
+//! refuses `carried` at `sim_version` 2.
 //! Regen, the auto combo and the rune pool are fixed for the run and part of the setup, which
 //! the replay stores: the state hash writes nothing for them. The Lumine slot is career state
 //! and is hashed with the equipment.

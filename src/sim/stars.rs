@@ -9,10 +9,8 @@
 //! next tier up, or from the last tier. Then the main character takes every star inside its
 //! pickup circle, in the order they dropped.
 //!
-//! A boss kill makes the boss offer due to every player that is up, ahead of the stars taken that
-//! tick, at one rarity for the party: the highest of the drop table's tier for the highest level
-//! among those players after this tick's experience. A downed or out player gets none. It
-//! opens even though the kill clears the stage, and the stars' offers due then open after it.
+//! A boss kill gives its equipment bonus (`starlight::boss_bonus`) and the boss's drops
+//! (`drops::boss_killed`); it makes no offer due.
 //!
 //! The live rules open no star offer: a star taken, and a boss kill, add nothing due. A boss kill
 //! still gives its equipment bonus, and what a star is worth comes from the equipped stars
