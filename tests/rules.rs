@@ -575,7 +575,11 @@ fn offer_size_is_checked_at_its_bounds_at_version_1() {
     for (n, ok) in [(0, false), (1, true), (4, true), (5, false)] {
         let result = Rules::parse(&with("offer_size", n), V1);
         if ok {
-            assert_eq!(result.unwrap().offer_size(), n as u8, "{n}");
+            assert_eq!(
+                result.unwrap().offer_size(),
+                u8::try_from(n).unwrap(),
+                "{n}"
+            );
         } else {
             assert_eq!(paths(result), ["$.offer_size"], "{n}");
         }
