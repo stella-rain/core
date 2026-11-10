@@ -417,7 +417,14 @@ fn hostile_bytes_never_panic_and_are_all_accounted_for() {
     let valid = |rng: &mut Xorshift| -> Packet {
         match rng.below(5) {
             0 => Packet::Hello(hello()),
-            1 => frame(1, u32::try_from(rng.below(40)).expect("small"), 40),
+            1 => {
+                let start = u32::try_from(rng.below(40)).expect("small");
+                frame(
+                    1,
+                    start,
+                    start + u32::try_from(rng.below(20)).expect("small"),
+                )
+            }
             2 => Packet::Ack(Ack {
                 slot: slot(0),
                 next_tick: u32::try_from(rng.below(50)).expect("small"),

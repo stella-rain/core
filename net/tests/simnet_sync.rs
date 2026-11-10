@@ -206,14 +206,17 @@ fn a_tampered_input_stops_both_peers_on_the_divergent_checkpoint() {
     let oracle = straight(&sc, 2);
     let mut peers = Peers::new(sc, 2, 1, five(100));
     peers.set_tamper(flip(1, 0, 300..340));
-    assert!(
-        peers.run(&oracle),
-        "not stopped within {ROUND_LIMIT} rounds"
-    );
-    assert!(matches!(
-        peers.sessions[0].stop_reason(),
-        Some(StopReason::Desync { tick: 360, slot }) if slot == self::slot(1)
-    ));
+    // `check` would flag the divergent hashes before the checkpoint finds them.
+    let stopped = peers.run_with(|p| p.check_below(&oracle, 299));
+    assert!(stopped, "not stopped within {ROUND_LIMIT} rounds");
+    for (i, session) in peers.sessions.iter().enumerate() {
+        match session.stop_reason() {
+            Some(StopReason::Desync { tick, .. } | StopReason::PeerDesync { tick, .. }) => {
+                assert_eq!(tick, 360, "session {i}");
+            }
+            other => panic!("session {i}: {other:?}"),
+        }
+    }
     for i in 0..2 {
         assert_eq!(peers.sessions[i].phase(), Phase::Stopped, "session {i}");
         assert!(peers.sessions[i].session().tick() <= 420, "session {i}");
