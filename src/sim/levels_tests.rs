@@ -302,11 +302,7 @@ fn a_common_level_bumps_nothing_and_emits_nothing() {
     let events = pass(&mut e, 3, 8, Some(0), &[ATTACK]);
     let g = gauge(&e);
     assert!(g.taken.iter().all(|n| *n == 0));
-    assert!(
-        !events
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::ExpertiseOptionTaken { .. }))
-    );
+    assert!(events.is_empty(), "{events:?}");
     assert_eq!((g.offered, g.level, g.offer.is_none()), (8, 8, true));
 }
 

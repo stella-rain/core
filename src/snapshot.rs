@@ -149,8 +149,8 @@ pub struct PatternView {
 }
 
 /// The one expertise gauge of both weapons: its level, from 0, its points
-/// toward the next, the common options taken, the styles chosen and the Main style's path
-/// taken, and the open expertise offer (ADR-REPL-5).
+/// toward the next, the style chosen and the Main style's path
+/// taken (ADR-REPL-5).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExpertiseView {
@@ -160,10 +160,6 @@ pub struct ExpertiseView {
     pub points: u32,
     /// Points the next level needs.
     pub next: u32,
-    /// Times each option of the weapon's common pool was taken, in the pool's order; empty for
-    /// a weapon with no expertise content.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub taken: Vec<u8>,
     /// The weapon's style, chosen at the level table's style level and held for the run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<ContentId>,
@@ -171,10 +167,6 @@ pub struct ExpertiseView {
     /// capstone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path: Vec<ContentId>,
-    /// The open expertise offer: while it is open the world is stopped, and `Engine::choose`
-    /// takes one of its options.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub offer: Option<ExpertiseOfferView>,
 }
 
 /// What an expertise level offers.
@@ -244,32 +236,6 @@ pub struct StatValueView {
     pub next: u32,
 }
 
-/// An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's
-/// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
-/// fixed choices, with no reroll. None has a skip or a banish.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ExpertiseOfferView {
-    /// The expertise level that opened it.
-    pub level: u32,
-    pub kind: ExpertiseOfferKind,
-    pub candidates: Vec<ExpertiseCandidateView>,
-    /// What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll
-    /// of each while rerolls are left and another option could come.
-    pub options: Vec<OfferOption>,
-    /// Rerolls left in the run, shared with the stars' offers.
-    pub rerolls_left: u32,
-}
-
-/// An option an expertise offer holds.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ExpertiseCandidateView {
-    /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
-    /// chosen style's path.
-    pub option: ContentId,
-}
-
 /// Where the run stands in experience, levels and stat points (ADR-REPL-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -282,23 +248,10 @@ pub struct ProgressView {
     pub xp_next: u32,
     /// Points spent on each run stat, in the run stats' order (ADR-CONT-1).
     pub spent: Vec<u8>,
-    /// The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and
-    /// `Engine::choose` takes one of its options.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stat_offer: Option<StatOfferView>,
     /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
     /// of its options (ADR-REPL-5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offer: Option<OfferView>,
-}
-
-/// A stat offer: a level reached with `pick_stats` (DS18). No reroll, skip or banish.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct StatOfferView {
-    /// The run stats below their limit, in the run stats' order: option `i` of
-    /// `Engine::choose` raises `options[i]`.
-    pub options: Vec<ContentId>,
 }
 
 /// A falling star waiting on the map to be taken.

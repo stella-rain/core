@@ -426,7 +426,6 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 xp: p.xp,
                 xp_next: xp_next(world, p.level),
                 spent: p.spent.clone(),
-                stat_offer: None,
                 offer: offer_view(content.rewards(), s, shown),
             }),
         expertise: s.players.career(shown).expertise.as_ref().map(|g| {
@@ -435,10 +434,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 level: g.level,
                 points: g.points,
                 next: g.next,
-                taken: g.taken.clone(),
                 style,
                 path,
-                offer: None,
             }
         }),
         patterns: announced_patterns(world, s),

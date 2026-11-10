@@ -257,7 +257,7 @@ impl Run {
                 sim_v1::step(
                     version, world, rewards, expertise, state, inputs[0], frozen, load,
                 );
-                events.extend(frozen.drain(..).map(Into::into));
+                events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
             Run::V2 { world, state } => {
                 sim::step(
@@ -292,7 +292,7 @@ impl Run {
                     option.into(),
                     frozen,
                 );
-                events.extend(frozen.drain(..).map(Into::into));
+                events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
             Run::V2 { world, state } => {
                 sim::choose(version, world, rewards, state, player, option, events);

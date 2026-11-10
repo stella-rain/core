@@ -13,7 +13,7 @@ use crate::id::{ContentId, EntityId, PlayerIdx};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
+use crate::snapshot::{EntityKind, OfferKind};
 
 /// Which button's press took a combo step: A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -216,12 +216,6 @@ pub enum DomainEvent {
         stat: ContentId,
         spent: u8,
     },
-    /// A stat offer opened for a level reached with `pick_stats`, and the world stopped until a
-    /// choice closes it: `options` are the stats below their limit, in the run stats' order
-    /// (DS18).
-    StatOfferOpened {
-        options: Vec<ContentId>,
-    },
     /// A kill dropped the falling star `star` (ADR-REPL-5).
     StarDropped {
         star: EntityId,
@@ -310,23 +304,5 @@ pub enum DomainEvent {
     CandidateReplaced {
         slot: u8,
         reward: ContentId,
-    },
-    /// An expertise offer of `kind` opened for the level `level`, and the world stopped until a
-    /// choice closes it (ADR-REPL-5).
-    ExpertiseOfferOpened {
-        level: u32,
-        kind: ExpertiseOfferKind,
-        candidates: Vec<ContentId>,
-    },
-    /// The expertise option was taken: the run now has it `taken` times. A style, an upgrade or
-    /// a capstone is taken once.
-    ExpertiseOptionTaken {
-        option: ContentId,
-        taken: u8,
-    },
-    /// The expertise candidate at `slot` was drawn again, after a reroll.
-    ExpertiseCandidateReplaced {
-        slot: u8,
-        option: ContentId,
     },
 }

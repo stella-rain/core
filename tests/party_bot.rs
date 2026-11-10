@@ -752,7 +752,6 @@ mod decisions {
     use super::*;
     use crate::run_play::scripted_input;
     use crate::zone_bot::run_input;
-    use stella_rain_core::engine::ChoiceError;
     use stella_rain_core::fixed::Fx;
     use stella_rain_core::id::PlayerIdx;
 

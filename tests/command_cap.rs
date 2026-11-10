@@ -108,12 +108,8 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
 fn answer_offers(run: &mut RunRecorder, bot: Bot) {
     while run.engine().offer_open() {
         let snapshot = run.engine().snapshot();
-        if snapshot.expertise.and_then(|g| g.offer).is_some()
-            || snapshot
-                .progress
-                .as_ref()
-                .is_some_and(|p| p.stat_offer.is_some())
-        {
+        // No star offer is shown: a frozen run's stat or expertise offer, which has no view.
+        if snapshot.progress.as_ref().is_none_or(|p| p.offer.is_none()) {
             run.choose(PlayerIdx::SOLO, 0).unwrap();
             continue;
         }

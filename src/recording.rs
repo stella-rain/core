@@ -13,10 +13,10 @@
 //! tick. The next `StateHash` is the next tick's, so there is still one hash a tick.
 //!
 //! ```text
-//! {"tick":996,"dir":"be>fe","type":"StatOfferOpened","data":{"options":["max_hp","attack"]}}
+//! {"tick":996,"dir":"be>fe","type":"OfferOpened","data":{"kind":"star","rarity":"common","candidates":["sharp_edge","swift_step"]}}
 //! {"tick":996,"dir":"be>fe","type":"StateHash","data":"41109eebb5db56d4"}
 //! {"tick":996,"dir":"fe>be","type":"Choose","data":{"index":1}}
-//! {"tick":996,"dir":"be>fe","type":"StatRaised","data":{"stat":"attack","spent":1}}
+//! {"tick":996,"dir":"be>fe","type":"RewardTaken","data":{"reward":"swift_step","taken":1}}
 //! ```
 
 use std::fmt;

@@ -44,7 +44,6 @@ struct Seen {
     zone: bool,
     star: bool,
     offer: bool,
-    expertise_offer: bool,
 }
 
 const TICKS: u32 = 600;
@@ -70,7 +69,6 @@ fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen
     seen.zone |= !snap.zones.is_empty();
     seen.star |= !snap.stars.is_empty();
     seen.offer |= snap.progress.as_ref().is_some_and(|p| p.offer.is_some());
-    seen.expertise_offer |= snap.expertise.as_ref().is_some_and(|x| x.offer.is_some());
 }
 
 /// Plays `TICKS` ticks taking option 0 at every offer, observing each.
@@ -166,10 +164,10 @@ fn the_snapshot_and_places_bytes_are_pinned() {
         [
             412_818_838_291_876_013,
             12_829_727_334_647_821_083,
-            865_021_986_142_367_416,
-            10_119_091_562_524_971_353,
+            17_855_876_323_284_583_904,
+            17_246_493_444_519_606_257,
             6_438_994_331_722_358_287,
-            3_396_478_400_011_208_156
+            12_484_909_366_339_812_250
         ],
         "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
     );
@@ -180,7 +178,6 @@ fn the_snapshot_and_places_bytes_are_pinned() {
         (seen.zone, "a zone"),
         (seen.star, "a star"),
         (seen.offer, "progress.offer"),
-        (seen.expertise_offer, "expertise.offer"),
     ]
     .iter()
     .filter(|(ok, _)| !ok)

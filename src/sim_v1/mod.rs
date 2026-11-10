@@ -168,10 +168,9 @@ use crate::validate::limits::DAMAGE_SCALE;
 use views::OfferOption;
 
 use entity::{Who, scale_damage, status_pct};
-pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 use grid::Grid;
-pub(crate) use levels::{offer_view as stat_offer_view, set_policy, xp_next};
+pub(crate) use levels::{set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
