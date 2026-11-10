@@ -231,7 +231,7 @@ impl Peers {
             }
             let live = self.sessions[i].phase() != Phase::Stopped
                 && self.sessions[i].session().tick() < self.stops[i];
-            if !live {
+            if !live || self.per_round[i] == 0 {
                 let _ = self.sessions[i].poll();
                 continue;
             }
