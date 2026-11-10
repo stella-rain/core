@@ -461,6 +461,42 @@ mod offers {
         PlayerIdx::new(i).unwrap()
     }
 
+    /// What a run starts with, and what the state keeps: the stage's rerolls and banishes, nothing
+    /// due, nothing open, nothing taken (ADR-SIM-3, ADR-SIM-7).
+    #[test]
+    fn an_initial_run_holds_the_offers_the_stage_gives() {
+        let rewards = crate::run_content::RunContent::bundled()
+            .rewards()
+            .rewards()
+            .len();
+        for mode in ["trial", "time_limit"] {
+            let setup = crate::run_setup::RunSetup {
+                mode: mode.into(),
+                seed: 20_261_010,
+                ..Default::default()
+            };
+            let e = Engine::start(&setup).unwrap();
+            let (world, state) = live(&e);
+            let cfg = world.stars.as_ref().expect("the mode has stars");
+            let o = state
+                .players
+                .career(PlayerIdx::SOLO)
+                .offers
+                .as_ref()
+                .expect("slot 0 holds offers");
+            assert!(o.due.is_empty(), "{mode}");
+            assert!(o.offer.is_none(), "{mode}");
+            assert_eq!(o.rerolls_left, u32::from(cfg.rerolls), "{mode}");
+            assert_eq!(o.banishes_left, u32::from(cfg.banishes), "{mode}");
+            assert_eq!(o.extra_candidates, 0, "{mode}");
+            assert_eq!(o.taken.len(), rewards, "{mode}");
+            assert!(o.taken.iter().all(|&n| n == 0), "{mode}");
+            assert_eq!(o.banished.len(), rewards, "{mode}");
+            assert!(o.banished.iter().all(|&b| !b), "{mode}");
+            assert!(o.set_counts.iter().all(|&n| n == 0), "{mode}");
+        }
+    }
+
     /// A party of `mask` over the worst case, whose slot 0 holds offers with every field set.
     fn party(mask: u8) -> State {
         let e = crate::bench_fixtures::worst_case::warmed_up();
