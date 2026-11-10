@@ -67,11 +67,12 @@ fn schema_2_cases_are_their_schema_1_forms() {
         assert_is_its_schema_1_form(&name, &two, &case_content(case).unwrap());
     }
     assert_eq!(checked + skipped, runs.len());
-    // Every case is an equipment run: only the tutorial, which is shorter than the bot's first
-    // decision, holds no action; the other 8 hold at least a tree pick.
+    // Every case but `tutorial_opening` is an equipment run that holds at least a tree pick;
+    // `tutorial_opening` stops at tick 240, before the bot's first pick (tick 292), so it is the
+    // one case with no action.
     assert_eq!(
         (checked, skipped),
-        (1, 8),
+        (1, 9),
         "the cases with and without actions"
     );
     // A run with offers is still its schema 1 form: the offers-era trial, recorded here.

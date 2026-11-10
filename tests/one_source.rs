@@ -235,8 +235,12 @@ fn no_content_file_has_its_own_version() {
         for field in ["schema_version", "sim_version"] {
             if is_stage {
                 // A stage member of the pack is read at the versions it carries: schema 1.
+                // The tutorial opts its golem into the chase and a late arrival, which a stage
+                // reads from `sim_version` 2 (ADR-SIM-4): its file says the pack's version.
                 let current = if field == "schema_version" {
                     FIRST_SCHEMA_VERSION
+                } else if slot.name == "tutorial" {
+                    SIM_VERSION
                 } else {
                     FIRST_SIM_VERSION
                 };

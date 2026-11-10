@@ -104,7 +104,9 @@ fn corpus_runs(seen: &mut Seen, hashed: Hashed) -> u64 {
     let mut h = StateHasher::new();
     for bytes in replays {
         let recorded = crate::run_replay::RunReplay::from_bytes(bytes).expect("a run replay");
-        let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).expect("a stage");
+        // The stage comes from the version 1 pack's own mode files, not the bundled ones: the
+        // bundled tutorial file is a version 2 stage.
+        let stage = run_setup::stage_in(&recorded.setup, content).expect("a stage");
         let inputs = recorded
             .unpack_inputs(run_setup::max_replay_ticks(
                 &recorded.setup,

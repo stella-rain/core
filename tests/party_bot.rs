@@ -1071,10 +1071,17 @@ mod builds {
 
     #[test]
     fn a_fighter_with_no_enemy_hunts_the_boss() {
-        let mut e = tutorial_engine(1);
-        e.step(&[Input::default(); 3]);
-        assert_eq!(nearest_of(&e, 0, EntityKind::Enemy), None, "no bat yet");
-        let boss = nearest_of(&e, 0, EntityKind::Boss).expect("the golem is parked at tick 1");
+        // The golem comes onto the field at tick 4000, long after the last bat: play the tutorial
+        // party to that tick and look at what the first slot sees.
+        let case = crate::run_play::party_case("three_tutorial", 1, 1);
+        let replay = case.play().replay();
+        let run = RigRun::of(&replay);
+        let mut e =
+            Engine::start_party_with(&case.setup, Pack::bundled().content(), run.n).unwrap();
+        run.play_onto(&mut e, 0, 4000);
+        assert_eq!(e.tick(), 4000);
+        assert_eq!(nearest_of(&e, 0, EntityKind::Enemy), None, "no bat left");
+        let boss = nearest_of(&e, 0, EntityKind::Boss).expect("the golem arrives at tick 4000");
         assert_eq!(sight(&e, 0).enemy, Some(boss));
     }
 

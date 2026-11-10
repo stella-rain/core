@@ -100,19 +100,19 @@ fn an_equipment_run_replays_to_its_recorded_hashes() {
 fn every_run_case_replays_to_its_checkpoints() {
     let mut cases = case_dirs(&runs_dir());
     cases.extend(case_dirs(&frozen_runs_dir()));
-    assert_eq!(cases.len(), 18);
+    assert_eq!(cases.len(), 19);
     for case in cases {
         let (replay, _, pack) = load(&case);
         let steps = RunSteps::of(&replay);
         let name = case.display().to_string();
         assert_eq!(steps.party, 1, "{name}");
-        // Every current case is an equipment run (only `tutorial`, shorter than the bot's first
-        // decision, holds no action); the frozen offers-era runs hold none.
+        // Every current case is an equipment run (only `tutorial_opening`, shorter than the bot's
+        // first decision, holds no action); the frozen offers-era runs hold none.
         let frozen = case.starts_with(frozen_runs_dir());
         let acts = count(&steps, |s| matches!(s, Step::Actions(_)));
         assert_eq!(
             acts > 0,
-            !frozen && case.file_name().is_some_and(|n| n != "tutorial"),
+            !frozen && case.file_name().is_some_and(|n| n != "tutorial_opening"),
             "{name}: {acts} ACTIONS steps"
         );
         assert_eq!(steps.has_actions(), acts > 0, "{name}");
