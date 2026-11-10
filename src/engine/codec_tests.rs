@@ -720,27 +720,18 @@ fn live_player_state_down_and_out_fields_move_the_encoding() {
 
 /// The live state holds no stat-offer or expertise-offer fields: the encoding is the Base length
 /// less what they took. Per `Progress` present: `pick_stats` 1, `offers_due` 4, `offer_open` 1.
-/// Per gauge present: `offered` 4, `offer` 1 (absent), `taken` its prefix and entries.
+/// Per gauge present: `offered` 4, `offer` 1 (absent), `taken` a 4-byte prefix and one byte an
+/// entry.
 #[test]
 fn the_state_has_no_level_offer_fields() {
     use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
-    // (case, encoded length at the Base, Progress present, the gauge's `taken` entries if any)
+    // (case, encoded length at the Base, bytes the removed fields took)
     let cases = [
-        (worst_case::warmed_up(), 144_106, true, None),
-        (hit_case::warmed_up(), 263_006, false, None),
-        (time_limit_case::warmed_up(), 30_445, true, Some(5)),
+        (worst_case::warmed_up(), 144_106, 6),
+        (hit_case::warmed_up(), 263_006, 0),
+        (time_limit_case::warmed_up(), 30_445, 6 + 4 + 1 + 4 + 5),
     ];
-    for (e, base, progress, taken) in cases {
-        let Run::V2 { state, .. } = e.run() else {
-            panic!("the live rules")
-        };
-        let c = state.players.career(crate::id::PlayerIdx::SOLO);
-        assert_eq!(c.progress.is_some(), progress);
-        assert_eq!(c.expertise.as_ref().map(|g| g.taken.len()), taken);
-        let mut removed = if progress { 6 } else { 0 };
-        if let Some(g) = &c.expertise {
-            removed += 4 + 1 + to_bytes(&g.taken).len();
-        }
+    for (e, base, removed) in cases {
         assert_eq!(crate::savepoint::encode_state(&e).len(), base - removed);
     }
 }

@@ -294,9 +294,6 @@ mod careers {
                 limit: 4,
             }],
             priority: vec![0],
-            pick_stats: true,
-            offers_due: 1,
-            offer_open: false,
             spent: vec![1],
             totals: [2; StatEffect::ALL.len()],
             set_tenths: [3; StatEffect::ALL.len()],
@@ -371,20 +368,14 @@ mod careers {
             xp: _,
             stats: _,
             priority: _,
-            pick_stats: _,
-            offers_due: _,
-            offer_open: _,
             spent: _,
             totals: _,
             set_tenths: _,
         } = progress();
-        let edits: [(&str, Edit); 11] = [
+        let edits: [(&str, Edit); 8] = [
             ("level", |p| p.level += 1),
             ("xp", |p| p.xp += 1),
             ("priority", |p| p.priority.push(1)),
-            ("pick_stats", |p| p.pick_stats = !p.pick_stats),
-            ("offers_due", |p| p.offers_due += 1),
-            ("offer_open", |p| p.offer_open = !p.offer_open),
             ("spent", |p| p.spent[0] += 1),
             ("totals", |p| p.totals[0] += 1),
             ("the last total", |p| p.totals[12] += 1),
@@ -725,11 +716,10 @@ mod offers {
 // `Career.stardust`, `Career.regen` (ADR-SIM-7).
 
 mod career_rest {
-    use super::super::state::{ExpertiseGauge, ExpertiseOffer};
+    use super::super::state::ExpertiseGauge;
     use super::super::{expertise, loadout, stardust};
     use super::*;
     use crate::perk_sets::{PerkEffect, PerkEntry};
-    use crate::snapshot::ExpertiseOfferKind;
     use crate::stage::{ExpertisePoints, StardustFactor, StardustTier};
 
     fn slot(i: u8) -> PlayerIdx {
@@ -743,13 +733,6 @@ mod career_rest {
             level: 1 + k,
             points: 2 + k,
             next: 30 + k,
-            offered: 1 + k,
-            offer: Some(ExpertiseOffer {
-                level: 1 + k,
-                kind: ExpertiseOfferKind::Common,
-                candidates: vec![0, 1],
-            }),
-            taken: vec![1, 2],
             range_pct: 5 + k,
             style: Some(1),
             path: vec![0, 1],
@@ -781,11 +764,6 @@ mod career_rest {
                 Box::new(|g| g.level += 1),
                 Box::new(|g| g.points += 1),
                 Box::new(|g| g.next += 1),
-                Box::new(|g| g.offered += 1),
-                Box::new(|g| g.offer = None),
-                Box::new(|g| g.offer.as_mut().unwrap().level += 1),
-                Box::new(|g| g.offer.as_mut().unwrap().candidates.push(2)),
-                Box::new(|g| g.taken[0] += 1),
                 Box::new(|g| g.range_pct += 1),
                 Box::new(|g| g.style = None),
                 Box::new(|g| g.path.push(1)),
@@ -799,18 +777,10 @@ mod career_rest {
                 level: _,
                 points: _,
                 next: _,
-                offered: _,
-                offer: _,
-                taken: _,
                 range_pct: _,
                 style: _,
                 path: _,
             } = gauge(0);
-            let ExpertiseOffer {
-                level: _,
-                kind: _,
-                candidates: _,
-            } = gauge(0).offer.unwrap();
             let mut s = base.clone();
             career(&mut s, 0).expertise = None;
             assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} gauge none");

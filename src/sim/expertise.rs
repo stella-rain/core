@@ -67,14 +67,10 @@ fn gives_points(stage: &World) -> bool {
 
 /// The gauge a run of `stage` starts with, at level 0.
 pub(super) fn initial(stage: &World, expertise: &Expertise) -> Option<ExpertiseGauge> {
-    let taken = || vec![0; pool(stage, expertise).len()];
     gives_points(stage).then(|| ExpertiseGauge {
         level: 0,
         points: 0,
         next: need(expertise, 1, 0),
-        offered: 0,
-        offer: None,
-        taken: taken(),
         range_pct: 0,
         style: None,
         path: Vec::new(),
@@ -155,20 +151,20 @@ fn raise_levels(expertise: &Expertise, g: &mut ExpertiseGauge) {
     }
 }
 
-/// The kind of the offer level `level` opens; none at level 0.
+/// The kind of the tree level `level` is; none at level 0 and at a level that is no tree level.
 fn slot(table: &LevelTable, level: u32) -> Option<ExpertiseOfferKind> {
-    use ExpertiseOfferKind::{Capstone, Common, Style, Upgrade};
-    Some(if level == 0 {
-        return None;
+    use ExpertiseOfferKind::{Capstone, Style, Upgrade};
+    if level == 0 {
+        None
     } else if level == table.style {
-        Style
+        Some(Style)
     } else if table.upgrades.contains(&level) {
-        Upgrade
+        Some(Upgrade)
     } else if level == table.capstone {
-        Capstone
+        Some(Capstone)
     } else {
-        Common
-    })
+        None
+    }
 }
 
 /// The expertise content of the one weapon: none for an inline weapon.
@@ -177,11 +173,6 @@ fn content<'a>(stage: &World, expertise: &'a Expertise) -> Option<&'a WeaponExpe
         WeaponRef::Preset { id, .. } => expertise.weapon(id),
         WeaponRef::Inline(_) => None,
     }
-}
-
-/// The common pool of the weapon: empty for an inline weapon, which has no expertise content.
-fn pool<'a>(stage: &World, expertise: &'a Expertise) -> &'a [ExpertiseOption] {
-    content(stage, expertise).map_or(&[], |w| &w.common)
 }
 
 /// One choice an offer can hold: a common option, a style, or a choice of a style's path.
@@ -332,16 +323,6 @@ pub(super) fn start_set(stage: &World, expertise: &Expertise, s: &mut State, me:
     if let (Some(g), Some(p)) = (career.expertise.as_ref(), career.progress.as_mut()) {
         write_set(stage, expertise, p, player, None, (g.style, g.level));
     }
-}
-
-/// The pass over the levels due to `me`, in every mode: no offer opens, nothing is drawn and no
-/// stat is added. The levels of the style path are tree points (held, see the tree rules); every
-/// other level only raises the weapon level, which is all the pass records (`offered`).
-pub(super) fn open_due(s: &mut State, me: PlayerIdx) {
-    let Some(g) = s.players.career_mut(me).expertise.as_mut() else {
-        return;
-    };
-    g.offered = g.offered.max(g.level);
 }
 
 // --- the equipment build: tree points ----------------------------------------------------------

@@ -17,7 +17,7 @@ use super::world::RangedPool;
 use crate::engine::Outcome;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{ExpertiseOfferKind, OfferKind};
+use crate::snapshot::OfferKind;
 
 // ---- Attacks, orbs and zones ----
 
@@ -1065,12 +1065,6 @@ enum_codec! {
         OfferKind::Star => 0,
         OfferKind::Boss => 1,
     };
-    ExpertiseOfferKind, "expertise offer kind tag": {
-        ExpertiseOfferKind::Common => 0,
-        ExpertiseOfferKind::Style => 1,
-        ExpertiseOfferKind::Upgrade => 2,
-        ExpertiseOfferKind::Capstone => 3,
-    };
     Rune, "rune tag": {
         Rune::Explosion => 0,
         Rune::Thunder => 1,
@@ -1595,9 +1589,6 @@ impl Encode for Progress {
             // not saved: the run stats' rules are content: `decode_state` copies them from the fresh engine
             stats: _,
             priority,
-            pick_stats,
-            offers_due,
-            offer_open,
             spent,
             totals,
             set_tenths,
@@ -1605,9 +1596,6 @@ impl Encode for Progress {
         level.encode(w);
         xp.encode(w);
         priority.encode(w);
-        pick_stats.encode(w);
-        offers_due.encode(w);
-        offer_open.encode(w);
         spent.encode(w);
         totals.encode(w);
         set_tenths.encode(w);
@@ -1622,9 +1610,6 @@ impl Decode for Progress {
             xp: Decode::decode(r)?,
             stats: Vec::new(),
             priority: decode_vec(r, MAX_PLACES)?,
-            pick_stats: Decode::decode(r)?,
-            offers_due: Decode::decode(r)?,
-            offer_open: Decode::decode(r)?,
             spent: decode_vec(r, MAX_PLACES)?,
             totals: Decode::decode(r)?,
             set_tenths: Decode::decode(r)?,
@@ -1799,9 +1784,6 @@ impl Encode for ExpertiseGauge {
             level,
             points,
             next,
-            offered,
-            offer,
-            taken,
             range_pct,
             style,
             path,
@@ -1809,9 +1791,6 @@ impl Encode for ExpertiseGauge {
         level.encode(w);
         points.encode(w);
         next.encode(w);
-        offered.encode(w);
-        offer.encode(w);
-        taken.encode(w);
         range_pct.encode(w);
         style.encode(w);
         path.encode(w);
@@ -1824,35 +1803,9 @@ impl Decode for ExpertiseGauge {
             level: Decode::decode(r)?,
             points: Decode::decode(r)?,
             next: Decode::decode(r)?,
-            offered: Decode::decode(r)?,
-            offer: Decode::decode(r)?,
-            taken: decode_vec(r, MAX_PLACES)?,
             range_pct: Decode::decode(r)?,
             style: Decode::decode(r)?,
             path: decode_vec(r, MAX_PLACES)?,
-        })
-    }
-}
-
-impl Encode for ExpertiseOffer {
-    fn encode(&self, w: &mut Writer) {
-        let ExpertiseOffer {
-            level,
-            kind,
-            candidates,
-        } = self;
-        level.encode(w);
-        kind.encode(w);
-        candidates.encode(w);
-    }
-}
-
-impl Decode for ExpertiseOffer {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(ExpertiseOffer {
-            level: Decode::decode(r)?,
-            kind: Decode::decode(r)?,
-            candidates: decode_vec(r, MAX_PLACES)?,
         })
     }
 }
@@ -2173,12 +2126,6 @@ mod enum_tests {
             Rarity::Supernova,
         ]);
         tags(&[OfferKind::Star, OfferKind::Boss]);
-        tags(&[
-            ExpertiseOfferKind::Common,
-            ExpertiseOfferKind::Style,
-            ExpertiseOfferKind::Upgrade,
-            ExpertiseOfferKind::Capstone,
-        ]);
         tags(&[
             Rune::Explosion,
             Rune::Thunder,
