@@ -18,6 +18,9 @@ use crate::predict::InputQueue;
 use crate::save::{CloneRing, Save};
 use crate::wire::{InputFrame, MAX_FRAME_INPUTS, WireInput};
 
+pub mod party;
+pub mod report;
+
 /// The default window: the most ticks a session predicts past what it has confirmed.
 pub const DEFAULT_WINDOW: u32 = 4;
 /// The largest window a session accepts; it only bounds memory (one clone per tick of window).
@@ -145,6 +148,19 @@ struct Record {
     hash: u64,
 }
 
+/// One confirmed tick as it was simulated, kept by [`Session::keep_confirmed`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConfirmedTick {
+    /// The tick number, from 0.
+    pub tick: u32,
+    /// The inputs stepped, one per slot (a left or absent slot's is the default).
+    pub inputs: [WireInput; 3],
+    /// The slots whose leave is stamped on this tick, bit `i` for slot `i`.
+    pub leaves: u8,
+    /// The state hash after this tick.
+    pub hash: u64,
+}
+
 /// A rollback session over one engine.
 pub struct Session<S: Save = CloneRing> {
     config: Config,
@@ -243,6 +259,25 @@ impl<S: Save> Session<S> {
             rolled_back,
             waiting: None,
         })
+    }
+
+    /// Repairs any tick a late input contradicts and confirms what is known, without stepping:
+    /// returns the ticks re-simulated. A call for a peer that must not step (frame advantage,
+    /// a finished peer).
+    pub fn confirm(&mut self) -> Result<u32, SessionError> {
+        todo!()
+    }
+
+    /// Starts keeping the log of confirmed ticks, from the first one not yet confirmed. Off by
+    /// default.
+    pub fn keep_confirmed(&mut self) {
+        todo!()
+    }
+
+    /// Drains the log of confirmed ticks kept since the last call; empty unless
+    /// [`Session::keep_confirmed`] was called.
+    pub fn take_confirmed(&mut self) -> Vec<ConfirmedTick> {
+        todo!()
     }
 
     /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error
