@@ -669,7 +669,7 @@ mod stop_runs {
 
     /// The state hash of the stop engine after 600 bot steps (a pick is a step): an offers-mode run, after
     /// the stat and expertise offers left; its picks are star offers only.
-    const STOP_HASH_600: u64 = 1_205_394_011_514_999_538;
+    const STOP_HASH_600: u64 = 3_773_488_636_726_684_381;
 
     #[test]
     fn stop_is_byte_identical_to_the_base() {

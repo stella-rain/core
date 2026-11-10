@@ -495,14 +495,6 @@ macro_rules! state_codec_v2 {
                         return Err(differs("star set_counts length differs from the content"));
                     }
                 }
-                if let (Some(a), Some(f)) = (
-                    &s.players.career(me).expertise,
-                    &fresh.players.career(PlayerIdx::SOLO).expertise,
-                ) {
-                    if a.taken.len() != f.taken.len() {
-                        return Err(differs("expertise taken length differs from the content"));
-                    }
-                }
             }
             if let (Some(a), Some(f)) = (&s.horde, &fresh.horde) {
                 if a.used.len() != f.used.len() {
@@ -651,17 +643,6 @@ macro_rules! state_codec_v2 {
                 if let Some(g) = &s.players.career(me).expertise {
                     crate::sim::check_tree(world, content.expertise(), g)
                         .map_err(DecodeError::Invalid)?;
-                    if let Some(o) = &g.offer {
-                        if o.kind == crate::snapshot::ExpertiseOfferKind::Common {
-                            for c in &o.candidates {
-                                below(
-                                    usize::from(*c),
-                                    g.taken.len(),
-                                    "expertise candidate out of range",
-                                )?;
-                            }
-                        }
-                    }
                 }
             }
             Ok(())
@@ -1357,15 +1338,8 @@ mod career_rest_tests {
             let counted = e.saved_parts().1;
             let mut bad = state.clone();
             let c = bad.players.career_mut(PlayerIdx::SOLO);
-            if let Some(g) = c.expertise.as_mut() {
+            if c.expertise.is_some() {
                 checked += 1;
-                g.taken.push(0);
-                assert_eq!(
-                    check_shape(&bad, counted, blank, counted),
-                    Err(DecodeError::Invalid(
-                        "expertise taken length differs from the content"
-                    ))
-                );
                 bad.players.career_mut(PlayerIdx::SOLO).expertise = None;
                 assert_eq!(
                     check_shape(&bad, counted, blank, counted),

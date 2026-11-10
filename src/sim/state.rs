@@ -18,7 +18,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::sim::equipment::Equipment;
 use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
-use crate::snapshot::{EntityKind, ExpertiseOfferKind, OfferKind};
+use crate::snapshot::{EntityKind, OfferKind};
 use crate::validate::{self};
 use std::sync::LazyLock;
 
@@ -186,13 +186,6 @@ pub(crate) struct ExpertiseGauge {
     pub points: u32,
     /// The points the next level needs.
     pub next: u32,
-    /// The levels whose offers have opened or were passed over: those above it, up to `level`,
-    /// are due, in level order.
-    pub offered: u32,
-    pub offer: Option<ExpertiseOffer>,
-    /// For each option of the weapon's common pool, in the pool's order: times taken. Empty
-    /// for a weapon with no expertise content.
-    pub taken: Vec<u8>,
     /// What the range options taken add up to: every combo step's hit box that much wider,
     /// with the range rewards'.
     pub range_pct: u32,
@@ -202,16 +195,6 @@ pub(crate) struct ExpertiseGauge {
     /// The places of the style's choices taken at the upgrade and capstone levels, in level
     /// order.
     pub path: Vec<u8>,
-}
-
-/// An open expertise offer: common options, or a style's fixed choices.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ExpertiseOffer {
-    /// The level that opened it.
-    pub level: u32,
-    pub kind: ExpertiseOfferKind,
-    /// Places in the weapon's common pool, or among the fixed choices, in the offer's order.
-    pub candidates: Vec<u8>,
 }
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
@@ -313,12 +296,6 @@ pub(crate) struct Progress {
     /// Every stat's place in `stats`, in the order a level-up spends its point on them: the
     /// setup's stat priority, then the stats it leaves out in their own order.
     pub priority: Vec<u8>,
-    /// A level-up opens a stat offer instead of spending by `priority`.
-    pub pick_stats: bool,
-    /// Levels reached whose stat offers have not opened yet.
-    pub offers_due: u32,
-    /// A stat offer is open: `Engine::choose` takes one of the stats below their limit.
-    pub offer_open: bool,
     /// Points spent on each run stat, in the run stats' order.
     pub spent: Vec<u8>,
     /// What the points spent add up to for each effect, in `StatEffect::ALL` order.

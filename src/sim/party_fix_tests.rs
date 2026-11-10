@@ -85,15 +85,12 @@ fn queued_offers_are_dropped_when_a_player_goes_out() {
         .extend([star_due(), star_due()]);
     let gauge = career.expertise.as_mut().expect("expertise");
     gauge.level = 3;
-    gauge.offered = 1;
 
     let mut ev = Vec::new();
     tick_down_and_revive(&w, &mut s, &idle(), &mut ev);
     assert!(ev.contains(&DomainEvent::PlayerOut { player: slot(1) }));
     let career = s.players.career(slot(1));
     assert!(career.offers.as_ref().unwrap().due.is_empty());
-    let gauge = career.expertise.as_ref().unwrap();
-    assert_eq!(gauge.offered, gauge.level);
 }
 
 // --- offers of a downed and an out player (ADR-SIM-7 point 4) ----------------------------------
@@ -280,7 +277,6 @@ fn level_up_state(n: u8) -> (World, State) {
     for i in s.players.indices().collect::<Vec<_>>() {
         let at = max_hp_stat(&s, i);
         let p = s.players.career_mut(i).progress.as_mut().unwrap();
-        p.pick_stats = false;
         p.priority = vec![u8::try_from(at).unwrap()];
     }
     (world, s)
@@ -555,15 +551,6 @@ fn experience_goes_to_the_players_that_are_up_only() {
     assert_eq!(leveled(&ev), (level(&s, 0) - 1) as usize);
     for i in [1, 2] {
         assert_eq!((level(&s, i), xp(&s, i)), (1, 0), "slot {i}");
-        assert_eq!(
-            s.players
-                .career(slot(i))
-                .progress
-                .as_ref()
-                .unwrap()
-                .offers_due,
-            0
-        );
     }
 }
 

@@ -524,9 +524,6 @@ fn unreserved_state(
         priority: (0..run_stats.stats().len())
             .map(|i| u8::try_from(i).unwrap_or(u8::MAX))
             .collect(),
-        pick_stats: false,
-        offers_due: 0,
-        offer_open: false,
         spent: vec![0; run_stats.stats().len()],
         totals: [0; StatEffect::ALL.len()],
         set_tenths: [0; StatEffect::ALL.len()],
@@ -759,7 +756,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens, for every present player in slot order, the first offer due unless one is open for
 /// that player: the boss offer, then the stars' in the order taken (ADR-REPL-5). The players open
-/// theirs side by side. The expertise gauge's `offered` follows its level.
+/// theirs side by side.
 fn open_offers(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     for me in s.players.indices() {
         open_offers_for(stage, rewards, s, me, events);
@@ -801,9 +798,6 @@ fn drop_offers(s: &mut State, me: PlayerIdx) {
     if let Some(offers) = career.offers.as_mut() {
         offers.due.clear();
     }
-    if let Some(expertise) = career.expertise.as_mut() {
-        expertise.offered = expertise.level;
-    }
 }
 
 #[cfg(test)]
@@ -829,7 +823,6 @@ fn open_offers_for(
         return;
     }
     stars::open_due(stage, rewards, s, me, events, true);
-    expertise::open_due(s, me);
     stars::open_due(stage, rewards, s, me, events, false);
 }
 

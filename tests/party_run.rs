@@ -418,8 +418,8 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [2, 2, 0], 2074, 2254, "a820c8c173c4dedc"),
-    ("three_revive", [3, 3, 0], 2074, 2254, "be2d4d4688298ca3"),
+    ("two_revive", [2, 2, 0], 2074, 2254, "35b4c256b1da2087"),
+    ("three_revive", [3, 3, 0], 2074, 2254, "365e06c6e25687c9"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,

@@ -14,7 +14,7 @@ use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::sim::RangedPool;
 use crate::sim::state::PlayerIdx;
-use crate::snapshot::{ExpertiseOfferKind, OfferKind};
+use crate::snapshot::OfferKind;
 
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::state::*;
@@ -832,9 +832,6 @@ impl StableHash for Progress {
             // not hashed: the run stats' rules, in the run stats' order: content, fixed for the run.
             stats: _,
             priority,
-            pick_stats,
-            offers_due,
-            offer_open,
             spent,
             totals,
             set_tenths,
@@ -842,9 +839,6 @@ impl StableHash for Progress {
         level.stable_hash(h);
         xp.stable_hash(h);
         priority.stable_hash(h);
-        pick_stats.stable_hash(h);
-        offers_due.stable_hash(h);
-        offer_open.stable_hash(h);
         spent.stable_hash(h);
         totals.stable_hash(h);
         set_tenths.stable_hash(h);
@@ -935,28 +929,12 @@ impl StableHash for HealPickup {
     }
 }
 
-impl StableHash for ExpertiseOffer {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        let ExpertiseOffer {
-            level,
-            kind,
-            candidates,
-        } = self;
-        level.stable_hash(h);
-        kind.stable_hash(h);
-        candidates.stable_hash(h);
-    }
-}
-
 impl StableHash for ExpertiseGauge {
     fn stable_hash(&self, h: &mut StateHasher) {
         let ExpertiseGauge {
             level,
             points,
             next,
-            offered,
-            offer,
-            taken,
             range_pct,
             style,
             path,
@@ -964,9 +942,6 @@ impl StableHash for ExpertiseGauge {
         level.stable_hash(h);
         points.stable_hash(h);
         next.stable_hash(h);
-        offered.stable_hash(h);
-        offer.stable_hash(h);
-        taken.stable_hash(h);
         range_pct.stable_hash(h);
         style.stable_hash(h);
         path.stable_hash(h);
@@ -1145,17 +1120,6 @@ impl StableHash for OfferKind {
         match self {
             OfferKind::Star => hash_enum!(h, 0),
             OfferKind::Boss => hash_enum!(h, 1),
-        }
-    }
-}
-
-impl StableHash for ExpertiseOfferKind {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        match self {
-            ExpertiseOfferKind::Common => hash_enum!(h, 0),
-            ExpertiseOfferKind::Style => hash_enum!(h, 1),
-            ExpertiseOfferKind::Upgrade => hash_enum!(h, 2),
-            ExpertiseOfferKind::Capstone => hash_enum!(h, 3),
         }
     }
 }

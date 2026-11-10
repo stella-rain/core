@@ -9,8 +9,7 @@ use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::sim_v1::event as v1;
 use crate::sim_v1::views as views1;
 use crate::snapshot::{
-    CandidateView, ConstellationProgress, ConstellationView, ExpertiseOfferKind, OfferKind,
-    OfferOption, OfferView,
+    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
 };
 
 impl From<views1::OfferKind> for OfferKind {
@@ -18,17 +17,6 @@ impl From<views1::OfferKind> for OfferKind {
         match kind {
             views1::OfferKind::Star => OfferKind::Star,
             views1::OfferKind::Boss => OfferKind::Boss,
-        }
-    }
-}
-
-impl From<views1::ExpertiseOfferKind> for ExpertiseOfferKind {
-    fn from(kind: views1::ExpertiseOfferKind) -> Self {
-        match kind {
-            views1::ExpertiseOfferKind::Common => ExpertiseOfferKind::Common,
-            views1::ExpertiseOfferKind::Style => ExpertiseOfferKind::Style,
-            views1::ExpertiseOfferKind::Upgrade => ExpertiseOfferKind::Upgrade,
-            views1::ExpertiseOfferKind::Capstone => ExpertiseOfferKind::Capstone,
         }
     }
 }

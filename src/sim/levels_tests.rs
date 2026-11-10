@@ -32,13 +32,8 @@ pub(super) fn engine(build_mode: BuildMode) -> Engine {
 }
 
 /// Gives player 0 the experience of `n` levels at once, returning the events and leaving the
-/// priority as `priority` (places of the run stats) with the stat offer switch `pick_stats`.
-pub(super) fn level_up(
-    e: &mut Engine,
-    priority: &[u8],
-    pick_stats: bool,
-    n: u32,
-) -> Vec<DomainEvent> {
+/// priority as `priority` (places of the run stats).
+pub(super) fn level_up(e: &mut Engine, priority: &[u8], n: u32) -> Vec<DomainEvent> {
     let Run::V2 { world, state } = e.run_mut() else {
         panic!("the live rules");
     };
@@ -49,7 +44,6 @@ pub(super) fn level_up(
         .as_mut()
         .expect("levels");
     p.priority = priority.to_vec();
-    p.pick_stats = pick_stats;
     let from = p.level;
     let xp: u32 = (0..n).map(|i| levels::xp_next(world, from + i)).sum();
     let mut events = Vec::new();
@@ -66,14 +60,13 @@ pub(super) fn progress(e: &Engine) -> &super::state::Progress {
         .expect("levels")
 }
 
-/// T1: in equipment mode a level-up spends by the priority and opens no stat offer, whatever
-/// the `pick_stats` switch says.
+/// T1: in equipment mode a level-up spends by the priority and opens no stat offer.
 #[test]
 fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     let mut e = engine(BuildMode::Equipment);
     let (attack, speed) = (1u8, 4u8);
     let before = progress(&e).totals[StatEffect::AttackPct as usize];
-    let events = level_up(&mut e, &[attack, speed], true, 2);
+    let events = level_up(&mut e, &[attack, speed], 2);
     let p = progress(&e);
     let raised: Vec<u8> = events
         .iter()
@@ -87,7 +80,6 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
         .filter(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
         .count();
     assert_eq!((leveled, raised), (2, vec![1, 2]));
-    assert_eq!((p.offers_due, p.offer_open), (0, false));
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
     let step = p.stats[usize::from(attack)].step;
     assert_eq!(p.totals[StatEffect::AttackPct as usize], before + 2 * step);
@@ -107,14 +99,11 @@ fn kinds(events: &[DomainEvent]) -> Vec<String> {
         .collect()
 }
 
-/// A stat offer is gone: with the state field set by hand, an offers run still spends by the
-/// priority and queues and opens nothing.
+/// A stat offer is gone: an offers run spends by the priority and queues and opens nothing.
 #[test]
-fn an_offers_level_up_spends_by_priority_whatever_the_stale_field_says() {
+fn an_offers_level_up_spends_by_priority() {
     let mut e = engine(BuildMode::Offers);
-    let events = level_up(&mut e, &[1, 4], true, 2);
-    let p = progress(&e);
-    assert_eq!((p.offers_due, p.offer_open), (0, false));
+    let events = level_up(&mut e, &[1, 4], 2);
     let names = kinds(&events);
     assert_eq!(
         names.iter().filter(|k| *k == "StatRaised").count(),
@@ -126,7 +115,7 @@ fn an_offers_level_up_spends_by_priority_whatever_the_stale_field_says() {
 }
 
 /// The expertise offers are gone: crossing the common, style, upgrade and capstone levels in an
-/// offers run opens nothing and takes nothing; `offered` still follows the level.
+/// offers run opens nothing and takes nothing.
 #[test]
 fn an_offers_run_opens_no_expertise_offer() {
     let mut e = Engine::start(&RunSetup {
@@ -149,10 +138,6 @@ fn an_offers_run_opens_no_expertise_offer() {
             g.level = level;
         }
         e.open_offers_for_test();
-        let g = gauge(&e);
-        assert!(g.offer.is_none(), "level {level}");
-        assert_eq!(g.offered, level);
-        assert!(g.taken.iter().all(|n| *n == 0));
         let names = kinds(e.events());
         assert!(
             !names.iter().any(|k| k == "ExpertiseOfferOpened"),
@@ -163,42 +148,6 @@ fn an_offers_run_opens_no_expertise_offer() {
     let tick = e.tick();
     e.step(&[Default::default(), Default::default(), Default::default()]);
     assert_eq!(e.tick(), tick + 1);
-}
-
-/// A loaded state with a stale offer does not stop the world and takes no pick.
-#[test]
-fn a_stale_offer_does_not_stop_the_world() {
-    use crate::engine::ChoiceError;
-    use crate::sim::state::ExpertiseOffer;
-    for expertise in [false, true] {
-        let mut e = Engine::start(&RunSetup {
-            mode: "trial".into(),
-            build_mode: BuildMode::Offers,
-            ..RunSetup::default()
-        })
-        .expect("starts");
-        {
-            let Run::V2 { state, .. } = e.run_mut() else {
-                panic!("the live rules");
-            };
-            let c = state.players.career_mut(PlayerIdx::SOLO);
-            if expertise {
-                c.expertise.as_mut().expect("a gauge").offer = Some(ExpertiseOffer {
-                    level: 1,
-                    kind: ExpertiseOfferKind::Common,
-                    candidates: vec![0, 1],
-                });
-            } else {
-                let p = c.progress.as_mut().expect("levels");
-                (p.offer_open, p.offers_due) = (true, 3);
-            }
-        }
-        assert!(!e.offer_open(), "{expertise}");
-        assert_eq!(e.check_pick(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
-        let tick = e.tick();
-        e.step(&[Default::default(), Default::default(), Default::default()]);
-        assert_eq!(e.tick(), tick + 1);
-    }
 }
 
 /// T3: with every stat at its limit a level gives nothing but the level.
@@ -220,7 +169,7 @@ fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
         }
     }
     let totals = progress(&e).totals;
-    let events = level_up(&mut e, &[0, 1, 2, 3, 4], true, 1);
+    let events = level_up(&mut e, &[0, 1, 2, 3, 4], 1);
     let p = progress(&e);
     assert!(
         events
@@ -228,7 +177,7 @@ fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
             .all(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
     );
     assert_eq!(events.len(), 1);
-    assert_eq!((p.totals, p.offers_due), (totals, 0));
+    assert_eq!(p.totals, totals);
 }
 
 // --- the automatic common levels ----------------------------------------------------------------
@@ -244,11 +193,10 @@ pub(super) fn hammer() -> Engine {
     .expect("starts")
 }
 
-/// Sets player 0's gauge to `level` with the levels up to `offered` passed, `style` chosen, and
-/// the stat priority; then passes the levels due, returning the events they made.
+/// Sets player 0's gauge to `level` with `style` chosen, and the stat priority; then passes the
+/// levels due, returning the events they made.
 pub(super) fn pass(
     e: &mut Engine,
-    offered: u32,
     level: u32,
     style: Option<u8>,
     priority: &[u8],
@@ -259,7 +207,7 @@ pub(super) fn pass(
         };
         let c = state.players.career_mut(PlayerIdx::SOLO);
         let g = c.expertise.as_mut().expect("a gauge");
-        (g.offered, g.level, g.style) = (offered, level, style);
+        (g.level, g.style) = (level, style);
         c.progress.as_mut().expect("levels").priority = priority.to_vec();
     }
     e.open_offers_for_test();
@@ -288,22 +236,19 @@ pub(super) const SPEED: u8 = 4;
 fn a_common_level_adds_no_stat() {
     let mut e = hammer();
     let before = progress(&e).totals;
-    pass(&mut e, 3, 8, Some(0), &[SPEED, ATTACK]);
+    pass(&mut e, 8, Some(0), &[SPEED, ATTACK]);
     assert_eq!(progress(&e).totals.len(), StatEffect::ALL.len());
     assert_eq!(progress(&e).totals, before);
     assert_eq!(gauge(&e).range_pct, 0);
 }
 
-/// R2: a pass over common levels bumps no option count, emits no option event, and keeps
-/// `offered` in step with the level.
+/// R2: a pass over common levels emits no option event.
 #[test]
 fn a_common_level_bumps_nothing_and_emits_nothing() {
     let mut e = hammer();
-    let events = pass(&mut e, 3, 8, Some(0), &[ATTACK]);
-    let g = gauge(&e);
-    assert!(g.taken.iter().all(|n| *n == 0));
+    let events = pass(&mut e, 8, Some(0), &[ATTACK]);
     assert!(events.is_empty(), "{events:?}");
-    assert_eq!((g.offered, g.level, g.offer.is_none()), (8, 8, true));
+    assert_eq!(gauge(&e).level, 8);
 }
 
 /// R3: tree points are earned at the table's levels only, never by a common level between them.
@@ -319,7 +264,7 @@ fn tree_points_are_earned_at_the_table_levels_only() {
         assert_eq!(expertise::tree_earned(&t, before_next), want);
     }
     let mut e = hammer();
-    pass(&mut e, 0, 10, None, &[ATTACK]);
+    pass(&mut e, 10, None, &[ATTACK]);
     let held = next(&mut e).expect("points").2;
     assert_eq!(held, expertise::tree_earned(&LevelTable::NORMAL, 10));
 }
@@ -328,7 +273,7 @@ fn tree_points_are_earned_at_the_table_levels_only() {
 #[test]
 fn the_priority_still_orders_the_xp_stat_points() {
     let mut e = engine(BuildMode::Equipment);
-    let events = level_up(&mut e, &[SPEED, ATTACK], false, 1);
+    let events = level_up(&mut e, &[SPEED, ATTACK], 1);
     let first = events.iter().find_map(|ev| match ev {
         DomainEvent::StatRaised { stat, .. } => Some(stat.clone()),
         _ => None,
@@ -343,7 +288,7 @@ fn the_priority_still_orders_the_xp_stat_points() {
 fn a_common_level_opens_no_offer_and_draws_nothing() {
     let mut e = hammer();
     let before = state_of(&e).players.career(PlayerIdx::SOLO).offer.state();
-    pass(&mut e, 0, 9, None, &[ATTACK]);
+    pass(&mut e, 9, None, &[ATTACK]);
     let c = state_of(&e).players.career(PlayerIdx::SOLO);
     assert_eq!(c.offer.state(), before);
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
@@ -353,12 +298,11 @@ fn a_common_level_opens_no_offer_and_draws_nothing() {
 #[test]
 fn levels_crossed_in_one_tick_equal_levels_crossed_in_two() {
     let (mut one, mut three) = (hammer(), hammer());
-    pass(&mut one, 0, 12, None, &[ATTACK]);
-    pass(&mut three, 0, 4, None, &[ATTACK]);
-    pass(&mut three, 4, 8, None, &[ATTACK]);
-    pass(&mut three, 8, 12, None, &[ATTACK]);
+    pass(&mut one, 12, None, &[ATTACK]);
+    pass(&mut three, 4, None, &[ATTACK]);
+    pass(&mut three, 8, None, &[ATTACK]);
+    pass(&mut three, 12, None, &[ATTACK]);
     assert_eq!(one.state_hash(), three.state_hash());
-    assert!(gauge(&one).taken.iter().all(|n| *n == 0));
 }
 
 /// T9: a run with no stat points passes the levels and takes nothing.
@@ -373,8 +317,7 @@ fn a_stage_without_levels_takes_nothing() {
     }
     let events = pass_without_progress(&mut e);
     assert!(events.is_empty());
-    let g = gauge(&e);
-    assert_eq!((g.offered, g.taken.iter().sum::<u8>()), (6, 0));
+    assert_eq!(gauge(&e).level, 6);
 }
 
 fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
@@ -388,7 +331,7 @@ fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
             .expertise
             .as_mut()
             .expect("a gauge");
-        (g.offered, g.level) = (0, 6);
+        g.level = 6;
     }
     e.open_offers_for_test();
     e.events().to_vec()
@@ -428,7 +371,7 @@ pub(super) fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<S
 }
 
 pub(super) fn reach(e: &mut Engine, level: u32) {
-    pass(e, 0, level, None, &[ATTACK]);
+    pass(e, level, None, &[ATTACK]);
 }
 
 /// T10: the style level holds a point and stops nothing.
@@ -437,18 +380,17 @@ fn the_style_level_holds_a_tree_point_and_nothing_stops() {
     let mut e = hammer();
     reach(&mut e, 2);
     assert_eq!(next(&mut e), None);
-    reach_from(&mut e, 2, 3);
+    reach_from(&mut e, 3);
     let (kind, level, held, choices) = next(&mut e).expect("a point");
     assert_eq!((kind, level, held), (ExpertiseOfferKind::Style, 3, 1));
     assert_eq!(choices, ["crush", "quake", "bulwark"]);
-    assert!(gauge(&e).offer.is_none());
     assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
 }
 
-/// Passes the levels from `offered` to `level`, keeping the style already chosen.
-fn reach_from(e: &mut Engine, offered: u32, level: u32) {
+/// Passes the levels up to `level`, keeping the style already chosen.
+fn reach_from(e: &mut Engine, level: u32) {
     let style = gauge(e).style;
-    pass(e, offered, level, style, &[ATTACK]);
+    pass(e, level, style, &[ATTACK]);
 }
 
 /// T11: points wait and queue; they are taken in path order.
@@ -509,7 +451,7 @@ fn check_tree_pick_refuses_what_it_cannot_take() {
     assert_eq!(check_tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
     assert_eq!(tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
     assert_eq!(e.state_hash(), h);
-    reach_from(&mut e, 2, 3);
+    reach_from(&mut e, 3);
     let h = e.state_hash();
     assert_eq!(
         check_tree_pick(&mut e, 3),
@@ -527,7 +469,7 @@ fn check_tree_pick_refuses_what_it_cannot_take() {
     );
     assert_eq!(e.state_hash(), h);
     tree_pick(&mut e, 2).expect("the last valid option");
-    reach_from(&mut e, 3, 6);
+    reach_from(&mut e, 6);
     assert_eq!(
         check_tree_pick(&mut e, 1),
         Err(TreeError::NoTreeOption {
@@ -553,7 +495,7 @@ fn a_tree_point_survives_an_out_player() {
         let (_, state) = world_state(&mut e);
         super::drop_offers(state, PlayerIdx::SOLO);
     }
-    assert_eq!(gauge(&e).offered, 4);
+    assert_eq!(gauge(&e).level, 4);
     assert_eq!(next(&mut e).expect("a point").2, 1);
     tree_pick(&mut e, 0).expect("the point can be taken");
 }

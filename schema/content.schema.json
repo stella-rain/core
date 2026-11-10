@@ -4139,11 +4139,6 @@
       "description": "What an expertise level offers.",
       "oneOf": [
         {
-          "const": "common",
-          "description": "Options drawn from the weapon's common pool, with a reroll of each.",
-          "type": "string"
-        },
-        {
           "const": "style",
           "description": "The weapon's three styles, at the level table's style level: fixed, no reroll.",
           "type": "string"

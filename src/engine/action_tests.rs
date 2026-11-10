@@ -794,7 +794,7 @@ mod tree_runs {
             .expertise
             .as_mut()
             .expect("a gauge");
-        (g.level, g.offered) = (level, level);
+        g.level = level;
     }
 
     /// T16: `check_action` for a tree pick: each refusal in its order, and reads only.
