@@ -51,6 +51,44 @@ use super::select::{Up, target_at};
 /// Timeline steps taken in one tick, so that a `loop` with nothing to wait for ends the tick.
 const MAX_TIMELINE_STEPS_PER_TICK: u32 = 16;
 
+/// Whether the stage's boss is on the field from the first tick: it has no arrival tick, or
+/// tick 1.
+pub(super) fn on_field_at_start(boss: &crate::stage::Boss) -> bool {
+    boss.arrives_at_tick.is_none_or(|t| t <= 1)
+}
+
+/// Brings a stage boss with an arrival tick on that tick, before the tick runs, as `State::new`
+/// builds one at the start. It reuses the horde's way in (`horde::spawn_boss`): an ID from
+/// `next_id`, then its parts'.
+pub(super) fn arrive(stage: &World, s: &mut State) {
+    if s.outcome != crate::engine::Outcome::Running || s.boss.is_some() || s.horde.is_some() {
+        return;
+    }
+    let Some(boss) = stage.stage.boss.as_ref() else {
+        return;
+    };
+    if on_field_at_start(boss) || s.tick.saturating_add(1) < boss.arrives_at_tick.unwrap_or(0) {
+        return;
+    }
+    let arrival = super::Arrival {
+        at: boss.spawn,
+        origin: Point::default(),
+        no_call: false,
+        mid_pct: None,
+    };
+    let id = crate::id::EntityId(s.next_id);
+    s.next_id += 1;
+    s.boss = Some(super::boss_state(
+        stage,
+        crate::sim::world::BossIndex(0),
+        id,
+        &mut s.next_id,
+        s.hp_pct,
+        arrival,
+        &s.kinds,
+    ));
+}
+
 pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = s.boss_def(stage) else {
         return;

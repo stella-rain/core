@@ -391,3 +391,16 @@ fn a_time_limit_boss_takes_neither_field() {
         assert!(found.iter().any(|i| i.path == path), "{found:?}");
     }
 }
+
+#[test]
+fn killing_the_boss_that_arrived_clears_the_stage() {
+    let mut b = boss_json(json!({ "arrives_at_tick": 50 }));
+    b["hp"] = json!(1);
+    b["spawn"] = json!({ "x": BOSS_X, "y": START_Y - 20_000 });
+    let mut stage = stage_with(600, Some(b), vec![]);
+    stage.sim_version = stella_rain_core::version::SIM_VERSION;
+    let mut e = engine(&stage);
+    fire_until(&mut e, idle(), 300, |e| e.outcome() != Outcome::Running);
+    assert_eq!(e.outcome(), Outcome::Cleared);
+    assert!(e.tick() > 50, "{}", e.tick());
+}

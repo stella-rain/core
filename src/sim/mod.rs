@@ -11,7 +11,7 @@
 //! <!-- tick -->
 //! | step | what it does |
 //! |---|---|
-//! | `spawn_boss` | the boss of a `time_limit` run whose time the tick reaches comes, before the counter advances (`horde`) |
+//! | `spawn_boss` | the boss of a `time_limit` run whose time the tick reaches comes, and so does a stage boss with an arrival tick, before the counter advances (`horde`, `boss::arrive`) |
 //! | `advance_tick` | the tick counter advances |
 //! | `regen` | the main character regenerates the hit points of a perk (`loadout`) |
 //! | `spawn_waves` | the waves that are due spawn enemies; a horde run holds them at the crowd target (DIR1) |
@@ -463,11 +463,16 @@ fn unreserved_state(
     // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
     // (ADR-SIM-7); the boss and the companions come after them.
     let mut next_id = u32::from(MAX_PLAYERS);
-    let boss_id = stage.boss.as_ref().map(|_| {
-        let id = EntityId(next_id);
-        next_id += 1;
-        id
-    });
+    // A boss with an arrival tick after the first is built on that tick (`boss::arrive`).
+    let boss_id = stage
+        .boss
+        .as_ref()
+        .filter(|b| boss::on_field_at_start(b))
+        .map(|_| {
+            let id = EntityId(next_id);
+            next_id += 1;
+            id
+        });
     let start = stage.map().start();
     let companions = stage
         .companions
@@ -2053,6 +2058,8 @@ fn decide_outcome(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         // not the end, and neither is an empty field.
         _ if s.horde.is_some() => horde::final_boss_dead(s),
         Some(b) => b.hp == 0,
+        // A stage boss that has not come yet is not a cleared field.
+        None if stage.boss.is_some() => false,
         None => {
             s.enemies.is_empty()
                 && stage

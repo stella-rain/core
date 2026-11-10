@@ -78,6 +78,7 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn spawn_boss(c: &mut Ctx) {
         horde::spawn_boss(c.world, c.s);
+        super::boss::arrive(c.world, c.s);
     }
 
     #[inline(never)]
