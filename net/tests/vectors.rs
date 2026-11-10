@@ -1,11 +1,11 @@
-//! The pinned byte vectors of protocol version 1. The literals were worked out by hand from the
+//! The pinned byte vectors of protocol version 2. The literals were worked out by hand from the
 //! layout, never produced by running the encoder; a failure here means the code or the layout
 //! changed, and a layout change raises `PROTOCOL_VERSION`.
 
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::EquipAction;
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, Packet, WireInput,
+    Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, Packet, WireInput,
 };
 
 fn hex(s: &str) -> Vec<u8> {
@@ -37,6 +37,38 @@ fn hello() {
     }
     both_ways(
         Packet::Hello(Hello {
+            protocol: 2,
+            sim_version: 2,
+            pack_hash,
+            delay: 2,
+            window: 4,
+        }),
+        "060200000002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0200000004000000",
+    );
+}
+
+#[test]
+fn hello_16_0() {
+    both_ways(
+        Packet::Hello(Hello {
+            protocol: 2,
+            sim_version: 3,
+            pack_hash: [0xaa; 32],
+            delay: 16,
+            window: 0,
+        }),
+        "060200000003000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1000000000000000",
+    );
+}
+
+#[test]
+fn hello_v1() {
+    let mut pack_hash = [0u8; 32];
+    for (i, b) in pack_hash.iter_mut().enumerate() {
+        *b = u8::try_from(i).unwrap();
+    }
+    both_ways(
+        Packet::HelloV1(HelloV1 {
             protocol: 1,
             sim_version: 2,
             pack_hash,

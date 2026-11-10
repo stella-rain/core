@@ -1,4 +1,5 @@
-//! The wire format of an online party: five packets, each with one strict byte encoding.
+//! The wire format of an online party: five kinds of packet, each with one strict byte encoding
+//! (the hello has two layouts, the current one and the retired protocol 1 one).
 //!
 //! Only inputs and checkpoint hashes cross the network. A message is one datagram or one
 //! WebSocket message, with no length prefix and no stream framing. All integers are little
@@ -6,8 +7,9 @@
 //! closed on anything but the one canonical encoding, and a value that cannot be decoded cannot
 //! be encoded. A change to the layout raises [`PROTOCOL_VERSION`].
 //!
-//! The first byte of a packet is its tag: `0x01` hello, `0x02` input frame, `0x03` ack, `0x04`
-//! checkpoint, `0x05` bye.
+//! The first byte of a packet is its tag: `0x06` hello (protocol 2), `0x01` the retired protocol 1
+//! hello (never given another meaning), `0x02` input frame, `0x03` ack, `0x04` checkpoint, `0x05`
+//! bye. A tag from `0x07` up is refused.
 
 use std::fmt;
 
@@ -16,16 +18,33 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_replay::CHECKPOINT_TICKS;
 
 /// The wire protocol version, one integer; any change to the wire raises it.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 /// The longest packet, in bytes. A longer message is refused on both sides.
 pub const MAX_PACKET_LEN: usize = 1200;
 /// The most inputs one input frame holds.
 pub const MAX_FRAME_INPUTS: usize = 32;
 
-/// The first packet a peer sends: what it runs, for the session to compare with its own.
+/// The first packet a peer sends: what it runs and how it is set up, for the session to compare
+/// with its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Hello {
     /// The sender's [`PROTOCOL_VERSION`]; not 0.
+    pub protocol: u32,
+    /// The sender's `sim_version`; not 0.
+    pub sim_version: u32,
+    /// The SHA-256 of the sender's content pack.
+    pub pack_hash: [u8; 32],
+    /// The sender's input delay in ticks; any `u32` on the wire, the session compares it.
+    pub delay: u32,
+    /// The sender's rollback window in ticks; any `u32` on the wire, the session compares it.
+    pub window: u32,
+}
+
+/// The protocol 1 hello, kept decodable so that a protocol 1 peer is refused, not dropped as
+/// garbage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HelloV1 {
+    /// The sender's protocol version; not 0.
     pub protocol: u32,
     /// The sender's `sim_version`; not 0.
     pub sim_version: u32,
@@ -133,7 +152,7 @@ pub enum ByeReason {
     Left,
     /// The state hashes differ (wire value 2).
     Desync,
-    /// The hello was refused: version or pack mismatch (wire value 3).
+    /// The hello was refused: version, pack or settings mismatch (wire value 3).
     Refused,
 }
 
@@ -151,8 +170,10 @@ pub struct Bye {
 /// One message of the protocol.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Packet {
-    /// Tag `0x01`.
+    /// Tag `0x06`.
     Hello(Hello),
+    /// Tag `0x01`: a protocol 1 hello, kept so that a v1 peer is refused, not dropped as garbage.
+    HelloV1(HelloV1),
     /// Tag `0x02`.
     Input(InputFrame),
     /// Tag `0x03`.
@@ -163,11 +184,12 @@ pub enum Packet {
     Bye(Bye),
 }
 
-const TAG_HELLO: u8 = 0x01;
+const TAG_HELLO_V1: u8 = 0x01;
 const TAG_INPUT: u8 = 0x02;
 const TAG_ACK: u8 = 0x03;
 const TAG_CHECKPOINT: u8 = 0x04;
 const TAG_BYE: u8 = 0x05;
+const TAG_HELLO: u8 = 0x06;
 
 /// A cursor over untrusted bytes: every read says `Truncated` instead of panicking.
 struct Reader<'a> {
@@ -207,10 +229,13 @@ fn encode_hello(h: &Hello, out: &mut Vec<u8>) -> Result<(), WireError> {
     out.extend_from_slice(&h.protocol.to_le_bytes());
     out.extend_from_slice(&h.sim_version.to_le_bytes());
     out.extend_from_slice(&h.pack_hash);
+    out.extend_from_slice(&h.delay.to_le_bytes());
+    out.extend_from_slice(&h.window.to_le_bytes());
     Ok(())
 }
 
-fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
+/// The versions and pack hash both hello layouts start with.
+fn decode_hello_head(r: &mut Reader<'_>) -> Result<(u32, u32, [u8; 32]), WireError> {
     let protocol = r.u32()?;
     if protocol == 0 {
         return Err(WireError::ZeroVersion);
@@ -221,7 +246,36 @@ fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
     }
     let mut pack_hash = [0u8; 32];
     pack_hash.copy_from_slice(r.take(32)?);
+    Ok((protocol, sim_version, pack_hash))
+}
+
+fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
+    let (protocol, sim_version, pack_hash) = decode_hello_head(r)?;
+    let delay = r.u32()?;
+    let window = r.u32()?;
     Ok(Hello {
+        protocol,
+        sim_version,
+        pack_hash,
+        delay,
+        window,
+    })
+}
+
+fn encode_hello_v1(h: &HelloV1, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if h.protocol == 0 || h.sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    out.push(TAG_HELLO_V1);
+    out.extend_from_slice(&h.protocol.to_le_bytes());
+    out.extend_from_slice(&h.sim_version.to_le_bytes());
+    out.extend_from_slice(&h.pack_hash);
+    Ok(())
+}
+
+fn decode_hello_v1(r: &mut Reader<'_>) -> Result<HelloV1, WireError> {
+    let (protocol, sim_version, pack_hash) = decode_hello_head(r)?;
+    Ok(HelloV1 {
         protocol,
         sim_version,
         pack_hash,
@@ -414,6 +468,7 @@ impl Packet {
         let mut out = Vec::new();
         match self {
             Packet::Hello(h) => encode_hello(h, &mut out)?,
+            Packet::HelloV1(h) => encode_hello_v1(h, &mut out)?,
             Packet::Input(f) => encode_input(f, &mut out)?,
             Packet::Ack(a) => encode_ack(a, &mut out),
             Packet::Checkpoint(c) => encode_checkpoint(c, &mut out)?,
@@ -434,6 +489,7 @@ impl Packet {
         let mut r = Reader { rest: body };
         let packet = match tag {
             TAG_HELLO => Packet::Hello(decode_hello(&mut r)?),
+            TAG_HELLO_V1 => Packet::HelloV1(decode_hello_v1(&mut r)?),
             TAG_INPUT => Packet::Input(decode_input(&mut r)?),
             TAG_ACK => Packet::Ack(Ack {
                 slot: read_slot(&mut r)?,
