@@ -169,7 +169,7 @@ pub struct ExpertiseView {
     pub path: Vec<ContentId>,
 }
 
-/// What a tree level of the weapon's expertise holds.
+/// What an expertise level offers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExpertiseOfferKind {
