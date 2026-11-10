@@ -26,7 +26,7 @@ fn bare(n: u8) -> (World, State) {
     s.orbs.clear();
     s.zones.clear();
     s.echoes.clear();
-    (w.clone(), s)
+    (World::clone(w), s)
 }
 
 fn shot(s: &State, owner: EntityId, at: usize, damage: u32) -> Shot {
@@ -380,7 +380,7 @@ fn the_boss_is_scaled_like_an_enemy() {
         Run::V2 { world, state, .. } => (world, state),
         Run::V1 { .. } => panic!("the live rules"),
     };
-    let (mut w, mut s) = (w.clone(), s.clone());
+    let (mut w, mut s) = (World::clone(w), s.clone());
     w.tuning.party_damage_pct = [100, 50, 25];
     let b = s.boss.as_mut().expect("the trial has a boss");
     b.hp = 10_000;

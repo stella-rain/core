@@ -17,6 +17,7 @@ use stella_rain_core::version::SIM_VERSION;
 use stella_rain_net::session::party::{
     NetAdvance, NetConfig, NetError, NetSession, NetWait, PartySettings, Phase, StopReason,
 };
+use stella_rain_net::session::{DEFAULT_DELAY, DEFAULT_WINDOW};
 use stella_rain_net::transport::{Transport, TransportError};
 use stella_rain_net::wire::{Hello, InputFrame, PROTOCOL_VERSION, Packet};
 
@@ -35,6 +36,8 @@ pub fn hello() -> Hello {
         protocol: PROTOCOL_VERSION,
         sim_version: SIM_VERSION,
         pack_hash: content_sha256(equipment_setup().mode.as_str()).expect("a mode with content"),
+        delay: DEFAULT_DELAY,
+        window: DEFAULT_WINDOW,
     }
 }
 

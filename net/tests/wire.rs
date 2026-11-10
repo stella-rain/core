@@ -3,7 +3,7 @@
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
+    Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
     PROTOCOL_VERSION, Packet, WireError, WireInput,
 };
 
@@ -15,8 +15,28 @@ fn hex(s: &str) -> Vec<u8> {
         .collect()
 }
 
-const HELLO: &str = "01010000000200000000010203040506070809\
-                     0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const HELLO: &str = "06020000000200000000010203040506070809\
+                     0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\
+                     0200000004000000";
+const HELLO_16_0: &str = concat!(
+    "060200000003000000",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "1000000000000000"
+);
+const HELLO_V1: &str = "010100000002000000000102030405060708090a0b0c0d0e0f\
+                        101112131415161718191a1b1c1d1e1f";
+
+fn hello_v1_packet() -> Packet {
+    let mut pack_hash = [0u8; 32];
+    for (i, b) in pack_hash.iter_mut().enumerate() {
+        *b = u8::try_from(i).unwrap();
+    }
+    Packet::HelloV1(HelloV1 {
+        protocol: 1,
+        sim_version: 2,
+        pack_hash,
+    })
+}
 
 fn hello_packet() -> Packet {
     let mut pack_hash = [0u8; 32];
@@ -24,9 +44,11 @@ fn hello_packet() -> Packet {
         *b = u8::try_from(i).unwrap();
     }
     Packet::Hello(Hello {
-        protocol: 1,
+        protocol: 2,
         sim_version: 2,
         pack_hash,
+        delay: 2,
+        window: 4,
     })
 }
 
@@ -101,6 +123,8 @@ fn three_entries() -> Packet {
 fn vectors() -> Vec<Vec<u8>> {
     vec![
         hex(HELLO),
+        hex(HELLO_16_0),
+        hex(HELLO_V1),
         hex(INPUT_IDLE),
         hex(INPUT_THREE),
         hex(ACK),
@@ -111,7 +135,7 @@ fn vectors() -> Vec<Vec<u8>> {
 
 #[test]
 fn the_constants_are_what_the_protocol_says() {
-    assert_eq!(PROTOCOL_VERSION, 1);
+    assert_eq!(PROTOCOL_VERSION, 2);
     assert_eq!(MAX_PACKET_LEN, 1200);
     assert_eq!(MAX_FRAME_INPUTS, 32);
 }
@@ -119,7 +143,7 @@ fn the_constants_are_what_the_protocol_says() {
 #[test]
 fn framing_refuses_the_empty_the_unknown_and_the_too_long() {
     assert_eq!(Packet::decode(&[]), Err(WireError::Empty));
-    for tag in [0x00u8, 0x06, 0xff] {
+    for tag in [0x00u8, 0x07, 0xff] {
         assert_eq!(Packet::decode(&[tag]), Err(WireError::UnknownTag(tag)));
     }
     let mut long = vec![0u8; MAX_PACKET_LEN + 1];
@@ -147,12 +171,89 @@ fn every_strict_prefix_of_every_vector_is_an_error() {
 }
 
 #[test]
-fn a_hello_is_41_bytes_and_round_trips() {
+fn a_hello_is_49_bytes_and_round_trips() {
     let p = hello_packet();
     let bytes = p.encode().unwrap();
-    assert_eq!(bytes.len(), 41);
+    assert_eq!(bytes.len(), 49);
     assert_eq!(bytes, hex(HELLO));
     assert_eq!(Packet::decode(&bytes), Ok(p));
+}
+
+#[test]
+fn the_second_hello_vector_round_trips() {
+    let p = Packet::Hello(Hello {
+        protocol: 2,
+        sim_version: 3,
+        pack_hash: [0xaa; 32],
+        delay: 16,
+        window: 0,
+    });
+    let bytes = p.encode().unwrap();
+    assert_eq!(bytes, hex(HELLO_16_0));
+    assert_eq!(Packet::decode(&bytes), Ok(p));
+}
+
+#[test]
+fn delay_and_window_are_not_range_checked_on_the_wire() {
+    for (delay, window) in [(0, 0), (u32::MAX, u32::MAX), (0, u32::MAX), (u32::MAX, 0)] {
+        let p = Packet::Hello(Hello {
+            protocol: 2,
+            sim_version: 2,
+            pack_hash: [1; 32],
+            delay,
+            window,
+        });
+        assert_eq!(Packet::decode(&p.encode().unwrap()), Ok(p));
+    }
+}
+
+#[test]
+fn delay_and_window_are_in_that_order() {
+    let mut bytes = hex(HELLO);
+    let n = bytes.len();
+    let (a, b) = (bytes[n - 8..n - 4].to_vec(), bytes[n - 4..].to_vec());
+    bytes[n - 8..n - 4].copy_from_slice(&b);
+    bytes[n - 4..].copy_from_slice(&a);
+    let Ok(Packet::Hello(h)) = Packet::decode(&bytes) else {
+        panic!("a hello")
+    };
+    assert_eq!((h.delay, h.window), (4, 2));
+    assert_ne!(Packet::Hello(h), hello_packet());
+}
+
+#[test]
+fn a_protocol_1_hello_is_41_bytes_and_decodes_as_hello_v1() {
+    let p = hello_v1_packet();
+    let bytes = p.encode().unwrap();
+    assert_eq!(bytes.len(), 41);
+    assert_eq!(bytes, hex(HELLO_V1));
+    assert_eq!(Packet::decode(&bytes), Ok(p));
+    let mut more = bytes.clone();
+    more.push(0);
+    assert_eq!(Packet::decode(&more), Err(WireError::TrailingBytes));
+    assert_eq!(Packet::decode(&bytes[..40]), Err(WireError::Truncated));
+    for (protocol, sim_version) in [(0, 2), (1, 0)] {
+        let p = Packet::HelloV1(HelloV1 {
+            protocol,
+            sim_version,
+            pack_hash: [0; 32],
+        });
+        assert_eq!(p.encode(), Err(WireError::ZeroVersion));
+        let mut bytes = hex(HELLO_V1);
+        bytes[1..5].copy_from_slice(&protocol.to_le_bytes());
+        bytes[5..9].copy_from_slice(&sim_version.to_le_bytes());
+        assert_eq!(Packet::decode(&bytes), Err(WireError::ZeroVersion));
+    }
+}
+
+#[test]
+fn the_two_hello_layouts_are_never_read_as_each_other() {
+    let mut short_new = hex(HELLO_V1);
+    short_new[0] = 0x06;
+    assert_eq!(Packet::decode(&short_new), Err(WireError::Truncated));
+    let mut long_old = hex(HELLO);
+    long_old[0] = 0x01;
+    assert_eq!(Packet::decode(&long_old), Err(WireError::TrailingBytes));
 }
 
 #[test]
@@ -162,6 +263,8 @@ fn a_zero_version_is_refused_both_ways() {
             protocol,
             sim_version,
             pack_hash: [0; 32],
+            delay: 2,
+            window: 4,
         });
         assert_eq!(p.encode(), Err(WireError::ZeroVersion));
         let mut bytes = hex(HELLO);
@@ -556,7 +659,16 @@ fn random_input(rng: &mut Xorshift) -> WireInput {
 
 fn random_packet(rng: &mut Xorshift) -> Packet {
     let s = slot(u8::try_from(rng.below(3)).unwrap());
-    match rng.below(5) {
+    match rng.below(6) {
+        5 => {
+            let mut pack_hash = [0u8; 32];
+            pack_hash.iter_mut().for_each(|b| *b = rng.byte());
+            Packet::HelloV1(HelloV1 {
+                protocol: rng.word().max(1),
+                sim_version: rng.word().max(1),
+                pack_hash,
+            })
+        }
         0 => {
             let mut pack_hash = [0u8; 32];
             pack_hash.iter_mut().for_each(|b| *b = rng.byte());
@@ -564,6 +676,8 @@ fn random_packet(rng: &mut Xorshift) -> Packet {
                 protocol: rng.word().max(1),
                 sim_version: rng.word().max(1),
                 pack_hash,
+                delay: rng.word(),
+                window: rng.word(),
             })
         }
         1 => {
