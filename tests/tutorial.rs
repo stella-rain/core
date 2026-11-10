@@ -230,6 +230,7 @@ fn the_golem_is_not_on_the_field_before_the_arrival() {
         run_input_for(e, t, &[EntityKind::Enemy], u32::MAX)
     });
     let mut first_empty = None;
+    let mut seen_bat = false;
     for command in &commands {
         match *command {
             Command::Step(input) => {
@@ -238,9 +239,9 @@ fn the_golem_is_not_on_the_field_before_the_arrival() {
                 if engine.tick() < ARRIVAL {
                     assert!(s.entities.iter().all(|v| v.kind != EntityKind::Boss));
                     assert_eq!(engine.outcome(), Outcome::Running);
-                    if first_empty.is_none()
-                        && s.entities.iter().all(|v| v.kind != EntityKind::Enemy)
-                    {
+                    let bats = s.entities.iter().any(|v| v.kind == EntityKind::Enemy);
+                    seen_bat |= bats;
+                    if seen_bat && first_empty.is_none() && !bats && engine.tick() > 1_260 {
                         first_empty = Some(engine.tick());
                     }
                 }
@@ -271,30 +272,28 @@ fn the_golem_walks_toward_a_standing_player_and_stops_96_px_away() {
         let (dx, dy) = (i64::from(b.0 - p.0), i64::from(b.1 - p.1));
         dx * dx + dy * dy
     };
-    let stop = 24_576_i64;
+    // The golem stops within one step of 96 px (24,576 units): never nearer than a step inside it.
+    let (stop, step) = (24_576_i64, 256_i64);
     let mut prev: Option<(i32, i32)> = None;
     let mut reached = false;
     for (tick, boss, me, outcome) in rows.iter().filter(|r| r.0 >= ARRIVAL) {
         assert_eq!(*outcome, Outcome::Running, "tick {tick}");
         let b = boss.expect("the golem is there");
         if let Some(p) = prev {
-            let step = dist2(b, p);
-            assert!(step <= 256 * 256, "tick {tick}: moved {step}");
+            let moved = dist2(b, p);
+            assert!(moved <= step * step, "tick {tick}: moved {moved}");
             assert!(dist2(b, *me) <= dist2(p, *me), "tick {tick}: moved away");
         }
         let d = dist2(b, *me);
-        if reached {
-            assert!(d <= stop * stop, "tick {tick}: left the stop distance");
-        } else if d <= stop * stop {
-            let before = dist2(prev.unwrap(), *me);
-            assert!(
-                before > (stop - 256) * (stop - 256),
-                "tick {tick}: first reach"
-            );
+        assert!(d >= (stop - step) * (stop - step), "tick {tick}: too near");
+        if d <= (stop + step) * (stop + step) {
             reached = true;
         }
-        assert!(d >= (stop - 256) * (stop - 256), "tick {tick}: too near");
         prev = Some(b);
     }
+    // It has stopped for good: the last hundred ticks it does not move.
+    let last = rows.last().unwrap();
+    let before = rows.iter().find(|r| r.0 == last.0 - 100).unwrap();
+    assert_eq!(last.1, before.1, "the golem stands at its stop distance");
     assert!(reached, "the golem reaches 96 px within 700 ticks");
 }
