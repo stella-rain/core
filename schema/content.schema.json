@@ -616,7 +616,7 @@
       "description": "Tier 2 (ADR-SIM-4): body parts and an ordered list of phases that only move forward.",
       "properties": {
         "arrives_at_tick": {
-          "description": "The tick the boss comes onto the field: its first tick is this one. Absent or 1, it is\nthere from the first tick. Needs `sim_version` 2, and a tick before the stage's length.\n(A `time_limit` run's bosses come at the mode file's `boss_ticks`, not at this.)",
+          "description": "The tick the boss comes onto the field: its first tick is this one. Absent or 1, it is\nthere from the first tick. Needs `sim_version` 2, and a tick before the stage's `length_ticks`.\n(A `time_limit` run's bosses come at the mode file's `boss_ticks`, not at this.)",
           "format": "uint32",
           "maximum": 18000,
           "minimum": 1,
@@ -1097,7 +1097,7 @@
         },
         "stop_distance": {
           "default": 24576,
-          "description": "It stops this far from its target, centre to centre. 24,576 (96 pixels) when absent.",
+          "description": "It stops this far from its target, centre to centre, at most the map's longer side.\n24,576 (96 pixels) when absent.",
           "format": "int32",
           "maximum": 1048576,
           "minimum": 1,
