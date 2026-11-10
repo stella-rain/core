@@ -264,11 +264,11 @@ fn a_real_pack_gets_past_the_loader_and_runs() {
     );
 }
 
-/// One packet of each kind, and a frame with an action, built through net's own API: the seeds
+/// One packet of each kind (both hello layouts), and a frame with an action, built through net's own API: the seeds
 /// of `net_decode`.
 fn net_seeds() -> Vec<Vec<u8>> {
     use stella_rain_net::wire::{
-        Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, Packet, WireInput,
+        Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, Packet, WireInput,
     };
     let slot = |i| PlayerIdx::new(i).unwrap();
     let mut pack_hash = [0u8; 32];
@@ -298,6 +298,18 @@ fn net_seeds() -> Vec<Vec<u8>> {
             pack_hash,
             delay: 2,
             window: 4,
+        }),
+        Packet::Hello(Hello {
+            protocol: 2,
+            sim_version: 3,
+            pack_hash: [0xaa; 32],
+            delay: 16,
+            window: 0,
+        }),
+        Packet::HelloV1(HelloV1 {
+            protocol: 1,
+            sim_version: 2,
+            pack_hash,
         }),
         Packet::Input(InputFrame {
             slot: slot(0),
@@ -334,6 +346,30 @@ fn every_net_seed_decodes_and_the_empty_and_noise_do_not() {
     for (i, seed) in net_seeds().iter().enumerate() {
         assert!(net_decode(seed), "seed {i}");
     }
+    assert!(!net_decode(&[]));
+    assert!(!net_decode(&[0xff; 64]));
+}
+
+#[test]
+fn the_net_seeds_hold_both_hello_layouts_and_the_layouts_stay_apart() {
+    let seeds = net_seeds();
+    let v2: Vec<_> = seeds
+        .iter()
+        .filter(|s| s.len() == 49 && s[0] == 0x06)
+        .collect();
+    let v1: Vec<_> = seeds
+        .iter()
+        .filter(|s| s.len() == 41 && s[0] == 0x01)
+        .collect();
+    assert_eq!(v2.len(), 2, "two protocol 2 hello seeds");
+    assert_eq!(v1.len(), 1, "one protocol 1 hello seed");
+    assert!(net_decode(v2[0]) && net_decode(v2[1]) && net_decode(v1[0]));
+    let mut short_new = v1[0].clone();
+    short_new[0] = 0x06;
+    assert!(!net_decode(&short_new), "41 bytes under tag 0x06");
+    let mut long_old = v2[0].clone();
+    long_old[0] = 0x01;
+    assert!(!net_decode(&long_old), "49 bytes under tag 0x01");
     assert!(!net_decode(&[]));
     assert!(!net_decode(&[0xff; 64]));
 }
