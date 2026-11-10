@@ -4,7 +4,7 @@
 
 use crate::common::run::trial_setup;
 use crate::zone_bot::run_input;
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome, PresenceError};
+use stella_rain_core::engine::{Engine, Outcome, PresenceError};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 
@@ -26,15 +26,6 @@ fn d() -> Input {
 
 fn advance(engine: &mut Engine, from: u32, to: u32) {
     for t in from..to {
-        // An offer stops the world; a pick by whoever holds it closes it.
-        while engine.offer_open() {
-            let holder = (0..3u8)
-                .find(|i| engine.check_pick(slot(*i), 0).is_ok())
-                .expect("an open offer belongs to a slot");
-            let mut inputs = [d(); 3];
-            inputs[usize::from(holder)] = Input::picking(0);
-            engine.step(&inputs);
-        }
         let first = run_input(engine, t);
         engine.step(&[first, d(), d()]);
     }
@@ -84,20 +75,8 @@ fn a_hole_steps_and_ignores_the_absent_slot() {
         assert_eq!(e.present(), 0b101);
         assert_eq!(e.players(), 2);
         for t in 0..120 {
-            while e.offer_open() {
-                let holder = (0..3u8)
-                    .find(|i| e.check_pick(slot(*i), 0).is_ok())
-                    .unwrap();
-                let mut inputs = [d(); 3];
-                inputs[usize::from(holder)] = Input::picking(0);
-                e.step(&inputs);
-            }
             e.step(&[a(t), junk, d()]);
         }
-        assert_eq!(
-            e.check_pick(slot(1), 0),
-            Err(ChoiceError::NoPlayer { player: slot(1) })
-        );
         e.state_hash()
     };
     assert_eq!(
@@ -169,7 +148,7 @@ fn a_joiner_is_a_fresh_player_at_the_first_players_place() {
         "slot 0 keeps its level"
     );
     assert_eq!(snap.players[1].at, snap.players[0].at);
-    assert!(!e.offer_open() || e.check_pick(slot(1), 0).is_err());
+    assert!(!e.offer_open());
 }
 
 // C. The recorder and the verifier.
@@ -180,12 +159,6 @@ use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run};
 
 fn rec_steps(rec: &mut RunRecorder, from: u32, to: u32, inputs: impl Fn(u32) -> [Input; 3]) {
     for t in from..to {
-        while rec.engine().offer_open() {
-            let holder = (0..3u8)
-                .find(|i| rec.engine().check_pick(slot(*i), 0).is_ok())
-                .unwrap();
-            rec.choose(slot(holder), 0).unwrap();
-        }
         rec.step(&inputs(t)).unwrap();
     }
 }
@@ -287,14 +260,6 @@ fn the_recorder_refuses_a_bad_change_and_records_nothing() {
     assert_eq!(rec.replay().to_bytes(), before);
     rec.leave(slot(1)).unwrap();
     rec.join(slot(2)).unwrap();
-    assert_eq!(
-        rec.choose(slot(1), 0).unwrap_err(),
-        RunReplayError::BadInputs("a player outside the party")
-    );
-    assert_eq!(
-        rec.picks(&[None, Some(0), None]).unwrap_err(),
-        RunReplayError::BadInputs("a step of picks holds a pick")
-    );
 }
 
 #[test]

@@ -200,14 +200,8 @@ fn an_equipment_run_reads_like_its_oracle() {
 
 #[test]
 fn a_schema_1_form_of_a_case_reads_the_same_ranges() {
-    // An equipment case has no schema 1 form: the offers-era trial run, recorded here, has one.
-    let two = crate::corpus::offers_trial_run();
-    let picks = crate::common::run_steps::RunSteps::of(&two)
-        .steps()
-        .iter()
-        .filter(|s| matches!(s, crate::common::run_steps::Step::Picks(_)))
-        .count();
-    assert!(picks > 0, "the run holds PICKS steps");
+    // An equipment case has no schema 1 form: the live trial run, recorded here, has one.
+    let two = crate::corpus::live_trial_run();
     let one = schema_1_form(&two);
     for (a, b) in ranges(two.ticks, 7) {
         assert_eq!(

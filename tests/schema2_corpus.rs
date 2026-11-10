@@ -3,7 +3,7 @@
 //! verifies and reaches the same ticks, final hash, outcome and command count. The simulation
 //! did not move; only the file format did.
 
-use crate::common::run_steps::{RunSteps, Step};
+use crate::common::run_steps::RunSteps;
 use crate::common::schema_1_form;
 use crate::corpus::case_content;
 use crate::data_root::data_root;
@@ -75,15 +75,9 @@ fn schema_2_cases_are_their_schema_1_forms() {
         (1, 9),
         "the cases with and without actions"
     );
-    // A run with offers is still its schema 1 form: the offers-era trial, recorded here.
-    let trial = crate::corpus::offers_trial_run();
-    assert!(
-        RunSteps::of(&trial)
-            .steps()
-            .iter()
-            .any(|s| matches!(s, Step::Picks(_)))
-    );
-    assert_is_its_schema_1_form(&"offers trial", &trial, RunContent::bundled());
+    // A run with no ACTIONS step is still its schema 1 form: the live trial, recorded here.
+    let trial = crate::corpus::live_trial_run();
+    assert_is_its_schema_1_form(&"live trial", &trial, RunContent::bundled());
     let stages = cases("stages");
     assert!(stages.len() >= 16);
     for case in stages {

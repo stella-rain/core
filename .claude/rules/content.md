@@ -7,6 +7,7 @@ paths:
   - "src/attack.rs"
   - "src/weapon.rs"
   - "src/input.rs"
+  - "src/text.rs"
   - "src/event.rs"
   - "src/snapshot.rs"
   - "src/validate.rs"
@@ -36,12 +37,12 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - The types (at `SCHEMA_VERSION`; version 1 is the frozen first version, ADR-REPL-2) are
   `stage.rs`, `behaviour.rs`, `attack.rs`, `weapon.rs`, `input.rs`, `event.rs` and
   `snapshot.rs` (ADR-REPL-1, ADR-SIM-4, ADR-REPL-5). `serde`, `serde_json` and `schemars` parse and
-  describe them, outside the simulation path.
+  describe them, outside the simulation path. A `Boss` may opt in to `chase {speed, stop_distance}` and
+  `arrives_at_tick` (`sim_version` 2 only: `validate.rs`, `sim/boss.rs`).
 - `validate.rs`: size limit, strict parse, registry, static budgets (ADR-SVC-1).
   `registry.rs`: the content-ID registry (ADR-CONT-2).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-5); each mode's content is bundled
-  in `modes/`. `offer_mode` is `stop` (the default, skipped when written) or `timed`, which needs
-  `sim_version` 2; it is the run's own, so a replay names it (ADR-SIM-7 point 4).
+  in `modes/`. `RunSetup` has no `offer_mode` and no `build_mode`: a setup naming either is refused as an unknown field.
 - `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
   holds): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
   `content/run_stats.json` and `content/rewards.json` (ADR-CONT-1). `match_ups.rs` reads
@@ -61,6 +62,7 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   (`ContentFiles::bundled_file`). `attack_presets.json` (the attack presets, ADR-CONT-3 point 6) is a
   required member of the pack, read by `attack_presets.rs`; a check that needs a preset's
   phases runs at pack load and in `World::new`.
+- `text.rs`: UI text outside the hashed pack, `content/text.<locale>.json` per `SHIPPED_LOCALES` code (`ko`, `en`).
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
   `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
 
@@ -71,9 +73,8 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
 - Caps, the grid, the push-apart, the view and the units stay in Rust. The test: a number whose
   change needs code review stays in Rust. A key's bounds are code (`validate_rules` in `rules.rs`; the two ranged
   token pools sum to at most `MAX_RANGED_ATTACKERS`).
-- `offer_timer_ticks` of `rules.json`: a `timed` offer's countdown, 1 to `MAX_OFFER_TIMER_TICKS`
-  (3,600 = 60 s), checked in `validate_rules`, 300 when absent, never read by a `stop` run. A key
-  added after bytes were published carries `#[serde(default)]`, so an older pack still reads; a
-  setup key also `skip_serializing_if` its default, so an older setup writes the same bytes.
+- `offer_timer_ticks` of `rules.json`: read by no run, kept for older packs: 1 to `MAX_OFFER_TIMER_TICKS` (3,600), checked in
+  `validate_rules`, 300 when absent. A key added after bytes were published carries `#[serde(default)]`, so an older pack still
+  reads; a setup key also `skip_serializing_if` its default, so an older setup writes the same bytes.
 - `docs/tuning.md` (generated from `src/limits.rs`) lists caps and code numbers only; a key's
   bounds are the schema's.

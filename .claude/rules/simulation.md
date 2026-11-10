@@ -20,9 +20,9 @@ outcome changes follow the `schema-change` skill.
 - `engine/`: the engine (`Engine`): `mod.rs` starts (`start_party` and `start_party_with` take 1
   to 3 players, `start` is 1; another size is `Error::Invalid` at `$.party`, and `sim_version`
   1 takes only 1, `run.rs`), steps (`step(&[Input; MAX_PLAYERS])`: one entry per slot, an absent
-  one ignored), joins and leaves a slot (`join`, `leave`, `present`, `PresenceError`), chooses,
-  spends and hashes. An open offer stops the world only in a `stop` run; a `timed` run takes the
-  picks first, then ticks (`offer_mode`, `RunSetup`; `content.md`); `snapshot.rs` builds the
+  one ignored), joins and leaves a slot (`join`, `leave`, `present`, `PresenceError`), takes equipment actions between
+  steps (`act`, `check_action`) and hashes. Only a `sim_version` 1 run opens an offer, and an open offer stops the
+  world; the live rules open none (`Run::offer_open`); `snapshot.rs` builds the
   snapshot, `places` (ids, kinds, positions per tick) and `tally` (the HUD tallies, `Counted` in
   `ledger.rs`, outside the hashed state).
 - `sim/`: the live rules, run for the newest `sim_version` (2, open while `DEVELOPMENT` is true,
@@ -32,15 +32,14 @@ outcome changes follow the `schema-change` skill.
   `schedule.rs` holds `TICK`, the one tick order (`tick_doc_lists_the_schedule` keeps the `sim`
   module doc's table equal to it): a step is added or moved there. `sim/` holds agents and the
   enemies' push-apart, attacks and hit boxes, skills, the main character's movement, facing and
-  evade, the weapon's combos (ADR-SIM-4), aim assist, boss phases and parts, experience and
-  levels, the runes (`runes.rs`), the falling stars and their offers (`stars.rs`, ADR-REPL-5)
-  and the expertise offers (`expertise.rs`). A `timed` run keeps a deadline per slot
-  (`sync_deadline`, `pick_due`). `offer_rating.rs` rates the candidates of an open star or boss
-  offer: `Engine::offer_ratings(player)` returns an `OfferRating` each (categories, `dps_bp`,
-  `set_tier`, the stat changes); read-only, nothing hashed, saved or recorded. Equipment mode
-  (`World.equipment_mode`): `build.rs`, `slots.rs` (the swap rules: hit-point fraction, entry
-  cooldown, the savepoint check), `starlight.rs`, `drops.rs`, `equipment.rs`, `loadout.rs`:
-  `equipment.md`; `expertise.rs`: `weapon-tree.md`; a party: `party-equipment.md`.
+  evade, the weapon's combos (ADR-SIM-4), aim assist, boss phases and parts (a boss may opt in to `chase` and
+  `arrives_at_tick`: `boss.rs`, `boss::arrive`; `content.md`), experience and levels, the runes (`runes.rs`), the
+  falling stars (`stars.rs`: the live rules open no offer, ADR-REPL-5) and the weapon's expertise (`expertise.rs`: no
+  level opens an offer). `offer_rating.rs` holds `swap_ratings`: `Engine::swap_ratings` rates a star against each
+  slot it could go in (`SwapRating`: `dps_bp`, the set tiers, the stat changes); read-only, nothing hashed, saved or
+  recorded. `Engine::offer_ratings` is always empty (kept for callers). Equipment, what `sim_version` 2 runs:
+  `build.rs`, `slots.rs` (the swap rules: hit-point fraction, entry cooldown, the savepoint check), `starlight.rs`,
+  `drops.rs`, `equipment.rs`, `loadout.rs`: `equipment.md`; `expertise.rs`: `weapon-tree.md`; a party: `party-equipment.md`.
 - `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot, a member
   from `Career::member` (slot 0's start career; `party-equipment.md`). Every present
   slot acts in slot order (`player_update` in `schedule.rs`; down, revive, tether and rewards:
@@ -52,10 +51,10 @@ outcome changes follow the `schema-change` skill.
   src/sim_v1`): `SIM_V1_SOURCE` (`src/sim/frozen_tests.rs`) moves once, with the reason in the
   same commit, and `tests/corpus/v1/` is the guard. Its hash keeps the single-player layout,
   no presence byte (`src/sim_v1/hash_layout_tests.rs`).
-- Events: `sim_v1/event.rs` holds the 43-variant `DomainEvent`, `HitKind` and `HitSource` as
-  version 1 emitted them. The one adapter is `engine/v1_events.rs`:
-  `From<sim_v1::event::DomainEvent> for DomainEvent`, an exhaustive `match` with no `_` arm,
-  player fields `None`; `Run::V1` (`engine/run.rs`) drains frozen events through it. A live
+- Events: `sim_v1/event.rs` holds the 43-variant `DomainEvent`, `HitKind` and `HitSource` as version 1 emitted them;
+  the live enum (`event.rs`) has 42: the 39 they share and three player events. The one adapter is `engine/v1_events.rs`:
+  `adapt(v1::DomainEvent) -> Option<DomainEvent>`, an exhaustive `match` with no `_` arm, `None` for the four level-offer
+  events the live rules lack, player fields `None`; `Run::V1` (`engine/run.rs`) drains frozen events through it. A live
   event change edits the adapter, never `sim_v1` (`sim_v1_imports_nothing_from_the_live_event`).
 - `trig.rs`: the sine table. `presets.rs`: takes an attack preset (`content/attack_presets.json`,
   ADR-CONT-3 point 6) apart into attack phases. `inline.rs`: `InlineVec<T, N>`, a bounded list, no heap.

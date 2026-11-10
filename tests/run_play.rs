@@ -1,10 +1,9 @@
 //! The scripted run of the trial and the other modes as a list of commands: `run_input`'s
-//! ticks and every offer answered (`common::run::answer_all`); the setup's stat priority spends the
-//! level-ups. Beside the common fixtures, not in them, so that the benches that
+//! ticks; the setup's stat priority spends the level-ups. Beside the common fixtures, not in them, so that the benches that
 //! share `tests/common/` do not build it.
 
 use crate::common;
-use crate::common::run::{STEER_FROM, answer_all, trial_setup};
+use crate::common::run::{STEER_FROM, trial_setup};
 use crate::party_bot::{PartyBot, RigParty};
 use crate::zone_bot::run_input;
 use stella_rain_core::engine::{Engine, Outcome};
@@ -15,8 +14,8 @@ use stella_rain_core::run_replay::{Command, RunRecorder};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::HeldView;
 
-/// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
-/// `answer_all` does, between a tick and the next (and after the last).
+/// The commands of a run of `run_input` for up to `ticks` ticks: one `Command::Step` a tick (no
+/// offer opens at the live rules, so no `Command::Choose`).
 pub fn play_run(ticks: u32) -> Vec<Command> {
     play_run_from(&trial_setup(), ticks)
 }
@@ -40,20 +39,14 @@ pub fn play_run_with(
 ) -> Vec<Command> {
     let mut engine = Engine::start_with(setup, content).unwrap();
     let mut out = Vec::new();
-    let mut offers = 0;
-    let between = |engine: &mut Engine, out: &mut Vec<Command>, offers: &mut usize| {
-        answer_all(engine, offers, out);
-    };
     for t in 0..ticks {
         if engine.outcome() != Outcome::Running {
             break;
         }
-        between(&mut engine, &mut out, &mut offers);
         let input = input(&engine, t);
         engine.step(&[input, Default::default(), Default::default()]);
         out.push(Command::Step(input));
     }
-    between(&mut engine, &mut out, &mut offers);
     out
 }
 
@@ -64,7 +57,8 @@ pub fn first_point_tick() -> u32 {
     for command in play_run(STEER_FROM) {
         match command {
             Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
-            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         if engine.snapshot().progress.is_some_and(|p| p.level > 1) {
             return engine.tick();
@@ -190,26 +184,6 @@ pub fn party_inputs_with(rec: &RunRecorder, tick: u32, bot: Option<&PartyBot>) -
     inputs
 }
 
-/// Answers every open offer, each by the slot that holds it, one pick at a time: option 0, or
-/// with a `bot` the option it picks (option 0 if it gives none).
-pub fn answer_party_offers_with(rec: &mut RunRecorder, bot: Option<&PartyBot>) {
-    while rec.engine().offer_open() {
-        let present = rec.engine().present();
-        let holder = (0..3u8)
-            .filter(|s| present >> s & 1 == 1)
-            .find(|i| {
-                rec.engine()
-                    .check_pick(PlayerIdx::new(*i).unwrap(), 0)
-                    .is_ok()
-            })
-            .expect("an open offer belongs to a slot");
-        let index = bot
-            .and_then(|bot| bot.pick(rec.engine(), holder, rec.engine().tick()))
-            .unwrap_or(0);
-        rec.choose(PlayerIdx::new(holder).unwrap(), index).unwrap();
-    }
-}
-
 /// A change of the party at a tick.
 #[derive(Clone, Copy, Debug)]
 pub enum Change {
@@ -217,9 +191,8 @@ pub enum Change {
     Leave(u8),
 }
 
-/// A party of `n` played from `setup` for up to `ticks` ticks, every offer answered by its slot
-/// (one pick at a time between ticks); each of `changes` (world tick, change) is applied before
-/// that tick's step. With a `bot` it plays every present slot and picks every offer.
+/// A party of `n` played from `setup` for up to `ticks` ticks; each of `changes` (world tick,
+/// change) is applied before that tick's step. With a `bot` it plays every present slot.
 pub fn play_party_with(
     setup: &RunSetup,
     n: u8,
@@ -236,7 +209,6 @@ pub fn play_party_with(
                 Change::Leave(s) => rec.leave(PlayerIdx::new(s).unwrap()).unwrap(),
             }
         }
-        answer_party_offers_with(&mut rec, bot);
         if rec.engine().outcome() != Outcome::Running {
             break;
         }
@@ -246,7 +218,6 @@ pub fn play_party_with(
         }
         rec.step(&inputs).unwrap();
     }
-    answer_party_offers_with(&mut rec, bot);
     rec
 }
 

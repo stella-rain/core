@@ -6,6 +6,7 @@ paths:
   - "tests/schema2_range.rs"
   - "tests/schema2_write.rs"
   - "tests/run_replay.rs"
+  - "tests/common/run_steps.rs"
 ---
 
 # The step log and the recorder
@@ -25,7 +26,9 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   last); the records after one hold a block per slot of the mask in force. Refused: slot 0
   leaving, a join of a present slot, a leave of an absent one, a slot past 2, and more than
   `MAX_PRESENCE_CHANGES` (64). Runs sum to `ticks`; at most `MAX_COMMANDS` (1000,
-  `run_replay.rs`) PICKS. Bit 6 of `flags` is `interact`; an axis of -128 is written -127
+  `run_replay.rs`) PICKS. `0x04` ACTIONS: a step like PICKS, one entry per present slot (`0x00` none, or Equip, Replace,
+  Extract, Craft, TreePick and its varint operands), at least one; at most `MAX_ACTION_STEPS` (4096, `run_replay.rs`)
+  of them. Bit 6 of `flags` is `interact`; an axis of -128 is written -127
   (`block_of`, `replay.rs`). `SCHEMA_VERSION` 2 is written, 1 and 2 read (`version.rs`);
   schema 1 migrates in memory (`from_schema1`).
 - The party: `StepLog::party_of(present)` is the one validator of tick 0's `present` byte
@@ -35,14 +38,16 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   LEAVE, from one scan (the savepoint restore reads it). `resimulate` starts the party the log
   names, then calls `Engine::join` and `leave`; the engine's refusal is
   `RunReplayError::PresenceRefused { tick, error }`.
-- Solo views: `RunReplay::unpack_inputs` and `unpack_commands` refuse a party or a log with a
-  JOIN or LEAVE (`has_changes`) as `BadInputs("a party has no solo view")`; the recorder does
-  not use them.
+- Solo views: `RunReplay::unpack_inputs` and `unpack_commands` refuse a party, a log with a
+  JOIN or LEAVE (`has_changes`) as `BadInputs("a party has no solo view")` and a log with an
+  ACTIONS step as `BadInputs("a log with equipment actions has no solo view")`; the recorder does
+  not use them. A test replays a run case through `common::run_steps` (`tests/common/run_steps.rs`:
+  `RunSteps::of` over `RunReplay::step_range`, then `apply`, `apply_to` or `commands`).
 - `read_step_range(bytes, ticks, max_ticks, a, b)` and `StepLog::range`: ticks 0-based, range
   half-open. A TICKS run overlapping it is returned once, clipped, never expanded (memory is
-  bounded by the records in the range). A PICKS, JOIN or LEAVE after `p` ticks is in iff
+  bounded by the records in the range). A PICKS, ACTIONS, JOIN or LEAVE after `p` ticks is in iff
   `a <= p < b`; a range with `b == ticks` also holds those after the last tick. A step is a
-  `RangeStep` (`Ticks`, `Picks`, `Join`, `Leave`), dense for the mask in force there;
+  `RangeStep` (`Ticks`, `Picks`, `Actions`, `Join`, `Leave`), dense for the mask in force there;
   `StepRange.present` is tick 0's mask, `present_at_first` the mask after every change before
   tick `a`. The whole log is validated first; `a > b` and `b > ticks` are `BadInputs`, before the
   bytes are read.
@@ -55,15 +60,15 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   `Engine::start_party_with`, `$.party`).
 - `step(&[Input; MAX_PLAYERS])` takes one entry per slot, present or not: an absent slot's is
   ignored and the log keeps one block per present slot. Each input is stored as its block bytes
-  read back, so an axis of -128 then -127 is one run. `choose(player, i)` of a player outside the
-  party is `BadInputs("a player outside the party")`; `picks(&[Option<u32>; MAX_PLAYERS])` is one
-  step with several picks, at least one among the present slots (a pick at an absent slot is
-  ignored). In a `stop` run `step` refuses an input while an offer is open
-  (`RunReplayError::OfferOpen`); a `timed` run takes the picks of the inputs the engine accepts
-  first, records them as one PICKS step, clears them from the inputs and ticks on those, so a
-  TICKS block never holds a pick. The timer's own picks are derived, never recorded
-  (`OfferMode::Timed`, ADR-REPL-5 point 5); `resimulate` refuses a TICKS run over an open offer
-  in a `stop` run only.
+  read back, so an axis of -128 then -127 is one run. An `Input.action` the engine accepts
+  (`check_action`) is recorded first as one ACTIONS step and the tick runs on the input with it
+  cleared, so a TICKS block never holds one. `choose(player, i)` of a
+  player outside the party is `BadInputs("a player outside the party")`; `picks(&[Option<u32>;
+  MAX_PLAYERS])` is one step with several picks, at least one among the present slots (a pick at
+  an absent slot is ignored); `actions(&[Option<EquipAction>; MAX_PLAYERS])` is one ACTIONS step
+  (refused after the end, past `MAX_ACTION_STEPS` or when `check_action` refuses). `step` refuses
+  an input while an offer is open (`RunReplayError::OfferOpen`; only a `sim_version` 1 run opens
+  one), and `resimulate` refuses a TICKS run over an open offer.
 - `join(slot)` and `leave(slot)` call the engine and write a JOIN or LEAVE at the tick the run
   is on; a refusal (`PresenceRefused`, the end of the run, the cap) records nothing.
 - `replay_at` cuts the log with `StepLog::prefix` and reads nothing from the engine.
