@@ -900,6 +900,23 @@ mod decisions {
     }
 
     #[test]
+    fn a_boss_only_sight_walks_the_fighter_to_it() {
+        let fighter = seed_with_role(1, 0);
+        let far = Sight {
+            enemy: Some(at(-200, 0)),
+            ..up()
+        };
+        let input = fighter.decide(&far, 1, 0);
+        assert_eq!((input.move_x, input.move_y), (-127, 0));
+        let near = Sight {
+            enemy: Some(at(-20, 0)),
+            ..up()
+        };
+        let input = fighter.decide(&near, 1, 0);
+        assert_eq!((input.move_x, input.move_y), (0, 0));
+    }
+
+    #[test]
     fn buttons_follow_the_cadences_and_axes_stay_in_range() {
         for seed in 1..=3 {
             let b = PartyBot {
@@ -1080,6 +1097,46 @@ mod builds {
             e.step(&inputs);
         }
         e
+    }
+
+    /// The `at` of the first snapshot entity of `kind`, by the nearest to `slot`.
+    fn nearest_of(e: &Engine, slot: u8, kind: EntityKind) -> Option<Point> {
+        let me = sight(e, slot).me;
+        e.snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.kind == kind)
+            .map(|v| v.at)
+            .min_by_key(|at| d2(*at, me))
+    }
+
+    fn tutorial_engine(world: u64) -> Engine {
+        let setup = RigParty::new(3)
+            .equipment()
+            .mode("tutorial")
+            .seed(world)
+            .case("x")
+            .setup;
+        Engine::start_party_with(&setup, Pack::bundled().content(), 3).unwrap()
+    }
+
+    #[test]
+    fn a_fighter_with_no_enemy_hunts_the_boss() {
+        let mut e = tutorial_engine(1);
+        e.step(&[Input::default(); 3]);
+        assert_eq!(nearest_of(&e, 0, EntityKind::Enemy), None, "no bat yet");
+        let boss = nearest_of(&e, 0, EntityKind::Boss).expect("the golem is parked at tick 1");
+        assert_eq!(sight(&e, 0).enemy, Some(boss));
+    }
+
+    #[test]
+    fn a_bat_is_hunted_before_the_boss() {
+        let mut e = tutorial_engine(1);
+        for _ in 0..130 {
+            e.step(&[Input::default(); 3]);
+        }
+        let bat = nearest_of(&e, 0, EntityKind::Enemy).expect("a bat is on the field at 130");
+        assert_eq!(sight(&e, 0).enemy, Some(bat));
     }
 
     #[test]

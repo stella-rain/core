@@ -614,6 +614,46 @@ fn the_party_cases_are_what_the_table_says() {
     assert_eq!(party_cases().len(), TABLE.len());
 }
 
+/// The tick after 1260 (the last bat spawn) at which no enemy is left on the field in the run of
+/// `replay`, and the tick the run ended.
+fn first_empty_field(case: &crate::run_play::PartyCase, replay: &RunReplay) -> Option<u32> {
+    use crate::party_bot::RigRun;
+    use stella_rain_core::snapshot::EntityKind;
+    let run = RigRun::of(replay);
+    let mut e = Engine::start_party_with(&case.setup, Pack::bundled().content(), run.n).unwrap();
+    let mut empty = None;
+    let len = u32::try_from(run.ticks.len()).unwrap();
+    run.play_with(&mut e, 0, len, |e| {
+        if empty.is_none()
+            && e.tick() > 1260
+            && !e
+                .snapshot()
+                .entities
+                .iter()
+                .any(|v| v.kind == EntityKind::Enemy)
+        {
+            empty = Some(e.tick());
+        }
+    });
+    empty
+}
+
+#[test]
+fn the_tutorial_party_clears_with_its_build_out_of_it() {
+    for (world, bot) in [(1, 1), (1, 2), (2, 1), (2, 2)] {
+        let case = crate::run_play::party_case("three_tutorial", world, bot);
+        let replay = case.play().replay();
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        assert_eq!(verified.outcome, Outcome::Cleared, "({world}, {bot})");
+        let empty = first_empty_field(&case, &replay).expect("the bats die");
+        assert!(
+            verified.ticks <= empty + 2000,
+            "({world}, {bot}): cleared at {}, field empty at {empty}",
+            verified.ticks
+        );
+    }
+}
+
 #[test]
 fn the_rig_cases_go_down_and_are_revived() {
     use crate::party_bot::RigRun;
