@@ -139,8 +139,16 @@ fn steps() -> Vec<Step> {
             drop_ci: false,
             filter: "schema::",
         },
+        // The writer alone in its process: it rewrites every case's pack pin, and a reader that
+        // ran beside it would load a pin that is not written yet.
         Step::Test {
             env: Some(("UPDATE_CORPUS", "1")),
+            drop_ci: false,
+            filter: "corpus::the_corpus_matches",
+        },
+        // Then every other corpus test, against the written pins; nothing writes.
+        Step::Test {
+            env: None,
             drop_ci: false,
             filter: "corpus::",
         },
@@ -169,7 +177,7 @@ fn freeze_steps(name: &str) -> Vec<Step> {
             || matches!(
                 s,
                 Step::Test {
-                    filter: "corpus::",
+                    filter: "corpus::the_corpus_matches",
                     ..
                 }
             )
@@ -594,7 +602,8 @@ mod tests {
             Step::Record(_) => "frozen version",
             Step::Test { filter, .. } => match *filter {
                 "schema::" => "schema",
-                "corpus::" => "corpus",
+                "corpus::the_corpus_matches" => "corpus",
+                "corpus::" => "reads only",
                 "golden::" => "golden",
                 "bench_fixture_pins::" => "bench pins",
                 other => panic!("step {other} writes no known set"),
