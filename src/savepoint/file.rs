@@ -57,8 +57,9 @@ use super::{decode_state, encode_state};
 /// slot generations and a block per player, no entity-number gap), the player stats record and
 /// each player's equipment at the end of its block; format 5 holds the longer stat totals (11,
 /// one per `StatEffect`); format 6 holds 13 stat totals and, after them, 13 weapon-set entries
-/// in tenths of a percent (`Progress.set_tenths`); formats 1 to 5 are refused.
-pub const SAVEPOINT_FORMAT: u32 = 6;
+/// in tenths of a percent (`Progress.set_tenths`); format 7 drops the stale offer fields of
+/// `Progress` and `ExpertiseGauge`; formats 1 to 6 are refused.
+pub const SAVEPOINT_FORMAT: u32 = 7;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.

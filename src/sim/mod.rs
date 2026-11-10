@@ -756,7 +756,7 @@ pub(crate) fn offer_open(s: &State) -> bool {
 
 /// Opens, for every present player in slot order, the first offer due unless one is open for
 /// that player: the boss offer, then the stars' in the order taken (ADR-REPL-5). The players open
-/// theirs side by side. The expertise gauge's `offered` follows its level.
+/// theirs side by side.
 fn open_offers(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     for me in s.players.indices() {
         open_offers_for(stage, rewards, s, me, events);
