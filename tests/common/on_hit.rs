@@ -9,12 +9,9 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
-use stella_rain_core::run_content::RunContent;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
-use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
-use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::version::Versions;
 
 use super::equip::{Parts, equipped_in, rune_slot};
@@ -167,91 +164,6 @@ pub fn wait_ready(e: &mut Engine) {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
     panic!("the stage skill never became ready");
-}
-
-/// `small` enemies of 1 hp at `NEAR_Y`, one every 6 ticks from tick 1, each dropping a common
-/// star taken at once, then the `target` wave.
-pub fn stage(small: u16, target: Value) -> Stage {
-    let waves = vec![
-        wave(
-            1,
-            small,
-            6,
-            enemy(1, hold(START_X, NEAR_Y), json!([])),
-            START_X,
-            NEAR_Y,
-        ),
-        target,
-    ];
-    let mut stage = armed(
-        stage_full(18_000, Some(far_boss()), waves, vec![]),
-        weapon(),
-    );
-    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
-    stage.stars = Some(
-        serde_json::from_value(json!({
-            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-            "rerolls": 0, "banishes": 0,
-            "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
-        }))
-        .unwrap(),
-    );
-    stage
-}
-
-pub fn random_rune() -> Value {
-    json!({ "id": "random_rune", "rarity": "common", "effect": "random_rune" })
-}
-
-/// The run content of `rewards` (read with `skills`, when given) and `runes`.
-pub fn content(rewards: Vec<Value>, skills: Option<Value>, runes: Runes) -> RunContent {
-    let file = json!({ "rarities": super::rarities(), "rewards": rewards }).to_string();
-    let rewards = match skills {
-        Some(skills) => {
-            let skills = json!({ "stage_skills": skills });
-            let skills = StageSkills::parse(skills.to_string().as_bytes(), Versions::CURRENT)
-                .expect("the test skills validate");
-            Rewards::parse_with(file.as_bytes(), Versions::CURRENT, &skills)
-        }
-        None => Rewards::parse(file.as_bytes(), Versions::CURRENT),
-    }
-    .expect("the test rewards validate");
-    RunContent::new(super::design_run_stats(), rewards).with_runes(runes)
-}
-
-pub fn with(stage: &Stage, content: &RunContent) -> Engine {
-    Engine::new_with(stage, content).expect("the test stage is valid")
-}
-
-/// Fires until an offer is open, then takes the candidate that is `reward`.
-pub fn take(e: &mut Engine, reward: &str) {
-    fire_until(e, idle(), 600, Engine::offer_open);
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    super::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
-/// Takes the random rune from the next seven offers: the Main holds every rune, in the order
-/// drawn.
-pub fn take_all(e: &mut Engine) {
-    for _ in Rune::ALL {
-        take(e, "random_rune");
-    }
-    let mut held: Vec<Rune> = e.snapshot().players[0]
-        .runes
-        .iter()
-        .map(|r| r.rune)
-        .collect();
-    held.sort();
-    assert_eq!(held, Rune::ALL, "every rune held");
 }
 
 /// The cooldown left of `rune`, held.
