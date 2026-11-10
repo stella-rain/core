@@ -72,6 +72,11 @@ impl Save for CloneRing {
         let restored = self.loaded.take();
         if let Some(slot) = self.saved.iter_mut().find(|(t, _)| *t == tick) {
             if restored == Some(tick) {
+                debug_assert_eq!(
+                    slot.1.state_hash(),
+                    engine.state_hash(),
+                    "the engine changed between a load and the save of the same tick"
+                );
                 return;
             }
             slot.1.clone_from(engine);
