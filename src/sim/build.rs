@@ -56,6 +56,7 @@ pub(super) struct Build {
 impl Build {
     /// The build of the stars held: `held[p]` times the star at place `p` of `rewards` (a slice
     /// shorter than the file counts the rest as 0), and the chain of tier deltas of each set.
+    #[cfg(test)]
     pub(super) fn of(stage: &World, rewards: &Rewards, held: &[u8]) -> Build {
         let count = |p: usize| usize::from(held.get(p).copied().unwrap_or(0));
         let mut b = Build::default();

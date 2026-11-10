@@ -5,9 +5,9 @@
 
 use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
-    leash, loadout, move_orbs, open_offers, orbit, player, push, runes, skill, spawn_waves, zones,
+    leash, loadout, move_orbs, orbit, player, push, runes, skill, spawn_waves, zones,
 };
-use crate::engine::{Load, Outcome};
+use crate::engine::Load;
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
 use crate::input::Input;
@@ -268,16 +268,6 @@ pub(super) mod steps {
     pub(super) fn decide_outcome(c: &mut Ctx) {
         super::decide_outcome(c.world, c.s, c.events);
     }
-
-    #[inline(never)]
-    pub(super) fn open_offers(c: &mut Ctx) {
-        match c.s.outcome {
-            Outcome::Running | Outcome::Cleared => {
-                super::open_offers(c.world, c.rewards, c.s, c.events);
-            }
-            Outcome::Failed => {}
-        }
-    }
 }
 
 /// Pairs each step function with its own name.
@@ -318,7 +308,6 @@ pub(super) const TICK: &[(&str, Step)] = steps![
     collide,
     level_up,
     decide_outcome,
-    open_offers,
 ];
 
 #[cfg(test)]

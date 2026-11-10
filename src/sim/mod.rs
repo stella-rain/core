@@ -38,7 +38,6 @@
 //! | `collide` | damage-over-time statuses tick, then the hit boxes of active phases (`hit_boxes`), then orbs land on the main character and the companions; the shield takes from the main character's damage; experience, expertise points, runes' effects and drops follow the hits (`combat`) |
 //! | `level_up` | the expertise gauge's levels are reached (`expertise`) |
 //! | `decide_outcome` | death or running out of ticks fails, an empty stage clears |
-//! | `open_offers` | if the run goes on or is cleared, the first offer due opens, and the world stops until it is answered: the boss offer, then the expertise levels' in level order, then the stat offers' in level order, then the stars' in the order taken; a fail opens none |
 //! <!-- /tick -->
 //!
 //! In a stage whose enemies or boss give expertise points, each hit and kill by a combo step in
@@ -60,7 +59,7 @@
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
-//! those it reaches; each opens an offer in `open_offers`, answered between ticks (`stars`).
+//! those it reaches (`stars`); the live rules open no star offer.
 //!
 //! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
@@ -147,7 +146,7 @@ mod loadout;
 mod offer_rating;
 mod slots;
 pub(crate) use expertise::TreeError;
-pub(crate) use offer_rating::{offer_ratings, swap_ratings};
+pub(crate) use offer_rating::swap_ratings;
 pub(crate) use slots::{
     Misfit, SlotError, holds_right_kinds, misfit, runes_match_slots, same_layout,
 };
@@ -225,7 +224,7 @@ use crate::sim::state::{
     StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
-use crate::snapshot::{EntityKind, OfferOption};
+use crate::snapshot::EntityKind;
 use crate::stage::{Side, ViewEdge};
 use crate::trig;
 use crate::validate::limits::DAMAGE_SCALE;
@@ -238,7 +237,7 @@ use grid::Grid;
 pub(crate) use levels::{set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
-pub(crate) use stars::{constellation_views, offer_view};
+pub(crate) use stars::constellation_views;
 
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;
@@ -743,100 +742,6 @@ pub(crate) fn step(
         entity::enemies_in_id_order(s),
         "enemies out of entity-ID order"
     );
-}
-
-/// `me` has an offer open, a star's or a boss's. The stat and expertise fields a loaded state may
-/// still carry are not offers any more.
-pub(crate) fn offer_open_for(s: &State, me: PlayerIdx) -> bool {
-    let career = s.players.career(me);
-    career.offers.as_ref().is_some_and(|o| o.offer.is_some())
-}
-
-/// An offer is open for any present player: the world is stopped.
-pub(crate) fn offer_open(s: &State) -> bool {
-    s.players.indices().any(|me| offer_open_for(s, me))
-}
-
-/// Opens, for every present player in slot order, the first offer due unless one is open for
-/// that player: the boss offer, then the stars' in the order taken (ADR-REPL-5). The players open
-/// theirs side by side.
-fn open_offers(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
-    for me in s.players.indices() {
-        open_offers_for(stage, rewards, s, me, events);
-    }
-    if !s.players.is_solo() && s.players.indices().any(|me| s.players[me].is_downed()) {
-        take_downed(stage, rewards, s, events);
-    }
-}
-
-/// The most offers a downed player takes on one tick: more than a queue can hold.
-const MAX_AUTO_PICKS: u32 = 256;
-
-/// A downed player takes option 0 of every offer on the tick it opens (ADR-SIM-7 point 4): the
-/// events of a manual pick, nothing recorded (ADR-REPL-5 point 5). Each pick opens the next offer
-/// due, so a whole queue goes on one tick. A party only.
-#[cold]
-fn take_downed(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
-    let slots: Vec<PlayerIdx> = s.players.indices().collect();
-    for me in slots {
-        if !s.players[me].is_downed() {
-            continue;
-        }
-        // Bounded, so a pick that closes nothing cannot hold the tick (fail closed).
-        for _ in 0..MAX_AUTO_PICKS {
-            if !offer_open_for(s, me) {
-                break;
-            }
-            let Some(option) = offer_options(rewards, s, me).first().copied() else {
-                break;
-            };
-            choose(2, stage, rewards, s, me, option, events);
-        }
-    }
-}
-
-/// An out player has no offers (ADR-SIM-7 point 4): what is queued for it is forgotten.
-fn drop_offers(s: &mut State, me: PlayerIdx) {
-    let career = s.players.career_mut(me);
-    if let Some(offers) = career.offers.as_mut() {
-        offers.due.clear();
-    }
-}
-
-/// `open_offers` for the player `me` alone.
-fn open_offers_for(
-    stage: &World,
-    rewards: &Rewards,
-    s: &mut State,
-    me: PlayerIdx,
-    events: &mut Vec<DomainEvent>,
-) {
-    if s.players[me].out {
-        drop_offers(s, me);
-        return;
-    }
-    stars::open_due(stage, rewards, s, me, events, true);
-    stars::open_due(stage, rewards, s, me, events, false);
-}
-
-/// The options of `me`'s open offer, in index order; empty without one.
-pub(crate) fn offer_options(rewards: &Rewards, s: &State, me: PlayerIdx) -> Vec<OfferOption> {
-    stars::options(rewards, s, me)
-}
-
-/// Carries out `option`, one of `offer_options`, on `me`'s open offer; when that closes it, the
-/// next offer due to `me` opens. The other players' due offers opened at the end of the tick.
-pub(crate) fn choose(
-    _version: u32,
-    stage: &World,
-    rewards: &Rewards,
-    s: &mut State,
-    me: PlayerIdx,
-    option: OfferOption,
-    events: &mut Vec<DomainEvent>,
-) {
-    stars::choose(stage, rewards, s, me, option, events);
-    open_offers_for(stage, rewards, s, me, events);
 }
 
 /// Whether the inventory item `item` could go into `slot` of `me`, as an equip or a replace
@@ -1879,7 +1784,6 @@ pub(crate) fn tick_down_and_revive(
             s.players[me].out = true;
             s.players[me].revive_hold = 0;
             events.push(DomainEvent::PlayerOut { player: me });
-            drop_offers(s, me);
             continue;
         }
 

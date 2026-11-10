@@ -417,20 +417,6 @@ fn check_tree_pick_refuses_what_it_cannot_take() {
     assert_eq!(check_tree_pick(&mut e, 0), Err(TreeError::NoTreePoint));
 }
 
-/// T14: an out player keeps its tree points.
-#[test]
-fn a_tree_point_survives_an_out_player() {
-    let mut e = hammer();
-    reach(&mut e, 4);
-    {
-        let (_, state) = world_state(&mut e);
-        super::drop_offers(state, PlayerIdx::SOLO);
-    }
-    assert_eq!(gauge(&e).level, 4);
-    assert_eq!(next(&mut e).expect("a point").2, 1);
-    tree_pick(&mut e, 0).expect("the point can be taken");
-}
-
 /// T15: the short table gives its own levels.
 #[test]
 fn a_short_run_table_gives_its_own_levels() {

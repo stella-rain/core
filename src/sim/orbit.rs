@@ -15,9 +15,9 @@
 
 use super::World;
 use crate::event::DomainEvent;
-use crate::rewards::{MAX_ORBITS, MAX_ORBS, Rewards};
+use crate::rewards::{MAX_ORBS, Rewards};
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{Dir, OrbitState, PlayerState, State};
+use crate::sim::state::{Dir, State};
 use crate::trig::PER_TURN;
 
 use super::attacks;
@@ -29,7 +29,8 @@ pub(super) const FIRST_SLOT: u8 = 2;
 
 /// A taken reward, at `reward` in the rewards file, gives `orbs` more orbs of its orbit: the
 /// orbit held, or a new one, which arrives ready.
-pub(super) fn take(p: &mut PlayerState, reward: u16, orbs: u32) {
+#[cfg(test)]
+pub(super) fn take(p: &mut crate::sim::state::PlayerState, reward: u16, orbs: u32) {
     let more = u8::try_from(orbs).unwrap_or(u8::MAX);
     if let Some(o) = p.orbits.iter_mut().find(|o| o.reward == reward) {
         o.orbs = o.orbs.saturating_add(more).min(MAX_ORBS);
@@ -37,10 +38,10 @@ pub(super) fn take(p: &mut PlayerState, reward: u16, orbs: u32) {
     }
     // The validator holds a file to `MAX_ORBITS` orbit rewards; the clamp keeps an unvalidated
     // one there too.
-    if p.orbits.len() >= MAX_ORBITS {
+    if p.orbits.len() >= crate::rewards::MAX_ORBITS {
         return;
     }
-    p.orbits.push(OrbitState {
+    p.orbits.push(crate::sim::state::OrbitState {
         reward,
         orbs: more.min(MAX_ORBS),
         round: 0,

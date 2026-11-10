@@ -15,7 +15,7 @@ use crate::ledger::RunLedger;
 use crate::rewards::{Rarity, Rewards};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
-use crate::snapshot::{OfferOption, OfferRating, Snapshot, SwapItem, SwapRating};
+use crate::snapshot::{OfferOption, Snapshot, SwapItem, SwapRating};
 use crate::stage::Stage;
 use crate::validate::Issue;
 use crate::{sim, sim_v1};
@@ -314,7 +314,7 @@ impl Run {
         &mut self,
         rewards: &Rewards,
         expertise: &Expertise,
-        player: PlayerIdx,
+        _player: PlayerIdx,
         option: OfferOption,
         events: &mut Vec<DomainEvent>,
     ) {
@@ -336,9 +336,8 @@ impl Run {
                 );
                 events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
-            Run::V2 { world, state } => {
-                sim::choose(version, world, rewards, state, player, option, events);
-            }
+            // sim_version 2 opens no offer: there is nothing to choose.
+            Run::V2 { .. } => {}
         }
     }
 
@@ -520,16 +519,15 @@ impl Run {
     pub(crate) fn offer_open_for(&self, player: PlayerIdx) -> bool {
         match self {
             Run::V1 { state, .. } => player == PlayerIdx::SOLO && sim_v1::offer_open(state),
-            Run::V2 { state, .. } => {
-                state.players.is_present(player) && sim::offer_open_for(state, player)
-            }
+            // The live rules open no offer.
+            Run::V2 { .. } => false,
         }
     }
 
     pub(crate) fn offer_open(&self) -> bool {
         match self {
             Run::V1 { state, .. } => sim_v1::offer_open(state),
-            Run::V2 { state, .. } => sim::offer_open(state),
+            Run::V2 { .. } => false,
         }
     }
 
@@ -538,23 +536,14 @@ impl Run {
         &self,
         rewards: &Rewards,
         expertise: &Expertise,
-        player: PlayerIdx,
+        _player: PlayerIdx,
     ) -> Vec<OfferOption> {
         match self {
             Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state)
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            Run::V2 { state, .. } => sim::offer_options(rewards, state, player),
-        }
-    }
-
-    /// The ratings of the candidates of `player`'s open star or boss offer; version 1 is frozen
-    /// and rates nothing.
-    pub(crate) fn offer_ratings(&self, rewards: &Rewards, player: PlayerIdx) -> Vec<OfferRating> {
-        match self {
-            Run::V1 { .. } => Vec::new(),
-            Run::V2 { world, state } => sim::offer_ratings(world, rewards, state, player),
+            Run::V2 { .. } => Vec::new(),
         }
     }
 
