@@ -1,158 +1,18 @@
-//! The most commands (`choose`, `spend`) the longest possible run takes, which `MAX_COMMANDS`
-//! is about twice (app#336 D5b): `time_limit` at a difficulty that keeps its full length, played
-//! through the final boss's time and the whole overtime by a bot that cannot die, takes every
-//! offer and spends every point as soon as it has one.
+//! The most commands the longest run takes, which `MAX_COMMANDS` is at least twice (ADR-REPL-5):
+//! measured from the command lists of the frozen v1 run replays (`tests/corpus/v1/runs`), and the
+//! cap itself, tried on a file with one command too many.
 
-use crate::common;
-use crate::common::run::run_input_for;
-use serde_json::json;
-use stella_rain_core::engine::Outcome;
-use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::perk_sets::PerkSets;
-use stella_rain_core::run_content::RunContent;
+use std::fs;
+use std::path::PathBuf;
 use stella_rain_core::run_replay::{
-    CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand, pack_commands,
+    CommandKind, MAX_COMMANDS, RunReplay, RunReplayError, TickCommand, pack_commands,
     verify_run_with,
 };
-use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::{EntityKind, OfferOption};
-use stella_rain_core::time_limit::TimeLimit;
-use stella_rain_core::version::Versions;
 
-/// The perk set the bot plays with: the most hit points and regeneration a set may hold (the
-/// engine has no invulnerability switch), the most extra rerolls and banishes, and the
-/// strongest attack, so that it kills, levels and takes stars as fast as a run can.
-const PERK_SET: &str = "undying";
-
-/// The run content with the `undying` perk set added to the bundled ones.
-pub fn undying_content() -> RunContent {
-    let mut file: serde_json::Value =
-        serde_json::from_slice(common::bundled_file("perk_sets")).unwrap();
-    file["perk_sets"].as_array_mut().unwrap().push(json!({
-        "id": PERK_SET,
-        "effects": [
-            { "effect": "max_hp", "amount": 50_000 },
-            { "effect": "regen", "amount": 1_000 },
-            { "effect": "attack_pct", "amount": 100 },
-            { "effect": "attack_speed_pct", "amount": 100 },
-            { "effect": "extra_rerolls", "amount": 20 },
-            { "effect": "extra_banishes", "amount": 20 }
-        ]
-    }));
-    RunContent::bundled()
-        .clone()
-        .with_perk_sets(PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap())
-}
-
-pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
-    RunSetup {
-        schema_version: 1,
-        sim_version: 1,
-        mode: "time_limit".into(),
-        weapon: "giant_sword".into(),
-        weapon_tree: None,
-        seed,
-        star_pool: None,
-        extra_rerolls,
-        upgrades: Vec::new(),
-        perk_set: PERK_SET.into(),
-        rune_pool: Vec::new(),
-        carried: Vec::new(),
-        lumine: 0,
-        starting_rune: None,
-        stat_priority: Vec::new(),
-        // The most commands a run can cost: every offer answered.
-        difficulty: difficulty.into(),
-        ..RunSetup::default()
-    }
-}
-
-/// How the bot answers an offer.
-#[derive(Clone, Copy, Debug)]
-pub enum Bot {
-    /// Takes candidate 0.
-    Takes,
-    /// Rerolls and banishes as long as it may, then takes candidate 0: the most commands an
-    /// offer can cost.
-    Spends,
-}
-
-/// What a bot's run came to.
-pub struct Played {
-    pub replay: RunReplay,
-    pub commands: usize,
-    pub outcome: Outcome,
-}
-
-/// Plays `setup` to its end (the length and the overtime, or the final boss's kill).
-pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
-    let mut run = RunRecorder::start_with(setup, content).unwrap();
-    let mut tick = 0;
-    while run.engine().outcome() == Outcome::Running {
-        answer_offers(&mut run, bot);
-        let input = run_input_for(run.engine(), tick, &[EntityKind::Enemy], u32::MAX);
-        run.step(&[input, Default::default(), Default::default()])
-            .unwrap();
-        tick += 1;
-    }
-    answer_offers(&mut run, bot);
-    let replay = run.replay();
-    let commands = replay.unpack_commands().unwrap().len();
-    Played {
-        replay,
-        commands,
-        outcome: run.engine().outcome(),
-    }
-}
-
-fn answer_offers(run: &mut RunRecorder, bot: Bot) {
-    while run.engine().offer_open() {
-        let snapshot = run.engine().snapshot();
-        // No star offer is shown: a frozen run's stat or expertise offer, which has no view.
-        if snapshot.progress.as_ref().is_none_or(|p| p.offer.is_none()) {
-            run.choose(PlayerIdx::SOLO, 0).unwrap();
-            continue;
-        }
-        let options = snapshot.progress.and_then(|p| p.offer).unwrap().options;
-        let find = |wanted: fn(&OfferOption) -> bool| options.iter().position(wanted);
-        let pick = match bot {
-            Bot::Takes => None,
-            Bot::Spends => find(|o| matches!(o, OfferOption::Reroll { .. }))
-                .or_else(|| find(|o| matches!(o, OfferOption::Banish { .. }))),
-        };
-        let pick = pick
-            .or_else(|| find(|o| *o == OfferOption::Take { candidate: 0 }))
-            .unwrap_or(0);
-        run.choose(PlayerIdx::SOLO, u32::try_from(pick).unwrap())
-            .unwrap();
-    }
-}
-
-/// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
-/// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); 400 once the
-/// setup's `pick_stats` left (the frozen rules no longer open a stat offer for each level-up).
-/// Re-measure and re-pin when the deep tier reports a higher number.
-const MEASURED_MOST: usize = 400;
-
-/// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
-/// that a debug build plays in seconds.
-fn short_content() -> RunContent {
-    let mut v: serde_json::Value =
-        serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
-    v["length_ticks"] = json!(1200);
-    v["boss_ticks"] = json!([600, 1200]);
-    v["no_call_ticks"] = json!([]);
-    v["overtime_ticks"] = json!(300);
-    v["waves"]
-        .as_array_mut()
-        .unwrap()
-        .retain(|w| w["at_tick"].as_u64().unwrap() < 1200);
-    v["elite_table"] =
-        json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
-    let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e}"));
-    undying_content().with_time_limit(mode)
-}
+/// The most commands of a frozen v1 run (`tests/corpus/v1/runs`, `measure_the_longest_run`),
+/// pinned: `MAX_COMMANDS` is at least twice it. 317 (`time_limit`); 400 before, when a bot
+/// played the runs. The v1 folder is frozen, so this can only fall.
+const MEASURED_MOST: usize = 317;
 
 #[test]
 fn the_cap_is_twice_the_longest_run_or_more() {
@@ -163,28 +23,12 @@ fn the_cap_is_twice_the_longest_run_or_more() {
 }
 
 #[test]
-fn a_bot_s_short_run_records_and_verifies_within_the_cap() {
-    let content = short_content();
-    for bot in [Bot::Takes, Bot::Spends] {
-        let played = play(&content, &setup(1, "normal", 20), bot);
-        assert!(
-            played.commands > 0,
-            "{bot:?} answers an offer or spends a point"
-        );
-        assert!(played.commands <= MAX_COMMANDS as usize);
-        let verified = verify_run_with(&played.replay.to_bytes(), &content)
-            .unwrap_or_else(|e| panic!("{bot:?}: {e}"));
-        assert_eq!(verified.commands as usize, played.commands);
-        assert_eq!(verified.outcome, played.outcome);
-    }
-}
-
-#[test]
 fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
-    let content = short_content();
-    // The recorder writes schema 2, which has no command list: the crafted file is schema 1.
-    let mut replay =
-        crate::common::schema_1_form(&play(&content, &setup(1, "normal", 20), Bot::Takes).replay);
+    // The frozen v1 `time_limit` run is schema 1, whose file holds a command list.
+    let case = crate::data_root::data_root().join("tests/corpus/v1/runs/time_limit");
+    let mut replay = RunReplay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
+    let pack = crate::corpus_pins::case_pack(&case).unwrap();
+    let content = pack.content();
     let choices = |n: u32| -> String {
         let commands: Vec<TickCommand> = (0..n)
             .map(|_| TickCommand {
@@ -208,38 +52,52 @@ fn a_crafted_replay_with_one_command_over_the_cap_is_refused() {
     );
     replay.commands = choices(MAX_COMMANDS + 1);
     assert_eq!(
-        verify_run_with(&replay.to_bytes(), &content),
+        verify_run_with(&replay.to_bytes(), content),
         Err(RunReplayError::TooManyCommands {
             limit: MAX_COMMANDS
         })
     );
 }
 
-/// The difficulties that keep the mode's full length (`easy` halves it).
-const LONG: [&str; 3] = ["normal", "hard", "rainy"];
+/// The case folders of the frozen v1 runs, in name order.
+fn v1_run_cases() -> Vec<PathBuf> {
+    let mut cases: Vec<PathBuf> =
+        fs::read_dir(crate::data_root::data_root().join("tests/corpus/v1/runs"))
+            .expect("tests/corpus/v1/runs exists")
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.is_dir())
+            .collect();
+    cases.sort();
+    assert!(
+        cases.len() >= 5,
+        "the v1 corpus has {} run cases, want at least 5",
+        cases.len()
+    );
+    cases
+}
 
-/// The most commands of the longest runs measured, over `SEEDS` seeds and every long difficulty
-/// and both bots, with the run setup's extra rerolls at their most. Slow (minutes in release),
-/// so `#[ignore]`d: `cargo test --release --test integration command_cap:: -- --ignored --nocapture`.
+/// The most commands of a frozen v1 run (`tests/corpus/v1/runs`), which a run's file holds as its
+/// command list. Read from the files, so fast; `#[ignore]`d only because the deep tier runs it
+/// by name: `cargo test --release --test integration command_cap:: -- --ignored --nocapture`.
 #[test]
-#[ignore = "the measurement of MAX_COMMANDS: minutes in release"]
+#[ignore = "the measurement of MAX_COMMANDS: the deep tier runs it by name"]
 fn measure_the_longest_run() {
-    let content = undying_content();
     let mut most = 0;
     let mut longest = None;
-    for difficulty in LONG {
-        for seed in 1..=5 {
-            for bot in [Bot::Takes, Bot::Spends] {
-                let played = play(&content, &setup(seed, difficulty, 20), bot);
-                println!(
-                    "difficulty {difficulty} seed {seed} {bot:?}: {} commands, {} ticks, {:?}",
-                    played.commands, played.replay.ticks, played.outcome
-                );
-                if played.commands > most {
-                    most = played.commands;
-                    longest = Some(played.replay);
-                }
-            }
+    for case in v1_run_cases() {
+        let bytes = fs::read(case.join("run.replay")).unwrap();
+        let n = RunReplay::from_bytes(&bytes)
+            .unwrap()
+            .unpack_commands()
+            .unwrap()
+            .len();
+        println!(
+            "case {}: {n} commands",
+            case.file_name().unwrap().to_string_lossy()
+        );
+        if n > most {
+            most = n;
+            longest = Some((case, bytes));
         }
     }
     println!("most commands: {most}");
@@ -251,7 +109,9 @@ fn measure_the_longest_run() {
         2 * most <= MAX_COMMANDS as usize,
         "MAX_COMMANDS is under twice {most}"
     );
-    // The longest run records within the cap and verifies from its file.
-    let verified = verify_run_with(&longest.unwrap().to_bytes(), &content).unwrap();
+    // The longest run verifies from its file, on the pack its case pins.
+    let (case, bytes) = longest.unwrap();
+    let content = crate::corpus_pins::case_pack(&case).unwrap();
+    let verified = verify_run_with(&bytes, content.content()).unwrap();
     assert_eq!(verified.commands as usize, most);
 }
