@@ -144,9 +144,9 @@ fn the_smoke_corpus_has_every_case() {
             .count()
     };
     assert_eq!(count("stages"), 16);
-    assert_eq!(count("runs"), 9);
+    assert_eq!(count("runs"), 10);
     assert_eq!(corpus().len(), 16);
-    assert_eq!(run_replays().len(), 5);
+    assert_eq!(run_replays().len(), 6);
 }
 
 fn clear() -> (Vec<u8>, Vec<u8>) {
