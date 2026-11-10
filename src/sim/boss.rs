@@ -2,6 +2,13 @@
 //! `until` condition holds, and phases only move forward; the last lasts until the boss dies.
 //! The boss acts before the companions and the enemies (its entity ID is the lowest).
 //!
+//! **Which mover wins.** A boss whose definition has a `chase` walks toward the player its
+//! attacks aim at (`select::target_of`), at `speed` a tick until it is `stop_distance` away,
+//! when it has no `move_to` in progress (a timeline step's or a rule's: the order wins, and the
+//! chase resumes the tick after it lands) and is not rooted: an attack phase of `move_pct` 0
+//! holds it, a dash phase has `move_pct` 0 so a dash alone moves it, and a `move_pct` of 1 to 99
+//! or a slow cuts the step by that share.
+//!
 //! Each tick, in this order: the phase may end; the timeline goes on; the phase's rules fire
 //! (the same rules as an agent's, with the boss as the agent).
 //!
@@ -37,8 +44,9 @@ use crate::stage::{Step, Transition};
 
 use super::agents::{condition_holds, fire_first_rule, new_rule_states, step_order};
 use super::attacks;
-use super::entity::Who;
+use super::entity::{Who, speed_pct};
 use super::scratch::Scratch;
+use super::select::{Up, target_at};
 
 /// Timeline steps taken in one tick, so that a `loop` with nothing to wait for ends the tick.
 const MAX_TIMELINE_STEPS_PER_TICK: u32 = 16;
@@ -49,10 +57,19 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     };
     {
         // An attack phase with `move_pct` 0 holds the boss where it is.
-        let rooted = s
-            .boss
-            .as_ref()
-            .is_some_and(|b| attacks::move_pct(stage, s, b.id) == 0);
+        let pct = s.boss.as_ref().map(|b| attacks::move_pct(stage, s, b.id));
+        let rooted = pct == Some(0);
+        // The chase's target, before the boss is borrowed: the player its attacks aim at.
+        let up = Up::of(&s.players);
+        let chase = def
+            .chase
+            .filter(|_| {
+                s.boss
+                    .as_ref()
+                    .is_some_and(|b| b.hp > 0 && b.order.is_none())
+            })
+            .filter(|_| up.n > 0 && !rooted)
+            .map(|c| (c, target_at(s, &up, Who::Boss)));
         let Some(b) = s.boss.as_mut() else {
             return;
         };
@@ -67,6 +84,21 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         }
         if let Some(order) = b.order.filter(|_| !rooted) {
             (b.at, b.order) = step_order(b.at, order);
+        } else if let (Some((chase, to)), None) = (chase, b.order) {
+            // The same arithmetic as an agent's `Movement::Follow` arm (`agents::move_agent`),
+            // copied and not shared: that arm is the crowd's hot path (ADR-SIM-6).
+            let keep = speed_pct(&b.statuses) * pct.unwrap_or(100) / 100;
+            let dx = i64::from(to.x.0) - i64::from(b.at.x.0);
+            let dy = i64::from(to.y.0) - i64::from(b.at.y.0);
+            let dist =
+                i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+            let gap = dist - i64::from(chase.stop_distance.0);
+            if gap > 0 {
+                let step = gap.min(i64::from(chase.speed.0) * keep / 100);
+                b.at.x = b.at.x.saturating_add(Fx::from_wide(dx * step / dist));
+                b.at.y = b.at.y.saturating_add(Fx::from_wide(dy * step / dist));
+                b.at = stage.stage.map().clamp(b.at);
+            }
         }
     }
     // The first phase begins on the boss's first tick: tick 1 of a stage's boss, the tick it

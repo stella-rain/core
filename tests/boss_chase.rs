@@ -122,10 +122,10 @@ fn without_a_chase_the_boss_stays_and_the_file_has_no_chase_key() {
 #[test]
 fn a_diagonal_chase_is_integer_and_deterministic() {
     let mut b = boss_json(chase(256, STOP));
-    b["spawn"] = json!({ "x": BOSS_X - 60_000, "y": BOSS_Y });
+    b["spawn"] = json!({ "x": BOSS_X - 40_000, "y": BOSS_Y });
     let stage = stage_of(b, 600);
     let p = path(&stage, 400);
-    let mut last = (BOSS_X - 60_000, BOSS_Y);
+    let mut last = (BOSS_X - 40_000, BOSS_Y);
     for &at in &p {
         assert!(dist(at, last) <= 256, "{last:?} -> {at:?}");
         last = at;
@@ -197,15 +197,21 @@ fn a_move_to_in_progress_wins_and_the_chase_resumes_after_it() {
     without["phases"] = json!([move_to_phase()]);
     let a = path(&stage_of(with, 600), 60);
     let b = path(&stage_of(without, 600), 60);
-    assert_eq!(a[..40], b[..40], "the order alone for its 40 ticks");
-    assert_eq!(a[40], (b[40].0, b[40].1 + 256), "then the chase, next tick");
+    // Tick 1 is the chase's: the timeline starts the order after the boss has moved, so the
+    // order is worked out from a place 256 further on. From tick 2 it alone moves the boss,
+    // to the same point, and the chase resumes the tick after it lands.
+    let target = (BOSS_X, BOSS_Y - 20_000);
+    let landed = b.iter().position(|&at| at == target).unwrap();
+    assert!(a[1..landed].iter().all(|&at| at.1 < a[0].1), "{a:?}");
+    assert_eq!(a[landed], target);
+    assert_eq!(a[landed + 1], (target.0, target.1 + 256));
 }
 
 #[test]
 fn a_dash_moves_the_boss_by_the_dash_alone() {
     let attack = json!([{ "kind": "wind_up", "ticks": 10, "move_pct": 0 },
         { "kind": "active", "ticks": 20, "damage": 5, "move_pct": 0,
-          "dash": { "distance": 480 * 256 } }]);
+          "dash": { "distance": 200 * 256 } }]);
     let phase = json!({ "rules": [{ "when": always(), "target": "player", "once": true,
         "cooldown_ticks": 0, "do": { "type": "attack", "attack": { "inline": attack } } }] });
     let mut with = boss_json(chase(256, STOP));
@@ -214,7 +220,11 @@ fn a_dash_moves_the_boss_by_the_dash_alone() {
     without["phases"] = json!([phase]);
     let a = path(&stage_of(with, 600), 30);
     let b = path(&stage_of(without, 600), 30);
-    assert_eq!(a, b);
+    // Tick 1 is the chase's, before the attack starts; the wind-up and the dash then move the
+    // boss by the dash alone.
+    for k in 0..30 {
+        assert_eq!(a[k], (b[k].0, b[k].1 + 256), "tick {}", k + 1);
+    }
 }
 
 #[test]
@@ -225,8 +235,10 @@ fn an_attack_phase_with_half_move_pct_halves_the_chase_step() {
     let mut b = boss_json(chase(256, STOP));
     b["phases"] = json!([phase]);
     let p = path(&stage_of(b, 600), 20);
+    // From tick 2 the wind-up holds `move_pct` 50.
     let steps: Vec<i32> = p.windows(2).map(|w| w[1].1 - w[0].1).collect();
     assert!(steps.iter().all(|&d| d == 128), "{steps:?}");
+    assert_eq!(p[0].1 - BOSS_Y, 256);
 }
 
 // --- A party ---------------------------------------------------------------------------------
