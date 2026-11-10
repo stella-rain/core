@@ -23,7 +23,8 @@ use crate::{sim, sim_v1};
 use super::{Load, Outcome, Places};
 
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
-/// of that version's types. The engine reaches them, and the snapshot view, only through here.
+/// of that version's types (the live world is shared behind an `Arc`, so a clone copies the state
+/// alone; the frozen world stays inline). The engine reaches them, and the snapshot view, only through here.
 // The frozen state is the larger: the live one keeps its players in a list (ADR-SIM-7). One run
 // is held per engine, so the size difference costs nothing.
 #[allow(clippy::large_enum_variant)]
