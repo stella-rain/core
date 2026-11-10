@@ -15,6 +15,7 @@
 #   worst_tick_3p        5,221,724 /     5,868,800
 #   rollback             4,011,319 /     4,489,420
 #   rollback_equip       4,513,342 /     5,037,800
+#   rollback_session    39,248,692 /    39,071,489   (rollback_session_w16, run 42721277452 at 4cb25d5)
 # time_limit_tick measures tick 295 since the stage bench fixtures run in equipment mode.
 # worst_minute counts the 3,600 ticks of the dense minute of the time_limit mode (ticks 7,301 to
 # 10,900), worst_minute_peak its heaviest tick by load (tick 10,800, `tests/worst_minute.rs`).
