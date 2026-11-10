@@ -270,3 +270,29 @@ fn the_trial_wrapper_plays_the_trial_in_equipment_mode() {
     let setup = equipment_setup(trial_setup());
     assert_eq!(commands, play_equipment_run_from(&setup, 300, &bot));
 }
+
+#[test]
+fn a_default_setup_runs_in_equipment_mode() {
+    let setup = RunSetup {
+        seed: 20_261_010,
+        ..RunSetup::default()
+    };
+    let mut engine = Engine::start(&setup).unwrap();
+    let snap = engine.snapshot();
+    assert!(!snap.players[0].slots.is_empty(), "no slots");
+    assert!(snap.starlight.is_some(), "no Starlight");
+    for _ in 0..600 {
+        engine.step(&Default::default());
+    }
+    // The state hash the same seed's run gave when it said `build_mode: equipment`.
+    assert_eq!(format!("{:016x}", engine.state_hash()), "a07ec8548c91bdd3");
+
+    let frozen = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        ..setup
+    };
+    let snap = Engine::start(&frozen).unwrap().snapshot();
+    assert!(snap.players[0].slots.is_empty());
+    assert!(snap.starlight.is_none());
+}

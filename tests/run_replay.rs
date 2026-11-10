@@ -1353,3 +1353,20 @@ fn replay_at_with_too_many_ticks_does_not_panic_and_does_not_verify() {
         ))
     );
 }
+
+#[test]
+fn a_replay_naming_build_mode_is_refused() {
+    let bytes = RunRecorder::start(&RunSetup::default())
+        .unwrap()
+        .replay()
+        .to_bytes();
+    assert!(RunReplay::from_bytes(&bytes).is_ok());
+    let mut v: Value = serde_json::from_slice(&bytes).unwrap();
+    v["setup"]["build_mode"] = "equipment".into();
+    let text = v.to_string();
+    assert!(matches!(
+        RunReplay::from_bytes(text.as_bytes()),
+        Err(RunReplayError::Damaged { .. })
+    ));
+    assert!(verify_run(text.as_bytes()).is_err());
+}

@@ -937,3 +937,119 @@ fn the_checked_in_schema_names_no_level_offer() {
         assert!(!text.contains(&format!("\"{name}\"")), "{name}");
     }
 }
+
+// --- `build_mode` left core: a setup naming it is refused, `sim_version` is the mode --------------
+
+/// The trial fixture's text with `extra` (a JSON member) added before the closing brace.
+fn trial_text_with(extra: &str) -> String {
+    let path = crate::data_root::data_root().join("tests/fixtures/run_setup/trial.json");
+    let text = std::fs::read_to_string(path).unwrap();
+    let body = text.trim_end().strip_suffix('}').expect("an object");
+    format!("{body}{extra}}}")
+}
+
+#[test]
+fn a_setup_naming_build_mode_is_refused() {
+    let unknown =
+        run_setup::parse_and_validate(trial_text_with(r#","unknown":1"#).as_bytes()).unwrap_err();
+    assert!(matches!(unknown, Error::Parse { .. }), "{unknown:?}");
+    for mode in ["equipment", "offers", "cards"] {
+        let text = trial_text_with(&format!(r#","build_mode":"{mode}""#));
+        let err = run_setup::parse_and_validate(text.as_bytes())
+            .expect_err(&format!("`build_mode` {mode} is accepted"));
+        assert_eq!(
+            std::mem::discriminant(&err),
+            std::mem::discriminant(&unknown),
+            "{mode}: {err:?}"
+        );
+    }
+}
+
+#[test]
+fn a_saved_setup_naming_build_mode_is_refused() {
+    for mode in ["equipment", "offers", "cards"] {
+        let text = trial_text_with(&format!(r#","build_mode":"{mode}""#));
+        assert!(serde_json::from_str::<RunSetup>(&text).is_err(), "{mode}");
+    }
+    for name in ["trial", "trial_loadout", "trial_upgrades"] {
+        let path =
+            crate::data_root::data_root().join(format!("tests/fixtures/run_setup/{name}.json"));
+        let parsed = run_setup::parse_and_validate(&std::fs::read(&path).unwrap()).unwrap();
+        let written = serde_json::to_value(&parsed).unwrap();
+        assert!(written.get("build_mode").is_none(), "{name}");
+        let again = serde_json::from_value::<RunSetup>(written).unwrap();
+        assert_eq!(again, parsed, "{name}");
+    }
+}
+
+#[test]
+fn a_version_2_setup_refuses_carried_stars_and_rerolls_a_version_1_setup_keeps_them() {
+    use stella_rain_core::run_setup::CarriedStar;
+    let star = CarriedStar {
+        reward: "max_hp_common".into(),
+    };
+    let live = RunSetup {
+        schema_version: 2,
+        sim_version: 2,
+        ..RunSetup::default()
+    };
+    assert_eq!(
+        found(&RunSetup {
+            carried: vec![star.clone()],
+            ..live.clone()
+        }),
+        [issue(
+            "$.carried",
+            "none in equipment mode: the Lumine star is the one star a run starts with"
+        )]
+    );
+    assert_eq!(
+        found(&RunSetup {
+            extra_rerolls: 1,
+            ..live
+        }),
+        [issue(
+            "$.extra_rerolls",
+            "none in equipment mode: there are no rerolls"
+        )]
+    );
+    let frozen = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        carried: vec![star],
+        extra_rerolls: 1,
+        ..RunSetup::default()
+    };
+    assert_eq!(run_setup::validate(&frozen), Ok(()));
+}
+
+#[test]
+fn a_lumine_star_needs_sim_version_2() {
+    assert_eq!(
+        found(&RunSetup {
+            schema_version: 1,
+            sim_version: 1,
+            lumine_star: Some("max_hp_common".into()),
+            ..RunSetup::default()
+        }),
+        [issue("$.lumine_star", "needs sim_version 2")]
+    );
+}
+
+#[test]
+fn a_version_1_pool_may_not_name_an_equipment_only_reward() {
+    let bad = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        star_pool: Some(vec!["rune_haste_star_rare".into()]),
+        ..RunSetup::default()
+    };
+    let issues = issues(run_setup::validate_in(&bad, RunContent::bundled()).unwrap_err());
+    assert_eq!(
+        issues,
+        [issue(
+            "$.star_pool[0]",
+            "an equipment-only reward is not offered at sim_version 1"
+        )]
+    );
+}

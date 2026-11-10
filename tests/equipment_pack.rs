@@ -655,3 +655,29 @@ fn the_equipment_consts_and_set_tables_are_gone_from_the_sim() {
         }
     }
 }
+
+#[test]
+fn a_version_2_setup_needs_the_pack_to_hold_the_rules() {
+    let bare = rewards_with(|v| {
+        v.as_object_mut().unwrap().remove("equipment");
+        for r in v["rewards"].as_array_mut().unwrap() {
+            r.as_object_mut().unwrap().remove("category");
+        }
+    });
+    let content = RunContent::new(
+        RunStats::bundled().clone(),
+        parse_rewards(&bare).expect("a pack made before the rules still reads"),
+    );
+    let live = RunSetup {
+        mode: "tutorial".into(),
+        sim_version: 2,
+        ..trial_setup()
+    };
+    refused_at(run_setup::validate_in(&live, &content), "$.sim_version");
+    let frozen = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        ..live
+    };
+    assert!(run_setup::validate_in(&frozen, &content).is_ok());
+}
