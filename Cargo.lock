@@ -553,6 +553,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "stella-rain-core",
+ "stella-rain-net",
  "toml",
 ]
 

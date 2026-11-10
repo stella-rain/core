@@ -26,6 +26,11 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
+use stella_rain_net::save::CloneRing;
+
+#[path = "../benches/session_case/mod.rs"]
+#[allow(dead_code)]
+mod session_case;
 
 fn pins_path() -> std::path::PathBuf {
     crate::data_root::data_root().join("tests/bench_pins.toml")
@@ -61,6 +66,11 @@ enum Kind {
     Rollback(fn() -> Engine),
     /// The saved engine of the equipment rollback bench (`equip_case::rollback_equip`).
     EquipRollback(fn() -> Engine),
+    /// One rolling-back `Session::advance` of the equipment run at a window
+    /// (`session_case::rollback`).
+    SessionRollback(u32),
+    /// One `CloneRing` save of the saved engine (`session_case::save_once`).
+    RingSave,
 }
 
 struct Spec {
@@ -72,7 +82,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 9] {
+fn specs() -> [Spec; 12] {
     [
         Spec {
             id: "worst_tick",
@@ -127,6 +137,24 @@ fn specs() -> [Spec; 9] {
             bench: "rollback_equip",
             mode: "time_limit",
             kind: Kind::EquipRollback(equip_case::saved),
+        },
+        Spec {
+            id: "rollback_session_w4",
+            bench: "rollback_session",
+            mode: "time_limit",
+            kind: Kind::SessionRollback(stella_rain_net::session::DEFAULT_WINDOW),
+        },
+        Spec {
+            id: "rollback_session_w16",
+            bench: "rollback_session",
+            mode: "time_limit",
+            kind: Kind::SessionRollback(stella_rain_net::session::MAX_WINDOW),
+        },
+        Spec {
+            id: "clone_ring_save",
+            bench: "rollback_session",
+            mode: "time_limit",
+            kind: Kind::RingSave,
         },
     ]
 }
@@ -276,6 +304,51 @@ fn measure(spec: &Spec) -> Pins {
             std::mem::forget(saved);
             after = hash_hex(engine.state_hash());
         }
+        Kind::SessionRollback(window) => {
+            let prepared = session_case::driven(*window);
+            before = hash_hex(prepared.session.engine().state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(prepared.session.engine(), spec.mode),
+            ]);
+            let mut played = Vec::new();
+            for tick in EQUIP_PEAK_TICK..=EQUIP_PEAK_TICK + window {
+                serde_json::to_writer(&mut played, &party_case::minute_inputs(tick))
+                    .expect("the inputs serialize");
+                played.push(b'\n');
+            }
+            let actions = serde_json::to_vec(&ROLLBACK_ACTIONS).expect("the actions serialize");
+            input = digest(&[
+                b"stella-rain/bench-input-session/v1\n",
+                &played,
+                b"actions:",
+                &actions,
+                b"window:",
+                window.to_string().as_bytes(),
+            ]);
+            let prepared = session_case::rollback(prepared);
+            after = hash_hex(prepared.session.engine().state_hash());
+            std::mem::forget(prepared);
+        }
+        Kind::RingSave => {
+            let (ring, engine) = (
+                CloneRing::new(session_case::RING_CAPACITY),
+                equip_case::saved(),
+            );
+            before = hash_hex(engine.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&engine, spec.mode),
+            ]);
+            input = digest(&[
+                b"stella-rain/bench-input-session-save/v1\n",
+                b"capacity:",
+                session_case::RING_CAPACITY.to_string().as_bytes(),
+            ]);
+            let (ring, engine) = session_case::save_once((ring, engine));
+            after = hash_hex(engine.state_hash());
+            std::mem::forget((ring, engine));
+        }
         Kind::Run(run, ticks) => {
             let mut run = run();
             before = hash_hex(run.engine.state_hash());
@@ -397,6 +470,101 @@ fn the_rollback_is_the_benches_case() {
 #[test]
 fn the_rollback_equip_is_the_benches_case() {
     check("rollback_equip");
+}
+
+#[test]
+fn the_session_w4_is_the_benches_case() {
+    check("rollback_session_w4");
+}
+
+#[test]
+fn the_session_w16_is_the_benches_case() {
+    check("rollback_session_w16");
+}
+
+#[test]
+fn the_ring_save_is_the_benches_case() {
+    check("clone_ring_save");
+}
+
+/// A straight engine from the saved one, `window` ticks played with the window's recorded
+/// actions applied before the tick they come before.
+fn corrected_run(window: u32) -> Engine {
+    let mut direct = equip_case::saved();
+    for i in 0..window {
+        for (at, acts) in &ROLLBACK_ACTIONS {
+            if *at == i {
+                for (s, a) in acts.iter().enumerate() {
+                    if let Some(a) = a {
+                        let p = PlayerIdx::new(u8::try_from(s).unwrap()).unwrap();
+                        direct.act(p, *a).unwrap();
+                    }
+                }
+            }
+        }
+        direct.step(&party_case::minute_inputs(direct.tick()));
+    }
+    direct
+}
+
+/// S1: driven through its public calls, the session reproduces the saved engine of the case.
+#[test]
+fn the_session_setup_reaches_the_rollback_equip_saved_engine() {
+    let session = session_case::at_peak(stella_rain_net::session::DEFAULT_WINDOW);
+    assert_eq!(session.tick(), EQUIP_PEAK_TICK);
+    assert_eq!(session.confirmed(), EQUIP_PEAK_TICK);
+    assert_eq!(session.engine().tick(), EQUIP_PEAK_TICK);
+    assert_eq!(
+        session.engine().state_hash(),
+        equip_case::saved().state_hash()
+    );
+}
+
+/// S2: the measured advance re-simulates exactly the window and lands on the corrected run.
+#[test]
+fn the_session_rollback_re_simulates_the_window() {
+    for w in [
+        stella_rain_net::session::DEFAULT_WINDOW,
+        stella_rain_net::session::MAX_WINDOW,
+    ] {
+        let mut p = session_case::driven(w);
+        assert_eq!(p.session.tick(), EQUIP_PEAK_TICK + w);
+        assert_eq!(p.session.confirmed(), EQUIP_PEAK_TICK);
+        let advance = p.session.advance(&p.local).expect("advances");
+        assert_eq!(advance.rolled_back, w);
+        assert_eq!(advance.waiting, None);
+        assert_eq!(p.session.tick(), EQUIP_PEAK_TICK + w + 1);
+        assert_eq!(p.session.confirmed(), EQUIP_PEAK_TICK + w);
+        assert_eq!(
+            p.session.hash_after(EQUIP_PEAK_TICK + w),
+            Some(corrected_run(w).state_hash()),
+            "window {w}"
+        );
+    }
+}
+
+/// S3: at the largest window the corrected span crosses both recorded actions.
+#[test]
+fn the_session_window_equips_and_extracts() {
+    let before = equip_case::saved().snapshot();
+    let after = session_case::rollback(session_case::driven(stella_rain_net::session::MAX_WINDOW))
+        .session
+        .engine()
+        .snapshot();
+    for (b, a) in before.players.iter().zip(&after.players) {
+        assert_eq!(a.inventory.len() + 2, b.inventory.len());
+    }
+}
+
+/// S4: one save into an empty ring is one held clone, and the engine is unchanged.
+#[test]
+fn the_ring_save_is_one_clone() {
+    let engine = equip_case::saved();
+    let hash = engine.state_hash();
+    let (ring, engine) =
+        session_case::save_once((CloneRing::new(session_case::RING_CAPACITY), engine));
+    assert_eq!(ring.held(), 1);
+    assert_eq!(engine.state_hash(), hash);
 }
 
 fn hits_by(engine: &Engine, slot: u8) -> usize {
