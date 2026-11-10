@@ -384,64 +384,64 @@
     "title": "민첩 (고급)"
   },
   "rewards/star_alkaid": {
-    "description": "The tail of the Dipper: 35 percent more range, and 25 percent more Slash, Pierce and Strike damage",
-    "title": "Alkaid"
+    "description": "국자의 꼬리: 범위가 35% 늘고, 베기, 관통, 타격 피해가 25% 늘어요",
+    "title": "알카이드"
   },
   "rewards/star_alnilam": {
-    "description": "The brightest of the Belt: 20 percent more damage and 15 percent more range",
-    "title": "Alnilam"
+    "description": "허리띠에서 가장 밝은 별: 피해가 20%, 범위가 15% 늘어요",
+    "title": "알닐람"
   },
   "rewards/star_alnitak": {
-    "description": "The flame: 30 percent more Pyro damage, and runes recover 40 percent sooner",
-    "title": "Alnitak"
+    "description": "불꽃: 화염 피해가 30% 늘고, 룬이 40% 더 빨리 회복해요",
+    "title": "알니타크"
   },
   "rewards/star_altair": {
-    "description": "The flier: 20 percent faster, and one more evade charge",
-    "title": "Altair"
+    "description": "날아오르는 별: 이동 속도가 20% 빨라지고, 회피를 한 번 더 쓸 수 있어요",
+    "title": "알타이르"
   },
   "rewards/star_antares": {
-    "description": "The red heart: 100 hit points back every 20 kills, and 800 more hit points at most",
-    "title": "Antares"
+    "description": "붉은 심장: 20번 처치할 때마다 체력이 100 회복되고, 최대 체력이 800 늘어요",
+    "title": "안타레스"
   },
   "rewards/star_betelgeuse": {
-    "description": "The dying giant: a kill bursts for 40 percent of its hit points in 120 pixels, chaining 3 times, and 800 more hit points at most",
-    "title": "Betelgeuse"
+    "description": "죽어가는 거성: 적을 처치하면 체력의 40%만큼 120픽셀 범위에서 폭발하고 3번 이어지며, 최대 체력이 800 늘어요",
+    "title": "베텔게우스"
   },
   "rewards/star_deneb": {
-    "description": "The far lamp: a 15 percent chance of a critical hit, and 50 percent more damage on one",
-    "title": "Deneb"
+    "description": "먼 등불: 치명타 확률이 15%이고, 치명타 피해가 50% 늘어요",
+    "title": "데네브"
   },
   "rewards/star_dubhe": {
-    "description": "A pointer: falling stars are picked up from 60 percent farther, and 25 percent more experience",
-    "title": "Dubhe"
+    "description": "가리키는 별: 떨어지는 별을 60% 더 먼 곳에서 줍고, 경험치가 25% 늘어요",
+    "title": "두베"
   },
   "rewards/star_mintaka": {
-    "description": "The sturdy one: 500 more hit points at most, and 30 hit points a second",
-    "title": "Mintaka"
+    "description": "든든한 별: 최대 체력이 500 늘고, 초당 체력이 30 회복돼요",
+    "title": "민타카"
   },
   "rewards/star_mizar": {
-    "description": "The double star: each hit lands again as an echo of 35 percent",
-    "title": "Mizar"
+    "description": "쌍둥이 별: 모든 공격이 35%의 메아리로 한 번 더 들어가요",
+    "title": "미자르"
   },
   "rewards/star_polaris": {
-    "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience",
-    "title": "Polaris"
+    "description": "이끄는 별: 모든 선택지에 네 번째 후보가 생기고, 다시 뽑기 3번, 제외 2번, 경험치 40% 증가",
+    "title": "폴라리스"
   },
   "rewards/star_procyon": {
-    "description": "Before the dog: a rune for free, and runes recover twice as fast",
-    "title": "Procyon"
+    "description": "개보다 앞선 별: 룬을 공짜로 얻고, 룬이 두 배 빨리 회복해요",
+    "title": "프로키온"
   },
   "rewards/star_rigel": {
-    "description": "The blue giant: 30 percent more Cryo damage and 10 percent faster attacks",
-    "title": "Rigel"
+    "description": "푸른 거성: 냉기 피해가 30%, 공격 속도가 10% 늘어요",
+    "title": "리겔"
   },
   "rewards/star_sirius": {
-    "description": "The Dog Star: a companion of four orbs that attack on their own, and 30 percent more damage",
-    "title": "Sirius"
+    "description": "개의 별: 스스로 공격하는 구슬 네 개의 동료가 생기고, 피해가 30% 늘어요",
+    "title": "시리우스"
   },
   "rewards/star_vega": {
-    "description": "The standard star: stage skills recover 30 percent sooner, and 12 percent more damage",
-    "title": "Vega"
+    "description": "기준별: 스테이지 스킬이 30% 더 빨리 회복하고, 피해가 12% 늘어요",
+    "title": "베가"
   },
   "rewards/type_bonus_anemo_common": {
     "description": "바람 피해가 25% 늘어요",
