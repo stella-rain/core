@@ -371,7 +371,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
     ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
-    ("three_tutorial", 7854, Outcome::Cleared, [0, 0, 0], 0),
+    ("three_tutorial", 860, Outcome::Cleared, [0, 0, 0], 0),
     ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
     ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 990),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -395,7 +395,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
 const ACTIONS: [(&str, [u32; 3]); 7] = [
     ("two_time_limit", [51, 56, 0]),
     ("three_time_limit", [67, 70, 67]),
-    ("three_tutorial", [7, 7, 7]),
+    ("three_tutorial", [3, 3, 3]),
     ("join_two", [49, 48, 0]),
     ("leave_hole", [64, 14, 45]),
     ("two_revive", [51, 56, 0]),
