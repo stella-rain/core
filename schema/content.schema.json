@@ -7297,7 +7297,8 @@
           "type": "integer"
         },
         "offer_size": {
-          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+          "default": 3,
+          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.\nDeprecated (ADR-CONT-2): absent in a pack of `sim_version` 2, where only 3 is accepted;\nread only by the frozen version 1 rules. Absent: 3.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -7305,7 +7306,7 @@
         },
         "offer_timer_ticks": {
           "default": 300,
-          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
+          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nDeprecated (ADR-CONT-2): read by no run; absent in a pack of `sim_version` 2, where only\n300 is accepted. Absent: 300.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -7391,7 +7392,6 @@
         "orbit_step",
         "boss_arrival_above",
         "default_xp",
-        "offer_size",
         "defence_k",
         "crit_damage_base_pct"
       ],
