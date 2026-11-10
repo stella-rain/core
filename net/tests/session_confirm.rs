@@ -42,7 +42,7 @@ fn give(s: &mut Session, sc: &Script, n: u8, to: u32) {
             .map_or(to, |(lt, _)| to.min(lt - 1));
         let from = s.next_tick(slot(p));
         if from <= end && (from as usize) < sc.eff.len() {
-            let end = end.min(sc.eff.len() as u32 - 1);
+            let end = end.min(u32::try_from(sc.eff.len()).expect("short") - 1);
             s.receive_inputs(slot(p), &frame_of(sc, p, from, end))
                 .expect("a frame");
         }
