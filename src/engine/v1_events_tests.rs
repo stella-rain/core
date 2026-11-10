@@ -3,6 +3,7 @@
 //! reordered, and the four player fields are `None`, so a version 1 run's events serialise to the
 //! bytes they always did. The scratch the engine hands the frozen rules never allocates.
 
+use super::v1_events::adapt;
 use super::*;
 use crate::attack::{DamageType, MatchUp};
 use crate::bench_fixtures;
@@ -203,6 +204,14 @@ fn without_player_fields(event: &DomainEvent) -> String {
     text
 }
 
+/// The frozen events with no live counterpart (ADR-SIM-7).
+const LEVEL_OFFER_EVENTS: [&str; 4] = [
+    "StatOfferOpened",
+    "ExpertiseOfferOpened",
+    "ExpertiseOptionTaken",
+    "ExpertiseCandidateReplaced",
+];
+
 #[test]
 fn the_adapted_events_keep_their_type_names() {
     let events = every_v1_event();
@@ -210,9 +219,13 @@ fn the_adapted_events_keep_their_type_names() {
     let mut names = Vec::new();
     for event in events {
         let frozen = frozen_name(&event);
-        let live: DomainEvent = event.into();
-        let json = serde_json::to_value(&live).unwrap();
-        assert_eq!(json["type"], frozen.as_str());
+        match adapt(event) {
+            Some(live) => {
+                let json = serde_json::to_value(&live).unwrap();
+                assert_eq!(json["type"], frozen.as_str());
+            }
+            None => assert!(LEVEL_OFFER_EVENTS.contains(&frozen.as_str()), "{frozen}"),
+        }
         names.push(frozen);
     }
     names.sort();
@@ -222,10 +235,30 @@ fn the_adapted_events_keep_their_type_names() {
 
 #[test]
 fn the_adapter_carries_every_field_in_order() {
+    let (mut kept, mut dropped) = (0, 0);
     for event in every_v1_event() {
         let frozen = format!("{event:?}");
-        let live: DomainEvent = event.into();
-        assert_eq!(without_player_fields(&live), frozen);
+        match adapt(event) {
+            Some(live) => {
+                assert_eq!(without_player_fields(&live), frozen);
+                kept += 1;
+            }
+            None => dropped += 1,
+        }
+    }
+    assert_eq!((kept, dropped), (39, 4));
+}
+
+/// The adapter has no live event for the four level-offer events, and only for those.
+#[test]
+fn the_adapter_drops_exactly_the_four_level_offer_events() {
+    for event in every_v1_event() {
+        let name = frozen_name(&event);
+        assert_eq!(
+            adapt(event).is_none(),
+            LEVEL_OFFER_EVENTS.contains(&name.as_str()),
+            "{name}"
+        );
     }
 }
 
@@ -249,7 +282,7 @@ fn the_player_fields_are_none_and_the_bytes_are_those_of_before() {
         if !["Hit", "Healed", "StatusApplied", "Died"].contains(&name.as_str()) {
             continue;
         }
-        let live: DomainEvent = event.into();
+        let live: DomainEvent = adapt(event).expect("a live event");
         match &live {
             DomainEvent::Hit {
                 player, buffed_by, ..
@@ -325,7 +358,7 @@ fn step_both(e: &mut Engine, by_hand: &mut Engine, input: Input) -> usize {
         &mut frozen,
         &mut load,
     );
-    let adapted: Vec<DomainEvent> = frozen.into_iter().map(Into::into).collect();
+    let adapted: Vec<DomainEvent> = frozen.into_iter().filter_map(adapt).collect();
     assert_eq!(e.events(), adapted.as_slice());
     assert!(e.events().iter().all(names_no_player));
     adapted.len()
@@ -373,7 +406,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
                 &mut frozen,
             );
             crate::engine::pick(&mut e, PlayerIdx::SOLO, 0).unwrap();
-            let adapted: Vec<DomainEvent> = frozen.into_iter().map(Into::into).collect();
+            let adapted: Vec<DomainEvent> = frozen.into_iter().filter_map(adapt).collect();
             assert_eq!(e.events(), adapted.as_slice(), "pick, tick {tick}");
             total += adapted.len();
             picks += 1;
@@ -478,9 +511,10 @@ fn a_version_1_replay_shows_the_same_offers() {
     assert!(folded.contains("\"constellations\":[{"), "a constellation");
     assert!(folded.contains("\"OfferOpened\""), "a star offer");
     // Recorded from a run on the commit before the views moved: a pin in source, not generated.
+    // Re-derived once when the level-offer views left the snapshot: the offers' snapshots lose `taken`.
     assert_eq!(
         crate::hash::fnv1a64(folded.as_bytes()),
-        12726148840104281884
+        13020489189506330421
     );
 }
 
@@ -638,39 +672,51 @@ fn the_offer_views_convert_field_by_field() {
             needed: 3,
         }
     );
-    let stat = live::StatOfferView::from(w::StatOfferView {
-        options: vec![ContentId::from("a"), ContentId::from("b")],
-    });
-    assert_eq!(stat.options, [ContentId::from("a"), ContentId::from("b")]);
-    assert_eq!(
-        serde_json::to_string(&stat).unwrap(),
-        r#"{"options":["a","b"]}"#
-    );
+}
 
-    let offer = live::ExpertiseOfferView::from(w::ExpertiseOfferView {
-        level: 7,
-        kind: w::ExpertiseOfferKind::Upgrade,
-        candidates: vec![w::ExpertiseCandidateView {
-            option: ContentId::from("o"),
-        }],
-        options: vec![w::OfferOption::Take { candidate: 0 }],
-        rerolls_left: 6,
-    });
-    assert_eq!(offer.level, 7);
-    assert_eq!(offer.kind, live::ExpertiseOfferKind::Upgrade);
-    assert_eq!(
-        offer.candidates,
-        [live::ExpertiseCandidateView {
-            option: ContentId::from("o")
-        }]
-    );
-    assert_eq!(offer.options, [live::OfferOption::Take { candidate: 0 }]);
-    assert_eq!(offer.rerolls_left, 6);
-    assert_eq!(
-        serde_json::to_string(&offer).unwrap(),
-        concat!(
-            r#"{"level":7,"kind":"upgrade","candidates":[{"option":"o"}],"#,
-            r#""options":[{"type":"take","candidate":0}],"rerolls_left":6}"#
-        )
-    );
+/// A frozen run still stops on a stat or expertise offer and takes its pick, but its snapshot
+/// shows no such offer and its event stream names none of the four events that left the live
+/// rules (ADR-REPL-2 point 6, ADR-SIM-7).
+#[test]
+fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
+    const GONE: [&str; 4] = LEVEL_OFFER_EVENTS;
+    let pack = crate::pack::Pack::from_bytes(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack");
+    let content = pack.content();
+    let bytes: &[u8] = include_bytes!("../../tests/corpus/v1/runs/trial/run.replay");
+    let recorded = crate::run_replay::RunReplay::from_bytes(bytes).expect("a run replay");
+    let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).expect("a stage");
+    let inputs = recorded
+        .unpack_inputs(run_setup::max_replay_ticks(
+            &recorded.setup,
+            &stage,
+            content.time_limit(),
+        ))
+        .expect("inputs");
+    let commands = recorded.unpack_commands().expect("commands");
+    let mut e = Engine::start_with(&recorded.setup, content).expect("the run starts");
+    let mut next = commands.iter().peekable();
+    let mut level_offers = 0;
+    for input in inputs {
+        while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
+            assert!(e.offer_open(), "a recorded pick answers an open offer");
+            let star = e.snapshot().progress.is_some_and(|p| p.offer.is_some());
+            level_offers += usize::from(!star);
+            crate::engine::pick(&mut e, PlayerIdx::SOLO, c.index).expect("a recorded choice");
+        }
+        e.step(&[input, Default::default(), Default::default()]);
+        let snap = serde_json::to_value(e.snapshot()).unwrap();
+        assert!(snap["progress"].get("stat_offer").is_none());
+        assert!(snap["expertise"].get("offer").is_none());
+        for event in e.events() {
+            let name = serde_json::to_value(event).unwrap()["type"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            assert!(!GONE.contains(&name.as_str()), "{name}");
+        }
+    }
+    assert!(level_offers > 0, "the run took a stat or expertise offer");
 }

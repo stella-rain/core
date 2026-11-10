@@ -32,7 +32,6 @@ fn setup() -> RunSetup {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     }
@@ -643,10 +642,6 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
         "$.extra_rerolls",
         "none in equipment mode: there are no rerolls",
     );
-    let stats = issue(
-        "$.pick_stats",
-        "off in equipment mode: level stats follow the stat priority list",
-    );
     let star = CarriedStar {
         reward: "max_hp_common".into(),
     };
@@ -667,19 +662,11 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
     );
     assert_eq!(
         one(RunSetup {
-            pick_stats: true,
-            ..equipment()
-        }),
-        vec![stats.clone()]
-    );
-    assert_eq!(
-        one(RunSetup {
             carried: vec![star],
             extra_rerolls: 2,
-            pick_stats: true,
             ..equipment()
         }),
-        [carried, rerolls, stats]
+        [carried, rerolls]
     );
     // `stop` is the default and reads as absent; a plain equipment setup is valid.
     let plain = RunSetup {
@@ -892,4 +879,61 @@ fn the_checked_in_schema_has_no_offer_mode() {
             .unwrap();
     assert!(!text.contains("\"offer_mode\""));
     assert!(!text.contains("\"OfferMode\""));
+}
+
+/// A default setup's JSON with `pick_stats` added (the stat offer left core: the key is unknown).
+fn setup_json_naming_pick_stats(on: bool) -> serde_json::Value {
+    let mut v = serde_json::to_value(RunSetup::default()).unwrap();
+    assert!(
+        v.get("pick_stats").is_none(),
+        "a default setup names no stat offer"
+    );
+    v["pick_stats"] = on.into();
+    v
+}
+
+#[test]
+fn a_setup_naming_pick_stats_is_refused_as_an_unknown_field() {
+    for on in [false, true] {
+        let v = setup_json_naming_pick_stats(on);
+        assert!(
+            serde_json::from_value::<RunSetup>(v.clone()).is_err(),
+            "{on}"
+        );
+        let err = run_setup::parse_and_validate(v.to_string().as_bytes()).unwrap_err();
+        assert!(matches!(err, Error::Parse { .. }), "{on}: {err:?}");
+    }
+}
+
+#[test]
+fn a_replay_whose_setup_names_pick_stats_is_refused() {
+    use stella_rain_core::run_replay::{RunRecorder, RunReplay};
+    let bytes = RunRecorder::start(&RunSetup::default())
+        .unwrap()
+        .replay()
+        .to_bytes();
+    assert!(RunReplay::from_bytes(&bytes).is_ok());
+    let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["setup"]["pick_stats"] = true.into();
+    assert!(RunReplay::from_bytes(v.to_string().as_bytes()).is_err());
+}
+
+#[test]
+fn the_checked_in_schema_names_no_level_offer() {
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
+    for name in [
+        "pick_stats",
+        "stat_offer",
+        "StatOfferView",
+        "StatOfferOpened",
+        "ExpertiseOfferView",
+        "ExpertiseCandidateView",
+        "ExpertiseOfferOpened",
+        "ExpertiseOptionTaken",
+        "ExpertiseCandidateReplaced",
+    ] {
+        assert!(!text.contains(&format!("\"{name}\"")), "{name}");
+    }
 }

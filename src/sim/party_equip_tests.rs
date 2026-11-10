@@ -102,7 +102,6 @@ fn equipment_setup() -> RunSetup {
     RunSetup {
         seed: 20_261_106,
         build_mode: BuildMode::Equipment,
-        pick_stats: false,
         ..RunSetup::default()
     }
 }

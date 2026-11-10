@@ -172,11 +172,11 @@ fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
     }
     // Each choice spends a reroll or a banish, or closes the offer; a run has few of either.
     for _ in 0..64 {
-        let Some(options) = engine.snapshot().progress.and_then(|p| {
-            p.offer
-                .map(|o| o.options.len())
-                .or(p.stat_offer.map(|o| o.options.len()))
-        }) else {
+        let Some(options) = engine
+            .snapshot()
+            .progress
+            .and_then(|p| p.offer.map(|o| o.options.len()))
+        else {
             break;
         };
         let options = u32::try_from(options).expect("few options");
@@ -771,7 +771,6 @@ pub fn pack_load(data: &[u8]) -> bool {
             lumine: 0,
             starting_rune: None,
             stat_priority: Vec::new(),
-            pick_stats: false,
             difficulty: "normal".into(),
             ..RunSetup::default()
         };

@@ -893,7 +893,6 @@ fn an_elite_spawned_event_names_its_asset_without_allocating() {
 fn a_steady_party_tick_allocates_and_frees_nothing() {
     let setup = stella_rain_core::run_setup::RunSetup {
         seed: 20_261_104,
-        pick_stats: true,
         ..Default::default()
     };
     let mut engine = Engine::start_party(&setup, 3).unwrap();

@@ -25,7 +25,6 @@ fn px(x: i32, y: i32) -> Point {
 fn start(n: u8, at: &[Point]) -> Engine {
     let setup = RunSetup {
         seed: 20_261_105,
-        pick_stats: true,
         ..RunSetup::default()
     };
     let mut e = Engine::start_party(&setup, n).expect("a party");

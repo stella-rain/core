@@ -91,14 +91,6 @@ pub enum OfferKind {
     Boss,
 }
 
-/// A stat offer: a level reached with `pick_stats` (DS18). No reroll, skip or banish.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct StatOfferView {
-    /// The run stats below their limit, in the run stats' order: option `i` of
-    /// `Engine::choose` raises `options[i]`.
-    pub options: Vec<ContentId>,
-}
-
 /// What an expertise level offers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExpertiseOfferKind {
@@ -110,28 +102,4 @@ pub enum ExpertiseOfferKind {
     Upgrade,
     /// The fixed capstones of the chosen style, at the table's capstone level: no reroll.
     Capstone,
-}
-
-/// An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's
-/// common pool, with a reroll of each candidate; a style, upgrade or capstone one shows its
-/// fixed choices, with no reroll. None has a skip or a banish.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ExpertiseOfferView {
-    /// The expertise level that opened it.
-    pub level: u32,
-    pub kind: ExpertiseOfferKind,
-    pub candidates: Vec<ExpertiseCandidateView>,
-    /// What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll
-    /// of each while rerolls are left and another option could come.
-    pub options: Vec<OfferOption>,
-    /// Rerolls left in the run, shared with the stars' offers.
-    pub rerolls_left: u32,
-}
-
-/// An option an expertise offer holds.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ExpertiseCandidateView {
-    /// Its ID in the weapon's expertise content: a common option, a style, or a choice of the
-    /// chosen style's path.
-    pub option: ContentId,
 }

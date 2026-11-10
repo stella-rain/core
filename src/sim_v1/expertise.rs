@@ -39,7 +39,7 @@
 
 use super::World;
 use super::event::DomainEvent;
-use super::views::{ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption};
+use super::views::{ExpertiseOfferKind, OfferOption};
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, Style, TABLE_LEVELS, WeaponExpertise,
 };
@@ -485,32 +485,6 @@ pub(crate) fn styles_view(
         })
         .collect();
     (style, path)
-}
-
-/// What the frontend shows of the open expertise offer.
-pub(crate) fn offer_view(
-    stage: &World,
-    expertise: &Expertise,
-    s: &State,
-) -> Option<ExpertiseOfferView> {
-    let g = s.expertise.as_ref()?;
-    let o = g.offer.as_ref()?;
-    Some(ExpertiseOfferView {
-        level: o.level,
-        kind: o.kind,
-        candidates: o
-            .candidates
-            .iter()
-            .filter_map(|i| {
-                let c = choice_of(stage, expertise, g, o, *i)?;
-                Some(ExpertiseCandidateView {
-                    option: c.id.clone(),
-                })
-            })
-            .collect(),
-        options: options(stage, expertise, s),
-        rerolls_left: rerolls_left(s),
-    })
 }
 
 /// `TABLE_LEVELS` as a level number.

@@ -19,11 +19,10 @@ pub(super) fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).expect("a slot")
 }
 
-/// A party of `n` at the start: stat offers are picked, nothing has been stepped.
+/// A party of `n` at the start, nothing has been stepped.
 pub(super) fn party(n: u8) -> (World, State) {
     let setup = RunSetup {
         seed: 20_261_104,
-        pick_stats: true,
         ..RunSetup::default()
     };
     let e = Engine::start_party(&setup, n).expect("a party");
@@ -78,7 +77,6 @@ fn queued_offers_are_dropped_when_a_player_goes_out() {
     down(&mut s, 1);
     s.players[slot(1)].down_ticks = 1199;
     let career = s.players.career_mut(slot(1));
-    career.progress.as_mut().expect("levels").offers_due = 2;
     career
         .offers
         .as_mut()
@@ -93,7 +91,6 @@ fn queued_offers_are_dropped_when_a_player_goes_out() {
     tick_down_and_revive(&w, &mut s, &idle(), &mut ev);
     assert!(ev.contains(&DomainEvent::PlayerOut { player: slot(1) }));
     let career = s.players.career(slot(1));
-    assert_eq!(career.progress.as_ref().unwrap().offers_due, 0);
     assert!(career.offers.as_ref().unwrap().due.is_empty());
     let gauge = career.expertise.as_ref().unwrap();
     assert_eq!(gauge.offered, gauge.level);
@@ -105,7 +102,6 @@ fn queued_offers_are_dropped_when_a_player_goes_out() {
 fn engine(n: u8) -> Engine {
     let setup = RunSetup {
         seed: 20_261_104,
-        pick_stats: true,
         ..RunSetup::default()
     };
     Engine::start_party(&setup, n).expect("a party")
@@ -116,11 +112,6 @@ fn st(e: &mut Engine) -> &mut State {
         Run::V2 { state, .. } => state,
         Run::V1 { .. } => panic!("the live rules"),
     }
-}
-
-fn stat_offers_due(e: &mut Engine, i: u8, n: u32) {
-    let p = st(e).players.career_mut(slot(i)).progress.as_mut().unwrap();
-    p.offers_due = n;
 }
 
 fn count<F: Fn(&DomainEvent) -> bool>(e: &Engine, f: F) -> usize {
@@ -152,29 +143,6 @@ fn lethal(e: &mut Engine, i: u8) {
 }
 
 #[test]
-fn a_downed_player_takes_a_due_stat_offer_on_the_tick_it_opens() {
-    let mut e = engine(2);
-    down(st(&mut e), 1);
-    stat_offers_due(&mut e, 1, 1);
-    e.open_offers_for_test();
-    let s = st(&mut e);
-    assert!(!offer_open_for(s, slot(1)));
-    assert_eq!(
-        s.players
-            .career(slot(1))
-            .progress
-            .as_ref()
-            .unwrap()
-            .offers_due,
-        0
-    );
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::StatRaised { .. })),
-        1
-    );
-}
-
-#[test]
 fn a_downed_player_takes_its_whole_queue_on_one_tick() {
     let mut e = engine(2);
     down(st(&mut e), 1);
@@ -200,7 +168,14 @@ fn a_downed_player_takes_its_whole_queue_on_one_tick() {
 #[test]
 fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
     let mut e = engine(2);
-    stat_offers_due(&mut e, 1, 2);
+    st(&mut e)
+        .players
+        .career_mut(slot(1))
+        .offers
+        .as_mut()
+        .unwrap()
+        .due
+        .extend([star_due(), star_due()]);
     e.open_offers_for_test();
     assert!(offer_open_for(st(&mut e), slot(1)));
     lethal(&mut e, 1);
@@ -208,17 +183,10 @@ fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
     e.open_offers_for_test();
     let s = st(&mut e);
     assert!(!offer_open_for(s, slot(1)));
+    let offers = s.players.career(slot(1)).offers.as_ref().unwrap();
+    assert!(offers.due.is_empty() && offers.offer.is_none());
     assert_eq!(
-        s.players
-            .career(slot(1))
-            .progress
-            .as_ref()
-            .unwrap()
-            .offers_due,
-        0
-    );
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::StatRaised { .. })),
+        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
         2
     );
 }
@@ -227,7 +195,6 @@ fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
 fn an_out_player_opens_nothing_and_loses_what_is_queued() {
     let mut e = engine(2);
     out(st(&mut e), 1);
-    stat_offers_due(&mut e, 1, 2);
     st(&mut e)
         .players
         .career_mut(slot(1))
@@ -240,13 +207,9 @@ fn an_out_player_opens_nothing_and_loses_what_is_queued() {
     let s = st(&mut e);
     assert!(!offer_open_for(s, slot(1)));
     let career = s.players.career(slot(1));
-    assert_eq!(career.progress.as_ref().unwrap().offers_due, 0);
     assert!(career.offers.as_ref().unwrap().due.is_empty());
     assert_eq!(
-        count(&e, |ev| matches!(
-            ev,
-            DomainEvent::StatOfferOpened { .. } | DomainEvent::OfferOpened { .. }
-        )),
+        count(&e, |ev| matches!(ev, DomainEvent::OfferOpened { .. })),
         0
     );
 }
@@ -291,38 +254,6 @@ fn max_hp_raises_the_most_and_heals_only_a_player_that_is_up() {
         assert_eq!((s.players[slot(i)].hp, s.players[slot(i)].max_hp), (0, 120));
     }
     assert!(s.players[slot(1)].is_downed());
-}
-
-#[test]
-fn a_stat_offer_of_max_hp_taken_while_downed_leaves_the_player_down() {
-    let mut e = engine(2);
-    let s = st(&mut e);
-    down(s, 1);
-    s.players[slot(1)].max_hp = 100;
-    let at = max_hp_stat(s, slot(1));
-    s.players
-        .career_mut(slot(1))
-        .progress
-        .as_mut()
-        .unwrap()
-        .offer_open = true;
-    let option = crate::snapshot::OfferOption::Take {
-        candidate: u8::try_from(at).unwrap(),
-    };
-    let mut ev = Vec::new();
-    super::levels::choose(s, slot(1), option, &mut ev);
-    assert!(
-        ev.iter()
-            .any(|e| matches!(e, DomainEvent::StatRaised { .. }))
-    );
-    assert_eq!(s.players[slot(1)].hp, 0);
-    assert!(s.players[slot(1)].max_hp > 100);
-    assert!(s.players[slot(1)].is_downed());
-    // Nobody got up: with slot 0 down too the run fails.
-    down(s, 0);
-    let (w, _) = party(2);
-    decide_outcome(&w, s, &mut ev);
-    assert_eq!(s.outcome, Outcome::Failed);
 }
 
 /// A state with one enemy at 0 hit points that gives a great deal of experience, and the run's
@@ -634,31 +565,6 @@ fn experience_goes_to_the_players_that_are_up_only() {
             0
         );
     }
-}
-
-#[test]
-fn a_downed_player_queues_no_stat_offer_from_a_kill() {
-    let (w, mut s) = one_up_one_downed_one_out();
-    for i in s.players.indices().collect::<Vec<_>>() {
-        s.players
-            .career_mut(i)
-            .progress
-            .as_mut()
-            .unwrap()
-            .pick_stats = true;
-    }
-    let mut ev = Vec::new();
-    super::levels::credit_defeated(&w, &mut s, &mut ev);
-    let due = |i| {
-        s.players
-            .career(slot(i))
-            .progress
-            .as_ref()
-            .unwrap()
-            .offers_due
-    };
-    assert!(due(0) > 0);
-    assert_eq!((due(1), due(2)), (0, 0));
 }
 
 #[test]

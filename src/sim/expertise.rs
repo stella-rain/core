@@ -43,20 +43,15 @@
 //! path order (style, upgrade, upgrade, capstone).
 
 use super::World;
-use crate::event::DomainEvent;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, SetStat, Style, TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
-use crate::rng::SplitMix64;
 use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{
-    AgentSource, ExpertiseGauge, ExpertiseOffer, PlayerState, Progress, State,
-};
+use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseCandidateView, ExpertiseOfferKind, ExpertiseOfferView, OfferOption, StatValueView,
-    TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, StatValueView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
@@ -243,48 +238,6 @@ fn fixed<'a>(
     }
 }
 
-/// The choice at place `i` of the offer `o`: in the weapon's common pool, or among the fixed
-/// choices.
-fn choice_of<'a>(
-    stage: &World,
-    expertise: &'a Expertise,
-    g: &ExpertiseGauge,
-    o: &ExpertiseOffer,
-    i: u8,
-) -> Option<Choice<'a>> {
-    let at = usize::from(i);
-    match o.kind {
-        ExpertiseOfferKind::Common => pool(stage, expertise).get(at).map(Choice::from),
-        _ => fixed(stage, expertise, g, o.level).into_iter().nth(at),
-    }
-}
-
-/// Whether the option at `i` may be offered: in the pool and not in `held`. No option has a
-/// stack limit, so one taken before is still offered.
-fn eligible(pool: &[ExpertiseOption], i: u8, held: &[u8]) -> bool {
-    usize::from(i) < pool.len() && !held.contains(&i)
-}
-
-fn places(pool: &[ExpertiseOption]) -> impl Iterator<Item = u8> {
-    (0..pool.len()).map_while(|i| u8::try_from(i).ok())
-}
-
-/// Draws one option from `pool`, leaving out `held`.
-fn draw(pool: &[ExpertiseOption], rng: &mut SplitMix64, held: &[u8]) -> Option<u8> {
-    let list: Vec<u8> = places(pool).filter(|i| eligible(pool, *i, held)).collect();
-    if list.is_empty() {
-        return None;
-    }
-    let at = rng.below(u32::try_from(list.len()).unwrap_or(u32::MAX));
-    list.get(usize::try_from(at).unwrap_or(usize::MAX)).copied()
-}
-
-/// Whether some option besides `held` could still be offered from the weapon.
-fn any_left(stage: &World, expertise: &Expertise, held: &[u8]) -> bool {
-    let pool = pool(stage, expertise);
-    places(pool).any(|i| eligible(pool, i, held))
-}
-
 // --- the equipment build: automatic common levels ---------------------------------------------
 
 // --- the equipment build: the weapon's stat sets ----------------------------------------------
@@ -381,10 +334,10 @@ pub(super) fn start_set(stage: &World, expertise: &Expertise, s: &mut State, me:
     }
 }
 
-/// The equipment build's pass over the levels due to `me`: no offer opens, nothing is drawn and
-/// no stat is added. The levels of the style path are tree points (held, see the tree rules);
-/// every other level only raises the weapon level, which is all the pass records (`offered`).
-fn equipment_pass(s: &mut State, me: PlayerIdx) {
+/// The pass over the levels due to `me`, in every mode: no offer opens, nothing is drawn and no
+/// stat is added. The levels of the style path are tree points (held, see the tree rules); every
+/// other level only raises the weapon level, which is all the pass records (`offered`).
+pub(super) fn open_due(s: &mut State, me: PlayerIdx) {
     let Some(g) = s.players.career_mut(me).expertise.as_mut() else {
         return;
     };
@@ -626,207 +579,6 @@ pub(crate) fn check_tree(
     Ok(())
 }
 
-/// Opens the offer of the first level due to `me` that has a candidate, unless `me` has an offer
-/// open.
-pub(super) fn open_due(
-    stage: &World,
-    expertise: &Expertise,
-    s: &mut State,
-    me: PlayerIdx,
-    events: &mut Vec<DomainEvent>,
-) {
-    if stage.equipment_mode {
-        return equipment_pass(s, me);
-    }
-    if super::offer_open_for(s, me) {
-        return;
-    }
-    let crate::sim::state::Career {
-        offer: rng,
-        expertise: g,
-        ..
-    } = s.players.career_mut(me);
-    let Some(g) = g.as_mut() else {
-        return;
-    };
-    while g.offer.is_none() && g.offered < g.level {
-        if g.offered >= table_levels() && !any_left(stage, expertise, &[]) {
-            // Past the style path, nothing can ever be offered again: every level due is
-            // passed over.
-            g.offered = g.level;
-            return;
-        }
-        g.offered += 1;
-        let level = g.offered;
-        let Some(kind) = slot(&stage.level_table(), level) else {
-            continue;
-        };
-        let candidates: Vec<u8> = if kind == ExpertiseOfferKind::Common {
-            let pool = pool(stage, expertise);
-            let mut candidates = Vec::with_capacity(stage.tuning.offer_size);
-            while candidates.len() < stage.tuning.offer_size {
-                match draw(pool, rng, &candidates) {
-                    Some(i) => candidates.push(i),
-                    None => break,
-                }
-            }
-            candidates
-        } else {
-            let n = fixed(stage, expertise, g, level).len();
-            (0..n).map_while(|i| u8::try_from(i).ok()).collect()
-        };
-        if candidates.is_empty() {
-            continue;
-        }
-        let o = ExpertiseOffer {
-            level,
-            kind,
-            candidates,
-        };
-        events.push(DomainEvent::ExpertiseOfferOpened {
-            level,
-            kind,
-            candidates: o
-                .candidates
-                .iter()
-                .filter_map(|i| choice_of(stage, expertise, g, &o, *i))
-                .map(|c| c.id.clone())
-                .collect(),
-        });
-        g.offer = Some(o);
-    }
-}
-
-/// Rerolls left in the run, shared with the stars' offers; none in a stage without stars.
-fn rerolls_left(s: &State, me: PlayerIdx) -> u32 {
-    s.players
-        .career(me)
-        .offers
-        .as_ref()
-        .map_or(0, |o| o.rerolls_left)
-}
-
-/// The options of the open expertise offer, in index order; empty without one.
-pub(crate) fn options(
-    stage: &World,
-    expertise: &Expertise,
-    s: &State,
-    me: PlayerIdx,
-) -> Vec<OfferOption> {
-    let Some((_, o)) = s
-        .players
-        .career(me)
-        .expertise
-        .as_ref()
-        .and_then(|g| Some((g, g.offer.as_ref()?)))
-    else {
-        return Vec::new();
-    };
-    let n = u8::try_from(o.candidates.len()).unwrap_or(u8::MAX);
-    let mut out: Vec<OfferOption> = (0..n)
-        .map(|candidate| OfferOption::Take { candidate })
-        .collect();
-    if o.kind == ExpertiseOfferKind::Common
-        && rerolls_left(s, me) > 0
-        && any_left(stage, expertise, &o.candidates)
-    {
-        out.extend((0..n).map(|candidate| OfferOption::Reroll { candidate }));
-    }
-    out
-}
-
-/// Carries out `option`, one of `options`, on the open expertise offer.
-pub(super) fn choose(
-    stage: &World,
-    expertise: &Expertise,
-    s: &mut State,
-    me: PlayerIdx,
-    option: OfferOption,
-    events: &mut Vec<DomainEvent>,
-) {
-    let (player, career) = s.players.both_mut(me);
-    let crate::sim::state::Career {
-        progress,
-        offer: rng,
-        offers,
-        expertise: g,
-        ..
-    } = career;
-    let Some(g) = g.as_mut() else {
-        return;
-    };
-    let Some(mut o) = g.offer.take() else {
-        return;
-    };
-    let pool = pool(stage, expertise);
-    match option {
-        OfferOption::Take { candidate } if o.kind != ExpertiseOfferKind::Common => {
-            let Some(c) = o
-                .candidates
-                .get(usize::from(candidate))
-                .and_then(|i| choice_of(stage, expertise, g, &o, *i))
-            else {
-                return;
-            };
-            let (place, id) = (o.candidates[usize::from(candidate)], c.id.clone());
-            apply(&mut g.range_pct, progress, player, c.effect, c.amount);
-            if o.kind == ExpertiseOfferKind::Style {
-                g.style = Some(place);
-            } else {
-                g.path.push(place);
-            }
-            events.push(DomainEvent::ExpertiseOptionTaken {
-                option: id,
-                taken: 1,
-            });
-        }
-        OfferOption::Take { candidate } => {
-            let Some(&i) = o.candidates.get(usize::from(candidate)) else {
-                return;
-            };
-            let at = usize::from(i);
-            let (Some(n), Some(picked)) = (g.taken.get_mut(at), pool.get(at)) else {
-                return;
-            };
-            *n = n.saturating_add(1);
-            let taken = *n;
-            apply(
-                &mut g.range_pct,
-                progress,
-                player,
-                picked.effect,
-                picked.amount,
-            );
-            events.push(DomainEvent::ExpertiseOptionTaken {
-                option: picked.id.clone(),
-                taken,
-            });
-        }
-        OfferOption::Reroll { candidate } if o.kind == ExpertiseOfferKind::Common => {
-            let slot = usize::from(candidate);
-            let left = offers.as_ref().is_some_and(|f| f.rerolls_left > 0);
-            let new = if left {
-                draw(pool, rng, &o.candidates)
-            } else {
-                None
-            };
-            if let (Some(new), Some(f), true) = (new, offers.as_mut(), slot < o.candidates.len()) {
-                f.rerolls_left = f.rerolls_left.saturating_sub(1);
-                o.candidates[slot] = new;
-                events.push(DomainEvent::ExpertiseCandidateReplaced {
-                    slot: candidate,
-                    option: pool[usize::from(new)].id.clone(),
-                });
-            }
-            g.offer = Some(o);
-        }
-        // Never among an expertise offer's options; a reroll only among a common one's.
-        OfferOption::Reroll { .. } | OfferOption::Skip | OfferOption::Banish { .. } => {
-            g.offer = Some(o)
-        }
-    }
-}
-
 /// Adds `amount` of `effect`, as a reward of that kind does; a range option to the combo
 /// steps' widening.
 fn apply(
@@ -869,33 +621,6 @@ pub(crate) fn styles_view(
         })
         .collect();
     (style, path)
-}
-
-/// What the frontend shows of the open expertise offer.
-pub(crate) fn offer_view(
-    stage: &World,
-    expertise: &Expertise,
-    s: &State,
-    me: PlayerIdx,
-) -> Option<ExpertiseOfferView> {
-    let g = s.players.career(me).expertise.as_ref()?;
-    let o = g.offer.as_ref()?;
-    Some(ExpertiseOfferView {
-        level: o.level,
-        kind: o.kind,
-        candidates: o
-            .candidates
-            .iter()
-            .filter_map(|i| {
-                let c = choice_of(stage, expertise, g, o, *i)?;
-                Some(ExpertiseCandidateView {
-                    option: c.id.clone(),
-                })
-            })
-            .collect(),
-        options: options(stage, expertise, s, me),
-        rerolls_left: rerolls_left(s, me),
-    })
 }
 
 /// `TABLE_LEVELS` as a level number.

@@ -15,7 +15,7 @@ use stella_rain_core::bench_fixtures::worst_minute_case::Run;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
-use stella_rain_core::run_setup::RunSetup;
+use stella_rain_core::run_setup::{BuildMode, RunSetup};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::trig;
@@ -267,15 +267,22 @@ fn fnv1a(hash: u64, word: u32) -> u64 {
 
 /// The first tick the standing bot's crowd (counted as `Load::enemies` is) has the 200 of the
 /// target, taken after VS1 (DS109), again after SPAWN-CORNER moved the `any`
-/// spawns and again after VIEW-RECT widened the spawn rectangle and the leash: the director first acts on it, so every tick before it is what it always was.
-const T200: u32 = 46_320;
+/// spawns and again after VIEW-RECT widened the spawn rectangle and the leash, and once more when the run moved to equipment mode (the mode the game keeps; an offers-mode run no longer stops for level offers): the director first acts on it, so every tick before it is what it always was.
+const T200: u32 = 30_600;
 /// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks before
-/// `T200` of the standing bot's run, taken after VS1 (DS109), SPAWN-CORNER and VIEW-RECT.
-const UNDER_TARGET_DIGEST: u64 = 0xda85_cd13_1e04_c38c;
+/// `T200` of the standing bot's run, taken after VS1 (DS109), SPAWN-CORNER and VIEW-RECT, in equipment mode.
+const UNDER_TARGET_DIGEST: u64 = 0x7078_b634_4f62_b783;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {
-    let mut e = horde("normal", None);
+    let mut e = Engine::start_with(
+        &RunSetup {
+            build_mode: BuildMode::Equipment,
+            ..setup("normal")
+        },
+        &design_content(),
+    )
+    .expect("the run starts");
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
     let mut t200 = None;
     for _ in 0..90_000 {

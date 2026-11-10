@@ -244,11 +244,12 @@ fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
     }
 }
 
-/// Answers the open offers: an expertise offer with a take of candidate 0, a star or boss offer
-/// as `answer` does, counting those in `offers`.
+/// Answers the open offers: a level offer (a frozen version 1 run's stat or expertise offer, which
+/// has no view) with a take of candidate 0, a star or boss offer as `answer` does, counting those
+/// in `offers`.
 pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
     while engine.offer_open() {
-        if engine.snapshot().expertise.and_then(|g| g.offer).is_some() {
+        if engine.snapshot().progress.is_none_or(|p| p.offer.is_none()) {
             common::pick(engine, 0).unwrap();
             out.push(Command::Choose(0));
         } else {

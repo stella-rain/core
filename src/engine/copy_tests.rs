@@ -109,6 +109,12 @@ fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
             }
             e.step(&[input_at(e.tick()), Default::default(), Default::default()]);
         }
+        // The newest rules no longer open the level offers (the stat and expertise offers), which
+        // version 1 still does: the runs part at the first of them.
+        if a.offer_open() != b.offer_open() {
+            assert!(tick > 100, "the runs part at tick {tick}");
+            break;
+        }
         assert_same_tick(&a, &b, "worst_minute (offers mode)", tick);
     }
 }

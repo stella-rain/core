@@ -45,7 +45,6 @@ fn engine_edited(
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
@@ -322,7 +321,6 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
@@ -543,7 +541,6 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        pick_stats: false,
         difficulty: difficulty.into(),
         ..RunSetup::default()
     };

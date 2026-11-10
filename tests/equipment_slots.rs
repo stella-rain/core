@@ -184,7 +184,6 @@ fn the_snapshot_shows_the_slots() {
         starting_rune: Some("thunder".into()),
         lumine: 1,
         lumine_star: Some("max_hp_common".into()),
-        pick_stats: false,
         ..RunSetup::default()
     };
     let e = Engine::start(&setup).unwrap();

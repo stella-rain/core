@@ -2,11 +2,9 @@
 //!
 //! Defeated enemies give their wave's experience, to the players who are up, as they are removed
 //! in the collisions. Each level reached raises a run stat (ADR-CONT-1) by its step, and adds
-//! the step to its effect's total, in one of two ways. By default the first stat of the run's
-//! priority below its limit rises at once, with no pause (`StatRaised`). With `pick_stats` the level queues a stat offer
-//! instead: it opens in `open_offers` after the boss and expertise offers, and `Engine::choose`
-//! takes one of the stats below their limit, in the run stats file's order, with no reroll, skip
-//! or banish. With every stat at its limit a level gives and opens nothing. What a total does:
+//! the step to its effect's total: the first stat of the run's priority below its limit rises at
+//! once, with no pause (`StatRaised`). With every stat at its limit a level gives nothing. What a
+//! total does:
 //! `MaxHp` that many more hit points at most and
 //! as many healed at once, unless the player is at 0 hit points (a revive alone gets it up);
 //! `AttackPct` that percent more damage; `AttackSpeedPct` that percent
@@ -22,7 +20,6 @@ use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, PlayerState, Progress, State};
-use crate::snapshot::{OfferOption, StatOfferView};
 
 /// The highest level; past it experience is no longer counted (ADR-SVC-1: it bounds the points).
 pub(crate) const MAX_LEVEL: u32 = 100;
@@ -86,10 +83,7 @@ pub(super) fn gain(
         p.xp -= need;
         p.level += 1;
         events.push(DomainEvent::LeveledUp { level: p.level });
-        // The equipment build never queues a stat offer: the point goes by the priority.
-        if p.pick_stats && !stage.equipment_mode {
-            p.offers_due = p.offers_due.saturating_add(1);
-        } else if let Some(at) = first_below_limit(p) {
+        if let Some(at) = first_below_limit(p) {
             raise(p, player, at, events);
         }
     }
@@ -105,7 +99,6 @@ pub(crate) fn set_policy(
     me: PlayerIdx,
     run_stats: &RunStats,
     priority: &[ContentId],
-    pick_stats: bool,
 ) {
     let Some(p) = s.players.career_mut(me).progress.as_mut() else {
         return;
@@ -123,7 +116,6 @@ pub(crate) fn set_policy(
         }
     }
     p.priority = order;
-    p.pick_stats = pick_stats;
 }
 
 /// The place of the first stat in the priority that is below its limit.
@@ -141,11 +133,6 @@ fn below_limit(p: &Progress, at: usize) -> bool {
     }
 }
 
-/// The places of the stats below their limit, in the run stats' order.
-fn open_stats(p: &Progress) -> Vec<usize> {
-    (0..p.stats.len()).filter(|&i| below_limit(p, i)).collect()
-}
-
 /// Raises the run stat at `at` (below its limit) by its step.
 fn raise(p: &mut Progress, player: &mut PlayerState, at: usize, events: &mut Vec<DomainEvent>) {
     let Some(rule) = p.stats.get(at) else {
@@ -159,74 +146,6 @@ fn raise(p: &mut Progress, player: &mut PlayerState, at: usize, events: &mut Vec
     let spent = *spent;
     add_effect(p, player, effect, step);
     events.push(DomainEvent::StatRaised { stat: id, spent });
-}
-
-/// Opens the next stat offer due to `me`, unless `me` has an offer open. Levels due while every
-/// stat is at its limit give nothing.
-pub(super) fn open_due(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
-    if super::offer_open_for(s, me) {
-        return;
-    }
-    let Some(p) = s.players.career_mut(me).progress.as_mut() else {
-        return;
-    };
-    if p.offers_due == 0 {
-        return;
-    }
-    let options = open_stats(p);
-    if options.is_empty() {
-        p.offers_due = 0;
-        return;
-    }
-    p.offers_due -= 1;
-    p.offer_open = true;
-    events.push(DomainEvent::StatOfferOpened {
-        options: options.iter().map(|&i| p.stats[i].id.clone()).collect(),
-    });
-}
-
-/// The options of `me`'s open stat offer: a take of each stat below its limit.
-pub(super) fn options(s: &State, me: PlayerIdx) -> Vec<OfferOption> {
-    let career = s.players.career(me);
-    career.progress.as_ref().map_or_else(Vec::new, |p| {
-        (0..open_stats(p).len())
-            .map(|i| OfferOption::Take {
-                candidate: u8::try_from(i).unwrap_or(u8::MAX),
-            })
-            .collect()
-    })
-}
-
-/// Takes `option`, one of `options`: raises that stat and closes the offer.
-pub(super) fn choose(
-    s: &mut State,
-    me: PlayerIdx,
-    option: OfferOption,
-    events: &mut Vec<DomainEvent>,
-) {
-    let (player, career) = s.players.both_mut(me);
-    let Some(p) = career.progress.as_mut() else {
-        return;
-    };
-    let OfferOption::Take { candidate } = option else {
-        return;
-    };
-    if let Some(&at) = open_stats(p).get(usize::from(candidate)) {
-        p.offer_open = false;
-        raise(p, player, at, events);
-    }
-}
-
-/// The stat offer `me` has open, for the snapshot.
-pub(crate) fn offer_view(s: &State, me: PlayerIdx) -> Option<StatOfferView> {
-    let career = s.players.career(me);
-    let p = career.progress.as_ref().filter(|p| p.offer_open)?;
-    Some(StatOfferView {
-        options: open_stats(p)
-            .iter()
-            .map(|&i| p.stats[i].id.clone())
-            .collect(),
-    })
 }
 
 /// Adds `amount` to the total of `effect`; `MaxHp` also raises the most hit points and heals

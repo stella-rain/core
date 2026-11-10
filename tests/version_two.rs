@@ -176,6 +176,15 @@ fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
     out
 }
 
+/// An offer is open that is not a star's: a stat or an expertise offer, which only version 1 has.
+fn level_offer_open(e: &Engine) -> bool {
+    e.offer_open()
+        && e.snapshot()
+            .progress
+            .as_ref()
+            .is_none_or(|p| p.offer.is_none())
+}
+
 fn same_tick(a: &Engine, b: &Engine, what: &str) {
     let tick = a.tick();
     assert_eq!(b.tick(), tick, "{what}");
@@ -215,7 +224,9 @@ fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
         assert_eq!(a.stardust(), b.stardust(), "{name}");
         stages += 1;
     }
-    for case in dirs(&frozen.join("runs")) {
+    let mut diverged = 0;
+    'case: for case in dirs(&frozen.join("runs")) {
+        runs += 1;
         let name = case.file_name().unwrap().to_string_lossy().into_owned();
         let bytes = fs::read(case.join("run.replay")).unwrap();
         let recorded = RunReplay::from_bytes(&bytes).unwrap();
@@ -233,12 +244,24 @@ fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
             }
             a.step(&[*input, Default::default(), Default::default()]);
             b.step(&[*input, Default::default(), Default::default()]);
+            if level_offer_open(&a) {
+                // Version 1 opens its first stat or expertise offer here; version 2 has no such
+                // offer, so the two part by design (ADR-SIM-7). Up to the tick before, parity held.
+                assert!(
+                    !level_offer_open(&b),
+                    "{name}, tick {}: version 2 opened a level offer",
+                    a.tick()
+                );
+                diverged += 1;
+                continue 'case;
+            }
             same_tick(&a, &b, &name);
         }
+        // A case with no offer keeps full parity.
         assert_eq!(a.stardust(), b.stardust(), "{name}");
-        runs += 1;
     }
     assert!(stages > 0 && runs > 0);
+    assert!(diverged > 0, "no frozen run opens a level offer");
     // Nothing was written under the frozen tree.
     check_frozen_tree(&frozen).unwrap();
 }
