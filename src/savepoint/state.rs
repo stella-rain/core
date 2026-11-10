@@ -627,18 +627,16 @@ macro_rules! state_codec_v2 {
                 }
                 // Equipment mode: a star in a category slot is of that category, and no two
                 // equipped stars share an option (the rules of `slots::check`).
-                if world.equipment_mode {
-                    match crate::sim::misfit(&world.equipment_rules, content.rewards(), equipment) {
-                        Some(crate::sim::Misfit::Category) => {
-                            return Err(DecodeError::Invalid(
-                                "equipment star does not fit its slot's category",
-                            ));
-                        }
-                        Some(crate::sim::Misfit::SharedOption) => {
-                            return Err(DecodeError::Invalid("equipment stars share an option"));
-                        }
-                        None => {}
+                match crate::sim::misfit(&world.equipment_rules, content.rewards(), equipment) {
+                    Some(crate::sim::Misfit::Category) => {
+                        return Err(DecodeError::Invalid(
+                            "equipment star does not fit its slot's category",
+                        ));
                     }
+                    Some(crate::sim::Misfit::SharedOption) => {
+                        return Err(DecodeError::Invalid("equipment stars share an option"));
+                    }
+                    None => {}
                 }
                 if let Some(g) = &s.players.career(me).expertise {
                     crate::sim::check_tree(world, content.expertise(), g)

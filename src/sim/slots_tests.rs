@@ -268,8 +268,7 @@ mod grants {
         stage.player.evade.charges = 1;
         stage.player.evade.max_charges = Some(3);
         let mut stage = World::for_test(stage);
-        // The slots are equipment mode's: the Growth effects are stats there.
-        stage.equipment_mode = true;
+        // The Growth effects are stats.
         stage.equipment_rules = slots::bundled_rules().clone();
         let pool = RunPool {
             rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
@@ -1516,7 +1515,6 @@ mod kills {
     /// An equipment solo fixture with the attack star in slot 0 and the hp star in the Lumine slot.
     fn armed() -> Fixture {
         let mut f = with(rewards());
-        f.stage.equipment_mode = true;
         f.stage.equipment_rules = slots::bundled_rules().clone();
         f.set(0, Some(ATK));
         f.change(|e| {
@@ -1636,17 +1634,6 @@ mod kills {
             f.total(StatEffect::AttackPct),
             atk + slots::level_scaled(slots::bundled_rules(), 100, 2) - 100
         );
-    }
-
-    /// T13: an offers run credits nothing and counts nothing.
-    #[test]
-    fn offers_mode_credits_nothing() {
-        let mut f = armed();
-        f.stage.equipment_mode = false;
-        dead(&mut f, 12, 0);
-        tick(&mut f, PlayerIdx::SOLO);
-        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (1, 0));
-        assert!(f.s.scratch.kills_by.iter().all(|&k| k == 0));
     }
 
     /// The bundled Mintaka (`max_hp` 50,000 and `regen` 3,000) in the Lumine slot of a fixture

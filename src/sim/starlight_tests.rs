@@ -336,7 +336,6 @@ mod boss {
 
     fn equipment_party(n: u8) -> (World, State) {
         let (mut w, s) = party(n);
-        w.equipment_mode = true;
         w.equipment_rules = bundled_rules().clone();
         (w, s)
     }

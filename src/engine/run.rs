@@ -202,7 +202,6 @@ impl Run {
         // sim_version >= 2: the equipment mode (ADR-SIM-7). A run with a setup loads the pack's
         // rules and drop table; a stage run alone keeps them empty, so its equipment branches run
         // with zero numbers (no boss bonus, no drops).
-        world.equipment_mode = true;
         if b.setup.is_some() {
             // `run_setup::validate_in` refused a run whose pack lacks the rules.
             if let Some(rules) = b.content.rewards().equipment() {
@@ -396,7 +395,7 @@ impl Run {
     /// every other run keeps `NotBuilt` for all. `player` is in the party.
     pub(crate) fn window_lock(&self, player: PlayerIdx) -> Option<super::ActionError> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => {
+            Run::V2 { state, .. } => {
                 let p = &state.players[player];
                 if p.is_out() {
                     Some(super::ActionError::Out)
@@ -406,7 +405,7 @@ impl Run {
                     None
                 }
             }
-            Run::V1 { .. } | Run::V2 { .. } => None,
+            Run::V1 { .. } => None,
         }
     }
 
@@ -421,7 +420,7 @@ impl Run {
         replace: bool,
     ) -> Option<Result<(), sim::SlotError>> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_equip(
+            Run::V2 { world, state } => Some(sim::check_equip(
                 &world.equipment_rules,
                 rewards,
                 state,
@@ -430,7 +429,7 @@ impl Run {
                 slot,
                 replace,
             )),
-            Run::V1 { .. } | Run::V2 { .. } => None,
+            Run::V1 { .. } => None,
         }
     }
 
@@ -455,10 +454,8 @@ impl Run {
         item: u32,
     ) -> Option<Result<(), sim::StarlightError>> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => {
-                Some(sim::check_extract(state, player, item))
-            }
-            Run::V1 { .. } | Run::V2 { .. } => None,
+            Run::V2 { state, .. } => Some(sim::check_extract(state, player, item)),
+            Run::V1 { .. } => None,
         }
     }
 
@@ -478,14 +475,14 @@ impl Run {
         star: u32,
     ) -> Option<Result<(), sim::StarlightError>> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_craft(
+            Run::V2 { world, state } => Some(sim::check_craft(
                 &world.equipment_rules,
                 rewards,
                 state,
                 player,
                 star,
             )),
-            Run::V1 { .. } | Run::V2 { .. } => None,
+            Run::V1 { .. } => None,
         }
     }
 
@@ -505,10 +502,10 @@ impl Run {
         option: u32,
     ) -> Option<Result<(), sim::TreeError>> {
         match self {
-            Run::V2 { world, state } if world.equipment_mode => Some(sim::check_tree_pick(
+            Run::V2 { world, state } => Some(sim::check_tree_pick(
                 world, expertise, state, player, option,
             )),
-            Run::V1 { .. } | Run::V2 { .. } => None,
+            Run::V1 { .. } => None,
         }
     }
 

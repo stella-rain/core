@@ -948,15 +948,13 @@ mod career_rest {
                 amount: 2,
                 category: None,
             },
-            false,
         );
         assert_eq!((career(&mut s, 0).regen, career(&mut s, 1).regen), (0, 7));
     }
 
-    /// T9: the extra rerolls and banishes of a perk are stats in equipment mode and offers
-    /// otherwise.
+    /// T9: the extra rerolls and banishes of a perk are stats, and touch no offer.
     #[test]
-    fn the_scholar_perk_writes_stats_in_equipment_mode() {
+    fn the_scholar_perk_writes_stats() {
         use crate::run_stats::StatEffect;
         let entries = [
             PerkEntry {
@@ -984,19 +982,11 @@ mod career_rest {
         let (_, mut s) = party(0b001);
         let base = read(&mut s);
         for e in entries {
-            loadout::perk(&mut s, slot(0), e, true);
+            loadout::perk(&mut s, slot(0), e);
         }
         let got = read(&mut s);
         assert_eq!((got.0, got.1), (base.0, base.1), "offers untouched");
         assert_eq!((got.2, got.3), (base.2 + 2, base.3 + 1));
-
-        let (_, mut s) = party(0b001);
-        let base = read(&mut s);
-        for e in entries {
-            loadout::perk(&mut s, slot(0), e, false);
-        }
-        let got = read(&mut s);
-        assert_eq!(got, (base.0 + 2, base.1 + 1, base.2, base.3));
     }
 }
 

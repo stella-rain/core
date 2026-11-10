@@ -253,10 +253,8 @@ pub(super) mod steps {
     #[inline(never)]
     pub(super) fn collide(c: &mut Ctx) {
         super::collide(c.world, c.s, c.dots, c.events);
-        // The kills `collide` counted give the killers' star slots expertise (equipment mode).
-        if c.world.equipment_mode {
-            crate::sim::slots::credit_kills(c.world, c.rewards, c.s);
-        }
+        // The kills `collide` counted give the killers' star slots expertise.
+        crate::sim::slots::credit_kills(c.world, c.rewards, c.s);
     }
 
     #[inline(never)]

@@ -447,7 +447,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
 /// Whether the run loaded the pack's equipment rules: a stage run alone holds none, and shows no
 /// Starlight and no pool test.
 fn has_rules(world: &World) -> bool {
-    world.equipment_mode && world.equipment_rules != EquipmentRules::default()
+    world.equipment_rules != EquipmentRules::default()
 }
 
 /// The Starlight prices, one per rarity in `Rarity::ALL` order, from the run's equipment rules.

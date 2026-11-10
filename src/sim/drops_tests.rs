@@ -173,7 +173,6 @@ fn a_star_taken_gives_every_member_a_roll_in_slot_order() {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL;
@@ -527,7 +526,6 @@ fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     let f = s.stars.as_mut().expect("stars");
     f.rarity = (Rarity::Common, Rarity::Supernova);
@@ -798,14 +796,8 @@ mod pickup_stat {
             super::super::widened(RADIUS, shown(&w, &s)),
             super::super::widened(RADIUS, super::super::pickup_pct(&s, slot(0)))
         );
-        assert!(
-            star_taken(&w, &s, RADIUS * 4, true),
-            "300 percent more is taken"
-        );
-        assert!(
-            !star_taken(&w, &s, RADIUS * 4 + 1, true),
-            "one unit past is not"
-        );
+        assert!(star_taken(&w, &s, RADIUS * 4), "300 percent more is taken");
+        assert!(!star_taken(&w, &s, RADIUS * 4 + 1), "one unit past is not");
     }
 
     /// P5: an offers run shows the stars' share, as before.
@@ -849,10 +841,9 @@ mod pickup_stat {
         s.heal_pickups.unwrap().is_empty()
     }
 
-    fn star_taken(w: &World, s: &State, dx: i32, equipment: bool) -> bool {
+    fn star_taken(w: &World, s: &State, dx: i32) -> bool {
         let mut w = w.clone();
         w.stage.stars.as_mut().unwrap().pickup_radius = Fx(RADIUS);
-        w.equipment_mode = equipment;
         let mut s = s.clone();
         let id = EntityId(s.next_id);
         s.next_id += 1;
@@ -862,26 +853,18 @@ mod pickup_stat {
             at,
             rarity: Rarity::Common,
         });
-        if equipment {
-            drops::pick_up(&w, &mut s, slot(0), &mut Vec::new());
-        } else {
-            stars::pick_up(&w, &mut s, slot(0), &mut Vec::new());
-        }
+        drops::pick_up(&w, &mut s, slot(0), &mut Vec::new());
         s.stars.unwrap().on_map.is_empty()
     }
 
     /// T13: a total of 50 widens a circle of `R` to 1.5 `R`, touching counts, for the heal
-    /// pickups, the stars of offers mode and the stars of equipment mode.
+    /// pickups and the stars.
     #[test]
     fn a_pickup_stat_widens_each_pickup() {
         let near = RADIUS * 3 / 2;
         let (hw, mut hs) = heal_fixture();
         let (sw, mut ss) = party(1);
-        let cases: [(&str, Taken); 3] = [
-            ("heal", heal_taken),
-            ("offers star", |w, s, dx| star_taken(w, s, dx, false)),
-            ("equipment star", |w, s, dx| star_taken(w, s, dx, true)),
-        ];
+        let cases: [(&str, Taken); 2] = [("heal", heal_taken), ("star", star_taken)];
         for (name, taken) in cases {
             let (w, s) = if name == "heal" {
                 (&hw, &mut hs)

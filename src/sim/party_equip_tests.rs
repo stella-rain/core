@@ -29,7 +29,6 @@ fn rare_party(n: u8) -> (super::World, super::State) {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL_POOL;
