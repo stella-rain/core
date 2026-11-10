@@ -402,8 +402,7 @@ const FEATURES: [(&str, bool, bool, bool); 10] = [
     ("time_limit_overtime", false, false, true),
     ("trial", false, true, true),
     ("tutorial", false, true, true),
-    // Placeholder flags until the case is blessed; the guard's computed values replace them.
-    ("tutorial_opening", false, false, false),
+    ("tutorial_opening", false, true, true),
 ];
 
 #[test]
