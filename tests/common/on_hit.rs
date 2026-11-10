@@ -90,7 +90,7 @@ pub fn rewards_file(rewards: Vec<Value>) -> Value {
 }
 
 /// An equipment run of `stage` over the rewards `file` (read with `skills`), with `stars`
-/// (reward, slot) equipped at Lv1 and, when `rune` is true, the seven runes in seven rune
+/// (reward, slot) equipped at `level` and, when `rune` is true, the seven runes in seven rune
 /// slots. Every rune is ready; a stage skill star arrives cooling, so a test that presses one
 /// sets its cooldown to 1 and `wait_ready`s.
 fn equipped_run(
@@ -100,6 +100,7 @@ fn equipped_run(
     skills: Option<Value>,
     stars: &[(&str, usize)],
     rune: bool,
+    level: u8,
 ) -> Engine {
     let equip_runes = match rune {
         true => Rune::ALL
@@ -115,7 +116,7 @@ fn equipped_run(
         equip_runes,
         ..Parts::default()
     };
-    equipped_in(stage, file, parts, stars, 1)
+    equipped_in(stage, file, parts, stars, level)
 }
 
 /// `stage` played with the seven runes equipped, `stars` equipped, over `rewards`.
@@ -126,18 +127,20 @@ pub fn every_rune_held(
     skills: Option<Value>,
     stars: &[(&str, usize)],
 ) -> Engine {
-    every_rune_held_in(stage, rewards_file(rewards), runes, skills, stars)
+    every_rune_held_in(stage, rewards_file(rewards), runes, skills, stars, 1)
 }
 
-/// `every_rune_held` over a rewards `file` (from `rewards_file`, which a test may change).
+/// `every_rune_held` over a rewards `file` (from `rewards_file`, which a test may change) with
+/// the stars equipped at `level`.
 pub fn every_rune_held_in(
     stage: &Stage,
     file: Value,
     runes: Runes,
     skills: Option<Value>,
     stars: &[(&str, usize)],
+    level: u8,
 ) -> Engine {
-    equipped_run(stage, file, runes, skills, stars, true)
+    equipped_run(stage, file, runes, skills, stars, true, level)
 }
 
 /// As `every_rune_held`, with no rune equipped (the runes file is read all the same).
@@ -148,7 +151,7 @@ pub fn no_rune_held(
     skills: Option<Value>,
     stars: &[(&str, usize)],
 ) -> Engine {
-    equipped_run(stage, rewards_file(rewards), runes, skills, stars, false)
+    equipped_run(stage, rewards_file(rewards), runes, skills, stars, false, 1)
 }
 
 /// Steps idle until the stage skill is ready.
