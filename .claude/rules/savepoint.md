@@ -16,8 +16,8 @@ A pinned format or hash is never re-pinned: a change is a new version.
 
 - Savepoint: `tests/fixtures/savepoint/v<N>.sha256` per `SAVEPOINT_FORMAT` (now 7,
   `savepoint/file.rs`; `v1` to `v7` are pinned and `tests/savepoint.rs` wants one per older
-  format); `UPDATE_SAVEPOINT_PIN=1` refuses to overwrite an existing file. A file of format 1 to
-  6 is refused as `Format`. Format 4 added the party and each player's equipment, format 5 the
+  format and refuses each); the v2 savepoint bytes are pinned by `sim::players_pin_tests` in
+  `src/`. A file of format 1 to 6 is refused as `Format`. Format 4 added the party and each player's equipment, format 5 the
   stat totals, format 6 13 totals (`StatEffect::ALL`) and, after them, the 13 weapon-set entries
   `Progress.set_tenths` (`weapon-tree.md`), format 7 drops the stale offer fields of `Progress`
   and `ExpertiseGauge`.
