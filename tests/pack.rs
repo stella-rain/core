@@ -486,6 +486,20 @@ fn a_pack_released_without_a_constellation_list_still_loads() {
         .as_object_mut()
         .unwrap()
         .remove("constellations");
+    // Without the list a set is not provably released, so one holding an offer effect is
+    // refused (fail closed, ADR-SVC-1); the sets without such an effect load.
+    assert!(load(&v).is_err());
+    for set in v["constellations"]["constellations"]
+        .as_array_mut()
+        .unwrap()
+    {
+        for tier in set["tiers"].as_array_mut().unwrap() {
+            tier["effects"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|e| e["effect"] != "rerolls" && e["effect"] != "banishes");
+        }
+    }
     let pack = load(&v).expect("a pack without the list loads");
     assert_eq!(pack.content().constellations().sets().len(), 4);
 }

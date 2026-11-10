@@ -9,6 +9,10 @@
 //! (ADR-CONT-1). Anything else fails closed, with one message per problem and its path, never text
 //! from the pack.
 //!
+//! The offer effects (`offer_candidates`, `rerolls`, `banishes`, `extra_rerolls`,
+//! `extra_banishes`) are deprecated (ADR-CONT-2): a pack of `sim_version` 2 refuses them in an
+//! entry its `introduced` table does not record below 2 (`check_offer_effects`).
+//!
 //! A content ID a pack introduces, the file's own ID of a run stat, a reward, a stage skill, or
 //! a style or option of a weapon's expertise, an elite type of the `time_limit` mode, or a constellation (listed only when the pack has the list), records the `sim_version` that introduced it in
 //! the pack's `introduced` table, each exactly once, and is refused when that is newer than the
@@ -44,8 +48,8 @@ use crate::difficulties::{Difficulties, DifficultiesFile};
 use crate::expertise::{Expertise, ExpertiseFile, WeaponExpertise};
 use crate::id::ContentId;
 use crate::match_ups::{MatchUps, MatchUpsFile};
-use crate::perk_sets::{PerkSets, PerkSetsFile};
-use crate::rewards::{Rewards, RewardsFile};
+use crate::perk_sets::{PerkEffect, PerkSets, PerkSetsFile};
+use crate::rewards::{RewardEffect, Rewards, RewardsFile};
 use crate::rules::{Rules, RulesFile};
 use crate::run_content::RunContent;
 use crate::run_stats::{RunStats, RunStatsFile};
@@ -498,6 +502,7 @@ impl Pack {
             &difficulties,
             &time_limit,
         )?;
+        check_offer_effects(&pack.introduced, pack.sim_version, &rewards, &perk_sets)?;
 
         let sha256: [u8; 32] = Sha256::digest(bytes).into();
         let content = RunContent::from_parts(
@@ -1166,6 +1171,94 @@ fn check_introduced(
         Ok(())
     } else {
         Err(PackError::Introduced(issues))
+    }
+}
+
+const OFFER_EFFECT_MESSAGE: &str =
+    "an offer effect is deprecated: not allowed in content new at sim_version 2";
+
+fn is_offer_reward(effect: RewardEffect) -> bool {
+    matches!(
+        effect,
+        RewardEffect::OfferCandidates | RewardEffect::Rerolls | RewardEffect::Banishes
+    )
+}
+
+/// The offer effects are deprecated (ADR-CONT-2): in a pack of `sim_version` 2 or more an entry
+/// may hold one only if `introduced` records its ID below 2, so released content keeps them
+/// and new content cannot add them. A constellation the pack lists no version for is not
+/// provably released and is refused (ADR-SVC-1). A pack of `sim_version` 1 is not checked.
+fn check_offer_effects(
+    introduced: &Introduced,
+    sim_version: u32,
+    rewards: &Rewards,
+    perk_sets: &PerkSets,
+) -> Result<(), PackError> {
+    if sim_version < 2 {
+        return Ok(());
+    }
+    let released = |list: Option<&[IntroducedId]>, id: &ContentId| {
+        list.is_some_and(|l| l.iter().any(|e| e.id == *id && e.sim_version < 2))
+    };
+    let invalid = |file: &'static str, issues: Vec<Issue>| {
+        (!issues.is_empty()).then_some(PackError::File {
+            file,
+            error: Error::Invalid(issues),
+        })
+    };
+    let issue = |path: String| Issue {
+        path,
+        message: OFFER_EFFECT_MESSAGE.into(),
+    };
+    let mut found = Vec::new();
+    for (i, r) in rewards.rewards().iter().enumerate() {
+        if released(Some(&introduced.rewards), &r.id) {
+            continue;
+        }
+        for (k, e) in r.effects.iter().enumerate() {
+            if is_offer_reward(e.effect) {
+                found.push(issue(format!("$.rewards[{i}].effects[{k}].effect")));
+            }
+        }
+    }
+    if let Some(e) = invalid("rewards", found) {
+        return Err(e);
+    }
+    let mut found = Vec::new();
+    for (i, s) in perk_sets.sets().iter().enumerate() {
+        if released(Some(&introduced.perk_sets), &s.id) {
+            continue;
+        }
+        for (k, e) in s.effects.iter().enumerate() {
+            if matches!(
+                e.effect,
+                PerkEffect::ExtraRerolls | PerkEffect::ExtraBanishes
+            ) {
+                found.push(issue(format!("$.perk_sets[{i}].effects[{k}].effect")));
+            }
+        }
+    }
+    if let Some(e) = invalid("perk_sets", found) {
+        return Err(e);
+    }
+    let mut found = Vec::new();
+    for (i, c) in rewards.constellations().sets().iter().enumerate() {
+        if released(introduced.constellations.as_deref(), &c.id) {
+            continue;
+        }
+        for (t, tier) in c.tiers.iter().enumerate() {
+            for (k, e) in tier.effects.iter().enumerate() {
+                if is_offer_reward(e.effect) {
+                    found.push(issue(format!(
+                        "$.constellations[{i}].tiers[{t}].effects[{k}].effect"
+                    )));
+                }
+            }
+        }
+    }
+    match invalid("constellations", found) {
+        Some(e) => Err(e),
+        None => Ok(()),
     }
 }
 
