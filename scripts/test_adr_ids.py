@@ -96,11 +96,11 @@ def decision(points):
     return f"# ADR\n\n## Context\n\n1. not a decision\n\n## Decision\n\n{body}\n\n## Consequences\n"
 
 
-AREAS = ("sim", "cont", "repl", "brdg", "save", "plat", "rel", "svc", "proc")
+AREAS = ("sim", "cont", "repl", "brdg", "save", "plat", "rel", "svc", "proc", "net")
 
 
 def make_app(root):
-    """App's final layout: every folder of the nine areas, files numbered from 001."""
+    """App's final layout: every folder of the ten areas, files numbered from 001."""
     adr = os.path.join(root, "docs", "adr")
     for area in AREAS:
         os.makedirs(os.path.join(adr, area), exist_ok=True)
@@ -111,7 +111,7 @@ def make_app(root):
 
 
 class TestGenerator(unittest.TestCase):
-    def test_every_numbered_file_of_the_nine_areas_is_listed(self):
+    def test_every_numbered_file_of_the_ten_areas_is_listed(self):
         with tempfile.TemporaryDirectory() as app:
             make_app(app)
             ids = adr_ids.read_app(app)
@@ -119,6 +119,20 @@ class TestGenerator(unittest.TestCase):
             lines = adr_ids.render(ids).splitlines()
             self.assertEqual(lines[0], adr_ids.HEADER)
             self.assertEqual(lines[1:], ["ADR-SIM-1 3", "ADR-SIM-2 11", "ADR-SVC-1 2"])
+
+    def test_a_net_adr_is_listed(self):
+        with tempfile.TemporaryDirectory() as app:
+            make_app(app)
+            write(os.path.join(app, "docs", "adr", "net", "001-n.md"), decision(6))
+            ids = adr_ids.read_app(app)
+            self.assertEqual(ids, {"SIM-1": 3, "SIM-2": 11, "SVC-1": 2, "NET-1": 6})
+            self.assertEqual(adr_ids.render(ids).splitlines()[1:],
+                             ["ADR-NET-1 6", "ADR-SIM-1 3", "ADR-SIM-2 11", "ADR-SVC-1 2"])
+
+    def test_the_areas_are_the_ten_the_app_has(self):
+        self.assertEqual(len(adr_ids.AREAS), 10)
+        self.assertIn("NET", adr_ids.AREAS)
+        self.assertEqual(tuple(a.lower() for a in adr_ids.AREAS), AREAS)
 
     def test_a_missing_area_folder_stops_the_generator(self):
         with tempfile.TemporaryDirectory() as app:
