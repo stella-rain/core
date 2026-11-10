@@ -183,10 +183,15 @@ fn a_mode_boss_keeps_its_distance_and_never_outruns_its_speed() {
         let (speed, stop) = chase_of(&boss_of(id)).unwrap();
         let rows = follow(id, 400, true);
         let mut last = None;
+        // A boss that arrives inside its stop (the Far ones, 120 px out) holds that distance.
+        let mut floor = stop;
         for (tick, boss, me) in &rows {
             let Some(b) = *boss else { continue };
+            if last.is_none() {
+                floor = floor.min(dist(b, *me));
+            }
             assert!(
-                dist(b, *me) + 1 >= stop,
+                dist(b, *me) + 1 >= floor,
                 "{id} tick {tick}: closer than its stop"
             );
             if let Some(p) = last {
