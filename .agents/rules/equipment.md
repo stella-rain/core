@@ -7,9 +7,10 @@ globs:
   - "src/sim/starlight_tests.rs"
   - "src/sim/drops.rs"
   - "src/sim/drops_tests.rs"
-  - "src/sim/equipment.rs"
+  - "src/sim/equip*.rs"
   - "src/sim/loadout.rs"
   - "tests/equipment_*.rs"
+  - "tests/common/equip*.rs"
 ---
 
 # Equipment mode: the build, slots, Starlight and drops
@@ -19,9 +20,9 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-7, ADR-SAVE-4, ADR-SAVE-7, ADR-CONT-3. Th
 
 ## The build
 
-- Equipment mode is `RunSetup.build_mode: Equipment`, read as `World.equipment_mode` in a run of `sim_version` 2;
-  offers mode runs none of this (`stars.rs` branches before its own body). A setup in equipment mode on a pack with no
-  `equipment` object is refused by `run_setup::validate_in`.
+- Equipment mode is what a run of `sim_version` 2 runs: no `build_mode`, no `World.equipment_mode` (a setup naming
+  `build_mode` is refused as an unknown field); a `sim_version` 1 run (`sim_v1`) has none of this. A setup of
+  `sim_version` 2 on a pack with no `equipment` object is refused by `run_setup::validate_in`.
 - The build is what the stars equipped add up to (`build.rs`: `Build`, `Grants`), not the inventory. It is re-derived,
   never stacked: `slots::refresh` writes the difference between the build of the stars before and after
   (`Build::write`, `Grants::write`) and recounts the sets.
@@ -51,8 +52,8 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-7, ADR-SAVE-4, ADR-SAVE-7, ADR-CONT-3. Th
   (`add_effect`).
 - A stage skill star that enters a slot (equip, replace, a level-up that changes it) starts the full cooldown a press
   sets (`skill::cooldown_ticks`); a grade switch keeps its own. Tick 0 and a savepoint load do not cool.
-- The snapshot's `pickup_radius_pct` and the offer rating are the total: the stars' share plus the stat, held to
-  `MAX_PICKUP_RADIUS_TOTAL_PCT` (`pickup_pct_of`).
+- The snapshot's `pickup_radius_pct` and the swap rating (`Engine::swap_ratings`) are the total: the stars' share plus
+  the stat, held to `MAX_PICKUP_RADIUS_TOTAL_PCT` (`pickup_pct_of`).
 
 ## Starlight and drops
 
@@ -69,9 +70,11 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-7, ADR-SAVE-4, ADR-SAVE-7, ADR-CONT-3. Th
 
 ## Tests on a hand-built stage
 
-- Equip the star instead of playing to an offer: `common::equip` (`tests/common/equip.rs`, ADR-SIM-7). `equipped` and
+- Equip the star instead of playing for a drop: `common::equip` (`tests/common/equip.rs`, ADR-SIM-7). `equipped` and
   `try_equipped` (the refusal as an `ActionError`) take the rewards file, `(reward ID, slot)` pairs and a level;
-  `equipped_in` and `try_equipped_in` also take `Parts` (skills, sets, runes, expertise). Stacks, clamps and recorded
-  runs stay on offers.
+  `equipped_in` and `try_equipped_in` also take `Parts` (skills, sets, runes, expertise). A `src/sim/` unit test equips
+  a `State` with `equip_stars` (`equip_support.rs`, `cfg(test)`; it has no rune or expertise twin).
 - They rest on the seam, under the `bench` feature and hidden from docs: `Engine::new_equipped` (a stage as given),
   `script_equipment`, `script_runes` and `script_expertise` (each before the first tick).
+- A recorded solo run: `play_equipment_run*` (`tests/run_play.rs`) plays it through a `RunRecorder`, which applies and
+  records `Input.action` (a bare `Engine::step` ignores it); `common::equip_run` holds its loop (`replay.md`).
