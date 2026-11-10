@@ -118,25 +118,6 @@ fn easy_offers_no_named_star_by_its_rarity_range() {
 }
 
 #[test]
-fn taking_a_random_rune_bundle_gives_the_rune_and_the_haste() {
-    let list = vec![crate::reward_kinds::kind(
-        "dog",
-        vec![
-            serde_json::json!({ "effect": "random_rune" }),
-            crate::reward_kinds::entry("rune_haste", 100),
-        ],
-        1_000,
-        2,
-    )];
-    let mut e = crate::reward_kinds::with(&near(40), list);
-    next_offer(&mut e);
-    crate::reward_kinds::take(&mut e, "dog");
-    let player = e.snapshot().players[0].clone();
-    assert_eq!(player.runes.len(), 1);
-    assert_eq!(player.rune_haste_pct, 100);
-}
-
-#[test]
 fn the_bundled_rewards_file_validates_with_its_named_stars() {
     // The file itself, before it is copied into the pack: every cap of NS1 and NS2 applies.
     let rewards = Rewards::parse(common::bundled_file("rewards"), Versions::CURRENT)

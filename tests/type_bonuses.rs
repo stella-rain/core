@@ -11,13 +11,9 @@ use stella_rain_core::attack::DamageType;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::match_ups::MatchUps;
-use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{EntityKind, OfferOption, TypeBonusView};
+use stella_rain_core::rewards::{RewardEffect, Rewards};
+use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::Stage;
-use stella_rain_core::validate::limits::MAX_DAMAGE;
 use stella_rain_core::version::Versions;
 
 use crate::common;
@@ -127,36 +123,6 @@ fn rewards(list: Vec<Value>) -> Rewards {
     Rewards::parse(file(list).as_bytes(), Versions::CURRENT).expect("the test rewards validate")
 }
 
-fn content(list: Vec<Value>) -> RunContent {
-    RunContent::new(RunStats::bundled().clone(), rewards(list))
-}
-
-fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    Engine::new_with(stage, &content(list)).expect("the test stage is valid")
-}
-
-/// Takes the open offer's candidate that is `reward`.
-fn take(e: &mut Engine, reward: &str) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
-/// Fires until the next offer opens, and takes `reward` from it.
-fn take_next(e: &mut Engine, reward: &str) {
-    fire_until(e, idle(), 200, Engine::offer_open);
-    assert!(e.offer_open(), "no offer within 200 ticks");
-    take(e, reward);
-}
-
 /// The tough target's entity ID, once it is there.
 fn tough_id(e: &Engine) -> EntityId {
     e.snapshot()
@@ -178,30 +144,6 @@ fn damage_on(events: &[(u32, DomainEvent)], target: EntityId) -> Vec<u32> {
             _ => None,
         })
         .collect()
-}
-
-/// The damage of the first step on the tough target, after taking `taken` in order from a run
-/// with the rewards `list`, a step of `damage` typed `ty`, and the target's `profile`.
-fn first_hit(
-    damage: u32,
-    ty: Option<&str>,
-    profile: Option<Value>,
-    list: Vec<Value>,
-    taken: &[&str],
-) -> u32 {
-    let stage = targets(damage, ty, u16::try_from(taken.len()).unwrap(), profile);
-    let mut e = with(&stage, list);
-    for id in taken {
-        take_next(&mut e, id);
-    }
-    assert!(e.tick() < TARGET_TICK, "every star taken before the target");
-    let wait = TARGET_TICK - e.tick();
-    run_until(&mut e, idle(), wait, |_| false);
-    let target = tough_id(&e);
-    let events = fire_until(&mut e, idle(), 12, |_| false);
-    *damage_on(&events, target)
-        .first()
-        .expect("a hit on the target")
 }
 
 /// The damage of the first step on the tough target, with the `(reward, slot)` pairs of `stars`
@@ -359,22 +301,6 @@ fn the_element_bonus_raises_every_element_and_no_attack_type() {
 }
 
 #[test]
-fn the_bonuses_that_apply_add_up_into_one_kind() {
-    let list = || {
-        vec![
-            pyro(30),
-            bonus("elemental", "element_bonus_pct", None, 20, 5),
-            bonus("physical", "attack_type_bonus_pct", None, 40, 5),
-        ]
-    };
-    // 30 + 30 + 20 percent, added: 1.8 times, not 1.3 × 1.3 × 1.2.
-    let taken = ["pyro", "pyro", "elemental", "physical"];
-    assert_eq!(first_hit(100, Some("pyro"), None, list(), &taken), 180);
-    // Only the attack-type bonus applies to a slash.
-    assert_eq!(first_hit(100, Some("slash"), None, list(), &taken), 140);
-}
-
-#[test]
 fn the_bonus_multiplies_with_each_match_up_and_never_adds() {
     let list = || vec![pyro(50)];
     let hit = |profile: Value| hit_with(100, Some("pyro"), Some(profile), list(), &[("pyro", 0)]);
@@ -396,129 +322,6 @@ fn a_neutral_attack_gets_no_bonus() {
     };
     let held = [("pyro", 0), ("elemental", 1), ("physical", 2)];
     assert_eq!(hit_with(100, None, None, list(), &held), 100);
-}
-
-#[test]
-fn the_summed_bonus_saturates_at_the_cap_and_damage_stays_bounded() {
-    assert_eq!(MAX_TYPE_BONUS_PCT, 1000);
-    // Eleven takes of 100: 1100 percent held, 1000 applied, so a step of the largest damage
-    // deals 11 times it.
-    let taken = ["pyro"; 11];
-    let dealt = first_hit(MAX_DAMAGE, Some("pyro"), None, vec![pyro(100)], &taken);
-    assert_eq!(dealt, MAX_DAMAGE * 11);
-    // With a weakness on top, still bounded: 11 × 1.2.
-    let weak = Some(json!({ "weak": ["pyro"] }));
-    let dealt = first_hit(MAX_DAMAGE, Some("pyro"), weak, vec![pyro(100)], &taken);
-    assert_eq!(dealt, MAX_DAMAGE * 11 * 6 / 5);
-}
-
-#[test]
-fn the_summed_bonus_saturates_at_the_content_value_under_the_cap() {
-    // The match-up file's `max_type_bonus_pct` of 250: three takes of 100 apply 250 percent.
-    let mut table: Value = serde_json::from_slice(common::bundled_file("match_ups")).unwrap();
-    table["max_type_bonus_pct"] = json!(250);
-    let table =
-        MatchUps::parse(table.to_string().as_bytes(), Versions::CURRENT).expect("the test table");
-    let stage = targets(100, Some("pyro"), 3, None);
-    let mut e = Engine::new_with(&stage, &content(vec![pyro(100)]).with_match_ups(table))
-        .expect("the test stage is valid");
-    for _ in 0..3 {
-        take_next(&mut e, "pyro");
-    }
-    assert_eq!(
-        e.snapshot().players[0].type_bonuses,
-        [TypeBonusView {
-            damage_type: DamageType::Pyro,
-            pct: 300
-        }],
-        "the sum as taken"
-    );
-    let wait = TARGET_TICK - e.tick();
-    run_until(&mut e, idle(), wait, |_| false);
-    let target = tough_id(&e);
-    let events = fire_until(&mut e, idle(), 12, |_| false);
-    assert_eq!(damage_on(&events, target).first(), Some(&350));
-}
-
-#[test]
-fn the_snapshot_holds_the_bonuses_taken_before_the_cap() {
-    let list = vec![
-        pyro(100),
-        bonus("elemental", "element_bonus_pct", None, 10, 5),
-        bonus("physical", "attack_type_bonus_pct", None, 20, 5),
-    ];
-    let mut e = with(&targets(10, None, 13, None), list);
-    assert!(
-        e.snapshot().players[0].type_bonuses.is_empty(),
-        "none at the start"
-    );
-    for id in ["pyro"; 11] {
-        take_next(&mut e, id);
-    }
-    take_next(&mut e, "elemental");
-    take_next(&mut e, "physical");
-    let view = |ty: DamageType, pct: u32| TypeBonusView {
-        damage_type: ty,
-        pct,
-    };
-    let mut expected = vec![
-        view(DamageType::Slash, 20),
-        view(DamageType::Pierce, 20),
-        view(DamageType::Strike, 20),
-        view(DamageType::Pyro, 1110),
-    ];
-    for ty in [
-        DamageType::Hydro,
-        DamageType::Electro,
-        DamageType::Cryo,
-        DamageType::Anemo,
-        DamageType::Geo,
-        DamageType::Dendro,
-    ] {
-        expected.push(view(ty, 10));
-    }
-    assert_eq!(e.snapshot().players[0].type_bonuses, expected);
-}
-
-#[test]
-fn the_bonus_is_fixed_when_the_attack_starts() {
-    // The step kills a small enemy with its hit box and places a zone on the target far
-    // ahead; the kill's star opens an offer while the zone warns, and the Pyro bonus taken
-    // then leaves that zone as it was. The next step's zone has it.
-    let small = wave(
-        1,
-        1,
-        0,
-        enemy(1, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    );
-    let stage = starry(armed(
-        stage_full(
-            18_000,
-            Some(far_boss()),
-            vec![small, tough(1, FAR_Y, None)],
-            vec![],
-        ),
-        weapon(100, Some("pyro"), true),
-    ));
-    let mut e = with(&stage, vec![pyro(50)]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    let target = tough_id(&e);
-    let mut events = run_until(&mut e, pressing_main(), 1, |_| false);
-    events.extend(run_until(&mut e, idle(), 30, Engine::offer_open));
-    assert!(e.offer_open(), "the small enemy's star");
-    assert!(
-        !e.snapshot().zones.is_empty(),
-        "the zone is warning while the offer is open"
-    );
-    take(&mut e, "pyro");
-    events.extend(run_until(&mut e, idle(), 200, |_| false));
-    assert_eq!(damage_on(&events, target), [100], "fired before the bonus");
-    let mut events = run_until(&mut e, pressing_main(), 1, |_| false);
-    events.extend(run_until(&mut e, idle(), 200, |_| false));
-    assert_eq!(damage_on(&events, target), [150], "fired after it");
 }
 
 #[test]

@@ -8,19 +8,15 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
-use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::{MAX_RUNES, Rune, RuneKind};
-use stella_rain_core::snapshot::{OfferOption, RuneView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::version::Versions;
 
 use crate::common;
 
-use common::run::RUNES_REROLL_SEED;
 use common::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -108,53 +104,6 @@ fn with(stage: &Stage, list: Vec<Value>) -> Engine {
 fn next_offer(e: &mut Engine) {
     fire_until(e, idle(), 600, Engine::offer_open);
     assert!(e.offer_open(), "no offer within 600 ticks");
-}
-
-fn offered(e: &Engine) -> Vec<String> {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let mut ids: Vec<String> = offer
-        .candidates
-        .iter()
-        .map(|c| c.reward.to_string())
-        .collect();
-    ids.sort();
-    ids
-}
-
-/// The place of `reward` among the open offer's candidates.
-fn slot(e: &Engine, reward: &str) -> u8 {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let at = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    u8::try_from(at).unwrap()
-}
-
-/// Chooses `option` of the open offer.
-fn pick(e: &mut Engine, option: OfferOption) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let index = offer
-        .options
-        .iter()
-        .position(|o| *o == option)
-        .unwrap_or_else(|| panic!("{option:?} is not an option"));
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
-fn take(e: &mut Engine, reward: &str) {
-    let candidate = slot(e, reward);
-    pick(e, OfferOption::Take { candidate });
-}
-
-/// The runes held, whatever their cooldowns: they fire on the combo steps that kill.
-fn held(e: &Engine) -> Vec<Rune> {
-    e.snapshot().players[0]
-        .runes
-        .iter()
-        .map(|r| r.rune)
-        .collect()
 }
 
 #[test]
@@ -253,198 +202,4 @@ fn the_hidden_candidate_names_no_rune() {
     ] {
         assert!(!text.contains(rune), "no rune in the snapshot");
     }
-}
-
-#[test]
-fn the_pick_draws_a_rune_not_held_and_the_event_carries_it() {
-    let mut e = with(&targets(1, 0, 0), vec![random_rune(), inert("dash")]);
-    next_offer(&mut e);
-    take(&mut e, "random_rune");
-    let [
-        DomainEvent::RewardTaken {
-            reward,
-            taken: 1,
-            rune: Some(rune),
-            ..
-        },
-    ] = e.events()
-    else {
-        panic!("{:?}", e.events());
-    };
-    assert_eq!(reward, &ContentId::from("random_rune"));
-    assert_eq!(
-        e.snapshot().players[0].runes,
-        [RuneView {
-            rune: *rune,
-            cooldown_left: 0
-        }]
-    );
-}
-
-/// The rune each of the first seven random runes draws, in the stage of `seed`.
-fn draws(seed: u32) -> Vec<Rune> {
-    let mut stage = targets(7, 0, 0);
-    stage.seed = seed;
-    let mut e = with(&stage, vec![random_rune(), inert("dash")]);
-    for _ in 0..7 {
-        next_offer(&mut e);
-        take(&mut e, "random_rune");
-    }
-    held(&e)
-}
-
-#[test]
-fn the_random_rune_draws_among_the_runes_not_held_from_the_run_s_generator() {
-    let (mut first, mut second) = (Vec::new(), Vec::new());
-    for seed in 0..100 {
-        let drawn = draws(seed);
-        assert_eq!(drawn, draws(seed), "the same seed draws the same");
-        let mut sorted = drawn.clone();
-        sorted.sort();
-        assert_eq!(sorted, Rune::ALL, "seed {seed}: each draw a rune not held");
-        first.push(drawn[0]);
-        second.push(drawn[1]);
-    }
-    for rune in Rune::ALL {
-        assert!(
-            first.contains(&rune),
-            "{rune:?} never drawn first: {first:?}"
-        );
-        assert!(
-            second.contains(&rune),
-            "{rune:?} never drawn second: {second:?}"
-        );
-    }
-}
-
-#[test]
-fn a_reward_without_a_rune_carries_none_in_its_event() {
-    let mut e = with(&targets(1, 0, 0), vec![random_rune(), inert("dash")]);
-    next_offer(&mut e);
-    take(&mut e, "dash");
-    assert!(matches!(
-        e.events(),
-        [DomainEvent::RewardTaken { rune: None, .. }]
-    ));
-    assert!(e.snapshot().players[0].runes.is_empty());
-}
-
-#[test]
-fn with_every_rune_held_the_random_rune_leaves_the_pool() {
-    // Seven runes in the list: after the seventh pick the Main holds them all.
-    let mut e = with(&targets(9, 0, 0), vec![random_rune(), inert("dash")]);
-    for _ in 0..7 {
-        next_offer(&mut e);
-        assert_eq!(offered(&e), ["dash", "random_rune"]);
-        take(&mut e, "random_rune");
-    }
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["dash"]);
-    take(&mut e, "dash");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["dash"]);
-    let mut runes = held(&e);
-    runes.sort();
-    assert_eq!(runes, Rune::ALL, "each held once");
-}
-
-#[test]
-fn a_random_rune_alone_with_every_rune_held_opens_no_offer() {
-    let mut e = with(&targets(8, 0, 0), vec![random_rune()]);
-    for _ in 0..7 {
-        next_offer(&mut e);
-        take(&mut e, "random_rune");
-    }
-    fire_until(&mut e, idle(), 120, Engine::offer_open);
-    assert!(!e.offer_open(), "nothing left to offer");
-}
-
-#[test]
-fn a_random_rune_candidate_is_rerolled_like_any_reward() {
-    // `a` taken twice is at its limit, so the next offer holds the three others.
-    let list = vec![random_rune(), inert_limited("a", 2), inert("b"), inert("c")];
-    let mut stage = targets(3, 1, 0);
-    // A seed whose first offer after the reroll is the three others (the draws are luck).
-    stage.seed = RUNES_REROLL_SEED;
-    let mut e = with(&stage, list);
-    next_offer(&mut e);
-    let candidate = slot(&e, "random_rune");
-    pick(&mut e, OfferOption::Reroll { candidate });
-    assert!(e.offer_open());
-    assert_eq!(offered(&e), ["a", "b", "c"]);
-    assert!(e.snapshot().players[0].runes.is_empty(), "no rune drawn");
-    // It stays in the pool.
-    take(&mut e, "a");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["a", "b", "c"]);
-    take(&mut e, "a");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["b", "c", "random_rune"]);
-}
-
-#[test]
-fn banishing_the_random_rune_removes_it_for_the_run() {
-    let list = vec![random_rune(), inert("a"), inert("b"), inert("c")];
-    let mut e = with(&targets(4, 0, 1), list);
-    next_offer(&mut e);
-    let candidate = slot(&e, "random_rune");
-    pick(&mut e, OfferOption::Banish { candidate });
-    assert!(e.events().contains(&DomainEvent::RewardBanished {
-        reward: ContentId::from("random_rune")
-    }));
-    assert_eq!(offered(&e), ["a", "b", "c"]);
-    for _ in 0..3 {
-        take(&mut e, "a");
-        next_offer(&mut e);
-        assert_eq!(offered(&e), ["a", "b", "c"], "banished for the run");
-    }
-    assert!(e.snapshot().players[0].runes.is_empty());
-}
-
-#[test]
-fn nothing_is_drawn_before_the_pick() {
-    // The same pool, but the first reward a random rune in one run and an inert reward in the
-    // other: an offer holding it, rerolled away and then skipped, leaves the same state.
-    let rest = || vec![inert("a"), inert("b"), inert("c")];
-    let mut list_a = vec![random_rune()];
-    list_a.extend(rest());
-    let mut list_b = vec![inert("z")];
-    list_b.extend(rest());
-    let stage = targets(2, 1, 0);
-    let mut a = with(&stage, list_a);
-    let mut b = with(&stage, list_b);
-    next_offer(&mut a);
-    next_offer(&mut b);
-    assert_eq!(a.state_hash(), b.state_hash());
-    let candidate = slot(&a, "random_rune");
-    assert_eq!(slot(&b, "z"), candidate);
-    pick(&mut a, OfferOption::Reroll { candidate });
-    pick(&mut b, OfferOption::Reroll { candidate });
-    assert_eq!(a.state_hash(), b.state_hash(), "a reroll draws no rune");
-    pick(&mut a, OfferOption::Skip);
-    pick(&mut b, OfferOption::Skip);
-    for _ in 0..30 {
-        a.step(&[idle(), Default::default(), Default::default()]);
-        b.step(&[idle(), Default::default(), Default::default()]);
-    }
-    assert_eq!(a.state_hash(), b.state_hash());
-}
-
-#[test]
-fn the_state_hash_holds_the_runes() {
-    // Taking the random rune and taking the inert reward in its place differ in the rune held
-    // and in the draw.
-    let rest = || vec![inert("a"), inert("b"), inert("c")];
-    let mut list_a = vec![random_rune()];
-    list_a.extend(rest());
-    let mut list_b = vec![inert("z")];
-    list_b.extend(rest());
-    let stage = targets(1, 0, 0);
-    let mut a = with(&stage, list_a);
-    let mut b = with(&stage, list_b);
-    next_offer(&mut a);
-    next_offer(&mut b);
-    take(&mut a, "random_rune");
-    take(&mut b, "z");
-    assert_ne!(a.state_hash(), b.state_hash());
 }

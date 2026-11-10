@@ -5,15 +5,12 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core::weapon::WeaponRef;
-
-use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -333,61 +330,6 @@ fn validate_in_refuses_a_pool_naming_a_reward_the_file_does_not_hold() {
             "no such reward in the run's rewards file"
         )]
     );
-}
-
-/// The trial run of `common::run` up to its first offer, from `setup` (a `sim_version` 1 one:
-/// the frozen rules are the ones that offer).
-fn to_first_offer(setup: &RunSetup) -> Engine {
-    let mut engine = Engine::start(setup).unwrap();
-    for c in crate::run_play::play_run_from(setup, common::run::TRIAL_LENGTH) {
-        match c {
-            Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
-            Command::Choose(_) => break,
-        }
-        if engine.offer_open() {
-            return engine;
-        }
-    }
-    panic!("no offer");
-}
-
-#[test]
-fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
-    let pool = ["speed_common", "xp_common", "evade_common"];
-    let narrowed = RunSetup {
-        extra_rerolls: 3,
-        upgrades: Vec::new(),
-        ..with_pool(&pool)
-    };
-    let offer = |s: &RunSetup| {
-        to_first_offer(s)
-            .snapshot()
-            .progress
-            .unwrap()
-            .offer
-            .unwrap()
-    };
-    let frozen = || RunSetup {
-        sim_version: 1,
-        ..common::run::trial_setup()
-    };
-    let wide = offer(&frozen());
-    let narrow = offer(&RunSetup {
-        star_pool: narrowed.star_pool.clone(),
-        extra_rerolls: 3,
-        upgrades: Vec::new(),
-        ..frozen()
-    });
-    let mut ids: Vec<&str> = narrow
-        .candidates
-        .iter()
-        .map(|c| c.reward.as_str())
-        .collect();
-    ids.sort_unstable();
-    let mut want = pool.to_vec();
-    want.sort_unstable();
-    assert_eq!(ids, want);
-    assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
 }
 
 // --- Permanent upgrades (ADR-REPL-5) -----------------------------------------

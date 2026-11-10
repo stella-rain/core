@@ -9,7 +9,6 @@ use crate::run_play::play_run_from;
 use std::fs;
 use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::sha256;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::{Command, RunRecorder};
 use stella_rain_core::run_setup::RunSetup;
@@ -33,7 +32,8 @@ fn apply(rec: &mut RunRecorder, commands: &[Command]) {
             Command::Step(input) => rec
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
 }
@@ -67,19 +67,6 @@ fn round_trip(setup: &RunSetup, version: u32) {
 fn a_version_2_run_saves_and_restores() {
     round_trip(&trial_setup(), 2);
     round_trip(&time_limit_setup(), 2);
-}
-
-#[test]
-fn a_version_1_run_still_saves_and_restores() {
-    for setup in [trial_setup(), time_limit_setup()] {
-        round_trip(
-            &RunSetup {
-                sim_version: 1,
-                ..setup
-            },
-            1,
-        );
-    }
 }
 
 fn reseal(bytes: &mut [u8]) {

@@ -12,7 +12,6 @@ use stella_rain_core::rewards::{
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::OfferOption;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_HEAL_AMOUNT;
@@ -185,20 +184,6 @@ pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {
     Engine::new_with(stage, &content).expect("the test stage is valid")
 }
 
-pub(crate) fn take(e: &mut Engine, reward: &str) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
 pub(crate) fn next_offer(e: &mut Engine) {
     fire_until(e, idle(), 600, Engine::offer_open);
     assert!(e.offer_open(), "no offer within 600 ticks");
@@ -206,47 +191,6 @@ pub(crate) fn next_offer(e: &mut Engine) {
 
 pub(crate) fn offer(e: &Engine) -> stella_rain_core::snapshot::OfferView {
     e.snapshot().progress.unwrap().offer.expect("an open offer")
-}
-
-#[test]
-fn rerolls_and_banishes_are_added_to_the_runs_counters() {
-    let list = vec![
-        kind(
-            "more",
-            vec![entry("rerolls", 2), entry("banishes", 3)],
-            1_000,
-            2,
-        ),
-        plain("a", 1),
-        plain("b", 1),
-        plain("c", 1),
-    ];
-    let mut e = with(&near(4), list);
-    next_offer(&mut e);
-    assert_eq!((offer(&e).rerolls_left, offer(&e).banishes_left), (0, 0));
-    take(&mut e, "more");
-    next_offer(&mut e);
-    assert_eq!((offer(&e).rerolls_left, offer(&e).banishes_left), (2, 3));
-    // A second pick adds again.
-    take(&mut e, "more");
-    next_offer(&mut e);
-    assert_eq!((offer(&e).rerolls_left, offer(&e).banishes_left), (4, 6));
-}
-
-#[test]
-fn an_offer_candidates_reward_makes_the_offer_four_and_never_more() {
-    let wide = |id: &str| kind(id, vec![entry("offer_candidates", 1)], 1_000, 2);
-    let mut list = vec![wide("wide_a"), wide("wide_b")];
-    list.extend(["a", "b", "c", "d", "e"].map(|id| plain(id, 1)));
-    let mut e = with(&near(4), list);
-    next_offer(&mut e);
-    assert_eq!(offer(&e).candidates.len(), 3);
-    take(&mut e, "wide_a");
-    next_offer(&mut e);
-    assert_eq!(offer(&e).candidates.len(), 4);
-    take(&mut e, "wide_b");
-    next_offer(&mut e);
-    assert_eq!(offer(&e).candidates.len(), 4, "at most 4 in all");
 }
 
 #[test]

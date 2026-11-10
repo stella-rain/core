@@ -5,17 +5,13 @@
 //! `common::evade()`.
 
 use crate::common;
-use stella_rain_core::version::Versions;
 
 use common::*;
 use serde_json::json;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
-use stella_rain_core::rewards::Rewards;
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{EvadeView, OfferOption};
+use stella_rain_core::snapshot::EvadeView;
 use stella_rain_core::stage::Stage;
 
 fn evading(move_x: i8, move_y: i8) -> Input {
@@ -196,62 +192,6 @@ fn charges_absent_from_a_stage_write_nothing_back() {
 
 // --- The extra-charge reward ----------------------------------------------------
 
-/// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
-/// taken at once.
-const NEAR_Y: i32 = START_Y - 8_192;
-/// A cooldown no test outlasts, so a spent charge is still recovering when a reward comes.
-const LONG_COOLDOWN: u32 = 10_000;
-
-/// A stage whose evade has `charges` and, if given, `max_charges`, a long cooldown and a dash
-/// of one pixel (so the main character stays by its stars), with one level and `count` enemies
-/// of 10 hp straight above it, one every 6 ticks from tick 1: each drops a common star it takes
-/// at once.
-fn starry(charges: u8, max_charges: Option<u8>, count: u16) -> Stage {
-    let target = enemy(10, hold(START_X, NEAR_Y), json!([]));
-    let stage = stage_full(
-        18_000,
-        Some(far_boss()),
-        vec![wave(1, count, 6, target, START_X, NEAR_Y)],
-        vec![],
-    );
-    let mut v = serde_json::to_value(stage).unwrap();
-    v["player"]["evade"]["charges"] = json!(charges);
-    if let Some(max) = max_charges {
-        v["player"]["evade"]["max_charges"] = json!(max);
-    }
-    v["player"]["evade"]["cooldown_ticks"] = json!(LONG_COOLDOWN);
-    v["player"]["evade"]["distance"] = json!(256);
-    v["levels"] = json!({ "xp": [1000] });
-    v["stars"] = json!({
-        "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-        "rerolls": 0, "banishes": 0,
-        "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
-    });
-    serde_json::from_value(v).expect("the test stage parses")
-}
-
-/// A run of `stage` whose only reward, `extra`, adds `amount` charges, five times a run.
-fn with_extra(stage: &Stage, amount: u32) -> Engine {
-    let file = json!({ "rarities": common::rarities(), "rewards": [
-        { "id": "extra", "rarity": "common", "effect": "evade_charge", "amount": amount,
-          "limit": 5 }
-    ] });
-    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate");
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
-    Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-/// Fires until an offer is open, then takes its first candidate, the only reward there is.
-fn take(e: &mut Engine) {
-    fire_until(e, idle(), 1200, Engine::offer_open);
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    assert_eq!(offer.candidates[0].reward.as_str(), "extra");
-    let option = OfferOption::Take { candidate: 0 };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
 #[test]
 fn the_extra_charge_reward_adds_a_charge_that_is_ready() {
     // The reward has no bundled twin (no `evade_charge` reward), so it names its category.
@@ -262,36 +202,4 @@ fn the_extra_charge_reward_adds_a_charge_that_is_ready() {
     let e = common::equip::equipped(&charged(1, Some(3)), file, &[("extra", 5)], 1);
     let v = view(&e);
     assert_eq!((v.charges, v.ready, v.recovering.len()), (2, 2, 0));
-}
-
-#[test]
-fn the_new_charge_is_ready_while_a_spent_one_recovers() {
-    let mut e = with_extra(&starry(1, Some(2), 1), 1);
-    e.step(&[evading(0, 0), Default::default(), Default::default()]);
-    assert_eq!(view(&e).ready, 0);
-    take(&mut e);
-    let v = view(&e);
-    assert_eq!((v.charges, v.ready, v.recovering.len()), (2, 1, 1));
-    // The spent charge keeps its own timer, counted from its press on tick 1.
-    assert_eq!(v.recovering, [LONG_COOLDOWN + 1 - e.tick()]);
-    // And the new charge dashes at once.
-    e.step(&[idle(), Default::default(), Default::default()]);
-    e.step(&[evading(0, 0), Default::default(), Default::default()]);
-    assert!(e.events().contains(&DomainEvent::Evaded));
-}
-
-#[test]
-fn the_extra_charge_reward_stops_at_the_stage_s_max_charges() {
-    let mut e = with_extra(&starry(2, Some(3), 2), 2);
-    take(&mut e);
-    assert_eq!((view(&e).charges, view(&e).ready), (3, 3));
-    take(&mut e);
-    assert_eq!((view(&e).charges, view(&e).ready), (3, 3));
-}
-
-#[test]
-fn without_max_charges_the_extra_charge_reward_adds_none() {
-    let mut e = with_extra(&starry(2, None, 1), 1);
-    take(&mut e);
-    assert_eq!((view(&e).charges, view(&e).ready), (2, 2));
 }

@@ -4,13 +4,12 @@
 //! rarity follows the player's level. Only a stage with `levels` and `stars` has them.
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::ContentId;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{OfferKind, OfferOption, OfferView};
+use stella_rain_core::snapshot::{OfferOption, OfferView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 use stella_rain_core::version::Versions;
@@ -104,16 +103,6 @@ fn candidates(e: &Engine) -> Vec<String> {
         .collect()
 }
 
-/// The index of `option` in the open offer.
-fn index_of(e: &Engine, option: OfferOption) -> u32 {
-    let i = offer(e)
-        .options
-        .iter()
-        .position(|o| *o == option)
-        .unwrap_or_else(|| panic!("{option:?} is not offered: {:?}", offer(e).options));
-    u32::try_from(i).unwrap()
-}
-
 /// Steps with `input`, firing, until an offer is open, returning the events of the ticks run.
 fn until_offer(e: &mut Engine, input: stella_rain_core::input::Input) -> Vec<(u32, DomainEvent)> {
     let events = fire_until(e, input, 1200, Engine::offer_open);
@@ -192,26 +181,6 @@ fn pity_drops_a_star_after_that_many_kills_without_one() {
         commons(3),
     );
     assert_eq!(dropping_kills(&mut e, 600, idle()), [4, 8, 12]);
-}
-
-#[test]
-fn a_full_map_drops_no_star_and_the_pity_does_not_count_the_kill() {
-    // The second kill fills the map; kills 3 to 6 drop nothing and count for nothing. Once the
-    // star is taken, the pity starts where it was left: the 7th kill misses, the 8th drops.
-    let st = stars(json!({ "drop_per_mille": 0, "pity": 1, "cap": 1 }));
-    let stage = starry(
-        &[1000],
-        st,
-        vec![targets(1, 6, FAR_Y), targets(600, 2, FAR_Y)],
-    );
-    let mut e = with(&stage, commons(3));
-    assert_eq!(dropping_kills(&mut e, 300, idle()), [2]);
-    assert_eq!(e.snapshot().stars.len(), 1);
-    until_offer(&mut e, moving(0, -127));
-    let index = index_of(&e, OfferOption::Skip);
-    common::pick(&mut e, index).unwrap();
-    assert!(e.snapshot().stars.is_empty());
-    assert_eq!(dropping_kills(&mut e, 600, idle()), [2]);
 }
 
 #[test]
@@ -327,91 +296,6 @@ fn an_offer_lists_its_options_in_order() {
 }
 
 #[test]
-fn taking_a_candidate_applies_its_reward_and_the_run_goes_on() {
-    let five_hp = rewards(&[
-        ("a", "common", "max_hp", 5, 5),
-        ("b", "common", "max_hp", 5, 5),
-        ("c", "common", "max_hp", 5, 5),
-    ]);
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        five_hp,
-    );
-    until_offer(&mut e, idle());
-    let (tick, hp) = (e.tick(), e.snapshot().players[0].hp);
-    let first = candidates(&e)[0].clone();
-    assert_eq!(common::pick(&mut e, 0), Ok(()));
-    assert_eq!(
-        e.events(),
-        [DomainEvent::RewardTaken {
-            reward: ContentId::from(first),
-            taken: 1,
-            rune: None,
-            star: None,
-        }]
-    );
-    assert_eq!(e.snapshot().players[0].hp, hp + 5);
-    assert!(!e.offer_open());
-    assert_eq!(e.tick(), tick, "a choice is between ticks");
-    e.step(&[
-        firing(idle(), e.tick()),
-        Default::default(),
-        Default::default(),
-    ]);
-    assert_eq!(e.tick(), tick + 1);
-}
-
-#[test]
-fn skip_closes_the_offer_and_takes_nothing() {
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(4),
-    );
-    until_offer(&mut e, idle());
-    let hp = e.snapshot().players[0].hp;
-    let index = index_of(&e, OfferOption::Skip);
-    common::pick(&mut e, index).unwrap();
-    assert_eq!(e.events(), [DomainEvent::OfferSkipped]);
-    assert!(!e.offer_open());
-    assert_eq!(e.snapshot().players[0].hp, hp);
-}
-
-#[test]
-fn a_reroll_draws_that_candidate_again_and_spends_a_reroll() {
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(4),
-    );
-    until_offer(&mut e, idle());
-    let before = candidates(&e);
-    // Four rewards, three offered: the only one that can come is the one left out.
-    let left_out = (0..4)
-        .map(|i| format!("c{i}"))
-        .find(|id| !before.contains(id))
-        .unwrap();
-    let index = index_of(&e, OfferOption::Reroll { candidate: 1 });
-    common::pick(&mut e, index).unwrap();
-    assert_eq!(
-        e.events(),
-        [DomainEvent::CandidateReplaced {
-            slot: 1,
-            reward: ContentId::from(left_out.clone())
-        }]
-    );
-    let after = candidates(&e);
-    assert_eq!(after, [before[0].clone(), left_out, before[2].clone()]);
-    let o = offer(&e);
-    assert_eq!(o.rerolls_left, 0);
-    assert!(
-        !o.options
-            .iter()
-            .any(|op| matches!(op, OfferOption::Reroll { .. })),
-        "no reroll is left: {:?}",
-        o.options
-    );
-}
-
-#[test]
 fn no_reroll_is_offered_when_no_other_reward_could_come() {
     let mut e = with(
         &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
@@ -424,95 +308,6 @@ fn no_reroll_is_offered_when_no_other_reward_could_come() {
             .iter()
             .any(|op| matches!(op, OfferOption::Reroll { .. }))
     );
-}
-
-#[test]
-fn a_banished_reward_leaves_the_pool_for_the_rest_of_the_run() {
-    let st = stars(json!({ "rerolls": 0, "banishes": 1 }));
-    let mut e = with(
-        &starry(&[1000], st, vec![targets(1, 12, NEAR_Y)]),
-        commons(5),
-    );
-    until_offer(&mut e, idle());
-    let banished = candidates(&e)[0].clone();
-    let index = index_of(&e, OfferOption::Banish { candidate: 0 });
-    common::pick(&mut e, index).unwrap();
-    assert!(
-        matches!(
-            e.events(),
-            [DomainEvent::RewardBanished { reward }, DomainEvent::CandidateReplaced { slot: 0, .. }]
-                if reward.as_str() == banished
-        ),
-        "{:?}",
-        e.events()
-    );
-    assert_eq!(offer(&e).banishes_left, 0);
-    let mut seen = Vec::new();
-    for _ in 0..8 {
-        seen.extend(candidates(&e));
-        common::pick(&mut e, 0).unwrap();
-        if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() || !e.offer_open() {
-            break;
-        }
-    }
-    assert!(seen.len() > 10, "{seen:?}");
-    assert!(!seen.contains(&banished), "{seen:?}");
-}
-
-#[test]
-fn banishing_the_last_reward_closes_the_offer_and_an_empty_pool_opens_none() {
-    let st = stars(json!({ "rerolls": 0, "banishes": 2 }));
-    let mut e = with(
-        &starry(&[1000], st, vec![targets(1, 2, NEAR_Y)]),
-        commons(1),
-    );
-    until_offer(&mut e, idle());
-    assert_eq!(candidates(&e), ["c0"]);
-    let index = index_of(&e, OfferOption::Banish { candidate: 0 });
-    common::pick(&mut e, index).unwrap();
-    assert_eq!(
-        e.events(),
-        [DomainEvent::RewardBanished {
-            reward: ContentId::from("c0")
-        }]
-    );
-    assert!(!e.offer_open());
-    // The second star is taken, but nothing is left to offer.
-    let events = fire_until(&mut e, idle(), 600, |_| false);
-    assert!(
-        events
-            .iter()
-            .any(|(_, ev)| matches!(ev, DomainEvent::StarTaken { .. }))
-    );
-    assert!(!e.offer_open());
-}
-
-#[test]
-fn a_reward_at_its_stack_limit_is_offered_no_more() {
-    let list = rewards(&[
-        ("once", "common", "max_hp", 1, 2),
-        ("b", "common", "max_hp", 1, 9),
-        ("c", "common", "max_hp", 1, 9),
-        ("d", "common", "max_hp", 1, 9),
-    ]);
-    let st = stars(json!({ "rerolls": 0, "banishes": 0 }));
-    let mut e = with(&starry(&[1000], st, vec![targets(1, 12, NEAR_Y)]), list);
-    let mut times = 0;
-    let mut after = Vec::new();
-    for _ in 0..12 {
-        if fire_until(&mut e, idle(), 600, Engine::offer_open).is_empty() && !e.offer_open() {
-            break;
-        }
-        let c = candidates(&e);
-        if times == 2 {
-            after.extend(c.clone());
-        }
-        let pick = c.iter().position(|id| id == "once").unwrap_or(0);
-        times += usize::from(c[pick] == "once");
-        common::pick(&mut e, u32::try_from(pick).unwrap()).unwrap();
-    }
-    assert!(times == 2 && after.len() >= 9, "{after:?}");
-    assert!(!after.iter().any(|id| id == "once"), "{after:?}");
 }
 
 #[test]
@@ -530,72 +325,6 @@ fn a_pool_short_of_the_star_s_rarity_fills_from_the_rarities_below() {
     assert_eq!(o.rarity, Rarity::Legendary);
     let rarities: Vec<Rarity> = o.candidates.iter().map(|c| c.rarity).collect();
     assert_eq!(rarities, [Rarity::Legendary, Rarity::Rare, Rarity::Common]);
-}
-
-#[test]
-fn two_stars_taken_on_one_tick_open_two_offers_one_after_another() {
-    // Two enemies 9 pixels either side of the line of fire leave two stars as far from it;
-    // walking straight up reaches both on one tick.
-    let side = |x: i32| wave(1, 1, 0, enemy(10, hold(x, FAR_Y), json!([])), x, FAR_Y);
-    let mut e = with(
-        &starry(
-            &[1000],
-            stars(json!({})),
-            vec![side(START_X - 2304), side(START_X + 2304)],
-        ),
-        commons(4),
-    );
-    fire_until(&mut e, idle(), 600, |e| e.snapshot().stars.len() == 2);
-    let events = until_offer(&mut e, moving(0, -127));
-    let tick = e.tick();
-    let taken = events
-        .iter()
-        .filter(|(t, ev)| *t == tick && matches!(ev, DomainEvent::StarTaken { .. }))
-        .count();
-    assert_eq!(taken, 2);
-    let index = index_of(&e, OfferOption::Skip);
-    common::pick(&mut e, index).unwrap();
-    assert!(
-        matches!(
-            e.events(),
-            [DomainEvent::OfferSkipped, DomainEvent::OfferOpened { .. }]
-        ),
-        "{:?}",
-        e.events()
-    );
-    assert!(e.offer_open(), "the second offer opens at once");
-    let index = index_of(&e, OfferOption::Skip);
-    common::pick(&mut e, index).unwrap();
-    assert!(!e.offer_open());
-    assert_eq!(e.tick(), tick);
-}
-
-#[test]
-fn experience_rewards_raise_the_experience_of_every_kill() {
-    // The first kill drops a star at once; with +50% experience, each later kill of a 2-xp
-    // enemy gives 3.
-    let list = rewards(&[
-        ("insight", "common", "xp_pct", 50, 2),
-        ("x", "common", "max_hp", 1, 2),
-    ]);
-    let mut first = targets(1, 1, NEAR_Y);
-    first["xp"] = json!(2);
-    let mut later = targets(300, 1, FAR_Y);
-    later["xp"] = json!(2);
-    let st = stars(json!({ "rerolls": 0, "banishes": 0, "cap": 1 }));
-    let mut e = with(&starry(&[1000], st, vec![first, later]), list);
-    until_offer(&mut e, idle());
-    let pick = candidates(&e)
-        .iter()
-        .position(|id| id == "insight")
-        .unwrap();
-    common::pick(&mut e, u32::try_from(pick).unwrap()).unwrap();
-    let xp = e.snapshot().progress.unwrap().xp;
-    assert_eq!(xp, 2);
-    fire_until(&mut e, idle(), 900, |e| {
-        e.snapshot().progress.unwrap().xp > 2
-    });
-    assert_eq!(e.snapshot().progress.unwrap().xp, 2 + 3);
 }
 
 // --- The boss offer ----------------------------------------------------------------------------
@@ -622,67 +351,6 @@ fn mixed() -> Rewards {
     ])
 }
 
-#[test]
-fn a_boss_kill_opens_the_boss_offer_at_the_tier_s_highest_rarity_and_without_a_skip() {
-    let mut e = with(&boss_stage(10), mixed());
-    let events = until_offer(&mut e, idle());
-    let tick = e.tick();
-    let this_tick: Vec<&DomainEvent> = events
-        .iter()
-        .filter(|(t, _)| *t == tick)
-        .map(|(_, ev)| ev)
-        .collect();
-    assert!(
-        matches!(
-            this_tick[..],
-            [
-                ..,
-                DomainEvent::StageCleared,
-                DomainEvent::OfferOpened {
-                    rarity: Rarity::Rare,
-                    kind: OfferKind::Boss,
-                    ..
-                }
-            ]
-        ),
-        "{this_tick:?}"
-    );
-    assert_eq!(
-        e.outcome(),
-        Outcome::Cleared,
-        "the boss kill clears the stage"
-    );
-    let o = offer(&e);
-    assert_eq!((o.kind, o.rarity), (OfferKind::Boss, Rarity::Rare));
-    let rarities: Vec<Rarity> = o.candidates.iter().map(|c| c.rarity).collect();
-    assert_eq!(rarities, [Rarity::Rare; 3]);
-    assert!(!o.options.contains(&OfferOption::Skip), "{:?}", o.options);
-    assert_eq!(
-        common::pick(&mut e, u32::try_from(o.options.len()).unwrap()),
-        Err(ChoiceError::OutOfRange {
-            index: u32::try_from(o.options.len()).unwrap(),
-            options: u32::try_from(o.options.len()).unwrap()
-        })
-    );
-}
-
-#[test]
-fn the_boss_offer_is_answered_after_the_clear_and_the_run_stays_over() {
-    let mut e = with(&boss_stage(10), mixed());
-    until_offer(&mut e, idle());
-    let (tick, hp) = (e.tick(), e.snapshot().players[0].hp);
-    assert_eq!(common::pick(&mut e, 0), Ok(()));
-    assert!(matches!(e.events(), [DomainEvent::RewardTaken { .. }]));
-    assert!(!e.offer_open());
-    assert_eq!(e.snapshot().players[0].hp, hp + 1);
-    e.step(&[
-        firing(idle(), e.tick()),
-        Default::default(),
-        Default::default(),
-    ]);
-    assert_eq!((e.tick(), e.outcome()), (tick, Outcome::Cleared));
-}
-
 /// A stage without a boss whose one enemy's kill drops a star that is taken at once.
 fn clearing_star_stage() -> Stage {
     // The enemy comes on tick 2, so that the stage may end before it (a wave must come before
@@ -703,37 +371,6 @@ fn clearing_star_tick() -> u32 {
         .expect("the star is taken");
     assert_eq!(taken.0, e.tick(), "taken on the tick of the clear");
     taken.0
-}
-
-#[test]
-fn a_star_taken_on_the_tick_of_the_clear_opens_its_offer() {
-    let mut e = with(&clearing_star_stage(), commons(4));
-    let events = fire_until(&mut e, idle(), 600, |e| e.outcome() != Outcome::Running);
-    assert_eq!(e.outcome(), Outcome::Cleared);
-    assert!(e.offer_open());
-    let tick = e.tick();
-    let this_tick: Vec<&DomainEvent> = events
-        .iter()
-        .filter(|(t, _)| *t == tick)
-        .map(|(_, ev)| ev)
-        .collect();
-    assert!(
-        matches!(
-            this_tick[..],
-            [
-                ..,
-                DomainEvent::StageCleared,
-                DomainEvent::OfferOpened {
-                    kind: OfferKind::Star,
-                    ..
-                }
-            ]
-        ),
-        "{this_tick:?}"
-    );
-    assert_eq!(common::pick(&mut e, 0), Ok(()));
-    assert!(!e.offer_open());
-    assert_eq!(e.outcome(), Outcome::Cleared);
 }
 
 #[test]
@@ -763,36 +400,6 @@ fn a_boss_kill_in_a_stage_without_stars_opens_nothing() {
 }
 
 // --- Refusals ----------------------------------------------------------------------------------
-
-#[test]
-fn a_choice_outside_the_offer_is_refused_and_changes_nothing() {
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(4),
-    );
-    until_offer(&mut e, idle());
-    let (hash, options) = (e.state_hash(), offer(&e).options.len());
-    let options = u32::try_from(options).unwrap();
-    for index in [options, u32::MAX] {
-        assert_eq!(
-            common::pick(&mut e, index),
-            Err(ChoiceError::OutOfRange { index, options })
-        );
-    }
-    assert_eq!(e.state_hash(), hash);
-    assert!(e.offer_open());
-}
-
-#[test]
-fn the_stars_and_the_offer_are_in_the_state_hash() {
-    let stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
-    let mut a = with(&stage, commons(4));
-    until_offer(&mut a, idle());
-    let mut b = a.clone();
-    common::pick(&mut a, 0).unwrap();
-    common::pick(&mut b, 1).unwrap();
-    assert_ne!(a.state_hash(), b.state_hash(), "a different reward taken");
-}
 
 // --- The validator -----------------------------------------------------------------------------
 

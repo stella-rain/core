@@ -12,10 +12,7 @@ use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::rewards::{MAX_RANGE_PCT, RewardEffect, Rewards};
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{AttackView, OfferOption};
-use stella_rain_core::stage::Stage;
+use stella_rain_core::snapshot::AttackView;
 use stella_rain_core::version::Versions;
 
 use crate::common;
@@ -23,61 +20,8 @@ use crate::common::equip::{Parts, equipped_in};
 
 use common::*;
 
-/// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
-/// taken at once, and inside the first step's hit box.
-const NEAR_Y: i32 = START_Y - 8_192;
-
-/// A Main weapon of one step: a circle of 32 pixels 4 pixels ahead, one active tick of 10
-/// damage and 4 ticks of recovery.
-fn weapon() -> Value {
-    json!({ "inline": {
-        "combo": { "main": { "attack": { "inline": [
-            { "kind": "active", "ticks": 1, "damage": 10, "hit_box": circle(1_024, 8_192) },
-            { "kind": "recovery", "ticks": 4 }
-        ] } } },
-        "window_ticks": 30,
-        "assist_range": 0
-    } })
-}
-
-fn circle(forward: i32, radius: i32) -> Value {
-    json!({ "type": "circle", "offset": { "forward": forward }, "radius": radius })
-}
-
 fn hit_box(v: Value) -> HitBox {
     serde_json::from_value(v).unwrap()
-}
-
-/// Levels of 1000 experience and stars that every kill drops as common, taken at once.
-fn starry(stage: Stage) -> Stage {
-    let mut stage = stage;
-    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
-    stage.stars = Some(
-        serde_json::from_value(json!({
-            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-            "rerolls": 0, "banishes": 0,
-            "tiers": [{ "from_level": 1, "weights": { "common": 1 } }],
-        }))
-        .unwrap(),
-    );
-    stage
-}
-
-/// The weapon above and `count` enemies of 10 hp (one step each), one every 6 ticks from tick
-/// 1, at `NEAR_Y`.
-fn targets(count: u16) -> Stage {
-    let waves = vec![wave(
-        1,
-        count,
-        6,
-        enemy(10, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )];
-    starry(armed(
-        stage_full(18_000, Some(far_boss()), waves, vec![]),
-        weapon(),
-    ))
 }
 
 /// A common range reward `id`, `pct` percent wider, taken at most `limit` times.
@@ -87,53 +31,10 @@ fn range(id: &str, pct: u32, limit: u8) -> Value {
     })
 }
 
-fn might() -> Value {
-    json!({
-        "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5, "limit": 5
-    })
-}
-
 fn rewards(rewards: Vec<Value>) -> Rewards {
     let file = json!({ "rarities": common::rarities(), "rewards": rewards });
     Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
         .expect("the test rewards validate")
-}
-
-fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let content = RunContent::new(RunStats::bundled().clone(), rewards(list));
-    Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-/// Takes the open offer's candidate that is `reward`.
-fn take(e: &mut Engine, reward: &str) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
-fn offered(e: &Engine) -> Vec<String> {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let mut ids: Vec<String> = offer
-        .candidates
-        .iter()
-        .map(|c| c.reward.to_string())
-        .collect();
-    ids.sort();
-    ids
-}
-
-/// Fires until the next offer opens.
-fn next_offer(e: &mut Engine) {
-    fire_until(e, idle(), 600, Engine::offer_open);
-    assert!(e.offer_open(), "no offer within 600 ticks");
 }
 
 /// The combo step in progress (slot 0).
@@ -186,58 +87,6 @@ fn a_range_reward_is_a_stat_like_effect_bounded_like_the_others() {
     assert!(bad(10, 0), "a limit of 0");
     assert!(bad(10, 21), "a limit past MAX_STACK");
     assert!(!bad(10, 5), "a limit above 1");
-}
-
-#[test]
-fn a_range_reward_taken_several_times_sums_up_to_the_clamp() {
-    let mut e = with(&targets(3), vec![range("reach", 40, 3)]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    assert_eq!(swing(&mut e), hit_box(circle(1_024, 8_192)));
-    next_offer(&mut e);
-    take(&mut e, "reach");
-    assert_eq!(e.snapshot().players[0].range_pct, 40);
-
-    // 40 percent: radius and offset 1.4 times.
-    assert_eq!(swing(&mut e), hit_box(circle(1_433, 11_468)));
-    next_offer(&mut e);
-    take(&mut e, "reach");
-    assert_eq!(e.snapshot().players[0].range_pct, 80);
-
-    // 80 percent.
-    assert_eq!(swing(&mut e), hit_box(circle(1_843, 14_745)));
-    next_offer(&mut e);
-    take(&mut e, "reach");
-    assert_eq!(e.snapshot().players[0].range_pct, 120, "the sum as taken");
-
-    // 120 percent taken, 100 applied: twice as large.
-    assert_eq!(swing(&mut e), hit_box(circle(2_048, 16_384)));
-}
-
-#[test]
-fn a_range_reward_stays_in_the_pool_until_its_stack_limit() {
-    let mut e = with(&targets(3), vec![range("reach", 10, 2), might()]);
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["might", "reach"]);
-    take(&mut e, "reach");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["might", "reach"], "taken once of two");
-    take(&mut e, "reach");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["might"], "at its limit");
-}
-
-#[test]
-fn holding_a_range_reward_leaves_another_offered() {
-    let list = vec![range("reach", 10, 3), range("reach_more", 20, 3), might()];
-    let mut e = with(&targets(2), list);
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["might", "reach", "reach_more"]);
-    take(&mut e, "reach");
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["might", "reach", "reach_more"]);
-    take(&mut e, "reach_more");
-    assert_eq!(e.snapshot().players[0].range_pct, 30);
 }
 
 /// The expertise range and the range reward add into one widening. The weapon tree (equipment

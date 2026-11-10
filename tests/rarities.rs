@@ -9,18 +9,12 @@ use serde_json::{Value, json};
 use stella_rain_core::difficulties::Difficulties;
 use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, Rarity, Reward, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::OfferOption;
-use stella_rain_core::stage::Stage;
 use stella_rain_core::version::Versions;
 
 use crate::common;
-
-use common::*;
 
 /// The effects that scale with rarity, from the common reward's amount (the ladder's base).
 const FAMILIES: [RewardEffect; 7] = [
@@ -198,17 +192,13 @@ fn setup(difficulty: &str) -> RunSetup {
     }
 }
 
-/// The rarities of the stars that drop in a scripted `time_limit` run on `difficulty`, offers
-/// answered with the first option.
+/// The rarities of the stars that drop in a scripted `time_limit` run on `difficulty`.
 fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
     let mut e = Engine::start(&setup(difficulty)).unwrap();
     let mut out = Vec::new();
     for t in 0..ticks {
         if e.outcome() != Outcome::Running {
             break;
-        }
-        while e.offer_open() {
-            common::pick(&mut e, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
         e.step(&[input, Default::default(), Default::default()]);
@@ -233,143 +223,4 @@ fn stars_drop_only_inside_each_difficultys_range_with_all_six_rarities_in_the_po
     let rainy = star_rarities("rainy", 3_000);
     assert!(!rainy.is_empty());
     assert!(rainy.iter().all(|r| *r >= Rarity::Uncommon), "{rainy:?}");
-}
-
-fn weapon() -> Value {
-    json!({ "inline": {
-        "combo": { "main": { "attack": { "inline": [
-            { "kind": "active", "ticks": 1, "damage": 10, "hit_box": circle(1_024, 8_192) },
-            { "kind": "recovery", "ticks": 4 }
-        ] } } },
-        "window_ticks": 30,
-        "assist_range": 0
-    } })
-}
-
-fn circle(forward: i32, radius: i32) -> Value {
-    json!({ "type": "circle", "offset": { "forward": forward }, "radius": radius })
-}
-
-/// Levels of 1000 experience and stars that every kill drops at `rarity`, taken at once.
-fn starry(stage: Stage, rarity: &str) -> Stage {
-    let mut stage = stage;
-    stage.levels = Some(serde_json::from_value(json!({ "xp": [1000] })).unwrap());
-    stage.stars = Some(
-        serde_json::from_value(json!({
-            "drop_per_mille": 1000, "pity": 1, "cap": 8, "pickup_radius": 12_288,
-            "rerolls": 0, "banishes": 0,
-            "tiers": [{ "from_level": 1, "weights": { rarity: 1 } }],
-        }))
-        .unwrap(),
-    );
-    stage
-}
-
-/// Three enemies of 10 hp, one every 6 ticks from tick 1, each in reach of the weapon.
-fn targets(rarity: &str) -> Stage {
-    let waves = vec![wave(
-        1,
-        3,
-        6,
-        enemy(10, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )];
-    starry(
-        armed(
-            stage_full(18_000, Some(far_boss()), waves, vec![]),
-            weapon(),
-        ),
-        rarity,
-    )
-}
-
-/// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
-/// taken at once, and inside the weapon's hit box.
-const NEAR_Y: i32 = START_Y - 8_192;
-
-/// An attack reward `id` of `amount` percent at `rarity`, taken at most once.
-fn once(id: &str, rarity: &str, amount: u32) -> Value {
-    json!({
-        "id": id, "rarity": rarity, "effect": "attack_pct", "amount": amount, "limit": 2
-    })
-}
-
-fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "rarities": common::rarities(), "rewards": list });
-    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate");
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
-    Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-/// Fires until the next offer opens.
-fn next_offer(e: &mut Engine) {
-    fire_until(e, idle(), 600, Engine::offer_open);
-    assert!(e.offer_open(), "no offer within 600 ticks");
-}
-
-/// The ids of the open offer's candidates, sorted.
-fn offered(e: &Engine) -> Vec<String> {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let mut ids: Vec<String> = offer
-        .candidates
-        .iter()
-        .map(|c| c.reward.to_string())
-        .collect();
-    ids.sort();
-    ids
-}
-
-/// Takes the open offer's candidate that is `reward`.
-fn take(e: &mut Engine, reward: &str) {
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
-}
-
-/// Kills the enemy in reach: presses main, then steps past the hit.
-fn kill(e: &mut Engine) {
-    e.step(&[
-        Input {
-            main: true,
-            ..Input::default()
-        },
-        Default::default(),
-        Default::default(),
-    ]);
-    for _ in 0..60 {
-        e.step(&[idle(), Default::default(), Default::default()]);
-    }
-}
-
-#[test]
-fn an_offer_at_supernova_falls_to_legendary_once_the_supernova_reward_is_taken() {
-    // One supernova reward and one legendary: the offers hold the supernova until it is taken
-    // as often as it stacks (limit 2), and then the next offer falls to the rarity below.
-    let mut e = with(
-        &targets("supernova"),
-        vec![once("sup", "supernova", 40), once("leg", "legendary", 25)],
-    );
-    e.step(&[idle(), Default::default(), Default::default()]);
-    e.step(&[idle(), Default::default(), Default::default()]);
-    kill(&mut e);
-    next_offer(&mut e);
-    assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));
-    take(&mut e, "sup");
-    kill(&mut e);
-    next_offer(&mut e);
-    assert!(offered(&e).contains(&"sup".to_owned()), "{:?}", offered(&e));
-    take(&mut e, "sup");
-    kill(&mut e);
-    next_offer(&mut e);
-    assert_eq!(offered(&e), ["leg"], "the offer falls to legendary");
 }

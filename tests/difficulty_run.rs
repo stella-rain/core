@@ -255,17 +255,13 @@ fn the_difficulty_is_part_of_the_run() {
     assert_ne!(hash("easy"), hash("normal"));
 }
 
-/// The rarities of the stars that drop in a scripted `time_limit` run on `difficulty`, offers
-/// answered with the first option.
+/// The rarities of the stars that drop in a scripted `time_limit` run on `difficulty`.
 fn star_rarities(difficulty: &str, ticks: u32) -> Vec<Rarity> {
     let mut e = Engine::start(&setup(difficulty)).unwrap();
     let mut out = Vec::new();
     for t in 0..ticks {
         if e.outcome() != Outcome::Running {
             break;
-        }
-        while e.offer_open() {
-            common::pick(&mut e, 0).unwrap();
         }
         let input = crate::common::run::run_input(&e, t);
         e.step(&[input, Default::default(), Default::default()]);
