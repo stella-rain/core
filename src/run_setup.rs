@@ -76,8 +76,8 @@ pub struct RunSetup {
     /// and the Lumine star is picked from; each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
-    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in
-    /// equipment mode.
+    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at
+    /// `sim_version` 2.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub extra_rerolls: u8,
     /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each
@@ -179,8 +179,8 @@ struct RunSetupFile {
     /// and the Lumine star is picked from; each at most once. Absent: every reward in the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     star_pool: Option<Vec<ContentId>>,
-    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in
-    /// equipment mode.
+    /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at
+    /// `sim_version` 2.
     #[serde(default, skip_serializing_if = "is_zero")]
     extra_rerolls: u8,
     /// The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each

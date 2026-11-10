@@ -1,7 +1,7 @@
 //! A player's star equipment (ADR-SIM-3 point 2, ADR-SAVE-4 point 7): the inventory, the slots
 //! with their level and expertise, the Lumine slot, Starlight and the unspent weapon-tree points.
 //! One field of the career carries all of it, so a rule that fills it adds no field and no hash
-//! move. An offers run carries it empty. No rule reads or writes it yet.
+//! move. A stage run alone carries its slots empty.
 
 use crate::rune::Rune;
 

@@ -131,7 +131,7 @@ pub struct ExpertiseOption {
 }
 
 /// A style: a path chosen at the level table's style level, held for the run. Its
-/// own effect applies when it is chosen in offers mode (an equipment run applies the style's
+/// own effect applies when it is chosen at `sim_version` 1 (a version 2 run applies the style's
 /// `stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the
 /// table's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

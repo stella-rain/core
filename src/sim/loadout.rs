@@ -128,7 +128,7 @@ pub(crate) fn apply(
             rune,
             cooldown_left: 0,
         });
-        // The starting rune fills rune slot 0 (the slot list is empty in an offers run).
+        // The starting rune fills rune slot 0 (the slot list is empty in a stage run alone).
         if let Some(slot) = career
             .equipment
             .slots

@@ -777,7 +777,7 @@ pub(crate) struct Career {
     /// Hit points the main character regenerates each second (a perk): set at the start
     /// and raised by rewards.
     pub regen: u32,
-    /// The star equipment: empty in an offers run (ADR-SIM-3 point 2).
+    /// The star equipment: its slots are empty in a stage run alone (ADR-SIM-3 point 2).
     pub equipment: Equipment,
 }
 
