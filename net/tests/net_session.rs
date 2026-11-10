@@ -6,8 +6,8 @@ mod support;
 use stella_rain_core::input::Input;
 use stella_rain_net::session::SessionError;
 use stella_rain_net::session::party::{
-    NetAdvance, NetConfig, NetConfigError, NetSession, NetWait, PartySettings, Phase, Refusal,
-    StopReason,
+    NetAdvance, NetConfig, NetConfigError, NetError, NetSession, NetWait, PartySettings, Phase,
+    Refusal, StopReason,
 };
 use stella_rain_net::transport::TransportError;
 use stella_rain_net::wire::{
@@ -505,4 +505,49 @@ fn a_balanced_run_never_waits_ahead() {
         peers.round();
     }
     assert_eq!(peers.waits(Some(NetWait::Ahead)), 0);
+}
+
+#[test]
+fn a_stopped_session_keeps_announcing_its_stop_from_advance() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(
+        slot(1),
+        &Packet::Hello(Hello {
+            pack_hash: [7; 32],
+            ..hello()
+        }),
+    );
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Stopped);
+    let sent = tap.count();
+    assert_eq!(s.advance(&Input::default()), Err(NetError::Stopped));
+    assert!(tap.count() > sent, "the Bye is sent again");
+}
+
+#[test]
+fn a_desync_bye_before_the_hello_is_dropped() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &bye(1, 60, ByeReason::Desync));
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Handshake);
+    assert!(s.desync_report().is_none());
+}
+
+#[test]
+fn a_checkpoint_from_the_far_future_is_refused() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &Packet::Hello(hello()));
+    tap.push(
+        slot(1),
+        &Packet::Checkpoint(Checkpoint {
+            slot: slot(1),
+            tick: 60_000,
+            hash: 1,
+        }),
+    );
+    s.poll().expect("poll");
+    assert_eq!(s.stats().refused, 1);
 }

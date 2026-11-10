@@ -327,9 +327,13 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     }
 
     /// Receives, steps one tick if the handshake, the frame advantage and the window allow, and
-    /// sends a round.
+    /// sends a round. A call that waits (see [`NetWait`]) does not queue `local`: the caller
+    /// gives the input again on its next call.
     pub fn advance(&mut self, local: &Input) -> Result<NetAdvance, NetError> {
         if self.phase == Phase::Stopped {
+            // A lost stop announcement is repeated for as long as the caller calls.
+            self.receive();
+            self.send_round();
             return Err(NetError::Stopped);
         }
         self.receive();
@@ -497,6 +501,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 self.stats.accepted += 1;
                 self.stop(StopReason::RefusedBy(from));
             }
+            ByeReason::Desync if !self.peers[p].hello_ok => self.stats.dropped += 1,
             ByeReason::Desync => {
                 self.stats.accepted += 1;
                 self.stop_desync(
@@ -511,6 +516,11 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     }
 
     fn take_checkpoint(&mut self, p: usize, cp: Checkpoint) {
+        if cp.tick > self.session.tick().saturating_add(CHECKPOINT_TICKS) {
+            // No peer within the window is that far ahead: junk must not evict real entries.
+            self.stats.refused += 1;
+            return;
+        }
         let peer = &mut self.peers[p];
         if cp.tick <= peer.compared || peer.leave.is_some_and(|l| l <= cp.tick) {
             self.stats.dropped += 1;
