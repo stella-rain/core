@@ -131,11 +131,12 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     /// The state hashes before the measured tick of the four offers-mode cases, as the benches
-    /// pinned them before the cases moved to equipment mode (`tests/bench_pins.toml` at the time).
-    const WORST: u64 = 0x5af6_c7e7_264b_6f0e;
+    /// pin them after the level-offer fields left (`tests/bench_pins.toml`); the cases without levels
+    /// kept their first pins.
+    const WORST: u64 = 0x6d30_eef6_0505_0d36;
     const HIT: u64 = 0x2301_59d1_2648_abe2;
     const SPREAD: u64 = 0x59ce_dea6_51ab_ced0;
-    const TIME_LIMIT: u64 = 0x3dfd_e7d7_aba7_153a;
+    const TIME_LIMIT: u64 = 0xb1fa_a14e_0ebc_8087;
 
     /// The first 16 hex of the SHA-256 over the old worst stage's JSON.
     const WORST_STAGE_DIGEST: &str = "73facdda466281e0";
