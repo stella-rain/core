@@ -927,3 +927,23 @@ fn a_steady_party_tick_allocates_and_frees_nothing() {
         "(tick, allocs, frees) in a party's ticks: {at:?}"
     );
 }
+
+/// A clone shares the engine's world and content: its allocator calls, measured at the commit
+/// before the sharing (a clone alone, no ticks), are the bounds it stays below.
+const CLONE_BEFORE_SHARING: [(&str, u64); 2] = [("rollback", 1736), ("rollback_equip", 1740)];
+
+#[test]
+fn an_engine_clone_allocates_fewer_times_than_today() {
+    let cases = [
+        ("rollback", bench_fixtures::party_case::saved()),
+        ("rollback_equip", bench_fixtures::equip_case::saved()),
+    ];
+    for ((name, saved), (pinned_name, before)) in cases.into_iter().zip(CLONE_BEFORE_SHARING) {
+        assert_eq!(name, pinned_name);
+        let mut out = None;
+        let counts = counted3(|| out = Some(saved.clone()));
+        std::mem::forget(out);
+        assert!(counts.allocs < before, "{name}: {counts:?} vs {before}");
+        assert_eq!(counts.frees, 0, "{name}: a clone frees nothing");
+    }
+}

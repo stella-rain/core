@@ -1151,6 +1151,8 @@ mod presence_tests;
 #[cfg(test)]
 mod savepoint_tests;
 #[cfg(test)]
+mod share_tests;
+#[cfg(test)]
 mod snapshot_pin_tests;
 #[cfg(test)]
 mod v1_events_tests;
