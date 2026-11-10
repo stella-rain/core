@@ -22,7 +22,7 @@ use crate::rewards::{
     RewardEffect, Rewards,
 };
 use crate::run_stats::StatEffect;
-use crate::sim::state::{Offers, OrbitState, PlayerState, Progress, SkillSlot};
+use crate::sim::state::{OrbitState, PlayerState, Progress, SkillSlot};
 use crate::stage_skill::MAX_SKILL_LEVELS;
 use crate::validate::limits::MAX_EVADE_CHARGES;
 
@@ -48,7 +48,6 @@ pub(super) struct Build {
     pub rune_haste_pct: u32,
     pub regen: u32,
     pub type_bonus_pct: [u32; DamageType::ALL.len()],
-    pub extra_candidates: u8,
     /// The stars' share of `Progress::totals`, in `StatEffect::ALL` order.
     pub stats: [u32; StatEffect::ALL.len()],
 }
@@ -103,7 +102,7 @@ impl Build {
     }
 
     /// Adds what `effects` build, once. The grants (a skill, an orbit, an evade charge, a draw,
-    /// rerolls and banishes) are not a build: they are `stars::grant`'s, and listed here under
+    /// rerolls and banishes) are not a build: they are `Grants`', and listed here under
     /// the one arm so that a new `RewardEffect` fails to compile until it is placed.
     fn add(&mut self, stage: &World, effects: &[EffectEntry], level: u8) {
         for entry in effects {
@@ -222,7 +221,6 @@ impl Build {
         player: &mut PlayerState,
         progress: &mut Option<Progress>,
         regen: &mut u32,
-        o: &mut Offers,
     ) {
         let Build {
             range_pct,
@@ -240,7 +238,6 @@ impl Build {
             rune_haste_pct,
             regen: more_regen,
             type_bonus_pct,
-            extra_candidates,
             stats,
         } = *after;
         player.range_pct = range_pct;
@@ -257,7 +254,6 @@ impl Build {
         player.burst_depth_extra = burst_depth_extra;
         player.rune_haste_pct = rune_haste_pct;
         player.type_bonus_pct = type_bonus_pct;
-        o.extra_candidates = extra_candidates;
         // The stars' share is part of `regen`: a rise adds the difference, a fall takes it off.
         *regen = regen
             .saturating_add(more_regen.saturating_sub(before.regen))

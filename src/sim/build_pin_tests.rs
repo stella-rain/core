@@ -23,7 +23,6 @@ const BDEPTH: u16 = 9;
 const RANGE: u16 = 10;
 const PYRO: u16 = 14;
 const REGEN: u16 = 16;
-const CAND: u16 = 17;
 const N1: u16 = 21;
 const N2: u16 = 22;
 
@@ -121,7 +120,6 @@ fn stage() -> World {
 fn start(stage: &World, n: u16) -> State {
     let pool = RunPool {
         rewards: (0..n).collect(),
-        extra_rerolls: 0,
         difficulty: RunDifficulty {
             hp_pct: 100,
             damage_pct: 100,
@@ -209,14 +207,12 @@ fn write_change(stage: &World, rewards: &Rewards, s: &mut State, from: &[u16], t
     let before = Build::of(stage, rewards, &held(from));
     let after = Build::of(stage, rewards, &held(to));
     let (player, career) = s.players.both_mut(PlayerIdx::SOLO);
-    let o = career.offers.as_mut().expect("offers");
     Build::write(
         &before,
         &after,
         player,
         &mut career.progress,
         &mut career.regen,
-        o,
     );
 }
 
@@ -357,12 +353,11 @@ fn a_level_raises_the_amounts_and_not_the_intervals() {
     );
     assert_eq!(burst.burst_radius, at1(BURST_A).burst_radius);
     assert_eq!(burst.burst_depth, at1(BURST_A).burst_depth);
-    // Counts are not scaled: burst depth and offer candidates.
+    // Counts are not scaled: burst depth.
     assert_eq!(
         at10(BDEPTH).burst_depth_extra,
         at1(BDEPTH).burst_depth_extra
     );
-    assert_eq!(at10(CAND).extra_candidates, at1(CAND).extra_candidates);
     assert_eq!(
         at10(REGEN).regen,
         level_scaled(crate::sim::slots::bundled_rules(), 2, 10)
@@ -395,14 +390,12 @@ fn a_level_up_rewrites_the_player_s_numbers() {
         let before = Build::of_levelled(&stage, &rewards, from);
         let after = Build::of_levelled(&stage, &rewards, to);
         let (player, career) = s.players.both_mut(PlayerIdx::SOLO);
-        let o = career.offers.as_mut().expect("offers");
         Build::write(
             &before,
             &after,
             player,
             &mut career.progress,
             &mut career.regen,
-            o,
         );
     };
     change(&mut s, &[], &[(ATK, 1), (HP, 1)]);

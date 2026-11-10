@@ -465,7 +465,7 @@ impl Clone for ExpertiseGauge {
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
 /// player's offers (ADR-REPL-5). The offers due and open, and what each player's offers have
-/// used, are per slot in `Offers` (ADR-SIM-7).
+/// used, are per slot in `Offers` (ADR-SIM-7); the live rules open none.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -526,7 +526,9 @@ impl Clone for StarField {
 }
 
 /// One player's star offers: those due and the open one, and what the player's offers have used
-/// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`).
+/// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`). The live
+/// rules never open an offer, so `due` and `offer` stay empty; the fields are kept, hashed and
+/// saved, until their removal.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {

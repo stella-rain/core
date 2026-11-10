@@ -222,7 +222,6 @@ impl Run {
             });
         let pool = sim::RunPool {
             rewards: b.star_pool,
-            extra_rerolls: b.extra_rerolls,
             difficulty,
         };
         let mut state = sim::initial_state(&world, b.content, pool, b.seed, b.kinds);

@@ -340,11 +340,10 @@ const GRID_PROBE_RADIUS: i32 = Fx::px(2).0;
 /// `AggroAbove`). What raises it and how fast it fades are `rules.json`'s `aggro_*` fields.
 const MAX_AGGRO: u32 = 1_000_000 * DAMAGE_SCALE;
 
-/// What a run brings to its offers: the rewards of its pool, by their place in the rewards file,
-/// and the rerolls its setup adds to the stage's (ADR-REPL-5).
+/// What a run brings to its offers: the rewards of its pool, by their place in the rewards file
+/// (ADR-REPL-5).
 pub(crate) struct RunPool {
     pub rewards: Vec<u16>,
-    pub extra_rerolls: u8,
     pub difficulty: RunDifficulty,
 }
 
@@ -533,7 +532,7 @@ fn unreserved_state(
     let offers = stage.stars.as_ref().map(|st| Offers {
         due: Vec::new(),
         offer: None,
-        rerolls_left: u32::from(st.rerolls) + u32::from(pool.extra_rerolls),
+        rerolls_left: u32::from(st.rerolls),
         banishes_left: u32::from(st.banishes),
         extra_candidates: 0,
         taken: vec![0; rewards],
