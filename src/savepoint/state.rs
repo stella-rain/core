@@ -698,13 +698,12 @@ mod players_tests {
     /// style's choices, is refused for every present slot; a legal gauge decodes.
     #[test]
     fn the_savepoint_refuses_a_forged_tree() {
-        use crate::run_setup::{BuildMode, RunSetup};
+        use crate::run_setup::RunSetup;
         use crate::savepoint::DecodeError;
 
         let e = Engine::start_party(
             &RunSetup {
                 mode: "time_limit".into(),
-                build_mode: BuildMode::Equipment,
                 weapon: "giant_hammer".into(),
                 ..RunSetup::default()
             },
@@ -911,7 +910,7 @@ mod slots_tests {
     //! and the runes the Main fires are the rune slots filled (ADR-SIM-3 point 2, ADR-SIM-7).
 
     use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     use crate::rune::Rune;
     use crate::savepoint::DecodeError;
     use crate::sim::equipment::Held;
@@ -922,7 +921,6 @@ mod slots_tests {
 
     fn engine(party: u8) -> Engine {
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             starting_rune: Some("thunder".into()),
             ..RunSetup::default()
         };
@@ -1042,7 +1040,6 @@ mod slots_tests {
 
     fn lumine_engine() -> Engine {
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             lumine: 4,
             lumine_star: Some("attack_common".into()),
             ..RunSetup::default()

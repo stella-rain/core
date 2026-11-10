@@ -7,7 +7,7 @@ use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
-    self, BuildMode, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
+    self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
@@ -519,20 +519,11 @@ fn a_setup_at_version_0_is_refused() {
     }
 }
 
-// The build mode and the Lumine star (ADR-SIM-7 points 4 and 7, ADR-SAVE-7 points 3 and 9).
-
-const REQUIRED: &str =
-    r#""schema_version":2,"sim_version":2,"mode":"trial","weapon":"giant_sword","seed":1"#;
-
-fn parse(extra: &str) -> Result<RunSetup, Error> {
-    let text = format!("{{{REQUIRED}{extra}}}");
-    run_setup::parse_and_validate(text.as_bytes())
-}
+// The Lumine star (ADR-SIM-7 points 4 and 7, ADR-SAVE-7 points 3 and 9).
 
 #[test]
-fn an_offers_setup_writes_neither_new_key() {
+fn a_default_setup_writes_neither_new_key() {
     let s = RunSetup::default();
-    assert_eq!(s.build_mode, BuildMode::Offers);
     assert_eq!(s.lumine_star, None);
     let text = serde_json::to_string(&s).unwrap();
     assert!(!text.contains("build_mode"), "{text}");
@@ -546,7 +537,6 @@ fn a_setup_file_written_before_the_fields_keeps_its_keys() {
             crate::data_root::data_root().join(format!("tests/fixtures/run_setup/{name}.json"));
         let text = std::fs::read(&path).unwrap();
         let parsed = run_setup::parse_and_validate(&text).unwrap();
-        assert_eq!(parsed.build_mode, BuildMode::Offers, "{name}");
         let written: serde_json::Value = serde_json::to_value(&parsed).unwrap();
         let again = run_setup::parse_and_validate(&serde_json::to_vec(&parsed).unwrap());
         assert_eq!(again, Ok(parsed), "{name}");
@@ -560,56 +550,26 @@ fn a_setup_file_written_before_the_fields_keeps_its_keys() {
 }
 
 #[test]
-fn the_build_mode_and_the_lumine_star_round_trip() {
-    let equipment = parse(r#","build_mode":"equipment""#).unwrap();
-    assert_eq!(equipment.build_mode, BuildMode::Equipment);
-    let text = serde_json::to_string(&equipment).unwrap();
-    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
-
-    let offers = parse(r#","build_mode":"offers""#).unwrap();
-    assert_eq!(offers.build_mode, BuildMode::Offers);
-    assert!(
-        !serde_json::to_string(&offers)
-            .unwrap()
-            .contains("build_mode")
-    );
-
-    assert!(parse(r#","build_mode":"cards""#).is_err());
-
+fn the_lumine_star_round_trips() {
     let star = RunSetup {
-        build_mode: BuildMode::Equipment,
         lumine: 1,
         lumine_star: Some("max_hp_common".into()),
         ..RunSetup::default()
     };
     let text = serde_json::to_string(&star).unwrap();
-    assert!(text.contains(r#""build_mode":"equipment""#), "{text}");
+    assert!(!text.contains("build_mode"), "{text}");
     assert!(text.contains(r#""lumine_star":"max_hp_common""#), "{text}");
     assert_eq!(serde_json::from_str::<RunSetup>(&text).unwrap(), star);
 }
 
 fn equipment() -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     }
 }
 
 fn found(setup: &RunSetup) -> Vec<Issue> {
     issues(run_setup::validate(setup).unwrap_err())
-}
-
-#[test]
-fn equipment_mode_needs_sim_version_2() {
-    let old = RunSetup {
-        schema_version: 1,
-        sim_version: 1,
-        ..equipment()
-    };
-    assert_eq!(
-        found(&old),
-        [issue("$.build_mode", "equipment mode needs sim_version 2")]
-    );
 }
 
 #[test]
@@ -792,10 +752,9 @@ fn the_checked_in_schema_names_the_new_fields() {
     let text =
         std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
             .unwrap();
-    assert!(text.contains("\"build_mode\""));
     assert!(text.contains("\"lumine_star\""));
-    assert!(text.contains("\"offers\""));
-    assert!(text.contains("\"equipment\""));
+    assert!(!text.contains("build_mode"));
+    assert!(!text.contains("BuildMode"));
 }
 
 #[test]

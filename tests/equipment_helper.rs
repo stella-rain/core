@@ -15,7 +15,7 @@ use stella_rain_core::input::EquipAction;
 use stella_rain_core::limits::MAX_INVENTORY;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{self, BuildMode, RunSetup};
+use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::rune::Rune;
 use stella_rain_core::snapshot::SlotKindView;
 use stella_rain_core::stage::Stage;
@@ -48,7 +48,6 @@ fn content() -> RunContent {
 /// The equipment setup of the tests: the `plain` perk set, every star in the pool.
 fn setup() -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         star_pool: Some(vec!["a".into(), "b".into(), "c".into()]),
         ..plain_setup()
     }

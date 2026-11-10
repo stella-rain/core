@@ -15,7 +15,7 @@ use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::EquipAction;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::stage::Stage;
@@ -175,7 +175,6 @@ fn build(
         content = content.with_expertise(expertise);
     }
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         perk_set: "plain".into(),
         star_pool: Some(ids),
         seed: u64::from(stage.seed),

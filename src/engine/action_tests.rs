@@ -93,13 +93,11 @@ fn step_does_not_read_the_action() {
 
 mod equipment_runs {
     use super::*;
-    use crate::run_setup::BuildMode;
     use crate::rune::Rune;
     use crate::sim::equipment::{Equipment, Held};
 
     fn equipment(lumine: bool) -> RunSetup {
         RunSetup {
-            build_mode: BuildMode::Equipment,
             starting_rune: Some("thunder".into()),
             lumine: u8::from(lumine),
             lumine_star: lumine.then(|| "max_hp_common".into()),
@@ -771,13 +769,9 @@ mod equipment_runs {
 
 mod tree_runs {
     use super::*;
-    use crate::run_setup::BuildMode;
 
     fn equipment() -> RunSetup {
-        RunSetup {
-            build_mode: BuildMode::Equipment,
-            ..live_setup()
-        }
+        RunSetup { ..live_setup() }
     }
 
     fn pick(option: u32) -> EquipAction {

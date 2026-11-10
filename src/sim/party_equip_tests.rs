@@ -13,7 +13,7 @@ use super::stars;
 use crate::engine::{Engine, Run};
 use crate::fixed::Fx;
 use crate::rewards::Rarity;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::rune::Rune;
 use crate::snapshot::{HeldView, SlotKindView};
 
@@ -100,7 +100,6 @@ fn a_boss_kill_gives_the_downed_and_the_out_nothing() {
 fn equipment_setup() -> RunSetup {
     RunSetup {
         seed: 20_261_106,
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     }
 }

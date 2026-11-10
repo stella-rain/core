@@ -433,9 +433,8 @@ fn the_inventory_has_a_bound_not_a_cap() {
 #[test]
 fn the_starting_rune_is_equipped_at_tick_0() {
     use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
-    let setup = |build_mode| RunSetup {
-        build_mode,
+    use crate::run_setup::RunSetup;
+    let setup = RunSetup {
         starting_rune: Some("thunder".into()),
         ..RunSetup::default()
     };
@@ -443,13 +442,10 @@ fn the_starting_rune_is_equipped_at_tick_0() {
         Run::V2 { state, .. } => state.clone(),
         Run::V1 { .. } => panic!("the live rules"),
     };
-    let eq = state(&Engine::start(&setup(BuildMode::Equipment)).expect("starts"));
-    let offers = state(&Engine::start(&setup(BuildMode::Offers)).expect("starts"));
+    let eq = state(&Engine::start(&setup).expect("starts"));
     let me = slot(0);
     assert!(eq.players[me].runes.iter().any(|h| h.rune == Rune::Thunder));
     assert!(eq.players.career(me).equipment.inventory.is_empty());
-    assert_eq!(eq.players.career(me).offer, offers.players.career(me).offer);
-    assert_eq!(eq.rng, offers.rng);
 }
 
 /// T17 (setup part): the perk set's `drop_weight` reaches the world; the bundled sets carry 25 each;
@@ -459,13 +455,12 @@ fn the_perk_drop_weight_reaches_the_world() {
     use crate::engine::{Engine, Run};
     use crate::perk_sets::PerkSets;
     use crate::run_content::RunContent;
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     let live = |e: &Engine| match e.run() {
         Run::V2 { world, .. } => world.drop_weight_pct.clone(),
         Run::V1 { .. } => panic!("the live rules"),
     };
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     // The bundled default set carries drop weight 25 (vanguard, duelist and scout each weigh one
@@ -647,7 +642,7 @@ fn a_party_member_starts_with_an_empty_inventory() {
 #[test]
 fn a_joiner_starts_with_an_empty_inventory() {
     use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     let s = rich();
     let mut players = super::state::Players::party(2, &s.players, s.crit_seed);
     players.leave(slot(1));
@@ -657,7 +652,6 @@ fn a_joiner_starts_with_an_empty_inventory() {
     assert!(e.lumine.is_some());
 
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     let mut e = Engine::start(&setup).expect("starts");

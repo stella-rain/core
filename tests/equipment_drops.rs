@@ -2,12 +2,11 @@
 //! kill give each member their own roll into their own inventory; offers mode does not move.
 
 use stella_rain_core::engine::Engine;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::validate::Error;
 
 fn equipment() -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     }
 }
@@ -19,34 +18,29 @@ fn messages(error: Error) -> Vec<(String, String)> {
     }
 }
 
-/// T1: an equipment setup starts at `sim_version` 2; the other refusals stay.
+/// T1: a setup starts at `sim_version` 2, the equipment mode; the other refusals stay.
 #[test]
 fn an_equipment_setup_starts() {
     assert!(Engine::start(&equipment()).is_ok());
     assert!(Engine::start_party(&equipment(), 3).is_ok());
 
+    // A sim_version 1 setup plays the frozen rules: no equipment, so no Lumine star.
     let old = RunSetup {
         sim_version: 1,
         ..equipment()
     };
-    assert_eq!(
-        messages(Engine::start(&old).expect_err("refused")),
-        [(
-            "$.build_mode".to_string(),
-            "equipment mode needs sim_version 2".to_string()
-        )]
-    );
-
-    let offers_with_star = RunSetup {
+    assert!(Engine::start(&old).is_ok());
+    let frozen_with_star = RunSetup {
+        sim_version: 1,
         lumine: 1,
         lumine_star: Some("max_hp_common".into()),
         ..RunSetup::default()
     };
     assert_eq!(
-        messages(Engine::start(&offers_with_star).expect_err("refused")),
+        messages(Engine::start(&frozen_with_star).expect_err("refused")),
         [(
             "$.lumine_star".to_string(),
-            "needs equipment mode".to_string()
+            "needs sim_version 2".to_string()
         )]
     );
 }
@@ -63,7 +57,6 @@ fn a_boss_kill_drops_for_the_member_who_is_up() {
         let setup = RunSetup {
             mode: "tutorial".into(),
             seed,
-            build_mode: BuildMode::Equipment,
             ..trial_setup()
         };
         let mut e = Engine::start(&setup).unwrap();
@@ -109,7 +102,6 @@ mod search {
             setup: RunSetup {
                 mode: "tutorial".into(),
                 seed,
-                build_mode: BuildMode::Equipment,
                 ..trial_setup()
             },
             party: n,

@@ -18,7 +18,7 @@ use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::rng::{TAG_SPAWN, derive};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::{Map, Stage};
 use stella_rain_core::time_limit::TimeLimit;
@@ -724,10 +724,7 @@ fn no_bundled_mode_spawn_is_relocated_on_its_spawn_tick() {
     ];
     for (name, setup, ticks, least) in cases {
         // Equipment mode, the mode the game keeps: an offers-mode run no longer stops for level offers.
-        let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
-            ..setup
-        };
+        let setup = RunSetup { ..setup };
         let standing = spawns_and_relocations(&setup, ticks, |_, _| Input::default());
         let bot = spawns_and_relocations(&setup, ticks, run_input);
         for (how, (spawned, moved)) in [("standing", standing), ("bot", bot)] {

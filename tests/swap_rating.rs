@@ -8,7 +8,7 @@ use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_replay::RunRecorder;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{HeldView, SwapItem, SwapRating};
 
 /// The slots of the layout, and the Lumine slot after them.
@@ -20,7 +20,6 @@ fn case(seed: u64, ticks: u32) -> PartyCase {
         setup: RunSetup {
             mode: "tutorial".into(),
             seed,
-            build_mode: BuildMode::Equipment,
             ..trial_setup()
         },
         party: 1,
@@ -110,7 +109,6 @@ fn the_empty_cases() {
     );
     // An equipment run with nothing in the inventory, and a player outside the party.
     let fresh = Engine::start(&RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     })
     .unwrap();

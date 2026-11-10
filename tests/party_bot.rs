@@ -12,7 +12,7 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, HeldView, SlotKindView, SwapItem, SwapRating};
 
 use crate::common::run::trial_setup;
@@ -427,7 +427,6 @@ impl RigParty {
         };
         let setup = if self.equipment {
             RunSetup {
-                build_mode: BuildMode::Equipment,
                 perk_set: "vanguard".into(),
                 ..setup
             }

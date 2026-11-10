@@ -438,7 +438,6 @@ fn others_actions(steps: &RunSteps) -> usize {
 /// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
 /// table needs its promise here.
 pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
-    use stella_rain_core::run_setup::BuildMode;
     let bytes = replay.to_bytes();
     let Ok(verified) = verify_run(&bytes) else {
         return Some("the run verifies".into());
@@ -460,7 +459,7 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
         .steps()
         .iter()
         .any(|s| matches!(s, Step::Join(_) | Step::Leave(_)));
-    if replay.setup.build_mode == BuildMode::Offers {
+    if replay.setup.sim_version == 1 {
         if !changes {
             let per = picks_per_slot(replay);
             if per[1] + per[2] < 2 {

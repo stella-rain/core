@@ -192,7 +192,6 @@ mod tests {
     use crate::bench_fixtures::worst_case;
     use crate::engine::{Engine, Run};
     use crate::hash::{StableHash, StateHasher};
-    use crate::run_setup::BuildMode;
     use crate::sim::equipment::{EquipSlot, Held, SlotKind};
     use crate::sim::state::Players;
 
@@ -215,7 +214,6 @@ mod tests {
         let content = worst_case::content();
         let (world, mut s) = start();
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             lumine_star: star.map(|i| content.rewards().rewards()[i].id.clone()),
             ..RunSetup::default()
         };

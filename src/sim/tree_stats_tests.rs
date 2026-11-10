@@ -8,7 +8,7 @@ use super::skill;
 use super::state::PlayerIdx;
 use crate::engine::Engine;
 use crate::expertise::Expertise;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 
 /// A pack set as `(effect, Lv1..Lv10)` rows, in the pack's order.
@@ -164,7 +164,6 @@ const RG: usize = StatEffect::RangePct as usize;
 fn sword() -> Engine {
     Engine::start(&RunSetup {
         mode: "time_limit".into(),
-        build_mode: BuildMode::Equipment,
         weapon: "giant_sword".into(),
         ..RunSetup::default()
     })
@@ -256,7 +255,6 @@ fn the_base_set_applies_from_tick_0() {
     let party = Engine::start_party(
         &RunSetup {
             mode: "time_limit".into(),
-            build_mode: BuildMode::Equipment,
             weapon: "giant_sword".into(),
             ..RunSetup::default()
         },
@@ -743,7 +741,6 @@ fn no_view_without_equipment_or_content() {
     let mut party = Engine::start_party(
         &RunSetup {
             mode: "time_limit".into(),
-            build_mode: BuildMode::Equipment,
             weapon: "giant_sword".into(),
             ..RunSetup::default()
         },

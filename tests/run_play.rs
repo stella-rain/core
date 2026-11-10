@@ -12,7 +12,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{Command, RunRecorder};
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::HeldView;
 
 /// The commands of a run of `run_input` for up to `ticks` ticks, answering every offer as
@@ -84,8 +84,8 @@ pub fn play_equipment_run_with(
     bot: &PartyBot,
 ) -> Vec<Command> {
     assert!(
-        setup.build_mode == BuildMode::Equipment,
-        "the equipment twin needs build_mode Equipment; use play_run_with for offers"
+        setup.sim_version >= 2,
+        "the equipment twin needs sim_version 2; use play_run_with for offers"
     );
     let mut rec = RunRecorder::start_with(setup, content).unwrap();
     let mut out = Vec::new();
@@ -426,7 +426,6 @@ fn equipment(name: &'static str, party: u8) -> PartyCase {
         setup: RunSetup {
             mode: "tutorial".into(),
             seed: 2,
-            build_mode: stella_rain_core::run_setup::BuildMode::Equipment,
             ..trial_setup()
         },
         party,

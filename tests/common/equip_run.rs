@@ -5,14 +5,12 @@
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::RunRecorder;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 
-/// `setup` in equipment mode, every other field kept.
+/// `setup` as it is: `sim_version` 2 is the equipment mode. Kept so a call site says which
+/// rules it means.
 pub fn equipment_setup(setup: RunSetup) -> RunSetup {
-    RunSetup {
-        build_mode: BuildMode::Equipment,
-        ..setup
-    }
+    setup
 }
 
 /// Steps `rec` for up to `ticks` ticks, or to the run's end. `inputs` gives each present slot's

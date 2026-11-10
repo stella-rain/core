@@ -4,13 +4,12 @@
 use super::equipment::{Held, SlotKind};
 use super::state::{PlayerIdx, State};
 use crate::engine::{Engine, Run};
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 
 fn setup(rune: Option<&str>, lumine: Option<&str>) -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         starting_rune: rune.map(|r| r.into()),
         lumine: u8::from(lumine.is_some()),
         lumine_star: lumine.map(|l| l.into()),
@@ -1715,7 +1714,6 @@ mod bundled_lumine {
 
     fn run(lumine: u8, star: Option<&str>) -> Engine {
         Engine::start(&RunSetup {
-            build_mode: BuildMode::Equipment,
             lumine,
             lumine_star: star.map(Into::into),
             ..RunSetup::default()
