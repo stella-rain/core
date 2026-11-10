@@ -338,7 +338,8 @@ fn the_trial_run_meets_elites_so_the_corpus_covers_them() {
             .collect();
         match c {
             Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
-            Command::Choose(i) => common::pick(&mut e, i).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         for ev in e.events() {
             match ev {

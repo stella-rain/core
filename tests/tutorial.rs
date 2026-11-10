@@ -159,7 +159,8 @@ fn the_tutorial_earns_no_stardust() {
                     .filter(|e| matches!(e, DomainEvent::Died { .. }))
                     .count();
             }
-            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     assert!(
@@ -215,7 +216,8 @@ fn trace(until: u32) -> Vec<Row> {
                     engine.outcome(),
                 ));
             }
-            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     rows
@@ -246,7 +248,8 @@ fn the_golem_is_not_on_the_field_before_the_arrival() {
                     }
                 }
             }
-            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     let empty = first_empty.expect("the bats run out before the golem comes");
