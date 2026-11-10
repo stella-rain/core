@@ -53,7 +53,7 @@ fn slot(i: u8) -> PlayerIdx {
 }
 
 /// The ramp-up of `s` at `tick`: the first inventory item and slot the engine accepts.
-fn ramp(engine: &Engine, s: u8, tick: u32) -> Option<EquipAction> {
+pub fn ramp(engine: &Engine, s: u8, tick: u32) -> Option<EquipAction> {
     if (tick + 10 * u32::from(s)) % 30 != 0 {
         return None;
     }
@@ -94,16 +94,21 @@ fn play_tick(engine: &mut Engine) {
     engine.step(&minute_inputs(tick));
 }
 
-/// The three-player equipment run, `ticks` ticks in.
-fn fast_forwarded(ticks: u32) -> Engine {
+/// The three-player equipment run at tick 0.
+pub fn start() -> Engine {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: SEED,
         build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
-    let mut engine = Engine::start_party_with(&setup, &worst_minute_case::content(), 3)
-        .expect("the three-player equipment run starts");
+    Engine::start_party_with(&setup, &worst_minute_case::content(), 3)
+        .expect("the three-player equipment run starts")
+}
+
+/// The three-player equipment run, `ticks` ticks in.
+fn fast_forwarded(ticks: u32) -> Engine {
+    let mut engine = start();
     for _ in 0..ticks {
         play_tick(&mut engine);
     }

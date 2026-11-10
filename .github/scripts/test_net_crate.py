@@ -9,7 +9,7 @@ import re
 import tomllib
 import unittest
 
-from test_rust_workflow import job_block, read, read_root
+from test_rust_workflow import ROOT, job_block, read, read_root
 
 BANNED = [
     "ggrs", "bevy_ggrs", "backroll", "matchbox_socket",
@@ -53,9 +53,32 @@ class Workspace(unittest.TestCase):
         self.assertIs(p["publish"], False)
         self.assertEqual(set(self.root["features"]), {"record", "bench"})
 
-    def test_core_never_depends_on_net(self):
-        for table in ("dependencies", "dev-dependencies"):
-            self.assertNotIn("stella-rain-net", self.root.get(table, {}))
+    def test_core_depends_on_net_only_as_a_bench_dev_dependency(self):
+        self.assertNotIn("stella-rain-net", self.root.get("dependencies", {}))
+        self.assertNotIn("stella-rain-net", self.root.get("build-dependencies", {}))
+        dev = self.root.get("dev-dependencies", {})
+        self.assertIn("stella-rain-net", dev, "the rollback_session bench needs it")
+        self.assertEqual(dev["stella-rain-net"], {"path": "net"})
+        # The one allowed dev-dependency is the rollback Session bench's: nothing else under
+        # src/, tests/, examples/ or benches/ names the crate, except the bench's own helpers and
+        # the test that pins the bench's cases.
+        allowed = (
+            "benches/rollback_session.rs",
+            "benches/session_case/",
+            "tests/bench_fixture_pins.rs",
+        )
+        users = []
+        for top in ("src", "tests", "examples", "benches"):
+            for dirpath, _, names in os.walk(os.path.join(ROOT, top)):
+                for name in names:
+                    if not name.endswith(".rs"):
+                        continue
+                    path = os.path.join(dirpath, name)
+                    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                    with open(path, encoding="utf-8") as f:
+                        if "stella_rain_net" in f.read() and not rel.startswith(allowed):
+                            users.append(rel)
+        self.assertEqual(users, [], "files other than the bench name stella_rain_net")
 
 
 class NetManifest(unittest.TestCase):
