@@ -11,8 +11,8 @@ use stella_rain_net::session::party::{
 };
 use stella_rain_net::transport::TransportError;
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN, Packet,
-    WireInput,
+    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
+    PROTOCOL_VERSION, Packet, WireInput,
 };
 use support::peers::{Peers, hello};
 use support::simnet::{Impair, SimEndpoint, SimNet};
@@ -51,11 +51,27 @@ fn net_of(
     hellos: &[Hello],
     impair: Impair,
 ) -> (SimNet, Vec<NetSession<Recording<SimEndpoint>>>, Vec<Tap>) {
+    net_of_with(
+        n,
+        hellos,
+        &vec![PartySettings::default(); usize::from(n)],
+        impair,
+    )
+}
+
+/// As [`net_of`], with the settings of each slot too.
+fn net_of_with(
+    n: u8,
+    hellos: &[Hello],
+    settings: &[PartySettings],
+    impair: Impair,
+) -> (SimNet, Vec<NetSession<Recording<SimEndpoint>>>, Vec<Tap>) {
     let net = SimNet::new(n, 1, impair);
     let taps: Vec<Tap> = (0..n).map(|_| Tap::new()).collect();
     let sessions = (0..n)
         .map(|i| {
-            let config = NetConfig::new(slot(i), hellos[usize::from(i)]);
+            let mut config = NetConfig::new(slot(i), hellos[usize::from(i)]);
+            config.settings = settings[usize::from(i)];
             let link = Recording::new(net.endpoint(i), taps[usize::from(i)].clone());
             NetSession::new(engine(n), config, link).expect("a valid config")
         })
@@ -397,7 +413,12 @@ fn one_delay_and_window_per_party() {
     // The bound that makes one value per party a rule: tick + 2 * delay + window + 1.
     let tap = Tap::new();
     let mut s = solo(2, &tap, settings);
-    tap.push(slot(1), &Packet::Hello(hello()));
+    let peer = Hello {
+        delay: settings.delay,
+        window: settings.window,
+        ..hello()
+    };
+    tap.push(slot(1), &Packet::Hello(peer));
     tap.push(slot(1), &frame(1, 0, 13));
     s.poll().expect("poll");
     assert_eq!(s.session().next_tick(slot(1)), 14);
@@ -550,4 +571,198 @@ fn a_checkpoint_from_the_far_future_is_refused() {
     );
     s.poll().expect("poll");
     assert_eq!(s.stats().refused, 1);
+}
+
+// ---- hello protocol 2: delay and window ----
+
+fn settings(delay: u32, window: u32) -> PartySettings {
+    PartySettings { delay, window }
+}
+
+fn run_rounds(net: &SimNet, sessions: &mut [NetSession<Recording<SimEndpoint>>], rounds: u32) {
+    for _ in 0..rounds {
+        net.step_round();
+        for s in sessions.iter_mut() {
+            let _ = s.advance(&Input::default());
+        }
+    }
+}
+
+#[test]
+fn a_settings_mismatch_is_refused_at_the_handshake_before_any_input() {
+    let cases = [
+        (settings(3, 4), Refusal::Delay),
+        (settings(2, 5), Refusal::Window),
+        (settings(3, 5), Refusal::Delay),
+        (settings(3, 3), Refusal::Delay),
+    ];
+    for (odd, expected) in cases {
+        let (net, mut sessions, taps) =
+            net_of_with(2, &[hello(), hello()], &[settings(2, 4), odd], clean(1));
+        run_rounds(&net, &mut sessions, 20);
+        for s in &sessions {
+            assert_eq!(s.phase(), Phase::Stopped, "{odd:?}");
+            assert_eq!(s.session().tick(), 0, "{odd:?}");
+            assert_eq!(s.stats().refused, 0, "{odd:?}");
+        }
+        assert_eq!(
+            sessions[1].stop_reason(),
+            Some(StopReason::Refused {
+                slot: slot(0),
+                why: expected
+            }),
+            "{odd:?}"
+        );
+        assert!(
+            matches!(
+                sessions[0].stop_reason(),
+                Some(StopReason::Refused { .. } | StopReason::RefusedBy(_))
+            ),
+            "{odd:?}"
+        );
+        for tap in &taps {
+            let sent = tap.sent();
+            assert!(
+                sent.iter()
+                    .any(|(_, p)| matches!(p, Packet::Bye(b) if b.reason == ByeReason::Refused)),
+                "a Bye Refused was sent"
+            );
+            assert!(
+                !sent.iter().any(|(_, p)| matches!(p, Packet::Input(_))),
+                "no input frame was sent"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_sim_version_difference_is_named_before_a_delay_difference() {
+    let good = hello();
+    let odd = Hello {
+        sim_version: good.sim_version + 1,
+        ..good
+    };
+    let (net, mut sessions, _) =
+        net_of_with(2, &[good, odd], &[settings(2, 4), settings(3, 4)], clean(1));
+    run_rounds(&net, &mut sessions, 20);
+    assert_eq!(
+        sessions[1].stop_reason(),
+        Some(StopReason::Refused {
+            slot: slot(0),
+            why: Refusal::SimVersion
+        })
+    );
+}
+
+#[test]
+fn three_peers_with_one_odd_window_all_stop() {
+    let (net, mut sessions, _) = net_of_with(
+        3,
+        &[hello(), hello(), hello()],
+        &[settings(2, 4), settings(2, 4), settings(2, 6)],
+        clean(1),
+    );
+    run_rounds(&net, &mut sessions, 20);
+    for s in &sessions {
+        assert_eq!(s.phase(), Phase::Stopped);
+    }
+}
+
+#[test]
+fn matching_non_default_settings_play() {
+    let (net, mut sessions, _) = net_of_with(
+        2,
+        &[hello(), hello()],
+        &[settings(3, 6), settings(3, 6)],
+        clean(1),
+    );
+    for _ in 0..100 {
+        run_rounds(&net, &mut sessions, 1);
+        for s in &sessions {
+            assert_ne!(s.phase(), Phase::Stopped);
+        }
+    }
+    for s in &sessions {
+        assert_eq!(s.phase(), Phase::Playing);
+        assert!(s.session().tick() > 0);
+    }
+}
+
+#[test]
+fn the_hello_sent_carries_the_settings_not_the_configs_own_values() {
+    let tap = Tap::new();
+    let mut config = NetConfig::new(
+        slot(0),
+        Hello {
+            delay: 9,
+            window: 9,
+            ..hello()
+        },
+    );
+    config.settings = settings(3, 6);
+    let mut s = NetSession::new(engine(2), config, Scripted(tap.clone())).expect("a valid config");
+    let _ = s.advance(&Input::default());
+    let hellos: Vec<Hello> = tap
+        .sent()
+        .into_iter()
+        .filter_map(|(_, p)| match p {
+            Packet::Hello(h) => Some(h),
+            _ => None,
+        })
+        .collect();
+    assert!(!hellos.is_empty());
+    for h in hellos {
+        assert_eq!((h.delay, h.window), (3, 6));
+        assert_eq!(h.protocol, PROTOCOL_VERSION);
+    }
+}
+
+const HELLO_V1_BYTES: &str =
+    "010100000002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+fn v1_bytes() -> Vec<u8> {
+    (0..HELLO_V1_BYTES.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&HELLO_V1_BYTES[i..i + 2], 16).unwrap())
+        .collect()
+}
+
+#[test]
+fn a_protocol_1_peer_is_refused_not_dropped_as_garbage() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push_bytes(slot(1), v1_bytes());
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Stopped);
+    assert_eq!(
+        s.stop_reason(),
+        Some(StopReason::Refused {
+            slot: slot(1),
+            why: Refusal::Protocol
+        })
+    );
+    assert_eq!(s.stats().dropped, 1);
+    assert_eq!(s.stats().bad_packets, 0);
+    let sent = tap.count();
+    let _ = s.advance(&Input::default());
+    assert!(tap.count() > sent);
+    assert!(
+        tap.sent()
+            .iter()
+            .any(|(_, p)| matches!(p, Packet::Bye(b) if b.reason == ByeReason::Refused))
+    );
+}
+
+#[test]
+fn a_protocol_1_hello_after_a_good_one_is_only_dropped() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &Packet::Hello(hello()));
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Playing);
+    let dropped = s.stats().dropped;
+    tap.push_bytes(slot(1), v1_bytes());
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Playing);
+    assert_eq!(s.stats().dropped, dropped + 1);
 }
