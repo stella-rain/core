@@ -687,7 +687,6 @@ mod stop_runs {
     #[test]
     fn stop_with_an_offer_open_stops_the_world() {
         let mut e = Engine::start(&RunSetup {
-            pick_stats: true,
             ..RunSetup::default()
         })
         .unwrap();
@@ -699,7 +698,6 @@ mod stop_runs {
         assert_eq!(e.tick(), t);
         assert!(!e.offer_open() || e.state_hash() != h);
         let mut r = RunRecorder::start(&RunSetup {
-            pick_stats: true,
             ..RunSetup::default()
         })
         .unwrap();

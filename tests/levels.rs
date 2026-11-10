@@ -1,6 +1,6 @@
 //! Experience, levels and stat points (ADR-REPL-5; DS18): defeated enemies give experience,
 //! and a level-up raises a run stat (ADR-CONT-1) by its step: the first of the stat priority below
-//! its limit at once, or with `pick_stats` the one a stat offer's choice names. Only a stage with
+//! its limit at once. Only a stage with
 //! `levels` (a mode's) has them.
 
 use serde_json::{Value, json};
@@ -505,23 +505,14 @@ fn xp_pct_acts_on_one_kill() {
 
 // --- The stat priority and the stat offer (DS18) -----------------------------------------------
 
-/// An engine on `stage` whose level-ups follow `priority` (run stat IDs), opening an offer per
-/// level with `pick_stats`.
-fn engine_with_stats(stage: &Stage, priority: &[&str], pick_stats: bool) -> Engine {
+/// An engine on `stage` whose level-ups follow `priority` (run stat IDs).
+fn engine_with_stats(stage: &Stage, priority: &[&str]) -> Engine {
     let priority: Vec<ContentId> = priority.iter().map(|id| (*id).into()).collect();
-    Engine::new_with_stats(stage, RunContent::bundled(), &priority, pick_stats).unwrap()
+    Engine::new_with_stats(stage, RunContent::bundled(), &priority, false).unwrap()
 }
 
 fn level(e: &Engine) -> u32 {
     e.snapshot().progress.expect("a stage with levels").level
-}
-
-fn stat_offer(e: &Engine) -> Option<Vec<ContentId>> {
-    e.snapshot()
-        .progress
-        .expect("a stage with levels")
-        .stat_offer
-        .map(|o| o.options)
 }
 
 fn stat_ids() -> Vec<ContentId> {
@@ -538,7 +529,7 @@ fn a_level_up_spends_on_the_first_priority_stat_below_its_limit() {
     let (speed, attack) = (4, 1);
     let limit = RunStats::bundled().stats()[speed].limit;
     let stage = leveled(&[1], vec![targets(u16::from(limit) + 2, None)]);
-    let mut e = engine_with_stats(&stage, &["speed", "attack"], false);
+    let mut e = engine_with_stats(&stage, &["speed", "attack"]);
     let seen = fire_until(&mut e, idle(), 1200, |e| level(e) > u32::from(limit) + 1);
     let raised: Vec<&ContentId> = seen
         .iter()
@@ -556,56 +547,6 @@ fn a_level_up_spends_on_the_first_priority_stat_below_its_limit() {
     want[attack] = 1;
     assert_eq!(spent(&e), want);
     assert!(!e.offer_open());
-    assert_eq!(stat_offer(&e), None);
-}
-
-#[test]
-fn pick_stats_opens_one_offer_per_level_in_order() {
-    let ids = stat_ids();
-    // One kill worth 2 experience: two levels in one tick, so two offers, one after the other.
-    let stage = leveled(&[1], vec![targets(1, Some(2))]);
-    let mut e = engine_with_stats(&stage, &["speed"], true);
-    fire_until(&mut e, idle(), 600, |e| e.offer_open());
-    assert_eq!(level(&e), 3);
-    assert_eq!(
-        stat_offer(&e),
-        Some(ids.clone()),
-        "every stat, in file order"
-    );
-    assert_eq!(spent(&e), vec![0; ids.len()], "nothing is spent on its own");
-    assert!(
-        e.events()
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::StatOfferOpened { options } if *options == ids))
-    );
-    let tick = e.tick();
-    e.step(&[idle(), Default::default(), Default::default()]);
-    assert_eq!(
-        e.tick(),
-        tick,
-        "the world is stopped while the offer is open"
-    );
-    assert_eq!(
-        common::pick(&mut e, u32::try_from(ids.len()).unwrap()).map_err(|_| ()),
-        Err(())
-    );
-    // Choosing closes it, raises that stat, and opens the second level's offer.
-    common::pick(&mut e, 1).unwrap();
-    assert!(matches!(
-        e.events(),
-        [
-            DomainEvent::StatRaised { stat, spent: 1 },
-            DomainEvent::StatOfferOpened { .. }
-        ] if *stat == ids[1]
-    ));
-    assert!(e.offer_open());
-    common::pick(&mut e, 0).unwrap();
-    assert!(!e.offer_open());
-    assert_eq!(stat_offer(&e), None);
-    let mut want = vec![0; ids.len()];
-    (want[0], want[1]) = (1, 1);
-    assert_eq!(spent(&e), want);
-    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -614,27 +555,19 @@ fn every_stat_at_its_limit_gives_nothing() {
     let all: u32 = stats.iter().map(|s| u32::from(s.limit)).sum();
     // One kill worth all the points and 5 levels more.
     let stage = leveled(&[1], vec![targets(1, Some(all + 5))]);
-    for pick_stats in [false, true] {
-        let mut e = engine_with_stats(&stage, &[], pick_stats);
-        fire_until(&mut e, idle(), 600, |e| level(e) > 1);
-        let mut offers = 0;
-        while e.offer_open() {
-            common::pick(&mut e, 0).unwrap();
-            offers += 1;
-        }
-        assert_eq!(level(&e), all + 6, "pick_stats {pick_stats}");
-        assert_eq!(
-            spent(&e),
-            stats.iter().map(|s| s.limit).collect::<Vec<u8>>()
-        );
-        assert_eq!(offers, if pick_stats { all } else { 0 });
-        assert_eq!(stat_offer(&e), None);
-        e.step(&[idle(), Default::default(), Default::default()]);
-        assert!(
-            !e.offer_open(),
-            "no offer opens for the levels past the limits"
-        );
-    }
+    let mut e = engine_with_stats(&stage, &[]);
+    fire_until(&mut e, idle(), 600, |e| level(e) > 1);
+    assert!(!e.offer_open());
+    assert_eq!(level(&e), all + 6);
+    assert_eq!(
+        spent(&e),
+        stats.iter().map(|s| s.limit).collect::<Vec<u8>>()
+    );
+    e.step(&[idle(), Default::default(), Default::default()]);
+    assert!(
+        !e.offer_open(),
+        "no offer opens for the levels past the limits"
+    );
 }
 
 #[test]

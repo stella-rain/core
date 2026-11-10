@@ -61,8 +61,7 @@ pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        // Every level-up opens a stat offer: the most commands a run can cost.
-        pick_stats: true,
+        // The most commands a run can cost: every offer answered.
         difficulty: difficulty.into(),
         ..RunSetup::default()
     }

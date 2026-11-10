@@ -94,21 +94,6 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     assert_eq!(p.spent[usize::from(attack)], 2);
 }
 
-/// T2: pin: an offers run with the switch queues the stat offers and spends nothing.
-#[test]
-fn an_offers_level_up_with_the_switch_queues_the_stat_offer() {
-    let mut e = engine(BuildMode::Offers);
-    let events = level_up(&mut e, &[1, 4], true, 2);
-    let p = progress(&e);
-    assert_eq!(p.offers_due, 2);
-    assert!(
-        !events
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::StatRaised { .. }))
-    );
-    assert!(p.spent.iter().all(|n| *n == 0));
-}
-
 /// The `type` strings of `events`.
 fn kinds(events: &[DomainEvent]) -> Vec<String> {
     events

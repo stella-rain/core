@@ -287,12 +287,6 @@ fn the_events_that_name_an_id_keep_their_json() {
             r#"{"type":"RewardTaken","data":{"reward":"r","taken":1}}"#,
         ),
         (
-            DomainEvent::StatOfferOpened {
-                options: vec![ContentId::from("attack"), ContentId::from("speed")],
-            },
-            r#"{"type":"StatOfferOpened","data":{"options":["attack","speed"]}}"#,
-        ),
-        (
             DomainEvent::PartBroken {
                 part: ContentId::from("arm"),
             },

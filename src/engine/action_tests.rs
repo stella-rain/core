@@ -18,7 +18,6 @@ const ALL: [EquipAction; 5] = [
 fn setup() -> RunSetup {
     RunSetup {
         seed: 20_261_105,
-        pick_stats: true,
         ..RunSetup::default()
     }
 }

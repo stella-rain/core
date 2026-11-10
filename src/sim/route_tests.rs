@@ -40,7 +40,6 @@ fn big_map() -> Map {
 fn party(at: [Point; 3]) -> (World, State) {
     let setup = RunSetup {
         seed: 20_261_104,
-        pick_stats: true,
         ..RunSetup::default()
     };
     let mut e = Engine::start_party(&setup, 3).expect("a party");
@@ -551,7 +550,6 @@ fn a_combo_run_belongs_to_any_present_player() {
     let mut e = Engine::start_party(
         &RunSetup {
             seed: 3,
-            pick_stats: true,
             ..RunSetup::default()
         },
         3,

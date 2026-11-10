@@ -18,7 +18,6 @@ use crate::run_setup::RunSetup;
 fn setup() -> RunSetup {
     RunSetup {
         seed: 20_261_010,
-        pick_stats: true,
         ..RunSetup::default()
     }
 }

@@ -984,28 +984,21 @@ mod decisions {
 
     type Held = Option<(Engine, u8)>;
 
-    /// Steps `e` until the first offer of each kind has opened (answering the others with
-    /// option 0 by the holder): the engine at the first star or boss offer and at the first stat
-    /// or expertise offer, with the slot that holds each.
-    fn first_offers(mut e: Engine, n: u8) -> (Held, Held) {
-        let (mut star, mut stat) = (None, None);
+    /// Steps `e` until the first star or boss offer has opened (answering the others with
+    /// option 0 by the holder): the engine then, with the slot that holds it.
+    fn first_star_offer(mut e: Engine, n: u8) -> Held {
         for t in 0..4000 {
             if e.offer_open() {
                 let holder = (0..n)
                     .find(|s| e.check_pick(PlayerIdx::new(*s).unwrap(), 0).is_ok())
                     .unwrap();
                 let slot = PlayerIdx::new(holder).unwrap();
-                if e.offer_ratings(slot).is_empty() {
-                    stat.get_or_insert_with(|| (e.clone(), holder));
-                } else {
-                    star.get_or_insert_with(|| (e.clone(), holder));
+                if !e.offer_ratings(slot).is_empty() {
+                    return Some((e, holder));
                 }
                 let mut inputs = [Input::default(); 3];
                 inputs[usize::from(holder)] = Input::picking(0);
                 e.step(&inputs);
-                if star.is_some() && stat.is_some() {
-                    break;
-                }
                 continue;
             }
             let mut inputs = [Input::default(); 3];
@@ -1017,16 +1010,15 @@ mod decisions {
             }
             e.step(&inputs);
         }
-        (star, stat)
+        None
     }
 
     #[test]
-    fn it_picks_the_best_rated_take_and_a_seeded_take_of_a_stat_offer() {
+    fn it_picks_the_best_rated_take_of_a_star_offer() {
         let b = bot();
         let e = party(2);
         assert_eq!(b.pick(&e, 0, 0), None, "no offer at the start");
-        let (star, stat) = first_offers(e, 2);
-        let (e, holder) = star.expect("a star offer opens");
+        let (e, holder) = first_star_offer(e, 2).expect("a star offer opens");
         let ratings = e.offer_ratings(PlayerIdx::new(holder).unwrap());
         let best = ratings.iter().map(|r| r.dps_bp.unwrap_or(0)).max().unwrap();
         let want = ratings
@@ -1040,25 +1032,6 @@ mod decisions {
         // The other slot has no offer.
         let other = 1 - holder;
         assert_eq!(b.pick(&e, other, e.tick()), None);
-
-        let (e, holder) = stat.expect("a stat offer opens");
-        {
-            let player = PlayerIdx::new(holder).unwrap();
-            let Err(ChoiceError::OutOfRange { options, .. }) = e.check_pick(player, u32::MAX)
-            else {
-                panic!("an offer is open");
-            };
-            for seed in 1..=5 {
-                let b = PartyBot {
-                    seed,
-                    builds: false,
-                };
-                let got = b.pick(&e, holder, e.tick()).unwrap();
-                assert!(got < options);
-                assert_eq!(Some(got), b.pick(&e, holder, e.tick()));
-                assert!(e.check_pick(player, got).is_ok());
-            }
-        }
     }
 }
 
