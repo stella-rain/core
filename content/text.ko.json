@@ -1,19 +1,19 @@
 {
   "difficulties/easy": {
-    "description": "Weaker enemies, a 10-minute Time Limit and no rarer reward than rare",
-    "title": "Easy"
+    "description": "약한 적, 10분의 제한 시간, 희귀보다 높은 등급의 보상은 나오지 않아요",
+    "title": "쉬움"
   },
   "difficulties/hard": {
-    "description": "Tougher enemies that hit harder, and every rarity may drop",
-    "title": "Hard"
+    "description": "더 강하고 더 세게 때리는 적, 모든 등급이 나올 수 있어요",
+    "title": "어려움"
   },
   "difficulties/normal": {
-    "description": "The game as designed",
-    "title": "Normal"
+    "description": "의도한 그대로의 게임이에요",
+    "title": "보통"
   },
   "difficulties/rainy": {
-    "description": "Enemies with twice the hit points, and nothing common drops",
-    "title": "Rainy"
+    "description": "체력이 두 배인 적, 일반 등급은 나오지 않아요",
+    "title": "비 오는 날"
   },
   "expertise/attack_speed": {
     "description": "Attacks 10 percent faster",
@@ -132,20 +132,20 @@
     "title": "Vitality"
   },
   "perk_sets/duelist": {
-    "description": "Hits harder and faster",
-    "title": "Duelist"
+    "description": "더 세고 더 빠르게 공격해요",
+    "title": "결투가"
   },
   "perk_sets/scholar": {
-    "description": "More say in the offers",
-    "title": "Scholar"
+    "description": "선택지를 고를 수 있는 폭이 더 넓어요",
+    "title": "학자"
   },
   "perk_sets/scout": {
-    "description": "Moves and evades more freely",
-    "title": "Scout"
+    "description": "더 자유롭게 움직이고 회피해요",
+    "title": "척후병"
   },
   "perk_sets/vanguard": {
-    "description": "More hit points, and they come back on their own",
-    "title": "Vanguard"
+    "description": "체력이 더 많고, 저절로 회복해요",
+    "title": "선봉"
   },
   "rewards/aegis_rare": {
     "description": "A shield absorbs the next hits for a while",
@@ -712,43 +712,43 @@
     "title": "Insight (Uncommon)"
   },
   "run_stats/attack": {
-    "description": "More damage from every attack",
-    "title": "Attack"
+    "description": "모든 공격의 피해가 늘어나요",
+    "title": "공격력"
   },
   "run_stats/attack_speed": {
-    "description": "Every attack is faster",
-    "title": "Attack Speed"
+    "description": "모든 공격이 빨라져요",
+    "title": "공격 속도"
   },
   "run_stats/evade": {
-    "description": "A shorter evade cooldown",
-    "title": "Evade"
+    "description": "회피 재사용 대기시간이 짧아져요",
+    "title": "회피"
   },
   "run_stats/max_hp": {
-    "description": "100 more hit points at most, and as many healed",
-    "title": "Max HP"
+    "description": "최대 체력이 100 늘고, 그만큼 회복해요",
+    "title": "최대 체력"
   },
   "run_stats/speed": {
-    "description": "Move faster",
-    "title": "Speed"
+    "description": "더 빠르게 움직여요",
+    "title": "이동 속도"
   },
   "stage_skills/aegis": {
-    "description": "A shield absorbs the next hits for a while",
-    "title": "Aegis"
+    "description": "방어막이 잠시 동안 다음 공격들을 막아줘요",
+    "title": "이지스"
   },
   "stage_skills/black_hole": {
-    "description": "Pulls the enemies ahead into one point and holds them there",
-    "title": "Black Hole"
+    "description": "앞쪽의 적을 한 점으로 끌어당겨 붙잡아 둬요",
+    "title": "블랙홀"
   },
   "stage_skills/hex": {
-    "description": "The enemies ahead take more damage for 5 seconds",
-    "title": "Hex"
+    "description": "앞쪽의 적이 5초 동안 더 많은 피해를 받아요",
+    "title": "저주"
   },
   "stage_skills/nova": {
-    "description": "A burst of starlight strikes the area ahead",
-    "title": "Nova"
+    "description": "별빛이 터져 앞쪽 지역을 강타해요",
+    "title": "노바"
   },
   "stage_skills/war_cry": {
-    "description": "Your attacks hit harder for 5 seconds",
-    "title": "War Cry"
+    "description": "5초 동안 공격이 더 강해져요",
+    "title": "함성"
   }
 }
