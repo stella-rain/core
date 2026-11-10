@@ -1,23 +1,18 @@
-//! `Engine::step`, `RunRecorder::step` and `RunRecorder::picks` take one entry per slot, present
-//! or not (ADR-SIM-7, ADR-REPL-5): an absent slot's input and pick are ignored, and the step log
+//! `Engine::step` and `RunRecorder::step` take one entry per slot, present
+//! or not (ADR-SIM-7, ADR-REPL-5): an absent slot's input is ignored, and the step log
 //! is still written dense, one block per present slot (ADR-REPL-5).
 
 use crate::common::run::trial_setup;
 use stella_rain_core::engine::Engine;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::{RunRecorder, verify_run};
 use stella_rain_core::{RangeStep, StepRange};
-
-fn slot(i: u8) -> PlayerIdx {
-    PlayerIdx::new(i).unwrap()
-}
 
 fn d() -> Input {
     Input::default()
 }
 
-/// Everything set, a pick included: what a caller must not be able to leak through an absent slot.
+/// Everything set: what a caller must not be able to leak through an absent slot.
 fn garbage() -> Input {
     Input {
         main: true,
@@ -26,7 +21,6 @@ fn garbage() -> Input {
         evade: true,
         skill: true,
         smash: true,
-        pick: Some(0),
         ..Input::default()
     }
 }
@@ -50,12 +44,6 @@ fn input_of(slot: usize, tick: u32) -> Input {
             ..Input::default()
         },
     }
-}
-
-fn holder(engine: &Engine, n: u8) -> u8 {
-    (0..n)
-        .find(|i| engine.check_pick(slot(*i), 0).is_ok())
-        .expect("an open offer belongs to a slot")
 }
 
 fn steps(rec: &RunRecorder) -> StepRange {
@@ -87,10 +75,6 @@ fn a_solo_run_is_the_same_run() {
 fn record(n: u8, ticks: u32, fill: Input) -> RunRecorder {
     let mut rec = RunRecorder::start_party(&trial_setup(), n).unwrap();
     for t in 0..ticks {
-        while rec.engine().offer_open() {
-            let h = holder(rec.engine(), n);
-            rec.choose(slot(h), 0).unwrap();
-        }
         let mut inputs = [fill; 3];
         for (s, input) in inputs.iter_mut().enumerate().take(usize::from(n)) {
             *input = input_of(s, t);
@@ -115,5 +99,3 @@ fn the_step_log_is_dense_for_a_solo_run_and_a_party() {
         }
     }
 }
-
-// D. `picks` ignores an absent slot's pick.

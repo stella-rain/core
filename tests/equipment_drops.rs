@@ -49,7 +49,7 @@ fn an_equipment_setup_starts() {
 /// that tick (the placeholder is one drop, ADR-CONT-3 point 8).
 #[test]
 fn a_boss_kill_drops_for_the_member_who_is_up() {
-    use crate::common::run::{answer_all, trial_setup};
+    use crate::common::run::trial_setup;
     use stella_rain_core::engine::Outcome;
     use stella_rain_core::event::DomainEvent;
     use stella_rain_core::snapshot::EntityKind;
@@ -60,12 +60,10 @@ fn a_boss_kill_drops_for_the_member_who_is_up() {
             ..trial_setup()
         };
         let mut e = Engine::start(&setup).unwrap();
-        let (mut out, mut offers) = (Vec::new(), 0);
         for t in 0..10_800 {
             if e.outcome() != Outcome::Running {
                 break;
             }
-            answer_all(&mut e, &mut offers, &mut out);
             let input = crate::zone_bot::run_input_for(
                 &e,
                 t,

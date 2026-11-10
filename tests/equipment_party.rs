@@ -22,14 +22,8 @@ fn setup() -> RunSetup {
     RunSetup { ..trial_setup() }
 }
 
-/// One tick: slot 0 walks right, the rest stand; an open offer is answered first.
-fn tick(rec: &mut RunRecorder, party: u8) {
-    while rec.engine().offer_open() {
-        let holder = (0..party)
-            .find(|i| rec.engine().check_pick(slot(*i), 0).is_ok())
-            .expect("an open offer belongs to a slot");
-        rec.choose(slot(holder), 0).unwrap();
-    }
+/// One tick: slot 0 walks right, the rest stand.
+fn tick(rec: &mut RunRecorder) {
     let walk = Input {
         move_x: 100,
         ..Input::default()
@@ -43,7 +37,7 @@ fn until_downed(party: u8) -> RunRecorder {
     let mut rec = RunRecorder::start_party(&setup(), party).unwrap();
     while rec.engine().snapshot().players[1].down.is_none() {
         assert!(rec.engine().tick() < 4_000, "slot 1 goes down");
-        tick(&mut rec, party);
+        tick(&mut rec);
     }
     assert_eq!(rec.engine().outcome(), Outcome::Running);
     rec
@@ -59,8 +53,8 @@ fn a_downed_party_resumes_with_its_rolls() {
     assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
     let mut live = live;
     for t in 0..180 {
-        tick(&mut live, 2);
-        tick(&mut resumed, 2);
+        tick(&mut live);
+        tick(&mut resumed);
         if t % 60 == 0 {
             assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
         }
@@ -74,11 +68,11 @@ fn a_downed_party_resumes_with_its_rolls() {
 fn a_savepoint_after_a_leave_resumes_with_the_hole() {
     let mut live = RunRecorder::start_party(&setup(), 3).unwrap();
     for _ in 0..300 {
-        tick(&mut live, 3);
+        tick(&mut live);
     }
     live.leave(slot(1)).unwrap();
     for _ in 0..60 {
-        tick(&mut live, 3);
+        tick(&mut live);
     }
     assert_eq!(live.engine().present(), 0b101);
     let (prefix, bytes) = (live.replay(), live.save());
@@ -86,8 +80,8 @@ fn a_savepoint_after_a_leave_resumes_with_the_hole() {
     assert_eq!(resumed.engine().present(), 0b101);
     assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
     for _ in 0..120 {
-        tick(&mut live, 3);
-        tick(&mut resumed, 3);
+        tick(&mut live);
+        tick(&mut resumed);
     }
     assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
 }
@@ -163,18 +157,7 @@ fn trace(replay: &RunReplay) -> Trace {
                     note(&e, &mut out);
                 }
             }
-            RangeStep::Picks { picks } => {
-                let mut all = [Input::default(); 3];
-                let mut it = picks.iter();
-                for (s, slot) in all.iter_mut().enumerate() {
-                    if e.present() >> s & 1 == 1 {
-                        if let Some(k) = it.next().unwrap() {
-                            *slot = Input::picking(*k);
-                        }
-                    }
-                }
-                e.step(&all);
-            }
+            RangeStep::Picks { .. } => unreachable!("no offer opens in equipment mode"),
             RangeStep::Join { slot: s } => e.join(slot(*s)).unwrap(),
             RangeStep::Leave { slot: s } => e.leave(slot(*s)).unwrap(),
             RangeStep::Actions { .. } => unreachable!("no equipment action here"),
