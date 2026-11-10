@@ -1427,13 +1427,10 @@ fn run_definitions() -> Vec<RunDefinition> {
     ]
 }
 
-/// The offers-era `trial` run, recorded in the test at `sim_version` 1, the frozen offers rules
-/// (the readers whose intent needs a run with PICKS steps use it).
-pub(crate) fn offers_trial_run() -> RunReplay {
-    let setup = RunSetup {
-        sim_version: 1,
-        ..common::run::trial_setup()
-    };
+/// A live `trial` run, recorded in the test at the live rules: a run that is no equipment case
+/// and has no ACTIONS step, so the readers that need a schema 1 form of a run use it.
+pub(crate) fn live_trial_run() -> RunReplay {
+    let setup = common::run::trial_setup();
     let commands = crate::run_play::play_run_from(&setup, common::run::TRIAL_LENGTH);
     run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
 }
