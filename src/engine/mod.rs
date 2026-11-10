@@ -1238,11 +1238,11 @@ impl Engine {
 
     /// Opens what is due to every present player, as the tick's last step does (tests).
     pub(crate) fn open_offers_for_test(&mut self) {
-        let (rewards, expertise) = (self.content.rewards(), self.content.expertise());
+        let rewards = self.content.rewards();
         let Run::V2 { world, state } = &mut self.run else {
             panic!("the live rules");
         };
-        crate::sim::open_offers_for_test(world, rewards, expertise, state, &mut self.events);
+        crate::sim::open_offers_for_test(world, rewards, state, &mut self.events);
     }
 
     /// An engine for `stage` under the rules of `version`, past the `SIM_VERSION` check.

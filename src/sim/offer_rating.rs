@@ -229,16 +229,12 @@ pub(crate) fn offer_ratings(
     me: PlayerIdx,
 ) -> Vec<OfferRating> {
     let career = s.players.career(me);
-    let expertise_open = career.expertise.as_ref().is_some_and(|g| g.offer.is_some());
     let (Some(f), Some(offers)) = (s.stars.as_ref(), career.offers.as_ref()) else {
         return Vec::new();
     };
     let Some(open) = offers.offer.as_ref() else {
         return Vec::new();
     };
-    if expertise_open || super::stat_offer_open(s, me) {
-        return Vec::new();
-    }
     let held = &s.players[me];
     let before = Rate::of(world, s, &career.progress, held);
     let before_sheet = sheet(s, &career.progress, held, career.regen, Some(offers));

@@ -25,8 +25,8 @@ use super::equipment::{Held, SlotKind};
 use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, StatusState};
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
-    combo_view, constellation_views, expertise_offer_view, expertise_styles_view, hold_view,
-    offer_view, phase, starlight, stat_offer_view, tree_ready_view, weapon_stats_view, xp_next,
+    combo_view, constellation_views, expertise_styles_view, hold_view, offer_view, phase,
+    starlight, tree_ready_view, weapon_stats_view, xp_next,
 };
 
 /// Clears `out` and fills it for the state after the last tick: what `snapshot()` shows for
@@ -426,7 +426,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 xp: p.xp,
                 xp_next: xp_next(world, p.level),
                 spent: p.spent.clone(),
-                stat_offer: stat_offer_view(s, shown),
+                stat_offer: None,
                 offer: offer_view(content.rewards(), s, shown),
             }),
         expertise: s.players.career(shown).expertise.as_ref().map(|g| {
@@ -438,7 +438,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 taken: g.taken.clone(),
                 style,
                 path,
-                offer: expertise_offer_view(world, content.expertise(), s, shown),
+                offer: None,
             }
         }),
         patterns: announced_patterns(world, s),

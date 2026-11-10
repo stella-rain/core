@@ -568,31 +568,6 @@ fn experience_goes_to_the_players_that_are_up_only() {
 }
 
 #[test]
-fn a_downed_player_queues_no_stat_offer_from_a_kill() {
-    let (w, mut s) = one_up_one_downed_one_out();
-    for i in s.players.indices().collect::<Vec<_>>() {
-        s.players
-            .career_mut(i)
-            .progress
-            .as_mut()
-            .unwrap()
-            .pick_stats = true;
-    }
-    let mut ev = Vec::new();
-    super::levels::credit_defeated(&w, &mut s, &mut ev);
-    let due = |i| {
-        s.players
-            .career(slot(i))
-            .progress
-            .as_ref()
-            .unwrap()
-            .offers_due
-    };
-    assert!(due(0) > 0);
-    assert_eq!((due(1), due(2)), (0, 0));
-}
-
-#[test]
 fn every_player_that_is_up_gets_the_same_experience() {
     let (w, mut s) = level_up_state(3);
     let mut ev = Vec::new();
