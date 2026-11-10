@@ -207,7 +207,8 @@ fn mode_kills(setup: &RunSetup, commands: &[Command]) -> Vec<(u32, u32)> {
         let before = e.stardust();
         match c {
             Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
-            Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         if e.stardust() > before {
             out.push((e.tick(), e.stardust() - before));
@@ -238,7 +239,8 @@ fn a_verified_run_reports_the_stardust_it_earned() {
     for c in &commands {
         match c {
             Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
-            Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     assert!(e.stardust() > 0);

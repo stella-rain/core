@@ -411,7 +411,8 @@ fn a_full_time_limit_run_verifies_and_pays_the_new_earners() {
     for c in &commands {
         match c {
             Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
-            Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     let replay = record_run(&setup, &commands).unwrap();

@@ -12,11 +12,6 @@ use stella_rain_core::version::Versions;
 /// The trial mode's length.
 pub const TRIAL_LENGTH: u32 = 5400;
 
-/// The seed of the offers-era `time_limit` run that `tests/tally.rs` and the schema 2 readers still
-/// record in the test with the offers path: the first seed where it names at least 11 stars
-/// (`tests/tally.rs`) with the 840 px view; the trial's seed names 8.
-pub const OFFERS_TIME_LIMIT_SEED: u64 = 1;
-
 /// The bot seed of a run case that keeps the world seed it had (`tutorial`, `time_limit_overtime`,
 /// `easy`, `rainy`): the building bot's first seed.
 pub const KEPT_BOT_SEED: u64 = 1;

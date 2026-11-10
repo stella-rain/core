@@ -8,9 +8,13 @@ const REPLACE37: EquipAction = EquipAction::Replace { item: 3, slot: 7 };
 fn an_input_without_an_action_writes_no_action_key() {
     let json = serde_json::to_string(&Input::default()).unwrap();
     assert!(!json.contains("action"), "{json}");
-    let json = serde_json::to_string(&Input::picking(2)).unwrap();
+    let json = serde_json::to_string(&Input {
+        main: true,
+        ..Input::default()
+    })
+    .unwrap();
     assert!(!json.contains("action"), "{json}");
-    assert!(json.contains("\"pick\":2"), "{json}");
+    assert!(json.contains("\"main\":true"), "{json}");
 }
 
 #[test]

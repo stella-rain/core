@@ -8,7 +8,7 @@
 use crate::common;
 use stella_rain_core::version::Versions;
 
-use common::run::{answer_all, run_input, time_limit_setup, trial_setup};
+use common::run::{run_input, time_limit_setup, trial_setup};
 use common::*;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -673,12 +673,10 @@ fn spawns_and_relocations(
     };
     let mut known = ids(&e);
     let (mut spawned, mut moved) = (0, 0);
-    let (mut offers, mut out) = (0, Vec::new());
     for t in 0..ticks {
         if e.outcome() != Outcome::Running {
             break;
         }
-        answer_all(&mut e, &mut offers, &mut out);
         let i = input(&e, t);
         e.step(&[i, Default::default(), Default::default()]);
         let now = ids(&e);
