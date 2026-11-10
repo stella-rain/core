@@ -89,8 +89,9 @@ fn issues(stage: &Stage) -> Vec<Issue> {
 #[test]
 fn the_chase_walks_at_the_set_speed_and_stops() {
     let p = path(&stage_of(boss_json(chase(256, STOP)), 600), 300);
-    for k in 1..=245 {
-        assert_eq!(p[k - 1], (BOSS_X, BOSS_Y + 256 * k as i32), "tick {k}");
+    for (i, &at) in p[..245].iter().enumerate() {
+        let k = i32::try_from(i).unwrap() + 1;
+        assert_eq!(at, (BOSS_X, BOSS_Y + 256 * k), "tick {k}");
     }
     assert_eq!(p[245], (BOSS_X, 122_880), "the last step is the 160 left");
     assert!(p[245..].iter().all(|&at| at == (BOSS_X, 122_880)));
@@ -286,7 +287,7 @@ fn with_two_players_up_each_step_points_at_one_of_them() {
 #[test]
 fn a_copy_mid_chase_and_before_an_arrival_finishes_with_the_same_hashes() {
     for (boss, cut) in [
-        (chase(256, STOP), 100),
+        (chase(256, STOP), 100_usize),
         (json!({ "arrives_at_tick": 50 }), 20),
     ] {
         let stage = stage_of(boss_json(boss), 600);
@@ -296,13 +297,13 @@ fn a_copy_mid_chase_and_before_an_arrival_finishes_with_the_same_hashes() {
             tick(&mut e);
         }
         let mut copy = e.clone();
-        let rest: Vec<u64> = (cut..160)
+        let rest: Vec<u64> = (cut..160_usize)
             .map(|_| {
                 tick(&mut copy);
                 copy.state_hash()
             })
             .collect();
-        assert_eq!(rest, whole[cut as usize..]);
+        assert_eq!(rest, whole[cut..]);
     }
 }
 
