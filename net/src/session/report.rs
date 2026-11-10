@@ -5,7 +5,7 @@ use std::fmt;
 
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{RunReplay, RunReplayError};
+use stella_rain_core::run_replay::{RunRecorder, RunReplay, RunReplayError};
 use stella_rain_core::run_setup::RunSetup;
 
 use super::ConfirmedTick;
@@ -56,7 +56,26 @@ impl DesyncReport {
     /// Rebuilds the run through a [`stella_rain_core::run_replay::RunRecorder`]: per logged
     /// tick the leaves stamped on it, then the step. Nothing runs until this is called.
     pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
-        let _ = (setup, content);
-        todo!()
+        let mut recorder = RunRecorder::start_party_with(setup, content, self.party)
+            .map_err(ReportError::Setup)?;
+        for logged in &self.ticks {
+            for slot in 0..3u8 {
+                if logged.leaves >> slot & 1 == 1
+                    && let Some(who) = PlayerIdx::new(slot)
+                {
+                    recorder.leave(who).map_err(ReportError::Recorder)?;
+                }
+            }
+            let inputs = logged.inputs.map(|wire| wire.to_input());
+            recorder.step(&inputs).map_err(ReportError::Recorder)?;
+        }
+        let replay = recorder.replay();
+        if self
+            .local_hash
+            .is_some_and(|hash| replay.final_hash != format!("{hash:016x}"))
+        {
+            return Err(ReportError::HashDiffers);
+        }
+        Ok(replay)
     }
 }
