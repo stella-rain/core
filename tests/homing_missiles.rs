@@ -23,6 +23,7 @@ use stella_rain_core::stage::Stage;
 
 use crate::common;
 
+use common::equip::wait_for_tough;
 use common::on_hit::*;
 use common::*;
 
@@ -76,20 +77,17 @@ fn other(dx: i32, dy: i32) -> Value {
     )
 }
 
-/// The stage with seven small enemies, the tough target 32 pixels above and `others`.
+/// The stage with the tough target 32 pixels above and `others`.
 fn arena(others: Vec<Value>) -> Stage {
-    let mut s = stage(7, tough(0, None, None));
-    for w in others {
-        s.waves.push(serde_json::from_value(w).unwrap());
-    }
-    s
+    let mut waves = vec![tough(0, None, None)];
+    waves.extend(others);
+    target_stage(waves)
 }
 
-/// `stage`, every rune taken from its star, stepped until the targets are on the map.
+/// `stage`, every rune equipped, stepped until the targets are on the map.
 fn holding(stage: &Stage, runes: Runes) -> Engine {
-    let mut e = with(stage, &content(vec![random_rune()], None, runes));
-    take_all(&mut e);
-    wait_for_target(&mut e);
+    let mut e = every_rune_held(stage, runes, vec![], None, &[]);
+    wait_for_tough(&mut e);
     e
 }
 
@@ -187,17 +185,15 @@ fn the_missiles_fly_toward_where_the_target_is_now() {
         json!({ "type": "straight", "vx": 256, "vy": 0 }),
         json!([]),
     );
-    let s = stage(7, wave(TARGET_TICK, 1, 0, walker, START_X, NEAR_Y));
-    let mut e = with(
+    let s = target_stage(vec![wave(TARGET_TICK, 1, 0, walker, START_X, NEAR_Y)]);
+    let mut e = every_rune_held(
         &s,
-        &content(
-            vec![random_rune()],
-            None,
-            with_homing(homing(60, MISSILE, 1, RANGE, 65_536)),
-        ),
+        with_homing(homing(60, MISSILE, 1, RANGE, 65_536)),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_eq!(missiles(&e).len(), 1, "launched");
@@ -277,8 +273,9 @@ fn an_enemy_out_of_range_is_no_target_and_without_one_they_take_the_enemy_hit() 
 
 #[test]
 fn the_pick_draws_nothing_from_the_generator() {
-    // The same stage under other seeds: the runes are drawn in another order, the missiles hit
-    // the same targets on the same ticks.
+    // The same stage under other seeds: the missiles hit the same targets on the same ticks.
+    // (The runes are equipped from the inventory now, so no pick draws anything and no star
+    // drops; the missiles' order still draws nothing from the generator.)
     let run = |seed: u32| {
         let mut s = arena(vec![other(12_288, -4_096), other(-24_576, -8_192)]);
         s.seed = seed;
@@ -382,12 +379,14 @@ fn its_hits_fire_no_rune() {
 #[test]
 fn its_hits_give_no_expertise() {
     // The target gives 1 point a hit: the step's, not the missiles' two.
-    let mut e = with(
-        &stage(7, tough(0, None, Some(1))),
-        &content(vec![random_rune()], None, runes(2, RANGE)),
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, None, Some(1))]),
+        runes(2, RANGE),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 20, once(start));
     assert_eq!(of(&seen, MISSILE).len(), 2, "the missiles landed");
@@ -398,26 +397,27 @@ fn its_hits_give_no_expertise() {
 /// war cry's atk-up of 100 used before the step: `(step's hit, the missile's)`.
 fn boosted(ty: &str, profile: Value) -> (u32, Vec<u32>) {
     let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
-        "levels": [{ "cooldown_ticks": 1_000, "effects": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
         ] }] });
     let rewards = vec![
-        random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
                 "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct",
                 "type": ty, "amount": 50, "limit": 2 }),
     ];
     let runes = with_homing(homing(60, 10, 1, RANGE, 0));
-    let mut e = with(
-        &stage(9, tough(0, Some(profile), None)),
-        &content(rewards, Some(json!([war_cry])), runes),
+    // The stage skill star arrives cooling for its cooldown: 1 tick, then ready.
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, Some(profile), None)]),
+        runes,
+        rewards,
+        Some(json!([war_cry])),
+        &[("war_cry_r", 0), ("bonus", 1)],
     );
-    take_all(&mut e);
-    take(&mut e, "war_cry_r");
-    take(&mut e, "bonus");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     e.step(&[
         Input {
             skill: true,
