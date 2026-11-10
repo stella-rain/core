@@ -18,7 +18,7 @@ use super::World;
 use super::build::{Build, Grants};
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::skill;
-use super::state::{Career, HeldRune, Offers, PlayerState, State};
+use super::state::{Career, HeldRune, PlayerState, State};
 use crate::attack::DamageType;
 use crate::id::ContentId;
 use crate::limits::MAX_SLOT_LEVEL;
@@ -235,20 +235,6 @@ fn counts_of(rewards: &Rewards, places: impl IntoIterator<Item = u16>) -> Vec<u8
     counts
 }
 
-/// The offers a stage without stars lacks, for the writes that need one: thrown away.
-fn throwaway(rewards: &Rewards) -> Offers {
-    Offers {
-        due: Vec::new(),
-        offer: None,
-        rerolls_left: 0,
-        banishes_left: 0,
-        extra_candidates: 0,
-        taken: vec![0; rewards.rewards().len()],
-        banished: vec![false; rewards.rewards().len()],
-        set_counts: vec![0; rewards.constellations().sets().len()],
-    }
-}
-
 /// The hit points a swap leaves when the most hit points go from `was` to `now`: the same
 /// fraction, rounded down, so swapping a star in and out never heals. A player at 0 stays at 0 and
 /// a living one never reaches 0; `was` of 0 only clamps.
@@ -298,15 +284,10 @@ pub(super) fn refresh(
     let after: Vec<u16> = after_levels.iter().map(|s| s.0).collect();
     let before_places: Vec<u16> = before.iter().map(|s| s.0).collect();
     let counts = counts_of(rewards, after.iter().copied());
-    let mut local = None;
-    let o = match offers {
-        Some(o) => o,
-        None => local.insert(throwaway(rewards)),
-    };
     let was = Build::of_levelled(stage, rewards, before);
     let now = Build::of_levelled(stage, rewards, &after_levels);
     let (hp_was, max_was) = (player.hp, player.max_hp);
-    Build::write(&was, &now, player, progress, regen, o);
+    Build::write(&was, &now, player, progress, regen);
     if player.max_hp != max_was {
         player.hp = keep_fraction(hp_was, max_was, player.max_hp);
     }
@@ -334,7 +315,7 @@ pub(super) fn refresh(
                     .is_some_and(|p| counts.get(p).copied().unwrap_or(0) > 0)
             })
             .count();
-        if let Some(n) = o.set_counts.get_mut(set) {
+        if let Some(n) = offers.as_mut().and_then(|o| o.set_counts.get_mut(set)) {
             *n = u8::try_from(members).unwrap_or(u8::MAX);
         }
     }

@@ -90,29 +90,6 @@ fn a_joiner_is_the_start_player_at_the_first_slots_place() {
 }
 
 #[test]
-fn a_leave_closes_the_leavers_offer() {
-    let mut e = Engine::start_party(&setup(), 2).unwrap();
-    for _ in 0..3_000 {
-        if e.offer_open() {
-            break;
-        }
-        e.step(&[Input::default(); 3]);
-    }
-    if e.offer_open() {
-        let holders: Vec<u8> = (0..2)
-            .filter(|i| e.check_pick(slot(*i), 0).is_ok())
-            .collect();
-        if holders == [1] {
-            e.leave(slot(1)).unwrap();
-            assert!(!e.offer_open());
-            let t = e.tick();
-            e.step(&[Input::default(); 3]);
-            assert_eq!(e.tick(), t + 1);
-        }
-    }
-}
-
-#[test]
 fn a_leaver_keeps_its_totals_until_the_slot_is_joined_again() {
     let mut e = Engine::start_party(&setup(), 2).unwrap();
     e.player_stats.hit_for_test(slot(1), 9);
@@ -147,9 +124,6 @@ fn what_a_leaver_left_in_flight_does_not_panic_and_a_quick_rejoin_agrees() {
             e.join(slot(1)).unwrap();
         }
         for _ in 0..300 {
-            if e.offer_open() {
-                break;
-            }
             e.step(&[
                 Input {
                     main: true,

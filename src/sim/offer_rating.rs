@@ -1,12 +1,7 @@
-//! Rating the candidates of an open offer (ADR-REPL-5): the categories of a reward, the
-//! expected gain in the main weapon's damage and the stats a pick moves. A read-only query on
-//! the state as it is; nothing here is hashed, saved or recorded (ADR-SIM-3), and it is not part
-//! of the snapshot (ADR-BRDG-4): call it once when an offer opens, not every frame.
-//!
-//! **The pick is run, not described.** Each candidate is taken with `stars::take` on a clone of
-//! the player, so the set tier it completes is applied by the rules that apply it, and the stats
-//! before and after are read from the two clones. A random rune is drawn from a generator seeded
-//! 0 and dropped: it moves no stat shown and its draw leaks nothing (ADR-SIM-2).
+//! Rating a star swap (ADR-SIM-7): the categories of a reward, the expected gain in the main
+//! weapon's damage and the stats a swap moves. A read-only query on the state as it is; nothing
+//! here is hashed, saved or recorded (ADR-SIM-3), and it is not part of the snapshot
+//! (ADR-BRDG-4): call it when a window opens, not every frame.
 //!
 //! **A swap is run, not described.** `swap_ratings` rates one star against each slot it could go
 //! in (ADR-SIM-7): the equip or replace is made by `slots::equip` / `slots::replace` on a clone of
@@ -39,13 +34,12 @@ use crate::constellations;
 use crate::id::PlayerIdx;
 use crate::rewards::{EffectEntry, RewardEffect, Rewards};
 use crate::rewards::{MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT};
-use crate::rng::SplitMix64;
-use crate::snapshot::{Category, OfferRating, StatChange, StatKind, SwapItem, SwapRating};
+use crate::snapshot::{Category, StatChange, StatKind, SwapItem, SwapRating};
 
 use super::equipment::{EquipSlot, Equipment, Held};
 use super::state::{Career, Offers, PlayerState, Progress, State};
 use super::world::World;
-use super::{attacks, combat, levels, slots, stars};
+use super::{attacks, combat, levels, slots};
 
 /// The effect kinds that change a term the model rates.
 fn rated(effect: RewardEffect) -> bool {
@@ -115,11 +109,6 @@ impl Rate {
         let ratio = (num * 2 + den) / (2 * den);
         let delta = i128::try_from(ratio).unwrap_or(i128::MAX) - 10_000;
         i32::try_from(delta).unwrap_or(if delta < 0 { i32::MIN } else { i32::MAX })
-    }
-
-    /// The gain of `after` over `self`, in basis points, rounded half up; never below 0.
-    fn gain_bp(&self, after: &Rate) -> u32 {
-        u32::try_from(self.delta_bp(after).max(0)).unwrap_or(0)
     }
 }
 
@@ -216,74 +205,6 @@ fn diff_sheets(before: &[(StatKind, u32)], after: &[(StatKind, u32)]) -> Vec<Sta
             stat: b.0,
             before: b.1,
             after: a.1,
-        })
-        .collect()
-}
-
-/// A rating for each candidate of `me`'s open star or boss offer, in the offer's order; empty
-/// without one, or while an expertise or stat offer is open (those are not rated).
-pub(crate) fn offer_ratings(
-    world: &World,
-    rewards: &Rewards,
-    s: &State,
-    me: PlayerIdx,
-) -> Vec<OfferRating> {
-    let career = s.players.career(me);
-    let (Some(f), Some(offers)) = (s.stars.as_ref(), career.offers.as_ref()) else {
-        return Vec::new();
-    };
-    let Some(open) = offers.offer.as_ref() else {
-        return Vec::new();
-    };
-    let held = &s.players[me];
-    let before = Rate::of(world, s, &career.progress, held);
-    let before_sheet = sheet(s, &career.progress, held, career.regen, Some(offers));
-    open.candidates
-        .iter()
-        .map(|&i| {
-            let mut progress = career.progress.clone();
-            let mut player = held.clone();
-            let mut regen = career.regen;
-            let mut taken_by = offers.clone();
-            let taken = stars::take(
-                world,
-                rewards,
-                &mut SplitMix64::new(0),
-                &mut progress,
-                &mut player,
-                &mut regen,
-                f,
-                &mut taken_by,
-                i,
-            );
-            let reward = &rewards.rewards()[usize::from(i)];
-            let sets = rewards.constellations().sets();
-            // What the rules apply for a tier: its difference from the tier below.
-            let tier_effects = taken.tiers.iter().flat_map(|&(set, tier)| {
-                let tiers = &sets[set].tiers;
-                let at = usize::from(tier) - 1;
-                constellations::tier_delta(at.checked_sub(1).map(|lower| &tiers[lower]), &tiers[at])
-            });
-            let effects: Vec<EffectEntry> =
-                reward.effects.iter().cloned().chain(tier_effects).collect();
-            let categories = categories_of_effects(&effects);
-            let dps_bp = if effects.iter().any(|e| rated(e.effect)) {
-                let after = Rate::of(world, s, &progress, &player);
-                before
-                    .as_ref()
-                    .zip(after.as_ref())
-                    .map(|(b, a)| b.gain_bp(a))
-            } else {
-                None
-            };
-            let after_sheet = sheet(s, &progress, &player, regen, Some(&taken_by));
-            let changes = diff_sheets(&before_sheet, &after_sheet);
-            OfferRating {
-                categories,
-                dps_bp,
-                set_tier: taken.tiers.iter().map(|&(_, tier)| tier).max(),
-                changes,
-            }
         })
         .collect()
 }
@@ -749,7 +670,6 @@ mod tests {
             world.equipment_rules = slots::bundled_rules().clone();
             let pool = RunPool {
                 rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
-                extra_rerolls: 0,
                 difficulty: RunDifficulty {
                     hp_pct: 100,
                     damage_pct: 100,
@@ -1148,7 +1068,6 @@ mod tests {
             let rate = |damage| Rate { damage, ticks: 1 };
             assert_eq!(rate(100).delta_bp(&rate(120)), 2000);
             assert_eq!(rate(120).delta_bp(&rate(110)), -833);
-            assert_eq!(rate(100).gain_bp(&rate(90)), 0);
         }
     }
 }

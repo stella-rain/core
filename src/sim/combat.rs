@@ -221,7 +221,6 @@ mod tests {
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
         let pool = RunPool {
             rewards: Vec::new(),
-            extra_rerolls: 0,
             difficulty: RunDifficulty {
                 hp_pct: 100,
                 damage_pct: 100,

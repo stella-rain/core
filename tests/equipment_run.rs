@@ -285,3 +285,42 @@ fn a_default_setup_runs_in_equipment_mode() {
     assert!(snap.players[0].slots.is_empty());
     assert!(snap.starlight.is_none());
 }
+
+/// No run of the live rules opens a star offer, and the public offer calls answer as they did
+/// when the offer logic was still in the build (ADR-SIM-3, ADR-REPL-5).
+#[test]
+fn a_live_run_never_opens_a_star_offer() {
+    use stella_rain_core::engine::ChoiceError;
+    use stella_rain_core::id::PlayerIdx;
+    use stella_rain_core::input::Input;
+
+    let input = Input {
+        main: true,
+        move_x: 60,
+        ..Input::default()
+    };
+    let cases = [
+        (equipment_setup(trial_setup()), 1u8),
+        (equipment_setup(time_limit_setup()), 1),
+        (equipment_setup(trial_setup()), 3),
+    ];
+    for (setup, party) in cases {
+        let mut engine = Engine::start_party(&setup, party).unwrap();
+        for _ in 0..1_500 {
+            if engine.outcome() != Outcome::Running {
+                break;
+            }
+            for i in 0..party {
+                let who = PlayerIdx::new(i).unwrap();
+                assert!(!engine.offer_open());
+                assert_eq!(engine.check_pick(who, 0), Err(ChoiceError::NoOffer));
+                assert!(engine.offer_ratings(who).is_empty());
+            }
+            let snap = engine.snapshot();
+            assert!(snap.progress.as_ref().is_none_or(|p| p.offer.is_none()));
+            let before = engine.tick();
+            engine.step(&[input; 3]);
+            assert_eq!(engine.tick(), before + 1);
+        }
+    }
+}
