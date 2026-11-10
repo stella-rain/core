@@ -29,6 +29,9 @@ fn setup(weapon: &str) -> RunSetup {
     }
 }
 
+/// The tick the tutorial golem comes onto the field (the file's `arrives_at_tick`).
+const ARRIVAL: u32 = 4_000;
+
 /// The bundled mode file, as JSON.
 fn mode_json() -> Value {
     serde_json::from_slice(run_setup::mode_stage("tutorial").unwrap()).unwrap()
@@ -115,6 +118,7 @@ fn the_bot_kills_the_golem_in_the_tutorial() {
         verified.ticks < LENGTH,
         "the golem dies before the time is up"
     );
+    assert!(verified.ticks > ARRIVAL, "no clear before the golem exists");
 }
 
 #[test]
@@ -163,4 +167,134 @@ fn the_tutorial_earns_no_stardust() {
         "the bot kills something, so the counter is tested"
     );
     assert_eq!(engine.stardust(), 0);
+}
+
+#[test]
+fn the_file_opts_the_golem_into_the_chase_and_a_late_arrival() {
+    let m = mode_json();
+    assert_eq!(m["sim_version"], 2);
+    let boss = &m["boss"];
+    assert_eq!(boss["chase"]["speed"], 256, "1 px a tick");
+    assert_eq!(boss["chase"]["stop_distance"], 24_576, "96 px");
+    assert_eq!(boss["arrives_at_tick"], ARRIVAL);
+    validate::parse_and_validate(run_setup::mode_stage("tutorial").unwrap()).unwrap();
+}
+
+/// What the golem and the player do, tick by tick: the bot fights the bats until `ARRIVAL`, then
+/// the player stands still. Each row is the engine tick after a step, the boss's position (if any)
+/// and the player's.
+type Row = (u32, Option<(i32, i32)>, (i32, i32), Outcome);
+
+fn trace(until: u32) -> Vec<Row> {
+    let setup = setup("giant_sword");
+    let bundled = RunContent::bundled();
+    let commands = play_run_with(&setup, bundled, until, |e, t| {
+        if t >= ARRIVAL {
+            return Default::default();
+        }
+        run_input_for(e, t, &[EntityKind::Enemy], u32::MAX)
+    });
+    let mut engine = Engine::start_with(&setup, bundled).unwrap();
+    let mut rows = Vec::new();
+    for command in &commands {
+        match *command {
+            Command::Step(input) => {
+                engine.step(&[input, Default::default(), Default::default()]);
+                let s = engine.snapshot();
+                let boss: Vec<_> = s
+                    .entities
+                    .iter()
+                    .filter(|v| v.kind == EntityKind::Boss)
+                    .collect();
+                assert!(boss.len() <= 1, "one golem at most");
+                let me = s.players[0].at;
+                rows.push((
+                    engine.tick(),
+                    boss.first().map(|b| (b.at.x.0, b.at.y.0)),
+                    (me.x.0, me.y.0),
+                    engine.outcome(),
+                ));
+            }
+            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+        }
+    }
+    rows
+}
+
+#[test]
+fn the_golem_is_not_on_the_field_before_the_arrival() {
+    let rows = trace(ARRIVAL + 600);
+    let setup = setup("giant_sword");
+    let mut engine = Engine::start_with(&setup, RunContent::bundled()).unwrap();
+    let commands = play_run_with(&setup, RunContent::bundled(), ARRIVAL, |e, t| {
+        run_input_for(e, t, &[EntityKind::Enemy], u32::MAX)
+    });
+    let mut first_empty = None;
+    for command in &commands {
+        match *command {
+            Command::Step(input) => {
+                engine.step(&[input, Default::default(), Default::default()]);
+                let s = engine.snapshot();
+                if engine.tick() < ARRIVAL {
+                    assert!(s.entities.iter().all(|v| v.kind != EntityKind::Boss));
+                    assert_eq!(engine.outcome(), Outcome::Running);
+                    if first_empty.is_none()
+                        && s.entities.iter().all(|v| v.kind != EntityKind::Enemy)
+                    {
+                        first_empty = Some(engine.tick());
+                    }
+                }
+            }
+            Command::Choose(index) => common::pick(&mut engine, index).unwrap(),
+        }
+    }
+    let empty = first_empty.expect("the bats run out before the golem comes");
+    assert!(empty > 1_260 && empty < ARRIVAL, "empty field at {empty}");
+    for (tick, boss, _, _) in &rows {
+        assert_eq!(boss.is_some(), *tick >= ARRIVAL, "tick {tick}");
+    }
+    let (_, boss, _, _) = rows.iter().find(|r| r.0 == ARRIVAL).unwrap();
+    let (x, y) = boss.unwrap();
+    let (dx, dy) = (i64::from(x - 163_840), i64::from(y - 35_840));
+    assert!(
+        dx * dx + dy * dy <= 256 * 256,
+        "its first step from the spawn"
+    );
+}
+
+#[test]
+fn the_golem_walks_toward_a_standing_player_and_stops_96_px_away() {
+    let rows = trace(ARRIVAL + 700);
+    let again = trace(ARRIVAL + 700);
+    assert_eq!(rows, again, "the same positions every run");
+    let dist2 = |b: (i32, i32), p: (i32, i32)| {
+        let (dx, dy) = (i64::from(b.0 - p.0), i64::from(b.1 - p.1));
+        dx * dx + dy * dy
+    };
+    let stop = 24_576_i64;
+    let mut prev: Option<(i32, i32)> = None;
+    let mut reached = false;
+    for (tick, boss, me, outcome) in rows.iter().filter(|r| r.0 >= ARRIVAL) {
+        assert_eq!(*outcome, Outcome::Running, "tick {tick}");
+        let b = boss.expect("the golem is there");
+        if let Some(p) = prev {
+            let step = dist2(b, p);
+            assert!(step <= 256 * 256, "tick {tick}: moved {step}");
+            assert!(dist2(b, *me) <= dist2(p, *me), "tick {tick}: moved away");
+        }
+        let d = dist2(b, *me);
+        if reached {
+            assert!(d <= stop * stop, "tick {tick}: left the stop distance");
+        } else if d <= stop * stop {
+            let before = dist2(prev.unwrap(), *me);
+            assert!(
+                before > (stop - 256) * (stop - 256),
+                "tick {tick}: first reach"
+            );
+            reached = true;
+        }
+        assert!(d >= (stop - 256) * (stop - 256), "tick {tick}: too near");
+        prev = Some(b);
+    }
+    assert!(reached, "the golem reaches 96 px within 700 ticks");
 }

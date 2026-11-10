@@ -614,9 +614,16 @@ fn the_tutorial_party_clears_with_its_build_out_of_it() {
         // The bots walk to the boss while the field is empty, even before the first bat: when the
         // boss dies before the field is empty after the last spawn, the bound starts at that spawn.
         let empty = first_empty_field(&case, &replay).unwrap_or(1260);
+        // The golem comes onto the field at the arrival tick, so no clear can come before it.
+        const ARRIVAL: u32 = 4_000;
         assert!(
-            verified.ticks <= empty + 2000,
+            verified.ticks <= empty.max(ARRIVAL) + 2000,
             "({world}, {bot}): cleared at {}, field empty at {empty}",
+            verified.ticks
+        );
+        assert!(
+            verified.ticks > ARRIVAL,
+            "({world}, {bot}): cleared at {} before the golem came",
             verified.ticks
         );
     }
