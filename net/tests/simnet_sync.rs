@@ -4,7 +4,8 @@
 mod support;
 
 use stella_rain_core::input::EquipAction;
-use support::peers::{Peers, ROUND_LIMIT};
+use stella_rain_net::session::party::{NetWait, PartySettings, Phase, StopReason};
+use support::peers::{Peers, ROUND_LIMIT, flip};
 use support::simnet::Impair;
 use support::{Script, script, slot, straight};
 
@@ -32,13 +33,20 @@ fn converge(mut peers: Peers, oracle: &[u64], stayers: &[usize]) -> Peers {
     assert!(peers.run(oracle), "not done within {ROUND_LIMIT} rounds");
     let c = stayers
         .iter()
-        .map(|i| peers.sessions[*i].confirmed())
+        .map(|i| peers.sessions[*i].session().confirmed())
         .min()
         .expect("a stayer");
     assert!(c >= TICKS - WINDOW, "confirmed only {c}");
     let want = oracle[c as usize];
     for i in stayers {
-        assert_eq!(peers.sessions[*i].hash_after(c), Some(want), "session {i}");
+        assert_eq!(
+            peers.sessions[*i].session().hash_after(c),
+            Some(want),
+            "session {i}"
+        );
+    }
+    for (i, session) in peers.sessions.iter().enumerate() {
+        assert_ne!(session.phase(), Phase::Stopped, "session {i}");
     }
     peers
 }
@@ -161,9 +169,9 @@ fn a_leave_under_loss_converges_for_the_stayers() {
             &oracle,
             &[0, 1],
         );
-        assert_eq!(p.sessions[2].tick(), 300);
-        assert_eq!(p.sessions[0].tick(), TICKS);
-        assert_eq!(p.sessions[1].tick(), TICKS);
+        assert_eq!(p.sessions[2].session().tick(), 300);
+        assert_eq!(p.sessions[0].session().tick(), TICKS);
+        assert_eq!(p.sessions[1].session().tick(), TICKS);
         assert!(p.rolled_across(300, 2), "seed {seed}");
     }
 }
@@ -181,7 +189,10 @@ fn the_same_seed_gives_the_same_run_and_another_seed_a_different_one() {
         let confirmed: Vec<_> = p
             .sessions
             .iter()
-            .map(|x| (x.confirmed(), x.hash_after(x.confirmed())))
+            .map(|x| {
+                let x = x.session();
+                (x.confirmed(), x.hash_after(x.confirmed()))
+            })
             .collect();
         (p.net.trace(), confirmed, p.total_rolled())
     };
@@ -190,20 +201,78 @@ fn the_same_seed_gives_the_same_run_and_another_seed_a_different_one() {
 }
 
 #[test]
-#[should_panic(expected = "at confirmed tick")]
-fn a_tampered_input_makes_the_check_fail() {
+fn a_tampered_input_stops_both_peers_on_the_divergent_checkpoint() {
     let sc = s(2);
     let oracle = straight(&sc, 2);
     let mut peers = Peers::new(sc, 2, 1, five(100));
-    peers.tamper = Some(Box::new(|from, to, frame| {
-        if from == 1 && to == 0 {
-            for (t, input) in (frame.start_tick..).zip(&mut frame.inputs) {
-                if (300..340).contains(&t) {
-                    input.main = !input.main;
-                    input.move_x = input.move_x.saturating_neg();
-                }
+    peers.set_tamper(flip(1, 0, 300..340));
+    assert!(
+        peers.run(&oracle),
+        "not stopped within {ROUND_LIMIT} rounds"
+    );
+    assert!(matches!(
+        peers.sessions[0].stop_reason(),
+        Some(StopReason::Desync { tick: 360, slot }) if slot == self::slot(1)
+    ));
+    for i in 0..2 {
+        assert_eq!(peers.sessions[i].phase(), Phase::Stopped, "session {i}");
+        assert!(peers.sessions[i].session().tick() <= 420, "session {i}");
+    }
+}
+
+#[test]
+fn uneven_clocks_make_the_faster_peer_wait_and_roll_back_less() {
+    let run = |max_skew: u32| {
+        let sc = s(2);
+        let oracle = straight(&sc, 2);
+        let mut peers = Peers::new(sc, 2, 1, Impair::clean(3))
+            .max_skew(max_skew)
+            .calls_per_round(0, 2);
+        let mut worst = 0;
+        let mut rounds = 0u32;
+        while !peers.done() {
+            assert!(peers.net.round() < 300 + ROUND_LIMIT, "not done");
+            peers.round();
+            peers.check(&oracle);
+            rounds += 1;
+            if rounds > 30 {
+                let (a, b) = (
+                    peers.sessions[0].session().tick(),
+                    peers.sessions[1].session().tick(),
+                );
+                worst = worst.max(a.abs_diff(b));
             }
         }
-    }));
-    peers.run(&oracle);
+        (peers, worst)
+    };
+    let (skewed, worst) = run(stella_rain_net::session::party::DEFAULT_MAX_SKEW);
+    assert!(skewed.waits_of(Some(0), Some(NetWait::Ahead)) > 0);
+    assert_eq!(skewed.waits_of(Some(1), Some(NetWait::Ahead)), 0);
+    assert!(worst <= 4, "the ticks drifted {worst} apart");
+    let (free, _) = run(u32::MAX);
+    assert!(free.rolled_by(0) > skewed.rolled_by(0));
+}
+
+#[test]
+fn a_non_default_party_setting_converges() {
+    let sc = script(3, TICKS, 3, None);
+    let oracle = straight(&sc, 3);
+    let peers = Peers::new(sc, 3, 2, five(100)).settings(PartySettings {
+        delay: 3,
+        window: 6,
+    });
+    converge(peers, &oracle, &all(3));
+}
+
+#[test]
+fn a_lost_first_hello_still_reaches_playing_by_round_60() {
+    for n in [2, 3] {
+        let mut peers = Peers::new(s(n), n, 2, five(300));
+        for _ in 0..60 {
+            peers.round();
+        }
+        for (i, session) in peers.sessions.iter().enumerate() {
+            assert_ne!(session.phase(), Phase::Handshake, "n {n} session {i}");
+        }
+    }
 }
