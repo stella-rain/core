@@ -260,7 +260,7 @@
     "title": "노바"
   },
   "rewards/random_rune": {
-    "description": "아직 가지지 않은 룬이 획득할 때 뽑혀요",
+    "description": "획득할 때 아직 가지지 않은 룬 하나를 뽑아요",
     "title": "룬"
   },
   "rewards/range_common": {
@@ -424,7 +424,7 @@
     "title": "미자르"
   },
   "rewards/star_polaris": {
-    "description": "이끄는 별: 모든 선택지에 네 번째 후보가 생기고, 다시 뽑기 3번, 제외 2번, 경험치 40% 증가",
+    "description": "이끄는 별: 모든 선택지에 네 번째 후보가 생기고, 다시 뽑기 3번, 제외 2번, 경험치가 40% 늘어요",
     "title": "폴라리스"
   },
   "rewards/star_procyon": {
