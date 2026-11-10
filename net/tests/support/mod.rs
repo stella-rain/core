@@ -533,3 +533,4 @@ impl<'a> Mesh<'a> {
 
 pub mod peers;
 pub mod simnet;
+pub mod wiretap;

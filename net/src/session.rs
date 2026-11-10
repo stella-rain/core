@@ -2,10 +2,9 @@
 //! re-simulation within a window, all driven by local calls. It owns no transport, clock or
 //! thread: the caller says when a tick is advanced and hands in what peers sent.
 //!
-//! What it does not do: it sends and receives nothing (a later layer maps packets to
-//! [`Session::receive_inputs`], [`Session::ack`] and [`Session::leave`]), it holds no handshake,
-//! it does not balance frame advantage between peers, it does not exchange checkpoints and it
-//! does not stop on a desync.
+//! What it does not do: it sends and receives nothing. The layer above it, [`party::NetSession`],
+//! maps packets to [`Session::receive_inputs`], [`Session::ack`] and [`Session::leave`], holds
+//! the handshake, balances frame advantage, exchanges checkpoints and stops on a desync.
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -17,6 +16,9 @@ use stella_rain_core::run_replay::CHECKPOINT_TICKS;
 use crate::predict::InputQueue;
 use crate::save::{CloneRing, Save};
 use crate::wire::{InputFrame, MAX_FRAME_INPUTS, WireInput};
+
+pub mod party;
+pub mod report;
 
 /// The default window: the most ticks a session predicts past what it has confirmed.
 pub const DEFAULT_WINDOW: u32 = 4;
@@ -33,7 +35,9 @@ pub struct Config {
     /// The slot this session plays.
     pub local: PlayerIdx,
     /// Ticks between a local input being given and being stepped. Every peer of a party uses
-    /// the same delay: the range checks on frames and leave ticks assume it.
+    /// the same delay and window: a frame is accepted up to `tick + 2 * delay + window + 1`, so
+    /// peers whose delay plus window differ by more than 2 refuse each other's inputs. Values
+    /// of the party come from [`party::PartySettings`].
     pub delay: u32,
     /// The most ticks predicted past the confirmed one. A window of 0 is lockstep: it never
     /// rolls back, but it needs a delay of at least 1, because with delay 0 and a remote peer
@@ -145,6 +149,19 @@ struct Record {
     hash: u64,
 }
 
+/// One confirmed tick as it was simulated, kept by [`Session::keep_confirmed`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConfirmedTick {
+    /// The tick number, from 0.
+    pub tick: u32,
+    /// The inputs stepped, one per slot (a left or absent slot's is the default).
+    pub inputs: [WireInput; 3],
+    /// The slots whose leave is stamped on this tick, bit `i` for slot `i`.
+    pub leaves: u8,
+    /// The state hash after this tick.
+    pub hash: u64,
+}
+
 /// A rollback session over one engine.
 pub struct Session<S: Save = CloneRing> {
     config: Config,
@@ -160,6 +177,8 @@ pub struct Session<S: Save = CloneRing> {
     record_base: u32,
     hashes: VecDeque<u64>,
     hash_base: u32,
+    keep: bool,
+    log: Vec<ConfirmedTick>,
 }
 
 impl Session<CloneRing> {
@@ -207,6 +226,8 @@ impl<S: Save> Session<S> {
             records: VecDeque::new(),
             record_base: 0,
             hash_base: 0,
+            keep: false,
+            log: Vec::new(),
         })
     }
 
@@ -243,6 +264,27 @@ impl<S: Save> Session<S> {
             rolled_back,
             waiting: None,
         })
+    }
+
+    /// Repairs any tick a late input contradicts and confirms what is known, without stepping:
+    /// returns the ticks re-simulated. A call for a peer that must not step (frame advantage,
+    /// a finished peer).
+    pub fn confirm(&mut self) -> Result<u32, SessionError> {
+        let rolled_back = self.reconcile()?;
+        self.settle();
+        Ok(rolled_back)
+    }
+
+    /// Starts keeping the log of confirmed ticks, from the first one not yet confirmed. Off by
+    /// default.
+    pub fn keep_confirmed(&mut self) {
+        self.keep = true;
+    }
+
+    /// Drains the log of confirmed ticks kept since the last call; empty unless
+    /// [`Session::keep_confirmed`] was called.
+    pub fn take_confirmed(&mut self) -> Vec<ConfirmedTick> {
+        std::mem::take(&mut self.log)
     }
 
     /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error
@@ -528,7 +570,16 @@ impl<S: Save> Session<S> {
         let confirmed = self.known().map_or(self.tick, |k| k.min(self.tick));
         self.confirmed = self.confirmed.max(confirmed);
         while self.record_base < self.confirmed {
-            self.records.pop_front();
+            if let Some(r) = self.records.pop_front()
+                && self.keep
+            {
+                self.log.push(ConfirmedTick {
+                    tick: self.record_base,
+                    inputs: r.inputs,
+                    leaves: r.leaves,
+                    hash: r.hash,
+                });
+            }
             self.record_base += 1;
         }
         let keep_from = self.confirmed.saturating_sub(CHECKPOINT_TICKS);
