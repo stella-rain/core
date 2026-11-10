@@ -444,244 +444,244 @@
     "title": "Vega"
   },
   "rewards/type_bonus_anemo_common": {
-    "description": "25 percent more Anemo damage",
-    "title": "Anemo Mastery (Common)"
+    "description": "바람 피해가 25% 늘어요",
+    "title": "바람 숙련 (일반)"
   },
   "rewards/type_bonus_anemo_epic": {
-    "description": "70 percent more Anemo damage",
-    "title": "Anemo Mastery (Epic)"
+    "description": "바람 피해가 70% 늘어요",
+    "title": "바람 숙련 (영웅)"
   },
   "rewards/type_bonus_anemo_legendary": {
-    "description": "80 percent more Anemo damage",
-    "title": "Anemo Mastery (Legendary)"
+    "description": "바람 피해가 80% 늘어요",
+    "title": "바람 숙련 (전설)"
   },
   "rewards/type_bonus_anemo_rare": {
-    "description": "50 percent more Anemo damage",
-    "title": "Anemo Mastery (Rare)"
+    "description": "바람 피해가 50% 늘어요",
+    "title": "바람 숙련 (희귀)"
   },
   "rewards/type_bonus_anemo_supernova": {
-    "description": "128 percent more Anemo damage",
-    "title": "Anemo Mastery (Supernova)"
+    "description": "바람 피해가 128% 늘어요",
+    "title": "바람 숙련 (초신성)"
   },
   "rewards/type_bonus_anemo_uncommon": {
-    "description": "38 percent more Anemo damage",
-    "title": "Anemo Mastery (Uncommon)"
+    "description": "바람 피해가 38% 늘어요",
+    "title": "바람 숙련 (고급)"
   },
   "rewards/type_bonus_cryo_common": {
-    "description": "25 percent more Cryo damage",
-    "title": "Cryo Mastery (Common)"
+    "description": "냉기 피해가 25% 늘어요",
+    "title": "냉기 숙련 (일반)"
   },
   "rewards/type_bonus_cryo_epic": {
-    "description": "70 percent more Cryo damage",
-    "title": "Cryo Mastery (Epic)"
+    "description": "냉기 피해가 70% 늘어요",
+    "title": "냉기 숙련 (영웅)"
   },
   "rewards/type_bonus_cryo_legendary": {
-    "description": "80 percent more Cryo damage",
-    "title": "Cryo Mastery (Legendary)"
+    "description": "냉기 피해가 80% 늘어요",
+    "title": "냉기 숙련 (전설)"
   },
   "rewards/type_bonus_cryo_rare": {
-    "description": "50 percent more Cryo damage",
-    "title": "Cryo Mastery (Rare)"
+    "description": "냉기 피해가 50% 늘어요",
+    "title": "냉기 숙련 (희귀)"
   },
   "rewards/type_bonus_cryo_supernova": {
-    "description": "128 percent more Cryo damage",
-    "title": "Cryo Mastery (Supernova)"
+    "description": "냉기 피해가 128% 늘어요",
+    "title": "냉기 숙련 (초신성)"
   },
   "rewards/type_bonus_cryo_uncommon": {
-    "description": "38 percent more Cryo damage",
-    "title": "Cryo Mastery (Uncommon)"
+    "description": "냉기 피해가 38% 늘어요",
+    "title": "냉기 숙련 (고급)"
   },
   "rewards/type_bonus_dendro_common": {
-    "description": "25 percent more Dendro damage",
-    "title": "Dendro Mastery (Common)"
+    "description": "풀 피해가 25% 늘어요",
+    "title": "풀 숙련 (일반)"
   },
   "rewards/type_bonus_dendro_epic": {
-    "description": "70 percent more Dendro damage",
-    "title": "Dendro Mastery (Epic)"
+    "description": "풀 피해가 70% 늘어요",
+    "title": "풀 숙련 (영웅)"
   },
   "rewards/type_bonus_dendro_legendary": {
-    "description": "80 percent more Dendro damage",
-    "title": "Dendro Mastery (Legendary)"
+    "description": "풀 피해가 80% 늘어요",
+    "title": "풀 숙련 (전설)"
   },
   "rewards/type_bonus_dendro_rare": {
-    "description": "50 percent more Dendro damage",
-    "title": "Dendro Mastery (Rare)"
+    "description": "풀 피해가 50% 늘어요",
+    "title": "풀 숙련 (희귀)"
   },
   "rewards/type_bonus_dendro_supernova": {
-    "description": "128 percent more Dendro damage",
-    "title": "Dendro Mastery (Supernova)"
+    "description": "풀 피해가 128% 늘어요",
+    "title": "풀 숙련 (초신성)"
   },
   "rewards/type_bonus_dendro_uncommon": {
-    "description": "38 percent more Dendro damage",
-    "title": "Dendro Mastery (Uncommon)"
+    "description": "풀 피해가 38% 늘어요",
+    "title": "풀 숙련 (고급)"
   },
   "rewards/type_bonus_electro_common": {
-    "description": "25 percent more Electro damage",
-    "title": "Electro Mastery (Common)"
+    "description": "번개 피해가 25% 늘어요",
+    "title": "번개 숙련 (일반)"
   },
   "rewards/type_bonus_electro_epic": {
-    "description": "70 percent more Electro damage",
-    "title": "Electro Mastery (Epic)"
+    "description": "번개 피해가 70% 늘어요",
+    "title": "번개 숙련 (영웅)"
   },
   "rewards/type_bonus_electro_legendary": {
-    "description": "80 percent more Electro damage",
-    "title": "Electro Mastery (Legendary)"
+    "description": "번개 피해가 80% 늘어요",
+    "title": "번개 숙련 (전설)"
   },
   "rewards/type_bonus_electro_rare": {
-    "description": "50 percent more Electro damage",
-    "title": "Electro Mastery (Rare)"
+    "description": "번개 피해가 50% 늘어요",
+    "title": "번개 숙련 (희귀)"
   },
   "rewards/type_bonus_electro_supernova": {
-    "description": "128 percent more Electro damage",
-    "title": "Electro Mastery (Supernova)"
+    "description": "번개 피해가 128% 늘어요",
+    "title": "번개 숙련 (초신성)"
   },
   "rewards/type_bonus_electro_uncommon": {
-    "description": "38 percent more Electro damage",
-    "title": "Electro Mastery (Uncommon)"
+    "description": "번개 피해가 38% 늘어요",
+    "title": "번개 숙련 (고급)"
   },
   "rewards/type_bonus_geo_common": {
-    "description": "25 percent more Geo damage",
-    "title": "Geo Mastery (Common)"
+    "description": "대지 피해가 25% 늘어요",
+    "title": "대지 숙련 (일반)"
   },
   "rewards/type_bonus_geo_epic": {
-    "description": "70 percent more Geo damage",
-    "title": "Geo Mastery (Epic)"
+    "description": "대지 피해가 70% 늘어요",
+    "title": "대지 숙련 (영웅)"
   },
   "rewards/type_bonus_geo_legendary": {
-    "description": "80 percent more Geo damage",
-    "title": "Geo Mastery (Legendary)"
+    "description": "대지 피해가 80% 늘어요",
+    "title": "대지 숙련 (전설)"
   },
   "rewards/type_bonus_geo_rare": {
-    "description": "50 percent more Geo damage",
-    "title": "Geo Mastery (Rare)"
+    "description": "대지 피해가 50% 늘어요",
+    "title": "대지 숙련 (희귀)"
   },
   "rewards/type_bonus_geo_supernova": {
-    "description": "128 percent more Geo damage",
-    "title": "Geo Mastery (Supernova)"
+    "description": "대지 피해가 128% 늘어요",
+    "title": "대지 숙련 (초신성)"
   },
   "rewards/type_bonus_geo_uncommon": {
-    "description": "38 percent more Geo damage",
-    "title": "Geo Mastery (Uncommon)"
+    "description": "대지 피해가 38% 늘어요",
+    "title": "대지 숙련 (고급)"
   },
   "rewards/type_bonus_hydro_common": {
-    "description": "25 percent more Hydro damage",
-    "title": "Hydro Mastery (Common)"
+    "description": "물 피해가 25% 늘어요",
+    "title": "물 숙련 (일반)"
   },
   "rewards/type_bonus_hydro_epic": {
-    "description": "70 percent more Hydro damage",
-    "title": "Hydro Mastery (Epic)"
+    "description": "물 피해가 70% 늘어요",
+    "title": "물 숙련 (영웅)"
   },
   "rewards/type_bonus_hydro_legendary": {
-    "description": "80 percent more Hydro damage",
-    "title": "Hydro Mastery (Legendary)"
+    "description": "물 피해가 80% 늘어요",
+    "title": "물 숙련 (전설)"
   },
   "rewards/type_bonus_hydro_rare": {
-    "description": "50 percent more Hydro damage",
-    "title": "Hydro Mastery (Rare)"
+    "description": "물 피해가 50% 늘어요",
+    "title": "물 숙련 (희귀)"
   },
   "rewards/type_bonus_hydro_supernova": {
-    "description": "128 percent more Hydro damage",
-    "title": "Hydro Mastery (Supernova)"
+    "description": "물 피해가 128% 늘어요",
+    "title": "물 숙련 (초신성)"
   },
   "rewards/type_bonus_hydro_uncommon": {
-    "description": "38 percent more Hydro damage",
-    "title": "Hydro Mastery (Uncommon)"
+    "description": "물 피해가 38% 늘어요",
+    "title": "물 숙련 (고급)"
   },
   "rewards/type_bonus_pierce_common": {
-    "description": "25 percent more Pierce damage",
-    "title": "Pierce Mastery (Common)"
+    "description": "관통 피해가 25% 늘어요",
+    "title": "관통 숙련 (일반)"
   },
   "rewards/type_bonus_pierce_epic": {
-    "description": "70 percent more Pierce damage",
-    "title": "Pierce Mastery (Epic)"
+    "description": "관통 피해가 70% 늘어요",
+    "title": "관통 숙련 (영웅)"
   },
   "rewards/type_bonus_pierce_legendary": {
-    "description": "80 percent more Pierce damage",
-    "title": "Pierce Mastery (Legendary)"
+    "description": "관통 피해가 80% 늘어요",
+    "title": "관통 숙련 (전설)"
   },
   "rewards/type_bonus_pierce_rare": {
-    "description": "50 percent more Pierce damage",
-    "title": "Pierce Mastery (Rare)"
+    "description": "관통 피해가 50% 늘어요",
+    "title": "관통 숙련 (희귀)"
   },
   "rewards/type_bonus_pierce_supernova": {
-    "description": "128 percent more Pierce damage",
-    "title": "Pierce Mastery (Supernova)"
+    "description": "관통 피해가 128% 늘어요",
+    "title": "관통 숙련 (초신성)"
   },
   "rewards/type_bonus_pierce_uncommon": {
-    "description": "38 percent more Pierce damage",
-    "title": "Pierce Mastery (Uncommon)"
+    "description": "관통 피해가 38% 늘어요",
+    "title": "관통 숙련 (고급)"
   },
   "rewards/type_bonus_pyro_common": {
-    "description": "25 percent more Pyro damage",
-    "title": "Pyro Mastery (Common)"
+    "description": "화염 피해가 25% 늘어요",
+    "title": "화염 숙련 (일반)"
   },
   "rewards/type_bonus_pyro_epic": {
-    "description": "70 percent more Pyro damage",
-    "title": "Pyro Mastery (Epic)"
+    "description": "화염 피해가 70% 늘어요",
+    "title": "화염 숙련 (영웅)"
   },
   "rewards/type_bonus_pyro_legendary": {
-    "description": "80 percent more Pyro damage",
-    "title": "Pyro Mastery (Legendary)"
+    "description": "화염 피해가 80% 늘어요",
+    "title": "화염 숙련 (전설)"
   },
   "rewards/type_bonus_pyro_rare": {
-    "description": "50 percent more Pyro damage",
-    "title": "Pyro Mastery (Rare)"
+    "description": "화염 피해가 50% 늘어요",
+    "title": "화염 숙련 (희귀)"
   },
   "rewards/type_bonus_pyro_supernova": {
-    "description": "128 percent more Pyro damage",
-    "title": "Pyro Mastery (Supernova)"
+    "description": "화염 피해가 128% 늘어요",
+    "title": "화염 숙련 (초신성)"
   },
   "rewards/type_bonus_pyro_uncommon": {
-    "description": "38 percent more Pyro damage",
-    "title": "Pyro Mastery (Uncommon)"
+    "description": "화염 피해가 38% 늘어요",
+    "title": "화염 숙련 (고급)"
   },
   "rewards/type_bonus_slash_common": {
-    "description": "25 percent more Slash damage",
-    "title": "Slash Mastery (Common)"
+    "description": "베기 피해가 25% 늘어요",
+    "title": "베기 숙련 (일반)"
   },
   "rewards/type_bonus_slash_epic": {
-    "description": "70 percent more Slash damage",
-    "title": "Slash Mastery (Epic)"
+    "description": "베기 피해가 70% 늘어요",
+    "title": "베기 숙련 (영웅)"
   },
   "rewards/type_bonus_slash_legendary": {
-    "description": "80 percent more Slash damage",
-    "title": "Slash Mastery (Legendary)"
+    "description": "베기 피해가 80% 늘어요",
+    "title": "베기 숙련 (전설)"
   },
   "rewards/type_bonus_slash_rare": {
-    "description": "50 percent more Slash damage",
-    "title": "Slash Mastery (Rare)"
+    "description": "베기 피해가 50% 늘어요",
+    "title": "베기 숙련 (희귀)"
   },
   "rewards/type_bonus_slash_supernova": {
-    "description": "128 percent more Slash damage",
-    "title": "Slash Mastery (Supernova)"
+    "description": "베기 피해가 128% 늘어요",
+    "title": "베기 숙련 (초신성)"
   },
   "rewards/type_bonus_slash_uncommon": {
-    "description": "38 percent more Slash damage",
-    "title": "Slash Mastery (Uncommon)"
+    "description": "베기 피해가 38% 늘어요",
+    "title": "베기 숙련 (고급)"
   },
   "rewards/type_bonus_strike_common": {
-    "description": "25 percent more Strike damage",
-    "title": "Strike Mastery (Common)"
+    "description": "타격 피해가 25% 늘어요",
+    "title": "타격 숙련 (일반)"
   },
   "rewards/type_bonus_strike_epic": {
-    "description": "70 percent more Strike damage",
-    "title": "Strike Mastery (Epic)"
+    "description": "타격 피해가 70% 늘어요",
+    "title": "타격 숙련 (영웅)"
   },
   "rewards/type_bonus_strike_legendary": {
-    "description": "80 percent more Strike damage",
-    "title": "Strike Mastery (Legendary)"
+    "description": "타격 피해가 80% 늘어요",
+    "title": "타격 숙련 (전설)"
   },
   "rewards/type_bonus_strike_rare": {
-    "description": "50 percent more Strike damage",
-    "title": "Strike Mastery (Rare)"
+    "description": "타격 피해가 50% 늘어요",
+    "title": "타격 숙련 (희귀)"
   },
   "rewards/type_bonus_strike_supernova": {
-    "description": "128 percent more Strike damage",
-    "title": "Strike Mastery (Supernova)"
+    "description": "타격 피해가 128% 늘어요",
+    "title": "타격 숙련 (초신성)"
   },
   "rewards/type_bonus_strike_uncommon": {
-    "description": "38 percent more Strike damage",
-    "title": "Strike Mastery (Uncommon)"
+    "description": "타격 피해가 38% 늘어요",
+    "title": "타격 숙련 (고급)"
   },
   "rewards/war_cry_rare": {
     "description": "5초 동안 공격이 더 강해져요",
