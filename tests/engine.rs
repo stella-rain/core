@@ -667,9 +667,9 @@ mod stop_runs {
         e.tick()
     }
 
-    /// The state hash of the stop engine after 600 bot steps (a pick is a step), recorded on the base
-    /// build before the mode existed and re-pinned for the per-player layout and the slot generations, then for the 11 stat totals, then for the 13 totals and the weapon-set tenths, then for the six new rewards that lengthen the hashed `taken` and `banished`.
-    const STOP_HASH_600: u64 = 1_470_263_959_013_208_322;
+    /// The state hash of the stop engine after 600 bot steps (a pick is a step): an offers-mode run, after
+    /// the stat and expertise offers left; its picks are star offers only.
+    const STOP_HASH_600: u64 = 1_205_394_011_514_999_538;
 
     #[test]
     fn stop_is_byte_identical_to_the_base() {
@@ -681,7 +681,7 @@ mod stop_runs {
                 bot_step(&mut e);
             }
         }
-        assert_eq!((e.state_hash(), e.tick()), (STOP_HASH_600, 594));
+        assert_eq!((e.state_hash(), e.tick()), (STOP_HASH_600, 596));
     }
 
     #[test]
