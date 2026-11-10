@@ -937,7 +937,6 @@ mod slots_tests {
         let setup = RunSetup {
             build_mode: BuildMode::Equipment,
             starting_rune: Some("thunder".into()),
-            pick_stats: false,
             ..RunSetup::default()
         };
         Engine::start_party(&setup, party).unwrap()
@@ -1059,7 +1058,6 @@ mod slots_tests {
             build_mode: BuildMode::Equipment,
             lumine: 4,
             lumine_star: Some("attack_common".into()),
-            pick_stats: false,
             ..RunSetup::default()
         };
         Engine::start_party(&setup, 2).unwrap()

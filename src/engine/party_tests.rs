@@ -8,7 +8,6 @@ use super::*;
 fn setup() -> RunSetup {
     RunSetup {
         seed: 20_261_010,
-        pick_stats: true,
         ..RunSetup::default()
     }
 }

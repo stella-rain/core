@@ -18,7 +18,6 @@ const ALL: [EquipAction; 5] = [
 fn setup() -> RunSetup {
     RunSetup {
         seed: 20_261_105,
-        pick_stats: true,
         ..RunSetup::default()
     }
 }
@@ -103,7 +102,6 @@ mod equipment_runs {
             starting_rune: Some("thunder".into()),
             lumine: u8::from(lumine),
             lumine_star: lumine.then(|| "max_hp_common".into()),
-            pick_stats: false,
             ..setup()
         }
     }
@@ -777,7 +775,6 @@ mod tree_runs {
     fn equipment() -> RunSetup {
         RunSetup {
             build_mode: BuildMode::Equipment,
-            pick_stats: false,
             ..setup()
         }
     }

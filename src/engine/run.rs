@@ -66,7 +66,6 @@ pub(crate) struct Build<'a> {
     pub difficulty: Option<Difficulty>,
     pub seed: u64,
     pub stat_priority: &'a [ContentId],
-    pub pick_stats: bool,
     /// `None` for a stage run alone: no loadout.
     pub setup: Option<&'a RunSetup>,
     /// The players in the party, 1 to `MAX_PLAYERS`; version 1 has one.
@@ -144,12 +143,7 @@ impl Run {
         };
         let mut state = sim_v1::initial_state(&world, b.content, pool, b.seed, b.kinds);
         state.horde = horde;
-        sim_v1::set_policy(
-            &mut state,
-            b.content.run_stats(),
-            b.stat_priority,
-            b.pick_stats,
-        );
+        sim_v1::set_policy(&mut state, b.content.run_stats(), b.stat_priority, false);
         if let Some(setup) = b.setup {
             let loadout = sim_v1::Loadout::of(setup, b.content);
             sim_v1::apply_loadout(&world, b.content.rewards(), &mut state, &loadout);
@@ -199,7 +193,6 @@ impl Run {
             PlayerIdx::SOLO,
             b.content.run_stats(),
             b.stat_priority,
-            b.pick_stats,
         );
         if let Some(loadout) = loadout {
             // A run's setup loads the first player; the party grows with the per-player setup.
@@ -263,7 +256,7 @@ impl Run {
                 sim_v1::step(
                     version, world, rewards, expertise, state, inputs[0], frozen, load,
                 );
-                events.extend(frozen.drain(..).map(Into::into));
+                events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
             Run::V2 { world, state } => {
                 sim::step(
@@ -298,12 +291,10 @@ impl Run {
                     option.into(),
                     frozen,
                 );
-                events.extend(frozen.drain(..).map(Into::into));
+                events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
             Run::V2 { world, state } => {
-                sim::choose(
-                    version, world, rewards, expertise, state, player, option, events,
-                );
+                sim::choose(version, world, rewards, state, player, option, events);
             }
         }
     }
@@ -513,9 +504,7 @@ impl Run {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            Run::V2 { world, state } => {
-                sim::offer_options(world, rewards, expertise, state, player)
-            }
+            Run::V2 { state, .. } => sim::offer_options(rewards, state, player),
         }
     }
 

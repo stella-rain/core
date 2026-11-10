@@ -5,7 +5,7 @@ use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 15_745_082_450_176_202_121;
+const SIM_V1_SOURCE: u64 = 14_053_778_199_856_797_551;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
 /// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, and `views.rs`, its own offer views, so the list is closed.
@@ -156,15 +156,12 @@ fn sim_v1_imports_nothing_from_the_live_event() {
 }
 
 /// The offer types `sim_v1` owns copies of, in `sim_v1/views.rs`.
-const OFFER_TYPES: [&str; 10] = [
+const OFFER_TYPES: [&str; 7] = [
     "OfferOption",
     "OfferView",
     "CandidateView",
     "ConstellationView",
     "ConstellationProgress",
-    "ExpertiseOfferView",
-    "ExpertiseCandidateView",
-    "StatOfferView",
     "OfferKind",
     "ExpertiseOfferKind",
 ];

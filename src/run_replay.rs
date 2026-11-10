@@ -1809,7 +1809,6 @@ mod tests {
         use crate::run_setup::BuildMode;
         let setup = RunSetup {
             build_mode: BuildMode::Equipment,
-            pick_stats: false,
             ..RunSetup::default()
         };
         let mut rec = RunRecorder::start(&setup).unwrap();
@@ -1858,7 +1857,6 @@ mod tests {
         use crate::run_setup::BuildMode;
         let setup = RunSetup {
             build_mode: BuildMode::Equipment,
-            pick_stats: false,
             ..RunSetup::default()
         };
         let mut rec = RunRecorder::start_party(&setup, 2).unwrap();

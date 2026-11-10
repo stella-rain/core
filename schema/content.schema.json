@@ -2599,36 +2599,6 @@
         },
         {
           "additionalProperties": false,
-          "description": "A stat offer opened for a level reached with `pick_stats`, and the world stopped until a\nchoice closes it: `options` are the stats below their limit, in the run stats' order\n(DS18).",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "options": {
-                  "items": {
-                    "$ref": "#/$defs/ContentId"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "options"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "StatOfferOpened",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "description": "A kill dropped the falling star `star` (ADR-REPL-5).",
           "properties": {
             "data": {
@@ -3115,114 +3085,6 @@
             },
             "type": {
               "const": "CandidateReplaced",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "An expertise offer of `kind` opened for the level `level`, and the world stopped until a\nchoice closes it (ADR-REPL-5).",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "candidates": {
-                  "items": {
-                    "$ref": "#/$defs/ContentId"
-                  },
-                  "type": "array"
-                },
-                "kind": {
-                  "$ref": "#/$defs/ExpertiseOfferKind"
-                },
-                "level": {
-                  "format": "uint32",
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "level",
-                "kind",
-                "candidates"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "ExpertiseOfferOpened",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The expertise option was taken: the run now has it `taken` times. A style, an upgrade or\na capstone is taken once.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "option": {
-                  "$ref": "#/$defs/ContentId"
-                },
-                "taken": {
-                  "format": "uint8",
-                  "maximum": 255,
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "option",
-                "taken"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "ExpertiseOptionTaken",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The expertise candidate at `slot` was drawn again, after a reroll.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "option": {
-                  "$ref": "#/$defs/ContentId"
-                },
-                "slot": {
-                  "format": "uint8",
-                  "maximum": 255,
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "slot",
-                "option"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "ExpertiseCandidateReplaced",
               "type": "string"
             }
           },
@@ -4210,20 +4072,6 @@
       ],
       "type": "object"
     },
-    "ExpertiseCandidateView": {
-      "additionalProperties": false,
-      "description": "An option an expertise offer holds.",
-      "properties": {
-        "option": {
-          "$ref": "#/$defs/ContentId",
-          "description": "Its ID in the weapon's expertise content: a common option, a style, or a choice of the\nchosen style's path."
-        }
-      },
-      "required": [
-        "option"
-      ],
-      "type": "object"
-    },
     "ExpertiseEffect": {
       "description": "What taking an option or a style does: one of the run stats' effect kinds, under the same\nnames, or a wider combo.",
       "oneOf": [
@@ -4312,48 +4160,6 @@
         }
       ]
     },
-    "ExpertiseOfferView": {
-      "additionalProperties": false,
-      "description": "An expertise offer (ADR-REPL-5). A common one is drawn from one weapon's\ncommon pool, with a reroll of each candidate; a style, upgrade or capstone one shows its\nfixed choices, with no reroll. None has a skip or a banish.",
-      "properties": {
-        "candidates": {
-          "items": {
-            "$ref": "#/$defs/ExpertiseCandidateView"
-          },
-          "type": "array"
-        },
-        "kind": {
-          "$ref": "#/$defs/ExpertiseOfferKind"
-        },
-        "level": {
-          "description": "The expertise level that opened it.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "options": {
-          "description": "What `Engine::choose` takes, by index: the candidates, then, in a common offer, a reroll\nof each while rerolls are left and another option could come.",
-          "items": {
-            "$ref": "#/$defs/OfferOption"
-          },
-          "type": "array"
-        },
-        "rerolls_left": {
-          "description": "Rerolls left in the run, shared with the stars' offers.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "level",
-        "kind",
-        "candidates",
-        "options",
-        "rerolls_left"
-      ],
-      "type": "object"
-    },
     "ExpertiseOption": {
       "additionalProperties": false,
       "description": "One option: a candidate of a common offer, or a fixed choice of a style.",
@@ -4406,7 +4212,7 @@
     },
     "ExpertiseView": {
       "additionalProperties": false,
-      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the common options taken, the styles chosen and the Main style's path\ntaken, and the open expertise offer (ADR-REPL-5).",
+      "description": "The one expertise gauge of both weapons: its level, from 0, its points\ntoward the next, the style chosen and the Main style's path\ntaken (ADR-REPL-5).",
       "properties": {
         "level": {
           "description": "From 0, with no highest level.",
@@ -4419,17 +4225,6 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
-        },
-        "offer": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ExpertiseOfferView"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The open expertise offer: while it is open the world is stopped, and `Engine::choose`\ntakes one of its options."
         },
         "path": {
           "description": "The choices taken from the style's path, in level order: its two upgrades, then its\ncapstone.",
@@ -4454,16 +4249,6 @@
             }
           ],
           "description": "The weapon's style, chosen at the level table's style level and held for the run."
-        },
-        "taken": {
-          "description": "Times each option of the weapon's common pool was taken, in the pool's order; empty for\na weapon with no expertise content.",
-          "items": {
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "type": "array"
         }
       },
       "required": [
@@ -6818,17 +6603,6 @@
           },
           "type": "array"
         },
-        "stat_offer": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StatOfferView"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The open stat offer (`pick_stats`, DS18): while it is open the world is stopped, and\n`Engine::choose` takes one of its options."
-        },
         "xp": {
           "description": "Experience gained toward the next level.",
           "format": "uint32",
@@ -7776,10 +7550,6 @@
           "default": "duelist",
           "description": "The perk set the run applies from tick 0, by the ID of the run's perk\nsets file. A setup written before perk sets existed reads as `DEFAULT_PERK_SET`."
         },
-        "pick_stats": {
-          "description": "Each level reached opens an offer of the stats below their limit, answered through\n`Engine::choose`, instead of spending by `stat_priority` (DS18). Absent: false. Off in\nequipment mode.",
-          "type": "boolean"
-        },
         "rune_pool": {
           "description": "The runes the random rune may draw: rune IDs, sorted, each\nonce, at most `MAX_RUNE_POOL`. Empty: every rune.",
           "items": {
@@ -7825,7 +7595,7 @@
           "description": "A rune the run starts holding: in the rune pool when there is one. It\ncosts no Lumine, and the random rune never draws it again."
         },
         "stat_priority": {
-          "description": "The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,\nat most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,\nthen the stats this list leaves out in the run stats file's order; empty is that order\nalone. With `pick_stats` the stats are offered instead.",
+          "description": "The run stats a level-up is spent on, most wanted first (DS18): run stat IDs, each once,\nat most `MAX_RUN_STATS`. Each level reached raises the first of them below its limit,\nthen the stats this list leaves out in the run stats file's order; empty is that order\nalone.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -9372,23 +9142,6 @@
           "type": "string"
         }
       ]
-    },
-    "StatOfferView": {
-      "additionalProperties": false,
-      "description": "A stat offer: a level reached with `pick_stats` (DS18). No reroll, skip or banish.",
-      "properties": {
-        "options": {
-          "description": "The run stats below their limit, in the run stats' order: option `i` of\n`Engine::choose` raises `options[i]`.",
-          "items": {
-            "$ref": "#/$defs/ContentId"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "options"
-      ],
-      "type": "object"
     },
     "StatValueView": {
       "additionalProperties": false,

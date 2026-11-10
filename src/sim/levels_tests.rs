@@ -94,19 +94,111 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     assert_eq!(p.spent[usize::from(attack)], 2);
 }
 
-/// T2: pin: an offers run with the switch queues the stat offers and spends nothing.
+/// The `type` strings of `events`.
+fn kinds(events: &[DomainEvent]) -> Vec<String> {
+    events
+        .iter()
+        .map(|ev| {
+            serde_json::to_value(ev).unwrap()["type"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// A stat offer is gone: with the state field set by hand, an offers run still spends by the
+/// priority and queues and opens nothing.
 #[test]
-fn an_offers_level_up_with_the_switch_queues_the_stat_offer() {
+fn an_offers_level_up_spends_by_priority_whatever_the_stale_field_says() {
     let mut e = engine(BuildMode::Offers);
     let events = level_up(&mut e, &[1, 4], true, 2);
     let p = progress(&e);
-    assert_eq!(p.offers_due, 2);
-    assert!(
-        !events
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::StatRaised { .. }))
+    assert_eq!((p.offers_due, p.offer_open), (0, false));
+    let names = kinds(&events);
+    assert_eq!(
+        names.iter().filter(|k| *k == "StatRaised").count(),
+        2,
+        "{names:?}"
     );
-    assert!(p.spent.iter().all(|n| *n == 0));
+    assert!(!names.iter().any(|k| k == "StatOfferOpened"), "{names:?}");
+    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
+}
+
+/// The expertise offers are gone: crossing the common, style, upgrade and capstone levels in an
+/// offers run opens nothing and takes nothing; `offered` still follows the level.
+#[test]
+fn an_offers_run_opens_no_expertise_offer() {
+    let mut e = Engine::start(&RunSetup {
+        mode: "trial".into(),
+        build_mode: BuildMode::Offers,
+        ..RunSetup::default()
+    })
+    .expect("starts");
+    for level in [1, 3, 6, 10] {
+        {
+            let Run::V2 { state, .. } = e.run_mut() else {
+                panic!("the live rules");
+            };
+            let g = state
+                .players
+                .career_mut(PlayerIdx::SOLO)
+                .expertise
+                .as_mut()
+                .expect("a gauge");
+            g.level = level;
+        }
+        e.open_offers_for_test();
+        let g = gauge(&e);
+        assert!(g.offer.is_none(), "level {level}");
+        assert_eq!(g.offered, level);
+        assert!(g.taken.iter().all(|n| *n == 0));
+        let names = kinds(e.events());
+        assert!(
+            !names.iter().any(|k| k == "ExpertiseOfferOpened"),
+            "{names:?}"
+        );
+        assert!(!e.offer_open());
+    }
+    let tick = e.tick();
+    e.step(&[Default::default(), Default::default(), Default::default()]);
+    assert_eq!(e.tick(), tick + 1);
+}
+
+/// A loaded state with a stale offer does not stop the world and takes no pick.
+#[test]
+fn a_stale_offer_does_not_stop_the_world() {
+    use crate::engine::ChoiceError;
+    use crate::sim::state::ExpertiseOffer;
+    for expertise in [false, true] {
+        let mut e = Engine::start(&RunSetup {
+            mode: "trial".into(),
+            build_mode: BuildMode::Offers,
+            ..RunSetup::default()
+        })
+        .expect("starts");
+        {
+            let Run::V2 { state, .. } = e.run_mut() else {
+                panic!("the live rules");
+            };
+            let c = state.players.career_mut(PlayerIdx::SOLO);
+            if expertise {
+                c.expertise.as_mut().expect("a gauge").offer = Some(ExpertiseOffer {
+                    level: 1,
+                    kind: ExpertiseOfferKind::Common,
+                    candidates: vec![0, 1],
+                });
+            } else {
+                let p = c.progress.as_mut().expect("levels");
+                (p.offer_open, p.offers_due) = (true, 3);
+            }
+        }
+        assert!(!e.offer_open(), "{expertise}");
+        assert_eq!(e.check_pick(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
+        let tick = e.tick();
+        e.step(&[Default::default(), Default::default(), Default::default()]);
+        assert_eq!(e.tick(), tick + 1);
+    }
 }
 
 /// T3: with every stat at its limit a level gives nothing but the level.
@@ -210,11 +302,7 @@ fn a_common_level_bumps_nothing_and_emits_nothing() {
     let events = pass(&mut e, 3, 8, Some(0), &[ATTACK]);
     let g = gauge(&e);
     assert!(g.taken.iter().all(|n| *n == 0));
-    assert!(
-        !events
-            .iter()
-            .any(|ev| matches!(ev, DomainEvent::ExpertiseOptionTaken { .. }))
-    );
+    assert!(events.is_empty(), "{events:?}");
     assert_eq!((g.offered, g.level, g.offer.is_none()), (8, 8, true));
 }
 

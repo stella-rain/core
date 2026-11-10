@@ -17,7 +17,7 @@
 
 use super::World;
 use super::event::DomainEvent;
-use super::views::{OfferOption, StatOfferView};
+use super::views::OfferOption;
 use crate::id::ContentId;
 use crate::run_stats::{self, RunStats, StatEffect};
 use crate::sim_v1::state::{AgentSource, PlayerState, Progress, State};
@@ -198,17 +198,6 @@ pub(super) fn choose(s: &mut State, option: OfferOption, events: &mut Vec<Domain
         p.offer_open = false;
         raise(p, player, at, events);
     }
-}
-
-/// The open stat offer, for the snapshot.
-pub(crate) fn offer_view(s: &State) -> Option<StatOfferView> {
-    let p = s.progress.as_ref().filter(|p| p.offer_open)?;
-    Some(StatOfferView {
-        options: open_stats(p)
-            .iter()
-            .map(|&i| p.stats[i].id.clone())
-            .collect(),
-    })
 }
 
 /// Adds `amount` to the total of `effect`; `MaxHp` also raises the most hit points and heals

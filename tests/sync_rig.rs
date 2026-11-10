@@ -24,11 +24,11 @@ use stella_rain_core::run_replay::{CHECKPOINT_TICKS, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 
 /// The offers revive runs this file builds itself (offers mode, no corpus file and no pin): the
-/// party, the bot seed and the world seed 1 of the old revive search. A pick is an offer's answer,
+/// party, the bot seed (2, found again after the level offers left: world seed 1, bot seeds 1 to 40, the first with a revive in both parties) and the world seed 1. A pick is an offer's answer,
 /// which an equipment run has none of, so the offers rollback semantics stay tested on these
 /// until the offers path goes (a window that starts on an open offer replays its pick first; an
 /// altered pick is caught).
-const OFFERS_CASES: [(&str, u8, u64); 2] = [("two_revive", 2, 3), ("three_revive", 3, 1)];
+const OFFERS_CASES: [(&str, u8, u64); 2] = [("two_revive", 2, 2), ("three_revive", 3, 2)];
 const RIG_CASES: [&str; 2] = ["two_revive", "three_revive"];
 /// The rollback window, in ticks.
 const MAX_DEPTH: u32 = 8;

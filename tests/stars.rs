@@ -784,23 +784,6 @@ fn a_choice_outside_the_offer_is_refused_and_changes_nothing() {
 }
 
 #[test]
-fn a_stat_offer_opens_before_the_stars_offer() {
-    // Level 2 at 1 experience: the kill gives a stat offer and the star at once.
-    let content = RunContent::new(RunStats::bundled().clone(), commons(4));
-    let stage = starry(&[1], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
-    let mut e = Engine::new_with_stats(&stage, &content, &[], true).unwrap();
-    until_offer(&mut e, idle());
-    let progress = e.snapshot().progress.unwrap();
-    assert!(progress.stat_offer.is_some() && progress.offer.is_none());
-    common::pick(&mut e, 0).unwrap();
-    // The star's offer opens as the stat offer closes.
-    assert!(offer(&e).options.contains(&OfferOption::Skip));
-    let index = index_of(&e, OfferOption::Skip);
-    common::pick(&mut e, index).unwrap();
-    assert!(!e.offer_open());
-}
-
-#[test]
 fn the_stars_and_the_offer_are_in_the_state_hash() {
     let stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
     let mut a = with(&stage, commons(4));

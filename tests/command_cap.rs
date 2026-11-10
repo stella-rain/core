@@ -61,8 +61,7 @@ pub fn setup(seed: u64, difficulty: &str, extra_rerolls: u8) -> RunSetup {
         lumine: 0,
         starting_rune: None,
         stat_priority: Vec::new(),
-        // Every level-up opens a stat offer: the most commands a run can cost.
-        pick_stats: true,
+        // The most commands a run can cost: every offer answered.
         difficulty: difficulty.into(),
         ..RunSetup::default()
     }
@@ -109,12 +108,8 @@ pub fn play(content: &RunContent, setup: &RunSetup, bot: Bot) -> Played {
 fn answer_offers(run: &mut RunRecorder, bot: Bot) {
     while run.engine().offer_open() {
         let snapshot = run.engine().snapshot();
-        if snapshot.expertise.and_then(|g| g.offer).is_some()
-            || snapshot
-                .progress
-                .as_ref()
-                .is_some_and(|p| p.stat_offer.is_some())
-        {
+        // No star offer is shown: a frozen run's stat or expertise offer, which has no view.
+        if snapshot.progress.as_ref().is_none_or(|p| p.offer.is_none()) {
             run.choose(PlayerIdx::SOLO, 0).unwrap();
             continue;
         }
@@ -134,9 +129,10 @@ fn answer_offers(run: &mut RunRecorder, bot: Bot) {
 }
 
 /// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
-/// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); re-measure
-/// and re-pin when the deep tier reports a higher number.
-const MEASURED_MOST: usize = 425;
+/// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); 400 once the
+/// setup's `pick_stats` left (the frozen rules no longer open a stat offer for each level-up).
+/// Re-measure and re-pin when the deep tier reports a higher number.
+const MEASURED_MOST: usize = 400;
 
 /// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
 /// that a debug build plays in seconds.

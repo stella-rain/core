@@ -232,11 +232,10 @@ use crate::validate::limits::DAMAGE_SCALE;
 
 pub(crate) use drops::DropTable;
 use entity::{Who, scale_damage, status_pct};
-pub(crate) use expertise::offer_view as expertise_offer_view;
 pub(crate) use expertise::styles_view as expertise_styles_view;
 pub(crate) use expertise::{check_tree, tree_ready_view, weapon_stats_view};
 use grid::Grid;
-pub(crate) use levels::{offer_view as stat_offer_view, set_policy, xp_next};
+pub(crate) use levels::{set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
 pub(crate) use stars::{constellation_views, offer_view};
@@ -746,18 +745,11 @@ pub(crate) fn step(
     );
 }
 
-/// A stat offer is open for `me`.
-fn stat_offer_open(s: &State, me: PlayerIdx) -> bool {
-    let career = s.players.career(me);
-    career.progress.as_ref().is_some_and(|p| p.offer_open)
-}
-
-/// `me` has an offer open, a star's, a boss's, an expertise level's or a stat offer.
+/// `me` has an offer open, a star's or a boss's. The stat and expertise fields a loaded state may
+/// still carry are not offers any more.
 pub(crate) fn offer_open_for(s: &State, me: PlayerIdx) -> bool {
     let career = s.players.career(me);
     career.offers.as_ref().is_some_and(|o| o.offer.is_some())
-        || career.expertise.as_ref().is_some_and(|g| g.offer.is_some())
-        || stat_offer_open(s, me)
 }
 
 /// An offer is open for any present player: the world is stopped.
@@ -766,21 +758,14 @@ pub(crate) fn offer_open(s: &State) -> bool {
 }
 
 /// Opens, for every present player in slot order, the first offer due unless one is open for
-/// that player: the boss offer, then the expertise levels' in level order, then the stat offers
-/// in level order, then the stars' in the order taken (ADR-REPL-5, DS18). The players open
-/// theirs side by side.
-fn open_offers(
-    stage: &World,
-    rewards: &Rewards,
-    expertise: &Expertise,
-    s: &mut State,
-    events: &mut Vec<DomainEvent>,
-) {
+/// that player: the boss offer, then the stars' in the order taken (ADR-REPL-5). The players open
+/// theirs side by side. The expertise gauge's `offered` follows its level.
+fn open_offers(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     for me in s.players.indices() {
-        open_offers_for(stage, rewards, expertise, s, me, events);
+        open_offers_for(stage, rewards, s, me, events);
     }
     if !s.players.is_solo() && s.players.indices().any(|me| s.players[me].is_downed()) {
-        take_downed(stage, rewards, expertise, s, events);
+        take_downed(stage, rewards, s, events);
     }
 }
 
@@ -791,13 +776,7 @@ const MAX_AUTO_PICKS: u32 = 256;
 /// events of a manual pick, nothing recorded (ADR-REPL-5 point 5). Each pick opens the next offer
 /// due, so a whole queue goes on one tick. A party only.
 #[cold]
-fn take_downed(
-    stage: &World,
-    rewards: &Rewards,
-    expertise: &Expertise,
-    s: &mut State,
-    events: &mut Vec<DomainEvent>,
-) {
+fn take_downed(stage: &World, rewards: &Rewards, s: &mut State, events: &mut Vec<DomainEvent>) {
     let slots: Vec<PlayerIdx> = s.players.indices().collect();
     for me in slots {
         if !s.players[me].is_downed() {
@@ -808,13 +787,10 @@ fn take_downed(
             if !offer_open_for(s, me) {
                 break;
             }
-            let Some(option) = offer_options(stage, rewards, expertise, s, me)
-                .first()
-                .copied()
-            else {
+            let Some(option) = offer_options(rewards, s, me).first().copied() else {
                 break;
             };
-            choose(2, stage, rewards, expertise, s, me, option, events);
+            choose(2, stage, rewards, s, me, option, events);
         }
     }
 }
@@ -822,9 +798,6 @@ fn take_downed(
 /// An out player has no offers (ADR-SIM-7 point 4): what is queued for it is forgotten.
 fn drop_offers(s: &mut State, me: PlayerIdx) {
     let career = s.players.career_mut(me);
-    if let Some(progress) = career.progress.as_mut() {
-        progress.offers_due = 0;
-    }
     if let Some(offers) = career.offers.as_mut() {
         offers.due.clear();
     }
@@ -837,18 +810,16 @@ fn drop_offers(s: &mut State, me: PlayerIdx) {
 pub(crate) fn open_offers_for_test(
     stage: &World,
     rewards: &Rewards,
-    expertise: &Expertise,
     s: &mut State,
     events: &mut Vec<DomainEvent>,
 ) {
-    open_offers(stage, rewards, expertise, s, events);
+    open_offers(stage, rewards, s, events);
 }
 
 /// `open_offers` for the player `me` alone.
 fn open_offers_for(
     stage: &World,
     rewards: &Rewards,
-    expertise: &Expertise,
     s: &mut State,
     me: PlayerIdx,
     events: &mut Vec<DomainEvent>,
@@ -858,59 +829,28 @@ fn open_offers_for(
         return;
     }
     stars::open_due(stage, rewards, s, me, events, true);
-    expertise::open_due(stage, expertise, s, me, events);
-    levels::open_due(s, me, events);
+    expertise::open_due(s, me);
     stars::open_due(stage, rewards, s, me, events, false);
 }
 
 /// The options of `me`'s open offer, in index order; empty without one.
-pub(crate) fn offer_options(
-    stage: &World,
-    rewards: &Rewards,
-    expertise: &Expertise,
-    s: &State,
-    me: PlayerIdx,
-) -> Vec<OfferOption> {
-    if s.players
-        .career(me)
-        .expertise
-        .as_ref()
-        .is_some_and(|g| g.offer.is_some())
-    {
-        expertise::options(stage, expertise, s, me)
-    } else if stat_offer_open(s, me) {
-        levels::options(s, me)
-    } else {
-        stars::options(rewards, s, me)
-    }
+pub(crate) fn offer_options(rewards: &Rewards, s: &State, me: PlayerIdx) -> Vec<OfferOption> {
+    stars::options(rewards, s, me)
 }
 
 /// Carries out `option`, one of `offer_options`, on `me`'s open offer; when that closes it, the
 /// next offer due to `me` opens. The other players' due offers opened at the end of the tick.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn choose(
     _version: u32,
     stage: &World,
     rewards: &Rewards,
-    expertise: &Expertise,
     s: &mut State,
     me: PlayerIdx,
     option: OfferOption,
     events: &mut Vec<DomainEvent>,
 ) {
-    if s.players
-        .career(me)
-        .expertise
-        .as_ref()
-        .is_some_and(|g| g.offer.is_some())
-    {
-        expertise::choose(stage, expertise, s, me, option, events);
-    } else if stat_offer_open(s, me) {
-        levels::choose(s, me, option, events);
-    } else {
-        stars::choose(stage, rewards, s, me, option, events);
-    }
-    open_offers_for(stage, rewards, expertise, s, me, events);
+    stars::choose(stage, rewards, s, me, option, events);
+    open_offers_for(stage, rewards, s, me, events);
 }
 
 /// Whether the inventory item `item` could go into `slot` of `me`, as an equip or a replace
