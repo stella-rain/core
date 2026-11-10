@@ -530,28 +530,6 @@ fn the_offer_views_convert_field_by_field() {
     for (frozen, expected) in kinds {
         assert_eq!(live::OfferKind::from(frozen), expected);
     }
-    let expertise: [(w::ExpertiseOfferKind, live::ExpertiseOfferKind); 4] = [
-        (
-            w::ExpertiseOfferKind::Common,
-            live::ExpertiseOfferKind::Common,
-        ),
-        (
-            w::ExpertiseOfferKind::Style,
-            live::ExpertiseOfferKind::Style,
-        ),
-        (
-            w::ExpertiseOfferKind::Upgrade,
-            live::ExpertiseOfferKind::Upgrade,
-        ),
-        (
-            w::ExpertiseOfferKind::Capstone,
-            live::ExpertiseOfferKind::Capstone,
-        ),
-    ];
-    for (frozen, expected) in expertise {
-        assert_eq!(live::ExpertiseOfferKind::from(frozen), expected);
-    }
-
     let options: [(w::OfferOption, live::OfferOption); 4] = [
         (
             w::OfferOption::Take { candidate: 1 },

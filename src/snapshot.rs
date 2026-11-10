@@ -169,12 +169,10 @@ pub struct ExpertiseView {
     pub path: Vec<ContentId>,
 }
 
-/// What an expertise level offers.
+/// What a tree level of the weapon's expertise holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExpertiseOfferKind {
-    /// Options drawn from the weapon's common pool, with a reroll of each.
-    Common,
     /// The weapon's three styles, at the level table's style level: fixed, no reroll.
     Style,
     /// The fixed upgrades of the chosen style, at the table's upgrade levels: no reroll.
