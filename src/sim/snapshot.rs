@@ -440,10 +440,14 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         }),
         patterns: announced_patterns(world, s),
         stardust: s.players.career(shown).stardust,
-        starlight: world
-            .equipment_mode
-            .then(|| starlight_view(&world.equipment_rules)),
+        starlight: has_rules(world).then(|| starlight_view(&world.equipment_rules)),
     }
+}
+
+/// Whether the run loaded the pack's equipment rules: a stage run alone holds none, and shows no
+/// Starlight and no pool test.
+fn has_rules(world: &World) -> bool {
+    world.equipment_mode && world.equipment_rules != EquipmentRules::default()
 }
 
 /// The Starlight prices, one per rarity in `Rarity::ALL` order, from the run's equipment rules.
@@ -463,9 +467,9 @@ fn starlight_view(rules: &EquipmentRules) -> StarlightView {
 }
 
 /// Whether `me` holds each star of the star pool, in pool order: the test a craft refuses by
-/// (`starlight::holds_named`). Empty in offers mode.
+/// (`starlight::holds_named`). Empty in a run without the equipment rules.
 fn pool_held(world: &World, content: &RunContent, s: &State, me: PlayerIdx) -> Vec<bool> {
-    if !world.equipment_mode {
+    if !has_rules(world) {
         return Vec::new();
     }
     let equipment = &s.players.career(me).equipment;

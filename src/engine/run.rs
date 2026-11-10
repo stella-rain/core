@@ -199,12 +199,12 @@ impl Run {
 
     fn new_v2(b: Build<'_>) -> Result<Run, Issue> {
         let mut world = sim::World::new(b.stage, b.spec, &b.kinds, b.content)?;
-        // The mode is a fact of the setup (a replay stores it, a restore rebuilds from it).
-        world.equipment_mode = b
-            .setup
-            .is_some_and(|setup| setup.build_mode == crate::run_setup::BuildMode::Equipment);
-        if world.equipment_mode {
-            // `run_setup::validate_in` refused an equipment run whose pack lacks the rules.
+        // sim_version >= 2: the equipment mode (ADR-SIM-7). A run with a setup loads the pack's
+        // rules and drop table; a stage run alone keeps them empty, so its equipment branches run
+        // with zero numbers (no boss bonus, no drops).
+        world.equipment_mode = true;
+        if b.setup.is_some() {
+            // `run_setup::validate_in` refused a run whose pack lacks the rules.
             if let Some(rules) = b.content.rewards().equipment() {
                 world.equipment_rules = rules.clone();
             }
