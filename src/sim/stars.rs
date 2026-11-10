@@ -699,7 +699,6 @@ pub(crate) fn offer_view(rewards: &Rewards, s: &State, me: PlayerIdx) -> Option<
 mod tests {
     use super::*;
     use crate::run_content::RunContent;
-    use crate::sim::{RunDifficulty, RunPool, initial_state};
     use crate::version::Versions;
 
     const ALL: (Rarity, Rarity) = (Rarity::Common, Rarity::Supernova);
@@ -765,36 +764,9 @@ mod tests {
         let rewards =
             Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
         let stage = super::super::World::for_test(RunContent::bundled().trial().clone());
-        let pool = RunPool {
-            rewards: vec![0, 1],
-            extra_rerolls: 0,
-            difficulty: RunDifficulty {
-                hp_pct: 100,
-                damage_pct: 100,
-                rarity: ALL,
-            },
-        };
-        let mut s = initial_state(
-            &stage,
-            RunContent::bundled(),
-            pool,
-            1,
-            crate::kinds::KindTable::of_stage(&stage).unwrap(),
-        );
-        let State { stars, players, .. } = &mut s;
-        let (player, career) = players.both_mut(PlayerIdx::SOLO);
-        let Career {
-            progress,
-            offer: rng,
-            offers,
-            regen,
-            ..
-        } = career;
-        let f = stars.as_ref().expect("a star field");
-        let o = offers.as_mut().expect("star offers");
-        take(&stage, &rewards, rng, progress, player, regen, f, o, 0);
-        assert_eq!((player.kill_heal, player.kill_heal_every), (300, 10));
-        take(&stage, &rewards, rng, progress, player, regen, f, o, 1);
-        assert_eq!((player.kill_heal, player.kill_heal_every), (500, 4));
+        let one = Build::of(&stage, &rewards, &[1, 0]);
+        assert_eq!((one.kill_heal, one.kill_heal_every), (300, 10));
+        let both = Build::of(&stage, &rewards, &[1, 1]);
+        assert_eq!((both.kill_heal, both.kill_heal_every), (500, 4));
     }
 }

@@ -79,7 +79,7 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
         .filter(|ev| matches!(ev, DomainEvent::LeveledUp { .. }))
         .count();
     assert_eq!((leveled, raised), (2, vec![1, 2]));
-    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
+    assert!(!e.offer_open());
     let step = p.stats[usize::from(attack)].step;
     assert_eq!(p.totals[StatEffect::AttackPct as usize], before + 2 * step);
     assert_eq!(p.spent[usize::from(attack)], 2);
@@ -144,7 +144,6 @@ pub(super) fn pass(
         (g.level, g.style) = (level, style);
         c.progress.as_mut().expect("levels").priority = priority.to_vec();
     }
-    e.open_offers_for_test();
     e.events().to_vec()
 }
 
@@ -225,7 +224,7 @@ fn a_common_level_opens_no_offer_and_draws_nothing() {
     pass(&mut e, 9, None, &[ATTACK]);
     let c = state_of(&e).players.career(PlayerIdx::SOLO);
     assert_eq!(c.offer.state(), before);
-    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
+    assert!(!e.offer_open());
 }
 
 /// T8: levels crossed in one tick equal levels crossed in three.
@@ -267,7 +266,6 @@ fn pass_without_progress(e: &mut Engine) -> Vec<DomainEvent> {
             .expect("a gauge");
         g.level = 6;
     }
-    e.open_offers_for_test();
     e.events().to_vec()
 }
 
@@ -318,7 +316,7 @@ fn the_style_level_holds_a_tree_point_and_nothing_stops() {
     let (kind, level, held, choices) = next(&mut e).expect("a point");
     assert_eq!((kind, level, held), (ExpertiseOfferKind::Style, 3, 1));
     assert_eq!(choices, ["crush", "quake", "bulwark"]);
-    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
+    assert!(!e.offer_open());
 }
 
 /// Passes the levels up to `level`, keeping the style already chosen.
@@ -354,7 +352,6 @@ fn a_tree_pick_applies_the_option_and_records_the_path() {
         total(&e, StatEffect::AttackPct),
         state_of(&e).players.career(PlayerIdx::SOLO).offer.state(),
     );
-    e.open_offers_for_test();
     tree_pick(&mut e, 0).expect("the style");
     assert_eq!(gauge(&e).style, Some(0));
     assert_eq!(

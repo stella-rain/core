@@ -803,16 +803,6 @@ fn drop_offers(s: &mut State, me: PlayerIdx) {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn open_offers_for_test(
-    stage: &World,
-    rewards: &Rewards,
-    s: &mut State,
-    events: &mut Vec<DomainEvent>,
-) {
-    open_offers(stage, rewards, s, events);
-}
-
 /// `open_offers` for the player `me` alone.
 fn open_offers_for(
     stage: &World,

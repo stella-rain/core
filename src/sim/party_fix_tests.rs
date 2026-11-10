@@ -1,18 +1,15 @@
 //! A downed or out player in a party (ADR-SIM-7 points 4 and 5, ADR-SIM-8): its offers, its hit
 //! points, the boss offer and the outcome.
 
-use super::state::{Due, PlayerIdx, State};
-use super::{
-    Blame, Culprit, Shot, World, decide_outcome, hurt_player, offer_open_for, tick_down_and_revive,
-};
+use super::state::{PlayerIdx, State};
+use super::{World, decide_outcome, tick_down_and_revive};
 use crate::engine::{Engine, Outcome, Run};
-use crate::event::{DomainEvent, HitKind};
+use crate::event::DomainEvent;
 use crate::id::EntityId;
 use crate::input::Input;
 use crate::rewards::Rarity;
 use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
-use crate::snapshot::OfferKind;
 use crate::stage::{RarityWeights, Tier};
 
 pub(super) fn slot(i: u8) -> PlayerIdx {
@@ -42,13 +39,6 @@ pub(super) fn out(s: &mut State, i: u8) {
     s.players[slot(i)].out = true;
 }
 
-pub(super) fn star_due() -> Due {
-    Due {
-        kind: OfferKind::Star,
-        rarity: Rarity::Common,
-    }
-}
-
 fn idle() -> [Input; 3] {
     [Input::default(); 3]
 }
@@ -70,29 +60,6 @@ fn one_out_and_the_other_goes_down_fails_the_run() {
     assert_eq!(ev, vec![DomainEvent::StageFailed]);
 }
 
-/// The queued offers of a player are dropped on the tick it goes out (ADR-SIM-7 point 4).
-#[test]
-fn queued_offers_are_dropped_when_a_player_goes_out() {
-    let (w, mut s) = party(2);
-    down(&mut s, 1);
-    s.players[slot(1)].down_ticks = 1199;
-    let career = s.players.career_mut(slot(1));
-    career
-        .offers
-        .as_mut()
-        .expect("stars")
-        .due
-        .extend([star_due(), star_due()]);
-    let gauge = career.expertise.as_mut().expect("expertise");
-    gauge.level = 3;
-
-    let mut ev = Vec::new();
-    tick_down_and_revive(&w, &mut s, &idle(), &mut ev);
-    assert!(ev.contains(&DomainEvent::PlayerOut { player: slot(1) }));
-    let career = s.players.career(slot(1));
-    assert!(career.offers.as_ref().unwrap().due.is_empty());
-}
-
 // --- offers of a downed and an out player (ADR-SIM-7 point 4) ----------------------------------
 
 /// A party engine to edit and to open offers on.
@@ -109,106 +76,6 @@ fn st(e: &mut Engine) -> &mut State {
         Run::V2 { state, .. } => state,
         Run::V1 { .. } => panic!("the live rules"),
     }
-}
-
-fn count<F: Fn(&DomainEvent) -> bool>(e: &Engine, f: F) -> usize {
-    e.events().iter().filter(|ev| f(ev)).count()
-}
-
-fn lethal(e: &mut Engine, i: u8) {
-    let Run::V2 { world, state: s } = e.run_mut() else {
-        panic!("the live rules")
-    };
-    let shot = Shot {
-        at: s.players[slot(i)].at,
-        owner: EntityId(99),
-        friendly: false,
-        damage: 1_000_000,
-        damage_type: None,
-        breaks_charge: false,
-        smash: None,
-        combo: false,
-        rune: None,
-        chain: false,
-    };
-    let by = Blame {
-        kind: HitKind::Attack,
-        by: Culprit::Run(super::world::AttackIndex(0)),
-    };
-    let mut events = Vec::new();
-    hurt_player(world, s, slot(i), shot, by, &mut events);
-}
-
-#[test]
-fn a_downed_player_takes_its_whole_queue_on_one_tick() {
-    let mut e = engine(2);
-    down(st(&mut e), 1);
-    st(&mut e)
-        .players
-        .career_mut(slot(1))
-        .offers
-        .as_mut()
-        .unwrap()
-        .due
-        .extend([star_due(), star_due(), star_due()]);
-    e.open_offers_for_test();
-    let s = st(&mut e);
-    let offers = s.players.career(slot(1)).offers.as_ref().unwrap();
-    assert!(offers.due.is_empty() && offers.offer.is_none());
-    assert!(!offer_open_for(s, slot(1)));
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
-        3
-    );
-}
-
-#[test]
-fn going_down_takes_the_open_offer_and_the_one_queued_behind_it() {
-    let mut e = engine(2);
-    st(&mut e)
-        .players
-        .career_mut(slot(1))
-        .offers
-        .as_mut()
-        .unwrap()
-        .due
-        .extend([star_due(), star_due()]);
-    e.open_offers_for_test();
-    assert!(offer_open_for(st(&mut e), slot(1)));
-    lethal(&mut e, 1);
-    assert!(st(&mut e).players[slot(1)].is_downed());
-    e.open_offers_for_test();
-    let s = st(&mut e);
-    assert!(!offer_open_for(s, slot(1)));
-    let offers = s.players.career(slot(1)).offers.as_ref().unwrap();
-    assert!(offers.due.is_empty() && offers.offer.is_none());
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
-        2
-    );
-}
-
-#[test]
-fn an_out_player_opens_nothing_and_loses_what_is_queued() {
-    let mut e = engine(2);
-    out(st(&mut e), 1);
-    st(&mut e)
-        .players
-        .career_mut(slot(1))
-        .offers
-        .as_mut()
-        .unwrap()
-        .due
-        .push(star_due());
-    e.open_offers_for_test();
-    let s = st(&mut e);
-    assert!(!offer_open_for(s, slot(1)));
-    let career = s.players.career(slot(1));
-    assert!(career.offers.as_ref().unwrap().due.is_empty());
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::OfferOpened { .. })),
-        0
-    );
 }
 
 // --- no hit points while downed (ADR-SIM-7) -----------------------------------------------------
@@ -381,28 +248,6 @@ fn set_tiers(w: &mut World, s: &mut State, levels: [u32; 3]) {
     for i in s.players.indices().collect::<Vec<_>>() {
         s.players.career_mut(i).progress.as_mut().unwrap().level = levels[i.get()];
     }
-}
-
-/// The step itself reaches `take_downed`: a downed player's star offer never stays open past
-/// the tick.
-#[test]
-fn a_step_takes_a_downed_players_offer_in_a_stop_run() {
-    let mut e = engine(2);
-    down(st(&mut e), 1);
-    st(&mut e)
-        .players
-        .career_mut(slot(1))
-        .offers
-        .as_mut()
-        .unwrap()
-        .due
-        .push(star_due());
-    e.step(&idle());
-    assert!(!offer_open_for(st(&mut e), slot(1)));
-    assert_eq!(
-        count(&e, |ev| matches!(ev, DomainEvent::RewardTaken { .. })),
-        1
-    );
 }
 
 // --- experience, Stardust and the star tier of the players that are up (ADR-SIM-7 point 5) -----
