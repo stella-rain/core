@@ -509,7 +509,7 @@ pub(crate) struct StatRule {
 }
 
 /// Experience, levels and stat points (ADR-REPL-5; DS18).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Progress {
     /// From 1.
@@ -531,13 +531,65 @@ pub(crate) struct Progress {
     pub set_tenths: [u32; StatEffect::ALL.len()],
 }
 
+impl Clone for Progress {
+    fn clone(&self) -> Progress {
+        let Progress {
+            level,
+            xp,
+            stats,
+            priority,
+            spent,
+            totals,
+            set_tenths,
+        } = self;
+        Progress {
+            level: *level,
+            xp: *xp,
+            stats: stats.clone(),
+            priority: priority.clone(),
+            spent: spent.clone(),
+            totals: *totals,
+            set_tenths: *set_tenths,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Progress) {
+        let Progress {
+            level,
+            xp,
+            stats,
+            priority,
+            spent,
+            totals,
+            set_tenths,
+        } = self;
+        let Progress {
+            level: s_level,
+            xp: s_xp,
+            stats: s_stats,
+            priority: s_priority,
+            spent: s_spent,
+            totals: s_totals,
+            set_tenths: s_set_tenths,
+        } = source;
+        *level = *s_level;
+        *xp = *s_xp;
+        stats.clone_from(s_stats);
+        priority.clone_from(s_priority);
+        spent.clone_from(s_spent);
+        *totals = *s_totals;
+        *set_tenths = *s_set_tenths;
+    }
+}
+
 pub(crate) use crate::id::{MAX_PLAYERS, PlayerIdx};
 
 /// What one player carries through the run besides the player's body: the experience and levels
 /// (`None` in a stage without levels), the offer generator and the star offers (`None` in a stage
 /// without stars), the expertise gauge, the Stardust earned and the regeneration. One per slot in
 /// `Players` (ADR-SIM-7, ADR-SIM-2).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Career {
     pub progress: Option<Progress>,
@@ -555,6 +607,58 @@ pub(crate) struct Career {
     pub regen: u32,
     /// The star equipment: empty in an offers run (ADR-SIM-3 point 2).
     pub equipment: Equipment,
+}
+
+impl Clone for Career {
+    fn clone(&self) -> Career {
+        let Career {
+            progress,
+            offer,
+            offers,
+            expertise,
+            stardust,
+            regen,
+            equipment,
+        } = self;
+        Career {
+            progress: progress.clone(),
+            offer: offer.clone(),
+            offers: offers.clone(),
+            expertise: expertise.clone(),
+            stardust: *stardust,
+            regen: *regen,
+            equipment: equipment.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Career) {
+        let Career {
+            progress,
+            offer,
+            offers,
+            expertise,
+            stardust,
+            regen,
+            equipment,
+        } = self;
+        let Career {
+            progress: s_progress,
+            offer: s_offer,
+            offers: s_offers,
+            expertise: s_expertise,
+            stardust: s_stardust,
+            regen: s_regen,
+            equipment: s_equipment,
+        } = source;
+        progress.clone_from(s_progress);
+        offer.clone_from(s_offer);
+        offers.clone_from(s_offers);
+        expertise.clone_from(s_expertise);
+        *stardust = *s_stardust;
+        *regen = *s_regen;
+        equipment.clone_from(s_equipment);
+    }
 }
 
 /// The offer generator's tag of slot `me`.
@@ -634,7 +738,7 @@ impl Default for Career {
 /// ascending order, its player and its career (ADR-SIM-3, ADR-SAVE-4); an absent slot writes
 /// nothing, and a hole in the mask hashes and saves. A party builder supplies a career for every
 /// present slot.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Players {
     items: [PlayerState; MAX_PLAYERS as usize],
     /// The career of each slot; an absent slot holds `Career::default()`, which nothing reads.
@@ -645,6 +749,43 @@ pub(crate) struct Players {
     /// occupant's entity number matches nothing the leaver owned (ADR-SIM-7). Hashed and saved
     /// for every slot, present or not.
     generations: [u8; MAX_PLAYERS as usize],
+}
+
+impl Clone for Players {
+    fn clone(&self) -> Players {
+        let Players {
+            items,
+            careers,
+            present,
+            generations,
+        } = self;
+        Players {
+            items: items.clone(),
+            careers: careers.clone(),
+            present: *present,
+            generations: *generations,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Players) {
+        let Players {
+            items,
+            careers,
+            present,
+            generations,
+        } = self;
+        let Players {
+            items: s_items,
+            careers: s_careers,
+            present: s_present,
+            generations: s_generations,
+        } = source;
+        items.clone_from(s_items);
+        careers.clone_from(s_careers);
+        *present = *s_present;
+        *generations = *s_generations;
+    }
 }
 
 #[cfg(test)]
@@ -1006,7 +1147,7 @@ impl std::ops::IndexMut<PlayerIdx> for Players {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct PlayerState {
     pub at: Point,
@@ -1091,6 +1232,208 @@ pub(crate) struct PlayerState {
     pub revive_hold: u32,
     /// Whether the player is permanently out for the run (ADR-SIM-7).
     pub out: bool,
+}
+
+impl Clone for PlayerState {
+    fn clone(&self) -> PlayerState {
+        let PlayerState {
+            at,
+            hp,
+            max_hp,
+            defence,
+            invulnerable,
+            facing,
+            target,
+            evade_charges,
+            evade_recovering,
+            held,
+            combo,
+            dash,
+            skill,
+            pull,
+            shield,
+            orbits,
+            range_pct,
+            rune_haste_pct,
+            pickup_radius_pct,
+            skill_cooldown_pct,
+            kill_heal,
+            kill_heal_every,
+            kills_counted,
+            crit_chance_pct,
+            crit_damage_pct,
+            echo_hit_pct,
+            burst_pct,
+            burst_radius,
+            burst_depth,
+            burst_depth_extra,
+            type_bonus_pct,
+            runes,
+            aggro,
+            statuses,
+            down_ticks,
+            revive_hold,
+            out,
+        } = self;
+        PlayerState {
+            at: *at,
+            hp: *hp,
+            max_hp: *max_hp,
+            defence: *defence,
+            invulnerable: *invulnerable,
+            facing: *facing,
+            target: *target,
+            evade_charges: *evade_charges,
+            evade_recovering: evade_recovering.clone(),
+            held: *held,
+            combo: *combo,
+            dash: *dash,
+            skill: *skill,
+            pull: *pull,
+            shield: *shield,
+            orbits: orbits.clone(),
+            range_pct: *range_pct,
+            rune_haste_pct: *rune_haste_pct,
+            pickup_radius_pct: *pickup_radius_pct,
+            skill_cooldown_pct: *skill_cooldown_pct,
+            kill_heal: *kill_heal,
+            kill_heal_every: *kill_heal_every,
+            kills_counted: *kills_counted,
+            crit_chance_pct: *crit_chance_pct,
+            crit_damage_pct: *crit_damage_pct,
+            echo_hit_pct: *echo_hit_pct,
+            burst_pct: *burst_pct,
+            burst_radius: *burst_radius,
+            burst_depth: *burst_depth,
+            burst_depth_extra: *burst_depth_extra,
+            type_bonus_pct: *type_bonus_pct,
+            runes: runes.clone(),
+            aggro: *aggro,
+            statuses: *statuses,
+            down_ticks: *down_ticks,
+            revive_hold: *revive_hold,
+            out: *out,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &PlayerState) {
+        let PlayerState {
+            at,
+            hp,
+            max_hp,
+            defence,
+            invulnerable,
+            facing,
+            target,
+            evade_charges,
+            evade_recovering,
+            held,
+            combo,
+            dash,
+            skill,
+            pull,
+            shield,
+            orbits,
+            range_pct,
+            rune_haste_pct,
+            pickup_radius_pct,
+            skill_cooldown_pct,
+            kill_heal,
+            kill_heal_every,
+            kills_counted,
+            crit_chance_pct,
+            crit_damage_pct,
+            echo_hit_pct,
+            burst_pct,
+            burst_radius,
+            burst_depth,
+            burst_depth_extra,
+            type_bonus_pct,
+            runes,
+            aggro,
+            statuses,
+            down_ticks,
+            revive_hold,
+            out,
+        } = self;
+        let PlayerState {
+            at: s_at,
+            hp: s_hp,
+            max_hp: s_max_hp,
+            defence: s_defence,
+            invulnerable: s_invulnerable,
+            facing: s_facing,
+            target: s_target,
+            evade_charges: s_evade_charges,
+            evade_recovering: s_evade_recovering,
+            held: s_held,
+            combo: s_combo,
+            dash: s_dash,
+            skill: s_skill,
+            pull: s_pull,
+            shield: s_shield,
+            orbits: s_orbits,
+            range_pct: s_range_pct,
+            rune_haste_pct: s_rune_haste_pct,
+            pickup_radius_pct: s_pickup_radius_pct,
+            skill_cooldown_pct: s_skill_cooldown_pct,
+            kill_heal: s_kill_heal,
+            kill_heal_every: s_kill_heal_every,
+            kills_counted: s_kills_counted,
+            crit_chance_pct: s_crit_chance_pct,
+            crit_damage_pct: s_crit_damage_pct,
+            echo_hit_pct: s_echo_hit_pct,
+            burst_pct: s_burst_pct,
+            burst_radius: s_burst_radius,
+            burst_depth: s_burst_depth,
+            burst_depth_extra: s_burst_depth_extra,
+            type_bonus_pct: s_type_bonus_pct,
+            runes: s_runes,
+            aggro: s_aggro,
+            statuses: s_statuses,
+            down_ticks: s_down_ticks,
+            revive_hold: s_revive_hold,
+            out: s_out,
+        } = source;
+        *at = *s_at;
+        *hp = *s_hp;
+        *max_hp = *s_max_hp;
+        *defence = *s_defence;
+        *invulnerable = *s_invulnerable;
+        *facing = *s_facing;
+        *target = *s_target;
+        *evade_charges = *s_evade_charges;
+        evade_recovering.clone_from(s_evade_recovering);
+        *held = *s_held;
+        *combo = *s_combo;
+        *dash = *s_dash;
+        *skill = *s_skill;
+        *pull = *s_pull;
+        *shield = *s_shield;
+        orbits.clone_from(s_orbits);
+        *range_pct = *s_range_pct;
+        *rune_haste_pct = *s_rune_haste_pct;
+        *pickup_radius_pct = *s_pickup_radius_pct;
+        *skill_cooldown_pct = *s_skill_cooldown_pct;
+        *kill_heal = *s_kill_heal;
+        *kill_heal_every = *s_kill_heal_every;
+        *kills_counted = *s_kills_counted;
+        *crit_chance_pct = *s_crit_chance_pct;
+        *crit_damage_pct = *s_crit_damage_pct;
+        *echo_hit_pct = *s_echo_hit_pct;
+        *burst_pct = *s_burst_pct;
+        *burst_radius = *s_burst_radius;
+        *burst_depth = *s_burst_depth;
+        *burst_depth_extra = *s_burst_depth_extra;
+        *type_bonus_pct = *s_type_bonus_pct;
+        runes.clone_from(s_runes);
+        *aggro = *s_aggro;
+        *statuses = *s_statuses;
+        *down_ticks = *s_down_ticks;
+        *revive_hold = *s_revive_hold;
+        *out = *s_out;
+    }
 }
 
 impl PlayerState {
