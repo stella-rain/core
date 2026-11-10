@@ -6059,7 +6059,7 @@
         },
         {
           "const": "drop_weight",
-          "description": "`amount` percent more weight for the named stars a member's drops roll (equipment mode;\na no-op in offers mode and in the frozen rules).",
+          "description": "`amount` percent more weight for the named stars a member's drops roll (equipment mode,\n`sim_version` 2; a no-op in the frozen rules).",
           "type": "string"
         }
       ]
@@ -6355,7 +6355,7 @@
           "type": "integer"
         },
         "inventory": {
-          "description": "What its inventory holds, in drop order (equipment mode; empty in offers mode). The app\nsorts it by rarity.",
+          "description": "What its inventory holds, in drop order (equipment mode, `sim_version` 2; empty at 1). The app\nsorts it by rarity.",
           "items": {
             "$ref": "#/$defs/HeldView"
           },
@@ -6396,7 +6396,7 @@
           "type": "integer"
         },
         "pool_held": {
-          "description": "For each star of the setup's star pool, in pool order (the index `Craft` takes): whether\na craft of it is refused because this player already holds that named star. Empty in\noffers mode.",
+          "description": "For each star of the setup's star pool, in pool order (the index `Craft` takes): whether\na craft of it is refused because this player already holds that named star. Empty in a\nstage run alone and at `sim_version` 1.",
           "items": {
             "type": "boolean"
           },
@@ -6466,7 +6466,7 @@
           "type": "integer"
         },
         "slots": {
-          "description": "Its equipment slots in layout order, then the Lumine slot last when the run has one\n(equipment mode; empty in offers mode). An action addresses them by this order: an index\ninto the list, the Lumine slot one past the others.",
+          "description": "Its equipment slots in layout order, then the Lumine slot last when the run has one\n(equipment mode; empty at `sim_version` 1). An action addresses them by this order: an index\ninto the list, the Lumine slot one past the others.",
           "items": {
             "$ref": "#/$defs/SlotView"
           },
@@ -6505,7 +6505,7 @@
               "type": "null"
             }
           ],
-          "description": "The weapon tree point it holds (equipment mode); absent in offers mode and while none is\nheld."
+          "description": "The weapon tree point it holds (equipment mode); absent at `sim_version` 1 and while none is\nheld."
         },
         "type_bonuses": {
           "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n.",
@@ -6523,7 +6523,7 @@
               "type": "null"
             }
           ],
-          "description": "The weapon's stat sets (equipment mode): the base set and every tree's set at the weapon's\nlevel; absent in offers mode, without an expertise gauge and for an inline weapon."
+          "description": "The weapon's stat sets (equipment mode): the base set and every tree's set at the weapon's\nlevel; absent at `sim_version` 1, without an expertise gauge and for an inline weapon."
         }
       },
       "required": [
@@ -7537,7 +7537,7 @@
           "description": "The difficulty the run is played on, by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
         },
         "extra_rerolls": {
-          "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None in\nequipment mode.",
+          "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at\n`sim_version` 2.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -8557,7 +8557,7 @@
               "type": "null"
             }
           ],
-          "description": "What Starlight costs and gives, the same for every player; absent in offers mode."
+          "description": "What Starlight costs and gives, the same for every player; absent in a stage run alone and at\n`sim_version` 1."
         },
         "stars": {
           "description": "Falling stars on the map, in the order they dropped (ADR-REPL-5).",
@@ -9382,7 +9382,7 @@
     },
     "Style": {
       "additionalProperties": false,
-      "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen in offers mode (an equipment run applies the style's\n`stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
+      "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen at `sim_version` 1 (a version 2 run applies the style's\n`stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
       "properties": {
         "amount": {
           "description": "What choosing it adds to the effect's total, from 1 to the effect's most.",
