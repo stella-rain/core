@@ -248,3 +248,33 @@ fn search_corpus_party_seeds() {
     std::panic::set_hook(quiet);
     assert!(missing.is_empty(), "no seed delivers: {missing:?}");
 }
+
+/// `three_tutorial` over world seeds 1..=20 x bot seeds 1..=20: a line per pair (outcome, ticks and
+/// the ticks past the first empty field after the last spawn, or past the clear when the boss dies
+/// first), then the Cleared count and the largest overrun. `cargo test --release --locked --test
+/// integration search_tutorial_clear_rate -- --ignored --nocapture`.
+#[test]
+#[ignore = "a seed search, run by hand"]
+fn search_tutorial_clear_rate() {
+    let (mut cleared, mut worst, mut late) = (0u32, i64::MIN, 0u32);
+    for world in 1..=20 {
+        for bot in 1..=20 {
+            let case = crate::run_play::party_case("three_tutorial", world, bot);
+            let replay = case.play().replay();
+            let v = run_replay::verify_run(&replay.to_bytes()).unwrap();
+            let empty = crate::party_run::first_empty_field(&case, &replay).unwrap_or(v.ticks);
+            let over = i64::from(v.ticks) - i64::from(empty);
+            println!(
+                "three_tutorial {world} {bot} {:?} {} over {over}",
+                v.outcome, v.ticks
+            );
+            if v.outcome == Outcome::Cleared {
+                cleared += 1;
+                worst = worst.max(over);
+                late += u32::from(over > 2000);
+            }
+        }
+    }
+    println!("CLEARED {cleared} of 400, largest overrun {worst}, over 2000: {late}");
+    assert!(cleared == 400 && late == 0);
+}

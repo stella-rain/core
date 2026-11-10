@@ -616,7 +616,10 @@ fn the_party_cases_are_what_the_table_says() {
 
 /// The first tick after 1260 (the last bat spawn) at which no enemy is on the field in the run of
 /// `replay`; `None` when the run ends first.
-fn first_empty_field(case: &crate::run_play::PartyCase, replay: &RunReplay) -> Option<u32> {
+pub(crate) fn first_empty_field(
+    case: &crate::run_play::PartyCase,
+    replay: &RunReplay,
+) -> Option<u32> {
     use crate::party_bot::RigRun;
     use stella_rain_core::snapshot::EntityKind;
     let run = RigRun::of(replay);

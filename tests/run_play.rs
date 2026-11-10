@@ -591,7 +591,7 @@ pub fn equipment_rig(n: u8) -> PartyCase {
 pub const PARTY_SEEDS: [(&str, u64, u64); 7] = [
     ("two_time_limit", 1, 6),
     ("three_time_limit", 1, 1),
-    ("three_tutorial", 19, 11),
+    ("three_tutorial", 1, 1),
     ("join_two", 1, 3),
     ("leave_hole", 1, 1),
     ("two_revive", 1, 6),
