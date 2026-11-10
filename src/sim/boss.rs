@@ -1,6 +1,7 @@
 //! The boss (ADR-SIM-4 tier 2): body parts and an ordered list of phases. A phase ends when its
 //! `until` condition holds, and phases only move forward; the last lasts until the boss dies.
-//! The boss acts before the companions and the enemies (its entity ID is the lowest).
+//! The boss acts before the companions and the enemies (its entity ID is the lowest, unless it
+//! has an `arrives_at_tick` after the first: it then takes the next free ID, as a horde's does).
 //!
 //! **Which mover wins.** A boss whose definition has a `chase` walks toward the player its
 //! attacks aim at (`select::target_of`), at `speed` a tick until it is `stop_distance` away,
@@ -97,8 +98,8 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         // An attack phase with `move_pct` 0 holds the boss where it is.
         let pct = s.boss.as_ref().map(|b| attacks::move_pct(stage, s, b.id));
         let rooted = pct == Some(0);
-        // The chase's target, before the boss is borrowed: the player its attacks aim at.
-        let up = Up::of(&s.players);
+        // The chase's target, before the boss is borrowed: the player its attacks aim at. Only a
+        // boss with a `chase` gathers the players.
         let chase = def
             .chase
             .filter(|_| {
@@ -106,8 +107,11 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
                     .as_ref()
                     .is_some_and(|b| b.hp > 0 && b.order.is_none())
             })
-            .filter(|_| up.n > 0 && !rooted)
-            .map(|c| (c, target_at(s, &up, Who::Boss)));
+            .filter(|_| !rooted)
+            .and_then(|c| {
+                let up = Up::of(&s.players);
+                (up.n > 0).then(|| (c, target_at(s, &up, Who::Boss)))
+            });
         let Some(b) = s.boss.as_mut() else {
             return;
         };
@@ -122,7 +126,7 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         }
         if let Some(order) = b.order.filter(|_| !rooted) {
             (b.at, b.order) = step_order(b.at, order);
-        } else if let (Some((chase, to)), None) = (chase, b.order) {
+        } else if let Some((chase, to)) = chase {
             // The same arithmetic as an agent's `Movement::Follow` arm (`agents::move_agent`),
             // copied and not shared: that arm is the crowd's hot path (ADR-SIM-6).
             let keep = speed_pct(&b.statuses) * pct.unwrap_or(100) / 100;

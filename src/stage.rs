@@ -583,7 +583,7 @@ pub struct Boss {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chase: Option<Chase>,
     /// The tick the boss comes onto the field: its first tick is this one. Absent or 1, it is
-    /// there from the first tick. Needs `sim_version` 2, and a tick before the stage's length.
+    /// there from the first tick. Needs `sim_version` 2, and a tick before the stage's `length_ticks`.
     /// (A `time_limit` run's bosses come at the mode file's `boss_ticks`, not at this.)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_TICKS))]
@@ -600,7 +600,8 @@ pub struct Chase {
     #[serde(default = "Chase::default_speed")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_CHASE_SPEED))]
     pub speed: Fx,
-    /// It stops this far from its target, centre to centre. 24,576 (96 pixels) when absent.
+    /// It stops this far from its target, centre to centre, at most the map's longer side.
+    /// 24,576 (96 pixels) when absent.
     #[serde(default = "Chase::default_stop_distance")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_MAP_SIDE))]
     pub stop_distance: Fx,
