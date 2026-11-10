@@ -405,8 +405,8 @@ pub struct Reward {
     /// default pool leaves it out (ADR-CONT-2 points 3, 8, 9).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub deprecated: bool,
-    /// Offered in equipment mode only: an offers run's default pool leaves it out and its setup
-    /// may not name it.
+    /// Offered at `sim_version` 2 only: the default pool of a version 1 run leaves it out and a
+    /// version 1 setup may not name it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub equipment_only: bool,
 }

@@ -410,7 +410,7 @@ impl Run {
     }
 
     /// Whether `player` could equip (or `replace`) inventory item `item` into `slot`: `None`
-    /// where no rule applies, a run that is not in equipment mode and `sim_version` 1.
+    /// where no rule applies, a `sim_version` 1 run.
     pub(crate) fn check_equip(
         &self,
         rewards: &Rewards,

@@ -51,8 +51,7 @@ pub enum ChoiceError {
 pub enum ActionError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
-    /// No rule accepts this action: a run that is not in equipment mode or is `sim_version` 1
-    /// (every action).
+    /// No rule accepts this action: a `sim_version` 1 run (every action).
     NotBuilt,
     /// `item` is not a place of the inventory.
     NoItem { item: u32 },
@@ -874,8 +873,7 @@ impl Engine {
     /// Read-only. `NoPlayer` for a slot outside the party; then, in an equipment run, `Downed`
     /// for a player at 0 hit points and `Out` for one out of the run, for every kind of action
     /// (the window opens again on the revive). `Equip` and `Replace` are the
-    /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
-    /// equipment mode or is `sim_version` 1. `Extract` and `Craft` are the same: the refusals
+    /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a `sim_version` 1 run. `Extract` and `Craft` are the same: the refusals
     /// of `starlight` (an item of the inventory; a star of the setup's pool, its price, a held
     /// named star, the inventory bound). `TreePick` is the same: `NoTreePoint` when no point is
     /// held, then `NoTreeOption` when `option` is past the next pick's choices. The match has
