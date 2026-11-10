@@ -38,7 +38,7 @@ pub(crate) struct EquipSlot {
 }
 
 /// Every per-player equipment field.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Equipment {
     pub inventory: Vec<Held>,
@@ -49,6 +49,48 @@ pub(crate) struct Equipment {
     pub starlight: u32,
     /// Unspent weapon-tree points.
     pub tree_points: u32,
+}
+
+impl Clone for Equipment {
+    fn clone(&self) -> Equipment {
+        let Equipment {
+            inventory,
+            slots,
+            lumine,
+            starlight,
+            tree_points,
+        } = self;
+        Equipment {
+            inventory: inventory.clone(),
+            slots: slots.clone(),
+            lumine: lumine.clone(),
+            starlight: *starlight,
+            tree_points: *tree_points,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Equipment) {
+        let Equipment {
+            inventory,
+            slots,
+            lumine,
+            starlight,
+            tree_points,
+        } = self;
+        let Equipment {
+            inventory: s_inventory,
+            slots: s_slots,
+            lumine: s_lumine,
+            starlight: s_starlight,
+            tree_points: s_tree_points,
+        } = source;
+        inventory.clone_from(s_inventory);
+        slots.clone_from(s_slots);
+        lumine.clone_from(s_lumine);
+        *starlight = *s_starlight;
+        *tree_points = *s_tree_points;
+    }
 }
 
 impl Equipment {

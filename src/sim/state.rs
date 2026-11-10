@@ -160,7 +160,7 @@ pub(crate) struct Echo {
 
 /// How far a `time_limit` run's bosses have come (core#212): the times, and which pool entries
 /// are used up. What the bosses are is `World::horde` and `World::bosses`, fixed for the run.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Horde {
     pub boss_ticks: Vec<u32>,
@@ -177,8 +177,55 @@ pub(crate) struct Horde {
     pub held: Vec<u32>,
 }
 
+impl Clone for Horde {
+    fn clone(&self) -> Horde {
+        let Horde {
+            boss_ticks,
+            no_call_ticks,
+            mid_boss_hp_pct,
+            spawned,
+            used,
+            held,
+        } = self;
+        Horde {
+            boss_ticks: boss_ticks.clone(),
+            no_call_ticks: no_call_ticks.clone(),
+            mid_boss_hp_pct: mid_boss_hp_pct.clone(),
+            spawned: *spawned,
+            used: used.clone(),
+            held: held.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Horde) {
+        let Horde {
+            boss_ticks,
+            no_call_ticks,
+            mid_boss_hp_pct,
+            spawned,
+            used,
+            held,
+        } = self;
+        let Horde {
+            boss_ticks: s_boss_ticks,
+            no_call_ticks: s_no_call_ticks,
+            mid_boss_hp_pct: s_mid_boss_hp_pct,
+            spawned: s_spawned,
+            used: s_used,
+            held: s_held,
+        } = source;
+        boss_ticks.clone_from(s_boss_ticks);
+        no_call_ticks.clone_from(s_no_call_ticks);
+        mid_boss_hp_pct.clone_from(s_mid_boss_hp_pct);
+        *spawned = *s_spawned;
+        used.clone_from(s_used);
+        held.clone_from(s_held);
+    }
+}
+
 /// The one expertise gauge of the one weapon, and its offers (ADR-REPL-5).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ExpertiseGauge {
     /// From 0.
     pub level: u32,
@@ -197,10 +244,57 @@ pub(crate) struct ExpertiseGauge {
     pub path: Vec<u8>,
 }
 
+impl Clone for ExpertiseGauge {
+    fn clone(&self) -> ExpertiseGauge {
+        let ExpertiseGauge {
+            level,
+            points,
+            next,
+            range_pct,
+            style,
+            path,
+        } = self;
+        ExpertiseGauge {
+            level: *level,
+            points: *points,
+            next: *next,
+            range_pct: *range_pct,
+            style: *style,
+            path: path.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &ExpertiseGauge) {
+        let ExpertiseGauge {
+            level,
+            points,
+            next,
+            range_pct,
+            style,
+            path,
+        } = self;
+        let ExpertiseGauge {
+            level: s_level,
+            points: s_points,
+            next: s_next,
+            range_pct: s_range_pct,
+            style: s_style,
+            path: s_path,
+        } = source;
+        *level = *s_level;
+        *points = *s_points;
+        *next = *s_next;
+        *range_pct = *s_range_pct;
+        *style = *s_style;
+        path.clone_from(s_path);
+    }
+}
+
 /// The run part of the star field: falling stars and what the run's setup fixes for every
 /// player's offers (ADR-REPL-5). The offers due and open, and what each player's offers have
 /// used, are per slot in `Offers` (ADR-SIM-7).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
     /// Kills in a row that dropped no star, for the pity.
@@ -217,9 +311,51 @@ pub(crate) struct StarField {
     pub pool: Vec<u16>,
 }
 
+impl Clone for StarField {
+    fn clone(&self) -> StarField {
+        let StarField {
+            misses,
+            on_map,
+            rarity,
+            rune_pool,
+            pool,
+        } = self;
+        StarField {
+            misses: *misses,
+            on_map: on_map.clone(),
+            rarity: *rarity,
+            rune_pool: *rune_pool,
+            pool: pool.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &StarField) {
+        let StarField {
+            misses,
+            on_map,
+            rarity,
+            rune_pool,
+            pool,
+        } = self;
+        let StarField {
+            misses: s_misses,
+            on_map: s_on_map,
+            rarity: s_rarity,
+            rune_pool: s_rune_pool,
+            pool: s_pool,
+        } = source;
+        *misses = *s_misses;
+        on_map.clone_from(s_on_map);
+        *rarity = *s_rarity;
+        *rune_pool = *s_rune_pool;
+        pool.clone_from(s_pool);
+    }
+}
+
 /// One player's star offers: those due and the open one, and what the player's offers have used
 /// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
     /// The offers due that have not opened yet: a boss kill's first, then the stars taken, in
@@ -237,6 +373,63 @@ pub(crate) struct Offers {
     /// For each set of the run's constellations: the members held, counted after every take
     /// (core#NS3).
     pub set_counts: Vec<u8>,
+}
+
+impl Clone for Offers {
+    fn clone(&self) -> Offers {
+        let Offers {
+            due,
+            offer,
+            rerolls_left,
+            banishes_left,
+            extra_candidates,
+            taken,
+            banished,
+            set_counts,
+        } = self;
+        Offers {
+            due: due.clone(),
+            offer: offer.clone(),
+            rerolls_left: *rerolls_left,
+            banishes_left: *banishes_left,
+            extra_candidates: *extra_candidates,
+            taken: taken.clone(),
+            banished: banished.clone(),
+            set_counts: set_counts.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &Offers) {
+        let Offers {
+            due,
+            offer,
+            rerolls_left,
+            banishes_left,
+            extra_candidates,
+            taken,
+            banished,
+            set_counts,
+        } = self;
+        let Offers {
+            due: s_due,
+            offer: s_offer,
+            rerolls_left: s_rerolls_left,
+            banishes_left: s_banishes_left,
+            extra_candidates: s_extra_candidates,
+            taken: s_taken,
+            banished: s_banished,
+            set_counts: s_set_counts,
+        } = source;
+        due.clone_from(s_due);
+        offer.clone_from(s_offer);
+        *rerolls_left = *s_rerolls_left;
+        *banishes_left = *s_banishes_left;
+        *extra_candidates = *s_extra_candidates;
+        taken.clone_from(s_taken);
+        banished.clone_from(s_banished);
+        set_counts.clone_from(s_set_counts);
+    }
 }
 
 /// A heal pickup on the map.
@@ -263,7 +456,7 @@ pub(crate) struct Due {
     pub rarity: Rarity,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct OfferState {
     pub kind: OfferKind,
@@ -271,6 +464,38 @@ pub(crate) struct OfferState {
     pub rarity: Rarity,
     /// Places in the rewards file, in the offer's order.
     pub candidates: Vec<u16>,
+}
+
+impl Clone for OfferState {
+    fn clone(&self) -> OfferState {
+        let OfferState {
+            kind,
+            rarity,
+            candidates,
+        } = self;
+        OfferState {
+            kind: *kind,
+            rarity: *rarity,
+            candidates: candidates.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &OfferState) {
+        let OfferState {
+            kind,
+            rarity,
+            candidates,
+        } = self;
+        let OfferState {
+            kind: s_kind,
+            rarity: s_rarity,
+            candidates: s_candidates,
+        } = source;
+        *kind = *s_kind;
+        *rarity = *s_rarity;
+        candidates.clone_from(s_candidates);
+    }
 }
 
 /// What a run stat does, from the run stats file.
@@ -1018,7 +1243,7 @@ pub(crate) struct DashState {
     pub left: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct BossState {
     pub id: EntityId,
@@ -1058,6 +1283,123 @@ pub(crate) struct BossState {
     /// Ticks since it arrived: 1 on its first tick. The call of its elites counts them
     /// and so does the announcement of that call.
     pub age: u32,
+}
+
+impl Clone for BossState {
+    fn clone(&self) -> BossState {
+        let BossState {
+            id,
+            boss,
+            origin,
+            no_call,
+            kind,
+            at,
+            hp,
+            max_hp,
+            defence,
+            statuses,
+            phase,
+            phase_age,
+            invulnerable,
+            step,
+            wait_left,
+            order,
+            rules,
+            parts,
+            elites_called,
+            age,
+        } = self;
+        BossState {
+            id: *id,
+            boss: *boss,
+            origin: *origin,
+            no_call: *no_call,
+            kind: *kind,
+            at: *at,
+            hp: *hp,
+            max_hp: *max_hp,
+            defence: *defence,
+            statuses: *statuses,
+            phase: *phase,
+            phase_age: *phase_age,
+            invulnerable: *invulnerable,
+            step: *step,
+            wait_left: *wait_left,
+            order: *order,
+            rules: *rules,
+            parts: parts.clone(),
+            elites_called: *elites_called,
+            age: *age,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &BossState) {
+        let BossState {
+            id,
+            boss,
+            origin,
+            no_call,
+            kind,
+            at,
+            hp,
+            max_hp,
+            defence,
+            statuses,
+            phase,
+            phase_age,
+            invulnerable,
+            step,
+            wait_left,
+            order,
+            rules,
+            parts,
+            elites_called,
+            age,
+        } = self;
+        let BossState {
+            id: s_id,
+            boss: s_boss,
+            origin: s_origin,
+            no_call: s_no_call,
+            kind: s_kind,
+            at: s_at,
+            hp: s_hp,
+            max_hp: s_max_hp,
+            defence: s_defence,
+            statuses: s_statuses,
+            phase: s_phase,
+            phase_age: s_phase_age,
+            invulnerable: s_invulnerable,
+            step: s_step,
+            wait_left: s_wait_left,
+            order: s_order,
+            rules: s_rules,
+            parts: s_parts,
+            elites_called: s_elites_called,
+            age: s_age,
+        } = source;
+        *id = *s_id;
+        *boss = *s_boss;
+        *origin = *s_origin;
+        *no_call = *s_no_call;
+        *kind = *s_kind;
+        *at = *s_at;
+        *hp = *s_hp;
+        *max_hp = *s_max_hp;
+        *defence = *s_defence;
+        *statuses = *s_statuses;
+        *phase = *s_phase;
+        *phase_age = *s_phase_age;
+        *invulnerable = *s_invulnerable;
+        *step = *s_step;
+        *wait_left = *s_wait_left;
+        *order = *s_order;
+        *rules = *s_rules;
+        parts.clone_from(s_parts);
+        *elites_called = *s_elites_called;
+        *age = *s_age;
+    }
 }
 
 /// A breakable part of the boss, with its own hit points (ADR-CONT-7).
@@ -1103,7 +1445,7 @@ pub(crate) enum AgentSource {
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-SIM-4 tier 1).
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AgentState {
     pub id: EntityId,
@@ -1147,6 +1489,123 @@ pub(crate) struct AgentState {
     pub shrine: Option<Box<ShrineState>>,
 }
 
+impl Clone for AgentState {
+    fn clone(&self) -> AgentState {
+        let AgentState {
+            id,
+            def,
+            kind,
+            key,
+            at,
+            hp,
+            max_hp,
+            defence,
+            age,
+            rules,
+            statuses,
+            aggro,
+            order,
+            orbit_angle,
+            crowded,
+            burst,
+            stun_immune,
+            elite,
+            leave,
+            shrine,
+        } = self;
+        AgentState {
+            id: *id,
+            def: *def,
+            kind: *kind,
+            key: *key,
+            at: *at,
+            hp: *hp,
+            max_hp: *max_hp,
+            defence: *defence,
+            age: *age,
+            rules: *rules,
+            statuses: *statuses,
+            aggro: *aggro,
+            order: *order,
+            orbit_angle: *orbit_angle,
+            crowded: *crowded,
+            burst: *burst,
+            stun_immune: *stun_immune,
+            elite: *elite,
+            leave: *leave,
+            shrine: shrine.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &AgentState) {
+        let AgentState {
+            id,
+            def,
+            kind,
+            key,
+            at,
+            hp,
+            max_hp,
+            defence,
+            age,
+            rules,
+            statuses,
+            aggro,
+            order,
+            orbit_angle,
+            crowded,
+            burst,
+            stun_immune,
+            elite,
+            leave,
+            shrine,
+        } = self;
+        let AgentState {
+            id: s_id,
+            def: s_def,
+            kind: s_kind,
+            key: s_key,
+            at: s_at,
+            hp: s_hp,
+            max_hp: s_max_hp,
+            defence: s_defence,
+            age: s_age,
+            rules: s_rules,
+            statuses: s_statuses,
+            aggro: s_aggro,
+            order: s_order,
+            orbit_angle: s_orbit_angle,
+            crowded: s_crowded,
+            burst: s_burst,
+            stun_immune: s_stun_immune,
+            elite: s_elite,
+            leave: s_leave,
+            shrine: s_shrine,
+        } = source;
+        *id = *s_id;
+        *def = *s_def;
+        *kind = *s_kind;
+        *key = *s_key;
+        *at = *s_at;
+        *hp = *s_hp;
+        *max_hp = *s_max_hp;
+        *defence = *s_defence;
+        *age = *s_age;
+        *rules = *s_rules;
+        *statuses = *s_statuses;
+        *aggro = *s_aggro;
+        *order = *s_order;
+        *orbit_angle = *s_orbit_angle;
+        *crowded = *s_crowded;
+        *burst = *s_burst;
+        *stun_immune = *s_stun_immune;
+        *elite = *s_elite;
+        *leave = *s_leave;
+        shrine.clone_from(s_shrine);
+    }
+}
+
 impl AgentState {
     /// A mimic that has not revealed yet: an object nothing touches.
     pub(crate) fn hidden(&self) -> bool {
@@ -1173,13 +1632,34 @@ impl AgentState {
 }
 
 /// A shrine's fight.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ShrineState {
     /// Ticks since the main character touched it, 0 on the tick it did; `None` while untouched.
     pub fight: Option<u32>,
     /// The guardians that spawned, in ring order.
     pub guardians: Vec<EntityId>,
+}
+
+impl Clone for ShrineState {
+    fn clone(&self) -> ShrineState {
+        let ShrineState { fight, guardians } = self;
+        ShrineState {
+            fight: *fight,
+            guardians: guardians.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &ShrineState) {
+        let ShrineState { fight, guardians } = self;
+        let ShrineState {
+            fight: s_fight,
+            guardians: s_guardians,
+        } = source;
+        *fight = *s_fight;
+        guardians.clone_from(s_guardians);
+    }
 }
 
 /// When an elite that leaves is to go.
@@ -1453,7 +1933,7 @@ pub(crate) struct OrbLink {
 
 /// A zone (core Z1): an area that does not move. It warns for `wind_left` ticks, then hurts for
 /// `active_left`, then is gone. It has no ID: nothing refers to one.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ZoneState {
     /// Who placed it, for the hit event and for aggro.
@@ -1482,6 +1962,98 @@ pub(crate) struct ZoneState {
     /// The program that placed it, which names its attack in the hit event. Not in the state
     /// hash: nothing reads it back.
     pub program: ProgramIndex,
+}
+
+impl Clone for ZoneState {
+    fn clone(&self) -> ZoneState {
+        let ZoneState {
+            owner,
+            friendly,
+            shape,
+            at,
+            dir,
+            wind_left,
+            active_left,
+            wind_ticks,
+            active_ticks,
+            damage,
+            damage_type,
+            breaks_charge,
+            warn_only,
+            hits,
+            program,
+        } = self;
+        ZoneState {
+            owner: *owner,
+            friendly: *friendly,
+            shape: shape.clone(),
+            at: *at,
+            dir: *dir,
+            wind_left: *wind_left,
+            active_left: *active_left,
+            wind_ticks: *wind_ticks,
+            active_ticks: *active_ticks,
+            damage: *damage,
+            damage_type: *damage_type,
+            breaks_charge: *breaks_charge,
+            warn_only: *warn_only,
+            hits: hits.clone(),
+            program: *program,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &ZoneState) {
+        let ZoneState {
+            owner,
+            friendly,
+            shape,
+            at,
+            dir,
+            wind_left,
+            active_left,
+            wind_ticks,
+            active_ticks,
+            damage,
+            damage_type,
+            breaks_charge,
+            warn_only,
+            hits,
+            program,
+        } = self;
+        let ZoneState {
+            owner: s_owner,
+            friendly: s_friendly,
+            shape: s_shape,
+            at: s_at,
+            dir: s_dir,
+            wind_left: s_wind_left,
+            active_left: s_active_left,
+            wind_ticks: s_wind_ticks,
+            active_ticks: s_active_ticks,
+            damage: s_damage,
+            damage_type: s_damage_type,
+            breaks_charge: s_breaks_charge,
+            warn_only: s_warn_only,
+            hits: s_hits,
+            program: s_program,
+        } = source;
+        *owner = *s_owner;
+        *friendly = *s_friendly;
+        shape.clone_from(s_shape);
+        *at = *s_at;
+        *dir = *s_dir;
+        *wind_left = *s_wind_left;
+        *active_left = *s_active_left;
+        *wind_ticks = *s_wind_ticks;
+        *active_ticks = *s_active_ticks;
+        *damage = *s_damage;
+        *damage_type = *s_damage_type;
+        *breaks_charge = *s_breaks_charge;
+        *warn_only = *s_warn_only;
+        hits.clone_from(s_hits);
+        *program = *s_program;
+    }
 }
 
 /// An orb's burst, waiting for the orb to end.
@@ -1538,7 +2110,7 @@ pub(crate) struct Frame {
 
 /// A phased attack an attacker is carrying out: one at a time per attacker and slot.
 /// Its phases spawn their nodes as `AttackTask`s, which run to their own end.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct AttackRun {
     pub owner: EntityId,
@@ -1594,13 +2166,158 @@ pub(crate) struct AttackRun {
     pub spot: Option<Point>,
 }
 
+impl Clone for AttackRun {
+    fn clone(&self) -> AttackRun {
+        let AttackRun {
+            owner,
+            slot,
+            attack,
+            speed_pct,
+            width_pct,
+            phase,
+            tick,
+            facing,
+            aim,
+            friendly,
+            ranged,
+            base,
+            atk_up_pct,
+            damage_pct,
+            type_bonus_pct,
+            age,
+            hits,
+            smash,
+            at,
+            throw,
+            homing,
+            spot,
+        } = self;
+        AttackRun {
+            owner: *owner,
+            slot: *slot,
+            attack: *attack,
+            speed_pct: *speed_pct,
+            width_pct: *width_pct,
+            phase: *phase,
+            tick: *tick,
+            facing: *facing,
+            aim: *aim,
+            friendly: *friendly,
+            ranged: *ranged,
+            base: *base,
+            atk_up_pct: *atk_up_pct,
+            damage_pct: *damage_pct,
+            type_bonus_pct: *type_bonus_pct,
+            age: *age,
+            hits: hits.clone(),
+            smash: *smash,
+            at: *at,
+            throw: *throw,
+            homing: *homing,
+            spot: *spot,
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &AttackRun) {
+        let AttackRun {
+            owner,
+            slot,
+            attack,
+            speed_pct,
+            width_pct,
+            phase,
+            tick,
+            facing,
+            aim,
+            friendly,
+            ranged,
+            base,
+            atk_up_pct,
+            damage_pct,
+            type_bonus_pct,
+            age,
+            hits,
+            smash,
+            at,
+            throw,
+            homing,
+            spot,
+        } = self;
+        let AttackRun {
+            owner: s_owner,
+            slot: s_slot,
+            attack: s_attack,
+            speed_pct: s_speed_pct,
+            width_pct: s_width_pct,
+            phase: s_phase,
+            tick: s_tick,
+            facing: s_facing,
+            aim: s_aim,
+            friendly: s_friendly,
+            ranged: s_ranged,
+            base: s_base,
+            atk_up_pct: s_atk_up_pct,
+            damage_pct: s_damage_pct,
+            type_bonus_pct: s_type_bonus_pct,
+            age: s_age,
+            hits: s_hits,
+            smash: s_smash,
+            at: s_at,
+            throw: s_throw,
+            homing: s_homing,
+            spot: s_spot,
+        } = source;
+        *owner = *s_owner;
+        *slot = *s_slot;
+        *attack = *s_attack;
+        *speed_pct = *s_speed_pct;
+        *width_pct = *s_width_pct;
+        *phase = *s_phase;
+        *tick = *s_tick;
+        *facing = *s_facing;
+        *aim = *s_aim;
+        *friendly = *s_friendly;
+        *ranged = *s_ranged;
+        *base = *s_base;
+        *atk_up_pct = *s_atk_up_pct;
+        *damage_pct = *s_damage_pct;
+        *type_bonus_pct = *s_type_bonus_pct;
+        *age = *s_age;
+        hits.clone_from(s_hits);
+        *smash = *s_smash;
+        *at = *s_at;
+        *throw = *s_throw;
+        *homing = *s_homing;
+        *spot = *s_spot;
+    }
+}
+
 /// The movement speed, in percent, that the running attacks leave each attacker: the lowest
 /// `move_pct` of the current phases of its runs. Kept beside `State::runs` so that asking costs
 /// a search over the attackers, not a scan of every run; a derived value that no hash reads.
 /// Sorted by owner, one entry for each owner with a run.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub(crate) struct MoveIndex {
     by_owner: Vec<(EntityId, i64)>,
+}
+
+impl Clone for MoveIndex {
+    fn clone(&self) -> MoveIndex {
+        let MoveIndex { by_owner } = self;
+        MoveIndex {
+            by_owner: by_owner.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &MoveIndex) {
+        let MoveIndex { by_owner } = self;
+        let MoveIndex {
+            by_owner: s_by_owner,
+        } = source;
+        by_owner.clone_from(s_by_owner);
+    }
 }
 
 impl MoveIndex {
