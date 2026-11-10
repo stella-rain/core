@@ -1,6 +1,7 @@
-//! The rune tests' shared stage: a Main weapon of one step, small enemies whose stars give the
-//! runes, and a tough target to hit once they are taken (`explosion.rs`, `thunder.rs`,
-//! `boomerang.rs`, `homing_missiles.rs`, `bleed.rs`).
+//! The rune tests' shared stage: a Main weapon of one step and a tough target to hit, on an
+//! equipment-mode run whose runes come from the inventory (`Parts.equip_runes`), with no small
+//! enemies and no stars (`thunder.rs`, `boomerang.rs`, `homing_missiles.rs`, `bleed.rs`,
+//! `poison_burn.rs`, `hit_marks.rs`, `rune_haste.rs`).
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -16,12 +17,13 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::version::Versions;
 
+use super::equip::{Parts, equipped_in, rune_slot};
 use super::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
 /// taken at once, and inside the step's hit box.
 pub const NEAR_Y: i32 = START_Y - 8_192;
-/// The tick the tough target arrives, once the small enemies' stars have been taken.
+/// The tick the tough target arrives.
 pub const TARGET_TICK: u32 = 300;
 /// The slot of the first on-hit rune's attack: after the combo (0), the stage skill (1) and
 /// the orbits' orbs (2 to 33).
@@ -59,6 +61,109 @@ pub fn tough(dx: i32, profile: Option<Value>, hit: Option<u32>) -> Value {
         w["expertise"] = json!({ "hit": hit, "kill": 0 });
     }
     w
+}
+
+/// The stage of the equipped runs: `waves` alone, no small enemies and no stars, at the live
+/// `sim_version`.
+pub fn target_stage(waves: Vec<Value>) -> Stage {
+    let mut stage = armed(
+        stage_full(18_000, Some(far_boss()), waves, vec![]),
+        weapon(),
+    );
+    stage.sim_version = 2;
+    stage
+}
+
+/// A rewards file of `rewards` (and a `filler`, as a file holds at least one reward and this one
+/// is never equipped) with the equipment rules and one rune slot per rune.
+pub fn rewards_file(rewards: Vec<Value>) -> Value {
+    let mut rewards = rewards;
+    rewards.push(
+        json!({ "id": "filler", "rarity": "common", "effect": "max_hp", "amount": 1,
+                "limit": 2 }),
+    );
+    let mut file = json!({ "rarities": super::rarities(), "rewards": rewards });
+    let mut rules = serde_json::to_value(Rewards::bundled().equipment().expect("rules")).unwrap();
+    rules["rune_slots"] = json!(Rune::ALL.len());
+    file["equipment"] = rules;
+    file
+}
+
+/// An equipment run of `stage` over the rewards `file` (read with `skills`), with `stars`
+/// (reward, slot) equipped at Lv1 and, when `rune` is true, the seven runes in seven rune
+/// slots. Every rune is ready; a stage skill star arrives cooling, so a test that presses one
+/// sets its cooldown to 1 and `wait_ready`s.
+fn equipped_run(
+    stage: &Stage,
+    file: Value,
+    runes: Runes,
+    skills: Option<Value>,
+    stars: &[(&str, usize)],
+    rune: bool,
+) -> Engine {
+    let equip_runes = match rune {
+        true => Rune::ALL
+            .into_iter()
+            .enumerate()
+            .map(|(n, r)| (r, rune_slot(&file, n)))
+            .collect(),
+        false => vec![],
+    };
+    let parts = Parts {
+        skills,
+        runes: Some(runes),
+        equip_runes,
+        ..Parts::default()
+    };
+    equipped_in(stage, file, parts, stars, 1)
+}
+
+/// `stage` played with the seven runes equipped, `stars` equipped, over `rewards`.
+pub fn every_rune_held(
+    stage: &Stage,
+    runes: Runes,
+    rewards: Vec<Value>,
+    skills: Option<Value>,
+    stars: &[(&str, usize)],
+) -> Engine {
+    every_rune_held_in(stage, rewards_file(rewards), runes, skills, stars)
+}
+
+/// `every_rune_held` over a rewards `file` (from `rewards_file`, which a test may change).
+pub fn every_rune_held_in(
+    stage: &Stage,
+    file: Value,
+    runes: Runes,
+    skills: Option<Value>,
+    stars: &[(&str, usize)],
+) -> Engine {
+    equipped_run(stage, file, runes, skills, stars, true)
+}
+
+/// As `every_rune_held`, with no rune equipped (the runes file is read all the same).
+pub fn no_rune_held(
+    stage: &Stage,
+    runes: Runes,
+    rewards: Vec<Value>,
+    skills: Option<Value>,
+    stars: &[(&str, usize)],
+) -> Engine {
+    equipped_run(stage, rewards_file(rewards), runes, skills, stars, false)
+}
+
+/// Steps idle until the stage skill is ready.
+pub fn wait_ready(e: &mut Engine) {
+    for _ in 0..30 {
+        if e.snapshot().players[0]
+            .skill
+            .as_ref()
+            .is_some_and(|s| s.ready)
+        {
+            return;
+        }
+        e.step(&[idle(), Default::default(), Default::default()]);
+    }
+    panic!("the stage skill never became ready");
 }
 
 /// `small` enemies of 1 hp at `NEAR_Y`, one every 6 ticks from tick 1, each dropping a common
