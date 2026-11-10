@@ -56,13 +56,12 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::rewards::{MAX_TYPE_BONUS_PCT, rune_haste_ticks};
-use crate::rng::SplitMix64;
-use crate::rune::{MAX_RUNES, Rune, RuneKind};
+use crate::rune::{Rune, RuneKind};
 use crate::runes::{
     MAX_DOT_DURATION_TICKS, MAX_DOT_INTERVAL_TICKS, MAX_DOT_STACKS, MAX_HOMING_MISSILES,
     MAX_RUNE_COOLDOWN_TICKS,
 };
-use crate::sim::state::{DotState, HeldRune, PlayerState, State, StatusKind};
+use crate::sim::state::{DotState, HeldRune, State, StatusKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
 use super::entity::{Who, status_pct};
@@ -312,14 +311,6 @@ fn fly_one(stage: &World, s: &mut State, me: PlayerIdx, i: usize) {
     });
 }
 
-/// The Main weapon holds every rune: the random rune has nothing left to give.
-pub(super) fn all_held(runes: &[HeldRune], pool: u8) -> bool {
-    Rune::ALL
-        .iter()
-        .filter(|r| in_pool(pool, **r))
-        .all(|r| runes.iter().any(|h| h.rune == *r))
-}
-
 /// Whether `rune` is in the run's rune pool, a mask by `Rune::index`.
 pub(crate) fn in_pool(pool: u8, rune: Rune) -> bool {
     pool >> rune.index() & 1 == 1
@@ -337,24 +328,3 @@ pub(crate) fn pool_mask(ids: &[crate::id::ContentId]) -> u8 {
 
 /// Every rune in the pool.
 pub(crate) const FULL_POOL: u8 = (1 << Rune::ALL.len()) - 1;
-
-/// The random rune is picked: draws one of the runes of the run's rune pool (`pool`) the Main
-/// does not hold, in `Rune::ALL`'s order, with one draw from the run's generator, and adds it.
-/// None, drawing nothing, once it holds them all.
-pub(super) fn draw(rng: &mut SplitMix64, p: &mut PlayerState, pool: u8) -> Option<Rune> {
-    let left: Vec<Rune> = Rune::ALL
-        .iter()
-        .copied()
-        .filter(|r| in_pool(pool, *r) && !p.runes.iter().any(|h| h.rune == *r))
-        .collect();
-    if left.is_empty() || p.runes.len() >= MAX_RUNES {
-        return None;
-    }
-    let at = rng.below(u32::try_from(left.len()).unwrap_or(u32::MAX));
-    let rune = *left.get(usize::try_from(at).unwrap_or(usize::MAX))?;
-    p.runes.push(HeldRune {
-        rune,
-        cooldown_left: 0,
-    });
-    Some(rune)
-}

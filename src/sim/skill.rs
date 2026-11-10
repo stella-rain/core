@@ -26,7 +26,7 @@ use crate::sim::state::PlayerIdx;
 use crate::sim::state::{
     Dir, PlayerState, Progress, PullState, ShieldState, SkillSlot, State, StatusKind,
 };
-use crate::stage_skill::{MAX_SKILL_EFFECTS, MAX_SKILL_LEVELS, SkillEffect};
+use crate::stage_skill::{MAX_SKILL_EFFECTS, SkillEffect};
 use crate::trig::SCALE;
 
 use super::attacks;
@@ -57,30 +57,6 @@ pub(super) fn tick(s: &mut State, me: PlayerIdx) {
             p.shield = None;
         }
     }
-}
-
-/// A taken reward gives `levels` of the skill at `index` in the stage skills: another skill
-/// replaces the one held and arrives ready; the same one rises, up to its highest level.
-pub(super) fn take(rewards: &Rewards, p: &mut PlayerState, index: usize, levels: u32) {
-    let Some(def) = rewards.stage_skills().get(index) else {
-        return;
-    };
-    // The validator holds both to `MAX_SKILL_LEVELS`.
-    let most =
-        u32::try_from(def.levels.len().min(MAX_SKILL_LEVELS)).expect("at most MAX_SKILL_LEVELS");
-    let index = u16::try_from(index).expect("the validator bounds the stage skills");
-    p.skill = Some(match p.skill {
-        Some(slot) if slot.index == index => SkillSlot {
-            level: u8::try_from((u32::from(slot.level) + levels).min(most))
-                .expect("at most MAX_SKILL_LEVELS"),
-            ..slot
-        },
-        _ => SkillSlot {
-            index,
-            level: u8::try_from(levels.min(most)).expect("at most MAX_SKILL_LEVELS"),
-            cooldown_left: 0,
-        },
-    });
 }
 
 /// Where the aim points: toward the target while `assist` is on and there is one, else the

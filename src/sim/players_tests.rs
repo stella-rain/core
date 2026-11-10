@@ -461,6 +461,42 @@ mod offers {
         PlayerIdx::new(i).unwrap()
     }
 
+    /// What a run starts with, and what the state keeps: the stage's rerolls and banishes, nothing
+    /// due, nothing open, nothing taken (ADR-SIM-3, ADR-SIM-7).
+    #[test]
+    fn an_initial_run_holds_the_offers_the_stage_gives() {
+        let rewards = crate::run_content::RunContent::bundled()
+            .rewards()
+            .rewards()
+            .len();
+        for mode in ["trial", "time_limit"] {
+            let setup = crate::run_setup::RunSetup {
+                mode: mode.into(),
+                seed: 20_261_010,
+                ..Default::default()
+            };
+            let e = Engine::start(&setup).unwrap();
+            let (world, state) = live(&e);
+            let cfg = world.stars.as_ref().expect("the mode has stars");
+            let o = state
+                .players
+                .career(PlayerIdx::SOLO)
+                .offers
+                .as_ref()
+                .expect("slot 0 holds offers");
+            assert!(o.due.is_empty(), "{mode}");
+            assert!(o.offer.is_none(), "{mode}");
+            assert_eq!(o.rerolls_left, u32::from(cfg.rerolls), "{mode}");
+            assert_eq!(o.banishes_left, u32::from(cfg.banishes), "{mode}");
+            assert_eq!(o.extra_candidates, 0, "{mode}");
+            assert_eq!(o.taken.len(), rewards, "{mode}");
+            assert!(o.taken.iter().all(|&n| n == 0), "{mode}");
+            assert_eq!(o.banished.len(), rewards, "{mode}");
+            assert!(o.banished.iter().all(|&b| !b), "{mode}");
+            assert!(o.set_counts.iter().all(|&n| n == 0), "{mode}");
+        }
+    }
+
     /// A party of `mask` over the worst case, whose slot 0 holds offers with every field set.
     fn party(mask: u8) -> State {
         let e = crate::bench_fixtures::worst_case::warmed_up();
@@ -993,11 +1029,7 @@ mod career_rest {
 /// Routing to the acting player: the slot of an entity, the offers of each slot, and the picks
 /// of a party (ADR-SIM-7, ADR-SIM-2).
 mod route {
-    use super::super::state::{Due, OfferState};
     use super::*;
-    use crate::engine::ChoiceError;
-    use crate::rewards::Rarity;
-    use crate::snapshot::OfferKind;
 
     fn slot(i: u8) -> PlayerIdx {
         PlayerIdx::new(i).expect("a slot")
@@ -1006,59 +1038,6 @@ mod route {
     /// The worst case as a party of `n`.
     fn party(n: u8) -> Engine {
         crate::bench_fixtures::worst_case::warmed_up().into_party(n)
-    }
-
-    fn state_mut(e: &mut Engine) -> &mut State {
-        match e.run_mut() {
-            Run::V2 { state, .. } => state,
-            Run::V1 { .. } => panic!("the live rules"),
-        }
-    }
-
-    /// Puts a due star offer on slot `i` and opens what is due.
-    fn due_on(e: &mut Engine, i: u8) {
-        let s = state_mut(e);
-        s.players
-            .career_mut(slot(i))
-            .offers
-            .as_mut()
-            .expect("the worst case has stars")
-            .due
-            .push(Due {
-                kind: OfferKind::Star,
-                rarity: Rarity::Common,
-            });
-        e.open_offers_for_test();
-    }
-
-    fn offer_of(e: &Engine, i: u8) -> Option<&OfferState> {
-        live(e)
-            .1
-            .players
-            .career(slot(i))
-            .offers
-            .as_ref()?
-            .offer
-            .as_ref()
-    }
-
-    fn taken_of(e: &Engine, i: u8) -> u32 {
-        let o = live(e)
-            .1
-            .players
-            .career(slot(i))
-            .offers
-            .as_ref()
-            .expect("offers");
-        o.taken.iter().map(|t| u32::from(*t)).sum()
-    }
-
-    fn picks(of: &[(usize, u32)]) -> [Input; 3] {
-        let mut v = [Input::default(); 3];
-        for (i, k) in of {
-            v[*i] = Input::picking(*k);
-        }
-        v
     }
 
     #[test]
@@ -1090,94 +1069,6 @@ mod route {
         assert_eq!(hole.of_id(EntityId(2)), Some(slot(2)));
         assert_eq!(hole.of_id(EntityId(3)), None);
         assert_eq!(hole.of_id(EntityId(900)), None);
-    }
-
-    #[test]
-    fn an_offer_is_open_for_the_slot_that_holds_it() {
-        let mut e = party(3);
-        due_on(&mut e, 1);
-        let s = live(&e).1;
-        assert!(super::super::offer_open(s));
-        assert!(super::super::offer_open_for(s, slot(1)));
-        assert!(!super::super::offer_open_for(s, PlayerIdx::SOLO));
-        assert!(!super::super::offer_open_for(s, slot(2)));
-        assert!(e.offer_open());
-    }
-
-    #[test]
-    fn a_pick_is_checked_against_its_own_slots_offer() {
-        let mut e = party(2);
-        due_on(&mut e, 1);
-        assert!(offer_of(&e, 1).is_some() && offer_of(&e, 0).is_none());
-        assert_eq!(e.check_pick(PlayerIdx::SOLO, 0), Err(ChoiceError::NoOffer));
-        assert_eq!(e.check_pick(slot(1), 0), Ok(()));
-        assert_eq!(
-            e.check_pick(slot(2), 0),
-            Err(ChoiceError::NoPlayer { player: slot(2) })
-        );
-    }
-
-    #[test]
-    fn a_step_applies_the_pick_of_the_slot_with_the_offer() {
-        let mut e = party(2);
-        due_on(&mut e, 1);
-        let (hash, tick) = (e.state_hash(), e.tick());
-        let b = [0, 1].map(|i| taken_of(&e, i));
-        e.step(&picks(&[(0, 0)]));
-        assert_eq!(
-            (e.state_hash(), e.tick()),
-            (hash, tick),
-            "slot 0 has no offer"
-        );
-        e.step(&picks(&[(1, 0)]));
-        assert_eq!(e.tick(), tick, "the tick does not advance");
-        assert_eq!((taken_of(&e, 0), taken_of(&e, 1)), (b[0], b[1] + 1));
-    }
-
-    #[test]
-    fn every_accepted_pick_applies_and_a_refused_one_does_not_hold_back_the_rest() {
-        let mut e = party(3);
-        due_on(&mut e, 0);
-        due_on(&mut e, 2);
-        let (tick, b) = (e.tick(), [0, 1, 2].map(|i| taken_of(&e, i)));
-        e.step(&picks(&[(0, 0), (2, 0)]));
-        assert_eq!(
-            [0, 1, 2].map(|i| taken_of(&e, i)),
-            [b[0] + 1, b[1], b[2] + 1]
-        );
-        assert_eq!(e.tick(), tick);
-
-        let mut e = party(3);
-        due_on(&mut e, 0);
-        due_on(&mut e, 2);
-        let b = [0, 1, 2].map(|i| taken_of(&e, i));
-        e.step(&picks(&[(0, 99), (2, 0)]));
-        assert_eq!((taken_of(&e, 0), taken_of(&e, 2)), (b[0], b[2] + 1));
-        assert!(offer_of(&e, 0).is_some(), "slot 0's offer is still open");
-        assert!(e.offer_open());
-    }
-
-    #[test]
-    fn each_slot_draws_from_its_own_stream() {
-        let mut both = party(3);
-        due_on(&mut both, 0);
-        due_on(&mut both, 1);
-        let mut only1 = party(3);
-        due_on(&mut only1, 1);
-        assert_eq!(
-            offer_of(&both, 1).map(|o| o.candidates.clone()),
-            offer_of(&only1, 1).map(|o| o.candidates.clone()),
-            "slot 0's draws do not move slot 1's stream"
-        );
-        let s = live(&both).1;
-        assert_ne!(
-            s.players.career(slot(1)).offer,
-            s.players.career(slot(2)).offer
-        );
-        assert_ne!(
-            s.players.career(PlayerIdx::SOLO).offer,
-            s.players.career(slot(1)).offer
-        );
     }
 
     /// A party's world and state with the kill rewards on slots 0 and 1 and the tick's other

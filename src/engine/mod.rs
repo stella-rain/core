@@ -951,18 +951,10 @@ impl Engine {
         Ok(())
     }
 
-    /// Rates each candidate of `player`'s open star or boss offer, in the offer's order: its
-    /// categories, the expected gain in the Main weapon's damage in basis points, the set tier
-    /// the pick reaches and the stats it moves, before and after. Empty for a player outside
-    /// the party, without such an offer open, with an expertise or stat offer open, or in a
-    /// `sim_version` 1 run. Read-only, and a separate query from the snapshot (ADR-BRDG-4):
-    /// call it when an offer opens, not every frame. The model and its limits are in
-    /// `sim::offer_rating`.
-    pub fn offer_ratings(&self, player: PlayerIdx) -> Vec<OfferRating> {
-        if self.present() >> player.get() & 1 == 0 {
-            return Vec::new();
-        }
-        self.run.offer_ratings(self.content.rewards(), player)
+    /// Always empty: the live rules open no star or boss offer, and a `sim_version` 1 run is
+    /// frozen and rates nothing. Read-only; the signature stays for callers that still ask.
+    pub fn offer_ratings(&self, _player: PlayerIdx) -> Vec<OfferRating> {
+        Vec::new()
     }
 
     /// Rates a star against each slot it could go in, in slot order: for each, whether the swap
@@ -1280,15 +1272,6 @@ impl Engine {
     /// The run, to edit its state (tests).
     pub(crate) fn run_mut(&mut self) -> &mut Run {
         &mut self.run
-    }
-
-    /// Opens what is due to every present player, as the tick's last step does (tests).
-    pub(crate) fn open_offers_for_test(&mut self) {
-        let rewards = self.content.rewards();
-        let Run::V2 { world, state } = &mut self.run else {
-            panic!("the live rules");
-        };
-        crate::sim::open_offers_for_test(world, rewards, state, &mut self.events);
     }
 
     /// An engine for `stage` under the rules of `version`, past the `SIM_VERSION` check.

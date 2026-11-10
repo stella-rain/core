@@ -1,10 +1,10 @@
 //! What a run's setup brings in at tick 0: the perk set's
-//! effects, the auto combo, the rune pool, the carried stars and the starting rune. They apply
-//! before the first step, in this order: the perk set, the carried stars in setup order, as if
-//! each were picked from an offer (they count toward their reward's stack limit), then the
-//! starting rune, then the Lumine star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn; the star
-//! is in the build from tick 0, its stats, skill, orbit and set count included). Nothing is
-//! drawn for any of them, so the generator's order is unchanged.
+//! effects, the auto combo, the rune pool and the starting rune. They apply
+//! before the first step, in this order: the perk set, then the starting rune, then the Lumine
+//! star's slot (ADR-SAVE-7 point 4: Lv1, nothing drawn; the star is in the build from tick 0, its
+//! stats, skill, orbit and set count included). Nothing is drawn for any of them, so the
+//! generator's order is unchanged. The live rules take no carried stars: the setup validator
+//! refuses `carried` at `sim_version` 2.
 //! Regen, the auto combo and the rune pool are fixed for the run and part of the setup, which
 //! the replay stores: the state hash writes nothing for them. The Lumine slot is career state
 //! and is hashed with the equipment.
@@ -19,7 +19,7 @@ use crate::sim::equipment::{EquipSlot, Held, SlotKind};
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{HeldRune, State};
 
-use super::{levels, runes, slots, stars};
+use super::{levels, runes, slots};
 
 /// The ticks between two regenerations: a second.
 pub(super) const REGEN_TICKS: u32 = 60;
@@ -28,8 +28,6 @@ pub(super) const REGEN_TICKS: u32 = 60;
 pub(crate) struct Loadout {
     perk: Vec<PerkEntry>,
     rune_pool: u8,
-    /// The carried stars, as places in the rewards file.
-    carried: Vec<u16>,
     starting_rune: Option<Rune>,
     /// The Lumine star, as a place in the rewards file.
     lumine: Option<u16>,
@@ -69,12 +67,6 @@ impl Loadout {
         Loadout {
             perk,
             rune_pool: runes::pool_mask(&setup.rune_pool),
-            carried: setup
-                .carried
-                .iter()
-                .filter_map(|c| content.rewards().index_of(&c.reward))
-                .map(|at| u16::try_from(at).unwrap_or(u16::MAX))
-                .collect(),
             starting_rune: setup
                 .starting_rune
                 .as_ref()
@@ -102,23 +94,7 @@ pub(crate) fn apply(
     for entry in &loadout.perk {
         perk(s, me, *entry);
     }
-    let State { stars, players, .. } = s;
-    let (player, career) = players.both_mut(me);
-    if let (Some(f), Some(o)) = (stars.as_ref(), career.offers.as_mut()) {
-        for &i in &loadout.carried {
-            stars::take(
-                stage,
-                rewards,
-                &mut career.offer,
-                &mut career.progress,
-                player,
-                &mut career.regen,
-                f,
-                o,
-                i,
-            );
-        }
-    }
+    let (player, career) = s.players.both_mut(me);
     career.equipment.slots = slots::fresh_slots(&stage.equipment_rules);
     if let Some(rune) = loadout.starting_rune
         && player.runes.len() < MAX_RUNES

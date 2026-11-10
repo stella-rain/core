@@ -271,7 +271,6 @@ mod grants {
         stage.equipment_rules = slots::bundled_rules().clone();
         let pool = RunPool {
             rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
-            extra_rerolls: 0,
             difficulty: RunDifficulty {
                 hp_pct: 100,
                 damage_pct: 100,
