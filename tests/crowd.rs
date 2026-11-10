@@ -15,7 +15,7 @@ use stella_rain_core::bench_fixtures::worst_minute_case::Run;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::input::Input;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::time_limit::TimeLimit;
 use stella_rain_core::trig;
@@ -275,14 +275,8 @@ const UNDER_TARGET_DIGEST: u64 = 0x7078_b634_4f62_b783;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {
-    let mut e = Engine::start_with(
-        &RunSetup {
-            build_mode: BuildMode::Equipment,
-            ..setup("normal")
-        },
-        &design_content(),
-    )
-    .expect("the run starts");
+    let mut e = Engine::start_with(&RunSetup { ..setup("normal") }, &design_content())
+        .expect("the run starts");
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
     let mut t200 = None;
     for _ in 0..90_000 {

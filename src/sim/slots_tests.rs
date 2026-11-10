@@ -4,13 +4,12 @@
 use super::equipment::{Held, SlotKind};
 use super::state::{PlayerIdx, State};
 use crate::engine::{Engine, Run};
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 use crate::rune::Rune;
 
 fn setup(rune: Option<&str>, lumine: Option<&str>) -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         starting_rune: rune.map(|r| r.into()),
         lumine: u8::from(lumine.is_some()),
         lumine_star: lumine.map(|l| l.into()),
@@ -57,10 +56,6 @@ fn an_equipment_run_starts_with_the_layout() {
     let eq = &state_of(&e).players.career(PlayerIdx::SOLO).equipment;
     assert_eq!(eq.slots.len(), 12);
     assert!(eq.lumine.is_some());
-
-    let e = Engine::start(&RunSetup::default()).expect("starts");
-    let eq = &state_of(&e).players.career(PlayerIdx::SOLO).equipment;
-    assert!(eq.slots.is_empty() && eq.lumine.is_none());
 }
 
 /// T2: the starting rune fills rune slot 0 and the runes the Main fires, not the inventory.
@@ -272,8 +267,7 @@ mod grants {
         stage.player.evade.charges = 1;
         stage.player.evade.max_charges = Some(3);
         let mut stage = World::for_test(stage);
-        // The slots are equipment mode's: the Growth effects are stats there.
-        stage.equipment_mode = true;
+        // The Growth effects are stats.
         stage.equipment_rules = slots::bundled_rules().clone();
         let pool = RunPool {
             rewards: (0..u16::try_from(rewards.rewards().len()).unwrap()).collect(),
@@ -1520,7 +1514,6 @@ mod kills {
     /// An equipment solo fixture with the attack star in slot 0 and the hp star in the Lumine slot.
     fn armed() -> Fixture {
         let mut f = with(rewards());
-        f.stage.equipment_mode = true;
         f.stage.equipment_rules = slots::bundled_rules().clone();
         f.set(0, Some(ATK));
         f.change(|e| {
@@ -1642,17 +1635,6 @@ mod kills {
         );
     }
 
-    /// T13: an offers run credits nothing and counts nothing.
-    #[test]
-    fn offers_mode_credits_nothing() {
-        let mut f = armed();
-        f.stage.equipment_mode = false;
-        dead(&mut f, 12, 0);
-        tick(&mut f, PlayerIdx::SOLO);
-        assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (1, 0));
-        assert!(f.s.scratch.kills_by.iter().all(|&k| k == 0));
-    }
-
     /// The bundled Mintaka (`max_hp` 50,000 and `regen` 3,000) in the Lumine slot of a fixture
     /// over the bundled stars, and its place.
     fn bundled_with_lumine() -> (Fixture, u16) {
@@ -1732,7 +1714,6 @@ mod bundled_lumine {
 
     fn run(lumine: u8, star: Option<&str>) -> Engine {
         Engine::start(&RunSetup {
-            build_mode: BuildMode::Equipment,
             lumine,
             lumine_star: star.map(Into::into),
             ..RunSetup::default()

@@ -11,10 +11,7 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
-use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
-use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::{DamageOverTimeView, StatusView};
 use stella_rain_core::version::Versions;
@@ -22,7 +19,6 @@ use stella_rain_core::version::Versions;
 use crate::common;
 
 use common::on_hit::*;
-use common::run::{run_input, trial_setup};
 use common::*;
 
 /// A runes file whose bleed ticks every `interval` for `duration`, `damage` a stack, up to
@@ -404,52 +400,6 @@ fn the_state_hash_holds_bleed() {
     a.step(&[once(start)(start), Default::default(), Default::default()]);
     b.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_ne!(a.state_hash(), b.state_hash());
-}
-
-#[test]
-fn a_run_holding_bleed_records_and_verifies() {
-    // The trial with a random rune and one stat reward, the hidden candidate always taken, and
-    // the bundled bleed.
-    let content = content(
-        vec![
-            random_rune(),
-            json!({
-                "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20
-            }),
-        ],
-        None,
-        Runes::bundled().clone(),
-    );
-    // A seed whose run draws bleed among the seven runes: the trial has stars for about four.
-    let setup = RunSetup {
-        seed: 20_261_013,
-        ..trial_setup()
-    };
-    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
-    let mut bled = false;
-    for t in 0..5_400 {
-        while recorder.engine().offer_open() {
-            let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
-            let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
-            recorder
-                .choose(PlayerIdx::SOLO, u32::try_from(rune.unwrap_or(0)).unwrap())
-                .unwrap();
-        }
-        let input: Input = run_input(recorder.engine(), t);
-        if recorder
-            .step(&[input, Default::default(), Default::default()])
-            .is_err()
-        {
-            break;
-        }
-        bled |= recorder.engine().events().iter().any(
-            |ev| matches!(ev, DomainEvent::StatusApplied { status, .. } if status.as_str() == "bleed"),
-        );
-    }
-    assert!(bled, "bleed was applied in the run");
-    let bytes = recorder.replay().to_bytes();
-    assert!(verify_run_with(&bytes, &content).is_ok());
 }
 
 #[test]

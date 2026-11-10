@@ -19,7 +19,7 @@ use super::worst_minute_case::{self, MINUTE_START, MINUTE_TICKS, input_at};
 use crate::engine::{Engine, Load};
 use crate::id::PlayerIdx;
 use crate::input::Input;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 
 /// The ticks played before the heaviest tick of the three-player dense minute (`window` finds
 /// it; `tests/bench_fixture_pins.rs` pins it).
@@ -90,7 +90,6 @@ fn fast_forwarded(ticks: u32) -> Engine {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: SEED,
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     let mut engine = Engine::start_party_with(&setup, &worst_minute_case::content(), 3)

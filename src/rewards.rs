@@ -28,7 +28,7 @@ use crate::id::ContentId;
 use crate::limits::{MAX_CATEGORY_SLOTS, MAX_EQUIP_CATEGORIES, MAX_EQUIP_SLOTS, MAX_SLOT_LEVEL};
 use crate::pack::Pack;
 use crate::registry;
-use crate::run_setup::{BuildMode, MAX_LUMINE};
+use crate::run_setup::MAX_LUMINE;
 use crate::run_stats::{self, StatEffect};
 use crate::stage_skill::{MAX_SKILL_LEVELS, StageSkills};
 use crate::trig::PER_DEGREE;
@@ -405,8 +405,8 @@ pub struct Reward {
     /// default pool leaves it out (ADR-CONT-2 points 3, 8, 9).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub deprecated: bool,
-    /// Offered in equipment mode only: an offers run's default pool leaves it out and its setup
-    /// may not name it.
+    /// Offered at `sim_version` 2 only: the default pool of a version 1 run leaves it out and a
+    /// version 1 setup may not name it.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub equipment_only: bool,
 }
@@ -693,16 +693,16 @@ impl Rewards {
         self.equipment.as_ref()
     }
 
-    /// The places of the run's star pool when its setup names none (ADR-CONT-3 point 8): in
-    /// equipment mode every reward that has a category and is not deprecated, in offers mode
+    /// The places of the run's star pool when its setup names none (ADR-CONT-3 point 8): at
+    /// `sim_version` 2 and later every reward that has a category and is not deprecated, at 1
     /// every reward that is not equipment-only.
-    pub fn default_pool(&self, mode: BuildMode) -> Vec<u16> {
+    pub fn default_pool(&self, sim_version: u32) -> Vec<u16> {
         self.rewards
             .iter()
             .enumerate()
-            .filter(|(_, r)| match mode {
-                BuildMode::Equipment => r.category.is_some() && !r.deprecated,
-                BuildMode::Offers => !r.equipment_only,
+            .filter(|(_, r)| match sim_version {
+                1 => !r.equipment_only,
+                _ => r.category.is_some() && !r.deprecated,
             })
             .map(|(i, _)| u16::try_from(i).unwrap_or(u16::MAX))
             .collect()

@@ -188,27 +188,6 @@ fn the_recorder_refuses_what_it_cannot_record() {
 
 // C. Resume, replay_at, save.
 
-fn offer_cut(n: u8) -> (RunRecorder, u32) {
-    let mut rec = RunRecorder::start_party(&trial_setup(), n).unwrap();
-    for t in 0..5400 {
-        assert_eq!(
-            rec.engine().outcome(),
-            Outcome::Running,
-            "no offer before the end"
-        );
-        step_party_no_answer(&mut rec, n, t);
-        if rec.engine().offer_open() {
-            return (rec, t);
-        }
-    }
-    panic!("no offer opened");
-}
-
-fn step_party_no_answer(rec: &mut RunRecorder, n: u8, tick: u32) {
-    let inputs = inputs_at(rec, n, tick);
-    rec.step(&inputs).unwrap();
-}
-
 #[test]
 fn resume_continues_a_party_run_as_the_uninterrupted_run() {
     for n in [2u8, 3] {
@@ -221,21 +200,6 @@ fn resume_continues_a_party_run_as_the_uninterrupted_run() {
             step_party(&mut live, n, t);
             step_party(&mut resumed, n, t);
         }
-        assert_eq!(resumed.replay(), live.replay());
-    }
-}
-
-#[test]
-fn resume_works_with_an_offer_open() {
-    for n in [2u8, 3] {
-        let (live, _) = offer_cut(n);
-        let cut = live.replay();
-        let mut resumed = RunRecorder::resume_with_pack(&cut, pack()).unwrap();
-        assert!(resumed.engine().offer_open());
-        assert_eq!(resumed.engine().state_hash(), live.engine().state_hash());
-        let mut live = live;
-        answer_offers(&mut live, n);
-        answer_offers(&mut resumed, n);
         assert_eq!(resumed.replay(), live.replay());
     }
 }
@@ -474,7 +438,6 @@ fn others_actions(steps: &RunSteps) -> usize {
 /// starting `equipment_` adds no promise of its own; any other name is a miss, so a case added to the
 /// table needs its promise here.
 pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<String> {
-    use stella_rain_core::run_setup::BuildMode;
     let bytes = replay.to_bytes();
     let Ok(verified) = verify_run(&bytes) else {
         return Some("the run verifies".into());
@@ -496,7 +459,7 @@ pub(crate) fn party_promise_miss(name: &str, replay: &RunReplay) -> Option<Strin
         .steps()
         .iter()
         .any(|s| matches!(s, Step::Join(_) | Step::Leave(_)));
-    if replay.setup.build_mode == BuildMode::Offers {
+    if replay.setup.sim_version == 1 {
         if !changes {
             let per = picks_per_slot(replay);
             if per[1] + per[2] < 2 {

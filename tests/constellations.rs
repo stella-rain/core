@@ -14,14 +14,13 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{CarriedStar, RunSetup};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::ConstellationProgress;
 use stella_rain_core::stage::{RarityWeights, Stage, Tier};
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::{SIM_VERSION, Versions};
 
-use crate::common::run::{CONSTELLATIONS_TRIO_SEED, plain_content, plain_setup};
+use crate::common::run::CONSTELLATIONS_TRIO_SEED;
 use crate::reward_kinds::{near, next_offer, offer, plain, take};
 
 fn named(id: &str, star: &str) -> Value {
@@ -641,49 +640,6 @@ fn a_run_without_sets_keeps_its_hashes() {
         untouched[1], touched[1],
         "one member held is part of the state"
     );
-}
-
-#[test]
-fn carried_stars_count_at_the_start_and_the_full_tier_replaces_the_small() {
-    let hp_set = set(
-        "pair",
-        &["n1", "n2"],
-        vec![tier(1, vec![max_hp(1_000)]), tier(2, vec![max_hp(3_000)])],
-    );
-    let rewards = rewards_of(reward_list());
-    let sets = Constellations::parse_with(
-        file(vec![hp_set]).to_string().as_bytes(),
-        Versions::CURRENT,
-        &rewards,
-    )
-    .expect("valid");
-    let content = RunContent::new(
-        RunStats::bundled().clone(),
-        rewards.with_constellations(sets),
-    )
-    .with_perk_sets(plain_content().perk_sets().clone());
-    let start = |carried: &[&str]| {
-        let setup = RunSetup {
-            carried: carried
-                .iter()
-                .map(|id| CarriedStar {
-                    reward: (*id).into(),
-                })
-                .collect(),
-            lumine: 8,
-            ..plain_setup()
-        };
-        Engine::start_with(&setup, &content).expect("a valid run")
-    };
-    let base = start(&[]).snapshot().players[0].hp;
-    let one = start(&["n1"]);
-    assert_eq!(one.snapshot().players[0].hp, base + 1_000);
-    assert_eq!(one.snapshot().constellations[0].held, 1);
-    let both = start(&["n1", "n2"]);
-    // 3,000 in all, not 1,000 and 3,000.
-    assert_eq!(both.snapshot().players[0].hp, base + 3_000);
-    let view = &both.snapshot().constellations[0];
-    assert_eq!((view.held, view.tier), (2, 2));
 }
 
 /// An orbit of `amount` orbs for a set's tier: each orb one active phase.

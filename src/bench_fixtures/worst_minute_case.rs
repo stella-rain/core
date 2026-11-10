@@ -22,7 +22,7 @@ use crate::engine::{Engine, Load};
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::RunStats;
 use crate::time_limit::TimeLimit;
 use crate::validate::limits::MAX_ELITES_ALIVE;
@@ -88,7 +88,6 @@ impl Run {
         let setup = RunSetup {
             mode: "time_limit".into(),
             seed: SEED,
-            build_mode: BuildMode::Equipment,
             ..RunSetup::default()
         };
         let content = content();

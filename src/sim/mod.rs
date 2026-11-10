@@ -426,13 +426,11 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     if let (Some(cfg), Some(pickups)) = (&stage.heal, s.heal_pickups.as_mut()) {
         scratch::reserve_to(pickups, usize::from(cfg.cap));
     }
-    // Equipment mode: each present slot's inventory has room for its bound, so a drop allocates
-    // nothing (ADR-SIM-5 points 7 and 8). Offers mode reserves nothing here.
-    if stage.equipment_mode {
-        for me in s.players.indices() {
-            let inventory = &mut s.players.career_mut(me).equipment.inventory;
-            scratch::reserve_to(inventory, crate::limits::MAX_INVENTORY);
-        }
+    // Each present slot's inventory has room for its bound, so a drop allocates nothing
+    // (ADR-SIM-5 points 7 and 8).
+    for me in s.players.indices() {
+        let inventory = &mut s.players.career_mut(me).equipment.inventory;
+        scratch::reserve_to(inventory, crate::limits::MAX_INVENTORY);
     }
 }
 
@@ -1482,9 +1480,7 @@ fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec<DomainEven
     for me in s.players.indices() {
         heal::kills_heal(s, me, events);
     }
-    if stage.equipment_mode {
-        slots::count_kills(s);
-    }
+    slots::count_kills(s);
     // The record is by enemy index, which no step between a hit and this removal changes.
     debug_assert!(s.scratch.killers.len() <= s.enemies.len());
     s.enemies.retain(|e| e.hp > 0);

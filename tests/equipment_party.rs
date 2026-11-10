@@ -8,7 +8,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::RunRecorder;
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).unwrap()
@@ -19,10 +19,7 @@ fn pack() -> &'static Pack {
 }
 
 fn setup() -> RunSetup {
-    RunSetup {
-        build_mode: BuildMode::Equipment,
-        ..trial_setup()
-    }
+    RunSetup { ..trial_setup() }
 }
 
 /// One tick: slot 0 walks right, the rest stand; an open offer is answered first.

@@ -1,8 +1,7 @@
 //! The public API names players (ADR-SIM-7): the snapshot and the places hold one entry per
 //! player, and `choose` takes the player. At one player the bytes are the pins'.
 
-use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};
-use crate::id::PlayerIdx;
+use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
 use crate::input::Input;
 
 use super::*;
@@ -10,50 +9,6 @@ use super::*;
 fn orb_cage() -> crate::stage::Stage {
     let bytes = include_bytes!("../../tests/corpus/v1/stages/orb_cage/stage.json");
     crate::validate::parse_and_validate(bytes).expect("a valid stage")
-}
-
-pub(super) fn p1() -> PlayerIdx {
-    PlayerIdx::new(1).expect("player 1")
-}
-
-/// An engine and the input that plays it.
-type Case = (Engine, fn(u32) -> Input);
-
-/// The dense minute of the `time_limit` mode in offers mode, at its start: the bench fixture runs
-/// in equipment mode, where no offer opens, so a test that needs offers builds it here.
-pub(super) fn offers_minute() -> Engine {
-    let setup = crate::run_setup::RunSetup {
-        mode: "time_limit".into(),
-        seed: worst_minute_case::SEED,
-        ..crate::run_setup::RunSetup::default()
-    };
-    Engine::start_with(&setup, &worst_minute_case::content()).expect("the offers minute starts")
-}
-
-/// An engine with an offer open, from the first of the walks that reaches one. 1500 ticks: with
-/// the 64-pixel pickup circle the offers minute's warm-up takes its stars before the walk, and
-/// its first offer after it opens 1293 ticks in.
-pub(super) fn with_offer() -> Engine {
-    let cases: [Case; 5] = [
-        (offers_minute(), worst_minute_case::input_at),
-        (
-            Engine::new(&orb_cage()).expect("the stage runs"),
-            worst_minute_case::input_at,
-        ),
-        (worst_case::warmed_up(), worst_case::input),
-        (hit_case::warmed_up(), hit_case::input),
-        (time_limit_case::warmed_up(), time_limit_case::input),
-    ];
-    for (mut e, input) in cases {
-        for _ in 0..1500 {
-            if e.offer_open() {
-                return e;
-            }
-            let next = e.tick() + 1;
-            e.step(&[input(next), Default::default(), Default::default()]);
-        }
-    }
-    panic!("no walk reached an offer");
 }
 
 #[test]
@@ -93,43 +48,5 @@ fn players_json_is_an_array_of_the_old_player() {
     assert_eq!(
         players[0],
         serde_json::to_value(&snap.players[0]).expect("a view serializes")
-    );
-}
-
-#[test]
-fn choose_names_the_player() {
-    let mut e = with_offer();
-    let (hash, events) = (e.state_hash(), e.events().to_vec());
-    let err = crate::engine::pick(&mut e, p1(), 0);
-    assert_eq!(err, Err(ChoiceError::NoPlayer { player: p1() }));
-    assert_eq!((e.state_hash(), e.events()), (hash, events.as_slice()));
-    let options = e
-        .snapshot()
-        .progress
-        .and_then(|p| p.offer)
-        .map(|o| o.options.len());
-    if let Some(n) = options {
-        let past = u32::try_from(n).unwrap();
-        assert_eq!(
-            crate::engine::pick(&mut e, PlayerIdx::SOLO, past),
-            Err(ChoiceError::OutOfRange {
-                index: past,
-                options: past
-            })
-        );
-    }
-    assert_eq!(e.state_hash(), hash);
-    assert_eq!(crate::engine::pick(&mut e, PlayerIdx::SOLO, 0), Ok(()));
-    assert_ne!(e.state_hash(), hash);
-
-    let mut idle = worst_case::warmed_up();
-    assert!(!idle.offer_open());
-    assert_eq!(
-        crate::engine::pick(&mut idle, p1(), 0),
-        Err(ChoiceError::NoPlayer { player: p1() })
-    );
-    assert_eq!(
-        crate::engine::pick(&mut idle, PlayerIdx::SOLO, 0),
-        Err(ChoiceError::NoOffer)
     );
 }

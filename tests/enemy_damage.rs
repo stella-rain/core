@@ -71,11 +71,12 @@ fn setup() -> RunSetup {
 }
 
 #[test]
-fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
+fn an_enemy_orb_takes_10_000_and_six_hits_end_a_run_from_60_000() {
     let mode = shooter_mode();
-    let mut e = Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap();
+    let setup = common::equip_run::equipment_setup(setup());
+    let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
     let start = e.snapshot().players[0].hp;
-    assert_eq!(start, 50_000, "the trial's main character");
+    assert_eq!(start, 60_000, "the main character of an equipment run");
     let (mut last, mut hits) = (start, 0);
     for _ in 0..20_000 {
         e.step(&[Input::default(), Default::default(), Default::default()]);
@@ -89,7 +90,7 @@ fn an_enemy_orb_takes_10_000_and_five_hits_end_a_trial_run_from_50_000() {
             break;
         }
     }
-    assert_eq!(hits, 5);
+    assert_eq!(hits, 6);
     assert_eq!(e.outcome(), Outcome::Failed);
 }
 

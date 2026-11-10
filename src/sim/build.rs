@@ -18,8 +18,8 @@ use crate::attack::DamageType;
 use crate::constellations;
 use crate::rewards::{
     EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
-    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, MAX_ORBITS, MAX_ORBS,
-    ORBIT_SET_BASE, RewardEffect, Rewards,
+    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ORBITS, MAX_ORBS, ORBIT_SET_BASE,
+    RewardEffect, Rewards,
 };
 use crate::run_stats::StatEffect;
 use crate::sim::state::{Offers, OrbitState, PlayerState, Progress, SkillSlot};
@@ -164,19 +164,11 @@ impl Build {
                 RewardEffect::Regen => self.regen = self.regen.saturating_add(amount),
                 // Equipment mode keeps the Growth effects as stats (their `base`, not level-scaled,
                 // with no cap here); the room under the offer size is the reader's.
-                RewardEffect::Rerolls | RewardEffect::Banishes | RewardEffect::OfferCandidates
-                    if stage.equipment_mode =>
-                {
+                RewardEffect::Rerolls | RewardEffect::Banishes | RewardEffect::OfferCandidates => {
                     if let Some(stat) = entry.effect.growth_stat() {
                         let total = &mut self.stats[stat as usize];
                         *total = total.saturating_add(base);
                     }
-                }
-                RewardEffect::OfferCandidates => {
-                    let room = u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size)
-                        .unwrap_or(u8::MAX);
-                    let more = u8::try_from(base).unwrap_or(u8::MAX);
-                    self.extra_candidates = self.extra_candidates.saturating_add(more).min(room);
                 }
                 RewardEffect::RuneHaste => {
                     self.rune_haste_pct = self.rune_haste_pct.saturating_add(amount)
@@ -209,8 +201,6 @@ impl Build {
                 RewardEffect::StageSkill
                 | RewardEffect::EvadeCharge
                 | RewardEffect::Orbit
-                | RewardEffect::Rerolls
-                | RewardEffect::Banishes
                 | RewardEffect::RandomRune => {}
             }
         }

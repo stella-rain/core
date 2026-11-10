@@ -14,7 +14,6 @@ use crate::limits::MAX_INVENTORY;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
-use crate::snapshot::OfferKind;
 use crate::stage::{RarityWeights, Tier};
 use crate::version::Versions;
 use serde_json::{Value, json};
@@ -46,50 +45,6 @@ pub(super) fn drop_star(s: &mut State, me: u8, rarity: Rarity) {
         .expect("stars")
         .on_map
         .push(StarState { id, at, rarity });
-}
-
-/// S1: in offers mode a star taken and a boss kill only queue offers; no inventory is touched and
-/// no offer stream moves (ADR-SIM-2 point 2).
-#[test]
-fn offers_mode_picks_are_unchanged() {
-    let (w, mut s) = tiered(3);
-    drop_star(&mut s, 0, Rarity::Epic);
-    let before = s.clone();
-    let mut ev = Vec::new();
-    stars::boss_killed(&w, &mut s);
-    stars::pick_up(&w, &mut s, slot(0), &mut ev);
-    for i in 0..3 {
-        let (was, now) = (before.players.career(slot(i)), s.players.career(slot(i)));
-        assert!(now.equipment.inventory.is_empty(), "slot {i}");
-        assert_eq!(now.offer, was.offer, "slot {i} draws nothing");
-        let due = &now.offers.as_ref().expect("offers").due;
-        assert_eq!(due[0].kind, OfferKind::Boss, "slot {i}");
-        assert_eq!(due[0].rarity, Rarity::Rare, "slot {i}");
-        let taken = usize::from(i == 0);
-        assert_eq!(due.len(), 1 + taken, "slot {i}");
-    }
-    let due = &s.players.career(slot(0)).offers.as_ref().unwrap().due;
-    assert_eq!(due[1].kind, OfferKind::Star);
-    assert_eq!(due[1].rarity, Rarity::Epic);
-    assert!(s.stars.as_ref().unwrap().on_map.is_empty());
-    assert!(matches!(ev[..], [DomainEvent::StarTaken { .. }]));
-}
-
-/// T2: the mode is a fact of the setup, and a restore rebuilds it.
-#[test]
-fn the_mode_is_set_by_the_setup() {
-    use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
-    let live = |e: &Engine| match e.run() {
-        Run::V2 { world, .. } => world.equipment_mode,
-        Run::V1 { .. } => panic!("the live rules"),
-    };
-    let equipment = RunSetup {
-        build_mode: BuildMode::Equipment,
-        ..RunSetup::default()
-    };
-    assert!(live(&Engine::start(&equipment).expect("starts")));
-    assert!(!live(&Engine::start(&RunSetup::default()).expect("starts")));
 }
 
 // --- the roll (ADR-SIM-2 point 2, ADR-SIM-5 point 8) -------------------------------------------
@@ -218,7 +173,6 @@ fn a_star_taken_gives_every_member_a_roll_in_slot_order() {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL;
@@ -479,9 +433,8 @@ fn the_inventory_has_a_bound_not_a_cap() {
 #[test]
 fn the_starting_rune_is_equipped_at_tick_0() {
     use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
-    let setup = |build_mode| RunSetup {
-        build_mode,
+    use crate::run_setup::RunSetup;
+    let setup = RunSetup {
         starting_rune: Some("thunder".into()),
         ..RunSetup::default()
     };
@@ -489,13 +442,10 @@ fn the_starting_rune_is_equipped_at_tick_0() {
         Run::V2 { state, .. } => state.clone(),
         Run::V1 { .. } => panic!("the live rules"),
     };
-    let eq = state(&Engine::start(&setup(BuildMode::Equipment)).expect("starts"));
-    let offers = state(&Engine::start(&setup(BuildMode::Offers)).expect("starts"));
+    let eq = state(&Engine::start(&setup).expect("starts"));
     let me = slot(0);
     assert!(eq.players[me].runes.iter().any(|h| h.rune == Rune::Thunder));
     assert!(eq.players.career(me).equipment.inventory.is_empty());
-    assert_eq!(eq.players.career(me).offer, offers.players.career(me).offer);
-    assert_eq!(eq.rng, offers.rng);
 }
 
 /// T17 (setup part): the perk set's `drop_weight` reaches the world; the bundled sets carry 25 each;
@@ -505,13 +455,12 @@ fn the_perk_drop_weight_reaches_the_world() {
     use crate::engine::{Engine, Run};
     use crate::perk_sets::PerkSets;
     use crate::run_content::RunContent;
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     let live = |e: &Engine| match e.run() {
         Run::V2 { world, .. } => world.drop_weight_pct.clone(),
         Run::V1 { .. } => panic!("the live rules"),
     };
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     // The bundled default set carries drop weight 25 (vanguard, duelist and scout each weigh one
@@ -572,7 +521,6 @@ fn boss_party(n: u8, levels: [u32; 3]) -> (World, State) {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     let f = s.stars.as_mut().expect("stars");
     f.rarity = (Rarity::Common, Rarity::Supernova);
@@ -694,7 +642,7 @@ fn a_party_member_starts_with_an_empty_inventory() {
 #[test]
 fn a_joiner_starts_with_an_empty_inventory() {
     use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     let s = rich();
     let mut players = super::state::Players::party(2, &s.players, s.crit_seed);
     players.leave(slot(1));
@@ -704,7 +652,6 @@ fn a_joiner_starts_with_an_empty_inventory() {
     assert!(e.lumine.is_some());
 
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     let mut e = Engine::start(&setup).expect("starts");
@@ -843,14 +790,8 @@ mod pickup_stat {
             super::super::widened(RADIUS, shown(&w, &s)),
             super::super::widened(RADIUS, super::super::pickup_pct(&s, slot(0)))
         );
-        assert!(
-            star_taken(&w, &s, RADIUS * 4, true),
-            "300 percent more is taken"
-        );
-        assert!(
-            !star_taken(&w, &s, RADIUS * 4 + 1, true),
-            "one unit past is not"
-        );
+        assert!(star_taken(&w, &s, RADIUS * 4), "300 percent more is taken");
+        assert!(!star_taken(&w, &s, RADIUS * 4 + 1), "one unit past is not");
     }
 
     /// P5: an offers run shows the stars' share, as before.
@@ -894,10 +835,9 @@ mod pickup_stat {
         s.heal_pickups.unwrap().is_empty()
     }
 
-    fn star_taken(w: &World, s: &State, dx: i32, equipment: bool) -> bool {
+    fn star_taken(w: &World, s: &State, dx: i32) -> bool {
         let mut w = w.clone();
         w.stage.stars.as_mut().unwrap().pickup_radius = Fx(RADIUS);
-        w.equipment_mode = equipment;
         let mut s = s.clone();
         let id = EntityId(s.next_id);
         s.next_id += 1;
@@ -907,26 +847,18 @@ mod pickup_stat {
             at,
             rarity: Rarity::Common,
         });
-        if equipment {
-            drops::pick_up(&w, &mut s, slot(0), &mut Vec::new());
-        } else {
-            stars::pick_up(&w, &mut s, slot(0), &mut Vec::new());
-        }
+        drops::pick_up(&w, &mut s, slot(0), &mut Vec::new());
         s.stars.unwrap().on_map.is_empty()
     }
 
     /// T13: a total of 50 widens a circle of `R` to 1.5 `R`, touching counts, for the heal
-    /// pickups, the stars of offers mode and the stars of equipment mode.
+    /// pickups and the stars.
     #[test]
     fn a_pickup_stat_widens_each_pickup() {
         let near = RADIUS * 3 / 2;
         let (hw, mut hs) = heal_fixture();
         let (sw, mut ss) = party(1);
-        let cases: [(&str, Taken); 3] = [
-            ("heal", heal_taken),
-            ("offers star", |w, s, dx| star_taken(w, s, dx, false)),
-            ("equipment star", |w, s, dx| star_taken(w, s, dx, true)),
-        ];
+        let cases: [(&str, Taken); 2] = [("heal", heal_taken), ("star", star_taken)];
         for (name, taken) in cases {
             let (w, s) = if name == "heal" {
                 (&hw, &mut hs)

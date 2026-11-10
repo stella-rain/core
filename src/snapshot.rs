@@ -112,7 +112,8 @@ pub struct Snapshot {
     /// factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<u32>,
-    /// What Starlight costs and gives, the same for every player; absent in offers mode.
+    /// What Starlight costs and gives, the same for every player; absent in a stage run alone and at
+    /// `sim_version` 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub starlight: Option<StarlightView>,
 }
@@ -616,7 +617,7 @@ pub struct PlayerView {
     /// The runes its Main weapon holds, in the order drawn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runes: Vec<RuneView>,
-    /// What its inventory holds, in drop order (equipment mode; empty in offers mode). The app
+    /// What its inventory holds, in drop order (equipment mode, `sim_version` 2; empty at 1). The app
     /// sorts it by rarity.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inventory: Vec<HeldView>,
@@ -624,20 +625,20 @@ pub struct PlayerView {
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub starlight: u32,
     /// For each star of the setup's star pool, in pool order (the index `Craft` takes): whether
-    /// a craft of it is refused because this player already holds that named star. Empty in
-    /// offers mode.
+    /// a craft of it is refused because this player already holds that named star. Empty in a
+    /// stage run alone and at `sim_version` 1.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pool_held: Vec<bool>,
-    /// The weapon tree point it holds (equipment mode); absent in offers mode and while none is
+    /// The weapon tree point it holds (equipment mode); absent at `sim_version` 1 and while none is
     /// held.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tree_ready: Option<TreeReadyView>,
     /// The weapon's stat sets (equipment mode): the base set and every tree's set at the weapon's
-    /// level; absent in offers mode, without an expertise gauge and for an inline weapon.
+    /// level; absent at `sim_version` 1, without an expertise gauge and for an inline weapon.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_stats: Option<WeaponStatsView>,
     /// Its equipment slots in layout order, then the Lumine slot last when the run has one
-    /// (equipment mode; empty in offers mode). An action addresses them by this order: an index
+    /// (equipment mode; empty at `sim_version` 1). An action addresses them by this order: an index
     /// into the list, the Lumine slot one past the others.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub slots: Vec<SlotView>,

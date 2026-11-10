@@ -451,22 +451,19 @@ fn a_leave_stamped_behind_the_tick_rolls_back_and_the_leaver_counts_as_confirmed
 #[test]
 fn the_session_and_its_support_never_name_the_offer_choice() {
     let sources = [
-        ("session.rs", include_str!("../src/session.rs"), false),
-        ("save.rs", include_str!("../src/save.rs"), false),
-        ("predict.rs", include_str!("../src/predict.rs"), false),
-        ("support/mod.rs", include_str!("support/mod.rs"), true),
+        ("session.rs", include_str!("../src/session.rs")),
+        ("save.rs", include_str!("../src/save.rs")),
+        ("predict.rs", include_str!("../src/predict.rs")),
+        ("support/mod.rs", include_str!("support/mod.rs")),
     ];
-    for (name, src, may_name_build_mode) in sources {
+    for (name, src) in sources {
         for line in src.lines().filter(|l| !l.trim_start().starts_with("//")) {
             for token in line.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
                 assert!(
                     token != "pick" && token != "picking" && !token.starts_with("offer_"),
                     "{name}: {line}"
                 );
-                assert!(
-                    token != "build_mode" || may_name_build_mode,
-                    "{name} names build_mode: {line}"
-                );
+                assert!(token != "build_mode", "{name} names build_mode: {line}");
             }
         }
     }

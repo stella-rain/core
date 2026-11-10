@@ -16,7 +16,7 @@ use super::worst_minute_case::{self, MINUTE_START, MINUTE_TICKS};
 use crate::engine::{Engine, Load};
 use crate::id::PlayerIdx;
 use crate::input::EquipAction;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::snapshot::{SlotKindView, SlotView};
 
 /// The ticks played before the window: the heaviest tick of the minute at which every slot's
@@ -99,7 +99,6 @@ pub fn start() -> Engine {
     let setup = RunSetup {
         mode: "time_limit".into(),
         seed: SEED,
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     };
     Engine::start_party_with(&setup, &worst_minute_case::content(), 3)

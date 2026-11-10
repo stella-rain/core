@@ -7,7 +7,7 @@ use crate::engine::Engine;
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
 use crate::version::Versions;
@@ -140,7 +140,6 @@ pub fn design_run_stats() -> RunStats {
 /// case's own, so no offer ever opens.
 pub fn equipped(stage: &Stage, content: &RunContent) -> Engine {
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };

@@ -76,11 +76,11 @@ fn lethal_setup_waves(damage: u32, interval: u32, second_wave: bool) -> (RunSetu
         .clone()
         .with_run_stats(stats)
         .with_time_limit(mode);
-    let setup = RunSetup {
+    let setup = common::equip_run::equipment_setup(RunSetup {
         mode: stella_rain_core::id::ContentId::from("time_limit"),
         seed: 42,
         ..Default::default()
-    };
+    });
     (setup, content)
 }
 
@@ -91,7 +91,7 @@ fn lethal_setup(damage: u32, interval: u32) -> (RunSetup, RunContent) {
 /// A. Down state and out timer (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn down_state_and_out_timer() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup(60_000, 15);
     let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
 
     let mut p0_dash = Input {
@@ -151,7 +151,7 @@ fn down_state_and_out_timer() {
 /// B. Teammate revive with interact button (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn teammate_revive_with_interact_button() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup(60_000, 15);
     let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
 
     let mut p0_dash = Input {
@@ -185,7 +185,7 @@ fn teammate_revive_with_interact_button() {
         e.step(&[p0_interact, idle, idle]);
     }
     let revived_snap = e.snapshot();
-    assert_eq!(revived_snap.players[1].hp, 15_000); // 30% of 50,000
+    assert_eq!(revived_snap.players[1].hp, 18_000); // 30% of 60,000
     assert_eq!(revived_snap.players[1].invulnerable, 59); // the revive precedes the timers (ADR-SIM-7)
     assert!(revived_snap.players[1].down.is_none());
     assert!(!revived_snap.players[1].out);
@@ -194,7 +194,7 @@ fn teammate_revive_with_interact_button() {
 /// D. Wipe in decide_outcome (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn wipe_in_decide_outcome() {
-    let (setup, content) = lethal_setup_waves(50_000, 15, true);
+    let (setup, content) = lethal_setup_waves(60_000, 15, true);
 
     // Solo: 0 HP fails immediately.
     let mut e_solo = Engine::start_party_with(&setup, &content, 1).unwrap();
@@ -275,7 +275,7 @@ fn count_of(events: &[DomainEvent], wanted: &DomainEvent) -> usize {
 /// that are built.
 #[test]
 fn live_run_emits_down_revive_and_out_events_once() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup(60_000, 15);
     let idle = Input::default();
     let downed = DomainEvent::PlayerDowned { player: slot(1) };
     let revived = DomainEvent::PlayerRevived {
@@ -300,7 +300,7 @@ fn live_run_emits_down_revive_and_out_events_once() {
         assert_eq!(revived_now, usize::from(i == 179), "tick {i} of the hold");
         events.extend_from_slice(e.events());
     }
-    assert_eq!(e.snapshot().players[1].hp, 15_000);
+    assert_eq!(e.snapshot().players[1].hp, 18_000);
     assert_eq!(count_of(&events, &revived), 1);
     assert_eq!(count_of(&events, &out), 0);
 
@@ -323,7 +323,7 @@ fn live_run_emits_down_revive_and_out_events_once() {
 /// G. One out, the other up: the run keeps going (ADR-SIM-7). Guards a built rule.
 #[test]
 fn one_out_and_one_up_keeps_running() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup(60_000, 15);
     let idle = Input::default();
     let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
     let mut events = Vec::new();
@@ -342,7 +342,7 @@ fn one_out_and_one_up_keeps_running() {
 /// H. A solo run's failing tick shows no `down` view: it is for a party only (ADR-SIM-7).
 #[test]
 fn a_solo_run_that_fails_shows_no_down_view() {
-    let (setup, content) = lethal_setup(50_000, 15);
+    let (setup, content) = lethal_setup(60_000, 15);
     let mut e = Engine::start_party_with(&setup, &content, 1).unwrap();
     let idle = Input::default();
     while e.outcome() == Outcome::Running && e.tick() < 120 {

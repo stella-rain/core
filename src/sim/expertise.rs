@@ -272,9 +272,6 @@ pub(super) fn write_set(
     was: Option<(Option<u8>, u32)>,
     now: (Option<u8>, u32),
 ) {
-    if !stage.equipment_mode {
-        return;
-    }
     let before = was.map_or([0; StatEffect::ALL.len()], |(style, level)| {
         set_for(stage, expertise, style, level)
     });
@@ -345,9 +342,6 @@ pub(super) fn tree_next<'a>(
     expertise: &'a Expertise,
     g: &ExpertiseGauge,
 ) -> Option<TreeNext<'a>> {
-    if !stage.equipment_mode {
-        return None;
-    }
     content(stage, expertise)?;
     let table = stage.level_table();
     let taken = tree_taken(g);
@@ -462,9 +456,6 @@ pub(crate) fn weapon_stats_view(
     s: &State,
     me: PlayerIdx,
 ) -> Option<WeaponStatsView> {
-    if !stage.equipment_mode {
-        return None;
-    }
     let g = s.players.career(me).expertise.as_ref()?;
     let w = content(stage, expertise)?;
     let level = g.level.clamp(1, 10);

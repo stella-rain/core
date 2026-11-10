@@ -1806,9 +1806,7 @@ mod tests {
     #[test]
     fn a_replay_with_a_refused_equip_names_the_refusal() {
         use crate::run_replay::Record;
-        use crate::run_setup::BuildMode;
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             ..RunSetup::default()
         };
         let mut rec = RunRecorder::start(&setup).unwrap();
@@ -1854,9 +1852,7 @@ mod tests {
     #[test]
     fn the_recorder_drops_a_downed_action_and_refuses_it_direct() {
         use crate::engine::Run;
-        use crate::run_setup::BuildMode;
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             ..RunSetup::default()
         };
         let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
@@ -1891,10 +1887,8 @@ mod tests {
     #[test]
     fn a_replay_with_an_action_of_a_downed_player_does_not_verify() {
         use crate::run_replay::Record;
-        use crate::run_setup::BuildMode;
         let setup = RunSetup {
             seed: 20_261_010,
-            build_mode: BuildMode::Equipment,
             ..RunSetup::default()
         };
         let mut rec = RunRecorder::start_party(&setup, 2).unwrap();
@@ -1938,7 +1932,13 @@ mod tests {
         use crate::pack::Pack;
         use crate::run_replay::Record;
         use crate::step_log::RangeStep;
-        let mut rec = RunRecorder::start(&RunSetup::default()).unwrap();
+        // The frozen rules have no equipment: every action is refused.
+        let frozen = RunSetup {
+            schema_version: 1,
+            sim_version: 1,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start(&frozen).unwrap();
         rec.step(&[Input::default(); 3]).unwrap();
         rec.records.push(Record::Actions {
             actions: vec![Some(EquipAction::Extract { item: 0 })],

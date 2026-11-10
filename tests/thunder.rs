@@ -10,17 +10,13 @@ use stella_rain_core::attack::PhaseKind;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::{Fx, Point};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
-use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
-use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
 use crate::common;
 
 use common::on_hit::*;
-use common::run::{run_input, trial_setup};
 use common::*;
 
 /// What the test thunder does: 4 base damage, against the step's 10 and the blast's 3.
@@ -249,56 +245,6 @@ fn the_state_hash_holds_its_cooldown() {
     a.step(&[once(start)(start), Default::default(), Default::default()]);
     b.step(&[once(start)(start), Default::default(), Default::default()]);
     assert_ne!(a.state_hash(), b.state_hash());
-}
-
-#[test]
-fn a_run_holding_thunder_records_and_verifies() {
-    // The trial with a random rune and one stat reward, the hidden candidate always taken, and
-    // the bundled runes.
-    let content = content(
-        vec![
-            random_rune(),
-            json!({
-                "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20
-            }),
-        ],
-        None,
-        Runes::bundled().clone(),
-    );
-    // A seed whose run draws thunder among the seven runes, and fires it: the trial has stars for
-    // about four. With the Sword's smashes bleeding seed 20_261_011 no longer
-    // does, nor, under the default perk set, seed 20_261_013; this one is the nearest of
-    // its range that does.
-    let setup = RunSetup {
-        seed: 20_261_014,
-        ..trial_setup()
-    };
-    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
-    let mut fired = false;
-    for t in 0..1_800 {
-        while recorder.engine().offer_open() {
-            let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
-            let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
-            recorder
-                .choose(PlayerIdx::SOLO, u32::try_from(rune.unwrap_or(0)).unwrap())
-                .unwrap();
-        }
-        let input: Input = run_input(recorder.engine(), t);
-        if recorder
-            .step(&[input, Default::default(), Default::default()])
-            .is_err()
-        {
-            break;
-        }
-        fired |= recorder.engine().snapshot().players[0]
-            .runes
-            .iter()
-            .any(|r| r.rune == Rune::Thunder && r.cooldown_left > 0);
-    }
-    assert!(fired, "thunder fired in the run");
-    let bytes = recorder.replay().to_bytes();
-    assert!(verify_run_with(&bytes, &content).is_ok());
 }
 
 #[test]

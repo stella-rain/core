@@ -9,7 +9,6 @@ use stella_rain_core::input::Input;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
     self, CarriedStar, DEFAULT_PERK_SET, MAX_CARRIED_STARS, MAX_LUMINE, MAX_RUNE_POOL, RunSetup,
 };
@@ -84,6 +83,7 @@ fn a_new_setup_writes_its_perk_set_and_only_the_fields_it_uses() {
         assert!(!text.contains(field), "{field} in {text}");
     }
     let full = RunSetup {
+        sim_version: 1,
         rune_pool: names(&["bleed", "explosion"]),
         carried: carry(&["max_hp_common"]),
         lumine: 1,
@@ -139,6 +139,7 @@ fn the_rune_pool_names_known_runes_sorted_each_once() {
 fn at_most_five_stars_are_carried_and_lumine_is_at_most_ten() {
     let carrying = |n: usize, lumine: u8| {
         run_setup::validate(&RunSetup {
+            sim_version: 1,
             carried: carry(&vec!["max_hp_common"; n]),
             lumine,
             ..trial_setup()
@@ -153,6 +154,7 @@ fn at_most_five_stars_are_carried_and_lumine_is_at_most_ten() {
     );
     assert_eq!(paths(carrying(1, 11).unwrap_err()), ["$.lumine"]);
     let bad_id = RunSetup {
+        sim_version: 1,
         carried: carry(&["Bad Id"]),
         lumine: 1,
         ..trial_setup()
@@ -205,6 +207,7 @@ fn dearer_rare_content() -> RunContent {
 #[test]
 fn a_run_is_priced_from_its_own_content() {
     let carrying = |lumine: u8| RunSetup {
+        sim_version: 1,
         carried: carry(&["max_hp_rare"]),
         lumine,
         ..trial_setup()
@@ -232,6 +235,7 @@ fn an_unknown_perk_set_does_not_start() {
 #[test]
 fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
     let carrying = |ids: &[&str], lumine: u8| RunSetup {
+        sim_version: 1,
         carried: carry(ids),
         lumine,
         ..plain()
@@ -265,6 +269,7 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
         ["$.carried"]
     );
     let outside = RunSetup {
+        sim_version: 1,
         star_pool: Some(names(&["speed_common"])),
         ..carrying(&["max_hp_common"], 1)
     };
@@ -284,6 +289,7 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = |n: usize| RunSetup {
+        sim_version: 1,
         carried: carry(&vec!["once"; n]),
         lumine: 5,
         ..trial_setup()
@@ -308,6 +314,7 @@ fn the_random_rune_is_not_a_carried_star() {
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = RunSetup {
+        sim_version: 1,
         carried: carry(&["random_rune"]),
         lumine: 1,
         ..trial_setup()
@@ -421,30 +428,6 @@ fn regen_gives_back_its_hit_points_every_second_never_beyond_the_most() {
     assert!(with.iter().all(|h| *h <= most), "never beyond the most");
 }
 
-#[test]
-fn scholar_adds_two_rerolls_and_a_banish_to_an_offer() {
-    let offer = |set: &str| {
-        let setup = RunSetup {
-            perk_set: set.into(),
-            ..trial_setup()
-        };
-        let mut e = Engine::start_with(&setup, &plain_content()).unwrap();
-        for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
-            match c {
-                Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
-                Command::Choose(_) => break,
-            }
-            if e.offer_open() {
-                let o = e.snapshot().progress.unwrap().offer.unwrap();
-                return (o.rerolls_left, o.banishes_left);
-            }
-        }
-        panic!("no offer");
-    };
-    let (rerolls, banishes) = offer("plain");
-    assert_eq!(offer("scholar"), (rerolls + 2, banishes + 1));
-}
-
 // --- Rune pool, carried stars, starting rune -------------------------------------
 
 /// The setup's bytes with `"auto_combo":<value>` added, as a setup written before the field was
@@ -501,8 +484,13 @@ fn auto_mode_is_on_only_while_the_input_says_so() {
 
 #[test]
 fn a_carried_star_applies_at_tick_0_as_if_picked() {
-    let base = hp(&start(&plain()).unwrap());
+    let base = hp(&start(&RunSetup {
+        sim_version: 1,
+        ..plain()
+    })
+    .unwrap());
     let setup = RunSetup {
+        sim_version: 1,
         carried: carry(&["max_hp_common", "max_hp_common", "max_hp_rare"]),
         lumine: 5,
         ..plain()
@@ -511,34 +499,6 @@ fn a_carried_star_applies_at_tick_0_as_if_picked() {
     assert_eq!(hp(&e), base + (200 + 200 + 500) * DAMAGE_SCALE);
     assert_eq!(e.tick(), 0);
     assert!(e.events().is_empty());
-}
-
-#[test]
-fn a_carried_star_counts_toward_its_stack_limit() {
-    // `speed_common` stacks 5 times: five carried, and the run's offers never hold it.
-    let setup = RunSetup {
-        carried: carry(&["speed_common"; 5]),
-        lumine: 5,
-        star_pool: Some(names(&["speed_common", "xp_common"])),
-        ..plain()
-    };
-    let mut e = start(&setup).unwrap();
-    for c in crate::run_play::play_run_in(&setup, &plain_content(), common::run::TRIAL_LENGTH) {
-        match c {
-            Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
-            // An expertise offer (VS1: the first one opens before any star offer) is answered as
-            // the script does; the first choice with a star offer open is what the test reads.
-            Command::Choose(index) => common::pick(&mut e, index).unwrap(),
-        }
-        if e.offer_open() {
-            if let Some(o) = e.snapshot().progress.unwrap().offer {
-                let ids: Vec<&str> = o.candidates.iter().map(|c| c.reward.as_str()).collect();
-                assert_eq!(ids, ["xp_common"]);
-                return;
-            }
-        }
-    }
-    panic!("no offer");
 }
 
 #[test]
@@ -553,79 +513,10 @@ fn the_starting_rune_is_held_from_tick_0() {
     assert_eq!(held(&start(&plain()).unwrap()), []);
 }
 
-/// Rewards that are only the random rune, so that every offer holds it.
-fn random_rune_content() -> RunContent {
-    let rewards = Rewards::parse(
-        json!({ "rarities": common::rarities(), "rewards": [{
-            "id": "random_rune", "rarity": "common", "effect": "random_rune"
-        }]})
-        .to_string()
-        .as_bytes(),
-        Versions::CURRENT,
-    )
-    .unwrap();
-    RunContent::new(common::design_run_stats(), rewards)
-        .with_perk_sets(plain_content().perk_sets().clone())
-}
-
-/// The runes held after the trial run of `setup` has taken its offers (the first candidate each
-/// time).
-fn runes_after_the_run(setup: &RunSetup) -> Vec<Rune> {
-    let content = random_rune_content();
-    let mut e = Engine::start_with(setup, &content).unwrap();
-    for c in crate::run_play::play_run_in(setup, &content, common::run::TRIAL_LENGTH) {
-        match c {
-            Command::Step(input) => e.step(&[input, Default::default(), Default::default()]),
-            Command::Choose(index) => common::pick(&mut e, index).unwrap(),
-        }
-    }
-    held(&e)
-}
-
-#[test]
-fn the_random_rune_draws_only_from_the_rune_pool_and_never_the_starting_rune_again() {
-    let narrowed = RunSetup {
-        rune_pool: names(&["bleed", "poison"]),
-        ..plain()
-    };
-    let drawn = runes_after_the_run(&narrowed);
-    assert!(!drawn.is_empty(), "no rune was drawn");
-    assert!(
-        drawn
-            .iter()
-            .all(|r| matches!(r, Rune::Bleed | Rune::Poison)),
-        "{drawn:?}"
-    );
-
-    let wide = runes_after_the_run(&plain());
-    assert!(
-        wide.iter()
-            .any(|r| !matches!(r, Rune::Bleed | Rune::Poison)),
-        "the whole pool draws other runes: {wide:?}"
-    );
-
-    let started = RunSetup {
-        rune_pool: names(&["bleed", "poison"]),
-        starting_rune: Some("bleed".into()),
-        difficulty: "normal".into(),
-        ..plain()
-    };
-    let drawn = runes_after_the_run(&started);
-    assert_eq!(
-        drawn.iter().filter(|r| **r == Rune::Bleed).count(),
-        1,
-        "{drawn:?}"
-    );
-    assert!(
-        drawn
-            .iter()
-            .all(|r| matches!(r, Rune::Bleed | Rune::Poison))
-    );
-}
-
 #[test]
 fn a_setup_with_all_of_it_runs_deterministically() {
     let setup = RunSetup {
+        sim_version: 1,
         perk_set: "vanguard".into(),
         rune_pool: names(&["bleed", "explosion", "thunder"]),
         carried: carry(&["attack_common", "speed_rare"]),

@@ -11,7 +11,7 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::{RunRecorder, verify_run};
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 
 /// The slots of the layout a drop can go to: the five Attack, two Defence, two Mobility and the
 /// three rune slots.
@@ -23,7 +23,6 @@ fn case(seed: u64, ticks: u32) -> PartyCase {
         setup: RunSetup {
             mode: "tutorial".into(),
             seed,
-            build_mode: BuildMode::Equipment,
             ..trial_setup()
         },
         party: 1,
@@ -180,7 +179,6 @@ fn slots_json(e: &Engine) -> Vec<serde_json::Value> {
 #[test]
 fn the_snapshot_shows_the_slots() {
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         starting_rune: Some("thunder".into()),
         lumine: 1,
         lumine_star: Some("max_hp_common".into()),
@@ -226,8 +224,12 @@ fn the_snapshot_shows_the_slots() {
     assert_eq!(now[slot as usize]["held"], id);
     assert_eq!(now[slot as usize]["level"], 1);
 
-    // An offers run has no slots key at all.
-    let offers = Engine::start(&RunSetup::default()).unwrap();
+    // A sim_version 1 run (the frozen rules) has no slots key at all.
+    let offers = Engine::start(&RunSetup {
+        sim_version: 1,
+        ..RunSetup::default()
+    })
+    .unwrap();
     let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
     assert!(json.get("slots").is_none());
 

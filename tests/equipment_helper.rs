@@ -15,7 +15,7 @@ use stella_rain_core::input::EquipAction;
 use stella_rain_core::limits::MAX_INVENTORY;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{self, BuildMode, RunSetup};
+use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::rune::Rune;
 use stella_rain_core::snapshot::SlotKindView;
 use stella_rain_core::stage::Stage;
@@ -48,7 +48,6 @@ fn content() -> RunContent {
 /// The equipment setup of the tests: the `plain` perk set, every star in the pool.
 fn setup() -> RunSetup {
     RunSetup {
-        build_mode: BuildMode::Equipment,
         star_pool: Some(vec!["a".into(), "b".into(), "c".into()]),
         ..plain_setup()
     }
@@ -330,30 +329,6 @@ const DEFENCE: usize = 5;
 
 fn crit_of(e: &Engine) -> u32 {
     e.snapshot().players[0].crit_chance_pct
-}
-
-/// T4: a star equipped at Lv1 is the star picked from an offer: the same stat as the run that
-/// carries it in as if picked, different from the run with nothing equipped; the slot is Lv1.
-#[test]
-fn lv1_equals_one_offer_pick_for_the_same_star() {
-    use stella_rain_core::run_setup::CarriedStar;
-    let (stage, content) = (stage(), content());
-    let equipped = equip::equipped(&stage, bare_stars(), &[("c", ATTACK)], 1);
-    let nothing = equip::equipped(&stage, bare_stars(), &[], 1);
-    let cost = content
-        .rewards()
-        .lumine_cost(content.rewards().rewards()[2].rarity);
-    let offers = RunSetup {
-        carried: vec![CarriedStar { reward: "c".into() }],
-        lumine: cost,
-        star_pool: Some(vec!["c".into()]),
-        ..plain_setup()
-    };
-    let picked = Engine::start_with(&offers, &content).expect("starts");
-    assert_eq!(crit_of(&nothing), 0);
-    assert_eq!(crit_of(&equipped), 40);
-    assert_eq!(crit_of(&equipped), crit_of(&picked));
-    assert_eq!(equipped.snapshot().players[0].slots[ATTACK].level, 1);
 }
 
 /// T5: a star at Lv n adds `level_scaled`: the amount plus `level_pct` for each level above 1,

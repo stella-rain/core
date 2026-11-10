@@ -24,7 +24,7 @@ use crate::kinds::KindTable;
 use crate::ledger::{Counted, PlayerStats, RunLedger};
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
-use crate::run_setup::{self, BuildMode, RunSetup};
+use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
 use crate::snapshot::{OfferOption, OfferRating, SwapItem, SwapRating};
@@ -51,8 +51,7 @@ pub enum ChoiceError {
 pub enum ActionError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
-    /// No rule accepts this action: a run that is not in equipment mode or is `sim_version` 1
-    /// (every action).
+    /// No rule accepts this action: a `sim_version` 1 run (every action).
     NotBuilt,
     /// `item` is not a place of the inventory.
     NoItem { item: u32 },
@@ -422,7 +421,7 @@ impl Engine {
                 horde: None,
                 kinds,
                 content,
-                star_pool: pool(None, content.rewards(), BuildMode::Offers)?,
+                star_pool: pool(None, content.rewards(), version)?,
                 extra_rerolls: 0,
                 difficulty: None,
                 seed,
@@ -480,11 +479,7 @@ impl Engine {
                 horde: None,
                 kinds,
                 content,
-                star_pool: pool(
-                    setup.star_pool.as_deref(),
-                    content.rewards(),
-                    setup.build_mode,
-                )?,
+                star_pool: pool(setup.star_pool.as_deref(), content.rewards(), version)?,
                 extra_rerolls: setup.extra_rerolls,
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
@@ -498,8 +493,8 @@ impl Engine {
     }
 
     /// For tests and benches only, under the `bench` feature: as `start_with`, on `stage` as given
-    /// instead of the stage `setup.mode` derives, so a hand-built stage runs in the setup's build
-    /// mode (equipment mode for `BuildMode::Equipment`, ADR-SIM-7). Nothing in the simulation
+    /// instead of the stage `setup.mode` derives, so a hand-built stage runs under the setup
+    /// (the equipment mode of `sim_version` 2, ADR-SIM-7). Nothing in the simulation
     /// differs; a replay or a savepoint of such a run is not the setup's own.
     ///
     /// The caller sets `stage.sim_version` (equipment mode needs 2); the stage keeps its own weapon
@@ -525,11 +520,7 @@ impl Engine {
                 horde: None,
                 kinds,
                 content,
-                star_pool: pool(
-                    setup.star_pool.as_deref(),
-                    content.rewards(),
-                    setup.build_mode,
-                )?,
+                star_pool: pool(setup.star_pool.as_deref(), content.rewards(), version)?,
                 extra_rerolls: setup.extra_rerolls,
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
@@ -717,11 +708,7 @@ impl Engine {
                 horde: Some(horde),
                 kinds,
                 content,
-                star_pool: pool(
-                    setup.star_pool.as_deref(),
-                    content.rewards(),
-                    setup.build_mode,
-                )?,
+                star_pool: pool(setup.star_pool.as_deref(), content.rewards(), version)?,
                 extra_rerolls: setup.extra_rerolls,
                 difficulty: Some(run_difficulty(setup, content)?),
                 seed: setup.seed,
@@ -886,8 +873,7 @@ impl Engine {
     /// Read-only. `NoPlayer` for a slot outside the party; then, in an equipment run, `Downed`
     /// for a player at 0 hit points and `Out` for one out of the run, for every kind of action
     /// (the window opens again on the revive). `Equip` and `Replace` are the
-    /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a run that is not in
-    /// equipment mode or is `sim_version` 1. `Extract` and `Craft` are the same: the refusals
+    /// equipment mode's: the refusals of `slots::check`, and `NotBuilt` in a `sim_version` 1 run. `Extract` and `Craft` are the same: the refusals
     /// of `starlight` (an item of the inventory; a star of the setup's pool, its price, a held
     /// named star, the inventory bound). `TreePick` is the same: `NoTreePoint` when no point is
     /// held, then `NoTreeOption` when `option` is past the next pick's choices. The match has
@@ -1144,13 +1130,13 @@ fn run_difficulty(setup: &RunSetup, content: &RunContent) -> Result<Difficulty, 
     })
 }
 
-/// The run's star pool: the places in `rewards` of the rewards `ids` names, or the mode's
-/// default pool when it names none (`Rewards::default_pool`). A name the file does not hold fails
+/// The run's star pool: the places in `rewards` of the rewards `ids` names, or the default pool
+/// of `sim_version` when it names none (`Rewards::default_pool`). A name the file does not hold fails
 /// closed, one issue per name.
-fn pool(ids: Option<&[ContentId]>, rewards: &Rewards, mode: BuildMode) -> Result<Vec<u16>, Error> {
+fn pool(ids: Option<&[ContentId]>, rewards: &Rewards, sim_version: u32) -> Result<Vec<u16>, Error> {
     let place = |i: usize| u16::try_from(i).unwrap_or(u16::MAX);
     let Some(ids) = ids else {
-        return Ok(rewards.default_pool(mode));
+        return Ok(rewards.default_pool(sim_version));
     };
     let mut issues = Vec::new();
     let mut out = Vec::with_capacity(ids.len());

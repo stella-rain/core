@@ -65,8 +65,8 @@ pub enum PerkEffect {
     ExtraRerolls,
     /// `amount` more banishes for offers, on top of the stage's.
     ExtraBanishes,
-    /// `amount` percent more weight for the named stars a member's drops roll (equipment mode;
-    /// a no-op in offers mode and in the frozen rules).
+    /// `amount` percent more weight for the named stars a member's drops roll (equipment mode,
+    /// `sim_version` 2; a no-op in the frozen rules).
     DropWeight,
 }
 

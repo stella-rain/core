@@ -417,16 +417,13 @@ pub(crate) struct World {
     /// Whether the spawn director acts: a horde run holds its wave spawns at the target; a
     /// stage's waves are an authored timeline and keep their timing.
     pub director: bool,
-    /// Whether the run's setup says equipment mode (`BuildMode::Equipment`): a star taken and a
-    /// boss kill roll into the inventories instead of queueing offers (ADR-SIM-2 point 2). A fact
-    /// of the setup, which the replay stores and a restore rebuilds from: not hashed state.
-    pub equipment_mode: bool,
-    /// The run's rewards as a drop roll reads them, by place in the file: filled in equipment
-    /// mode only (an offers run, and a restore of one, allocates nothing for it).
+    /// The run's rewards as a drop roll reads them, by place in the file: filled for a run with
+    /// a setup only (a stage run alone allocates nothing for it).
     pub drops: DropTable,
     /// The equipment rules of the run's pack (ADR-CONT-3 point 8): the slot layout, the level
-    /// curve, the Starlight values and the drop numbers. Filled in equipment mode only; an
-    /// offers run holds the empty rules and never reads them. Not hashed: the pack fixes it.
+    /// curve, the Starlight values and the drop numbers. Filled for a run with a setup only; a
+    /// stage run alone holds the empty rules, whose numbers are all zero. Not hashed: the pack
+    /// fixes it.
     pub equipment_rules: EquipmentRules,
     /// The setup's perk `drop_weight` in percent for each category of the equipment rules, in
     /// the rules' order (0 where its set has none; empty when it has none at all): it scales the
@@ -558,7 +555,6 @@ impl World {
             enemy_cap: rules.enemy_cap_for(target),
             tuning: Tuning::of(rules),
             director: horde.is_some(),
-            equipment_mode: false,
             drops: DropTable::default(),
             equipment_rules: EquipmentRules::default(),
             drop_weight_pct: Vec::new(),

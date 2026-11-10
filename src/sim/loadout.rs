@@ -100,7 +100,7 @@ pub(crate) fn apply(
         f.rune_pool = loadout.rune_pool;
     }
     for entry in &loadout.perk {
-        perk(s, me, *entry, stage.equipment_mode);
+        perk(s, me, *entry);
     }
     let State { stars, players, .. } = s;
     let (player, career) = players.both_mut(me);
@@ -119,9 +119,7 @@ pub(crate) fn apply(
             );
         }
     }
-    if stage.equipment_mode {
-        career.equipment.slots = slots::fresh_slots(&stage.equipment_rules);
-    }
+    career.equipment.slots = slots::fresh_slots(&stage.equipment_rules);
     if let Some(rune) = loadout.starting_rune
         && player.runes.len() < MAX_RUNES
         && !player.runes.iter().any(|h| h.rune == rune)
@@ -130,7 +128,7 @@ pub(crate) fn apply(
             rune,
             cooldown_left: 0,
         });
-        // The starting rune fills rune slot 0 (the slot list is empty in an offers run).
+        // The starting rune fills rune slot 0 (the slot list is empty in a stage run alone).
         if let Some(slot) = career
             .equipment
             .slots
@@ -148,35 +146,23 @@ pub(crate) fn apply(
             expertise: 0,
         });
     }
-    if stage.equipment_mode {
-        // The Lumine star's effects are in the build from tick 0 (before = the build of nothing).
-        slots::refresh(stage, rewards, player, career, &[], slots::Arrival::Start);
-    }
+    // The Lumine star's effects are in the build from tick 0 (before = the build of nothing).
+    slots::refresh(stage, rewards, player, career, &[], slots::Arrival::Start);
 }
 
-/// Adds one perk entry. In equipment mode (`equipment`) the extra rerolls and banishes are stats
-/// of the player's `Progress` (nothing without one); otherwise they go to the offers.
-pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry, equipment: bool) {
+/// Adds one perk entry. The extra rerolls and banishes are stats of the player's `Progress`
+/// (nothing without one).
+pub(super) fn perk(s: &mut State, me: PlayerIdx, entry: PerkEntry) {
     let amount = entry.amount;
     match entry.effect {
         PerkEffect::Regen => {
             let career = s.players.career_mut(me);
             career.regen = career.regen.saturating_add(amount);
         }
-        PerkEffect::ExtraRerolls | PerkEffect::ExtraBanishes if equipment => {
+        PerkEffect::ExtraRerolls | PerkEffect::ExtraBanishes => {
             let (player, career) = s.players.both_mut(me);
             if let (Some(stat), Some(p)) = (entry.effect.growth_stat(), career.progress.as_mut()) {
                 levels::add_effect(p, player, stat, amount);
-            }
-        }
-        PerkEffect::ExtraRerolls => {
-            if let Some(o) = s.players.career_mut(me).offers.as_mut() {
-                o.rerolls_left = o.rerolls_left.saturating_add(amount);
-            }
-        }
-        PerkEffect::ExtraBanishes => {
-            if let Some(o) = s.players.career_mut(me).offers.as_mut() {
-                o.banishes_left = o.banishes_left.saturating_add(amount);
             }
         }
         effect => {
@@ -206,7 +192,6 @@ mod tests {
     use crate::bench_fixtures::worst_case;
     use crate::engine::{Engine, Run};
     use crate::hash::{StableHash, StateHasher};
-    use crate::run_setup::BuildMode;
     use crate::sim::equipment::{EquipSlot, Held, SlotKind};
     use crate::sim::state::Players;
 
@@ -229,7 +214,6 @@ mod tests {
         let content = worst_case::content();
         let (world, mut s) = start();
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             lumine_star: star.map(|i| content.rewards().rewards()[i].id.clone()),
             ..RunSetup::default()
         };

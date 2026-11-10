@@ -1,7 +1,6 @@
-//! Drops in equipment mode (ADR-SIM-2 point 2, ADR-SIM-5 point 8, ADR-SIM-7): a falling star taken
-//! gives every member that is not out their own roll into their own inventory, and a boss kill
-//! gives every member that is up personal drops. Offers mode never runs this file: `stars.rs`
-//! branches on `World.equipment_mode` before its own body.
+//! Drops (ADR-SIM-2 point 2, ADR-SIM-5 point 8, ADR-SIM-7): a falling star taken gives every
+//! member that is not out their own roll into their own inventory, and a boss kill gives every
+//! member that is up personal drops. `stars.rs` calls this file for every run of `sim_version` 2.
 //!
 //! A roll draws from the rolling member's own offer stream, in this order, fixed for
 //! `sim_version` 2: the kind, `below(1000)`, a rune when it is under the share; then for a rune

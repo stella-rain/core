@@ -13,7 +13,7 @@ use super::stars;
 use crate::engine::{Engine, Run};
 use crate::fixed::Fx;
 use crate::rewards::Rarity;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::rune::Rune;
 use crate::snapshot::{HeldView, SlotKindView};
 
@@ -29,7 +29,6 @@ fn rare_party(n: u8) -> (super::World, super::State) {
         false,
     );
     w.drops = DropTable::of(&rw, bundled_rules());
-    w.equipment_mode = true;
     w.equipment_rules = bundled_rules().clone();
     s.stars.as_mut().unwrap().pool = vec![0, 1, 2];
     s.stars.as_mut().unwrap().rune_pool = FULL_POOL;
@@ -101,7 +100,6 @@ fn a_boss_kill_gives_the_downed_and_the_out_nothing() {
 fn equipment_setup() -> RunSetup {
     RunSetup {
         seed: 20_261_106,
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     }
 }

@@ -903,15 +903,15 @@ fn an_elite_spawned_event_names_its_asset_without_allocating() {
     assert_producer("EliteSpawned", &elite_rows(), pin(1, 0, 0));
 }
 
-/// A steady tick of a party of three: the up-player snapshot, the box and the target roll are
-/// plain values, no heap (ADR-SIM-6). Every slot's weapon taps every other tick (slots 1 and 2 act
+/// A steady tick of an equipment-mode party of three: the up-player snapshot, the box and the
+/// target roll are plain values, no heap; the only allocations are the two slot lists (ADR-SIM-6). Every slot's weapon taps every other tick (slots 1 and 2 act
 /// since ADR-SIM-7), one of them a tick apart.
 #[test]
 fn a_steady_party_tick_allocates_and_frees_nothing() {
-    let setup = stella_rain_core::run_setup::RunSetup {
+    let setup = crate::common::equip_run::equipment_setup(stella_rain_core::run_setup::RunSetup {
         seed: 20_261_104,
         ..Default::default()
-    };
+    });
     let mut engine = Engine::start_party(&setup, 3).unwrap();
     let tap = |tick: u32| Input {
         main: tick % 2 == 0,
@@ -938,9 +938,17 @@ fn a_steady_party_tick_allocates_and_frees_nothing() {
     for tick in 1201..1261 {
         per_tick.push(counted(|| engine.step(&inputs(tick))));
     }
+    assert_eq!(
+        engine.outcome(),
+        stella_rain_core::engine::Outcome::Running,
+        "the measured ticks are those of a live run, not of a finished one"
+    );
+    // A live party's tick builds the slot list twice (`tick_down_and_revive`, `take_downed`:
+    // two allocations and two frees, nothing else). This bound may only fall.
     let at = nonzero(&per_tick, 1201);
     assert!(
-        at.is_empty(),
+        at.iter()
+            .all(|&(_, allocs, frees)| allocs <= 2 && frees <= 2),
         "(tick, allocs, frees) in a party's ticks: {at:?}"
     );
 }

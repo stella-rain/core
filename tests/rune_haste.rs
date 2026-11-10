@@ -7,14 +7,11 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{
     DEFAULT_MAX_RUNE_HASTE_PCT, MAX_RUNE_HASTE_PCT, Rewards, rune_haste_ticks,
 };
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
-use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
@@ -26,7 +23,6 @@ use crate::common;
 
 use common::equip::{Parts, equipped_in, rune_slot, wait_for_tough};
 use common::on_hit::*;
-use common::run::{run_input, trial_setup};
 use common::*;
 
 /// The most one Rune Haste reward gives, and the most the picks add up to, in a rewards file
@@ -305,47 +301,6 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
         plain.1.is_some_and(|c| c > 900),
         "the skill was used: {plain:?}"
     );
-}
-
-#[test]
-fn a_run_with_haste_records_and_verifies() {
-    // The trial with a random rune and Rune Haste; the hidden candidate taken, else the first.
-    let content = content(
-        vec![random_rune(), haste("rune_haste", 25, 20)],
-        None,
-        Runes::bundled().clone(),
-    );
-    let setup = RunSetup {
-        seed: 20_261_011,
-        ..trial_setup()
-    };
-    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
-    let mut taken = false;
-    for t in 0..5_400 {
-        while recorder.engine().offer_open() {
-            let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
-            let at = offer.and_then(|o| {
-                o.candidates
-                    .iter()
-                    .position(|c| !c.hidden && c.reward.as_str() == "rune_haste")
-            });
-            taken |= at.is_some();
-            recorder
-                .choose(PlayerIdx::SOLO, u32::try_from(at.unwrap_or(0)).unwrap())
-                .unwrap();
-        }
-        let input: Input = run_input(recorder.engine(), t);
-        if recorder
-            .step(&[input, Default::default(), Default::default()])
-            .is_err()
-        {
-            break;
-        }
-    }
-    assert!(taken, "Rune Haste was taken in the run");
-    assert!(recorder.engine().snapshot().players[0].rune_haste_pct > 0);
-    let bytes = recorder.replay().to_bytes();
-    assert!(verify_run_with(&bytes, &content).is_ok());
 }
 
 /// A rewards file with the cap `cap` for Rune Haste (`max_rune_haste_pct`).

@@ -9,7 +9,7 @@ use super::state::{PlayerIdx, State};
 use crate::engine::{Engine, Run};
 use crate::event::DomainEvent;
 use crate::expertise::Expertise;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 use crate::snapshot::ExpertiseOfferKind;
 use crate::stage::LevelTable;
@@ -21,11 +21,10 @@ pub(super) fn state_of(e: &Engine) -> &State {
     }
 }
 
-/// An engine whose run has levels and the expertise gauge, in the build mode `mode`.
-pub(super) fn engine(build_mode: BuildMode) -> Engine {
+/// An engine whose run has levels and the expertise gauge.
+pub(super) fn engine() -> Engine {
     Engine::start(&RunSetup {
         mode: "time_limit".into(),
-        build_mode,
         ..RunSetup::default()
     })
     .expect("starts")
@@ -63,7 +62,7 @@ pub(super) fn progress(e: &Engine) -> &super::state::Progress {
 /// T1: in equipment mode a level-up spends by the priority and opens no stat offer.
 #[test]
 fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
-    let mut e = engine(BuildMode::Equipment);
+    let mut e = engine();
     let (attack, speed) = (1u8, 4u8);
     let before = progress(&e).totals[StatEffect::AttackPct as usize];
     let events = level_up(&mut e, &[attack, speed], 2);
@@ -86,74 +85,10 @@ fn an_equipment_level_up_spends_by_priority_and_opens_no_offer() {
     assert_eq!(p.spent[usize::from(attack)], 2);
 }
 
-/// The `type` strings of `events`.
-fn kinds(events: &[DomainEvent]) -> Vec<String> {
-    events
-        .iter()
-        .map(|ev| {
-            serde_json::to_value(ev).unwrap()["type"]
-                .as_str()
-                .unwrap()
-                .to_owned()
-        })
-        .collect()
-}
-
-/// A stat offer is gone: an offers run spends by the priority and queues and opens nothing.
-#[test]
-fn an_offers_level_up_spends_by_priority() {
-    let mut e = engine(BuildMode::Offers);
-    let events = level_up(&mut e, &[1, 4], 2);
-    let names = kinds(&events);
-    assert_eq!(
-        names.iter().filter(|k| *k == "StatRaised").count(),
-        2,
-        "{names:?}"
-    );
-    assert!(!names.iter().any(|k| k == "StatOfferOpened"), "{names:?}");
-    assert!(!super::offer_open_for(state_of(&e), PlayerIdx::SOLO));
-}
-
-/// The expertise offers are gone: crossing the common, style, upgrade and capstone levels in an
-/// offers run opens nothing and takes nothing.
-#[test]
-fn an_offers_run_opens_no_expertise_offer() {
-    let mut e = Engine::start(&RunSetup {
-        mode: "trial".into(),
-        build_mode: BuildMode::Offers,
-        ..RunSetup::default()
-    })
-    .expect("starts");
-    for level in [1, 3, 6, 10] {
-        {
-            let Run::V2 { state, .. } = e.run_mut() else {
-                panic!("the live rules");
-            };
-            let g = state
-                .players
-                .career_mut(PlayerIdx::SOLO)
-                .expertise
-                .as_mut()
-                .expect("a gauge");
-            g.level = level;
-        }
-        e.open_offers_for_test();
-        let names = kinds(e.events());
-        assert!(
-            !names.iter().any(|k| k == "ExpertiseOfferOpened"),
-            "{names:?}"
-        );
-        assert!(!e.offer_open());
-    }
-    let tick = e.tick();
-    e.step(&[Default::default(), Default::default(), Default::default()]);
-    assert_eq!(e.tick(), tick + 1);
-}
-
 /// T3: with every stat at its limit a level gives nothing but the level.
 #[test]
 fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
-    let mut e = engine(BuildMode::Equipment);
+    let mut e = engine();
     {
         let Run::V2 { state, .. } = e.run_mut() else {
             panic!("the live rules");
@@ -186,7 +121,6 @@ fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
 pub(super) fn hammer() -> Engine {
     Engine::start(&RunSetup {
         mode: "time_limit".into(),
-        build_mode: BuildMode::Equipment,
         weapon: "giant_hammer".into(),
         ..RunSetup::default()
     })
@@ -272,7 +206,7 @@ fn tree_points_are_earned_at_the_table_levels_only() {
 /// R4: the priority still orders the player-level (experience) stat points.
 #[test]
 fn the_priority_still_orders_the_xp_stat_points() {
-    let mut e = engine(BuildMode::Equipment);
+    let mut e = engine();
     let events = level_up(&mut e, &[SPEED, ATTACK], 1);
     let first = events.iter().find_map(|ev| match ev {
         DomainEvent::StatRaised { stat, .. } => Some(stat.clone()),

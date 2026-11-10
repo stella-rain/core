@@ -6,14 +6,13 @@
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
-use stella_rain_core::run_setup::{BuildMode, RunSetup};
+use stella_rain_core::run_setup::RunSetup;
 
-/// The run every net test starts: the trial with the giant sword, in equipment mode. This is the
-/// only place a test names the build mode.
+/// The run every net test starts: the trial with the giant sword at `sim_version` 2, the
+/// equipment mode.
 pub fn equipment_setup() -> RunSetup {
     RunSetup {
         seed: 20_261_010,
-        build_mode: BuildMode::Equipment,
         ..RunSetup::default()
     }
 }

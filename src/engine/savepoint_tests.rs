@@ -480,16 +480,9 @@ fn cases(tree: &str) -> Vec<Case> {
         let setup = recorded.setup.clone();
         out.push(Case {
             name,
-            // An equipment run needs the live rules (the frozen version 1 has no equipment: its
-            // actions are `NotBuilt`), so it is not forced to the frozen state's codec; an offers
-            // run is, as the stages above.
-            start: Box::new(move || {
-                if setup.build_mode == crate::run_setup::BuildMode::Equipment {
-                    Engine::start_with(&setup, pack.content()).unwrap()
-                } else {
-                    Engine::forced(1, || Engine::start_with(&setup, pack.content()).unwrap())
-                }
-            }),
+            // The setup names its own rules: version 2 is the equipment mode, version 1 the frozen
+            // offers rules.
+            start: Box::new(move || Engine::start_with(&setup, pack.content()).unwrap()),
             steps,
         });
     }

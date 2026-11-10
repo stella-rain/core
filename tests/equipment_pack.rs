@@ -11,7 +11,7 @@ use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::registry;
 use stella_rain_core::rewards::{Rarity, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::{self, BuildMode, RunSetup};
+use stella_rain_core::run_setup::{self, RunSetup};
 use stella_rain_core::run_stats::{RunStats, StatEffect};
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::Versions;
@@ -265,11 +265,7 @@ fn the_new_rune_haste_stars_replace_the_old_six() {
 fn the_default_pool_is_a_rule() {
     let rewards = Rewards::bundled();
     let id_at = |p: u16| rewards.rewards()[usize::from(p)].id.as_str().to_string();
-    let equipment: Vec<String> = rewards
-        .default_pool(BuildMode::Equipment)
-        .into_iter()
-        .map(id_at)
-        .collect();
+    let equipment: Vec<String> = rewards.default_pool(2).into_iter().map(id_at).collect();
     for r in rewards.rewards() {
         let id = r.id.as_str().to_string();
         let want = r.category.is_some() && !r.deprecated;
@@ -278,7 +274,7 @@ fn the_default_pool_is_a_rule() {
     assert!(equipment.contains(&"rune_haste_star_rare".to_string()));
     assert!(!equipment.contains(&"rune_haste_rare".to_string()));
     assert!(!equipment.contains(&"random_rune".to_string()));
-    let offers = rewards.default_pool(BuildMode::Offers);
+    let offers = rewards.default_pool(1);
     let want: Vec<u16> = (0..rewards.rewards().len())
         .filter(|&i| !rewards.rewards()[i].equipment_only)
         .map(|i| u16::try_from(i).unwrap())
@@ -287,34 +283,28 @@ fn the_default_pool_is_a_rule() {
     assert_eq!(offers.len(), 135);
 }
 
-fn setup(mode: BuildMode, pool: Option<&[&str]>) -> RunSetup {
+fn setup(sim_version: u32, pool: Option<&[&str]>) -> RunSetup {
     RunSetup {
         mode: "tutorial".into(),
-        build_mode: mode,
+        sim_version,
         star_pool: pool.map(|p| p.iter().map(|s| (*s).into()).collect()),
         ..trial_setup()
     }
 }
 
 #[test]
-fn an_explicit_pool_may_name_a_deprecated_star_but_not_an_equipment_only_one_in_offers() {
+fn an_explicit_pool_may_name_a_deprecated_star_but_not_an_equipment_only_one_at_version_1() {
     let content = RunContent::bundled();
-    let ok = setup(
-        BuildMode::Equipment,
-        Some(&["rune_haste_common", "rune_haste_star_rare"]),
-    );
+    let ok = setup(2, Some(&["rune_haste_common", "rune_haste_star_rare"]));
     assert!(run_setup::validate_in(&ok, content).is_ok());
-    let bad = setup(
-        BuildMode::Offers,
-        Some(&["rune_haste_common", "rune_haste_star_rare"]),
-    );
+    let bad = setup(1, Some(&["rune_haste_common", "rune_haste_star_rare"]));
     refused_at(run_setup::validate_in(&bad, content), "$.star_pool[1]");
 }
 
 // --- T17: the layout and an equipment run on a pack without rules --------------------------------
 
 #[test]
-fn an_equipment_run_needs_the_pack_to_hold_the_rules_but_an_offers_run_does_not() {
+fn a_version_2_run_needs_the_pack_to_hold_the_rules_but_a_version_1_run_does_not() {
     let bare = rewards_with(|v| {
         v.as_object_mut().unwrap().remove("equipment");
         for r in v["rewards"].as_array_mut().unwrap() {
@@ -324,9 +314,9 @@ fn an_equipment_run_needs_the_pack_to_hold_the_rules_but_an_offers_run_does_not(
     let rewards = parse_rewards(&bare).expect("a pack made before the rules still reads");
     assert!(rewards.equipment().is_none());
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
-    let refused = run_setup::validate_in(&setup(BuildMode::Equipment, None), &content);
-    refused_at(refused, "$.build_mode");
-    assert!(run_setup::validate_in(&setup(BuildMode::Offers, None), &content).is_ok());
+    let refused = run_setup::validate_in(&setup(2, None), &content);
+    refused_at(refused, "$.sim_version");
+    assert!(run_setup::validate_in(&setup(1, None), &content).is_ok());
 }
 
 // --- T14: the Growth three and the other stats get no value --------------------------------------
@@ -654,4 +644,30 @@ fn the_equipment_consts_and_set_tables_are_gone_from_the_sim() {
             );
         }
     }
+}
+
+#[test]
+fn a_version_2_setup_needs_the_pack_to_hold_the_rules() {
+    let bare = rewards_with(|v| {
+        v.as_object_mut().unwrap().remove("equipment");
+        for r in v["rewards"].as_array_mut().unwrap() {
+            r.as_object_mut().unwrap().remove("category");
+        }
+    });
+    let content = RunContent::new(
+        RunStats::bundled().clone(),
+        parse_rewards(&bare).expect("a pack made before the rules still reads"),
+    );
+    let live = RunSetup {
+        mode: "tutorial".into(),
+        sim_version: 2,
+        ..trial_setup()
+    };
+    refused_at(run_setup::validate_in(&live, &content), "$.sim_version");
+    let frozen = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        ..live
+    };
+    assert!(run_setup::validate_in(&frozen, &content).is_ok());
 }

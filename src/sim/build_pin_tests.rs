@@ -11,8 +11,7 @@ use crate::attack::DamageType;
 use crate::constellations::{self, Constellations};
 use crate::rewards::{
     EffectEntry, MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_CRIT_CHANCE_TOTAL_PCT,
-    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_OFFER_CANDIDATES, ORBIT_SET_BASE, Rarity,
-    RewardEffect, Rewards,
+    MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, ORBIT_SET_BASE, Rarity, RewardEffect, Rewards,
 };
 use crate::rng::SplitMix64;
 use crate::run_content::RunContent;
@@ -322,7 +321,6 @@ impl Walk {
 #[test]
 fn take_builds_what_it_built_before() {
     let mut w = Walk::new(23);
-    let room = u8::try_from(MAX_OFFER_CANDIDATES - w.stage.tuning.offer_size).unwrap();
     // The attack and hit points: sums; the player at full hit points is healed as many as the most rises.
     w.take(ATK, |e| e.attack = 5);
     w.take(HP, |e| (e.max_hp_more, e.hp_more) = (100, 100));
@@ -360,9 +358,9 @@ fn take_builds_what_it_built_before() {
     w.take(ELEM, |e| e.type_bonus = bonus(14, 3));
     w.take(REGEN, |e| e.regen = 2);
     w.take(REGEN, |e| e.regen = 4);
-    // Five offer-candidates rewards stop at the room under the offer-size limit.
-    for n in 1..=5u8 {
-        w.take(CAND, |e| e.extra_candidates = n.min(room));
+    // Offer candidates, rerolls and banishes are stats of the build now: the offers hold nothing.
+    for _ in 1..=5u8 {
+        w.take(CAND, |_| {});
     }
     // Grants: rerolls and banishes, an evade charge, a rune drawn.
     w.take(REROLL, |e| (e.rerolls_more, e.banishes_more) = (2, 1));
@@ -836,14 +834,17 @@ fn reference_apply(
             }
             RewardEffect::Regen => *regen = regen.saturating_add(amount),
             // The perks' counters (`loadout::perk`), added to for the rest of the run.
-            RewardEffect::OfferCandidates => {
-                let room =
-                    u8::try_from(MAX_OFFER_CANDIDATES - stage.tuning.offer_size).unwrap_or(u8::MAX);
-                let more = u8::try_from(amount).unwrap_or(u8::MAX);
-                o.extra_candidates = o.extra_candidates.saturating_add(more).min(room);
+            // Each is a stat of the build (`Build::write`); the first two are also grants.
+            RewardEffect::Rerolls | RewardEffect::Banishes | RewardEffect::OfferCandidates => {
+                if entry.effect == RewardEffect::Rerolls {
+                    o.rerolls_left = o.rerolls_left.saturating_add(amount);
+                } else if entry.effect == RewardEffect::Banishes {
+                    o.banishes_left = o.banishes_left.saturating_add(amount);
+                }
+                if let (Some(stat), Some(p)) = (entry.effect.growth_stat(), progress.as_mut()) {
+                    levels::add_effect(p, player, stat, amount);
+                }
             }
-            RewardEffect::Rerolls => o.rerolls_left = o.rerolls_left.saturating_add(amount),
-            RewardEffect::Banishes => o.banishes_left = o.banishes_left.saturating_add(amount),
             RewardEffect::RuneHaste => {
                 player.rune_haste_pct = player.rune_haste_pct.saturating_add(amount)
             }

@@ -10,7 +10,7 @@ use crate::input::{EquipAction, Input};
 use crate::pack::ContentFiles;
 use crate::rewards::Rewards;
 use crate::run_content::RunContent;
-use crate::run_setup::{BuildMode, RunSetup};
+use crate::run_setup::RunSetup;
 use crate::rune::Rune;
 use crate::runes::{MAX_DOT_STACKS, Runes};
 use crate::snapshot::SlotKindView;
@@ -334,7 +334,6 @@ pub fn content() -> RunContent {
 pub fn start() -> Engine {
     let stage = stage();
     let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };

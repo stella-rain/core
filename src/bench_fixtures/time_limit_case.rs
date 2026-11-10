@@ -8,7 +8,7 @@ use crate::id::EntityId;
 use crate::input::Input;
 use crate::pack::ContentFiles;
 use crate::run_content::RunContent;
-use crate::run_setup::{self, BuildMode, RunSetup};
+use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
 use crate::stage::Stage;
 use crate::time_limit::TimeLimit;
@@ -146,10 +146,7 @@ pub(crate) fn content() -> RunContent {
 /// The run's engine before its first tick, in equipment mode (ADR-SIM-7): the mode's stage and the
 /// bundled content, started through `Engine::new_equipped` with the setup's seed.
 pub fn start() -> Engine {
-    let setup = RunSetup {
-        build_mode: BuildMode::Equipment,
-        ..setup()
-    };
+    let setup = RunSetup { ..setup() };
     Engine::new_equipped(&stage(), &content(), &setup).expect("the run starts")
 }
 

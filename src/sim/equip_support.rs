@@ -46,7 +46,7 @@ mod tests {
     use crate::pack::ContentFiles;
     use crate::rewards::Rewards;
     use crate::run_content::RunContent;
-    use crate::run_setup::{BuildMode, RunSetup};
+    use crate::run_setup::RunSetup;
     use crate::version::{SIM_VERSION, Versions};
     use serde_json::json;
 
@@ -74,7 +74,6 @@ mod tests {
         let mut stage = RunContent::bundled().trial().clone();
         stage.sim_version = SIM_VERSION;
         let setup = RunSetup {
-            build_mode: BuildMode::Equipment,
             star_pool: Some(vec!["crit".into(), "hp".into()]),
             ..RunSetup::default()
         };

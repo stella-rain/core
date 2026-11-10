@@ -57,7 +57,7 @@ use crate::stage::{RarityWeights, Stars, Tier};
 use crate::validate::limits::MAX_STARS_ON_MAP;
 
 use super::build::Build;
-use super::{orbit, overlaps, pickup_pct, player, runes, skill, widened};
+use super::{orbit, player, runes, skill};
 
 /// The candidates a star's offer holds: the base, and one more for each offer-candidates reward
 /// taken, at most `MAX_OFFER_CANDIDATES`.
@@ -173,35 +173,8 @@ pub(super) fn top_up_level(s: &State) -> Option<u32> {
 /// downed or out player gets none and sets nothing; nobody up, nothing is due (ADR-SIM-7
 /// point 5). A solo player at 0 hit points is not up.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
-    if stage.equipment_mode {
-        super::starlight::boss_bonus(&stage.equipment_rules, s);
-        return super::drops::boss_killed(stage, s);
-    }
-    let Some(level) = top_up_level(s) else {
-        return;
-    };
-    let Some(rarity) = stage
-        .stars
-        .as_ref()
-        .and_then(|cfg| tier_of(cfg, level))
-        .and_then(|t| t.weights.highest())
-    else {
-        return;
-    };
-    let Some(range) = s.stars.as_ref().map(|f| f.rarity) else {
-        return;
-    };
-    // Inside the difficulty's range.
-    let rarity = rarity.clamp(range.0, range.1);
-    for me in s.players.indices().collect::<Vec<_>>() {
-        if !s.players[me].is_up() {
-            continue;
-        }
-        if let Some(o) = s.players.career_mut(me).offers.as_mut() {
-            let kind = OfferKind::Boss;
-            o.due.insert(0, Due { kind, rarity });
-        }
-    }
+    super::starlight::boss_bonus(&stage.equipment_rules, s);
+    super::drops::boss_killed(stage, s)
 }
 
 /// A rarity drawn by `weights`, leaving out those outside `range`, the difficulty's:
@@ -225,36 +198,7 @@ fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Ra
 
 /// The main character takes the stars inside its pickup circle; their offers are due.
 pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
-    if stage.equipment_mode {
-        return super::drops::pick_up(stage, s, me, events);
-    }
-    let Some(cfg) = &stage.stars else {
-        return;
-    };
-    if s.players[me].hp == 0 {
-        return;
-    };
-    let at = s.players[me].at;
-    let radius = widened(cfg.pickup_radius.0, pickup_pct(s, me));
-    let State { stars, players, .. } = s;
-    let (Some(f), Some(o)) = (stars.as_mut(), players.career_mut(me).offers.as_mut()) else {
-        return;
-    };
-    let (on_map, due) = (&mut f.on_map, &mut o.due);
-    on_map.retain(|star| {
-        let taken = overlaps(at, radius, star.at, 0);
-        if taken {
-            due.push(Due {
-                kind: OfferKind::Star,
-                rarity: star.rarity,
-            });
-            events.push(DomainEvent::StarTaken {
-                star: star.id,
-                rarity: star.rarity,
-            });
-        }
-        !taken
-    });
+    super::drops::pick_up(stage, s, me, events)
 }
 
 /// Opens the first offer due to `me` that has a candidate, unless `me` has an offer open; with
@@ -804,52 +748,6 @@ mod tests {
             let exact = draw_rarity(&mut b, &w, (Rarity::Common, Rarity::Legendary));
             assert_eq!(wide, exact);
         }
-    }
-
-    #[test]
-    fn a_boss_offer_at_the_tiers_highest_rarity_stays_inside_the_difficultys_range() {
-        // Level 1's tier tops at supernova, and easy's range tops at rare: the boss offer is rare.
-        // (A run-level test cannot reach it: the player would have to be at level 5 first.)
-        let mut stage = RunContent::bundled().trial().clone();
-        let st = stage.stars.as_mut().expect("the trial stage has stars");
-        st.tiers = vec![Tier {
-            from_level: 1,
-            weights: RarityWeights {
-                supernova: 1,
-                ..RarityWeights::default()
-            },
-            random_rune_weight: None,
-        }];
-        let pool = RunPool {
-            rewards: (0..3).collect(),
-            extra_rerolls: 0,
-            difficulty: RunDifficulty {
-                hp_pct: 70,
-                damage_pct: 75,
-                rarity: (Rarity::Common, Rarity::Rare),
-            },
-        };
-        let stage = super::super::World::for_test(stage);
-        let mut s = initial_state(
-            &stage,
-            RunContent::bundled(),
-            pool,
-            1,
-            crate::kinds::KindTable::of_stage(&stage).unwrap(),
-        );
-        boss_killed(&stage, &mut s);
-        let due = &s
-            .players
-            .career(PlayerIdx::SOLO)
-            .offers
-            .as_ref()
-            .expect("star offers")
-            .due;
-        assert_eq!(due.len(), 1, "{due:?}");
-        assert_eq!(
-            (due[0].kind, due[0].rarity),
-            (OfferKind::Boss, Rarity::Rare)
-        );
     }
 
     #[test]
