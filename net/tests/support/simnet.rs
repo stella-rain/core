@@ -56,7 +56,9 @@ pub struct Stats {
     pub duplicated: u64,
     /// Copies `recv` returned.
     pub delivered: u64,
-    /// Deliveries with a lower `seq` than one already delivered on the same link.
+    /// Deliveries with a lower `seq` than one already delivered on the same link. A duplicate
+    /// that arrives after a later message counts too, so read it with `duplicate` off to see
+    /// reordering alone.
     pub reordered: u64,
 }
 
@@ -113,6 +115,10 @@ impl SimNet {
     /// A network for 2 or 3 peers; a permille above 1000 or another peer count panics.
     pub fn new(peers: u8, seed: u64, impair: Impair) -> SimNet {
         assert!((2..=3).contains(&peers), "a simnet has 2 or 3 peers");
+        assert!(
+            impair.reorder == 0 || impair.reorder_extra >= 1,
+            "a reordered copy needs at least one extra round"
+        );
         for permille in [impair.loss, impair.reorder, impair.duplicate] {
             assert!(permille <= 1000, "a permille is at most 1000");
         }

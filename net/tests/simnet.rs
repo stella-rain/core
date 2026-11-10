@@ -133,7 +133,7 @@ fn reorder_holds_some_copies_back_and_a_later_one_overtakes() {
 }
 
 #[test]
-fn duplicate_sends_a_second_copy_that_sorts_after_the_first() {
+fn duplicate_sends_a_second_copy_that_sorts_after_the_first_on_a_clean_link() {
     let net = SimNet::new(
         2,
         1,

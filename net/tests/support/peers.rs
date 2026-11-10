@@ -114,24 +114,25 @@ impl Peers {
         while let Some((from, bytes)) = self.eps[me].recv() {
             let packet = Packet::decode(&bytes).expect("an impairment never breaks a packet");
             let gone = self.gone(me);
+            let round = self.net.round();
             let f = from.get();
             match packet {
                 Packet::Input(_) | Packet::Bye(_) if gone => {}
                 Packet::Input(frame) => self.sessions[me]
                     .receive_inputs(from, &frame)
-                    .expect("a valid frame"),
+                    .unwrap_or_else(|e| panic!("round {round}, peer {me} from {f}: frame: {e}")),
                 Packet::Ack(ack) => {
                     assert_eq!(ack.slot.get(), me, "an ack names its receiver");
                     self.sessions[me]
                         .ack(from, ack.next_tick)
-                        .expect("a valid ack");
+                        .unwrap_or_else(|e| panic!("round {round}, peer {me} from {f}: ack: {e}"));
                     self.acked[me][f] = self.acked[me][f].max(ack.next_tick);
                 }
                 Packet::Bye(bye) => {
                     assert_eq!((bye.slot, bye.reason), (from, ByeReason::Left));
-                    self.sessions[me]
-                        .leave(from, bye.tick)
-                        .expect("a valid leave");
+                    self.sessions[me].leave(from, bye.tick).unwrap_or_else(|e| {
+                        panic!("round {round}, peer {me} from {f}: leave: {e}")
+                    });
                 }
                 other => panic!("the harness never sends {other:?}"),
             }

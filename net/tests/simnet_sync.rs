@@ -80,7 +80,7 @@ fn jitter_alone_converges() {
                 ..Impair::clean(3)
             },
         );
-        // Jitter alone reorders, so the deliveries' delays take at least two values.
+        // Jitter alone (no duplicates here) reorders, which needs at least two delay values.
         assert!(p.net.stats().reordered > 0);
     }
 }
