@@ -2,10 +2,9 @@
 //! re-simulation within a window, all driven by local calls. It owns no transport, clock or
 //! thread: the caller says when a tick is advanced and hands in what peers sent.
 //!
-//! What it does not do: it sends and receives nothing (a later layer maps packets to
-//! [`Session::receive_inputs`], [`Session::ack`] and [`Session::leave`]), it holds no handshake,
-//! it does not balance frame advantage between peers, it does not exchange checkpoints and it
-//! does not stop on a desync.
+//! What it does not do: it sends and receives nothing. The layer above it, [`party::NetSession`],
+//! maps packets to [`Session::receive_inputs`], [`Session::ack`] and [`Session::leave`], holds
+//! the handshake, balances frame advantage, exchanges checkpoints and stops on a desync.
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -36,7 +35,9 @@ pub struct Config {
     /// The slot this session plays.
     pub local: PlayerIdx,
     /// Ticks between a local input being given and being stepped. Every peer of a party uses
-    /// the same delay: the range checks on frames and leave ticks assume it.
+    /// the same delay and window: a frame is accepted up to `tick + 2 * delay + window + 1`, so
+    /// peers whose delay plus window differ by more than 2 refuse each other's inputs. Values
+    /// of the party come from [`party::PartySettings`].
     pub delay: u32,
     /// The most ticks predicted past the confirmed one. A window of 0 is lockstep: it never
     /// rolls back, but it needs a delay of at least 1, because with delay 0 and a remote peer
