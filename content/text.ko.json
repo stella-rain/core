@@ -16,120 +16,120 @@
     "title": "비 오는 날"
   },
   "expertise/attack_speed": {
-    "description": "Attacks 10 percent faster",
-    "title": "Attack Speed"
+    "description": "공격이 10% 빨라져요",
+    "title": "공격 속도"
   },
   "expertise/bulwark": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Bulwark"
+    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
+    "title": "방벽"
   },
   "expertise/bulwark_10": {
-    "description": "30 percent shorter evade cooldown",
-    "title": "Fortress"
+    "description": "회피 재사용 대기시간이 30% 짧아져요",
+    "title": "요새"
   },
   "expertise/bulwark_6": {
-    "description": "15 percent shorter evade cooldown",
-    "title": "Brace"
+    "description": "회피 재사용 대기시간이 15% 짧아져요",
+    "title": "버티기"
   },
   "expertise/bulwark_9": {
-    "description": "300 more hit points at most, and as many healed",
-    "title": "Stone Skin"
+    "description": "최대 체력이 300 늘고, 그만큼 회복해요",
+    "title": "돌 피부"
   },
   "expertise/crush": {
-    "description": "15 percent more damage",
-    "title": "Crush"
+    "description": "피해가 15% 늘어요",
+    "title": "분쇄"
   },
   "expertise/crush_10": {
-    "description": "40 percent more damage",
-    "title": "Shatter"
+    "description": "피해가 40% 늘어요",
+    "title": "파쇄"
   },
   "expertise/crush_6": {
-    "description": "20 percent more damage",
-    "title": "Heavy Head"
+    "description": "피해가 20% 늘어요",
+    "title": "무거운 머리"
   },
   "expertise/crush_9": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Iron Grip"
+    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
+    "title": "강철 손아귀"
   },
   "expertise/damage": {
-    "description": "10 percent more damage",
-    "title": "Damage"
+    "description": "피해가 10% 늘어요",
+    "title": "피해"
   },
   "expertise/edge": {
-    "description": "10 percent more damage",
-    "title": "Edge"
+    "description": "피해가 10% 늘어요",
+    "title": "칼날"
   },
   "expertise/edge_10": {
-    "description": "30 percent more damage",
-    "title": "Master Edge"
+    "description": "피해가 30% 늘어요",
+    "title": "달인의 칼날"
   },
   "expertise/edge_6": {
-    "description": "15 percent more damage",
-    "title": "Keen Edge"
+    "description": "피해가 15% 늘어요",
+    "title": "예리한 칼날"
   },
   "expertise/edge_9": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Long Edge"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "긴 칼날"
   },
   "expertise/hit_box": {
-    "description": "Every combo step's hit box 10 percent larger",
-    "title": "Hit Box"
+    "description": "모든 콤보 단계의 타격 범위가 10% 커져요",
+    "title": "타격 범위"
   },
   "expertise/quake": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Quake"
+    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
+    "title": "지진"
   },
   "expertise/quake_10": {
-    "description": "Every combo step's hit box 40 percent larger",
-    "title": "Earthshaker"
+    "description": "모든 콤보 단계의 타격 범위가 40% 커져요",
+    "title": "대지 흔들기"
   },
   "expertise/quake_6": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Tremor"
+    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
+    "title": "떨림"
   },
   "expertise/quake_9": {
-    "description": "15 percent more damage",
-    "title": "Aftershock"
+    "description": "피해가 15% 늘어요",
+    "title": "여진"
   },
   "expertise/reach": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Reach"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "도달 범위"
   },
   "expertise/reach_10": {
-    "description": "Every combo step's hit box 30 percent larger",
-    "title": "Far Reach"
+    "description": "모든 콤보 단계의 타격 범위가 30% 커져요",
+    "title": "먼 도달"
   },
   "expertise/reach_6": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Wide Arc"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "넓은 호"
   },
   "expertise/reach_9": {
-    "description": "15 percent more damage",
-    "title": "Sure Strike"
+    "description": "피해가 15% 늘어요",
+    "title": "확실한 일격"
   },
   "expertise/swiftness": {
-    "description": "5 percent faster movement",
-    "title": "Swiftness"
+    "description": "이동 속도가 5% 빨라져요",
+    "title": "민첩"
   },
   "expertise/tempo": {
-    "description": "Attacks 8 percent faster",
-    "title": "Tempo"
+    "description": "공격이 8% 빨라져요",
+    "title": "템포"
   },
   "expertise/tempo_10": {
-    "description": "25 percent shorter evade cooldown",
-    "title": "Flow"
+    "description": "회피 재사용 대기시간이 25% 짧아져요",
+    "title": "흐름"
   },
   "expertise/tempo_6": {
-    "description": "10 percent more speed",
-    "title": "Light Step"
+    "description": "이동 속도가 10% 늘어요",
+    "title": "가벼운 발걸음"
   },
   "expertise/tempo_9": {
-    "description": "Attacks 10 percent faster",
-    "title": "Quick Hands"
+    "description": "공격이 10% 빨라져요",
+    "title": "빠른 손"
   },
   "expertise/vitality": {
-    "description": "100 more hit points at most, and as many healed",
-    "title": "Vitality"
+    "description": "최대 체력이 100 늘고, 그만큼 회복해요",
+    "title": "활력"
   },
   "perk_sets/duelist": {
     "description": "더 세고 더 빠르게 공격해요",
