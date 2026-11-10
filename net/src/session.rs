@@ -176,6 +176,8 @@ pub struct Session<S: Save = CloneRing> {
     record_base: u32,
     hashes: VecDeque<u64>,
     hash_base: u32,
+    keep: bool,
+    log: Vec<ConfirmedTick>,
 }
 
 impl Session<CloneRing> {
@@ -223,6 +225,8 @@ impl<S: Save> Session<S> {
             records: VecDeque::new(),
             record_base: 0,
             hash_base: 0,
+            keep: false,
+            log: Vec::new(),
         })
     }
 
@@ -265,19 +269,21 @@ impl<S: Save> Session<S> {
     /// returns the ticks re-simulated. A call for a peer that must not step (frame advantage,
     /// a finished peer).
     pub fn confirm(&mut self) -> Result<u32, SessionError> {
-        todo!()
+        let rolled_back = self.reconcile()?;
+        self.settle();
+        Ok(rolled_back)
     }
 
     /// Starts keeping the log of confirmed ticks, from the first one not yet confirmed. Off by
     /// default.
     pub fn keep_confirmed(&mut self) {
-        todo!()
+        self.keep = true;
     }
 
     /// Drains the log of confirmed ticks kept since the last call; empty unless
     /// [`Session::keep_confirmed`] was called.
     pub fn take_confirmed(&mut self) -> Vec<ConfirmedTick> {
-        todo!()
+        std::mem::take(&mut self.log)
     }
 
     /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error
@@ -563,7 +569,16 @@ impl<S: Save> Session<S> {
         let confirmed = self.known().map_or(self.tick, |k| k.min(self.tick));
         self.confirmed = self.confirmed.max(confirmed);
         while self.record_base < self.confirmed {
-            self.records.pop_front();
+            if let Some(r) = self.records.pop_front()
+                && self.keep
+            {
+                self.log.push(ConfirmedTick {
+                    tick: self.record_base,
+                    inputs: r.inputs,
+                    leaves: r.leaves,
+                    hash: r.hash,
+                });
+            }
             self.record_base += 1;
         }
         let keep_from = self.confirmed.saturating_sub(CHECKPOINT_TICKS);
