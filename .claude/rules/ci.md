@@ -20,8 +20,8 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3, ADR-REL-6.
   `junit-<arch>` artifact. nextest skips doctests, so `cargo test --doc` runs beside it
   (x86_64 only) and fails the day one is added and breaks.
 - `tests on x86_64` also runs the ignored `command_cap::measure_the_longest_run` in release on
-  every run of the job (md-only PRs skip it); a PR that raises the longest bot run's command
-  count re-pins `MEASURED_MOST` in `tests/command_cap.rs` in the same PR.
+  every run of the job (md-only PRs skip it): it counts the commands of the frozen `tests/corpus/v1/runs` replays, a folder
+  that never changes, so `MEASURED_MOST` in `tests/command_cap.rs` can only fall; a PR that lowers the count re-pins it.
 - The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
   weekly, on demand and called by Candidate; not a PR check. The nextest test group
   `deep` runs those long tests one at a time so their times stay comparable.
