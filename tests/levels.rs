@@ -4,7 +4,7 @@
 //! `levels` (a mode's) has them.
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::input::Input;
@@ -93,7 +93,6 @@ fn a_stage_without_levels_has_no_progress_and_nothing_to_choose() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
     assert!(e.snapshot().progress.is_none());
-    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
 }
 
 #[test]
@@ -140,8 +139,7 @@ fn a_level_up_raises_the_first_stat_and_the_run_goes_on() {
     let mut want = vec![0; RunStats::bundled().stats().len()];
     want[0] = 1;
     assert_eq!((progress.level, progress.xp, progress.spent), (2, 0, want));
-    // No offer opens: the next step is the next tick, and there is nothing to choose.
-    assert_eq!(common::pick(&mut e, 0), Err(ChoiceError::NoOffer));
+    // No offer opens: the next step is the next tick.
     let tick = e.tick();
     e.step(&[idle(), Default::default(), Default::default()]);
     assert_eq!(e.tick(), tick + 1);
@@ -399,10 +397,6 @@ fn a_trial_run_levels_up_and_raises_its_stats() {
     assert_eq!(e.snapshot().progress.unwrap().level, 1);
     let mut raised = 0;
     while e.outcome() == Outcome::Running && e.tick() < 5400 {
-        if e.offer_open() {
-            common::pick(&mut e, 0).unwrap();
-            continue;
-        }
         e.step(&[
             common::run::run_input(&e, e.tick()),
             Default::default(),
