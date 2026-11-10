@@ -3,7 +3,7 @@
 
 use crate::common::idle;
 use crate::common::run::{TRIAL_LENGTH, trial_setup};
-use crate::run_play::{play_run, play_run_from, play_run_with};
+use crate::run_play::{play_run, play_run_with};
 use serde_json::Value;
 use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::Outcome;
@@ -30,7 +30,8 @@ fn apply(rec: &mut RunRecorder, c: &Command) {
         Command::Step(input) => rec
             .step(&[input, Default::default(), Default::default()])
             .unwrap(),
-        Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("a run at the live rules holds no choice"),
     }
 }
 
@@ -285,9 +286,6 @@ fn prefix_mismatch_a_prefix_that_is_not_this_savepoints_run_is_refused() {
     let mut other = RunRecorder::start_with_pack(&other_seed, Pack::bundled()).unwrap();
     for c in play_run(300) {
         if let Command::Step(input) = c {
-            if other.engine().offer_open() {
-                other.choose(PlayerIdx::SOLO, 0).unwrap();
-            }
             other
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap();
@@ -648,22 +646,5 @@ fn a_record_for_a_player_who_is_not_in_the_party_is_accepted() {
             .slot(PlayerIdx::new(2).unwrap())
             .damage_dealt,
         1
-    );
-}
-
-#[test]
-fn a_version_one_run_saves_and_restores_a_zero_record() {
-    let mut setup = trial_setup();
-    setup.sim_version = 1;
-    let rec = recorder_with(&setup, Pack::bundled(), &play_run_from(&setup, 450));
-    let (bytes, prefix) = (rec.save(), rec.replay());
-    assert_eq!(
-        bytes[HEADER_LEN..HEADER_LEN + STATS_RECORD],
-        [0u8; STATS_RECORD]
-    );
-    let restored = restore(&bytes, &prefix).unwrap();
-    assert_eq!(
-        restored.engine().player_stats(),
-        rec.engine().player_stats()
     );
 }

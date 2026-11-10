@@ -13,7 +13,7 @@ use stella_rain_core::recording::{
     commands_from_jsonl, hashes_from_jsonl, inputs_from_jsonl, record, record_run,
 };
 use stella_rain_core::replay::{self, hash_to_hex};
-use stella_rain_core::run_replay::{Command, RunReplayError};
+use stella_rain_core::run_replay::Command;
 use stella_rain_core::validate::parse_and_validate;
 
 fn recording() -> String {
