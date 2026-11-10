@@ -369,28 +369,40 @@ fn a_boss_that_outruns_the_player_is_refused_at_the_start() {
 }
 
 #[test]
-fn a_time_limit_boss_takes_neither_field() {
+fn a_time_limit_boss_takes_no_arrival_tick_but_may_chase() {
     use stella_rain_core::run_content::RunContent;
     use stella_rain_core::run_setup::RunSetup;
     use stella_rain_core::time_limit::TimeLimit;
     use stella_rain_core::version::Versions;
-    for (field, value) in [("arrives_at_tick", json!(50)), ("chase", json!({}))] {
+    let start = |field: &str, value: Value| {
         let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
         v["bosses"][0][field] = value;
         let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap();
         let setup = RunSetup {
             mode: "time_limit".into(),
             weapon: "giant_sword".into(),
+            sim_version: 2,
             ..RunSetup::default()
         };
-        let Err(Error::Invalid(found)) =
-            Engine::start_time_limit(&setup, RunContent::bundled(), &mode)
-        else {
-            panic!("{field}: the run started");
-        };
-        let path = format!("$.bosses[0].{field}");
-        assert!(found.iter().any(|i| i.path == path), "{found:?}");
-    }
+        Engine::start_time_limit(&setup, RunContent::bundled(), &mode).map(|_| ())
+    };
+    let Err(Error::Invalid(found)) = start("arrives_at_tick", json!(50)) else {
+        panic!("arrives_at_tick: the run started");
+    };
+    assert!(
+        found
+            .iter()
+            .any(|i| i.path == "$.bosses[0].arrives_at_tick"),
+        "{found:?}"
+    );
+    start("chase", json!({})).expect("a mode boss may chase and the run starts");
+    let Err(Error::Invalid(found)) = start("chase", json!({ "speed": 768 })) else {
+        panic!("a chase as fast as the player started");
+    };
+    assert!(
+        found.iter().any(|i| i.path.ends_with("chase.speed")),
+        "{found:?}"
+    );
 }
 
 #[test]
