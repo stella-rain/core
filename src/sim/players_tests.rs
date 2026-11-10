@@ -463,7 +463,7 @@ mod offers {
 
     /// A party of `mask` over the worst case, whose slot 0 holds offers with every field set.
     fn party(mask: u8) -> State {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
+        let e = crate::bench_fixtures::worst_case::warmed_up();
         let mut s = live(&e).1.clone();
         s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
         let c = s.players.career_mut(PlayerIdx::SOLO);
@@ -525,15 +525,15 @@ mod offers {
     #[test]
     fn a_slot_0_offer_stream_is_the_one_the_run_started_with() {
         let e = Engine::new_with(
-            &crate::bench_fixtures::offers_cases::worst_stage(),
-            &crate::bench_fixtures::offers_cases::worst_content(),
+            &crate::bench_fixtures::worst_case::stage(),
+            &crate::bench_fixtures::worst_case::content(),
         )
         .expect("starts");
         let (_, s) = live(&e);
         assert!(s.players.career(PlayerIdx::SOLO).offers.is_some());
         let again = Engine::new_with(
-            &crate::bench_fixtures::offers_cases::worst_stage(),
-            &crate::bench_fixtures::offers_cases::worst_content(),
+            &crate::bench_fixtures::worst_case::stage(),
+            &crate::bench_fixtures::worst_case::content(),
         )
         .expect("starts");
         assert_eq!(
@@ -602,7 +602,13 @@ mod offers {
         let edits: [(&str, Edit); 5] = [
             ("misses", |f| f.misses += 1),
             ("on_map", |f| f.on_map[0].rarity = Rarity::Legendary),
-            ("rarity", |f| f.rarity.1 = Rarity::Common),
+            ("rarity", |f| {
+                f.rarity.1 = if f.rarity.1 == Rarity::Common {
+                    Rarity::Legendary
+                } else {
+                    Rarity::Common
+                }
+            }),
             ("rune_pool", |f| f.rune_pool ^= 1),
             ("pool", |f| f.pool.push(0)),
         ];
@@ -669,7 +675,7 @@ mod offers {
 
     #[test]
     fn reserve_makes_room_in_each_present_slots_due() {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
+        let e = crate::bench_fixtures::worst_case::warmed_up();
         let (world, s) = live(&e);
         let cap = usize::from(
             world
@@ -1009,7 +1015,7 @@ mod route {
 
     /// The worst case as a party of `n`.
     fn party(n: u8) -> Engine {
-        crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(n)
+        crate::bench_fixtures::worst_case::warmed_up().into_party(n)
     }
 
     fn state_mut(e: &mut Engine) -> &mut State {
@@ -1083,7 +1089,7 @@ mod route {
 
     #[test]
     fn of_id_names_the_present_slot_of_an_entity_number() {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
+        let e = crate::bench_fixtures::worst_case::warmed_up();
         let ps = ps(&e);
         let p = Players::with_mask(0b011, ps.clone());
         assert_eq!(p.of_id(EntityId(0)), Some(PlayerIdx::SOLO));
@@ -1367,7 +1373,7 @@ mod route {
 
     #[test]
     fn xp_and_stardust_are_shared_by_every_present_player() {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(3);
+        let e = crate::bench_fixtures::worst_case::warmed_up().into_party(3);
         let (w, s) = live(&e);
         let (mut w, mut s) = (w.clone(), s.clone());
         w.stage.stardust = Some(crate::stage::StardustFactor {
@@ -1414,7 +1420,7 @@ mod route {
 
     #[test]
     fn an_absent_slot_earns_nothing_and_nothing_panics() {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up();
+        let e = crate::bench_fixtures::worst_case::warmed_up();
         let (w, s) = live(&e);
         let (w, mut s) = (w.clone(), s.clone());
         s.players = Players::with_mask(0b101, ps(&e)).keeping_career_of(&s.players);
@@ -1425,62 +1431,6 @@ mod route {
         let mut ev = Vec::new();
         super::super::collide(&w, &mut s, false, &mut ev);
         assert!(s.players.career(PlayerIdx::SOLO).progress.is_some());
-    }
-
-    #[test]
-    fn the_lowest_slot_takes_the_star_both_circles_cover() {
-        use super::super::state::StarState;
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(2);
-        let (w, s) = live(&e);
-        let (w, mut s) = (w.clone(), s.clone());
-        let due = |s: &State, i: u8| s.players.career(slot(i)).offers.as_ref().unwrap().due.len();
-        let at = s.players[PlayerIdx::SOLO].at;
-        s.players[slot(1)].at = at;
-        s.players[slot(1)].hp = s.players[slot(1)].max_hp;
-        s.stars.as_mut().expect("stars").on_map = vec![StarState {
-            id: EntityId(900),
-            at,
-            rarity: crate::rewards::Rarity::Common,
-        }];
-        let before = [due(&s, 0), due(&s, 1)];
-        let mut ev = Vec::new();
-        for me in s.players.indices() {
-            super::super::stars::pick_up(&w, &mut s, me, &mut ev);
-        }
-        assert_eq!((due(&s, 0), due(&s, 1)), (before[0] + 1, before[1]));
-
-        // A star only slot 1 covers goes to slot 1.
-        let far = crate::fixed::Point {
-            x: at.x,
-            y: crate::fixed::Fx(at.y.0.saturating_add(3_000_000)),
-        };
-        s.players[slot(1)].at = far;
-        s.stars.as_mut().unwrap().on_map = vec![StarState {
-            id: EntityId(901),
-            at: far,
-            rarity: crate::rewards::Rarity::Common,
-        }];
-        let before = [due(&s, 0), due(&s, 1)];
-        for me in s.players.indices() {
-            super::super::stars::pick_up(&w, &mut s, me, &mut ev);
-        }
-        assert_eq!((due(&s, 0), due(&s, 1)), (before[0], before[1] + 1));
-    }
-
-    #[test]
-    fn a_boss_kill_makes_a_boss_offer_due_to_each_present_player() {
-        let e = crate::bench_fixtures::offers_cases::worst_warmed_up().into_party(3);
-        let (w, s) = live(&e);
-        let (w, mut s) = (w.clone(), s.clone());
-        super::super::stars::boss_killed(&w, &mut s);
-        for i in 0..3 {
-            let due = &s.players.career(slot(i)).offers.as_ref().unwrap().due;
-            assert_eq!(
-                due.first().map(|d| d.kind),
-                Some(OfferKind::Boss),
-                "slot {i}"
-            );
-        }
     }
 }
 

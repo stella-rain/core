@@ -127,23 +127,6 @@ fn skill_cooldown_stat_shortens_the_skill() {
     assert_eq!(at(&e), 700, "10.0 percent of the set reads as 10");
 }
 
-/// T6: an offers run never writes the new totals or the tenths.
-#[test]
-fn the_new_values_are_zero_in_an_offers_run() {
-    let mut e = Engine::start(&RunSetup {
-        mode: "time_limit".into(),
-        build_mode: BuildMode::Offers,
-        ..RunSetup::default()
-    })
-    .expect("starts");
-    for _ in 0..600 {
-        e.step(&[crate::input::Input::default(); crate::id::MAX_PLAYERS as usize]);
-    }
-    let p = progress(&e);
-    assert_eq!((p.totals[11], p.totals[12]), (0, 0));
-    assert!(p.set_tenths.iter().all(|t| *t == 0));
-}
-
 /// T7: with no set the tenths reads are today's numbers.
 #[test]
 fn a_set_free_read_is_todays_number() {
@@ -739,7 +722,8 @@ fn the_view_follows_the_pick_and_the_level() {
 fn no_view_without_equipment_or_content() {
     let offers = Engine::start(&RunSetup {
         mode: "time_limit".into(),
-        build_mode: BuildMode::Offers,
+        schema_version: 1,
+        sim_version: 1,
         weapon: "giant_sword".into(),
         ..RunSetup::default()
     })

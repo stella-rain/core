@@ -57,10 +57,6 @@ fn an_equipment_run_starts_with_the_layout() {
     let eq = &state_of(&e).players.career(PlayerIdx::SOLO).equipment;
     assert_eq!(eq.slots.len(), 12);
     assert!(eq.lumine.is_some());
-
-    let e = Engine::start(&RunSetup::default()).expect("starts");
-    let eq = &state_of(&e).players.career(PlayerIdx::SOLO).equipment;
-    assert!(eq.slots.is_empty() && eq.lumine.is_none());
 }
 
 /// T2: the starting rune fills rune slot 0 and the runes the Main fires, not the inventory.

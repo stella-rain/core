@@ -15,7 +15,18 @@ const ALL: [EquipAction; 5] = [
     EquipAction::TreePick { option: 4 },
 ];
 
+/// A run of the frozen rules (`sim_version` 1): no equipment, so every action is `NotBuilt`.
 fn setup() -> RunSetup {
+    RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        seed: 20_261_105,
+        ..RunSetup::default()
+    }
+}
+
+/// A run of the live rules, the equipment mode.
+fn live_setup() -> RunSetup {
     RunSetup {
         seed: 20_261_105,
         ..RunSetup::default()
@@ -40,9 +51,12 @@ fn every_action_is_not_built_yet() {
 
 #[test]
 fn a_slot_outside_the_party_is_no_player() {
-    let e = Engine::start_party(&setup(), 2).unwrap();
+    let e = Engine::start_party(&RunSetup::default(), 2).unwrap();
     for action in ALL {
-        assert_eq!(e.check_action(slot(1), action), Err(ActionError::NotBuilt));
+        assert_ne!(
+            e.check_action(slot(1), action),
+            Err(ActionError::NoPlayer { player: slot(1) })
+        );
         assert_eq!(
             e.check_action(slot(2), action),
             Err(ActionError::NoPlayer { player: slot(2) })
@@ -75,19 +89,6 @@ fn step_does_not_read_the_action() {
     }
 }
 
-#[test]
-fn the_first_version_refuses_too() {
-    let e = Engine::start(&RunSetup {
-        schema_version: 1,
-        ..setup()
-    })
-    .unwrap();
-    assert_eq!(
-        e.check_action(PlayerIdx::SOLO, ALL[0]),
-        Err(ActionError::NotBuilt)
-    );
-}
-
 // --- equip and replace in an equipment run (ADR-SIM-7) -----------------------------------------
 
 mod equipment_runs {
@@ -102,7 +103,7 @@ mod equipment_runs {
             starting_rune: Some("thunder".into()),
             lumine: u8::from(lumine),
             lumine_star: lumine.then(|| "max_hp_common".into()),
-            ..setup()
+            ..live_setup()
         }
     }
 
@@ -692,7 +693,7 @@ mod equipment_runs {
             serde_json::json!(extract_table()[0])
         );
         assert!(json["starlight"]["prices"].is_array());
-        // Offers mode: no key at all.
+        // The frozen rules: no key at all.
         let offers = Engine::start(&setup()).unwrap();
         let json = serde_json::to_value(offers.snapshot()).unwrap();
         assert!(json.get("starlight").is_none());
@@ -775,7 +776,7 @@ mod tree_runs {
     fn equipment() -> RunSetup {
         RunSetup {
             build_mode: BuildMode::Equipment,
-            ..setup()
+            ..live_setup()
         }
     }
 
@@ -822,19 +823,10 @@ mod tree_runs {
             })
         );
         assert_eq!(e.state_hash(), hash_held, "the check changes nothing");
-        // An offers run and a sim_version 1 run have no tree.
+        // A sim_version 1 run has no tree.
         let offers = Engine::start(&setup()).unwrap();
         assert_eq!(
             offers.check_action(PlayerIdx::SOLO, pick(0)),
-            Err(ActionError::NotBuilt)
-        );
-        let v1 = Engine::start(&RunSetup {
-            schema_version: 1,
-            ..setup()
-        })
-        .unwrap();
-        assert_eq!(
-            v1.check_action(PlayerIdx::SOLO, pick(0)),
             Err(ActionError::NotBuilt)
         );
     }
@@ -932,10 +924,9 @@ mod tree_runs {
                 .get("tree_ready")
                 .is_none()
         );
-        // An offers run has none.
-        let mut offers = Engine::start(&setup()).unwrap();
-        reach(&mut offers, 0, 3);
-        let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
+        // A run of the frozen rules has none.
+        let frozen = Engine::start(&setup()).unwrap();
+        let json = serde_json::to_value(&frozen.snapshot().players[0]).unwrap();
         assert!(json.get("tree_ready").is_none());
     }
 }

@@ -313,8 +313,7 @@ fn the_values_are_the_rules() {
 // --- the boss bonus ----------------------------------------------------------------------------
 
 mod boss {
-    use super::super::equipment::Equipment;
-    use super::super::party_fix_tests::{down, out, party, slot};
+    use super::super::party_fix_tests::{down, out, party};
     use super::super::starlight::bundled_rules;
     use super::super::state::State;
     use super::super::{World, stars};
@@ -361,23 +360,5 @@ mod boss {
         down(&mut s, 0);
         stars::boss_killed(&w, &mut s);
         assert_eq!(balances(&s), vec![bundled_rules().boss_bonus, 0, 0]);
-    }
-
-    #[test]
-    fn the_bonus_does_not_need_a_drop_tier_and_offers_mode_gets_none() {
-        let (mut w, mut s) = equipment_party(2);
-        w.stage.stars.as_mut().expect("stars").tiers.clear();
-        stars::boss_killed(&w, &mut s);
-        assert_eq!(balances(&s), vec![bundled_rules().boss_bonus; 2]);
-        // Saturates at the top.
-        s.players.career_mut(slot(0)).equipment.starlight = u32::MAX - 1;
-        stars::boss_killed(&w, &mut s);
-        assert_eq!(balances(&s)[0], u32::MAX);
-        // An offers run pays nothing and keeps the equipment empty.
-        let (w, mut s) = party(2);
-        stars::boss_killed(&w, &mut s);
-        for me in s.players.indices() {
-            assert_eq!(s.players.career(me).equipment, Equipment::default());
-        }
     }
 }

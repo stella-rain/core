@@ -1,182 +1,24 @@
-//! `sim_v1` is a copy of `sim` that owns its types (ADR-REPL-2): an engine forced to version 1
-//! and one forced to version 2 run the same rules, so every observable is equal after every
-//! tick, except the state hash, whose layout differs by design (ADR-SIM-3). Until a version 2
-//! differs, this is the proof that the copy equals the original; the frozen corpus is the proof that the copy equals what was released.
+//! `sim_v1` is a copy of `sim` that owns its types (ADR-REPL-2): the frozen corpus is the proof
+//! that the copy equals what was released. The live rules are the equipment mode and differ from
+//! version 1 by design (Starlight, the slots), so the two are no longer compared tick by tick.
 
 use super::*;
-use crate::bench_fixtures::{self, Case};
+use crate::bench_fixtures;
 use crate::pack::Pack;
 use crate::run_replay::RunRecorder;
 use crate::savepoint::{Savepoint, SavepointError, restore};
 
-/// The `Debug` text of `value` with the entity numbers of the engine `e` as version 1 numbers
-/// them. The newest rules reserve the entity numbers 0 to 2 for the player slots (ADR-SIM-7), so
-/// at one player every other entity is 2 higher than in version 1; the text is compared with
-/// that difference taken out. Version 1's text is as it is.
-fn as_v1(e: &Engine, value: &impl std::fmt::Debug) -> String {
-    let text = format!("{value:?}");
-    if e.run.version() == 1 {
-        return text;
-    }
-    const TAG: &str = "EntityId(";
-    let (mut rest, mut out) = (text.as_str(), String::new());
-    while let Some(at) = rest.find(TAG) {
-        let (before, tail) = rest.split_at(at + TAG.len());
-        out.push_str(before);
-        let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
-        let n: u32 = tail[..digits].parse().expect("an EntityId holds a number");
-        out.push_str(&(if n < 3 { n } else { n - 2 }).to_string());
-        rest = &tail[digits..];
-    }
-    out.push_str(rest);
-    out
-}
-
-/// `events` without the players they name (`player`, `buffed_by`, `source`, `killer`), which only
-/// the newest rules fill: the copy is compared on everything version 1 also says.
-fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
-    let mut out = events.to_vec();
-    for event in &mut out {
-        match event {
-            DomainEvent::Hit {
-                player, buffed_by, ..
-            } => (*player, *buffed_by) = (None, None),
-            DomainEvent::Healed { source, .. } | DomainEvent::StatusApplied { source, .. } => {
-                *source = None;
-            }
-            DomainEvent::Died { killer, .. } => *killer = None,
-            _ => {}
-        }
-    }
-    out
-}
-
-/// What a run shows after a tick, to compare two engines on.
-fn observed(e: &Engine) -> (String, String, Load) {
-    (
-        as_v1(e, &plain(e.events())),
-        as_v1(e, &e.snapshot()),
-        e.caps(),
-    )
-}
-
-fn both<T>(make: impl Fn() -> T) -> (T, T) {
-    (Engine::forced(1, &make), Engine::forced(2, &make))
-}
-
-fn assert_same_tick(a: &Engine, b: &Engine, what: &str, tick: u32) {
-    assert_eq!(observed(a), observed(b), "{what}, tick {tick}");
-    assert_eq!(a.tally().kills(), b.tally().kills(), "{what}, tick {tick}");
-}
-
-/// Steps both engines `ticks` ticks on `input`, comparing after each.
-fn same_for(case: (Case, Case), ticks: u32, what: &str) {
-    let (
-        Case {
-            engine: mut a,
-            input,
-        },
-        Case { engine: mut b, .. },
-    ) = case;
-    assert_eq!((a.run.version(), b.run.version()), (1, 2), "{what}");
-    assert_same_tick(&a, &b, what, 0);
-    for tick in 1..=ticks {
-        a.step(&[input, Default::default(), Default::default()]);
-        b.step(&[input, Default::default(), Default::default()]);
-        assert_same_tick(&a, &b, what, tick);
-    }
-}
-
-#[test]
-fn the_copy_equals_the_original_on_the_bench_cases() {
-    use bench_fixtures::offers_cases;
-    same_for(both(offers_cases::worst_tick), 30, "worst_tick");
-    same_for(both(offers_cases::hit_tick), 30, "hit_tick");
-    // The `time_limit_tick` case builds its horde through `Engine::new_with`: it covers the
-    // conversion of the horde spec and state at the `Run` boundary.
-    same_for(both(offers_cases::time_limit_tick), 30, "time_limit_tick");
-}
-
-#[test]
-fn the_copy_equals_the_original_on_the_first_ticks_of_the_worst_minute() {
-    use bench_fixtures::worst_minute_case::input_at;
-    // The minute in offers mode: the fixture runs in equipment mode, which version 1 lacks.
-    let (mut a, mut b) = both(super::players_api_tests::offers_minute);
-    for tick in 1..=600 {
-        for e in [&mut a, &mut b] {
-            while e.offer_open() {
-                crate::engine::pick(e, crate::id::PlayerIdx::SOLO, 0).unwrap();
-            }
-            e.step(&[input_at(e.tick()), Default::default(), Default::default()]);
-        }
-        // The newest rules no longer open the level offers (the stat and expertise offers), which
-        // version 1 still does: the runs part at the first of them.
-        if a.offer_open() != b.offer_open() {
-            assert!(tick > 100, "the runs part at tick {tick}");
-            break;
-        }
-        assert_same_tick(&a, &b, "worst_minute (offers mode)", tick);
-    }
-}
-
-/// A scripted run: the main button held, a dash at tick 100 and 400, every offer taken at 0.
-fn scripted(version: u32) -> (Engine, Vec<String>) {
-    let setup = RunSetup {
-        mode: "time_limit".into(),
-        seed: 7,
-        ..RunSetup::default()
-    };
-    let mut e = Engine::forced(version, || Engine::start(&setup).unwrap());
-    let mut seen = Vec::new();
-    for tick in 1..=600u32 {
-        while e.offer_open() {
-            crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).unwrap();
-            seen.push(as_v1(&e, &plain(e.events())));
-        }
-        e.step(&[
-            Input {
-                main: true,
-                move_x: if tick % 90 < 45 { 100 } else { -100 },
-                evade: tick == 100 || tick == 400,
-                ..Input::default()
-            },
-            Default::default(),
-            Default::default(),
-        ]);
-        seen.push(as_v1(&e, &plain(e.events())));
-    }
-    (e, seen)
-}
-
-#[test]
-fn the_copy_equals_the_original_on_a_scripted_run() {
-    let ((a, seen_a), (b, seen_b)) = (scripted(1), scripted(2));
-    assert_eq!(seen_a, seen_b);
-    assert!(
-        seen_a.iter().any(|events| events != "[]"),
-        "the script makes something happen"
-    );
-    assert_eq!(as_v1(&a, &a.snapshot()), as_v1(&b, &b.snapshot()));
-}
-
-#[test]
-fn the_ledger_and_the_tallies_are_equal_for_both_versions() {
-    let ((a, _), (b, _)) = (scripted(1), scripted(2));
-    assert_eq!(a.ledger(), b.ledger());
-    assert_eq!(a.tally().kills(), b.tally().kills());
-    assert_eq!(
-        a.tally().taken().collect::<Vec<_>>(),
-        b.tally().taken().collect::<Vec<_>>()
-    );
-    assert_eq!(
-        a.tally().tiers().collect::<Vec<_>>(),
-        b.tally().tiers().collect::<Vec<_>>()
-    );
-}
-
 #[test]
 fn version_one_runs_sim_v1() {
-    let (a, b) = (scripted(1).0, scripted(2).0);
+    let frozen = RunSetup {
+        schema_version: 1,
+        sim_version: 1,
+        ..RunSetup::default()
+    };
+    let (a, b) = (
+        Engine::start(&frozen).unwrap(),
+        Engine::start(&RunSetup::default()).unwrap(),
+    );
     assert_eq!(a.run.module(), "sim_v1");
     assert_eq!(b.run.module(), "sim");
 }
@@ -282,25 +124,6 @@ fn a_savepoint_of_another_version_than_the_setup_is_refused() {
             Some(SavepointError::SimVersion),
             "{other}"
         );
-    }
-}
-
-#[test]
-fn a_stage_runs_the_same_under_either_version() {
-    let stage = crate::validate::parse_and_validate(crate::run_setup::mode_stage("trial").unwrap())
-        .unwrap();
-    let mut a = Engine::new_forced(&stage, 1).unwrap();
-    let mut b = Engine::new_forced(&stage, 2).unwrap();
-    assert_eq!((a.run.module(), b.run.module()), ("sim_v1", "sim"));
-    for tick in 1..=120 {
-        let input = Input {
-            main: tick % 3 == 0,
-            move_x: 50,
-            ..Input::default()
-        };
-        a.step(&[input, Default::default(), Default::default()]);
-        b.step(&[input, Default::default(), Default::default()]);
-        assert_same_tick(&a, &b, "trial", tick);
     }
 }
 

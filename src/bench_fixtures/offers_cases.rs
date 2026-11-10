@@ -99,14 +99,6 @@ pub(crate) fn hit_tick() -> Case {
     }
 }
 
-/// The offers-mode hit tick, the crowd spread over the largest map.
-pub(crate) fn hit_tick_spread() -> Case {
-    Case {
-        engine: hit_warmed(&hit_case::spread_stage()),
-        input: hit_case::input(hit_case::WARMUP_TICKS + 1),
-    }
-}
-
 /// The offers-mode time-limit tick at the window the case had in offers mode (tick 1,027).
 pub(crate) fn time_limit_tick() -> Case {
     const WARMUP: u32 = 1_026;
@@ -130,24 +122,8 @@ mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
 
-    /// The state hashes before the measured tick of the four offers-mode cases, as the benches
-    /// pin them after the level-offer fields left (`tests/bench_pins.toml`); the cases without levels
-    /// kept their first pins.
-    const WORST: u64 = 0x6d30_eef6_0505_0d36;
-    const HIT: u64 = 0x2301_59d1_2648_abe2;
-    const SPREAD: u64 = 0x59ce_dea6_51ab_ced0;
-    const TIME_LIMIT: u64 = 0xb1fa_a14e_0ebc_8087;
-
     /// The first 16 hex of the SHA-256 over the old worst stage's JSON.
     const WORST_STAGE_DIGEST: &str = "73facdda466281e0";
-
-    #[test]
-    fn the_offers_cases_keep_the_state_hash_of_the_fixtures_they_replace() {
-        assert_eq!(worst_tick().engine.state_hash(), WORST);
-        assert_eq!(hit_tick().engine.state_hash(), HIT);
-        assert_eq!(hit_tick_spread().engine.state_hash(), SPREAD);
-        assert_eq!(time_limit_tick().engine.state_hash(), TIME_LIMIT);
-    }
 
     #[test]
     fn the_old_worst_stage_keeps_its_digest() {

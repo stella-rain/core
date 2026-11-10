@@ -14,7 +14,6 @@ use crate::limits::MAX_INVENTORY;
 use crate::rewards::{Rarity, Rewards};
 use crate::rng::SplitMix64;
 use crate::rune::Rune;
-use crate::snapshot::OfferKind;
 use crate::stage::{RarityWeights, Tier};
 use crate::version::Versions;
 use serde_json::{Value, json};
@@ -46,50 +45,6 @@ pub(super) fn drop_star(s: &mut State, me: u8, rarity: Rarity) {
         .expect("stars")
         .on_map
         .push(StarState { id, at, rarity });
-}
-
-/// S1: in offers mode a star taken and a boss kill only queue offers; no inventory is touched and
-/// no offer stream moves (ADR-SIM-2 point 2).
-#[test]
-fn offers_mode_picks_are_unchanged() {
-    let (w, mut s) = tiered(3);
-    drop_star(&mut s, 0, Rarity::Epic);
-    let before = s.clone();
-    let mut ev = Vec::new();
-    stars::boss_killed(&w, &mut s);
-    stars::pick_up(&w, &mut s, slot(0), &mut ev);
-    for i in 0..3 {
-        let (was, now) = (before.players.career(slot(i)), s.players.career(slot(i)));
-        assert!(now.equipment.inventory.is_empty(), "slot {i}");
-        assert_eq!(now.offer, was.offer, "slot {i} draws nothing");
-        let due = &now.offers.as_ref().expect("offers").due;
-        assert_eq!(due[0].kind, OfferKind::Boss, "slot {i}");
-        assert_eq!(due[0].rarity, Rarity::Rare, "slot {i}");
-        let taken = usize::from(i == 0);
-        assert_eq!(due.len(), 1 + taken, "slot {i}");
-    }
-    let due = &s.players.career(slot(0)).offers.as_ref().unwrap().due;
-    assert_eq!(due[1].kind, OfferKind::Star);
-    assert_eq!(due[1].rarity, Rarity::Epic);
-    assert!(s.stars.as_ref().unwrap().on_map.is_empty());
-    assert!(matches!(ev[..], [DomainEvent::StarTaken { .. }]));
-}
-
-/// T2: the mode is a fact of the setup, and a restore rebuilds it.
-#[test]
-fn the_mode_is_set_by_the_setup() {
-    use crate::engine::{Engine, Run};
-    use crate::run_setup::{BuildMode, RunSetup};
-    let live = |e: &Engine| match e.run() {
-        Run::V2 { world, .. } => world.equipment_mode,
-        Run::V1 { .. } => panic!("the live rules"),
-    };
-    let equipment = RunSetup {
-        build_mode: BuildMode::Equipment,
-        ..RunSetup::default()
-    };
-    assert!(live(&Engine::start(&equipment).expect("starts")));
-    assert!(!live(&Engine::start(&RunSetup::default()).expect("starts")));
 }
 
 // --- the roll (ADR-SIM-2 point 2, ADR-SIM-5 point 8) -------------------------------------------

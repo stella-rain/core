@@ -73,7 +73,7 @@ fn tail(s: &State) -> Vec<u8> {
 }
 
 fn warm() -> State {
-    live(&crate::bench_fixtures::offers_cases::worst_warmed_up()).clone()
+    live(&crate::bench_fixtures::worst_case::warmed_up()).clone()
 }
 
 #[test]
@@ -371,33 +371,4 @@ fn every_equipment_field_moves_the_hash_and_the_encoding() {
             assert_ne!(encoded(&s), b0, "{name} of slot {}: the encoding", me.get());
         }
     }
-}
-
-#[test]
-fn an_offers_run_carries_empty_equipment() {
-    for mask in [0b001u8, 0b111] {
-        let s = party(&warm(), mask);
-        for me in s.players.indices() {
-            assert_eq!(s.players.career(me).equipment, Equipment::default());
-            assert!(s.players.career(me).equipment.lumine.is_none());
-        }
-    }
-}
-
-/// The empty equipment is 17 zero bytes at the end of a solo `stop` run's savepoint, and
-/// `starlight` and `tree_points` are the last two little-endian words.
-#[test]
-fn the_equipment_ends_the_block_and_is_17_bytes_when_empty() {
-    let base = warm();
-    let n = encoded(&base).len();
-    let at = |edit: fn(&mut Equipment)| {
-        let mut s = base.clone();
-        edit(&mut s.players.career_mut(PlayerIdx::SOLO).equipment);
-        let (a, b) = (encoded(&base), encoded(&s));
-        assert_eq!(a.len(), b.len());
-        (0..a.len()).filter(|&i| a[i] != b[i]).collect::<Vec<_>>()
-    };
-    assert_eq!(at(|e| e.starlight = 1), [n - 8]);
-    assert_eq!(at(|e| e.tree_points = 1), [n - 4]);
-    assert!(encoded(&base)[n - 17..].iter().all(|&b| b == 0));
 }
