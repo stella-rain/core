@@ -42,8 +42,7 @@ The same stage, seed and inputs must give the same state hash every tick, on x86
   boundary and the run ends (fail closed).
 - One input per present slot per tick is the only external influence.
 - A state hash per tick covers the full state: FNV-1a 64 over an explicit byte encoding that `core`
-  writes itself, never `DefaultHasher` or a derived `Hash`; prefix-free within a mode (a `timed`
-  run's hash ends with a tail a `stop` run's lacks). Layout: `state-hash.md`. The bans on floats
+  writes itself, never `DefaultHasher` or a derived `Hash`; prefix-free. Layout: `state-hash.md`. The bans on floats
   and hash-iteration types (ADR-SIM-1, ADR-SIM-3) are lints in `clippy.toml`.
 
 ## `sim_version` (ADR-REPL-1)

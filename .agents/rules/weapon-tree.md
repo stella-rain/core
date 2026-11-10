@@ -12,13 +12,12 @@ globs:
 # The weapon in equipment mode: levels, sets and the tree
 
 Sources: ADR-SIM-3, ADR-SIM-7, ADR-SAVE-4, ADR-CONT-3. Equipment mode: `equipment.md`; the
-savepoint's checks: `savepoint.md`. Offers mode keeps the expertise offers (`expertise.rs`).
+savepoint's checks: `savepoint.md`.
 
 ## Levels and tree points
 
-- The gauge is the weapon's one expertise gauge. In equipment mode a level opens no offer and
-  stops nothing: `equipment_pass` only raises the weapon level (`offered`); no stat, no event, no
-  draw.
+- The gauge is the weapon's one expertise gauge. A level opens no offer and stops nothing: `expertise::level_up` only
+  raises the weapon level and rewrites the set (`write_set`); no stat, no event, no draw.
 - The levels of the stage's level table are tree points: the style, the two upgrades and the
   capstone, in that path order. Points are derived, earned (`tree_earned`) minus taken, and held
   until the player takes one by `TreePick` (`tree_pick`). `check_tree_pick` refuses with
@@ -52,10 +51,10 @@ savepoint's checks: `savepoint.md`. Offers mode keeps the expertise offers (`exp
 ## What the frontend sees
 
 - `PlayerView.tree_ready` (`TreeReadyView`: the pick's kind, level, points held and its option
-  ids) is none in offers mode and while no point is held. `PlayerView.weapon_stats`
+  ids) is none at `sim_version` 1 and while no point is held. `PlayerView.weapon_stats`
   (`WeaponStatsView`: the weapon level, the active style, the base set and every tree's, each
-  effect now and at the next level) is none outside equipment mode. Both read, write and hash
-  nothing.
+  effect now and at the next level) is none at `sim_version` 1, without an expertise gauge and for an inline weapon.
+  Both read, write and hash nothing.
 
 ## Tests
 

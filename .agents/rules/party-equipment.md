@@ -15,7 +15,7 @@ Sources: ADR-SIM-7, ADR-SIM-8, ADR-SAVE-7. The mode: `equipment.md`; down, reviv
 
 ## Rewards
 
-- No offer opens in equipment mode (`party-play.md`'s Rewards lines are offers mode). A taken
+- No offer opens: the live rules open none (`stars.rs`). A taken
   falling star gives every member that is not out a roll of its own, from its own offer stream,
   the downed included (`drops::pick_up`); a downed member cannot take a star itself.
 - A boss kill gives each member that is up the pack's `boss_drops` rolls of its own, at one
@@ -28,8 +28,8 @@ Sources: ADR-SIM-7, ADR-SIM-8, ADR-SAVE-7. The mode: `equipment.md`; down, reviv
   tree pick) with `ActionError::Downed` (hp 0, not out) or `ActionError::Out`, after `NoPlayer`
   and before the rule's own refusals (`Run::window_lock`). The window opens again on the revive;
   out is for good.
-- Only an equipment run of the live rules locks (`Run::V2`, `equipment_mode`); every other run
-  keeps `NotBuilt` for all.
+- Only a run of the live rules (`Run::V2`, `sim_version` 2) locks; a `sim_version` 1 run has no window and keeps
+  `NotBuilt` for all.
 - A recorded action of a locked slot is refused on replay, so the run does not verify
   (`ActionRefused`).
 

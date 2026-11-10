@@ -13,6 +13,7 @@ paths:
   - "tests/corpus/**"
   - "tests/golden/**"
   - "tests/*.rs"
+  - "tests/common/run_steps.rs"
 ---
 
 # Replays, hashes and the tests
@@ -33,24 +34,24 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
 
 ## Tests
 
-- `tests/integration.rs` declares the other files: `cargo test --test integration <file>::`.
-  `tests/offer_mode.rs`: the two offer modes (setup reading, the timer, the recorder, a savepoint
-  with an offer open); `tests/offer_rating.rs`: `Engine::offer_ratings`. The equipment mode:
-  `tests/equipment_slots.rs`, `equipment_drops.rs`, `equipment_input.rs`, `equipment_party.rs`,
-  `equipment_pack.rs` (the pack's rules equal what the code was tested with) and
-  `tests/weapon_tree.rs`.
+- `tests/integration.rs` declares the other files: `cargo test --test integration <file>::`. The equipment mode:
+  `tests/equipment_slots.rs`, `equipment_drops.rs`, `equipment_input.rs`, `equipment_party.rs`, `equipment_run.rs` (a solo
+  run played and recorded by `play_equipment_run*`, `tests/run_play.rs`, over `common::equip_run`), `equipment_pack.rs`
+  (the pack's rules equal what the code was tested with) and `tests/weapon_tree.rs`. A test replays a run case through
+  `common::run_steps` (`tests/common/run_steps.rs`; `step-log.md`), never the solo views, which refuse a log with an
+  equipment action, a join or a leave.
 - `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
-  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`;
+  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`: 10 cases,
+  every one an equipment run (ACTIONS steps) but `tutorial_opening`, the tutorial cut at 240 ticks;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
-  `stage.json`): `two_time_limit` (2 players), `three_time_limit`, `three_tutorial` (3),
-  `join_two` (a solo run that takes slot 1 at tick 600), `leave_hole` (3 players; slot 1 leaves
-  at tick 900, slot 2 leaves, then rejoins), `two_revive` and `three_revive` (a downed player
-  revived), `timed_one` (1 player) and `timed_two` (2) in a `timed` run: slot 0 answers an
-  offer 100 ticks after it opens, the timer closes the rest; the nine equipment-mode cases
-  `equipment_solo`, `_two`, `_party_1` to `_party_3`, `_equip`, `_craft`, `_levels` and
-  `_lumine` (actions, drops, Starlight, levels; `equipment.md`); bless writes them,
-  `tests/party_run.rs` pins the table, and the solo guards (`runs/` only) skip them.
+  `stage.json`): 19 cases, all of `sim_version` 2: `two_time_limit` (2 players), `three_time_limit`,
+  `three_tutorial` (3), `join_two` (a solo run that takes slot 1 at tick 600), `leave_hole` (3 players;
+  slot 1 leaves at tick 900, slot 2 leaves, then rejoins), `two_revive` and `three_revive` (a downed
+  player revived), the nine equipment cases `equipment_solo`, `_two`, `_party_1` to `_party_3`, `_equip`,
+  `_craft`, `_levels` and `_lumine` (actions, drops, Starlight, levels; `equipment.md`) and the building
+  rig `equipment_rig_1` to `_3` (`party-play.md`); bless writes them, `tests/party_run.rs` pins the table,
+  and the solo guards (`runs/` only) skip them. The party bot hunts the boss once no enemy is left on the field.
   `packs/<sha256>.json` the pinned packs besides the bundled one. `tests/corpus/v<N>/`
   (N >= 1) is a frozen version of the same shape (no `parties/`: `sim_version` 1 has one player)
   plus `manifest.sha256`: never edited (CI `frozen
