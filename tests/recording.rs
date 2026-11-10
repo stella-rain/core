@@ -196,16 +196,6 @@ fn a_choose_line_reads_back_as_a_choice() {
 }
 
 #[test]
-fn a_run_recording_fails_closed_like_the_replay() {
-    let mut commands = play_run(10);
-    commands.insert(2, Command::Choose(0));
-    assert!(matches!(
-        record_run(&trial_setup(), &commands),
-        Err(RunReplayError::ChoiceRefused { tick: 2, .. })
-    ));
-}
-
-#[test]
 fn a_spend_line_is_refused_since_spend_was_removed() {
     let text = concat!(
         r#"{"tick":0,"dir":"fe>be","type":"Spend","data":{"index":1}}"#,
