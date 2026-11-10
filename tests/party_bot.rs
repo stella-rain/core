@@ -144,7 +144,8 @@ impl PartyBot {
     /// The buttons of a slot that sees `s` at `tick`: nothing when it is not up; else it walks
     /// to the downed teammate it is the nearest up slot to (ties to the lower slot) and holds
     /// `interact` inside `HOLD_AT`, standing still and not attacking; else a collector goes to
-    /// the nearest star and a fighter to the nearest enemy (the boss once none is left) until within `NEAR`, then to the other.
+    /// the nearest star and a fighter to the nearest enemy (the boss once none is left; never a
+    /// boss part) until within `NEAR`, then to the other.
     /// `main` and `skill` follow the slot's cadences; it never evades, which would leave the
     /// revive range.
     pub fn decide(&self, s: &Sight, slot: u8, tick: u32) -> Input {

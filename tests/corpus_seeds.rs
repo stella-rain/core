@@ -250,9 +250,9 @@ fn search_corpus_party_seeds() {
 }
 
 /// `three_tutorial` over world seeds 1..=20 x bot seeds 1..=20: a line per pair (outcome, ticks and
-/// the ticks past the first empty field after the last spawn, or past the clear when the boss dies
-/// first), then the Cleared count and the largest overrun. `cargo test --release --locked --test
-/// integration search_tutorial_clear_rate -- --ignored --nocapture`.
+/// the ticks past the first empty field after the last spawn, or past that spawn, tick 1260, when
+/// the boss dies first), then the Cleared count and the largest overrun. `cargo test --release
+/// --locked --test integration search_tutorial_clear_rate -- --ignored --nocapture`.
 #[test]
 #[ignore = "a seed search, run by hand"]
 fn search_tutorial_clear_rate() {
@@ -262,7 +262,7 @@ fn search_tutorial_clear_rate() {
             let case = crate::run_play::party_case("three_tutorial", world, bot);
             let replay = case.play().replay();
             let v = run_replay::verify_run(&replay.to_bytes()).unwrap();
-            let empty = crate::party_run::first_empty_field(&case, &replay).unwrap_or(v.ticks);
+            let empty = crate::party_run::first_empty_field(&case, &replay).unwrap_or(1260);
             let over = i64::from(v.ticks) - i64::from(empty);
             println!(
                 "three_tutorial {world} {bot} {:?} {} over {over}",
