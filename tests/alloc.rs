@@ -282,6 +282,21 @@ fn the_rollback_allocates_as_pinned() {
     );
 }
 
+/// A slot made by a clone and given one `clone_from` already holds the room an engine needs, so
+/// a copy from the engine it holds calls the allocator for nothing.
+#[test]
+fn clone_from_of_a_warmed_slot_allocates_nothing() {
+    for (name, saved) in [
+        ("equip", bench_fixtures::equip_case::saved()),
+        ("party", bench_fixtures::party_case::saved()),
+    ] {
+        let mut slot = saved.clone();
+        slot.clone_from(&saved);
+        let counts = counted3(|| slot.clone_from(&saved));
+        assert_eq!(counts, pin(0, 0, 0), "{name}: (allocs, reallocs, frees)");
+    }
+}
+
 fn pinned(case: &str) -> Allocs {
     BENCH_TICK_ALLOCS
         .iter()

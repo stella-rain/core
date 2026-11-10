@@ -1131,6 +1131,8 @@ pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), 
 #[cfg(test)]
 mod action_tests;
 #[cfg(test)]
+mod clone_from_tests;
+#[cfg(test)]
 mod codec_tests;
 #[cfg(test)]
 mod copy_tests;
