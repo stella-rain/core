@@ -4,7 +4,6 @@
 mod support;
 
 use stella_rain_core::input::EquipAction;
-use stella_rain_net::wire::WireInput;
 use support::peers::{Peers, ROUND_LIMIT};
 use support::simnet::Impair;
 use support::{Script, script, slot, straight};
@@ -139,7 +138,8 @@ fn all_five_converge_and_roll_back_over_equipment_actions() {
                 .flat_map(|row| row.iter().filter_map(|i| i.action))
                 .collect();
             assert!(actions.len() >= 3, "{} actions", actions.len());
-            let mut kinds: Vec<_> = actions.iter().map(|a| std::mem::discriminant(a)).collect();
+            let mut kinds: Vec<u8> = actions.iter().map(kind).collect();
+            kinds.sort_unstable();
             kinds.dedup();
             // The 612-tick script of 2 peers holds only `Extract`; 3 peers also equip.
             assert!(kinds.len() >= if n == 3 { 2 } else { 1 });
@@ -197,12 +197,10 @@ fn a_tampered_input_makes_the_check_fail() {
     let mut peers = Peers::new(sc, 2, 1, five(100));
     peers.tamper = Some(Box::new(|from, to, frame| {
         if from == 1 && to == 0 {
-            for (i, input) in frame.inputs.iter_mut().enumerate() {
-                if frame.start_tick + u32::try_from(i).expect("small") == 100 {
-                    *input = WireInput {
-                        main: !input.main,
-                        ..*input
-                    };
+            for (t, input) in (frame.start_tick..).zip(&mut frame.inputs) {
+                if (300..340).contains(&t) {
+                    input.main = !input.main;
+                    input.move_x = input.move_x.saturating_neg();
                 }
             }
         }

@@ -189,14 +189,12 @@ fn chatter(seed: u64, rounds: u32, extra: bool) -> Vec<Delivery> {
     let mut eps: Vec<_> = (0..3).map(|i| net.endpoint(i)).collect();
     for _ in 0..rounds {
         let round = net.round();
-        for from in 0..3usize {
+        for (from, ep) in eps.iter_mut().enumerate() {
             for to in 0..3u8 {
                 if usize::from(to) == from || (!extra && from == 2 && to == 1) {
                     continue;
                 }
-                eps[from]
-                    .send(slot(to), &round.to_le_bytes())
-                    .expect("sent");
+                ep.send(slot(to), &round.to_le_bytes()).expect("sent");
             }
         }
         for ep in &mut eps {
