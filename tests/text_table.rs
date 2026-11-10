@@ -276,8 +276,6 @@ fn check_shipped_names_the_locales_a_set_lacks() {
 
 // The Korean text (ADR-CONT-8): one entry per shown key, the same game numbers as the English.
 
-const KO_FILE: &[u8] = include_bytes!("../content/text.ko.json");
-
 /// Titles that may keep Latin letters because the name has no Korean form. Empty on purpose:
 /// add a key here with a comment saying why.
 const LATIN_TITLE_ALLOWED: &[&str] = &[];
@@ -383,13 +381,14 @@ fn korean_file_has_the_english_keys_the_bounds_and_the_canonical_form() {
     let en = set.table("en").unwrap();
     assert_eq!(ko.len(), en.len());
     assert!(ko.entries().keys().eq(en.entries().keys()));
-    assert!(TextTable::from_bytes(KO_FILE).is_ok());
-    let value: Value = serde_json::from_slice(KO_FILE).unwrap();
+    let file = std::fs::read(crate::data_root::data_root().join("content/text.ko.json")).unwrap();
+    assert!(TextTable::from_bytes(&file).is_ok());
+    let value: Value = serde_json::from_slice(&file).unwrap();
     let mut canonical = serde_json::to_string_pretty(&value).unwrap();
     canonical.push('\n');
     assert_eq!(
         canonical.as_bytes(),
-        KO_FILE,
+        file.as_slice(),
         "content/text.ko.json is not sorted two-space pretty JSON with raw UTF-8 and one final newline"
     );
 }
