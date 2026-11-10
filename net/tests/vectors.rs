@@ -37,9 +37,11 @@ fn hello() {
     }
     both_ways(
         Packet::Hello(Hello {
-            protocol: 1,
+            protocol: 2,
             sim_version: 2,
             pack_hash,
+            delay: 2,
+            window: 4,
         }),
         "010100000002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     );

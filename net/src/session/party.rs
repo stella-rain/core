@@ -139,6 +139,10 @@ pub enum Refusal {
     SimVersion,
     /// The content pack.
     Pack,
+    /// The input delay.
+    Delay,
+    /// The rollback window.
+    Window,
 }
 
 /// Why a session stopped.
@@ -463,6 +467,10 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                     }
                 }
                 self.stats.accepted += 1;
+                return;
+            }
+            Packet::HelloV1(_) => {
+                self.stats.dropped += 1;
                 return;
             }
             Packet::Input(frame) => self.session.receive_inputs(from, &frame).is_ok(),

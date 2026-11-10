@@ -24,9 +24,11 @@ fn hello_packet() -> Packet {
         *b = u8::try_from(i).unwrap();
     }
     Packet::Hello(Hello {
-        protocol: 1,
+        protocol: 2,
         sim_version: 2,
         pack_hash,
+        delay: 2,
+        window: 4,
     })
 }
 
@@ -162,6 +164,8 @@ fn a_zero_version_is_refused_both_ways() {
             protocol,
             sim_version,
             pack_hash: [0; 32],
+            delay: 2,
+            window: 4,
         });
         assert_eq!(p.encode(), Err(WireError::ZeroVersion));
         let mut bytes = hex(HELLO);
@@ -564,6 +568,8 @@ fn random_packet(rng: &mut Xorshift) -> Packet {
                 protocol: rng.word().max(1),
                 sim_version: rng.word().max(1),
                 pack_hash,
+                delay: rng.word(),
+                window: rng.word(),
             })
         }
         1 => {

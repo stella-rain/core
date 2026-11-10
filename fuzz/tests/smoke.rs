@@ -293,9 +293,11 @@ fn net_seeds() -> Vec<Vec<u8>> {
     };
     [
         Packet::Hello(Hello {
-            protocol: 1,
+            protocol: 2,
             sim_version: 2,
             pack_hash,
+            delay: 2,
+            window: 4,
         }),
         Packet::Input(InputFrame {
             slot: slot(0),
