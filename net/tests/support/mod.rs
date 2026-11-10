@@ -531,4 +531,5 @@ impl<'a> Mesh<'a> {
     }
 }
 
+pub mod peers;
 pub mod simnet;
