@@ -16,7 +16,7 @@ pub(super) fn reserve_to<T>(v: &mut Vec<T>, capacity: usize) {
 }
 
 /// What a `Scratch` was reserved for, so that a clone reserves the same.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Reserved {
     enemies: usize,
     width: i32,
@@ -102,6 +102,14 @@ impl Clone for Scratch {
             clone.reserve(r.enemies, r.width, r.height);
         }
         clone
+    }
+
+    /// A scratch reserved for the same run already holds the room a clone would reserve and
+    /// nothing else, so it is kept as it is; one reserved for another run is rebuilt.
+    fn clone_from(&mut self, source: &Scratch) {
+        if self.reserved != source.reserved {
+            *self = source.clone();
+        }
     }
 }
 

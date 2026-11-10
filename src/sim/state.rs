@@ -20,7 +20,7 @@ use crate::sim::equipment::Equipment;
 use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
 use crate::snapshot::{EntityKind, OfferKind};
 use crate::validate::{self};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 /// Firings or casts left when there is no limit.
 pub(crate) const UNLIMITED: u32 = u32::MAX;
@@ -76,12 +76,12 @@ impl Streams {
 /// The whole state of a run. Everything here is in the state hash (`StableHash`, in
 /// `state_hash.rs`) except the fields that impl marks `_  // not hashed: <why>`: content, derived
 /// values and buffers.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct State {
     /// Buffers reused from tick to tick; not part of the state (not hashed, not cloned).
     pub scratch: crate::sim::Scratch,
     /// The run's kinds, fixed at its start (core#271).
-    pub kinds: KindTable,
+    pub kinds: Arc<KindTable>,
     pub tick: u32,
     pub rng: Streams,
     pub outcome: Outcome,
@@ -122,7 +122,7 @@ pub(crate) struct State {
     /// the content hash, so the state hash leaves it out.
     pub match_ups: MatchUps,
     /// What each on-hit rune does when it fires: content, as the match-ups are.
-    pub runes: Runes,
+    pub runes: Arc<Runes>,
     /// The stun rules: content, as the match-ups are.
     pub stun: crate::run_stats::StunRules,
     /// The cap of the attack speed total (app#298): content, as the stun rules are.
@@ -145,6 +145,178 @@ pub(crate) struct State {
     /// The echoes of last tick's hits, waiting for this tick's `collide`, in the order the hits
     /// landed; at most `MAX_ECHOES_PER_TICK`.
     pub echoes: Vec<Echo>,
+}
+
+impl Clone for State {
+    fn clone(&self) -> State {
+        let State {
+            scratch,
+            kinds,
+            tick,
+            rng,
+            outcome,
+            players,
+            boss,
+            companions,
+            enemies,
+            tasks,
+            runs,
+            move_index,
+            ranged_cooling,
+            orbs,
+            zones,
+            spawned,
+            next_id,
+            next_orb_group,
+            stars,
+            heal_pickups,
+            match_ups,
+            runes,
+            stun,
+            max_attack_speed_pct,
+            enemy_attack_damage,
+            max_rune_haste_pct,
+            horde,
+            hp_pct,
+            damage_pct,
+            crit_seed,
+            echoes,
+        } = self;
+        State {
+            scratch: scratch.clone(),
+            kinds: kinds.clone(),
+            tick: *tick,
+            rng: rng.clone(),
+            outcome: *outcome,
+            players: players.clone(),
+            boss: boss.clone(),
+            companions: companions.clone(),
+            enemies: enemies.clone(),
+            tasks: tasks.clone(),
+            runs: runs.clone(),
+            move_index: move_index.clone(),
+            ranged_cooling: ranged_cooling.clone(),
+            orbs: orbs.clone(),
+            zones: zones.clone(),
+            spawned: spawned.clone(),
+            next_id: *next_id,
+            next_orb_group: *next_orb_group,
+            stars: stars.clone(),
+            heal_pickups: heal_pickups.clone(),
+            match_ups: *match_ups,
+            runes: runes.clone(),
+            stun: *stun,
+            max_attack_speed_pct: *max_attack_speed_pct,
+            enemy_attack_damage: *enemy_attack_damage,
+            max_rune_haste_pct: *max_rune_haste_pct,
+            horde: horde.clone(),
+            hp_pct: *hp_pct,
+            damage_pct: *damage_pct,
+            crit_seed: *crit_seed,
+            echoes: echoes.clone(),
+        }
+    }
+
+    /// Copies `source` into `self`, keeping the buffers `self` already holds.
+    fn clone_from(&mut self, source: &State) {
+        let State {
+            scratch,
+            kinds,
+            tick,
+            rng,
+            outcome,
+            players,
+            boss,
+            companions,
+            enemies,
+            tasks,
+            runs,
+            move_index,
+            ranged_cooling,
+            orbs,
+            zones,
+            spawned,
+            next_id,
+            next_orb_group,
+            stars,
+            heal_pickups,
+            match_ups,
+            runes,
+            stun,
+            max_attack_speed_pct,
+            enemy_attack_damage,
+            max_rune_haste_pct,
+            horde,
+            hp_pct,
+            damage_pct,
+            crit_seed,
+            echoes,
+        } = self;
+        let State {
+            scratch: s_scratch,
+            kinds: s_kinds,
+            tick: s_tick,
+            rng: s_rng,
+            outcome: s_outcome,
+            players: s_players,
+            boss: s_boss,
+            companions: s_companions,
+            enemies: s_enemies,
+            tasks: s_tasks,
+            runs: s_runs,
+            move_index: s_move_index,
+            ranged_cooling: s_ranged_cooling,
+            orbs: s_orbs,
+            zones: s_zones,
+            spawned: s_spawned,
+            next_id: s_next_id,
+            next_orb_group: s_next_orb_group,
+            stars: s_stars,
+            heal_pickups: s_heal_pickups,
+            match_ups: s_match_ups,
+            runes: s_runes,
+            stun: s_stun,
+            max_attack_speed_pct: s_max_attack_speed_pct,
+            enemy_attack_damage: s_enemy_attack_damage,
+            max_rune_haste_pct: s_max_rune_haste_pct,
+            horde: s_horde,
+            hp_pct: s_hp_pct,
+            damage_pct: s_damage_pct,
+            crit_seed: s_crit_seed,
+            echoes: s_echoes,
+        } = source;
+        scratch.clone_from(s_scratch);
+        kinds.clone_from(s_kinds);
+        *tick = *s_tick;
+        rng.clone_from(s_rng);
+        *outcome = *s_outcome;
+        players.clone_from(s_players);
+        boss.clone_from(s_boss);
+        companions.clone_from(s_companions);
+        enemies.clone_from(s_enemies);
+        tasks.clone_from(s_tasks);
+        runs.clone_from(s_runs);
+        move_index.clone_from(s_move_index);
+        ranged_cooling.clone_from(s_ranged_cooling);
+        orbs.clone_from(s_orbs);
+        zones.clone_from(s_zones);
+        spawned.clone_from(s_spawned);
+        *next_id = *s_next_id;
+        *next_orb_group = *s_next_orb_group;
+        stars.clone_from(s_stars);
+        heal_pickups.clone_from(s_heal_pickups);
+        *match_ups = *s_match_ups;
+        runes.clone_from(s_runes);
+        *stun = *s_stun;
+        *max_attack_speed_pct = *s_max_attack_speed_pct;
+        *enemy_attack_damage = *s_enemy_attack_damage;
+        *max_rune_haste_pct = *s_max_rune_haste_pct;
+        horde.clone_from(s_horde);
+        *hp_pct = *s_hp_pct;
+        *damage_pct = *s_damage_pct;
+        *crit_seed = *s_crit_seed;
+        echoes.clone_from(s_echoes);
+    }
 }
 
 /// One hit's echo, queued when the hit lands and dealt a tick later (core#NS2b).
