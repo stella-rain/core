@@ -618,14 +618,15 @@ fn equipment_mode_refuses_what_offers_mode_uses() {
 }
 
 #[test]
-fn a_lumine_star_needs_equipment_mode_and_a_well_formed_id() {
+fn a_lumine_star_needs_sim_version_2_and_a_well_formed_id() {
     let named = |s: &str| Some(s.into());
     assert_eq!(
         found(&RunSetup {
+            sim_version: 1,
             lumine_star: named("max_hp_common"),
             ..RunSetup::default()
         }),
-        [issue("$.lumine_star", "needs equipment mode")]
+        [issue("$.lumine_star", "needs sim_version 2")]
     );
     assert_eq!(
         found(&RunSetup {

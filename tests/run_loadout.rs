@@ -83,6 +83,7 @@ fn a_new_setup_writes_its_perk_set_and_only_the_fields_it_uses() {
         assert!(!text.contains(field), "{field} in {text}");
     }
     let full = RunSetup {
+        sim_version: 1,
         rune_pool: names(&["bleed", "explosion"]),
         carried: carry(&["max_hp_common"]),
         lumine: 1,
@@ -138,6 +139,7 @@ fn the_rune_pool_names_known_runes_sorted_each_once() {
 fn at_most_five_stars_are_carried_and_lumine_is_at_most_ten() {
     let carrying = |n: usize, lumine: u8| {
         run_setup::validate(&RunSetup {
+            sim_version: 1,
             carried: carry(&vec!["max_hp_common"; n]),
             lumine,
             ..trial_setup()
@@ -152,6 +154,7 @@ fn at_most_five_stars_are_carried_and_lumine_is_at_most_ten() {
     );
     assert_eq!(paths(carrying(1, 11).unwrap_err()), ["$.lumine"]);
     let bad_id = RunSetup {
+        sim_version: 1,
         carried: carry(&["Bad Id"]),
         lumine: 1,
         ..trial_setup()
@@ -204,6 +207,7 @@ fn dearer_rare_content() -> RunContent {
 #[test]
 fn a_run_is_priced_from_its_own_content() {
     let carrying = |lumine: u8| RunSetup {
+        sim_version: 1,
         carried: carry(&["max_hp_rare"]),
         lumine,
         ..trial_setup()
@@ -231,6 +235,7 @@ fn an_unknown_perk_set_does_not_start() {
 #[test]
 fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
     let carrying = |ids: &[&str], lumine: u8| RunSetup {
+        sim_version: 1,
         carried: carry(ids),
         lumine,
         ..plain()
@@ -264,6 +269,7 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
         ["$.carried"]
     );
     let outside = RunSetup {
+        sim_version: 1,
         star_pool: Some(names(&["speed_common"])),
         ..carrying(&["max_hp_common"], 1)
     };
@@ -283,6 +289,7 @@ fn a_reward_is_carried_no_more_times_than_it_stacks() {
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = |n: usize| RunSetup {
+        sim_version: 1,
         carried: carry(&vec!["once"; n]),
         lumine: 5,
         ..trial_setup()
@@ -307,6 +314,7 @@ fn the_random_rune_is_not_a_carried_star() {
     .unwrap();
     let content = RunContent::new(common::design_run_stats(), rewards);
     let setup = RunSetup {
+        sim_version: 1,
         carried: carry(&["random_rune"]),
         lumine: 1,
         ..trial_setup()
@@ -476,8 +484,13 @@ fn auto_mode_is_on_only_while_the_input_says_so() {
 
 #[test]
 fn a_carried_star_applies_at_tick_0_as_if_picked() {
-    let base = hp(&start(&plain()).unwrap());
+    let base = hp(&start(&RunSetup {
+        sim_version: 1,
+        ..plain()
+    })
+    .unwrap());
     let setup = RunSetup {
+        sim_version: 1,
         carried: carry(&["max_hp_common", "max_hp_common", "max_hp_rare"]),
         lumine: 5,
         ..plain()
@@ -503,6 +516,7 @@ fn the_starting_rune_is_held_from_tick_0() {
 #[test]
 fn a_setup_with_all_of_it_runs_deterministically() {
     let setup = RunSetup {
+        sim_version: 1,
         perk_set: "vanguard".into(),
         rune_pool: names(&["bleed", "explosion", "thunder"]),
         carried: carry(&["attack_common", "speed_rare"]),
