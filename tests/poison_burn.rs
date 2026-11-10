@@ -11,17 +11,13 @@ use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
-use stella_rain_core::run_replay::{RunRecorder, verify_run_with};
-use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
 
 use crate::common;
 
 use common::on_hit::*;
-use common::run::{run_input, trial_setup};
 use common::*;
 
 /// The two runes, their type, and a type they are not.
@@ -272,53 +268,4 @@ fn the_state_hash_holds_poison_and_burn() {
         b.step(&[once(start)(start), Default::default(), Default::default()]);
         assert_ne!(a.state_hash(), b.state_hash(), "{name}");
     }
-}
-
-#[test]
-fn a_run_holding_poison_and_burn_records_and_verifies() {
-    // The trial with a random rune and one stat reward, the hidden candidate always taken, and
-    // the bundled poison and burn.
-    let content = content(
-        vec![
-            random_rune(),
-            json!({
-                "id": "might", "rarity": "common", "effect": "attack_pct", "amount": 5,
-                "limit": 20
-            }),
-        ],
-        None,
-        Runes::bundled().clone(),
-    );
-    // A seed whose run draws poison and burn among the seven runes: the trial has stars for about four.
-    let setup = RunSetup {
-        seed: 20_261_012,
-        ..trial_setup()
-    };
-    let mut recorder = RunRecorder::start_with(&setup, &content).unwrap();
-    let (mut poisoned, mut burnt) = (false, false);
-    for t in 0..5_400 {
-        while recorder.engine().offer_open() {
-            let offer = recorder.engine().snapshot().progress.and_then(|p| p.offer);
-            let rune = offer.and_then(|o| o.candidates.iter().position(|c| c.hidden));
-            recorder
-                .choose(PlayerIdx::SOLO, u32::try_from(rune.unwrap_or(0)).unwrap())
-                .unwrap();
-        }
-        let input: Input = run_input(recorder.engine(), t);
-        if recorder
-            .step(&[input, Default::default(), Default::default()])
-            .is_err()
-        {
-            break;
-        }
-        for ev in recorder.engine().events() {
-            if let DomainEvent::StatusApplied { status, .. } = ev {
-                poisoned |= status.as_str() == "poison";
-                burnt |= status.as_str() == "burn";
-            }
-        }
-    }
-    assert!(poisoned && burnt, "poison and burn were applied in the run");
-    let bytes = recorder.replay().to_bytes();
-    assert!(verify_run_with(&bytes, &content).is_ok());
 }

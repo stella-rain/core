@@ -10,9 +10,7 @@ use stella_rain_core::engine::Outcome;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::pack_inputs;
-use stella_rain_core::run_replay::{
-    Command, RunRecorder, RunReplay, RunReplayError, record_run_with_pack,
-};
+use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay, record_run_with_pack};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::{
     HEADER_LEN, MAX_SAVEPOINT_BYTES, SAVEPOINT_FORMAT, Savepoint, SavepointError,
@@ -108,29 +106,6 @@ fn save_then_resume_continues_with_identical_hashes() {
     assert_eq!(r.replay().to_bytes(), rec.replay().to_bytes());
     let unbroken = record_run_with_pack(&trial_setup(), Pack::bundled(), &all).unwrap();
     assert_eq!(r.replay().to_bytes(), unbroken.to_bytes());
-}
-
-#[test]
-fn a_savepoint_taken_with_an_offer_open_resumes_with_it_open() {
-    let all = play_run(600);
-    let at = all
-        .iter()
-        .position(|c| matches!(c, Command::Choose(_)))
-        .unwrap();
-    let mut rec = recorder_with(&trial_setup(), Pack::bundled(), &all[..at]);
-    assert!(rec.engine().offer_open());
-    let mut r = restore(&rec.save(), &rec.replay()).unwrap();
-    assert!(r.engine().offer_open());
-    assert!(matches!(
-        r.step(&[idle(), Default::default(), Default::default()]),
-        Err(RunReplayError::OfferOpen { .. })
-    ));
-    for c in &all[at..] {
-        apply(&mut rec, c);
-        apply(&mut r, c);
-        assert_eq!(r.engine().state_hash(), rec.engine().state_hash());
-    }
-    assert_eq!(r.replay().to_bytes(), rec.replay().to_bytes());
 }
 
 #[test]

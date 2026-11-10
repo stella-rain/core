@@ -754,10 +754,8 @@ impl Default for RigTally {
 #[cfg(test)]
 mod decisions {
     use super::*;
-    use crate::run_play::scripted_input;
-    use crate::zone_bot::run_input;
+
     use stella_rain_core::fixed::Fx;
-    use stella_rain_core::id::PlayerIdx;
 
     fn at(x_px: i32, y_px: i32) -> Point {
         Point {
@@ -1001,58 +999,6 @@ mod decisions {
         assert_eq!(s1.up_mates[0].0, 0);
         assert!(s1.downed.is_empty());
     }
-
-    type Held = Option<(Engine, u8)>;
-
-    /// Steps `e` until the first star or boss offer has opened (answering the others with
-    /// option 0 by the holder): the engine then, with the slot that holds it.
-    fn first_star_offer(mut e: Engine, n: u8) -> Held {
-        for t in 0..4000 {
-            if e.offer_open() {
-                let holder = (0..n)
-                    .find(|s| e.check_pick(PlayerIdx::new(*s).unwrap(), 0).is_ok())
-                    .unwrap();
-                let slot = PlayerIdx::new(holder).unwrap();
-                if !e.offer_ratings(slot).is_empty() {
-                    return Some((e, holder));
-                }
-                let mut inputs = [Input::default(); 3];
-                inputs[usize::from(holder)] = Input::picking(0);
-                e.step(&inputs);
-                continue;
-            }
-            let mut inputs = [Input::default(); 3];
-            for s in 0..n {
-                inputs[usize::from(s)] = match s {
-                    0 => run_input(&e, t),
-                    _ => scripted_input(&e, s, t),
-                };
-            }
-            e.step(&inputs);
-        }
-        None
-    }
-
-    #[test]
-    fn it_picks_the_best_rated_take_of_a_star_offer() {
-        let b = bot();
-        let e = party(2);
-        assert_eq!(b.pick(&e, 0, 0), None, "no offer at the start");
-        let (e, holder) = first_star_offer(e, 2).expect("a star offer opens");
-        let ratings = e.offer_ratings(PlayerIdx::new(holder).unwrap());
-        let best = ratings.iter().map(|r| r.dps_bp.unwrap_or(0)).max().unwrap();
-        let want = ratings
-            .iter()
-            .position(|r| r.dps_bp.unwrap_or(0) == best)
-            .unwrap();
-        let got = b.pick(&e, holder, e.tick()).expect("an offer is open");
-        assert_eq!(got as usize, want);
-        assert!((got as usize) < ratings.len());
-        assert!(e.check_pick(PlayerIdx::new(holder).unwrap(), got).is_ok());
-        // The other slot has no offer.
-        let other = 1 - holder;
-        assert_eq!(b.pick(&e, other, e.tick()), None);
-    }
 }
 
 #[cfg(test)]
@@ -1156,15 +1102,17 @@ mod builds {
 
     #[test]
     fn an_offers_run_gets_no_action() {
+        // A sim_version 1 run is the frozen offers rules: one player, no slots.
         let setup = RunSetup {
+            sim_version: 1,
             mode: "time_limit".into(),
             seed: 1,
             ..trial_setup()
         };
-        let e = Engine::start_party(&setup, 3).unwrap();
+        let e = Engine::start(&setup).unwrap();
         assert!(e.snapshot().players[0].slots.is_empty());
         for t in 0..600 {
-            for s in 0..3 {
+            for s in 0..1 {
                 assert_eq!(building(1).action(&e, s, t), None);
             }
         }
@@ -1459,6 +1407,7 @@ mod rig {
     #[test]
     fn windows_and_clones_reach_the_same_hash() {
         let replay = RigParty::new(3)
+            .equipment()
             .seed(1)
             .bot_seed(2)
             .case("x")

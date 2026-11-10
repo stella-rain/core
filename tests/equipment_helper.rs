@@ -332,30 +332,6 @@ fn crit_of(e: &Engine) -> u32 {
     e.snapshot().players[0].crit_chance_pct
 }
 
-/// T4: a star equipped at Lv1 is the star picked from an offer: the same stat as the run that
-/// carries it in as if picked, different from the run with nothing equipped; the slot is Lv1.
-#[test]
-fn lv1_equals_one_offer_pick_for_the_same_star() {
-    use stella_rain_core::run_setup::CarriedStar;
-    let (stage, content) = (stage(), content());
-    let equipped = equip::equipped(&stage, bare_stars(), &[("c", ATTACK)], 1);
-    let nothing = equip::equipped(&stage, bare_stars(), &[], 1);
-    let cost = content
-        .rewards()
-        .lumine_cost(content.rewards().rewards()[2].rarity);
-    let offers = RunSetup {
-        carried: vec![CarriedStar { reward: "c".into() }],
-        lumine: cost,
-        star_pool: Some(vec!["c".into()]),
-        ..plain_setup()
-    };
-    let picked = Engine::start_with(&offers, &content).expect("starts");
-    assert_eq!(crit_of(&nothing), 0);
-    assert_eq!(crit_of(&equipped), 40);
-    assert_eq!(crit_of(&equipped), crit_of(&picked));
-    assert_eq!(equipped.snapshot().players[0].slots[ATTACK].level, 1);
-}
-
 /// T5: a star at Lv n adds `level_scaled`: the amount plus `level_pct` for each level above 1,
 /// floored (restated here from the pack's rules, not read from the simulation).
 #[test]

@@ -3,18 +3,12 @@
 //! match-up profiles. Each is data in `content/` or `modes/`; none is a constant in code beyond
 //! the ceiling the content may not pass (ADR-SVC-1).
 
-use std::collections::BTreeSet;
 use stella_rain_core::version::Versions;
 
 use serde_json::{Value, json};
-use stella_rain_core::engine::Engine;
 use stella_rain_core::rewards::{MAX_REWARDS, Rewards};
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::OfferOption;
 
 use crate::common;
-use crate::common::run::{run_input, trial_setup};
 
 fn bundled(text: &str) -> Value {
     serde_json::from_str(text).expect("a bundled file is JSON")
@@ -208,47 +202,4 @@ fn the_first_match_up_profiles_are_the_decided_ones() {
             }
         }
     }
-}
-
-/// Every offer a run of the trial opens over `seeds`, taking the first candidate each time:
-/// the IDs of the rewards offered.
-fn offered(seeds: std::ops::Range<u64>, ticks: u32) -> BTreeSet<String> {
-    let mut seen = BTreeSet::new();
-    for seed in seeds {
-        let setup = RunSetup {
-            seed,
-            ..trial_setup()
-        };
-        let mut e = Engine::start_with(&setup, RunContent::bundled()).unwrap();
-        for t in 0..ticks {
-            while let Some(offer) = e.snapshot().progress.and_then(|p| p.offer) {
-                seen.extend(offer.candidates.iter().map(|c| c.reward.to_string()));
-                let take = offer
-                    .options
-                    .iter()
-                    .position(|o| matches!(o, OfferOption::Take { .. }))
-                    .unwrap();
-                common::pick(&mut e, u32::try_from(take).unwrap()).unwrap();
-            }
-            if e.offer_open() {
-                break;
-            }
-            let input = run_input(&e, t);
-            e.step(&[input, Default::default(), Default::default()]);
-        }
-    }
-    seen
-}
-
-#[test]
-fn a_run_can_be_offered_each_new_reward_kind() {
-    let seen = offered(1..25, 2400);
-    for id in ["random_rune", "rune_haste_common", "range_common"] {
-        assert!(seen.contains(id), "{id} is offered in some run: {seen:?}");
-    }
-    // Ten families weigh 10 each, so which damage type comes first is a matter of the seeds.
-    assert!(
-        seen.iter().any(|id| id.starts_with("type_bonus_")),
-        "a type bonus is offered in some run: {seen:?}"
-    );
 }

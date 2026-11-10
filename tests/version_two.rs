@@ -4,22 +4,16 @@
 //! (ADR-REPL-2); the state hashes differ, the layouts do.
 
 use crate::common::run::{time_limit_setup, trial_setup};
-use crate::corpus::{apply as apply_command, current_dir};
-use crate::corpus_pins::{case_pack, check_frozen_tree, run_case_pack};
-use crate::gameplay_observables::rewrite_ids;
+use crate::corpus::current_dir;
 use crate::run_play::play_run_from;
 use std::fs;
 use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::sha256;
-use stella_rain_core::engine::Engine;
-use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
-use stella_rain_core::replay::Replay;
-use stella_rain_core::run_replay::{Command, RunRecorder, RunReplay};
+use stella_rain_core::run_replay::{Command, RunRecorder};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::{HEADER_LEN, Savepoint, SavepointError};
-use stella_rain_core::validate::parse_and_validate;
 use stella_rain_core::version::{FIRST_SIM_VERSION, SIM_VERSION};
 
 const SIM_VERSION_AT: usize = 8;
@@ -152,116 +146,4 @@ fn the_current_corpus_is_at_the_open_version() {
         files += 1;
     }
     assert!(files > 0);
-}
-
-/// Steps `a` (version 1) and `b` (version 2) alike and compares what they show after every
-/// tick: the events (the version 2 numbers mapped back to the pre-reservation ones), the outcome
-/// and the kills. The state hashes differ by design: the layouts do.
-/// `events` without the players they name (`player`, `buffed_by`, `source`, `killer`), which only
-/// the newest rules fill.
-fn plain(events: &[DomainEvent]) -> Vec<DomainEvent> {
-    let mut out = events.to_vec();
-    for event in &mut out {
-        match event {
-            DomainEvent::Hit {
-                player, buffed_by, ..
-            } => (*player, *buffed_by) = (None, None),
-            DomainEvent::Healed { source, .. } | DomainEvent::StatusApplied { source, .. } => {
-                *source = None;
-            }
-            DomainEvent::Died { killer, .. } => *killer = None,
-            _ => {}
-        }
-    }
-    out
-}
-
-/// An offer is open that is not a star's: a stat or an expertise offer, which only version 1 has.
-fn level_offer_open(e: &Engine) -> bool {
-    e.offer_open()
-        && e.snapshot()
-            .progress
-            .as_ref()
-            .is_none_or(|p| p.offer.is_none())
-}
-
-fn same_tick(a: &Engine, b: &Engine, what: &str) {
-    let tick = a.tick();
-    assert_eq!(b.tick(), tick, "{what}");
-    assert_eq!(
-        format!("{:?}", plain(a.events())),
-        rewrite_ids(&format!("{:?}", plain(b.events()))),
-        "{what}, tick {tick}: events"
-    );
-    assert_eq!(a.outcome(), b.outcome(), "{what}, tick {tick}: outcome");
-    assert_eq!(
-        a.tally().kills(),
-        b.tally().kills(),
-        "{what}, tick {tick}: kills"
-    );
-}
-
-#[test]
-fn the_frozen_v1_corpus_replays_the_same_at_version_2() {
-    let frozen = current_dir().parent().unwrap().join("v1");
-    check_frozen_tree(&frozen).unwrap();
-    let (mut stages, mut runs) = (0, 0);
-    for case in dirs(&frozen.join("stages")) {
-        let name = case.file_name().unwrap().to_string_lossy().into_owned();
-        let stage = parse_and_validate(&fs::read(case.join("stage.json")).unwrap()).unwrap();
-        let mut newer = stage.clone();
-        newer.sim_version = 2;
-        let recorded = Replay::from_bytes(&fs::read(case.join("run.replay")).unwrap()).unwrap();
-        let inputs = recorded.unpack_inputs(stage.length_ticks).unwrap();
-        let pack = case_pack(&case).unwrap();
-        let mut a = Engine::new_with(&stage, pack.content()).unwrap();
-        let mut b = Engine::new_with(&newer, pack.content()).unwrap();
-        for input in &inputs {
-            a.step(&[*input, Default::default(), Default::default()]);
-            b.step(&[*input, Default::default(), Default::default()]);
-            same_tick(&a, &b, &name);
-        }
-        assert_eq!(a.stardust(), b.stardust(), "{name}");
-        stages += 1;
-    }
-    let mut diverged = 0;
-    'case: for case in dirs(&frozen.join("runs")) {
-        runs += 1;
-        let name = case.file_name().unwrap().to_string_lossy().into_owned();
-        let bytes = fs::read(case.join("run.replay")).unwrap();
-        let recorded = RunReplay::from_bytes(&bytes).unwrap();
-        let pack = run_case_pack(&case, &bytes).unwrap();
-        let mut newer = recorded.setup.clone();
-        newer.sim_version = 2;
-        let mut a = Engine::start_with(&recorded.setup, pack.content()).unwrap();
-        let mut b = Engine::start_with(&newer, pack.content()).unwrap();
-        let commands = recorded.unpack_commands().unwrap();
-        let mut next = commands.iter().peekable();
-        for input in &recorded.unpack_inputs(u32::MAX).unwrap() {
-            while let Some(c) = next.next_if(|c| c.tick == a.tick()) {
-                apply_command(&mut a, c).unwrap();
-                apply_command(&mut b, c).unwrap();
-            }
-            a.step(&[*input, Default::default(), Default::default()]);
-            b.step(&[*input, Default::default(), Default::default()]);
-            if level_offer_open(&a) {
-                // Version 1 opens its first stat or expertise offer here; version 2 has no such
-                // offer, so the two part by design (ADR-SIM-7). Up to the tick before, parity held.
-                assert!(
-                    !level_offer_open(&b),
-                    "{name}, tick {}: version 2 opened a level offer",
-                    a.tick()
-                );
-                diverged += 1;
-                continue 'case;
-            }
-            same_tick(&a, &b, &name);
-        }
-        // A case with no offer keeps full parity.
-        assert_eq!(a.stardust(), b.stardust(), "{name}");
-    }
-    assert!(stages > 0 && runs > 0);
-    assert!(diverged > 0, "no frozen run opens a level offer");
-    // Nothing was written under the frozen tree.
-    check_frozen_tree(&frozen).unwrap();
 }

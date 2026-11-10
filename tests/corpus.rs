@@ -40,7 +40,7 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, hash_to_hex};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{self, Command, CommandKind, RunReplay, TickCommand};
+use stella_rain_core::run_replay::{self, Command, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::snapshot::{EntityKind, Snapshot};
 use stella_rain_core::time_limit::TimeLimit;
@@ -139,13 +139,6 @@ fn write_hashes(dir: &Path, hashes: &[u64]) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => panic!("cannot remove hashes.txt: {e}"),
-    }
-}
-
-/// Applies one command between ticks, as a replay's verification does.
-pub(crate) fn apply(engine: &mut Engine, c: &TickCommand) -> Result<(), String> {
-    match c.kind {
-        CommandKind::Choose => common::pick(engine, c.index).map_err(|e| format!("{e:?}")),
     }
 }
 

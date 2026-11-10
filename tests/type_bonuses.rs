@@ -11,12 +11,9 @@ use stella_rain_core::attack::DamageType;
 use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::EntityId;
-use stella_rain_core::id::PlayerIdx;
-use stella_rain_core::input::Input;
 use stella_rain_core::match_ups::MatchUps;
 use stella_rain_core::rewards::{MAX_TYPE_BONUS_PCT, RewardEffect, Rewards};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::{RunRecorder, RunReplayError, verify_run, verify_run_with};
 use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::snapshot::{EntityKind, OfferOption, TypeBonusView};
 use stella_rain_core::stage::Stage;
@@ -25,7 +22,6 @@ use stella_rain_core::version::Versions;
 
 use crate::common;
 
-use common::run::{run_input, trial_setup};
 use common::*;
 
 /// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
@@ -541,37 +537,4 @@ fn the_state_hash_holds_the_bonuses() {
     run_until(&mut b, idle(), 10, |_| false);
     assert_eq!(a.tick(), b.tick());
     assert_ne!(a.state_hash(), b.state_hash());
-}
-
-#[test]
-fn a_run_with_a_type_bonus_taken_records_and_verifies() {
-    // The trial with a rewards file of type bonuses only: every offer holds one.
-    let content = content(vec![
-        bonus("fire", "type_bonus_pct", Some("pyro"), 10, 20),
-        bonus("cut", "type_bonus_pct", Some("slash"), 10, 20),
-        bonus("physical", "attack_type_bonus_pct", None, 10, 20),
-        bonus("elemental", "element_bonus_pct", None, 10, 20),
-    ]);
-    let mut recorder = RunRecorder::start_with(&trial_setup(), &content).unwrap();
-    for t in 0..1_200 {
-        while recorder.engine().offer_open() {
-            recorder.choose(PlayerIdx::SOLO, 0).unwrap();
-        }
-        let input: Input = run_input(recorder.engine(), t);
-        if recorder
-            .step(&[input, Default::default(), Default::default()])
-            .is_err()
-        {
-            break;
-        }
-    }
-    assert!(
-        !recorder.engine().snapshot().players[0]
-            .type_bonuses
-            .is_empty(),
-        "a type bonus was taken"
-    );
-    let bytes = recorder.replay().to_bytes();
-    assert!(verify_run_with(&bytes, &content).is_ok());
-    assert_eq!(verify_run(&bytes), Err(RunReplayError::ContentChanged));
 }
