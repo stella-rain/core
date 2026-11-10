@@ -60,6 +60,7 @@ pub struct Sight {
     /// The teammates that are up.
     pub up_mates: Vec<(u8, Point)>,
     pub star: Option<Point>,
+    /// The nearest enemy; with none on the field, the nearest boss (a boss part stays out).
     pub enemy: Option<Point>,
 }
 
@@ -98,6 +99,13 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
         }
     }
     let mine = &snap.players[place(slot)];
+    let nearest = |kind: EntityKind| {
+        snap.entities
+            .iter()
+            .filter(|v| v.kind == kind)
+            .map(|v| v.at)
+            .min_by_key(|at| d2(*at, me))
+    };
     Sight {
         me,
         up: mine.hp > 0 && !mine.out && mine.down.is_none(),
@@ -108,12 +116,7 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
             .iter()
             .map(|st| st.at)
             .min_by_key(|at| d2(*at, me)),
-        enemy: snap
-            .entities
-            .iter()
-            .filter(|v| v.kind == EntityKind::Enemy)
-            .map(|v| v.at)
-            .min_by_key(|at| d2(*at, me)),
+        enemy: nearest(EntityKind::Enemy).or_else(|| nearest(EntityKind::Boss)),
     }
 }
 
@@ -141,7 +144,8 @@ impl PartyBot {
     /// The buttons of a slot that sees `s` at `tick`: nothing when it is not up; else it walks
     /// to the downed teammate it is the nearest up slot to (ties to the lower slot) and holds
     /// `interact` inside `HOLD_AT`, standing still and not attacking; else a collector goes to
-    /// the nearest star and a fighter to the nearest enemy until within `NEAR`, then to the other.
+    /// the nearest star and a fighter to the nearest enemy (the boss once none is left; never a
+    /// boss part) until within `NEAR`, then to the other.
     /// `main` and `skill` follow the slot's cadences; it never evades, which would leave the
     /// revive range.
     pub fn decide(&self, s: &Sight, slot: u8, tick: u32) -> Input {
@@ -900,6 +904,23 @@ mod decisions {
     }
 
     #[test]
+    fn a_boss_only_sight_walks_the_fighter_to_it() {
+        let fighter = seed_with_role(1, 0);
+        let far = Sight {
+            enemy: Some(at(-200, 0)),
+            ..up()
+        };
+        let input = fighter.decide(&far, 1, 0);
+        assert_eq!((input.move_x, input.move_y), (-127, 0));
+        let near = Sight {
+            enemy: Some(at(-20, 0)),
+            ..up()
+        };
+        let input = fighter.decide(&near, 1, 0);
+        assert_eq!((input.move_x, input.move_y), (0, 0));
+    }
+
+    #[test]
     fn buttons_follow_the_cadences_and_axes_stay_in_range() {
         for seed in 1..=3 {
             let b = PartyBot {
@@ -1080,6 +1101,46 @@ mod builds {
             e.step(&inputs);
         }
         e
+    }
+
+    /// The `at` of the first snapshot entity of `kind`, by the nearest to `slot`.
+    fn nearest_of(e: &Engine, slot: u8, kind: EntityKind) -> Option<Point> {
+        let me = sight(e, slot).me;
+        e.snapshot()
+            .entities
+            .iter()
+            .filter(|v| v.kind == kind)
+            .map(|v| v.at)
+            .min_by_key(|at| d2(*at, me))
+    }
+
+    fn tutorial_engine(world: u64) -> Engine {
+        let setup = RigParty::new(3)
+            .equipment()
+            .mode("tutorial")
+            .seed(world)
+            .case("x")
+            .setup;
+        Engine::start_party_with(&setup, Pack::bundled().content(), 3).unwrap()
+    }
+
+    #[test]
+    fn a_fighter_with_no_enemy_hunts_the_boss() {
+        let mut e = tutorial_engine(1);
+        e.step(&[Input::default(); 3]);
+        assert_eq!(nearest_of(&e, 0, EntityKind::Enemy), None, "no bat yet");
+        let boss = nearest_of(&e, 0, EntityKind::Boss).expect("the golem is parked at tick 1");
+        assert_eq!(sight(&e, 0).enemy, Some(boss));
+    }
+
+    #[test]
+    fn a_bat_is_hunted_before_the_boss() {
+        let mut e = tutorial_engine(1);
+        for _ in 0..130 {
+            e.step(&[Input::default(); 3]);
+        }
+        let bat = nearest_of(&e, 0, EntityKind::Enemy).expect("a bat is on the field at 130");
+        assert_eq!(sight(&e, 0).enemy, Some(bat));
     }
 
     #[test]

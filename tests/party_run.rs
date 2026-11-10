@@ -371,7 +371,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
     ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
-    ("three_tutorial", 7854, Outcome::Cleared, [0, 0, 0], 0),
+    ("three_tutorial", 860, Outcome::Cleared, [0, 0, 0], 0),
     ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
     ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 990),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -395,7 +395,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
 const ACTIONS: [(&str, [u32; 3]); 7] = [
     ("two_time_limit", [51, 56, 0]),
     ("three_time_limit", [67, 70, 67]),
-    ("three_tutorial", [7, 7, 7]),
+    ("three_tutorial", [3, 3, 3]),
     ("join_two", [49, 48, 0]),
     ("leave_hole", [64, 14, 45]),
     ("two_revive", [51, 56, 0]),
@@ -612,6 +612,51 @@ fn the_party_cases_are_what_the_table_says() {
         }
     }
     assert_eq!(party_cases().len(), TABLE.len());
+}
+
+/// The first tick after 1260 (the last bat spawn) at which no enemy is on the field in the run of
+/// `replay`; `None` when the run ends first.
+pub(crate) fn first_empty_field(
+    case: &crate::run_play::PartyCase,
+    replay: &RunReplay,
+) -> Option<u32> {
+    use crate::party_bot::RigRun;
+    use stella_rain_core::snapshot::EntityKind;
+    let run = RigRun::of(replay);
+    let mut e = Engine::start_party_with(&case.setup, Pack::bundled().content(), run.n).unwrap();
+    let mut empty = None;
+    let len = u32::try_from(run.ticks.len()).unwrap();
+    run.play_with(&mut e, 0, len, |e| {
+        if empty.is_none()
+            && e.tick() > 1260
+            && !e
+                .snapshot()
+                .entities
+                .iter()
+                .any(|v| v.kind == EntityKind::Enemy)
+        {
+            empty = Some(e.tick());
+        }
+    });
+    empty
+}
+
+#[test]
+fn the_tutorial_party_clears_with_its_build_out_of_it() {
+    for (world, bot) in [(1, 1), (1, 2), (2, 1), (2, 2)] {
+        let case = crate::run_play::party_case("three_tutorial", world, bot);
+        let replay = case.play().replay();
+        let verified = verify_run(&replay.to_bytes()).unwrap();
+        assert_eq!(verified.outcome, Outcome::Cleared, "({world}, {bot})");
+        // The bots walk to the boss while the field is empty, even before the first bat: when the
+        // boss dies before the field is empty after the last spawn, the bound starts at that spawn.
+        let empty = first_empty_field(&case, &replay).unwrap_or(1260);
+        assert!(
+            verified.ticks <= empty + 2000,
+            "({world}, {bot}): cleared at {}, field empty at {empty}",
+            verified.ticks
+        );
+    }
 }
 
 #[test]
