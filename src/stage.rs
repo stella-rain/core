@@ -577,6 +577,43 @@ pub struct Boss {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_STARDUST_BASE))]
     pub stardust: Option<u32>,
+    /// The boss walks toward the player its attacks aim at, until it is `stop_distance` from
+    /// them; without it the boss stays where its timeline and rules put it. Needs
+    /// `sim_version` 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chase: Option<Chase>,
+    /// The tick the boss comes onto the field: its first tick is this one. Absent or 1, it is
+    /// there from the first tick. Needs `sim_version` 2, and a tick before the stage's length.
+    /// (A `time_limit` run's bosses come at the mode file's `boss_ticks`, not at this.)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_TICKS))]
+    pub arrives_at_tick: Option<u32>,
+}
+
+/// How a boss chases (`Boss.chase`). Both defaults are placeholders: the tuning table is the
+/// app's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Chase {
+    /// How far it walks a tick, in 1/256 pixel; below the players' speed, so it can be kited.
+    /// 256 (1 pixel a tick) when absent.
+    #[serde(default = "Chase::default_speed")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_CHASE_SPEED))]
+    pub speed: Fx,
+    /// It stops this far from its target, centre to centre. 24,576 (96 pixels) when absent.
+    #[serde(default = "Chase::default_stop_distance")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_MAP_SIDE))]
+    pub stop_distance: Fx,
+}
+
+impl Chase {
+    fn default_speed() -> Fx {
+        Fx(256)
+    }
+
+    fn default_stop_distance() -> Fx {
+        Fx(24_576)
+    }
 }
 
 /// The boss calls its elites at whichever comes first: `after_ticks` ticks after its first

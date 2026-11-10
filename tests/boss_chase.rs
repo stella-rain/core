@@ -354,3 +354,28 @@ fn a_boss_that_outruns_the_player_is_refused_at_the_start() {
         .is_err()
     );
 }
+
+#[test]
+fn a_time_limit_boss_takes_neither_field() {
+    use stella_rain_core::run_content::RunContent;
+    use stella_rain_core::run_setup::RunSetup;
+    use stella_rain_core::time_limit::TimeLimit;
+    use stella_rain_core::version::Versions;
+    for (field, value) in [("arrives_at_tick", json!(50)), ("chase", json!({}))] {
+        let mut v: Value = serde_json::from_slice(common::bundled_file("time_limit")).unwrap();
+        v["bosses"][0][field] = value;
+        let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap();
+        let setup = RunSetup {
+            mode: "time_limit".into(),
+            weapon: "giant_sword".into(),
+            ..RunSetup::default()
+        };
+        let Err(Error::Invalid(found)) =
+            Engine::start_time_limit(&setup, RunContent::bundled(), &mode)
+        else {
+            panic!("{field}: the run started");
+        };
+        let path = format!("$.bosses[0].{field}");
+        assert!(found.iter().any(|i| i.path == path), "{found:?}");
+    }
+}
