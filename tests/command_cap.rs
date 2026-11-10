@@ -130,11 +130,10 @@ fn answer_offers(run: &mut RunRecorder, bot: Bot) {
     }
 }
 
-/// The most commands the measurement found (`measure_the_longest_run`), pinned: `MAX_COMMANDS`
-/// is at least twice it. 425 at `2ed393f` (hard, seeds 2 and 4, the `Takes` bot); 400 once the
-/// setup's `pick_stats` left (the frozen rules no longer open a stat offer for each level-up).
-/// Re-measure and re-pin when the deep tier reports a higher number.
-const MEASURED_MOST: usize = 400;
+/// The most commands of a frozen v1 run (`tests/corpus/v1/runs`, `measure_the_longest_run`),
+/// pinned: `MAX_COMMANDS` is at least twice it. 317 (`time_limit`); 400 before, when a bot
+/// played the runs. The v1 folder is frozen, so this can only fall.
+const MEASURED_MOST: usize = 317;
 
 /// The bundled mode cut to 20 seconds with a boss at 10 and at 20 and 5 of overtime, a run
 /// that a debug build plays in seconds.
