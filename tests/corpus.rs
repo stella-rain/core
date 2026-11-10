@@ -1438,18 +1438,6 @@ pub(crate) fn offers_trial_run() -> RunReplay {
     run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
 }
 
-/// The offers-era `time_limit` run (the seed of its first record), recorded in the test at
-/// `sim_version` 1.
-pub(crate) fn offers_time_limit_run() -> RunReplay {
-    let setup = RunSetup {
-        sim_version: 1,
-        seed: common::run::OFFERS_TIME_LIMIT_SEED,
-        ..common::run::time_limit_setup()
-    };
-    let commands = crate::run_play::play_run_from(&setup, MAX_TICKS);
-    run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
-}
-
 /// The run cases in equipment mode (ADR-SIM-7): the case `name` played from the world seed `seed`
 /// with the building bot `PartyBot::building(bot_seed)`, steered as the offers-era case was. The
 /// seed search (`corpus_seeds.rs`) and `run_definitions` both build a case here.
