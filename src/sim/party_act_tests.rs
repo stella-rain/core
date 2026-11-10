@@ -2,6 +2,8 @@
 //! evade, attack, regenerate and keep their orbits and runes going; a downed player's timers keep
 //! running but it cannot act, regenerate or keep a dash or combo going.
 
+use std::sync::Arc;
+
 use super::state::{OrbitState, PlayerIdx, State};
 use super::{Blame, Culprit, Shot, World, hurt_player};
 use crate::engine::{Engine, Run};
@@ -47,7 +49,10 @@ fn start(n: u8) -> Engine {
 
 fn live_mut(e: &mut Engine) -> (&mut World, &mut State) {
     match e.run_mut() {
-        Run::V2 { world, state } => (world, state),
+        Run::V2 { world, state } => (
+            Arc::get_mut(world).expect("the engine has not been cloned"),
+            state,
+        ),
         Run::V1 { .. } => panic!("the live rules"),
     }
 }

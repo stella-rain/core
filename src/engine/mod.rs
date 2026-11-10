@@ -14,6 +14,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use std::sync::Arc;
+
 use crate::event::DomainEvent;
 use crate::id::{ContentId, PlayerIdx};
 use crate::input::EquipAction;
@@ -204,7 +206,7 @@ pub enum PresenceError {
 #[derive(Debug)]
 pub struct Engine {
     /// The content files the run reads (ADR-CONT-1), fixed for the run.
-    content: RunContent,
+    content: Arc<RunContent>,
     run: Run,
     /// Events of the last tick; cleared when the next one starts.
     events: Vec<DomainEvent>,
@@ -321,7 +323,7 @@ impl Engine {
             ledger: run.new_ledger(),
             joiner: run.joiner_template(),
             run,
-            content: content.clone(),
+            content: Arc::new(content.clone()),
             load: Load::default(),
             counted: Counted::new(content.rewards()),
             player_stats: PlayerStats::default(),
@@ -1150,6 +1152,8 @@ mod players_api_tests;
 mod presence_tests;
 #[cfg(test)]
 mod savepoint_tests;
+#[cfg(test)]
+mod share_tests;
 #[cfg(test)]
 mod snapshot_pin_tests;
 #[cfg(test)]

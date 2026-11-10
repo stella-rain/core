@@ -52,7 +52,7 @@ fn party(at: [Point; 3]) -> (World, State) {
     let Run::V2 { world, state } = e.run() else {
         panic!("the live rules")
     };
-    let (mut world, mut s) = (world.clone(), state.clone());
+    let (mut world, mut s) = (World::clone(world), state.clone());
     assert!(!s.enemies.is_empty(), "an enemy to move");
     world.stage.map = Some(big_map());
     for (i, p) in at.into_iter().enumerate() {

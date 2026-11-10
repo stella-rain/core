@@ -223,15 +223,15 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 
 /// The allocator calls of the two party benches (`benches/worst_tick_3p.rs`, `benches/rollback.rs`),
 /// by case: today's counts, not zero. The three-player tick allocates as the solo one does; the
-/// rollback is the clone's allocations plus the 8 ticks'. The clone copies the content too: the
-/// six new rewards, the equipment rules and the weapon sets add 47 (6 + 3 + 38), none a tick's.
-/// The rollback fixture runs in equipment mode now (1741, 13, 8 before; the saved engine is a
-/// different run, so the clone and its ticks allocate a little differently). The rule of `BENCH_TICK_ALLOCS` holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const so
-/// that `tests/bench_region.rs` keeps zipping the six solo cases.
+/// rollback is the clone's allocations plus the 8 ticks'. A clone shares the engine's world and
+/// content behind `Arc`s and copies only the state: `rollback` fell 1744 -> 368 allocs and
+/// `rollback_equip` 1859 -> 483 (reallocs and frees unchanged). The rule of `BENCH_TICK_ALLOCS`
+/// holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const
+/// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(1744, 14, 8)),
-    ("rollback_equip", pin(1859, 26, 119)),
+    ("rollback", pin(368, 14, 8)),
+    ("rollback_equip", pin(483, 26, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
@@ -926,4 +926,24 @@ fn a_steady_party_tick_allocates_and_frees_nothing() {
         at.is_empty(),
         "(tick, allocs, frees) in a party's ticks: {at:?}"
     );
+}
+
+/// A clone shares the engine's world and content: its allocator calls, measured at the commit
+/// before the sharing (a clone alone, no ticks), are the bounds it stays below.
+const CLONE_BEFORE_SHARING: [(&str, u64); 2] = [("rollback", 1736), ("rollback_equip", 1740)];
+
+#[test]
+fn an_engine_clone_allocates_fewer_times_than_today() {
+    let cases = [
+        ("rollback", bench_fixtures::party_case::saved()),
+        ("rollback_equip", bench_fixtures::equip_case::saved()),
+    ];
+    for ((name, saved), (pinned_name, before)) in cases.into_iter().zip(CLONE_BEFORE_SHARING) {
+        assert_eq!(name, pinned_name);
+        let mut out = None;
+        let counts = counted3(|| out = Some(saved.clone()));
+        std::mem::forget(out);
+        assert!(counts.allocs < before, "{name}: {counts:?} vs {before}");
+        assert_eq!(counts.frees, 0, "{name}: a clone frees nothing");
+    }
 }

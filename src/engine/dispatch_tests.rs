@@ -144,8 +144,13 @@ fn the_run_owns_its_world() {
 #[test]
 fn the_run_is_its_world_and_state_and_a_tag_alone() {
     // No box: the enum holds the larger variant's world and state, and its tag.
-    let largest = (size_of::<World>() + size_of::<State>())
-        .max(size_of::<crate::sim::World>() + size_of::<crate::sim::state::State>());
+    // Version 1 holds its world inline with its state and its frozen events list; version 2 holds
+    // an `Arc` of its world.
+    let v1 = size_of::<World>()
+        + size_of::<State>()
+        + size_of::<Vec<crate::sim_v1::event::DomainEvent>>();
+    let v2 = size_of::<std::sync::Arc<crate::sim::World>>() + size_of::<crate::sim::state::State>();
+    let largest = v1.max(v2);
     assert!(size_of::<Run>() >= largest);
     assert!(size_of::<Run>() <= largest + align_of::<Run>());
 }
