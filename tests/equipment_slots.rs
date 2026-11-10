@@ -226,8 +226,12 @@ fn the_snapshot_shows_the_slots() {
     assert_eq!(now[slot as usize]["held"], id);
     assert_eq!(now[slot as usize]["level"], 1);
 
-    // An offers run has no slots key at all.
-    let offers = Engine::start(&RunSetup::default()).unwrap();
+    // A sim_version 1 run (the frozen rules) has no slots key at all.
+    let offers = Engine::start(&RunSetup {
+        sim_version: 1,
+        ..RunSetup::default()
+    })
+    .unwrap();
     let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
     assert!(json.get("slots").is_none());
 

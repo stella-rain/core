@@ -560,7 +560,9 @@ fn rand_pack() -> Pack {
 /// taken at every offer.
 fn rand_attack_case() -> (Case, Reference) {
     let pack = rand_pack();
+    // sim_version 1: the frozen rules, the ones whose offers this case answers.
     let setup = RunSetup {
+        sim_version: 1,
         mode: "tutorial".into(),
         seed: RAND_SEED,
         ..RunSetup::default()

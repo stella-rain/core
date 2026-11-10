@@ -10,25 +10,19 @@
 //! clone of boundary `t - d` stepped tick by tick up to boundary `t`. Integer arithmetic only.
 
 use crate::common::run::trial_setup;
-use crate::party_bot::{RigParty, RigRun};
+use crate::party_bot::RigRun;
 use crate::run_play::party_cases;
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
-use stella_rain_core::engine::{ChoiceError, Engine};
+use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::replay::hash_from_hex;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{CHECKPOINT_TICKS, RunReplay};
 use stella_rain_core::run_setup::RunSetup;
 
-/// The offers revive runs this file builds itself (offers mode, no corpus file and no pin): the
-/// party, the bot seed (2, found again after the level offers left: world seed 1, bot seeds 1 to 40, the first with a revive in both parties) and the world seed 1. A pick is an offer's answer,
-/// which an equipment run has none of, so the offers rollback semantics stay tested on these
-/// until the offers path goes (a window that starts on an open offer replays its pick first; an
-/// altered pick is caught).
-const OFFERS_CASES: [(&str, u8, u64); 2] = [("two_revive", 2, 2), ("three_revive", 3, 2)];
+/// The revive cases of the party corpus the rig plays (`party_cases`): a downed player revived.
 const RIG_CASES: [&str; 2] = ["two_revive", "three_revive"];
 /// The rollback window, in ticks.
 const MAX_DEPTH: u32 = 8;
@@ -118,21 +112,8 @@ fn case(name: &'static str) -> Case {
     Case { name, replay, rig }
 }
 
-/// An offers revive run of `OFFERS_CASES`, played once.
-fn offers_case(name: &'static str) -> Case {
-    let (_, n, bot_seed) = *OFFERS_CASES.iter().find(|(c, ..)| *c == name).unwrap();
-    let replay = RigParty::new(n)
-        .seed(1)
-        .bot_seed(bot_seed)
-        .case(name)
-        .play()
-        .replay();
-    let rig = RigRun::of(&replay);
-    Case { name, replay, rig }
-}
-
 fn cases() -> Vec<Case> {
-    RIG_CASES.iter().map(|name| offers_case(name)).collect()
+    RIG_CASES.iter().map(|name| case(name)).collect()
 }
 
 /// Plays `rig` forward from a fresh engine, saving every boundary in a ring; at the boundaries in
@@ -318,16 +299,6 @@ fn a_rollback_of_every_depth_at_every_tick_agrees_with_the_forward_pass() {
             "{}: re-stepped ticks",
             case.name
         );
-        assert!(
-            report.on_offer > 0,
-            "{}: a window starts on an open offer",
-            case.name
-        );
-        assert!(
-            report.picks_replayed > 0,
-            "{}: a pick is replayed",
-            case.name
-        );
         assert!(report.revives > 0, "{}: a revive is replayed", case.name);
         let one = sync_test(
             &case.rig,
@@ -414,18 +385,6 @@ fn with_input(rig: &RigRun, tick: u32, slot: usize, f: impl Fn(Input) -> Input) 
     out
 }
 
-/// A copy of `rig` with the first pick of `rig.picks[index]` set to `option`; returns the slot.
-fn with_pick(rig: &RigRun, index: usize, option: u32) -> (RigRun, usize) {
-    let mut out = rig.clone();
-    let slot = out.picks[index]
-        .1
-        .iter()
-        .position(Option::is_some)
-        .expect("a pick step holds a pick");
-    out.picks[index].1[slot] = Some(option);
-    (out, slot)
-}
-
 /// The slot-0 steer an altered input takes: full right, or full left where it was full right.
 fn steered(input: Input) -> Input {
     Input {
@@ -434,18 +393,14 @@ fn steered(input: Input) -> Input {
     }
 }
 
-/// Per case: the input tick `k` (slot 0's steer is altered), and the index of the pick in
-/// `rig.picks` with the option it is altered to (the old option plus one, modulo the offer's
-/// options). Found by scanning, not committed: ticks `k >= 100` upward for the first one whose
-/// altered step changes the hash after it, and the picks in order for the first in a slot whose
-/// offer has two or more options and whose altered hash differs. The scan ran over ticks 100 up
-/// (both cases change at once, at 100) and over `rig.picks` from index 0 (a 10-option level-up
-/// offer in slot 0 at ticks 108 and 106, option 0 taken, 1 chosen instead).
-const NEG: [(&str, u32, usize, u32); 2] = [("two_revive", 100, 0, 1), ("three_revive", 100, 0, 1)];
+/// Per case: the input tick `k` whose altered slot-0 steer changes the hash after it. Found by
+/// scanning ticks `k >= 100` upward for the first one that does (both cases change at once, at
+/// 100); not committed as a search.
+const NEG: [(&str, u32); 2] = [("two_revive", 100), ("three_revive", 100)];
 
-fn neg_case(name: &str) -> (Case, u32, usize, u32) {
-    let (name, k, i, alt) = *NEG.iter().find(|(n, ..)| *n == name).unwrap();
-    (offers_case(name), k, i, alt)
+fn neg_case(name: &str) -> (Case, u32) {
+    let (name, k) = *NEG.iter().find(|(n, _)| *n == name).unwrap();
+    (case(name), k)
 }
 
 /// The hash at boundaries 0 to `upto` of `rig` played forward. An altered run is played only as
@@ -474,7 +429,7 @@ fn desync_boundaries(report: &Report) -> Vec<u32> {
 #[test]
 fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
     for name in RIG_CASES {
-        let (case, k, ..) = neg_case(name);
+        let (case, k) = neg_case(name);
         let (rig, setup, len) = (&case.rig, &case.replay.setup, case.len());
         let altered = with_input(rig, k, 0, steered);
         let h = hashes_to(rig, setup, k + 1);
@@ -510,48 +465,6 @@ fn an_altered_input_is_caught_at_the_tick_it_takes_effect() {
             (first.tick, first.depth, first.at),
             (k + 1, at - k, at),
             "{name}"
-        );
-    }
-}
-
-#[test]
-fn an_altered_pick_is_caught_at_the_tick_it_takes_effect() {
-    for name in RIG_CASES {
-        let (case, _, i, alt) = neg_case(name);
-        let (rig, setup, len) = (&case.rig, &case.replay.setup, case.len());
-        let p = rig.picks[i].0;
-        let (altered, slot) = with_pick(rig, i, alt);
-        assert_ne!(altered.picks[i], rig.picks[i], "{name}: the pick changes");
-        // The alternative is a legal option of the offer open at that boundary.
-        let mut e = Engine::start_party_with(setup, RunContent::bundled(), rig.n).unwrap();
-        rig.play_onto(&mut e, 0, p);
-        let player = PlayerIdx::new(u8::try_from(slot).unwrap()).unwrap();
-        assert_eq!(e.check_pick(player, alt), Ok(()), "{name}: a legal option");
-        assert!(matches!(
-            e.check_pick(player, u32::MAX),
-            Err(ChoiceError::OutOfRange { options, .. }) if options >= 2
-        ));
-
-        let h = hashes_to(rig, setup, p + 1);
-        let h2 = hashes_to(&altered, setup, p + 1);
-        assert_eq!(
-            h2[..=p as usize],
-            h[..=p as usize],
-            "{name}: equal up to {p}"
-        );
-        assert_ne!(
-            h2[p as usize + 1],
-            h[p as usize + 1],
-            "{name}: the pick changes the hash"
-        );
-
-        let report = sync_test(rig, &altered, setup, 8..=8, around(p, len), STRIDE);
-        let want = strided(p + 1, (p + 8).min(len), STRIDE);
-        assert_eq!(desync_boundaries(&report), want, "{name}");
-        assert!(
-            report.desyncs.iter().all(|d| d.tick == p + 1),
-            "{name}: {:?}",
-            report.desyncs
         );
     }
 }

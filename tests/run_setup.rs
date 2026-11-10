@@ -63,23 +63,6 @@ fn hashes(mut engine: Engine, ticks: u32) -> Vec<u64> {
         .collect()
 }
 
-/// The snapshot after each of `ticks` ticks, as text. `live` is an engine of the newest rules,
-/// whose entity numbers leave the player slots 0 to 2 reserved: they are mapped to the numbers
-/// of a version 1 engine, which does not, so that the two are compared by what they show.
-fn views(mut engine: Engine, ticks: u32, live: bool) -> Vec<String> {
-    (0..ticks)
-        .map(|t| {
-            engine.step(&[script(t), Default::default(), Default::default()]);
-            let text = format!("{:?}", engine.snapshot());
-            if live {
-                crate::gameplay_observables::rewrite_ids(&text)
-            } else {
-                text
-            }
-        })
-        .collect()
-}
-
 fn issues(error: Error) -> Vec<Issue> {
     match error {
         Error::Invalid(issues) => issues,
@@ -108,16 +91,9 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
         tree: None,
     };
     by_hand.seed = 20_261_010;
-    assert_eq!(run_setup::stage(&setup()), Ok(by_hand.clone()));
-    // Under a perk set with no effects, as a run is without a setup.
-    let (plain, content) = (common::run::plain_setup(), common::run::plain_content());
-    // The state hash holds the difficulty's setup (its rarity range), which a stage run alone
-    // does not have, so the runs are compared by what they show, tick by tick.
-    let started = views(Engine::start_with(&plain, &content).unwrap(), 600, true);
-    assert_eq!(
-        started,
-        views(Engine::new_with(&by_hand, &content).unwrap(), 600, false)
-    );
+    // A stage run alone loads no equipment rules (sim_version 2) while a run with a setup does,
+    // so the two no longer show the same views: the stage is what the setup builds.
+    assert_eq!(run_setup::stage(&setup()), Ok(by_hand));
 }
 
 #[test]
@@ -359,10 +335,11 @@ fn validate_in_refuses_a_pool_naming_a_reward_the_file_does_not_hold() {
     );
 }
 
-/// The trial run of `common::run` up to its first offer, from `setup`.
+/// The trial run of `common::run` up to its first offer, from `setup` (a `sim_version` 1 one:
+/// the frozen rules are the ones that offer).
 fn to_first_offer(setup: &RunSetup) -> Engine {
     let mut engine = Engine::start(setup).unwrap();
-    for c in crate::run_play::play_run(common::run::TRIAL_LENGTH) {
+    for c in crate::run_play::play_run_from(setup, common::run::TRIAL_LENGTH) {
         match c {
             Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
             Command::Choose(_) => break,
@@ -390,12 +367,16 @@ fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
             .offer
             .unwrap()
     };
-    let wide = offer(&common::run::trial_setup());
+    let frozen = || RunSetup {
+        sim_version: 1,
+        ..common::run::trial_setup()
+    };
+    let wide = offer(&frozen());
     let narrow = offer(&RunSetup {
         star_pool: narrowed.star_pool.clone(),
         extra_rerolls: 3,
         upgrades: Vec::new(),
-        ..common::run::trial_setup()
+        ..frozen()
     });
     let mut ids: Vec<&str> = narrow
         .candidates

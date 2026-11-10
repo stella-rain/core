@@ -29,6 +29,20 @@ use crate::common;
 use crate::run_play::{first_point_tick, play_run, play_run_in};
 use common::run::{TRIAL_LENGTH, run_input, run_script, time_limit_setup, trial_setup};
 
+/// The trial at `sim_version` 1, the frozen offers rules: the tests of an open offer, a pick and
+/// a choice run on it (a `sim_version` 2 run is the equipment mode and opens none).
+fn offers_trial() -> RunSetup {
+    RunSetup {
+        sim_version: 1,
+        ..trial_setup()
+    }
+}
+
+/// The commands of the trial's offers run for up to `ticks` ticks, its offers answered.
+fn offers_run(ticks: u32) -> Vec<Command> {
+    crate::run_play::play_run_from(&offers_trial(), ticks)
+}
+
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()
 }
@@ -197,12 +211,12 @@ fn recording_fails_closed_on_a_refused_command() {
 
 #[test]
 fn the_recorder_keeps_only_what_the_engine_took() {
-    let commands = play_run(TRIAL_LENGTH);
+    let commands = offers_run(TRIAL_LENGTH);
     let at = commands
         .iter()
         .position(|c| matches!(c, Command::Choose(_)))
         .unwrap();
-    let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
+    let mut recorder = RunRecorder::start(&offers_trial()).unwrap();
     let take = |recorder: &mut RunRecorder, c: &Command| match *c {
         Command::Step(input) => recorder
             .step(&[input, Default::default(), Default::default()])
@@ -227,7 +241,10 @@ fn the_recorder_keeps_only_what_the_engine_took() {
     );
 
     commands[at..].iter().for_each(|c| take(&mut recorder, c));
-    assert_eq!(recorder.replay(), recorded(TRIAL_LENGTH));
+    assert_eq!(
+        recorder.replay(),
+        record_run(&offers_trial(), &commands).unwrap()
+    );
 }
 
 // --- Offers (ADR-REPL-5) -------------------------------------------------------------------------
@@ -235,7 +252,7 @@ fn the_recorder_keeps_only_what_the_engine_took() {
 /// The commands of the trial run up to its first offer: the input of the tick that opened it
 /// is the last.
 fn to_first_offer() -> Vec<Command> {
-    let all = play_run(TRIAL_LENGTH);
+    let all = offers_run(TRIAL_LENGTH);
     let first = all
         .iter()
         .position(|c| matches!(c, Command::Choose(_)))
@@ -245,13 +262,13 @@ fn to_first_offer() -> Vec<Command> {
 
 #[test]
 fn a_run_that_answers_offers_verifies_and_uses_every_kind_of_option() {
-    let commands = play_run(TRIAL_LENGTH);
+    let commands = offers_run(TRIAL_LENGTH);
     let choices = commands
         .iter()
         .filter(|c| matches!(c, Command::Choose(_)))
         .count();
     assert!(choices >= 4, "{choices} choices");
-    let replay = record_run(&trial_setup(), &commands).unwrap();
+    let replay = record_run(&offers_trial(), &commands).unwrap();
     let verified = verify_run(&replay.to_bytes()).unwrap();
     assert_eq!(verified.final_hash, replay_hash(&replay));
 }
@@ -262,7 +279,7 @@ fn replay_hash(replay: &RunReplay) -> u64 {
 
 #[test]
 fn the_recorder_refuses_an_input_while_an_offer_is_open() {
-    let mut recorder = RunRecorder::start(&trial_setup()).unwrap();
+    let mut recorder = RunRecorder::start(&offers_trial()).unwrap();
     for c in to_first_offer() {
         match c {
             Command::Step(input) => recorder
@@ -287,7 +304,7 @@ fn the_recorder_refuses_an_input_while_an_offer_is_open() {
 
 #[test]
 fn a_replay_with_an_unanswered_offer_is_refused() {
-    let replay = recorded(TRIAL_LENGTH);
+    let replay = record_run(&offers_trial(), &offers_run(TRIAL_LENGTH)).unwrap();
     let commands = commands_of(&replay);
     let first = commands
         .iter()
@@ -309,7 +326,7 @@ fn a_replay_with_an_unanswered_offer_is_refused() {
 #[test]
 fn a_replay_that_ends_on_an_open_offer_verifies() {
     // A bug report may stop while the player looks at an offer.
-    let replay = record_run(&trial_setup(), &to_first_offer()).unwrap();
+    let replay = record_run(&offers_trial(), &to_first_offer()).unwrap();
     assert!(verify_run(&replay.to_bytes()).is_ok());
 }
 
@@ -805,8 +822,8 @@ fn a_resumed_run_ends_with_the_same_replay_as_an_unbroken_one() {
 
 #[test]
 fn a_prefix_with_an_open_offer_resumes_with_it_open() {
-    let (setup, pack) = (trial_setup(), Pack::bundled());
-    let all = play_run(TRIAL_LENGTH);
+    let (setup, pack) = (offers_trial(), Pack::bundled());
+    let all = offers_run(TRIAL_LENGTH);
     let first = to_first_offer().len();
     let prefix = record_run_with_pack(&setup, pack, &all[..first]).unwrap();
     let mut r = RunRecorder::resume_with_pack(&prefix, pack).unwrap();
@@ -903,7 +920,7 @@ fn a_prefix_over_the_caps_is_refused_on_resume() {
         })
     );
 
-    let full = recorded(TRIAL_LENGTH);
+    let full = record_run(&offers_trial(), &offers_run(TRIAL_LENGTH)).unwrap();
     let commands = commands_of(&full);
     let tick = commands[0].tick;
     let unanswered: Vec<TickCommand> = commands
@@ -1274,12 +1291,12 @@ fn a_replay_built_at_tick_n_verifies_up_to_n() {
 
 #[test]
 fn a_replay_built_after_a_choice_keeps_the_command() {
-    let commands = play_run(TRIAL_LENGTH);
+    let commands = offers_run(TRIAL_LENGTH);
     let at = commands
         .iter()
         .position(|c| matches!(c, Command::Choose(_)))
         .unwrap();
-    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    let mut r = RunRecorder::start(&offers_trial()).unwrap();
     feed(&mut r, &commands[..at]);
     let (_, before) = point(&r);
     // Every choice that applies before the next tick belongs to the point.
@@ -1305,8 +1322,8 @@ fn a_replay_built_after_a_choice_keeps_the_command() {
 
 #[test]
 fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
-    let commands = play_run(TRIAL_LENGTH);
-    let mut r = RunRecorder::start(&trial_setup()).unwrap();
+    let commands = offers_run(TRIAL_LENGTH);
+    let mut r = RunRecorder::start(&offers_trial()).unwrap();
     let mut checked = 0;
     for c in &commands {
         match *c {

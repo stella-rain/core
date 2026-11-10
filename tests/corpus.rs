@@ -1419,17 +1419,22 @@ fn run_definitions() -> Vec<RunDefinition> {
     ]
 }
 
-/// The offers-era `trial` run, recorded in the test with the offers path that stays until the
-/// offers path goes (the readers whose intent needs a run with PICKS steps use it).
+/// The offers-era `trial` run, recorded in the test at `sim_version` 1, the frozen offers rules
+/// (the readers whose intent needs a run with PICKS steps use it).
 pub(crate) fn offers_trial_run() -> RunReplay {
-    let commands = crate::run_play::play_run(common::run::TRIAL_LENGTH);
-    run_replay::record_run_with_pack(&common::run::trial_setup(), Pack::bundled(), &commands)
-        .unwrap()
+    let setup = RunSetup {
+        sim_version: 1,
+        ..common::run::trial_setup()
+    };
+    let commands = crate::run_play::play_run_from(&setup, common::run::TRIAL_LENGTH);
+    run_replay::record_run_with_pack(&setup, Pack::bundled(), &commands).unwrap()
 }
 
-/// The offers-era `time_limit` run (the seed of its first record), recorded in the test.
+/// The offers-era `time_limit` run (the seed of its first record), recorded in the test at
+/// `sim_version` 1.
 pub(crate) fn offers_time_limit_run() -> RunReplay {
     let setup = RunSetup {
+        sim_version: 1,
         seed: common::run::OFFERS_TIME_LIMIT_SEED,
         ..common::run::time_limit_setup()
     };

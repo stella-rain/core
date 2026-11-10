@@ -61,7 +61,12 @@ mod recorder {
 
     #[test]
     fn a_refused_action_records_nothing() {
-        let mut rec = start();
+        // Only a sim_version 1 run (the frozen rules) builds nothing.
+        let mut rec = RunRecorder::start(&RunSetup {
+            sim_version: 1,
+            ..RunSetup::default()
+        })
+        .unwrap();
         let before = rec.replay();
         let err = rec.actions(&[Some(REPLACE37), None, None]).unwrap_err();
         assert_eq!(

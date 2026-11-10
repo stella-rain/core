@@ -428,6 +428,8 @@ fn carried_engine() -> Engine {
             })
             .collect(),
         lumine: 10,
+        // Carried stars are a sim_version 1 setting.
+        sim_version: 1,
         ..common::run::trial_setup()
     };
     Engine::start(&setup).unwrap()
