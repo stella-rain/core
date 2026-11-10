@@ -72,7 +72,7 @@ fn schema_2_cases_are_their_schema_1_forms() {
     // one case with no action.
     assert_eq!(
         (checked, skipped),
-        (1, 9),
+        (1, 10),
         "the cases with and without actions"
     );
     // A run with offers is still its schema 1 form: the offers-era trial, recorded here.

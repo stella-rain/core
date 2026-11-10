@@ -1397,7 +1397,7 @@ fn run_definitions() -> Vec<RunDefinition> {
     use common::run::{
         ELITES_BOT_SEED, ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
         STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
-        TRIAL_BOT_SEED, TRIAL_SEED, trial_setup,
+        TRIAL_BOT_SEED, TRIAL_KINDS_BOT_SEED, TRIAL_KINDS_SEED, TRIAL_SEED, trial_setup,
     };
     // The cases that keep the world seed they had play it with the bot's first seed.
     let kept = trial_setup().seed;
@@ -1407,7 +1407,11 @@ fn run_definitions() -> Vec<RunDefinition> {
         // The tutorial's first 240 ticks: it ends before the bot's first equipment action, so it
         // is the one case that holds none (`schema2_corpus`).
         equipment_run_definition("tutorial_opening", kept, KEPT_BOT_SEED),
+        // The trial: it ends Failed and hits every match-up; `trial_kinds` is the trial run that
+        // takes all five kinds of equipment action, which the chasing golem does not let a
+        // Failed run do.
         equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED),
+        equipment_run_definition("trial_kinds", TRIAL_KINDS_SEED, TRIAL_KINDS_BOT_SEED),
         // Every point on attack; an elite's rare star offers the black hole.
         equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED),
         // The time_limit mode's waves around the main character, played until it falls just
