@@ -221,20 +221,65 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn encode_hello(_h: &Hello, _out: &mut Vec<u8>) -> Result<(), WireError> {
-    todo!()
+fn encode_hello(h: &Hello, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if h.protocol == 0 || h.sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    out.push(TAG_HELLO);
+    out.extend_from_slice(&h.protocol.to_le_bytes());
+    out.extend_from_slice(&h.sim_version.to_le_bytes());
+    out.extend_from_slice(&h.pack_hash);
+    out.extend_from_slice(&h.delay.to_le_bytes());
+    out.extend_from_slice(&h.window.to_le_bytes());
+    Ok(())
 }
 
-fn decode_hello(_r: &mut Reader<'_>) -> Result<Hello, WireError> {
-    todo!()
+/// The versions and pack hash both hello layouts start with.
+fn decode_hello_head(r: &mut Reader<'_>) -> Result<(u32, u32, [u8; 32]), WireError> {
+    let protocol = r.u32()?;
+    if protocol == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    let sim_version = r.u32()?;
+    if sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    let mut pack_hash = [0u8; 32];
+    pack_hash.copy_from_slice(r.take(32)?);
+    Ok((protocol, sim_version, pack_hash))
 }
 
-fn encode_hello_v1(_h: &HelloV1, _out: &mut Vec<u8>) -> Result<(), WireError> {
-    todo!()
+fn decode_hello(r: &mut Reader<'_>) -> Result<Hello, WireError> {
+    let (protocol, sim_version, pack_hash) = decode_hello_head(r)?;
+    let delay = r.u32()?;
+    let window = r.u32()?;
+    Ok(Hello {
+        protocol,
+        sim_version,
+        pack_hash,
+        delay,
+        window,
+    })
 }
 
-fn decode_hello_v1(_r: &mut Reader<'_>) -> Result<HelloV1, WireError> {
-    todo!()
+fn encode_hello_v1(h: &HelloV1, out: &mut Vec<u8>) -> Result<(), WireError> {
+    if h.protocol == 0 || h.sim_version == 0 {
+        return Err(WireError::ZeroVersion);
+    }
+    out.push(TAG_HELLO_V1);
+    out.extend_from_slice(&h.protocol.to_le_bytes());
+    out.extend_from_slice(&h.sim_version.to_le_bytes());
+    out.extend_from_slice(&h.pack_hash);
+    Ok(())
+}
+
+fn decode_hello_v1(r: &mut Reader<'_>) -> Result<HelloV1, WireError> {
+    let (protocol, sim_version, pack_hash) = decode_hello_head(r)?;
+    Ok(HelloV1 {
+        protocol,
+        sim_version,
+        pack_hash,
+    })
 }
 
 fn slot_byte(slot: PlayerIdx) -> u8 {
