@@ -14,9 +14,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::difficulties::{Difficulties, Difficulty};
 use crate::id::ContentId;
+use crate::limits::MAX_EQUIP_CATEGORIES;
 use crate::registry::{self, Entry, Kind};
+use crate::rewards::MAX_DROP_WEIGHT_PCT;
 use crate::run_content::RunContent;
 use crate::rune::Rune;
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use crate::sim::HordeSpec;
@@ -71,9 +74,10 @@ pub struct RunSetup {
     pub weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
     pub seed: u64,
-    /// The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards
-    /// an offer may hold at `sim_version` 1, and at 2 the stars drops roll from, crafting draws from
-    /// and the Lumine star is picked from; each at most once. Absent: every reward in the file.
+    /// The pool of offers mode (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the
+    /// rewards an offer may hold at `sim_version` 1; each at most once. Absent: every reward in
+    /// the file. None at `sim_version` 2: every star of the pack drops and is craftable, and the
+    /// Lumine star is any star the level allows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub star_pool: Option<Vec<ContentId>>,
     /// Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at
@@ -120,11 +124,18 @@ pub struct RunSetup {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stat_priority: Vec<ContentId>,
     /// The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's
-    /// rewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in
+    /// rewards file, never a rune; it starts equipped at Lv1 at tick 0, in
     /// the build from the first tick, and then changes like any other slot (equip rules, kills,
     /// replace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lumine_star: Option<ContentId>,
+    /// The player's extra drop weight in percent for each perk category of the run's rewards file
+    /// (the Star Chart, ADR-SAVE-17), by category ID: at most `MAX_EQUIP_CATEGORIES` keys, each at
+    /// most the category's `drop_weight_max`. It adds to the perk set's own `drop_weight` for the
+    /// category; a missing key adds 0. Only at `sim_version` 2; sorted by key, so the file's bytes
+    /// are stable.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub drop_weights: BTreeMap<ContentId, u32>,
 }
 
 /// The plainest setup: the trial mode with the giant sword, seed 0, the default perk set and
@@ -150,6 +161,7 @@ impl Default for RunSetup {
             starting_rune: None,
             stat_priority: Vec::new(),
             lumine_star: None,
+            drop_weights: BTreeMap::new(),
         }
     }
 }
@@ -225,6 +237,9 @@ struct RunSetupFile {
     /// The one star of the Lumine slot.
     #[serde(default)]
     lumine_star: Option<ContentId>,
+    /// The player's drop weights per perk category.
+    #[serde(default)]
+    drop_weights: BTreeMap<ContentId, u32>,
     #[serde(default)]
     auto_combo: bool,
 }
@@ -265,6 +280,7 @@ impl TryFrom<RunSetupFile> for RunSetup {
             starting_rune: f.starting_rune,
             stat_priority: f.stat_priority,
             lumine_star: f.lumine_star,
+            drop_weights: f.drop_weights,
         })
     }
 }
@@ -489,6 +505,37 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
                 "none in equipment mode: there are no rerolls".into(),
             );
         }
+        // sim_version >= 2: the Star Chart's weights replace the named pool (ADR-SAVE-17 point 2).
+        if setup.star_pool.is_some() {
+            issue(
+                "$.star_pool".into(),
+                "none in equipment mode: every star of the pack drops and is craftable".into(),
+            );
+        }
+    }
+    if !setup.drop_weights.is_empty() {
+        if setup.sim_version == 1 {
+            issue("$.drop_weights".into(), "needs sim_version 2".into());
+        }
+        if setup.drop_weights.len() > MAX_EQUIP_CATEGORIES {
+            issue(
+                "$.drop_weights".into(),
+                format!(
+                    "at most {MAX_EQUIP_CATEGORIES} categories (found {})",
+                    setup.drop_weights.len()
+                ),
+            );
+        }
+        for (key, &pct) in setup.drop_weights.iter().take(MAX_EQUIP_CATEGORIES) {
+            if !registry::is_well_formed(key.as_str()) {
+                issue("$.drop_weights".into(), ill_formed.into());
+            } else if pct > MAX_DROP_WEIGHT_PCT {
+                issue(
+                    "$.drop_weights".into(),
+                    format!("at most {MAX_DROP_WEIGHT_PCT} percent (found {pct} for {key})"),
+                );
+            }
+        }
     }
     if let Some(star) = &setup.lumine_star {
         if !registry::is_well_formed(star.as_str()) {
@@ -565,6 +612,23 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             message: "sim_version 2 needs the rewards file's equipment rules".into(),
         });
     }
+    for (key, &pct) in &setup.drop_weights {
+        let path = format!("$.drop_weights.{key}");
+        let category = rewards
+            .equipment()
+            .and_then(|rules| rules.categories.iter().find(|c| c.id == *key));
+        match category {
+            None => issues.push(Issue {
+                path,
+                message: "no such category in the run's rewards file".into(),
+            }),
+            Some(c) if pct > c.drop_weight_max => issues.push(Issue {
+                path,
+                message: format!("at most {} (found {pct})", c.drop_weight_max),
+            }),
+            Some(_) => {}
+        }
+    }
     let mut cost: u32 = 0;
     for (i, star) in setup.carried.iter().enumerate() {
         let path = format!("$.carried[{i}].reward");
@@ -609,12 +673,6 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
                 let lumine_cost = rewards.lumine_cost(reward.rarity);
                 if reward.is_random_rune() {
                     Some("a rune is not a Lumine star".to_string())
-                } else if setup
-                    .star_pool
-                    .as_ref()
-                    .is_some_and(|pool| !pool.contains(star))
-                {
-                    Some("not in the star pool".to_string())
                 } else if lumine_cost > setup.lumine {
                     Some(format!(
                         "costs {lumine_cost} Lumine, more than the level of {}",

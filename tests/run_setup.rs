@@ -1025,5 +1025,6 @@ fn the_lumine_star_needs_no_pool_and_only_the_level_and_kind_decide() {
     );
     let source =
         std::fs::read_to_string(crate::data_root::data_root().join("src/run_setup.rs")).unwrap();
-    assert!(!source.contains("not in the star pool"));
+    // The one left is the carried-star clause of `sim_version` 1; the Lumine clause is gone.
+    assert_eq!(source.matches("not in the star pool").count(), 1);
 }
