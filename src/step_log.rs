@@ -804,6 +804,30 @@ mod tests {
         assert_eq!(expected.encode(), hex(bytes));
     }
 
+    /// PICKS (`0x01`) is reserved at schema 2: the byte stays assigned and every reader
+    /// refuses it with the same error (ADR-REPL-5).
+    #[test]
+    fn a_picks_record_is_reserved_at_schema_2() {
+        const WHY: &str = "a PICKS record is reserved at schema 2";
+        for (bytes, ticks) in [
+            ("01 01 01 00", 0),
+            ("01 00 05 02 00 00 01 01 00 00 02 02 00 00", 7),
+            ("01 01 01 00 02 02 00 00", 2),
+        ] {
+            assert_eq!(bad_inputs(bytes, ticks), WHY, "{bytes}");
+            assert_eq!(
+                read_step_range(&hex(bytes), ticks, 1_000_000, 0, ticks),
+                Err(RunReplayError::BadInputs(WHY)),
+                "{bytes}"
+            );
+            assert_eq!(
+                StepLog::presence_at_end(&hex(bytes), ticks),
+                None,
+                "{bytes}"
+            );
+        }
+    }
+
     #[test]
     fn a_pick_between_two_runs() {
         let bytes = "01 00 01 02 00 00 01 01 00 00 02 00 00 00";

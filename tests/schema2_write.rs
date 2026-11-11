@@ -65,6 +65,34 @@ fn a_recorded_run_is_a_step_log() {
 }
 
 #[test]
+fn a_schema_2_log_with_a_picks_record_is_refused() {
+    use stella_rain_core::base64;
+    use stella_rain_core::run_replay::RunReplayError;
+    let case = tree("current").join("runs/tutorial");
+    let content = case_content(&case).unwrap();
+    let run = read_run(&case);
+    // Control: the run as recorded verifies.
+    assert!(verify_run_with(&run.to_bytes(), &content).is_ok());
+    // A PICKS record after the last tick (opcode 1, marker 1, option 0): once legal.
+    let mut bytes = base64::decode(&run.inputs).unwrap();
+    bytes.extend_from_slice(&[0x01, 0x01, 0x00]);
+    let mut edited = run.clone();
+    edited.inputs = base64::encode(&bytes);
+    let reserved = Err(RunReplayError::BadInputs(
+        "a PICKS record is reserved at schema 2",
+    ));
+    assert_eq!(edited.unpack_commands().map(|_| ()), reserved);
+    assert_eq!(
+        edited.step_range(0, edited.ticks, u32::MAX).map(|_| ()),
+        reserved
+    );
+    assert_eq!(
+        verify_run_with(&edited.to_bytes(), &content).map(|_| ()),
+        reserved
+    );
+}
+
+#[test]
 fn the_stage_replay_writer_writes_schema_2_and_keeps_interact() {
     let dir = tree("v1").join("stages/clear");
     let stage = fs::read(dir.join("stage.json")).unwrap();
