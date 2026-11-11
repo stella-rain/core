@@ -415,6 +415,102 @@ fn every_older_format_has_a_pin_and_is_refused() {
     assert_eq!(found, (1..=SAVEPOINT_FORMAT).collect::<Vec<_>>());
 }
 
+/// The golden file of the newest format: the savepoint the recorder saves for the frozen
+/// version 1 `trial` run at tick 300, its picks driven through `RunRecorder::v1_pick_step`. The
+/// pin is written once per format by `UPDATE_SAVEPOINT_PIN=1 cargo test --release --test
+/// integration savepoint::golden`, which refuses to overwrite a file: a pinned format is never
+/// re-pinned (ADR-SAVE-4). The v2 savepoint bytes are pinned by `sim::players_pin_tests` and
+/// `tests/pack_pins.toml`.
+mod golden {
+    use super::*;
+    use crate::common::run_steps::{self, RunSteps};
+    use crate::corpus_pins::run_case_pack;
+    use std::fs;
+    use std::path::PathBuf;
+    use stella_rain_core::content_hash::to_hex;
+    use stella_rain_core::replay::hash_from_hex;
+
+    fn fixtures() -> PathBuf {
+        crate::data_root::data_root().join("tests/fixtures/savepoint")
+    }
+
+    /// The frozen `trial` case, its replay and its pack, read and never written.
+    fn case() -> (RunReplay, Pack) {
+        let dir = crate::data_root::data_root().join("tests/corpus/v1/runs/trial");
+        let bytes = fs::read(dir.join("run.replay")).unwrap();
+        let replay = RunReplay::from_bytes(&bytes).unwrap();
+        let pack = run_case_pack(&dir, &bytes).unwrap();
+        (replay, pack)
+    }
+
+    /// The case's savepoint at tick 300, the prefix it was taken from, the pack, the run and the
+    /// steps; the recorder is the one that saved.
+    fn at_300() -> (Vec<u8>, RunReplay, Pack, RunReplay, RunSteps, usize) {
+        let (replay, pack) = case();
+        let steps = RunSteps::of(&replay);
+        let cut = steps.at(300);
+        let mut rec = RunRecorder::start_with_pack(&replay.setup, &pack).unwrap();
+        for step in &steps.steps()[..cut] {
+            run_steps::apply_to(&mut rec, step);
+        }
+        (rec.save(), rec.replay(), pack, replay, steps, cut)
+    }
+
+    fn pin_path() -> PathBuf {
+        fixtures().join(format!("v{SAVEPOINT_FORMAT}.sha256"))
+    }
+
+    fn line(bytes: &[u8]) -> String {
+        format!("{}  {}\n", to_hex(&sha256(bytes)), bytes.len())
+    }
+
+    #[expect(clippy::disallowed_methods, reason = "test knob")]
+    fn updating() -> bool {
+        std::env::var("UPDATE_SAVEPOINT_PIN").as_deref() == Ok("1")
+    }
+
+    /// The bytes of the newest format are pinned: the length is the one the older pins carry for
+    /// this run (the state bytes are the frozen version 1's), the digest is the header's own.
+    #[test]
+    fn the_encoding_matches_its_pinned_format() {
+        let (bytes, ..) = at_300();
+        let path = pin_path();
+        if updating() {
+            assert!(
+                !path.exists(),
+                "{path:?} exists: a pinned format is never re-pinned"
+            );
+            fs::create_dir_all(fixtures()).unwrap();
+            fs::write(&path, line(&bytes)).unwrap();
+        }
+        let pinned = fs::read_to_string(&path).unwrap_or_default();
+        assert_eq!(
+            line(&bytes),
+            pinned,
+            "the savepoint encoding changed without a bump: bump SAVEPOINT_FORMAT in \
+             src/savepoint/file.rs, then `UPDATE_SAVEPOINT_PIN=1 cargo test --release --test \
+             integration savepoint::golden` writes tests/fixtures/savepoint/v<N>.sha256"
+        );
+    }
+
+    /// The pinned file loads and resumes: the run goes on to tick 360 and the checkpoint there
+    /// is the recorded one.
+    #[test]
+    fn the_pinned_file_loads_and_resumes() {
+        let (bytes, prefix, pack, replay, steps, cut) = at_300();
+        let sp = Savepoint::from_bytes(&bytes).unwrap();
+        assert_eq!(sp.header().format, SAVEPOINT_FORMAT);
+        let mut r = RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).unwrap();
+        for step in &steps.steps()[cut..steps.at(360)] {
+            run_steps::apply_to(&mut r, step);
+        }
+        assert_eq!(r.engine().tick(), 360);
+        let checkpoints = replay.checkpoints.as_bytes();
+        let want = hash_from_hex(std::str::from_utf8(&checkpoints[5 * 16..6 * 16]).unwrap());
+        assert_eq!(Some(r.engine().state_hash()), want);
+    }
+}
+
 // --- Format 2: the player stats record --------------------------------------------------------
 
 /// The record is 3 slots of `damage_dealt: u64`, `kills: u32`, `support: u64`, little-endian.
