@@ -119,3 +119,4 @@ removed. On a device run set them as `DEVICECTL_CHILD_STELLA_TEST_DATA_ROOT=...`
 Not verified: the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
 a phone that is not on iOS 27.2; an Xcode other than 27.2 (the shape of `devicectl`'s JSON); the profile
 after Xcode re-creates it; the 7-day expiry cycle itself. The device run cannot run in CI.
+
