@@ -13,7 +13,7 @@
 //! | 0 | 4 | magic `SRSV` |
 //! | 4 | 4 | `format` |
 //! | 8 | 4 | `sim_version` |
-//! | 12 | 4 | `schema_version`, compared with this build's |
+//! | 12 | 4 | `schema_version`, the schema of the prefix it was taken with |
 //! | 16 | 32 | `content_sha256` of the pack, for the run's mode |
 //! | 48 | 4 | `tick` |
 //! | 52 | 8 | `state_hash` |
@@ -46,8 +46,7 @@ use crate::run_replay::{
     History, MAX_RUN_REPLAY_BYTES, RunReplay, content_sha256_with, unpack_history,
 };
 use crate::version::{
-    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION,
-    SIM_VERSION,
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SIM_VERSION,
 };
 
 use super::{decode_state, encode_state};
@@ -113,7 +112,9 @@ pub struct SavepointHeader {
     pub format: u32,
     /// The simulation rules version of the run.
     pub sim_version: u32,
-    /// The schema version at save time; a file whose value is not this build's is refused.
+    /// The schema of the replay prefix the savepoint was taken with (a `sim_version` 1 run is
+    /// written at schema 1, every other at `SCHEMA_VERSION`); a file whose value is not one this
+    /// build reads is refused, and `restore` wants it equal to the prefix's.
     pub schema_version: u32,
     /// The SHA-256 of the content pack, for the run's mode (`content_sha256_with`).
     pub content_sha256: [u8; 32],
@@ -239,7 +240,7 @@ pub(crate) fn save(engine: &Engine, prefix: &RunReplay) -> Vec<u8> {
         header: SavepointHeader {
             format: SAVEPOINT_FORMAT,
             sim_version: engine.version(),
-            schema_version: SCHEMA_VERSION,
+            schema_version: prefix.setup.schema_version,
             content_sha256,
             tick: engine.tick(),
             state_hash: engine.state_hash(),
@@ -296,8 +297,8 @@ pub(crate) fn restore(
     if engine.state_hash() != head.state_hash {
         return Err(SavepointError::HashMismatch);
     }
-    // The writers agree (the header and the prefix both carry `SCHEMA_VERSION`, or both an older
-    // build's); a header that disagrees with its prefix is forged or mixed.
+    // The writers agree (the header carries the schema of the prefix it was taken with, 1 for a
+    // `sim_version` 1 run, or an older build's); a header that disagrees with its prefix is forged or mixed.
     if prefix.ticks != head.tick
         || head.schema_version != prefix.setup.schema_version
         || prefix.final_hash != hash_to_hex(head.state_hash)
@@ -316,6 +317,7 @@ pub(crate) fn restore(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::version::SCHEMA_VERSION;
 
     fn sample() -> Savepoint {
         Savepoint {
