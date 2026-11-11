@@ -18,10 +18,10 @@ pub const KEPT_BOT_SEED: u64 = 1;
 /// The world seed of the `stage_skill` run case, found by `search_corpus_run_seeds`: the first
 /// world seed in 1..=20 (with `STAGE_SKILL_BOT_SEED`) whose equipment run uses the black hole and
 /// nothing else, and ends Failed.
-pub const STAGE_SKILL_SEED: u64 = 1;
-/// The building bot's seed of the `stage_skill` run case (world seed 1, bot seed 1 never uses a
-/// skill; this is the first bot seed that does).
-pub const STAGE_SKILL_BOT_SEED: u64 = 2;
+pub const STAGE_SKILL_SEED: u64 = 8;
+/// The building bot's seed of the `stage_skill` run case (the first pair of the search, with the
+/// golem chasing and the star pack, that uses the black hole and ends Failed).
+pub const STAGE_SKILL_BOT_SEED: u64 = 1;
 
 /// The world seed of the `time_limit_kill` run case, found by `search_corpus_run_seeds`: the first
 /// world seed in 1..=20 where the hand-played fight against the final boss ends in its kill.
@@ -32,16 +32,24 @@ pub const KILL_BOT_SEED: u64 = 1;
 /// The world seed of the `elites` run case, found by `search_corpus_run_seeds`: the first world
 /// seed in 1..=20 (with `ELITES_BOT_SEED`) where the scripted run meets every elite type, hits the
 /// cap of 5, and leaves a shrine and a mimic on the map when the boss calls.
-pub const ELITES_SEED: u64 = 4;
+pub const ELITES_SEED: u64 = 5;
 /// The building bot's seed of the `elites` run case.
-pub const ELITES_BOT_SEED: u64 = 11;
+pub const ELITES_BOT_SEED: u64 = 1;
 
 /// The world seed of the `trial` run case, found by `search_corpus_run_seeds`: the first world
-/// seed in 1..=20 (with `TRIAL_BOT_SEED`) whose run takes every kind of equipment action (equip,
-/// replace, extract, craft, tree pick), hits all four match-ups and ends Failed.
-pub const TRIAL_SEED: u64 = 4;
+/// seed in 1..=20 (with `TRIAL_BOT_SEED`) whose run hits all four match-ups and ends Failed. The
+/// chasing golem ends the runs that fail before the bot has taken every kind of equipment action,
+/// so that promise is `trial_kinds`'s.
+pub const TRIAL_SEED: u64 = 3;
 /// The building bot's seed of the `trial` run case.
-pub const TRIAL_BOT_SEED: u64 = 12;
+pub const TRIAL_BOT_SEED: u64 = 1;
+
+/// The world seed of the `trial_kinds` run case, found by `search_corpus_run_seeds`: the first
+/// world seed in 1..=20 (with `TRIAL_KINDS_BOT_SEED`) whose trial run takes every kind of
+/// equipment action (equip, replace, extract, craft, tree pick), however it ends.
+pub const TRIAL_KINDS_SEED: u64 = 13;
+/// The building bot's seed of the `trial_kinds` run case.
+pub const TRIAL_KINDS_BOT_SEED: u64 = 2;
 
 /// The world seed of the `time_limit` run case: the longest equipment run of the search, which
 /// ends just short of the time limit (the offers-era healing that kept the run alive to the limit

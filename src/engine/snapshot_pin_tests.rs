@@ -166,12 +166,12 @@ fn the_snapshot_and_places_bytes_are_pinned() {
         [
             412_818_838_291_876_013,
             12_829_727_334_647_821_083,
-            17_855_876_323_284_583_904,
+            3_061_930_009_705_024_715,
             17_246_493_444_519_606_257,
             6_438_994_331_722_358_287,
             12_484_909_366_339_812_250
         ],
-        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
+        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs (time_limit_case moved when the mode bosses began to chase)"
     );
     let missing: Vec<&str> = [
         (seen.attack, "an entity with an attack"),
@@ -202,7 +202,7 @@ fn the_player_view_bytes_are_pinned() {
             11_854_411_370_225_542_390,
             17_735_575_978_225_829_493
         ],
-        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
+        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs (time_limit_case moved when the mode bosses began to chase)"
     );
 }
 

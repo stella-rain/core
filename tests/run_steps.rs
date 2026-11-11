@@ -100,7 +100,7 @@ fn an_equipment_run_replays_to_its_recorded_hashes() {
 fn every_run_case_replays_to_its_checkpoints() {
     let mut cases = case_dirs(&runs_dir());
     cases.extend(case_dirs(&frozen_runs_dir()));
-    assert_eq!(cases.len(), 19);
+    assert_eq!(cases.len(), 20);
     for case in cases {
         let (replay, _, pack) = load(&case);
         let steps = RunSteps::of(&replay);

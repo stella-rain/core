@@ -144,9 +144,13 @@ pub fn run_setup(data: &[u8]) -> bool {
     assert_eq!(again, setup, "a saved setup loads as another setup");
     // The perk set and the carried stars are checked against the run's content when it starts:
     // a setup that names what the content lacks fails closed there, and only there.
+    // A `sim_version` 1 setup is refused by the live mode files, whose bosses chase (a chase needs
+    // `sim_version` 2, ADR-SIM-4): it starts only from the frozen pack, which the fuzz crate does
+    // not read, so its start fails closed too.
     let Ok(mut engine) = Engine::start(&setup) else {
         assert!(
-            run_setup::validate_in(&setup, RunContent::bundled()).is_err(),
+            setup.sim_version == 1
+                || run_setup::validate_in(&setup, RunContent::bundled()).is_err(),
             "a setup that validates against the content starts a run"
         );
         return false;

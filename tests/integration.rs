@@ -23,6 +23,7 @@ mod bleed;
 mod boomerang;
 mod boss;
 mod boss_chase;
+mod boss_chase_content;
 mod boss_zones;
 mod bosses;
 mod charge;

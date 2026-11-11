@@ -8,7 +8,7 @@ use crate::common::run::trial_setup;
 use crate::corpus::{
     RunDefinition, assert_elites, assert_five_kinds, assert_longest_run, assert_match_ups,
     assert_short_run_at, assert_stage_skill, case_content, elite_reach_at,
-    equipment_run_definition, replay_run_case_at, write_atomic,
+    equipment_run_definition, replay_run_case_any_at, replay_run_case_at, write_atomic,
 };
 use crate::corpus_pins::{write_case_json, write_pack_file};
 use std::fs;
@@ -28,11 +28,13 @@ fn promise(name: &str, case: &Path) {
             let v = run_replay::verify_run_with(&bytes, &case_content(case).unwrap()).unwrap();
             assert_eq!(v.outcome, Outcome::Cleared, "the outcome of `{name}`");
         }
+        // The old `trial` promise split in two: the one that ends Failed and hits every match-up,
+        // and the one that takes all five kinds of equipment action, however it ends.
         "trial" => {
             let run = replay_run_case_at(case, name, Outcome::Failed);
-            assert_five_kinds(&run.kinds);
             assert_match_ups(run.match_ups);
         }
+        "trial_kinds" => assert_five_kinds(&replay_run_case_any_at(case, name).kinds),
         "stage_skill" => assert_stage_skill(&replay_run_case_at(case, name, Outcome::Failed).used),
         "time_limit" => assert_longest_run(case),
         "time_limit_kill" => assert_short_run_at(case, name, Outcome::Cleared, None, false),
@@ -139,6 +141,7 @@ fn search_corpus_run_seeds() {
         "stage_skill",
         "elites",
         "trial",
+        "trial_kinds",
         "time_limit",
     ] {
         if search(&tree, name).is_none() {

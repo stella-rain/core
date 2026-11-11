@@ -1397,7 +1397,7 @@ fn run_definitions() -> Vec<RunDefinition> {
     use common::run::{
         ELITES_BOT_SEED, ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
         STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
-        TRIAL_BOT_SEED, TRIAL_SEED, trial_setup,
+        TRIAL_BOT_SEED, TRIAL_KINDS_BOT_SEED, TRIAL_KINDS_SEED, TRIAL_SEED, trial_setup,
     };
     // The cases that keep the world seed they had play it with the bot's first seed.
     let kept = trial_setup().seed;
@@ -1407,7 +1407,11 @@ fn run_definitions() -> Vec<RunDefinition> {
         // The tutorial's first 240 ticks: it ends before the bot's first equipment action, so it
         // is the one case that holds none (`schema2_corpus`).
         equipment_run_definition("tutorial_opening", kept, KEPT_BOT_SEED),
+        // The trial: it ends Failed and hits every match-up; `trial_kinds` is the trial run that
+        // takes all five kinds of equipment action, which the chasing golem does not let a
+        // Failed run do.
         equipment_run_definition("trial", TRIAL_SEED, TRIAL_BOT_SEED),
+        equipment_run_definition("trial_kinds", TRIAL_KINDS_SEED, TRIAL_KINDS_BOT_SEED),
         // Every point on attack; an elite's rare star offers the black hole.
         equipment_run_definition("stage_skill", STAGE_SKILL_SEED, STAGE_SKILL_BOT_SEED),
         // The time_limit mode's waves around the main character, played until it falls just
@@ -1474,10 +1478,19 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
                 play_equipment_run_with(&setup, bundled, TUTORIAL_OPENING_TICKS, boss_input, &bot);
             ("tutorial_opening", setup, None, commands)
         }
-        "trial" => {
+        "trial" | "trial_kinds" => {
             let setup = equipment_setup(base);
             let commands = play_equipment_run_from(&setup, TRIAL_LENGTH, &bot);
-            ("trial", setup, None, commands)
+            (
+                if name == "trial" {
+                    "trial"
+                } else {
+                    "trial_kinds"
+                },
+                setup,
+                None,
+                commands,
+            )
         }
         "stage_skill" => {
             // Every point on attack: the priority keeps that run. The black hole starts in the
@@ -1796,10 +1809,21 @@ fn replay_run_case_ending(name: &str, outcome: Outcome) -> RunCase {
 
 /// `replay_run_case_ending` for the case in the folder `case` (named `name` in messages).
 pub(crate) fn replay_run_case_at(case: &Path, name: &str, outcome: Outcome) -> RunCase {
+    replay_run_case_in(case, name, Some(outcome))
+}
+
+/// `replay_run_case_at` for a case that names no outcome: it must verify, whichever way it ends.
+pub(crate) fn replay_run_case_any_at(case: &Path, name: &str) -> RunCase {
+    replay_run_case_in(case, name, None)
+}
+
+fn replay_run_case_in(case: &Path, name: &str, outcome: Option<Outcome>) -> RunCase {
     let bytes = fs::read(case.join("run.replay")).unwrap();
     let content = case_content(case).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &content).unwrap();
-    assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
+    if let Some(outcome) = outcome {
+        assert_eq!(verified.outcome, outcome, "the outcome of `{name}`");
+    }
     let replay = RunReplay::from_bytes(&bytes).unwrap();
     let steps = RunSteps::of(&replay);
     let picks = steps.steps().iter().filter(|s| matches!(s, Step::Picks(_)));
@@ -1927,7 +1951,9 @@ pub(crate) fn assert_stage_skill(used: &[(String, u8)]) {
 #[test]
 fn the_run_cases_are_what_their_names_say() {
     // Re-simulated, the trial's actions take each kind of equipment action at least once.
-    assert_five_kinds(&replay_run_case("trial").kinds);
+    assert_five_kinds(
+        &replay_run_case_any_at(&runs_dir().join("trial_kinds"), "trial_kinds").kinds,
+    );
     // The time_limit run is the longest equipment run: it ends with the main character falling
     // just short of the time limit (the offers-era healing that kept it alive to MAX_TICKS is gone).
     assert_longest_run(&runs_dir().join("time_limit"));

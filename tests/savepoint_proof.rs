@@ -338,7 +338,7 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
 }
 
 /// Run cases recorded after `v1/` was frozen: only `current/` holds them.
-const CURRENT_ONLY: &[&str] = &["tutorial_opening"];
+const CURRENT_ONLY: &[&str] = &["tutorial_opening", "trial_kinds"];
 
 /// Why a case is not proved here.
 #[derive(Debug, PartialEq)]
@@ -423,6 +423,7 @@ run_cases!(
     time_limit_kill,
     time_limit_overtime,
     trial,
+    trial_kinds,
     tutorial,
     tutorial_opening,
 );
@@ -431,7 +432,7 @@ run_cases!(
 /// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
 /// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
 /// `v1/` runs: `tutorial()` below reads one.
-const FEATURES: [(&str, bool, bool, bool); 10] = [
+const FEATURES: [(&str, bool, bool, bool); 11] = [
     ("easy", false, true, true),
     ("elites", false, true, true),
     ("rainy", false, true, true),
@@ -440,6 +441,7 @@ const FEATURES: [(&str, bool, bool, bool); 10] = [
     ("time_limit_kill", false, false, true),
     ("time_limit_overtime", false, false, true),
     ("trial", false, true, true),
+    ("trial_kinds", false, true, true),
     ("tutorial", false, true, true),
     ("tutorial_opening", false, true, true),
 ];
@@ -469,7 +471,7 @@ fn the_case_lists_are_the_directories() {
 
 /// The floor of the proof per tree: (tree, proved at least, skipped at most). `current` proves
 /// every case; the frozen `v1/` run cases all hold a PICKS step, so none is proved here.
-const FLOOR: [(&str, usize, usize); 2] = [("current", 10, 0), ("v1", 0, 9)];
+const FLOOR: [(&str, usize, usize); 2] = [("current", 11, 0), ("v1", 0, 9)];
 
 fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), String> {
     let (min, max) = floor_of(tree);
@@ -500,30 +502,34 @@ fn floor_of(tree: &str) -> (usize, usize) {
 
 #[test]
 fn a_proof_that_proves_nothing_fails() {
-    assert_eq!(floor_of("current"), (10, 0));
+    assert_eq!(floor_of("current"), (11, 0));
     let err = check_floor("current", &[], &names_of(RUN_CASES)).unwrap_err();
     assert!(err.contains("savepoint proof, current"), "{err}");
     assert!(err.contains("0 proved"), "{err}");
-    assert!(err.contains("10 skipped"), "{err}");
+    assert!(err.contains("11 skipped"), "{err}");
     assert!(err.contains("raise the floor"), "{err}");
 }
 
 #[test]
 fn a_current_case_that_skips_fails() {
-    let nine = names_of(&RUN_CASES[1..]);
-    let err = check_floor("current", &nine, &names_of(&["easy"])).unwrap_err();
+    let rest = names_of(&RUN_CASES[1..]);
+    let err = check_floor("current", &rest, &names_of(&["easy"])).unwrap_err();
     assert!(err.contains("easy"), "{err}");
     assert!(err.contains("1 skipped"), "{err}");
 }
 
 #[test]
 fn the_floor_holds_at_todays_counts() {
-    let ten = names_of(RUN_CASES);
-    let nine = names_of(&RUN_CASES[..9]);
-    assert_eq!(check_floor("current", &ten, &[]), Ok(()));
-    assert_eq!(check_floor("v1", &[], &nine), Ok(()));
+    let all = names_of(RUN_CASES);
+    let frozen: Vec<&str> = RUN_CASES
+        .iter()
+        .copied()
+        .filter(|n| !CURRENT_ONLY.contains(n))
+        .collect();
+    assert_eq!(check_floor("current", &all, &[]), Ok(()));
+    assert_eq!(check_floor("v1", &[], &names_of(&frozen)), Ok(()));
     // A tenth skipped v1 case is a corpus change.
-    assert!(check_floor("v1", &[], &ten).is_err());
+    assert!(check_floor("v1", &[], &all).is_err());
 }
 
 #[test]
