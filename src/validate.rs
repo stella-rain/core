@@ -11,8 +11,6 @@
 //! alive, enemies alive) are the simulation's runtime caps, and so is any count that an
 //! expression computes: the validator checks constants, the engine clamps the rest.
 
-use std::fmt;
-
 use crate::attack::{
     AttackPhase, AttackRef, DamageType, Dash, Direction, Emitter, Expr, HitBox, Offset, PhaseKind,
     Profile, ZoneShape,
@@ -29,8 +27,12 @@ use crate::stage::{
     Step, Tier, Transition, Wave, stardust_tiers_problem,
 };
 use crate::trig;
-use crate::version::{self, ReadError};
+use crate::version::{self};
 use crate::weapon::{Branches, Charge, Hold, SmashEffect, Weapon, WeaponRef};
+
+mod error;
+
+pub use error::{Error, Issue};
 
 /// Limits a stage must keep. The first block is ADR-SVC-1, the second ADR-SIM-4, the rest the
 /// loadout and numeric ranges that ADR-SIM-3 ask for.
@@ -196,66 +198,6 @@ fn wide(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-/// One problem and where it is.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Issue {
-    /// For example `$.boss.phases[1].timeline[3]`; `$` is the file.
-    pub path: String,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Error {
-    /// Over `MAX_STAGE_BYTES`; the file is not parsed.
-    TooLarge {
-        size: usize,
-        limit: usize,
-    },
-    /// Not JSON, or not the stage format (unknown or missing fields, wrong types).
-    Parse {
-        line: usize,
-        column: usize,
-    },
-    /// Written by a newer game: listed greyed out as "update the app" (ADR-REPL-1).
-    UnsupportedVersion {
-        schema_version: u32,
-        sim_version: u32,
-    },
-    Invalid(Vec<Issue>),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::TooLarge { size, limit } => {
-                write!(f, "the stage file is {size} bytes; the limit is {limit}")
-            }
-            Error::Parse { line, column } => {
-                write!(f, "not a valid stage file (line {line}, column {column})")
-            }
-            Error::UnsupportedVersion {
-                schema_version,
-                sim_version,
-            } => write!(
-                f,
-                "needs a newer version of the game (schema_version {schema_version}, \
-                 sim_version {sim_version})"
-            ),
-            Error::Invalid(issues) => {
-                for (i, issue) in issues.iter().enumerate() {
-                    if i > 0 {
-                        writeln!(f)?;
-                    }
-                    write!(f, "{}: {}", issue.path, issue.message)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
 /// Checks the size, parses strictly and validates: the one call for a stage file's bytes.
 pub fn parse_and_validate(bytes: &[u8]) -> Result<Stage, Error> {
     let stage: Stage = version::read_current(bytes, MAX_STAGE_BYTES)?;
@@ -406,22 +348,6 @@ pub fn validate_weapon_preset(preset: &Weapon, registry: &[Entry]) -> Result<(),
         Ok(())
     } else {
         Err(ctx.issues)
-    }
-}
-
-impl From<ReadError> for Error {
-    fn from(e: ReadError) -> Error {
-        match e {
-            ReadError::TooLarge { size, limit } => Error::TooLarge { size, limit },
-            ReadError::Parse { line, column } => Error::Parse { line, column },
-            ReadError::UnsupportedVersion {
-                schema_version,
-                sim_version,
-            } => Error::UnsupportedVersion {
-                schema_version,
-                sim_version,
-            },
-        }
     }
 }
 
