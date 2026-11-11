@@ -378,8 +378,12 @@ jobs:
 
   fuzz-build:
     name: fuzz targets build (nightly)
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Skipped on a PR whose `parsing changed` is true: the short run below builds the same
+    # targets on the same nightly. It still runs on main (it saves the nightly cache the short run
+    # reads), weekly and on a PR that touches no parsing. `!cancelled()`: `fuzz-changes` is skipped
+    # off a PR, which would skip this job too.
+    needs: [changes, fuzz-changes]
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' && needs.fuzz-changes.outputs.parsing != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -895,6 +899,8 @@ jobs:
               fuzz-changes) runs=$pr ;;
               # No `parsing` off a PR, or when `parsing changed` failed, which fails this anyway.
               fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
+              # Skipped when the short run builds the same targets (only a PR has `parsing`).
+              fuzz-build) runs=$code; if [ "$parsing" = true ]; then runs=false; fi ;;
               bless) runs=false; if [ "$code" = true ] && [ "$tune" != true ]; then runs=true; fi ;;
               *) runs=$code ;;
             esac
