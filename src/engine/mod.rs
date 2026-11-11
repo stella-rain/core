@@ -1160,6 +1160,8 @@ mod dispatch_tests;
 #[cfg(test)]
 mod hash_coverage_tests;
 #[cfg(test)]
+mod horde_live_tests;
+#[cfg(test)]
 mod horde_tests;
 #[cfg(test)]
 mod live_access_tests;
