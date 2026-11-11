@@ -799,7 +799,8 @@ fn a_version_1_savepoint_carries_the_prefix_schema() {
     let bytes = rec.save();
     assert_eq!(bytes[12..16], 1u32.to_le_bytes());
     assert!(RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).is_ok());
-    // A version 2 recorder's savepoint is what it was before.
+    // A version 2 recorder's savepoint is what it was before: the digest is that of main's
+    // code at the same bundled pack (it moves with a pack bless, not with this header change).
     let mut live = RunRecorder::start_with_pack(&trial_setup(), Pack::bundled()).unwrap();
     for c in play_run(300) {
         if let Command::Step(i) = c {
@@ -811,7 +812,7 @@ fn a_version_1_savepoint_carries_the_prefix_schema() {
     assert_eq!(saved[12..16], 2u32.to_le_bytes());
     assert_eq!(
         digest(&saved),
-        "4c858a07db5c47661c9b4c18a3096ba180350385f45cd58bb2b7c772c663b946"
+        "0b8b091bbff0e1ca771708fb4dfcfdbd0abe92f9237037ae9a57922ae9b751a1"
     );
 }
 
