@@ -515,17 +515,17 @@ fn the_players_drop_weights_add_to_the_perk_sets() {
     assert_eq!(live(&scholar, content), Vec::<u32>::new());
     let own = weighted(&scholar, json!({ "defence": 40 }));
     assert_eq!(live(&own, content), vec![0, 40, 0]);
-    // The sum saturates.
-    let file = json!({ "perk_sets": [{ "id": "huge", "effects": [
-        { "effect": "drop_weight", "amount": u32::MAX, "category": "attack" }] }] });
+    // A set's amount is at most 100 and the setup's at most the pack's range: the sum adds up.
+    let file = json!({ "perk_sets": [{ "id": "big", "effects": [
+        { "effect": "drop_weight", "amount": 100, "category": "attack" }] }] });
     let sets = PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
-    let huge = RunSetup {
-        perk_set: "huge".into(),
+    let big = RunSetup {
+        perk_set: "big".into(),
         ..RunSetup::default()
     };
     let content = content.clone().with_perk_sets(sets);
-    let capped = weighted(&huge, json!({ "attack": 100 }));
-    assert_eq!(live(&capped, &content), vec![u32::MAX, 0, 0]);
+    let capped = weighted(&big, json!({ "attack": 100 }));
+    assert_eq!(live(&capped, &content), vec![200, 0, 0]);
 }
 
 // --- the boss kill (ADR-SIM-7 point 5) ---------------------------------------------------------

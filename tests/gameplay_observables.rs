@@ -247,7 +247,7 @@ const PINS: &[(&str, &str)] = &[
     ("runs/easy", "1b2c306694f77d61"),
     ("runs/elites", "6f98656b3399bb31"),
     ("runs/rainy", "6add13e7dec4fcc6"),
-    ("runs/stage_skill", "e76cb1a9276eec19"),
+    ("runs/stage_skill", "90d4d04017ef2422"),
     ("runs/time_limit", "9644f87231ae3408"),
     ("runs/time_limit_kill", "db944b90447a4e3f"),
     ("runs/time_limit_overtime", "a397f309f22b1ba8"),
