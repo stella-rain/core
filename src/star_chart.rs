@@ -36,7 +36,8 @@ use crate::weapons::Weapons;
 pub const MAX_STAR_CHART_BYTES: usize = 16 * 1024;
 /// The most entries one list holds (a tuning value).
 pub const MAX_ITEMS: usize = 32;
-/// The most levels one levelled item has prices for (a tuning value).
+/// The most levels the expertise multiplier and the Lumine levels have prices for (a tuning
+/// value); a run stat's is `MAX_STAT_LEVELS`.
 pub const MAX_LEVELS: usize = 10;
 /// The most levels one run stat's price list has: the ceiling of a stat's `limit`
 /// (`run_stats::MAX_LIMIT`), a tuning value.
@@ -82,6 +83,7 @@ pub struct StarChartFile {
     /// Run stats for sale, at most `MAX_ITEMS`.
     pub stats: Vec<StatPrices>,
     /// The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.
+    #[schemars(range(min = 1, max = MAX_LEVELS))]
     pub expertise_levels: u8,
     /// The expertise multiplier's price per level: exactly `expertise_levels` prices, never
     /// falling.
@@ -329,6 +331,7 @@ pub fn validate(
                 });
             }
             // A well-formed, first, known ID has a `limit`: the list prices each level of it.
+            // Any other entry already has an ID issue, so its list only gets the outer bound.
             let limit = run_stats
                 .stats()
                 .iter()
