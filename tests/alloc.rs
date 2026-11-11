@@ -227,13 +227,14 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// content behind `Arc`s and copies only the state: `rollback` fell 1744 -> 368 allocs and
 /// `rollback_equip` 1859 -> 483 (reallocs and frees unchanged); the level-offer fields leaving the
 /// gauge and progress took 4 more off each, to 364 and 479; `State.kinds` and `State.runes`
-/// behind `Arc` took 7 more off each, to 357 and 472. The rule of `BENCH_TICK_ALLOCS`
+/// behind `Arc` took 7 more off each, to 357 and 472; the star-offer fields leaving `Offers` (the
+/// `due`, `taken` and `banished` lists) took 11 more off each, to 346 and 461. The rule of `BENCH_TICK_ALLOCS`
 /// holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(357, 14, 8)),
-    ("rollback_equip", pin(472, 26, 119)),
+    ("rollback", pin(346, 14, 8)),
+    ("rollback_equip", pin(461, 26, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
