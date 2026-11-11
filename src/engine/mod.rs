@@ -1176,17 +1176,6 @@ mod v1_events;
 pub(crate) use run::{Build, Difficulty, Run, Saved};
 pub use snapshot::{Place, Places, Tally};
 
-/// Takes option `index` of the open offer for `player` through a step, as a test plays an
-/// offer: refused as `check_pick` refuses it, changing nothing.
-#[cfg(test)]
-pub(crate) fn pick(e: &mut Engine, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
-    e.check_pick(player, index)?;
-    let mut inputs = [Input::default(); crate::id::MAX_PLAYERS as usize];
-    inputs[player.get()] = Input::picking(index);
-    e.step(&inputs);
-    Ok(())
-}
-
 #[cfg(test)]
 mod action_tests;
 #[cfg(test)]
@@ -1205,8 +1194,6 @@ mod horde_tests;
 mod move_index_tests;
 #[cfg(test)]
 mod party_tests;
-#[cfg(test)]
-mod pick_tests;
 #[cfg(test)]
 mod players_api_tests;
 #[cfg(test)]

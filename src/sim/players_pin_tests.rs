@@ -12,8 +12,7 @@ use crate::savepoint::encode_state;
 
 const TICKS: u32 = 600;
 
-/// The hash and the savepoint bytes at tick 0 and every 25th tick of `TICKS` ticks, an open offer
-/// taking option 0.
+/// The hash and the savepoint bytes at tick 0 and every 25th tick of `TICKS` ticks.
 fn pin(mut e: Engine, input: fn(u32) -> Input) -> u64 {
     assert_eq!(e.run().version(), 2, "the pin is of the live rules");
     let mut h = StateHasher::new();
@@ -23,9 +22,6 @@ fn pin(mut e: Engine, input: fn(u32) -> Input) -> u64 {
     };
     feed(&e);
     for i in 1..=TICKS {
-        while e.offer_open() {
-            crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).expect("option 0 exists");
-        }
         let tick = e.tick() + 1;
         e.step(&[input(tick), Default::default(), Default::default()]);
         if i % 25 == 0 {

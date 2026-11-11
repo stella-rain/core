@@ -1882,14 +1882,6 @@ mod tests {
         let one = crate::id::PlayerIdx::new(1).unwrap();
         while rec.engine().snapshot().players[1].down.is_none() {
             assert!(rec.engine().tick() < 4_000, "slot 1 goes down");
-            if rec.engine().offer_open() {
-                let holder = (0..2u8)
-                    .filter_map(crate::id::PlayerIdx::new)
-                    .find(|p| rec.engine().check_pick(*p, 0).is_ok())
-                    .unwrap();
-                rec.choose(holder, 0).unwrap();
-                continue;
-            }
             rec.step(&[walk, Input::default(), Input::default()])
                 .unwrap();
         }
