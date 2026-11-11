@@ -167,12 +167,14 @@ fn an_optional_file_the_pack_lacks_is_not_written_and_a_stale_one_is_removed() {
     let start = full.rfind("\n  \"stardust\": ").unwrap() + 1;
     let end = full.rfind("\n  \"modes\"").unwrap() + 1;
     let bytes = format!("{}{}", &full[..start], &full[end..]).into_bytes();
-    // A stale stardust.json from an earlier unpack, and a file that is not the pack's at all.
+    // A stale star_chart.json from an earlier unpack, and a file that is not the pack's at all.
     std::fs::write(tree.content().join("stardust.json"), b"stale\n").unwrap();
+    std::fs::write(tree.content().join("star_chart.json"), b"stale\n").unwrap();
     std::fs::write(tree.content().join("notes.txt"), b"mine\n").unwrap();
     let out = unpack(&tree.pack(&bytes), &tree.content());
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
     assert!(!tree.content().join("stardust.json").exists());
+    assert!(!tree.content().join("star_chart.json").exists());
     assert_eq!(
         std::fs::read(tree.content().join("notes.txt")).unwrap(),
         b"mine\n"

@@ -148,6 +148,7 @@ mod shot;
 mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;
+mod star_chart;
 mod stardust;
 mod stardust_earners;
 mod stardust_file;

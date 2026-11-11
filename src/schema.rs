@@ -25,6 +25,7 @@ use crate::runes::RunesFile;
 use crate::snapshot::Snapshot;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkillsFile;
+use crate::star_chart::StarChartFile;
 use crate::stardust::StardustFile;
 use crate::starting_unlocks::StartingUnlocksFile;
 use crate::time_limit::TimeLimitFile;
@@ -60,6 +61,7 @@ pub fn all() -> Vec<(&'static str, String)> {
         PerkSetsFile,
         RulesFile,
         StardustFile,
+        StarChartFile,
         StartingUnlocksFile,
         DifficultiesFile,
         AttackPresetsFile,
@@ -177,6 +179,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("perk_sets.schema.json", stub(&PerkSetsFile::schema_name())),
         ("rules.schema.json", stub(&RulesFile::schema_name())),
         ("stardust.schema.json", stub(&StardustFile::schema_name())),
+        (
+            "star_chart.schema.json",
+            stub(&StarChartFile::schema_name()),
+        ),
         (
             "starting_unlocks.schema.json",
             stub(&StartingUnlocksFile::schema_name()),

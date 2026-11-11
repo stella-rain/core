@@ -56,6 +56,7 @@ use crate::run_stats::{RunStats, RunStatsFile};
 use crate::runes::{Runes, RunesFile};
 use crate::stage::Stage;
 use crate::stage_skill::{StageSkills, StageSkillsFile};
+use crate::star_chart::{self, StarChart, StarChartFile};
 use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
@@ -147,6 +148,8 @@ struct BorrowedPack<'a> {
     constellations: Option<&'a RawValue>,
     #[serde(borrow, default)]
     stardust: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    star_chart: Option<&'a RawValue>,
     #[serde(borrow)]
     modes: BorrowedModes<'a>,
 }
@@ -211,6 +214,12 @@ pub struct PackFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<StardustFile>")]
     pub stardust: Option<Box<RawValue>>,
+    /// The Star Chart's Stardust prices (ADR-SAVE-17), checked against the pack's own weapons,
+    /// perk sets, stage skills, run stats and starting unlocks. Optional: a pack released before
+    /// it has none, and reports no catalogue, never a guessed one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<StarChartFile>")]
+    pub star_chart: Option<Box<RawValue>>,
     pub modes: PackModes,
 }
 
@@ -481,6 +490,22 @@ impl Pack {
             // Never re-entered: the bundled pack carries `stardust`, so loading it does not
             // reach `Pack::bundled()`, whose `OnceLock` would deadlock.
             .unwrap_or_else(|| Stardust::bundled().clone());
+        let star_chart = pack
+            .star_chart
+            .as_deref()
+            .map(|raw| {
+                StarChart::parse_with(
+                    &file_bytes(raw),
+                    versions,
+                    &run_stats,
+                    &perk_sets,
+                    &stage_skills,
+                    &weapons,
+                    starting_unlocks.as_ref(),
+                )
+            })
+            .transpose()
+            .map_err(PackError::in_file("star_chart"))?;
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit), versions)
@@ -518,6 +543,7 @@ impl Pack {
             rules,
             starting_unlocks,
             stardust,
+            star_chart,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -567,6 +593,12 @@ impl Pack {
         self.content.stardust()
     }
 
+    /// The Star Chart's prices (ADR-SAVE-17), `None` for a pack released without the file:
+    /// no catalogue, never a guessed one.
+    pub fn star_chart(&self) -> Option<&StarChart> {
+        self.content.star_chart()
+    }
+
     /// The `trial` mode's stage.
     pub fn trial(&self) -> &Stage {
         self.content.trial()
@@ -609,6 +641,29 @@ fn counts<'a, T: Deserialize<'a>>(raw: &'a RawValue) -> Option<T> {
 struct ModeLists {
     #[serde(default)]
     modes: Vec<IgnoredAny>,
+}
+
+/// The lists of the star chart file, counted.
+#[derive(Deserialize)]
+struct StarChartLists {
+    #[serde(default)]
+    weapons: Vec<IgnoredAny>,
+    #[serde(default)]
+    perk_sets: Vec<IgnoredAny>,
+    #[serde(default)]
+    stage_skills: Vec<IgnoredAny>,
+    #[serde(default)]
+    stats: Vec<StatPriceLists>,
+    #[serde(default)]
+    expertise_multiplier: Vec<IgnoredAny>,
+    #[serde(default)]
+    lumine_levels: Vec<IgnoredAny>,
+}
+
+#[derive(Deserialize)]
+struct StatPriceLists {
+    #[serde(default)]
+    prices: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -856,6 +911,37 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
     }
     if let Some(l) = pack.stardust.as_deref().and_then(counts::<ModeLists>) {
         budget("$.stardust.modes", l.modes.len(), MAX_STARDUST_MODES)?;
+    }
+    if let Some(l) = pack
+        .star_chart
+        .as_deref()
+        .and_then(counts::<StarChartLists>)
+    {
+        for (name, found) in [
+            ("weapons", l.weapons.len()),
+            ("perk_sets", l.perk_sets.len()),
+            ("stage_skills", l.stage_skills.len()),
+            ("stats", l.stats.len()),
+        ] {
+            budget(format!("$.star_chart.{name}"), found, star_chart::MAX_ITEMS)?;
+        }
+        for (i, stat) in l.stats.iter().enumerate() {
+            budget(
+                format!("$.star_chart.stats[{i}].prices"),
+                stat.prices.len(),
+                star_chart::MAX_LEVELS,
+            )?;
+        }
+        budget(
+            "$.star_chart.expertise_multiplier",
+            l.expertise_multiplier.len(),
+            star_chart::MAX_LEVELS,
+        )?;
+        budget(
+            "$.star_chart.lumine_levels",
+            l.lumine_levels.len(),
+            star_chart::MAX_LEVELS,
+        )?;
     }
     if let Some(l) = pack
         .constellations
@@ -1390,7 +1476,7 @@ pub struct ContentFiles {
 
 impl ContentFiles {
     /// Every file, in the order the pack lists them.
-    pub const LAYOUT: [FileSlot; 17] = [
+    pub const LAYOUT: [FileSlot; 18] = [
         slot("run_stats", false, false),
         slot("rewards", false, false),
         slot("stage_skills", false, false),
@@ -1405,6 +1491,7 @@ impl ContentFiles {
         slot("starting_unlocks", false, true),
         slot("constellations", false, true),
         slot("stardust", false, true),
+        slot("star_chart", false, true),
         slot("trial", true, false),
         slot("time_limit", true, false),
         slot("tutorial", true, false),
@@ -1469,6 +1556,7 @@ impl ContentFiles {
                 ("starting_unlocks", pack.starting_unlocks),
                 ("constellations", pack.constellations),
                 ("stardust", pack.stardust),
+                ("star_chart", pack.star_chart),
                 ("trial", Some(pack.modes.trial)),
                 ("time_limit", Some(pack.modes.time_limit)),
                 ("tutorial", Some(pack.modes.tutorial)),
@@ -1596,11 +1684,26 @@ impl ContentFiles {
             .transpose()
             .map_err(PackError::in_file("stardust"))?
             .unwrap_or_else(|| Stardust::bundled().clone());
+        let run_stats = RunStats::parse(get("run_stats")?, Versions::CURRENT)
+            .map_err(PackError::in_file("run_stats"))?;
+        let star_chart = optional("star_chart")
+            .map(|bytes| {
+                StarChart::parse_with(
+                    bytes,
+                    Versions::CURRENT,
+                    &run_stats,
+                    &perk_sets,
+                    &stage_skills,
+                    &weapons,
+                    starting_unlocks.as_ref(),
+                )
+            })
+            .transpose()
+            .map_err(PackError::in_file("star_chart"))?;
         let trial = get("trial")?;
         let tutorial = get("tutorial")?;
         let content = RunContent::from_parts(
-            RunStats::parse(get("run_stats")?, Versions::CURRENT)
-                .map_err(PackError::in_file("run_stats"))?,
+            run_stats,
             rewards,
             Expertise::parse(get("expertise")?, Versions::CURRENT)
                 .map_err(PackError::in_file("expertise"))?,
@@ -1615,6 +1718,7 @@ impl ContentFiles {
             rules,
             starting_unlocks,
             stardust,
+            star_chart,
             TimeLimit::parse(get("time_limit")?, Versions::CURRENT)
                 .map_err(PackError::in_file("time_limit"))?,
             validate::parse_and_validate(trial).map_err(PackError::in_file("trial"))?,
@@ -1670,6 +1774,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
         ("starting_unlocks", &pack.starting_unlocks),
         ("constellations", &pack.constellations),
         ("stardust", &pack.stardust),
+        ("star_chart", &pack.star_chart),
     ] {
         if let Some(raw) = raw {
             out.push((name, raw));
