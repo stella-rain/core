@@ -1,7 +1,9 @@
 ---
 globs:
-  - "src/step_log.rs"
-  - "src/run_replay.rs"
+  - "src/step_log*"
+  - "src/step_log/**"
+  - "src/run_replay*"
+  - "src/run_replay/**"
   - "src/recording.rs"
   - "tests/schema2_range.rs"
   - "tests/schema2_write.rs"
