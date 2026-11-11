@@ -92,7 +92,7 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
 fn the_run_variant_is_the_stage_version() {
     let pack = super::copy_tests::v1_pack();
     let mode = pack.content().time_limit();
-    let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    let stage = pack.content().trial().clone();
     let mut recorder = crate::run_replay::RunRecorder::start_with_pack(&setup(), pack).unwrap();
     recorder
         .step(&[Input::default(), Default::default(), Default::default()])
@@ -115,7 +115,7 @@ fn the_run_variant_is_the_stage_version() {
 fn the_run_owns_its_world() {
     let pack = super::copy_tests::v1_pack();
     let mode = pack.content().time_limit();
-    let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    let stage = pack.content().trial().clone();
     let mut recorder = crate::run_replay::RunRecorder::start_with_pack(&setup(), pack).unwrap();
     recorder
         .step(&[Input::default(), Default::default(), Default::default()])
