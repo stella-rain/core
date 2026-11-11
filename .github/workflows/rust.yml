@@ -403,8 +403,9 @@ jobs:
   fuzz-build:
     name: fuzz targets build (nightly)
     # Skipped on a PR whose `parsing changed` is true: the short run below builds the same
-    # targets on the same nightly. It still runs on main (it saves the nightly cache the short run
-    # reads), weekly and on a PR that touches no parsing. `!cancelled()`: `fuzz-changes` is skipped
+    # targets on the same nightly. It runs where the suite runs off a PR (a push to main that
+    # changed a cache file, which saves the nightly cache the short run reads, and the weekly run)
+    # and on a PR that touches no parsing. `!cancelled()`: `fuzz-changes` is skipped
     # off a PR, which would skip this job too.
     needs: [changes, fuzz-changes]
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true' && needs.fuzz-changes.outputs.parsing != 'true' }}
