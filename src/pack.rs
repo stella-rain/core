@@ -929,7 +929,7 @@ fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             budget(
                 format!("$.star_chart.stats[{i}].prices"),
                 stat.prices.len(),
-                star_chart::MAX_LEVELS,
+                star_chart::MAX_STAT_LEVELS,
             )?;
         }
         budget(
