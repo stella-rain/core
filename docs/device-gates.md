@@ -6,6 +6,7 @@ with a Cargo runner, `scripts/ios_device_runner.py`, that uses Xcode's own tools
 of the device corpus run (ADR-REL-6): it runs after Promote, on the released tag, for each `0.N.0` release or
 when Kade asks, and is not a Candidate gate (ADR-REL-6 points 2 and 3). The same simulation on the phone's own
 arm64, iOS loader and libc gives the same state hash on every checked tick (ADR-SIM-3, ADR-PLAT-1).
+The Android half is the second part of this file, "The corpus and the golden hash on an Android phone".
 
 ## What runs, and what does not
 
@@ -119,3 +120,103 @@ removed. On a device run set them as `DEVICECTL_CHILD_STELLA_TEST_DATA_ROOT=...`
 Not verified: the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
 a phone that is not on iOS 27.2; an Xcode other than 27.2 (the shape of `devicectl`'s JSON); the profile
 after Xcode re-creates it; the 7-day expiry cycle itself. The device run cannot run in CI.
+
+# The corpus and the golden hash on an Android phone
+
+`python3 scripts/android_device_gate.py` is the one command for the Android half of the device corpus run
+(ADR-REL-6): it builds the `integration` test binary for `aarch64-linux-android`, runs it on one
+USB-connected Android phone and removes what it pushed. Like the iPhone run it happens after Promote, on the
+released tag, for each `0.N.0` release or when Kade asks, and is not a Candidate gate (ADR-REL-6 points 2 and
+3). The Android reference phones are in ADR-PLAT-10.
+
+## What runs on the phone
+
+- Run: the same filter as on the iPhone, `corpus::` and `the_golden_hash_is_the_same_on_every_platform`. Read
+  the count as `N passed` in the last `test result:` line; it moves when the corpus grows, so the script does
+  not assert it. `corpus::` also matches `schema2_corpus::`.
+- Not run: the rest of the `integration` binary and the doctests. The binary is built whole, but only the
+  filter runs.
+- Pushed to the phone: the test binary and `tests/corpus/` (about 3.5 MB), in `/data/local/tmp/stella-core-gate`.
+  Nothing else of the repository: the `DATA_FOLDERS` tuple in the script is the one list.
+
+The tests find the repository through `STELLA_TEST_DATA_ROOT`, which the script sets to that folder (on
+Android the executable's folder is not searched, so without it the tests would look for the build machine's
+path). `STELLA_TEST_TMP_DIR` is set to `tmp/` inside it for scratch files. `PROPTEST_CASES` and
+`RUST_BACKTRACE` are passed on when set on the host.
+
+## Setup, once
+
+1. Android platform-tools: `adb` on `PATH`.
+2. The Android NDK (one install), with `ANDROID_NDK_HOME` pointing at it. The script links with the NDK's
+   `aarch64-linux-android24-clang` (API 24, as the emulator job `android-emu.yml` does); it also looks at
+   `ANDROID_NDK_ROOT`, `ANDROID_NDK_LATEST_HOME` and the newest folder of `$ANDROID_HOME/ndk`
+   (`$ANDROID_SDK_ROOT/ndk`). `CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER`, when already set, wins. No
+   cargo-ndk.
+3. `rustup target add aarch64-linux-android` runs by itself on the first cargo run: the repository's
+   `rust-toolchain.toml` lists the target.
+4. On the phone: developer options and USB debugging on; connect it by USB, unlock it and accept "Allow USB
+   debugging". Connect one device, or name it (below).
+5. Python 3.9 or later; the script uses only the standard library, so it runs on Linux, macOS and Windows.
+
+## The command
+
+From a checkout of the commit to test:
+
+```bash
+python3 scripts/android_device_gate.py
+```
+
+- `--serial SERIAL` (or `ANDROID_SERIAL`) picks the phone when several are connected; `adb devices` lists the
+  serials.
+- `--debug` builds the debug profile instead of release.
+- `--dry-run` prints every command and runs none: no adb, NDK or phone needed.
+
+The exit status is the test run's. A setup error (a message below) exits 2; a failed build keeps cargo's
+status.
+
+## What the script does
+
+1. Finds the NDK linker, then the one device in state `device`; none, or more than one without `--serial`,
+   stops it.
+2. Requires `ro.product.cpu.abi` to be `arm64-v8a`, and proves that `adb shell` returns the command's exit
+   status (`adb shell 'exit 7'` must return 7), since the verdict is that status.
+3. Builds with `cargo test --locked --all-features --test integration --release --target aarch64-linux-android
+   --no-run`, with the linker set, and takes the test binary's path from cargo's JSON output.
+4. Removes and creates `/data/local/tmp/stella-core-gate`, pushes the binary and the data folders, and makes
+   the binary executable.
+5. Runs the binary in one `adb shell` command that sets the two variables above and passes the two filters.
+6. Removes `/data/local/tmp/stella-core-gate` in every case (a passing run, a failing test, Ctrl-C) and exits
+   with the test's status.
+
+## Reading the result
+
+- `android-gate: device <serial>, arm64-v8a` names the phone it picked. Every script message starts with
+  `android-gate:`.
+- The test's last line should be `test result: ok. N passed; 0 failed; ...` and the exit status 0. `ok. 0
+  passed` is not a failure to Cargo or to the script (a filter that matched nothing); read the passed count.
+- A failing `corpus::the_corpus_matches` names the first diverging tick of the case; report the message.
+
+| Symptom (script message) | Cause and fix |
+|---|---|
+| `no NDK found` | Setup step 2: set `ANDROID_NDK_HOME`. |
+| `adb is not on PATH` | Setup step 1. |
+| `no device is connected and authorized` | Not connected or USB debugging off: replug, unlock, accept the prompt. |
+| `device <serial> is unauthorized` / `offline` | Unlock the phone and accept "Allow USB debugging", or replug it. |
+| `more than one device is connected` | Pass `--serial` or set `ANDROID_SERIAL`; an emulator counts as a device. |
+| `device <serial> is ..., not arm64-v8a` | Only 64-bit ARM phones are run; use another device. |
+| `adb shell does not return the command's exit status` | An old `adb`: update platform-tools. |
+| `the build failed (cargo exit N)` | Read cargo's output above it (often the linker or a missing target). |
+| `pushing ... failed` | The phone is full or was unplugged: free space under `/data/local/tmp`, replug. |
+| `could not remove ... from the phone` | Run `adb shell rm -rf /data/local/tmp/stella-core-gate`. |
+
+## What is verified
+
+- On any host (CI `script unit tests`): the linker choice, the device list and choice, the cargo command, the
+  test binary lookup, the push plan, the run and cleanup commands, and whole runs against a fake `adb` and
+  `cargo`: the exit status, the cleanup after a failing test, a wrong ABI, no NDK, two devices, `--dry-run`.
+- On the host (x86_64): the filter run with `STELLA_TEST_DATA_ROOT` at a copy holding only `tests/corpus/`
+  passes with the same count as the full tree (27 passed on 2026-11-11), and the same run with that folder
+  removed fails. This proves the folder list, not Android.
+
+Not verified: any phone. The script has not been run against a real device by CI or by its author; the device
+run cannot run in CI.
