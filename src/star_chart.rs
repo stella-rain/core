@@ -6,7 +6,8 @@
 //!
 //! Prices are Stardust in tenths, as core counts it (`progression`), from 1 to `MAX_PRICE`: a
 //! free item is a starting unlock, not a priced one. A levelled item has one price per level, a
-//! list that never falls. No star, reroll or banish has a price (every star is unlocked,
+//! list that never falls; a stat has as many levels as its limit, the expertise multiplier as many
+//! as the file's `expertise_levels`. No star, reroll or banish has a price (every star is unlocked,
 //! ADR-SAVE-17).
 //!
 //! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
@@ -80,7 +81,10 @@ pub struct StarChartFile {
     pub starting_rune: u32,
     /// Run stats for sale, at most `MAX_ITEMS`.
     pub stats: Vec<StatPrices>,
-    /// The expertise multiplier's price per level: from 1 to `MAX_LEVELS` prices, never falling.
+    /// The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.
+    pub expertise_levels: u8,
+    /// The expertise multiplier's price per level: exactly `expertise_levels` prices, never
+    /// falling.
     pub expertise_multiplier: Vec<u32>,
     /// The Lumine levels' price per level: exactly `MAX_LUMINE` prices, never falling.
     pub lumine_levels: Vec<u32>,
@@ -144,6 +148,11 @@ impl StarChart {
     /// The run stats for sale and the price of each level.
     pub fn stats(&self) -> &[StatPrices] {
         &self.file.stats
+    }
+
+    /// The number of levels the expertise multiplier has.
+    pub fn expertise_levels(&self) -> u8 {
+        self.file.expertise_levels
     }
 
     /// The price of each level of the expertise multiplier.
@@ -339,12 +348,21 @@ pub fn validate(
             );
         }
     }
+    let cap = usize::from(file.expertise_levels);
+    let cap_ok = (1..=MAX_LEVELS).contains(&cap);
+    if !cap_ok {
+        issues.push(Issue {
+            path: "$.expertise_levels".into(),
+            message: format!("1 to {MAX_LEVELS} (found {cap})"),
+        });
+    }
+    let (min, max) = if cap_ok { (cap, cap) } else { (1, MAX_LEVELS) };
     check_levels(
         &mut issues,
         "$.expertise_multiplier",
         &file.expertise_multiplier,
-        1,
-        MAX_LEVELS,
+        min,
+        max,
     );
     let lumine = usize::from(MAX_LUMINE);
     check_levels(
