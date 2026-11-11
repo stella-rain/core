@@ -612,7 +612,8 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             message: "sim_version 2 needs the rewards file's equipment rules".into(),
         });
     }
-    for (key, &pct) in &setup.drop_weights {
+    // Version 1 refuses any key already (`validate_loadout`): one message per cause.
+    for (key, &pct) in setup.drop_weights.iter().filter(|_| setup.sim_version >= 2) {
         let path = format!("$.drop_weights.{key}");
         let category = rewards
             .equipment()

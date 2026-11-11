@@ -1,5 +1,6 @@
-//! The player's drop weights per perk category (ADR-SAVE-17): a weight changes no draw, so a
-//! setup with none, and a setup with an empty map, play the same bytes; the weighting itself is
+//! The player's drop weights per perk category (ADR-SAVE-17): a weight scales the
+//! weight of a star's draw and adds none, so a setup with none and a setup with an empty map
+//! play the same bytes; the weighting itself is
 //! pinned in `src/sim/drops_tests.rs` (`drop_weight_scales_every_star_of_its_category`).
 
 use serde_json::json;
@@ -31,7 +32,7 @@ fn input(tick: u32) -> Input {
 /// The state hash at every 60th tick of 1,200 ticks.
 fn hashes(setup: &RunSetup) -> Vec<u64> {
     let mut engine = Engine::start(setup).expect("starts");
-    (0..1200)
+    (0..3000)
         .filter_map(|t| {
             engine.step(&[input(t), Input::default(), Input::default()]);
             (t % 60 == 59).then(|| engine.state_hash())
@@ -50,4 +51,12 @@ fn a_weighted_run_is_deterministic_and_takes_the_same_steps() {
     let a = hashes(&w);
     assert_eq!(a, hashes(&w));
     assert_eq!(a.len(), hashes(&weighted(None)).len());
+}
+
+#[test]
+fn a_weighted_run_draws_other_stars_than_an_unweighted_one() {
+    let all = weighted(Some(
+        json!({ "attack": 100, "defence": 100, "mobility": 100 }),
+    ));
+    assert_ne!(hashes(&all), hashes(&weighted(None)));
 }

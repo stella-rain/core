@@ -524,8 +524,8 @@ fn the_players_drop_weights_add_to_the_perk_sets() {
         ..RunSetup::default()
     };
     let content = content.clone().with_perk_sets(sets);
-    let capped = weighted(&big, json!({ "attack": 100 }));
-    assert_eq!(live(&capped, &content), vec![200, 0, 0]);
+    let summed = weighted(&big, json!({ "attack": 100 }));
+    assert_eq!(live(&summed, &content), vec![200, 0, 0]);
 }
 
 // --- the boss kill (ADR-SIM-7 point 5) ---------------------------------------------------------
