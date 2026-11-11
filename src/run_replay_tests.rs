@@ -495,3 +495,54 @@ fn a_replay_with_an_action_step_loads_and_ranges_but_does_not_verify() {
         Some(refused)
     );
 }
+
+mod party_size_tests {
+    use crate::base64;
+    use crate::input::Input;
+    use crate::run_replay::RunRecorder;
+    use crate::run_setup::RunSetup;
+
+    fn setup() -> RunSetup {
+        RunSetup {
+            seed: 20_261_010,
+            ..RunSetup::default()
+        }
+    }
+
+    #[test]
+    fn the_size_is_the_present_byte() {
+        for n in 1..=3u8 {
+            let mut rec = RunRecorder::start_party(&setup(), n).unwrap();
+            rec.step(&[Input::default(); 3]).unwrap();
+            assert_eq!(rec.replay().party_size(), Some(n));
+        }
+    }
+
+    #[test]
+    fn a_byte_that_is_not_a_party_has_no_size() {
+        let mut rec = RunRecorder::start_party(&setup(), 2).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
+        let mut replay = rec.replay();
+        let bytes = base64::decode(&replay.inputs).unwrap();
+        for bad in [0u8, 0b010, 0b101, 0b1000, 0b1111, 0xFF] {
+            let mut edited = bytes.clone();
+            edited[0] = bad;
+            replay.inputs = crate::base64::encode(&edited);
+            assert_eq!(replay.party_size(), None, "{bad:#b}");
+        }
+        replay.inputs = String::new();
+        assert_eq!(replay.party_size(), None);
+        replay.inputs = "!!!!".into();
+        assert_eq!(replay.party_size(), None);
+    }
+
+    #[test]
+    fn a_schema_1_replay_is_one_player() {
+        let mut rec = RunRecorder::start(&setup()).unwrap();
+        rec.step(&[Input::default(), Default::default(), Default::default()])
+            .unwrap();
+        let mut replay = rec.replay();
+        replay.setup.schema_version = 1;
+        assert_eq!(replay.party_size(), Some(1));
+    }
+}
