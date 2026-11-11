@@ -8,9 +8,12 @@
 //! {"tick":1203,"dir":"be>fe","type":"StateHash","data":"9f3a0c12aa55bb66"}
 //! ```
 //!
-//! A run (ADR-REPL-5) also has commands between ticks: a `Choose` line, `fe>be`,
-//! after the hash of the tick they follow, then the events the command caused, all on that
-//! tick. The next `StateHash` is the next tick's, so there is still one hash a tick.
+//! A recording of a run that held offers (ADR-REPL-5, a frozen `sim_version` 1 run) also has
+//! commands between ticks: a `Choose` line, `fe>be`, after the hash of the tick they follow,
+//! then the events the command caused, all on that tick. The next `StateHash` is the next
+//! tick's, so there is still one hash a tick. `commands_from_jsonl` reads such a line as data;
+//! `record_run` refuses it (`BadCommands("a choice cannot be recorded")`), as no offer is
+//! answered through the recorder any more.
 //!
 //! ```text
 //! {"tick":996,"dir":"be>fe","type":"OfferOpened","data":{"kind":"star","rarity":"common","candidates":["sharp_edge","swift_step"]}}
@@ -80,9 +83,9 @@ pub fn record(stage: &Stage, inputs: &[Input]) -> Result<String, validate::Error
 }
 
 /// Runs `commands` from a setup (ADR-REPL-5), with the bundled run stats, and returns the
-/// recording: each tick as `record` writes it, and each command between ticks as a `Choose`
-/// line followed by the events it caused. Like the run replay it stops on the tick the
-/// run ends, and fails closed on a command the engine refuses (`run_replay::record_run`).
+/// recording: each tick as `record` writes it. Like the run replay it stops on the tick the
+/// run ends, and fails closed on a command the engine refuses (`run_replay::record_run`). A
+/// `Command::Choose` is refused, recording nothing: `BadCommands("a choice cannot be recorded")`.
 pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunReplayError> {
     let mut recorder = RunRecorder::start(setup)?;
     let mut out = String::new();

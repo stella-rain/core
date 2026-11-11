@@ -756,7 +756,8 @@ impl Engine {
     /// ADR-REPL-2 point 6), one entry per slot, never ticking the world. Every `Some(index)` is
     /// checked in slot order against the state as it is and the first refusal is returned,
     /// changing nothing; then the events are cleared and each pick is taken in slot order, each
-    /// read after the picks before it. An all-`None` array takes nothing.
+    /// read after the picks before it (one that has become impossible by then is skipped, as
+    /// the frozen runs recorded it). An all-`None` array takes nothing.
     pub(crate) fn v1_pick_step(
         &mut self,
         picks: &[Option<u32>; crate::id::MAX_PLAYERS as usize],
@@ -951,7 +952,8 @@ impl Engine {
 
     /// Rates a star against each slot it could go in, in slot order: for each, whether the swap
     /// is an equip, a replace or a same-option switch, the slot's level before and after, the
-    /// expected signed change in the Main weapon's damage in basis points, the set tiers gained or lost and the stats it moves. The swap is made
+    /// expected signed change in the Main weapon's damage in basis points, the set tiers gained or
+    /// lost and the stats it moves. The swap is made
     /// by the equip and replace rules on a clone, so the answer is what `act` would do. Empty
     /// for a player outside the party, a `sim_version` 1 run, a run without slots, a rune, an
     /// item or star that does not exist, or when no slot takes the star. Read-only, and a
