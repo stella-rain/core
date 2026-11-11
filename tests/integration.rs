@@ -172,6 +172,7 @@ mod time_limit_run;
 mod trig;
 mod tuning;
 mod tutorial;
+mod tutorial_script;
 mod type_bonuses;
 mod types;
 mod validate;
