@@ -3909,6 +3909,18 @@
       "additionalProperties": false,
       "description": "One slot category of the equipment layout.",
       "properties": {
+        "drop_weight_default": {
+          "description": "The weight the Star Chart screen starts this category at, 0 to `drop_weight_max`: the app\nwrites it into the setup; core never reads it (a missing key is 0 extra). Absent: 0.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "drop_weight_max": {
+          "description": "The most extra drop weight in percent the player's setup may give this category\n(`RunSetup::drop_weights`, ADR-SAVE-17), 0 to `MAX_DROP_WEIGHT_PCT`. Absent: 0, so a pack\nreleased before it allows none.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "id": {
           "$ref": "#/$defs/ContentId",
           "description": "The category's ID, unique within the list."
@@ -7568,6 +7580,15 @@
           "default": "normal",
           "description": "The difficulty the run is played on, by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
         },
+        "drop_weights": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "The player's extra drop weight in percent for each perk category of the run's rewards file\n(the Star Chart, ADR-SAVE-17), by category ID: at most `MAX_EQUIP_CATEGORIES` keys, each at\nmost the category's `drop_weight_max`. It adds to the perk set's own `drop_weight` for the\ncategory; a missing key adds 0. Only at `sim_version` 2; sorted by key, so the file's bytes\nare stable.",
+          "type": "object"
+        },
         "extra_rerolls": {
           "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at\n`sim_version` 2.",
           "format": "uint8",
@@ -7591,7 +7612,7 @@
               "type": "null"
             }
           ],
-          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2."
+          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2."
         },
         "mode": {
           "$ref": "#/$defs/ContentId",
@@ -7626,7 +7647,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards\nan offer may hold at `sim_version` 1, and at 2 the stars drops roll from, crafting draws from\nand the Lumine star is picked from; each at most once. Absent: every reward in the file.",
+          "description": "The pool of offers mode (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the\nrewards an offer may hold at `sim_version` 1; each at most once. Absent: every reward in\nthe file. None at `sim_version` 2: every star of the pack drops and is craftable, and the\nLumine star is any star the level allows.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
