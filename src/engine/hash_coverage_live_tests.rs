@@ -150,7 +150,7 @@ perturb_through! {
     OrbState => damage,
     ZoneState => damage,
     Progress => xp,
-    Offers => taken,
+    Offers => set_counts,
     Equipment => starlight,
     EquipSlot => level,
     StarField => misses,
@@ -731,16 +731,12 @@ pub(super) fn live_full_state(e: &Engine) -> State {
     career.stardust = Some(7);
     career.regen = 3;
     career.equipment = equipment();
-    // The engine's own offers, so that no star-offer field is named here: only the ones that
-    // stay get a value.
+    // The engine's own offers, with `set_counts` given a value.
     let offers = career
         .offers
         .as_mut()
         .expect("the bundled stage has stars, so a career holds offers");
-    offers.taken = vec![1, 0];
-    offers.banished = vec![true, false];
     offers.set_counts = vec![1, 0];
-    offers.extra_candidates = 1;
     s.move_index.lower(EntityId(1), 50);
     s
 }
@@ -1020,17 +1016,12 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         p.failures
             .push("State.stars with Career.offers does not move the hash".into());
     }
-    // Offers: only the fields that stay are moved here, on the engine's own value; the others
-    // are covered by `sim/hash_fields_tests.rs`.
-    for (name, edit) in [
-        (
-            "taken",
-            (|o: &mut Offers| o.taken.perturb()) as fn(&mut Offers),
-        ),
-        ("banished", |o| o.banished.perturb()),
-        ("set_counts", |o| o.set_counts.perturb()),
-        ("extra_candidates", |o| o.extra_candidates.perturb()),
-    ] {
+    // Offers: `set_counts`, on the engine's own value; the slots are covered by
+    // `sim/hash_fields_tests.rs`.
+    for (name, edit) in [(
+        "set_counts",
+        (|o: &mut Offers| o.set_counts.perturb()) as fn(&mut Offers),
+    )] {
         let moved = p.moves(|s| {
             edit(
                 s.players

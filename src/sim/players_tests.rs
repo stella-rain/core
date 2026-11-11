@@ -460,14 +460,9 @@ mod offers {
         PlayerIdx::new(i).unwrap()
     }
 
-    /// What a run starts with, and what the state keeps: nothing taken, no set counted
-    /// (ADR-SIM-3, ADR-SIM-7).
+    /// What a run starts with, and what the state keeps: no set counted (ADR-SIM-3, ADR-SIM-7).
     #[test]
     fn an_initial_run_holds_the_offers_the_stage_gives() {
-        let rewards = crate::run_content::RunContent::bundled()
-            .rewards()
-            .rewards()
-            .len();
         for mode in ["trial", "time_limit"] {
             let setup = crate::run_setup::RunSetup {
                 mode: mode.into(),
@@ -483,11 +478,6 @@ mod offers {
                 .offers
                 .as_ref()
                 .expect("slot 0 holds offers");
-            assert_eq!(o.extra_candidates, 0, "{mode}");
-            assert_eq!(o.taken.len(), rewards, "{mode}");
-            assert!(o.taken.iter().all(|&n| n == 0), "{mode}");
-            assert_eq!(o.banished.len(), rewards, "{mode}");
-            assert!(o.banished.iter().all(|&b| !b), "{mode}");
             assert!(o.set_counts.iter().all(|&n| n == 0), "{mode}");
         }
     }
@@ -499,9 +489,6 @@ mod offers {
         s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
         let c = s.players.career_mut(PlayerIdx::SOLO);
         let o = c.offers.as_mut().expect("the worst case has stars");
-        o.extra_candidates = 1;
-        o.taken.push(1);
-        o.banished.push(true);
         o.set_counts.push(2);
         s
     }
@@ -566,19 +553,9 @@ mod offers {
     fn every_field_of_slot_0s_offers_and_stream_moves_the_hash() {
         let base = party(0b001);
         let h0 = hash_of(&base);
-        let Offers {
-            extra_candidates: _,
-            taken: _,
-            banished: _,
-            set_counts: _,
-        } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
+        let Offers { set_counts: _ } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
         type Edit = fn(&mut Offers);
-        let edits: [(&str, Edit); 4] = [
-            ("extra_candidates", |o| o.extra_candidates += 1),
-            ("taken", |o| o.taken[0] += 1),
-            ("banished", |o| o.banished[0] = !o.banished[0]),
-            ("set_counts", |o| o.set_counts[0] += 1),
-        ];
+        let edits: [(&str, Edit); 1] = [("set_counts", |o| o.set_counts[0] += 1)];
         for (name, edit) in edits {
             let mut s = base.clone();
             edit(offers_of(&mut s, 0));

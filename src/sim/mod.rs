@@ -447,7 +447,6 @@ fn unreserved_state(
     kinds: KindTable,
 ) -> State {
     let run_stats = content.run_stats();
-    let rewards = content.rewards().rewards().len();
     // Slots 0 to 2 are reserved for the players whether or not a slot is in the party
     // (ADR-SIM-7); the boss and the companions come after them.
     let mut next_id = u32::from(MAX_PLAYERS);
@@ -522,9 +521,6 @@ fn unreserved_state(
         set_tenths: [0; StatEffect::ALL.len()],
     });
     let offers = stage.stars.as_ref().map(|_| Offers {
-        extra_candidates: 0,
-        taken: vec![0; rewards],
-        banished: vec![false; rewards],
         set_counts: vec![0; content.constellations().sets().len()],
     });
     State {

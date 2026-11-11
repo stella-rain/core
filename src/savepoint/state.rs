@@ -485,12 +485,6 @@ macro_rules! state_codec_v2 {
                     &s.players.career(me).offers,
                     &fresh.players.career(PlayerIdx::SOLO).offers,
                 ) {
-                    if a.taken.len() != f.taken.len() {
-                        return Err(differs("star taken length differs from the content"));
-                    }
-                    if a.banished.len() != f.banished.len() {
-                        return Err(differs("star banished length differs from the content"));
-                    }
                     if a.set_counts.len() != f.set_counts.len() {
                         return Err(differs("star set_counts length differs from the content"));
                     }

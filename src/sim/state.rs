@@ -530,12 +530,6 @@ impl Clone for StarField {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
-    /// Candidates the offer-candidates rewards taken add to every offer, held to
-    /// `MAX_OFFER_CANDIDATES` less the base `offer_size` of `rules.json`.
-    pub extra_candidates: u8,
-    /// For each reward of the file: times taken, and whether it is banished.
-    pub taken: Vec<u8>,
-    pub banished: Vec<bool>,
     /// For each set of the run's constellations: the members held, counted after every take
     /// (core#NS3).
     pub set_counts: Vec<u8>,
@@ -543,37 +537,18 @@ pub(crate) struct Offers {
 
 impl Clone for Offers {
     fn clone(&self) -> Offers {
-        let Offers {
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
+        let Offers { set_counts } = self;
         Offers {
-            extra_candidates: *extra_candidates,
-            taken: taken.clone(),
-            banished: banished.clone(),
             set_counts: set_counts.clone(),
         }
     }
 
     /// Copies `source` into `self`, keeping the buffers `self` already holds.
     fn clone_from(&mut self, source: &Offers) {
+        let Offers { set_counts } = self;
         let Offers {
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
-        let Offers {
-            extra_candidates: s_extra_candidates,
-            taken: s_taken,
-            banished: s_banished,
             set_counts: s_set_counts,
         } = source;
-        *extra_candidates = *s_extra_candidates;
-        taken.clone_from(s_taken);
-        banished.clone_from(s_banished);
         set_counts.clone_from(s_set_counts);
     }
 }

@@ -1661,15 +1661,7 @@ fn decode_star_field(r: &mut Reader<'_>) -> Result<Option<StarField>, DecodeErro
 
 impl Encode for Offers {
     fn encode(&self, w: &mut Writer) {
-        let Offers {
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
-        extra_candidates.encode(w);
-        taken.encode(w);
-        banished.encode(w);
+        let Offers { set_counts } = self;
         set_counts.encode(w);
     }
 }
@@ -1677,9 +1669,6 @@ impl Encode for Offers {
 impl Decode for Offers {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(Offers {
-            extra_candidates: Decode::decode(r)?,
-            taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
-            banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
             set_counts: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
         })
     }

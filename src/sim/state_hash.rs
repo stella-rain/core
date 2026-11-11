@@ -875,18 +875,10 @@ fn hash_star_field(stars: &Option<StarField>, h: &mut StateHasher) {
     pool.stable_hash(h);
 }
 
-/// A player's offers: the four fields in order.
+/// A player's offers: `set_counts`.
 impl StableHash for Offers {
     fn stable_hash(&self, h: &mut StateHasher) {
-        let Offers {
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
-        extra_candidates.stable_hash(h);
-        taken.stable_hash(h);
-        banished.stable_hash(h);
+        let Offers { set_counts } = self;
         set_counts.stable_hash(h);
     }
 }

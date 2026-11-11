@@ -194,10 +194,7 @@ fn every_field_is_listed(c: &Career, o: &Offers) {
         equipment: _, // moves: the `equipment` edits below
     } = c;
     let Offers {
-        extra_candidates: _, // moves: `extra_candidates`
-        taken: _,            // moves: `taken`
-        banished: _,         // moves: `banished`
-        set_counts: _,       // moves: `set_counts`
+        set_counts: _, // moves: `set_counts`
     } = o;
 }
 
@@ -212,7 +209,7 @@ fn offers_of(s: &mut State, me: PlayerIdx) -> &mut Offers {
 #[test]
 fn every_field_of_every_present_slot_moves_the_hash_and_the_encoding() {
     let base = party(&warm(), 0b111);
-    let edits: [(&str, Edit); 10] = [
+    let edits: [(&str, Edit); 7] = [
         ("player.hp", |s, me| s.players.both_mut(me).0.hp += 1),
         ("player.at", |s, me| s.players.both_mut(me).0.at.x.0 += 1),
         ("offer stream", |s, me| {
@@ -223,23 +220,6 @@ fn every_field_of_every_present_slot_moves_the_hash_and_the_encoding() {
             c.stardust = Some(c.stardust.map_or(5, |v| v + 1));
         }),
         ("regen", |s, me| s.players.career_mut(me).regen += 1),
-        ("extra_candidates", |s, me| {
-            offers_of(s, me).extra_candidates += 1;
-        }),
-        ("taken", |s, me| {
-            let o = offers_of(s, me);
-            match o.taken.first_mut() {
-                Some(n) => *n += 1,
-                None => o.taken.push(1),
-            }
-        }),
-        ("banished", |s, me| {
-            let o = offers_of(s, me);
-            match o.banished.first_mut() {
-                Some(b) => *b = !*b,
-                None => o.banished.push(true),
-            }
-        }),
         ("set_counts", |s, me| {
             let o = offers_of(s, me);
             match o.set_counts.first_mut() {
