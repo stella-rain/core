@@ -498,11 +498,11 @@ fn listed_price(list: &str, id: &str) -> u32 {
         .iter()
         .find(|e| e["id"] == id)
         .unwrap();
-    entry["price"].as_u64().unwrap() as u32
+    u32::try_from(entry["price"].as_u64().unwrap()).unwrap()
 }
 
 fn level_price(list: &Value, level: usize) -> u32 {
-    list[level - 1].as_u64().unwrap() as u32
+    u32::try_from(list[level - 1].as_u64().unwrap()).unwrap()
 }
 
 #[test]
@@ -522,7 +522,7 @@ fn a_listed_item_is_priced_from_the_catalogue() {
     );
     assert_eq!(
         star_chart_price(c, &StarChartItem::StartingRune),
-        Ok(chart_file()["starting_rune"].as_u64().unwrap() as u32)
+        Ok(u32::try_from(chart_file()["starting_rune"].as_u64().unwrap()).unwrap())
     );
 }
 
@@ -558,7 +558,7 @@ fn a_level_is_priced_by_its_place_in_the_list() {
         .find(|e| e["id"] == "attack")
         .unwrap()["prices"]
         .clone();
-    let n = attack.as_array().unwrap().len() as u8;
+    let n = u8::try_from(attack.as_array().unwrap().len()).unwrap();
     for level in 1..=n {
         assert_eq!(
             star_chart_price(

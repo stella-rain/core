@@ -63,7 +63,10 @@ fn the_bundled_catalogue_is_valid_and_prices_known_ids_only() {
     let f = file();
     for name in ["weapons", "perk_sets", "stage_skills"] {
         for entry in f[name].as_array().unwrap() {
-            assert!((1..=MAX_PRICE).contains(&(entry["price"].as_u64().unwrap() as u32)));
+            assert!(
+                (1..=MAX_PRICE)
+                    .contains(&(u32::try_from(entry["price"].as_u64().unwrap()).unwrap()))
+            );
         }
     }
     for entry in f["weapons"].as_array().unwrap() {
@@ -206,7 +209,7 @@ fn a_pack_without_the_member_loads_and_has_no_catalogue() {
 
 #[test]
 fn every_frozen_pack_loads_without_a_catalogue() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/v1/packs");
+    let dir = crate::data_root::data_root().join("tests/corpus/v1/packs");
     let mut seen = 0;
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();

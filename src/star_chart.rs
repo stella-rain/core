@@ -162,6 +162,14 @@ impl StarChart {
 trait KnownId: Fn(&ContentId) -> bool {}
 impl<F: Fn(&ContentId) -> bool> KnownId for F {}
 
+/// One priced list and how to tell what its IDs are: known to the pack, or given away.
+struct Listed<'a> {
+    name: &'static str,
+    list: &'a [PricedId],
+    known: &'a dyn KnownId,
+    given: fn(&StartingUnlocks) -> &[ContentId],
+}
+
 fn check_price(issues: &mut Vec<Issue>, path: String, price: u32) {
     if !(1..=MAX_PRICE).contains(&price) {
         issues.push(Issue {
@@ -220,32 +228,33 @@ pub fn validate(
         starting_unlocks.is_some_and(|u| list(u).contains(id))
     };
 
-    let priced: [(
-        &str,
-        &[PricedId],
-        &dyn KnownId,
-        fn(&StartingUnlocks) -> &[ContentId],
-    ); 3] = [
-        (
-            "weapons",
-            &file.weapons,
-            &weapon_known,
-            StartingUnlocks::weapons,
-        ),
-        (
-            "perk_sets",
-            &file.perk_sets,
-            &perk_set_known,
-            StartingUnlocks::perk_sets,
-        ),
-        (
-            "stage_skills",
-            &file.stage_skills,
-            &stage_skill_known,
-            StartingUnlocks::stage_skills,
-        ),
+    let priced = [
+        Listed {
+            name: "weapons",
+            list: &file.weapons,
+            known: &weapon_known,
+            given: StartingUnlocks::weapons,
+        },
+        Listed {
+            name: "perk_sets",
+            list: &file.perk_sets,
+            known: &perk_set_known,
+            given: StartingUnlocks::perk_sets,
+        },
+        Listed {
+            name: "stage_skills",
+            list: &file.stage_skills,
+            known: &stage_skill_known,
+            given: StartingUnlocks::stage_skills,
+        },
     ];
-    for (name, list, known, given) in priced {
+    for Listed {
+        name,
+        list,
+        known,
+        given,
+    } in priced
+    {
         if list.len() > MAX_ITEMS {
             issues.push(Issue {
                 path: format!("$.{name}"),
