@@ -132,7 +132,6 @@ impl Saved {
     }
 
     /// The version 2 state, for the tests that edit it.
-    #[allow(dead_code)] // read by the savepoint port that follows
     pub(crate) fn v2(self) -> sim::state::State {
         match self {
             Saved::V2(state) => state,

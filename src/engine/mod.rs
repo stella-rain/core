@@ -1180,6 +1180,8 @@ mod players_api_tests;
 #[cfg(test)]
 mod presence_tests;
 #[cfg(test)]
+mod savepoint_live_tests;
+#[cfg(test)]
 mod savepoint_tests;
 #[cfg(test)]
 mod share_tests;
