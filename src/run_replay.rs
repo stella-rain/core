@@ -938,7 +938,13 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
-        if self.setup.schema_version == 1 && inputs.iter().any(|input| input.interact) {
+        let present = self.engine.present();
+        if self.setup.schema_version == 1
+            && inputs
+                .iter()
+                .enumerate()
+                .any(|(slot, input)| present >> slot & 1 == 1 && input.interact)
+        {
             // Schema 1 packs no `interact`: the file could not reproduce the run.
             return Err(RunReplayError::BadInputs("a version 1 run has no interact"));
         }
@@ -1928,6 +1934,10 @@ mod tests {
             Err(RunReplayError::BadInputs("a version 1 run has no interact"))
         );
         assert_eq!((rec.replay(), rec.engine().tick()), (replay, tick));
+        // An absent slot's entry is ignored, as it is at every schema.
+        let mut absent = [Input::default(); 3];
+        absent[1].interact = true;
+        assert_eq!(rec.step(&absent), Ok(()));
         // The live rules take the same input.
         let mut live = RunRecorder::start(&RunSetup::default()).unwrap();
         assert_eq!(live.step(&held), Ok(()));
