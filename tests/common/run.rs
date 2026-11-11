@@ -54,7 +54,7 @@ pub const TRIAL_KINDS_BOT_SEED: u64 = 2;
 /// The world seed of the `time_limit` run case: the longest equipment run of the search, which
 /// ends just short of the time limit (the offers-era healing that kept the run alive to the limit
 /// is gone), found by `search_corpus_run_seeds`.
-pub const TIME_LIMIT_SEED: u64 = 2;
+pub const TIME_LIMIT_SEED: u64 = 9;
 /// The building bot's seed of the `time_limit` run case.
 pub const TIME_LIMIT_BOT_SEED: u64 = 14;
 
