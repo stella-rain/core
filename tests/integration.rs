@@ -100,6 +100,7 @@ mod orbit;
 mod orbs;
 mod overflow;
 mod pack;
+mod pack_pins;
 mod packs;
 mod parsed_stage_hash;
 mod party_bot;
