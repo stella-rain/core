@@ -14,6 +14,9 @@ paths:
   - "src/sim/party_fix_tests.rs"
   - "tests/party_down.rs"
   - "tests/party_tether.rs"
+  - "tests/party_bot.rs"
+  - "tests/run_play.rs"
+  - "tests/sync_rig.rs"
 ---
 
 # Parties in play: acting, down, tether, rewards
@@ -35,15 +38,12 @@ tick order: the `sim` module doc.
 
 - Hp 0 downs a player in a party only (`PlayerDowned`); a solo player at 0 hp fails, and `DownView` shows only in a
   party. The run fails when no player is up (`decide_outcome`).
-- `tick_down_and_revive`: `down_ticks` counts up; `OUT_TIMER_TICKS` (1200) makes the player out (`PlayerOut`, its
-  offers dropped). The reviver is the first up player in slot order holding `interact` within `REVIVE_RANGE` (48 px);
+- `tick_down_and_revive`: `down_ticks` counts up; `OUT_TIMER_TICKS` (1200) makes the player out (`PlayerOut`). The
+  reviver is the first up player in slot order holding `interact` within `REVIVE_RANGE` (48 px);
   the search stops there, so one reviver counts per tick. `REVIVE_HOLD_TICKS` (180) in a row revive at `REVIVE_HP_PCT`
   (30) of `max_hp`, at least 1, with hit invulnerability (`PlayerRevived`). With no reviver in range `revive_hold`
   resets.
-- Offers: a downed player takes option 0 of every offer on the tick it opens, a whole queue on one tick, at most
-  `MAX_AUTO_PICKS` (256) per slot (`take_downed`). An out player opens nothing and its queue is forgotten
-  (`drop_offers`). In a `timed` run a player that goes down with an offer open has its deadline set to that tick.
-  `levels::add_effect` raises `max_hp` for MaxHp but heals only a player with hp above 0.
+- `levels::add_effect` raises `max_hp` for MaxHp but heals only a player with hp above 0.
 
 ## Soft tether
 
@@ -54,13 +54,13 @@ tick order: the `sim` module doc.
   Integer math, no allocation. A party of one returns at once; the frozen rules have none.
 
 ## Rewards
-- Offers mode only; equipment mode has no offers and its rewards are `party-equipment.md`.
+- The live rules open no offer: a taken star and a boss kill give each member rolls of its own (`party-equipment.md`).
 - Experience (`levels::credit_defeated`) and Stardust (`stardust::credit_defeated`, `boss_killed`) go only to a player
   that is up (`is_up`), in every run, solo included.
 - The shared star drop's tier reads the highest level among up players, among the present ones when none is up
   (`top_up_level`, `top_level` in `stars.rs`).
-- `stars::boss_killed` gives every up player a Boss offer due first, at one rarity for the party (the top of the tier
-  for the highest up level, held to the difficulty's range). A downed or out one gets none. The boss heal skips hp 0.
+- `stars::boss_killed` makes no offer due: it gives the Starlight bonus and `drops::boss_killed` the rolls
+  (`party-equipment.md`). The boss heal skips hp 0.
 
 ## Per-player result
 - `Engine::stardust_of(player)` and `RunResult::from_run_for(setup, engine, player)` give one player's Stardust and
@@ -69,8 +69,8 @@ tick order: the `sim` module doc.
 
 ## Tests
 
-- `src/sim/`: `party_act_tests.rs` (acting, rooted reviver), `party_fix_tests.rs` (auto-picks, out, rewards, boss
-  offers), `tether_tests.rs`. `tests/party_down.rs`: down, out timer, revive, wipe, events once each, no solo down
+- `src/sim/`: `party_act_tests.rs` (acting, rooted reviver), `party_fix_tests.rs` (out, max hp, experience, Stardust,
+  the drop tier), `tether_tests.rs`. `tests/party_down.rs`: down, out timer, revive, wipe, events once each, no solo down
   view. `tests/party_tether.rs`: a walker held within 856 px over 600 ticks, a three-player party deterministic.
 - `tests/party_bot.rs`: `PartyBot` (a pure function of seed, engine, slot and tick), `RigParty` (the builder over
   `run_play::PartyCase`), `RigRun` (replays a recorded run onto an engine). With `builds`, in an equipment run a bot
