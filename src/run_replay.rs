@@ -984,6 +984,16 @@ impl RunRecorder {
         Ok(())
     }
 
+    /// Test seam (ADR-SIM-7's `bench` gate): answers a frozen run's offer with one recorded PICKS
+    /// step, never ticking.
+    #[cfg(feature = "bench")]
+    pub fn v1_pick_step(
+        &mut self,
+        _picks: &[Option<u32>; MAX_PLAYERS as usize],
+    ) -> Result<(), RunReplayError> {
+        Ok(())
+    }
+
     /// One step that does not advance the world: the equipment action of each slot (`None` for
     /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8); an action at
     /// an absent slot is ignored. Refused, recording nothing, after the run ended or when the replay already holds
@@ -1858,6 +1868,35 @@ mod tests {
                 error: ActionError::Downed
             }
         );
+    }
+
+    fn v1_pack() -> crate::pack::Pack {
+        crate::pack::Pack::from_bytes(include_bytes!(
+            "../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack")
+    }
+
+    #[test]
+    fn a_version_1_recorder_refuses_interact() {
+        let frozen = RunSetup {
+            schema_version: 1,
+            sim_version: 1,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_with_pack(&frozen, &v1_pack()).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
+        let (replay, tick) = (rec.replay(), rec.engine().tick());
+        let mut held = [Input::default(); 3];
+        held[0].interact = true;
+        assert_eq!(
+            rec.step(&held),
+            Err(RunReplayError::BadInputs("a version 1 run has no interact"))
+        );
+        assert_eq!((rec.replay(), rec.engine().tick()), (replay, tick));
+        // The live rules take the same input.
+        let mut live = RunRecorder::start(&RunSetup::default()).unwrap();
+        assert_eq!(live.step(&held), Ok(()));
     }
 
     #[test]

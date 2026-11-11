@@ -139,9 +139,7 @@ pub fn apply(engine: &mut Engine, step: &Step) {
 pub fn apply_to(rec: &mut RunRecorder, step: &Step) {
     match step {
         Step::Tick(inputs) => rec.step(inputs).expect("a recorded tick"),
-        Step::Picks(_) => {
-            panic!("a PICKS step needs the frozen offer rules; replay it with verify_run")
-        }
+        Step::Picks(picks) => rec.v1_pick_step(picks).expect("a recorded pick"),
         Step::Actions(actions) => rec.actions(actions).expect("a recorded action"),
         Step::Join(slot) => rec.join(*slot).expect("a recorded join"),
         Step::Leave(slot) => rec.leave(*slot).expect("a recorded leave"),
