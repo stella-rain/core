@@ -8860,8 +8860,8 @@
         "expertise_levels": {
           "description": "The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.",
           "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
+          "maximum": 10,
+          "minimum": 1,
           "type": "integer"
         },
         "expertise_multiplier": {
