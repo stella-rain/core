@@ -2,27 +2,10 @@
 //! version 1 through `Deref`; a live port reads through these).
 
 use super::*;
-use crate::time_limit::TimeLimit;
-use crate::version::Versions;
 
 /// A `time_limit` start at version 2 from the bundled files.
 fn live_start() -> Engine {
-    let pack: serde_json::Value =
-        serde_json::from_slice(include_bytes!("../../content/pack.json")).unwrap();
-    let mode = TimeLimit::parse(
-        pack["modes"]["time_limit"].to_string().as_bytes(),
-        Versions::CURRENT,
-    )
-    .unwrap();
-    let setup = RunSetup {
-        sim_version: 2,
-        mode: "time_limit".into(),
-        weapon: "giant_sword".into(),
-        perk_set: "duelist".into(),
-        difficulty: "normal".into(),
-        ..RunSetup::default()
-    };
-    Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
+    super::live_support::live_bundled_run("normal", 1)
 }
 
 #[test]
