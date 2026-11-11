@@ -18,7 +18,7 @@ use crate::rune::Rune;
 use crate::runes::Runes;
 use crate::sim::equipment::Equipment;
 use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool, World};
-use crate::snapshot::{EntityKind, OfferKind};
+use crate::snapshot::EntityKind;
 use crate::validate::{self};
 use std::sync::{Arc, LazyLock};
 
@@ -620,6 +620,16 @@ pub(crate) struct StarState {
     pub id: EntityId,
     pub at: Point,
     pub rarity: Rarity,
+}
+
+/// What opened an offer (ADR-REPL-5). The live rules open none; the hashed state still holds it
+/// until the offer fields leave the state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OfferKind {
+    /// A falling star the main character took.
+    Star,
+    /// A boss kill.
+    Boss,
 }
 
 /// An offer due: what opens it, and the highest rarity a candidate may have.

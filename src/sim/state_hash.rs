@@ -14,7 +14,6 @@ use crate::rewards::Rarity;
 use crate::rune::Rune;
 use crate::sim::RangedPool;
 use crate::sim::state::PlayerIdx;
-use crate::snapshot::OfferKind;
 
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::state::*;

@@ -205,11 +205,15 @@ fn without_player_fields(event: &DomainEvent) -> String {
 }
 
 /// The frozen events with no live counterpart (ADR-SIM-7).
-const LEVEL_OFFER_EVENTS: [&str; 4] = [
+const DROPPED_EVENTS: [&str; 8] = [
     "StatOfferOpened",
     "ExpertiseOfferOpened",
     "ExpertiseOptionTaken",
     "ExpertiseCandidateReplaced",
+    "OfferOpened",
+    "OfferSkipped",
+    "RewardBanished",
+    "CandidateReplaced",
 ];
 
 #[test]
@@ -224,7 +228,7 @@ fn the_adapted_events_keep_their_type_names() {
                 let json = serde_json::to_value(&live).unwrap();
                 assert_eq!(json["type"], frozen.as_str());
             }
-            None => assert!(LEVEL_OFFER_EVENTS.contains(&frozen.as_str()), "{frozen}"),
+            None => assert!(DROPPED_EVENTS.contains(&frozen.as_str()), "{frozen}"),
         }
         names.push(frozen);
     }
@@ -246,17 +250,17 @@ fn the_adapter_carries_every_field_in_order() {
             None => dropped += 1,
         }
     }
-    assert_eq!((kept, dropped), (39, 4));
+    assert_eq!((kept, dropped), (35, 8));
 }
 
-/// The adapter has no live event for the four level-offer events, and only for those.
+/// The adapter has no live event for the eight offer events, and only for those.
 #[test]
-fn the_adapter_drops_exactly_the_four_level_offer_events() {
+fn the_adapter_drops_exactly_the_eight_offer_events() {
     for event in every_v1_event() {
         let name = frozen_name(&event);
         assert_eq!(
             adapt(event).is_none(),
-            LEVEL_OFFER_EVENTS.contains(&name.as_str()),
+            DROPPED_EVENTS.contains(&name.as_str()),
             "{name}"
         );
     }
@@ -402,7 +406,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
                 by_hand.content.rewards(),
                 by_hand.content.expertise(),
                 state,
-                option.into(),
+                option,
                 &mut frozen,
             );
             e.v1_pick_step(&[Some(0), None, None]).unwrap();
@@ -467,7 +471,7 @@ fn a_version_1_replay_shows_the_same_offers() {
         .map(|d| d.unwrap().path())
         .collect();
     dirs.sort();
-    let (mut folded, mut offers) = (String::new(), 0u32);
+    let (mut kept, mut offers) = (String::new(), 0u32);
     for dir in dirs {
         let replay = crate::run_replay::RunReplay::from_bytes(
             &std::fs::read(dir.join("run.replay")).unwrap(),
@@ -487,152 +491,46 @@ fn a_version_1_replay_shows_the_same_offers() {
             .unwrap();
         let mut e = Engine::start_with(&replay.setup, pack.content()).unwrap();
         let mut next = 0;
-        let mut pick_here = |e: &mut Engine, tick: usize, folded: &mut String, offers: &mut u32| {
+        let mut pick_here = |e: &mut Engine, tick: usize, kept: &mut String, offers: &mut u32| {
             while next < commands.len() && commands[next].tick as usize == tick {
                 if e.offer_open() {
-                    folded.push_str(&serde_json::to_string(&e.snapshot()).unwrap());
+                    // The same snapshot without `progress.offer`.
+                    let mut snap = serde_json::to_value(e.snapshot()).unwrap();
+                    if let Some(p) = snap.get_mut("progress").and_then(|p| p.as_object_mut()) {
+                        p.remove("offer");
+                    }
+                    kept.push_str(&snap.to_string());
                     *offers += 1;
                 }
                 e.v1_pick_step(&[Some(commands[next].index), None, None])
                     .unwrap();
-                folded.push_str(&serde_json::to_string(e.events()).unwrap());
+                let events = serde_json::to_value(e.events()).unwrap();
+                kept.push_str(&events.to_string());
                 next += 1;
             }
         };
-        pick_here(&mut e, 0, &mut folded, &mut offers);
+        pick_here(&mut e, 0, &mut kept, &mut offers);
         for (tick, input) in inputs.iter().enumerate() {
             e.step(&[*input, Default::default(), Default::default()]);
-            pick_here(&mut e, tick + 1, &mut folded, &mut offers);
+            pick_here(&mut e, tick + 1, &mut kept, &mut offers);
         }
         assert_eq!(next, commands.len(), "every pick was made");
     }
     assert!(offers > 0, "the corpus opens offers");
     // Seen in the corpus: star offers and constellations; no stat offer and no expertise offer
     // (the hand-built values of `the_offer_views_convert_field_by_field` cover those).
-    assert!(folded.contains("\"constellations\":[{"), "a constellation");
-    assert!(folded.contains("\"OfferOpened\""), "a star offer");
-    // Recorded from a run on the commit before the views moved: a pin in source, not generated.
-    // Re-derived once when the level-offer views left the snapshot: the offers' snapshots lose `taken`.
-    assert_eq!(
-        crate::hash::fnv1a64(folded.as_bytes()),
-        13020489189506330421
-    );
+    assert!(kept.contains("\"constellations\":[{"), "a constellation");
+    // The fold without `progress.offer` and the four offer events, which leave the live snapshot
+    // and events: recorded before they left, a pin in source, not generated. The fold with them
+    // (the pin before this one) can no longer be produced.
+    assert!(kept.contains("\"RewardTaken\""), "a taken reward");
+    assert_eq!(crate::hash::fnv1a64(kept.as_bytes()), 5042547584517530830);
 }
 
 #[test]
-fn the_offer_views_convert_field_by_field() {
+fn the_constellation_view_converts_field_by_field() {
     use crate::sim_v1::views as w;
     use crate::snapshot as live;
-
-    let kinds: [(w::OfferKind, live::OfferKind); 2] = [
-        (w::OfferKind::Star, live::OfferKind::Star),
-        (w::OfferKind::Boss, live::OfferKind::Boss),
-    ];
-    for (frozen, expected) in kinds {
-        assert_eq!(live::OfferKind::from(frozen), expected);
-    }
-    let options: [(w::OfferOption, live::OfferOption); 4] = [
-        (
-            w::OfferOption::Take { candidate: 1 },
-            live::OfferOption::Take { candidate: 1 },
-        ),
-        (
-            w::OfferOption::Reroll { candidate: 2 },
-            live::OfferOption::Reroll { candidate: 2 },
-        ),
-        (w::OfferOption::Skip, live::OfferOption::Skip),
-        (
-            w::OfferOption::Banish { candidate: 0 },
-            live::OfferOption::Banish { candidate: 0 },
-        ),
-    ];
-    for (frozen, expected) in options {
-        assert_eq!(live::OfferOption::from(frozen), expected);
-        assert_eq!(w::OfferOption::from(expected), frozen);
-    }
-
-    let offer = w::OfferView {
-        kind: w::OfferKind::Boss,
-        rarity: Rarity::Epic,
-        candidates: vec![
-            w::CandidateView {
-                reward: ContentId::from("r1"),
-                rarity: Rarity::Rare,
-                hidden: true,
-                named: false,
-                star: None,
-                constellation: None,
-            },
-            w::CandidateView {
-                reward: ContentId::from("r2"),
-                rarity: Rarity::Legendary,
-                hidden: false,
-                named: true,
-                star: Some("s".into()),
-                constellation: Some(w::ConstellationProgress {
-                    set: ContentId::from("set"),
-                    held: 2,
-                    needed: 3,
-                }),
-            },
-        ],
-        options: vec![
-            w::OfferOption::Take { candidate: 0 },
-            w::OfferOption::Reroll { candidate: 1 },
-            w::OfferOption::Skip,
-        ],
-        rerolls_left: 4,
-        banishes_left: 5,
-    };
-    let converted = live::OfferView::from(offer);
-    assert_eq!(converted.kind, live::OfferKind::Boss);
-    assert_eq!(converted.rarity, Rarity::Epic);
-    assert_eq!(converted.rerolls_left, 4);
-    assert_eq!(converted.banishes_left, 5);
-    assert_eq!(
-        converted.options,
-        [
-            live::OfferOption::Take { candidate: 0 },
-            live::OfferOption::Reroll { candidate: 1 },
-            live::OfferOption::Skip,
-        ]
-    );
-    assert_eq!(
-        converted.candidates,
-        [
-            live::CandidateView {
-                reward: ContentId::from("r1"),
-                rarity: Rarity::Rare,
-                hidden: true,
-                named: false,
-                star: None,
-                constellation: None,
-            },
-            live::CandidateView {
-                reward: ContentId::from("r2"),
-                rarity: Rarity::Legendary,
-                hidden: false,
-                named: true,
-                star: Some("s".into()),
-                constellation: Some(live::ConstellationProgress {
-                    set: ContentId::from("set"),
-                    held: 2,
-                    needed: 3,
-                }),
-            },
-        ]
-    );
-    assert_eq!(
-        serde_json::to_string(&converted).unwrap(),
-        concat!(
-            r#"{"kind":"boss","rarity":"epic","candidates":["#,
-            r#"{"reward":"r1","rarity":"rare","hidden":true},"#,
-            r#"{"reward":"r2","rarity":"legendary","named":true,"star":"s","#,
-            r#""constellation":{"set":"set","held":2,"needed":3}}],"#,
-            r#""options":[{"type":"take","candidate":0},{"type":"reroll","candidate":1},"#,
-            r#"{"type":"skip"}],"rerolls_left":4,"banishes_left":5}"#
-        )
-    );
 
     let view = live::ConstellationView::from(w::ConstellationView {
         id: ContentId::from("c"),
@@ -654,11 +552,11 @@ fn the_offer_views_convert_field_by_field() {
 }
 
 /// A frozen run still stops on a stat or expertise offer and takes its pick, but its snapshot
-/// shows no such offer and its event stream names none of the four events that left the live
+/// shows no such offer and its event stream names none of the eight events that left the live
 /// rules (ADR-REPL-2 point 6, ADR-SIM-7).
 #[test]
 fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
-    const GONE: [&str; 4] = LEVEL_OFFER_EVENTS;
+    const GONE: [&str; 8] = DROPPED_EVENTS;
     let pack = crate::pack::Pack::from_bytes(include_bytes!(
         "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
     ))
@@ -682,7 +580,7 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
     for input in inputs {
         while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
             assert!(e.offer_open(), "a recorded pick answers an open offer");
-            let star = e.snapshot().progress.is_some_and(|p| p.offer.is_some());
+            let star = !e.v1_offer_candidates().is_empty();
             level_offers += usize::from(!star);
             e.v1_pick_step(&[Some(c.index), None, None])
                 .expect("a recorded choice");
@@ -690,6 +588,10 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
         e.step(&[input, Default::default(), Default::default()]);
         let snap = serde_json::to_value(e.snapshot()).unwrap();
         assert!(snap["progress"].get("stat_offer").is_none());
+        assert!(
+            snap["progress"].get("offer").is_none(),
+            "no star offer shown"
+        );
         assert!(snap["expertise"].get("offer").is_none());
         for event in e.events() {
             let name = serde_json::to_value(event).unwrap()["type"]

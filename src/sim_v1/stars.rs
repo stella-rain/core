@@ -24,9 +24,7 @@
 
 use super::World;
 use super::event::DomainEvent;
-use super::views::{
-    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
-};
+use super::views::{ConstellationView, OfferKind, OfferOption};
 use crate::attack::DamageType;
 use crate::constellations;
 use crate::id::{ContentId, EntityId};
@@ -668,18 +666,6 @@ pub(super) fn choose(
     }
 }
 
-/// The set `reward` is a member of, with what is held and needed.
-fn progress(rewards: &Rewards, f: &StarField, reward: &ContentId) -> Option<ConstellationProgress> {
-    let sets = rewards.constellations();
-    let at = sets.set_of(reward)?;
-    let held = f.set_counts.get(at).copied().unwrap_or(0);
-    Some(ConstellationProgress {
-        set: sets.sets()[at].id.clone(),
-        held,
-        needed: sets.sets()[at].needed(held),
-    })
-}
-
 /// The run's sets and how far each is, for the snapshot.
 pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<ConstellationView> {
     let Some(f) = s.stars.as_ref() else {
@@ -698,34 +684,6 @@ pub(crate) fn constellation_views(rewards: &Rewards, s: &State) -> Vec<Constella
             needed: c.needed(*held),
         })
         .collect()
-}
-
-/// What the frontend shows of the open offer.
-pub(crate) fn offer_view(rewards: &Rewards, s: &State) -> Option<OfferView> {
-    let f = s.stars.as_ref()?;
-    let o = f.offer.as_ref()?;
-    Some(OfferView {
-        kind: o.kind,
-        rarity: o.rarity,
-        candidates: o
-            .candidates
-            .iter()
-            .map(|i| {
-                let r = &rewards.rewards()[usize::from(*i)];
-                CandidateView {
-                    reward: r.id.clone(),
-                    rarity: r.rarity,
-                    hidden: r.is_random_rune(),
-                    named: r.named,
-                    star: r.star.clone(),
-                    constellation: progress(rewards, f, &r.id),
-                }
-            })
-            .collect(),
-        options: options(rewards, s),
-        rerolls_left: f.rerolls_left,
-        banishes_left: f.banishes_left,
-    })
 }
 
 #[cfg(test)]
