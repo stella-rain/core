@@ -1,6 +1,6 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
-//! content pack, the pack pins and the bench pins); `--check` reports any set that
-//! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
+//! content pack, the pack pins, the fuzz regression and the bench pins); `--check` reports any
+//! set that is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
 //! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
 //! that is not what bless writes, then runs the record test of core, which writes the folder and
 //! its manifest. Std only: it shells out to `cargo` and `git`.
@@ -10,12 +10,16 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
-const SETS: [(&str, &str); 6] = [
+const SETS: [(&str, &str); 7] = [
     ("schema", "schema/"),
     ("corpus", "tests/corpus/current/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
     ("pack pins", "tests/pack_pins.toml"),
+    (
+        "fuzz regression",
+        "fuzz/regressions/replay_load/equipment-action.replay",
+    ),
     ("bench pins", "tests/bench_pins.toml"),
 ];
 
@@ -159,6 +163,12 @@ fn steps() -> Vec<Step> {
             env: Some(("UPDATE_PACK_PINS", "1")),
             drop_ci: false,
             filter: "pack_pins::",
+        },
+        // A fuzz input derived from the run replay of the corpus the steps above wrote.
+        Step::Test {
+            env: Some(("UPDATE_FUZZ_REGRESSION", "1")),
+            drop_ci: false,
+            filter: "fuzz_regression::",
         },
         Step::Test {
             env: Some(("INSTA_UPDATE", "always")),
