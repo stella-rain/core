@@ -7,7 +7,9 @@
 //!
 //! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-2 point 4,
 //! ADR-REPL-5): `inputs` is the step log (see `step_log`; a PICKS record is reserved
-//! and refused) and `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! and refused) and `commands` is empty. A run of `sim_version` 1 (the frozen rules, the only
+//! ones that open an offer) is written at schema 1 by the recorder, the form it was frozen in;
+//! a schema 1 file is read and verified, and its two streams are
 //! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
 //! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
@@ -1102,7 +1104,8 @@ impl RunRecorder {
         }
     }
 
-    /// The replay of the run so far: complete once the run has ended, a bug report before.
+    /// The replay of the run so far: complete once the run has ended, a bug report before. At
+    /// `sim_version` 1 it is a schema 1 file (`inputs` and `commands`), otherwise schema 2.
     pub fn replay(&self) -> RunReplay {
         let log = StepLog {
             present: self.present,
