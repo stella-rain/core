@@ -179,7 +179,13 @@ fn the_source_of_a_copy_is_unchanged() {
 /// each field named: a field added later does not compile until the copy handles it.
 #[test]
 fn every_heap_owning_type_names_each_field_in_its_copy() {
-    let state = include_str!("../sim/state.rs");
+    let state = [
+        include_str!("../sim/state.rs"),
+        include_str!("../sim/state/status.rs"),
+        include_str!("../sim/state/orbs_zones.rs"),
+    ]
+    .concat();
+    let state = state.as_str();
     let types: [(&str, &str); 21] = [
         ("State", state),
         ("Horde", state),
