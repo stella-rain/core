@@ -978,6 +978,23 @@ mod tests {
         last
     }
 
+    /// `verify_run` for a frozen version 1 recording: with the version 1 pack it was recorded on,
+    /// never the bundled files (which version 2 edits). The first pack that does not refuse it
+    /// as another content decides.
+    fn verify_v1(bytes: &[u8]) -> Result<RunVerified, RunReplayError> {
+        let mut last = Err(RunReplayError::ContentChanged);
+        for (name, _) in corpus_files()
+            .into_iter()
+            .filter(|(n, _)| n.starts_with("v1/"))
+        {
+            last = verify_run_with(bytes, &content_of(&name));
+            if last != Err(RunReplayError::ContentChanged) {
+                break;
+            }
+        }
+        last
+    }
+
     #[allow(dead_code, reason = "shared with tests/, which uses more of it")]
     mod data_root {
         include!("../tests/data_root.rs");
@@ -1197,7 +1214,7 @@ mod tests {
         let mut two = schema_2_of(&one);
         two.commands = one.commands.clone();
         assert_eq!(
-            verify_run(&two.to_bytes()),
+            verify_v1(&two.to_bytes()),
             Err(RunReplayError::BadCommands("schema 2 has no command list"))
         );
     }
@@ -1215,7 +1232,7 @@ mod tests {
             })
             .unwrap();
         first[0] = Some(999);
-        let refused = verify_run(&schema_2_with(&one, &log).to_bytes());
+        let refused = verify_v1(&schema_2_with(&one, &log).to_bytes());
         let Err(RunReplayError::ChoiceRefused { error, .. }) = refused else {
             panic!("{refused:?}")
         };
@@ -1233,7 +1250,7 @@ mod tests {
             },
         );
         assert_eq!(
-            verify_run(&schema_2_with(&one, &log).to_bytes()),
+            verify_v1(&schema_2_with(&one, &log).to_bytes()),
             Err(RunReplayError::ChoiceRefused {
                 tick: 0,
                 error: ChoiceError::NoOffer
@@ -1254,7 +1271,7 @@ mod tests {
                 }],
             };
             assert_eq!(
-                verify_run(&schema_2_with(&one, &log).to_bytes()),
+                verify_v1(&schema_2_with(&one, &log).to_bytes()),
                 Err(RunReplayError::BadInputs(
                     "the party does not match the run"
                 ))
@@ -1272,7 +1289,7 @@ mod tests {
         let mut flagged = one.clone();
         flagged.inputs = base64::encode(&bytes);
         assert_eq!(
-            verify_run(&flagged.to_bytes()),
+            verify_v1(&flagged.to_bytes()),
             Err(RunReplayError::BadInputs("a run has unknown flags"))
         );
     }

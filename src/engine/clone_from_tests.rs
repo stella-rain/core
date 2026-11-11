@@ -121,7 +121,13 @@ fn solo(sim_version: u32) -> Engine {
         seed: 7,
         ..RunSetup::default()
     };
-    Engine::start(&setup).expect("the run starts")
+    // The frozen rules play the pack they were released with.
+    if sim_version == 1 {
+        Engine::start_with(&setup, super::copy_tests::v1_pack().content())
+    } else {
+        Engine::start(&setup)
+    }
+    .expect("the run starts")
 }
 
 #[test]

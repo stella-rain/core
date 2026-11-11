@@ -13,7 +13,7 @@ use stella_rain_core::weapons::Weapons;
 fn file(weapon: &str, tree: Option<&str>) -> Vec<u8> {
     let tree = tree.map_or(String::new(), |t| format!(r#","weapon_tree":"{t}""#));
     format!(
-        r#"{{"schema_version":1,"sim_version":1,"mode":"trial","weapon":"{weapon}","seed":20261010{tree}}}"#
+        r#"{{"schema_version":1,"sim_version":2,"mode":"trial","weapon":"{weapon}","seed":20261010{tree}}}"#
     )
     .into_bytes()
 }

@@ -25,6 +25,12 @@ fn setup() -> RunSetup {
     }
 }
 
+/// An engine of the frozen rules: they start from the pack they were released with, not the
+/// bundled files.
+fn frozen() -> Engine {
+    Engine::start_with(&setup(), super::copy_tests::v1_pack().content()).unwrap()
+}
+
 /// A run of the live rules, the equipment mode.
 fn live_setup() -> RunSetup {
     RunSetup {
@@ -39,7 +45,7 @@ fn slot(i: u8) -> PlayerIdx {
 
 #[test]
 fn every_action_is_not_built_yet() {
-    let e = Engine::start(&setup()).unwrap();
+    let e = frozen();
     for action in ALL {
         assert_eq!(
             e.check_action(PlayerIdx::SOLO, action),
@@ -66,7 +72,7 @@ fn a_slot_outside_the_party_is_no_player() {
 
 #[test]
 fn the_check_is_read_only() {
-    let e = Engine::start(&setup()).unwrap();
+    let e = frozen();
     let before = e.state_hash();
     for action in ALL {
         let _ = e.check_action(PlayerIdx::SOLO, action);
@@ -76,8 +82,8 @@ fn the_check_is_read_only() {
 
 #[test]
 fn step_does_not_read_the_action() {
-    let mut with = Engine::start(&setup()).unwrap();
-    let mut without = Engine::start(&setup()).unwrap();
+    let mut with = frozen();
+    let mut without = frozen();
     let acting = Input {
         action: Some(ALL[1]),
         ..Input::default()
@@ -692,7 +698,7 @@ mod equipment_runs {
         );
         assert!(json["starlight"]["prices"].is_array());
         // The frozen rules: no key at all.
-        let offers = Engine::start(&setup()).unwrap();
+        let offers = frozen();
         let json = serde_json::to_value(offers.snapshot()).unwrap();
         assert!(json.get("starlight").is_none());
         assert!(json["players"][0].get("starlight").is_none());
@@ -818,7 +824,7 @@ mod tree_runs {
         );
         assert_eq!(e.state_hash(), hash_held, "the check changes nothing");
         // A sim_version 1 run has no tree.
-        let offers = Engine::start(&setup()).unwrap();
+        let offers = frozen();
         assert_eq!(
             offers.check_action(PlayerIdx::SOLO, pick(0)),
             Err(ActionError::NotBuilt)
@@ -919,8 +925,8 @@ mod tree_runs {
                 .is_none()
         );
         // A run of the frozen rules has none.
-        let frozen = Engine::start(&setup()).unwrap();
-        let json = serde_json::to_value(&frozen.snapshot().players[0]).unwrap();
+        let offers = frozen();
+        let json = serde_json::to_value(&offers.snapshot().players[0]).unwrap();
         assert!(json.get("tree_ready").is_none());
     }
 }

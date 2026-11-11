@@ -281,7 +281,8 @@ fn a_default_setup_runs_in_equipment_mode() {
         sim_version: 1,
         ..setup
     };
-    let snap = Engine::start(&frozen).unwrap().snapshot();
+    let v1 = crate::frozen_v1::pack().content();
+    let snap = Engine::start_with(&frozen, v1).unwrap().snapshot();
     assert!(snap.players[0].slots.is_empty());
     assert!(snap.starlight.is_none());
 }

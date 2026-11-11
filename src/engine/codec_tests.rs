@@ -368,13 +368,8 @@ fn the_streams_are_five_words_in_order() {
 /// does not reach every type (`full_state` covers the rest); the kinds seen are counted below.
 #[test]
 fn the_values_of_a_live_run_round_trip_at_every_tick() {
-    use crate::pack::ContentFiles;
-    use crate::run_content::RunContent;
-    use crate::time_limit::TimeLimit;
-    use crate::version::Versions;
-
-    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let content = super::copy_tests::v1_pack().content();
+    let mode = content.time_limit();
     let setup = RunSetup {
         schema_version: 1,
         sim_version: 1,
@@ -394,7 +389,7 @@ fn the_values_of_a_live_run_round_trip_at_every_tick() {
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
-    let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
+    let mut e = Engine::start_time_limit(&setup, content, mode).unwrap();
     // agents, parts and bosses, tasks, runs, orbs, zones, echoes
     let mut seen = [0usize; 7];
     for _ in 0..900 {
