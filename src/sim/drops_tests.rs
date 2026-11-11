@@ -483,6 +483,51 @@ fn the_perk_drop_weight_reaches_the_world() {
     );
 }
 
+/// The player's `drop_weights` add to the perk set's own percent per category; with neither side
+/// weighing anything the vector stays empty.
+#[test]
+fn the_players_drop_weights_add_to_the_perk_sets() {
+    use crate::engine::{Engine, Run};
+    use crate::perk_sets::PerkSets;
+    use crate::run_content::RunContent;
+    use crate::run_setup::RunSetup;
+    let live = |setup: &RunSetup, content: &RunContent| match Engine::start_with(setup, content)
+        .expect("starts")
+        .run()
+    {
+        Run::V2 { world, .. } => world.drop_weight_pct.clone(),
+        Run::V1 { .. } => panic!("the live rules"),
+    };
+    let weighted = |base: &RunSetup, weights: Value| -> RunSetup {
+        let mut v = serde_json::to_value(base).expect("serialises");
+        v["drop_weights"] = weights;
+        serde_json::from_value(v).expect("reads")
+    };
+    let content = RunContent::bundled();
+    let duelist = RunSetup::default();
+    assert_eq!(live(&duelist, content), vec![25, 0, 0]);
+    let both = weighted(&duelist, json!({ "attack": 100 }));
+    assert_eq!(live(&both, content), vec![125, 0, 0]);
+    let scholar = RunSetup {
+        perk_set: "scholar".into(),
+        ..RunSetup::default()
+    };
+    assert_eq!(live(&scholar, content), Vec::<u32>::new());
+    let own = weighted(&scholar, json!({ "defence": 40 }));
+    assert_eq!(live(&own, content), vec![0, 40, 0]);
+    // A set's amount is at most 100 and the setup's at most the pack's range: the sum adds up.
+    let file = json!({ "perk_sets": [{ "id": "big", "effects": [
+        { "effect": "drop_weight", "amount": 100, "category": "attack" }] }] });
+    let sets = PerkSets::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("valid");
+    let big = RunSetup {
+        perk_set: "big".into(),
+        ..RunSetup::default()
+    };
+    let content = content.clone().with_perk_sets(sets);
+    let summed = weighted(&big, json!({ "attack": 100 }));
+    assert_eq!(live(&summed, &content), vec![200, 0, 0]);
+}
+
 // --- the boss kill (ADR-SIM-7 point 5) ---------------------------------------------------------
 
 /// A party of `n` in equipment mode whose tiers top out at Uncommon, Rare and Epic from levels 1,

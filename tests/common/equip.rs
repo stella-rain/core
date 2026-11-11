@@ -111,7 +111,7 @@ pub fn rune_slot(rewards: &Value, n: usize) -> usize {
 /// Starts an equipment-mode, one-player run on `stage` (its `sim_version` is set to the live
 /// rules) over the hand-written rewards file `rewards`, with each `(reward ID, slot)` of `stars`
 /// equipped at `level` (1 to 10). The slots are the layout's: the categories' slots in list
-/// order, then the rune slots. The perk set is `plain`, the star pool every reward, and the
+/// order, then the rune slots. The perk set is `plain`, the star pool the pack's own (`default_pool`), and the
 /// stats are not picked. A star the engine refuses is the `ActionError`.
 pub fn try_equipped(
     stage: &Stage,
@@ -143,12 +143,6 @@ fn build(
     level: u8,
 ) -> Result<Engine, (usize, ActionError)> {
     let rewards = with_equipment_rules(rewards);
-    let ids: Vec<ContentId> = rewards["rewards"]
-        .as_array()
-        .expect("a rewards list")
-        .iter()
-        .map(|r| ContentId::from(r["id"].as_str().expect("an id")))
-        .collect();
     let bytes = rewards.to_string();
     let mut rewards = match parts.skills {
         Some(skills) => {
@@ -176,7 +170,6 @@ fn build(
     }
     let setup = RunSetup {
         perk_set: "plain".into(),
-        star_pool: Some(ids),
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };
