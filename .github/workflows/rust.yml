@@ -118,9 +118,9 @@ jobs:
             tune/*) tune=true ;;
           esac
           if [ "$tune" = true ]; then
-            outside=$(grep -Ev '^content/|^modes/|^tests/corpus/|^tests/golden/|^tests/bench_pins\.toml$|\.md$' <<<"$all" || true)
+            outside=$(grep -Ev '^content/|^modes/|^tests/corpus/|^tests/golden/|^tests/bench_pins\.toml$|^tests/pack_pins\.toml$|^fuzz/regressions/replay_load/equipment-action\.replay$|\.md$' <<<"$all" || true)
             if [ -n "$outside" ]; then
-              echo "Error: tune/ PR touches files outside content/, modes/, tests/corpus/, tests/golden/, tests/bench_pins.toml:" >&2
+              echo "Error: tune/ PR touches files outside content/, modes/, tests/corpus/, tests/golden/, tests/bench_pins.toml, tests/pack_pins.toml, fuzz/regressions/replay_load/equipment-action.replay:" >&2
               echo "$outside" >&2
               exit 1
             fi
@@ -157,12 +157,13 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
-  # Every generated set (schema, corpus, goldens, content pack) is as committed: `cargo xtask
-  # bless --check` regenerates them and fails, naming the stale sets, when a diff appears.
+  # Every generated set (schema, corpus, goldens, content pack, pack pins, fuzz regression,
+  # bench pins) is as committed: `cargo xtask bless --check` regenerates them and fails, naming
+  # the stale sets, when a diff appears. It runs on tune/ PRs too: a pack bless rewrites the pack pins.
   bless:
     name: generated sets
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true' && needs.changes.outputs.tune-changes != 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -936,7 +937,7 @@ jobs:
               fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
               # Skipped when the short run builds the same targets (only a PR has `parsing`).
               fuzz-build) runs=true; if [ "$suite_off" = true ] || [ "$parsing" = true ]; then runs=false; fi ;;
-              bless) runs=false; if [ "$suite_off" = false ] && [ "$tune" != true ]; then runs=true; fi ;;
+              bless) runs=false; if [ "$suite_off" = false ]; then runs=true; fi ;;
               *) runs=$code ;;
             esac
             if [ "$result" = success ] || { [ "$result" = skipped ] && [ "$runs" = false ]; }; then
