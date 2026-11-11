@@ -853,27 +853,6 @@ impl StableHash for StarState {
     }
 }
 
-impl StableHash for Due {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        let Due { kind, rarity } = self;
-        kind.stable_hash(h);
-        rarity.stable_hash(h);
-    }
-}
-
-impl StableHash for OfferState {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        let OfferState {
-            kind,
-            rarity,
-            candidates,
-        } = self;
-        kind.stable_hash(h);
-        rarity.stable_hash(h);
-        candidates.stable_hash(h);
-    }
-}
-
 /// The star field's shared part: the `Option` tag, then the misses, the stars on the map, the
 /// rarity, the rune pool and the reward pool. The offers are each player's, in the blocks.
 fn hash_star_field(stars: &Option<StarField>, h: &mut StateHasher) {
@@ -896,26 +875,10 @@ fn hash_star_field(stars: &Option<StarField>, h: &mut StateHasher) {
     pool.stable_hash(h);
 }
 
-/// A player's offers: the eight fields in order.
+/// A player's offers: `set_counts`.
 impl StableHash for Offers {
     fn stable_hash(&self, h: &mut StateHasher) {
-        let Offers {
-            due,
-            offer,
-            rerolls_left,
-            banishes_left,
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
-        due.stable_hash(h);
-        offer.stable_hash(h);
-        rerolls_left.stable_hash(h);
-        banishes_left.stable_hash(h);
-        extra_candidates.stable_hash(h);
-        taken.stable_hash(h);
-        banished.stable_hash(h);
+        let Offers { set_counts } = self;
         set_counts.stable_hash(h);
     }
 }
@@ -1110,15 +1073,6 @@ impl StableHash for Rarity {
             Rarity::Epic => hash_enum!(h, 3),
             Rarity::Legendary => hash_enum!(h, 4),
             Rarity::Supernova => hash_enum!(h, 5),
-        }
-    }
-}
-
-impl StableHash for OfferKind {
-    fn stable_hash(&self, h: &mut StateHasher) {
-        match self {
-            OfferKind::Star => hash_enum!(h, 0),
-            OfferKind::Boss => hash_enum!(h, 1),
         }
     }
 }

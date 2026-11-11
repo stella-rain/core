@@ -3,9 +3,7 @@
 //! the bytes, and no input makes a decode panic. The live `Streams`, `StarField` and `Players`
 //! have no codec of their own (the state's encoder writes them in place), so the checks of
 //! those, and every field check, run on the bytes of the whole state. The frozen file guards
-//! version 1 and is not edited. The star-offer fields of `Offers` (`due`, `offer`,
-//! `rerolls_left`, `banishes_left`) are left alone here: only `extra_candidates`, `taken`,
-//! `banished` and `set_counts` are named.
+//! version 1 and is not edited. Of the star offers `Offers` keeps `set_counts` alone.
 
 use super::hash_coverage_live_tests::{Perturb, engine, live_full_state};
 use super::run::live::*;
@@ -535,7 +533,7 @@ fn the_progression_types_of_the_full_state_round_trip() {
 
 /// The star field's bytes, found in the state's: the `Option` tag, `misses`, `on_map`,
 /// `rarity`, `rune_pool`, `pool`, in that order, written out by hand below; and the tail of
-/// the offers (`extra_candidates`, `taken`, `banished`, `set_counts`) the same way.
+/// the offers (`set_counts`) the same way.
 #[test]
 fn the_star_field_has_its_layout_and_its_caps() {
     let mut s = base();
@@ -589,35 +587,21 @@ fn the_star_field_has_its_layout_and_its_caps() {
         Some(DecodeError::Invalid("list too long"))
     );
 
-    // The rest of the offers: the engine's own value, only the fields that stay set.
+    // The offers: the engine's own value with `set_counts` set.
     let mut offers = career(&base()).offers.clone().unwrap();
-    offers.extra_candidates = 4;
-    offers.taken = vec![1, 2];
-    offers.banished = vec![true, false, true];
     offers.set_counts = vec![3];
-    let tail = [
-        4, // extra_candidates
-        2, 0, 0, 0, 1, 2, // taken
-        3, 0, 0, 0, 1, 0, 1, // banished
-        1, 0, 0, 0, 3, // set_counts
-    ];
+    let tail = [1, 0, 0, 0, 3]; // set_counts
     let b = to_bytes(&offers);
-    assert_eq!(b[b.len() - tail.len()..], tail);
+    assert_eq!(b, tail);
     round_trip(&offers);
     let mut o = offers.clone();
-    o.taken = vec![0; 192];
+    o.set_counts = vec![0; 192];
     round_trip(&o);
-    o.taken = vec![0; 193];
+    o.set_counts = vec![0; 193];
     assert_eq!(
         from_bytes::<Offers>(&to_bytes(&o)),
         Err(DecodeError::Invalid("list too long"))
     );
-    let mut o = offers.clone();
-    o.banished = vec![false; 193];
-    assert!(from_bytes::<Offers>(&to_bytes(&o)).is_err());
-    let mut o = offers;
-    o.set_counts = vec![0; 193];
-    assert!(from_bytes::<Offers>(&to_bytes(&o)).is_err());
 }
 
 // ---- The perturbation of the types the hash test does not cover ----
@@ -711,27 +695,12 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     if bytes(&s) == bytes(&base) {
         failures.push("State.stars with Career.offers does not move the encoding".into());
     }
-    // The offers: only the fields that stay, on the engine's own value.
-    for (name, edit) in [
-        (
-            "taken",
-            (|o: &mut Offers| o.taken.perturb()) as fn(&mut Offers),
-        ),
-        ("banished", |o| o.banished.perturb()),
-        ("set_counts", |o| o.set_counts.perturb()),
-        ("extra_candidates", |o| o.extra_candidates.perturb()),
-    ] {
-        let mut s = base.clone();
-        edit(
-            s.players
-                .career_mut(PlayerIdx::SOLO)
-                .offers
-                .as_mut()
-                .unwrap(),
-        );
-        if bytes(&s) == bytes(&base) {
-            failures.push(format!("Offers.{name} does not move the encoding"));
-        }
+    // The offers: `set_counts`, on the engine's own value.
+    let mut s = base.clone();
+    let offers = s.players.career_mut(PlayerIdx::SOLO).offers.as_mut();
+    offers.unwrap().set_counts.perturb();
+    if bytes(&s) == bytes(&base) {
+        failures.push("Offers.set_counts does not move the encoding".into());
     }
     assert!(
         failures.is_empty(),

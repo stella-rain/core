@@ -485,12 +485,6 @@ macro_rules! state_codec_v2 {
                     &s.players.career(me).offers,
                     &fresh.players.career(PlayerIdx::SOLO).offers,
                 ) {
-                    if a.taken.len() != f.taken.len() {
-                        return Err(differs("star taken length differs from the content"));
-                    }
-                    if a.banished.len() != f.banished.len() {
-                        return Err(differs("star banished length differs from the content"));
-                    }
                     if a.set_counts.len() != f.set_counts.len() {
                         return Err(differs("star set_counts length differs from the content"));
                     }
@@ -603,12 +597,6 @@ macro_rules! state_codec_v2 {
                 }
             }
             for me in s.players.indices() {
-                if let Some(o) = &s.players.career(me).offers {
-                    let offer = o.offer.iter().flat_map(|o| &o.candidates);
-                    for c in offer {
-                        below(usize::from(*c), rewards, "offer candidate out of range")?;
-                    }
-                }
                 // A star held in the inventory, a slot or the Lumine slot is a place in the
                 // rewards file, and not the random rune (it is never a drop).
                 let equipment = &s.players.career(me).equipment;

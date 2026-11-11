@@ -1,8 +1,8 @@
 //! The live (`sim_version` 2) counterpart of the hand-built half of `savepoint_tests`: a decode
 //! checks its lengths and indices against a fresh engine and refuses damaged bytes. The players
 //! are per slot (`Players`, `Career`), the live `Streams` has four words and the live offers
-//! are each career's, so the star-offer fields are not named here: only the ones that stay
-//! (`taken`, `banished`, `set_counts`) are edited, on a clone of the engine's own `Offers`. The
+//! are each career's, so only the offers that stay (`set_counts`) are edited, on a clone of the
+//! engine's own `Offers`. The
 //! frozen file guards version 1 and is not edited.
 
 // The indices a test sets are the length of a table of a few hundred entries at most.
@@ -134,22 +134,7 @@ fn shape_is_checked() {
         stars(|f| f.pool.push(0)).map(drop),
         invalid("star pool length differs from the content")
     );
-    // The star-offer lists are each career's.
-    assert_eq!(
-        offers(|o| o.taken.push(0)).map(drop),
-        invalid("star taken length differs from the content")
-    );
-    assert_eq!(
-        offers(|o| {
-            o.taken.pop();
-        })
-        .map(drop),
-        invalid("star taken length differs from the content")
-    );
-    assert_eq!(
-        offers(|o| o.banished.push(false)).map(drop),
-        invalid("star banished length differs from the content")
-    );
+    // The star-offer list is each career's.
     assert_eq!(
         offers(|o| o.set_counts.push(0)).map(drop),
         invalid("star set_counts length differs from the content")

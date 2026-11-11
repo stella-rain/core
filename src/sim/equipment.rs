@@ -9,7 +9,7 @@ use crate::rune::Rune;
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum Held {
-    /// A star: a place in the run's rewards file, as `OfferState.candidates` is.
+    /// A star: a place in the run's rewards file.
     Star(u16),
     Rune(Rune),
 }

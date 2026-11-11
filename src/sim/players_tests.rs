@@ -451,24 +451,18 @@ mod careers {
 // (ADR-SIM-7, ADR-SIM-2).
 
 mod offers {
-    use super::super::state::{Due, OfferState, Offers, StarField, StarState};
+    use super::super::state::{Offers, StarField, StarState};
     use super::*;
     use crate::rewards::Rarity;
     use crate::rng::{TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2, derive};
-    use crate::sim::state::OfferKind;
 
     fn slot(i: u8) -> PlayerIdx {
         PlayerIdx::new(i).unwrap()
     }
 
-    /// What a run starts with, and what the state keeps: the stage's rerolls and banishes, nothing
-    /// due, nothing open, nothing taken (ADR-SIM-3, ADR-SIM-7).
+    /// What a run starts with, and what the state keeps: no set counted (ADR-SIM-3, ADR-SIM-7).
     #[test]
     fn an_initial_run_holds_the_offers_the_stage_gives() {
-        let rewards = crate::run_content::RunContent::bundled()
-            .rewards()
-            .rewards()
-            .len();
         for mode in ["trial", "time_limit"] {
             let setup = crate::run_setup::RunSetup {
                 mode: mode.into(),
@@ -477,22 +471,13 @@ mod offers {
             };
             let e = Engine::start(&setup).unwrap();
             let (world, state) = live(&e);
-            let cfg = world.stars.as_ref().expect("the mode has stars");
+            assert!(world.stars.is_some(), "{mode}: the mode has stars");
             let o = state
                 .players
                 .career(PlayerIdx::SOLO)
                 .offers
                 .as_ref()
                 .expect("slot 0 holds offers");
-            assert!(o.due.is_empty(), "{mode}");
-            assert!(o.offer.is_none(), "{mode}");
-            assert_eq!(o.rerolls_left, u32::from(cfg.rerolls), "{mode}");
-            assert_eq!(o.banishes_left, u32::from(cfg.banishes), "{mode}");
-            assert_eq!(o.extra_candidates, 0, "{mode}");
-            assert_eq!(o.taken.len(), rewards, "{mode}");
-            assert!(o.taken.iter().all(|&n| n == 0), "{mode}");
-            assert_eq!(o.banished.len(), rewards, "{mode}");
-            assert!(o.banished.iter().all(|&b| !b), "{mode}");
             assert!(o.set_counts.iter().all(|&n| n == 0), "{mode}");
         }
     }
@@ -504,20 +489,6 @@ mod offers {
         s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&live(&e).1.players);
         let c = s.players.career_mut(PlayerIdx::SOLO);
         let o = c.offers.as_mut().expect("the worst case has stars");
-        o.due.push(Due {
-            kind: OfferKind::Star,
-            rarity: Rarity::Rare,
-        });
-        o.offer = Some(OfferState {
-            kind: OfferKind::Boss,
-            rarity: Rarity::Epic,
-            candidates: vec![0, 1],
-        });
-        o.rerolls_left = 3;
-        o.banishes_left = 2;
-        o.extra_candidates = 1;
-        o.taken.push(1);
-        o.banished.push(true);
         o.set_counts.push(2);
         s
     }
@@ -582,32 +553,9 @@ mod offers {
     fn every_field_of_slot_0s_offers_and_stream_moves_the_hash() {
         let base = party(0b001);
         let h0 = hash_of(&base);
-        let Offers {
-            due: _,
-            offer: _,
-            rerolls_left: _,
-            banishes_left: _,
-            extra_candidates: _,
-            taken: _,
-            banished: _,
-            set_counts: _,
-        } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
+        let Offers { set_counts: _ } = base.players.career(PlayerIdx::SOLO).offers.clone().unwrap();
         type Edit = fn(&mut Offers);
-        let edits: [(&str, Edit); 8] = [
-            ("due", |o| {
-                o.due.push(Due {
-                    kind: OfferKind::Boss,
-                    rarity: Rarity::Common,
-                })
-            }),
-            ("offer", |o| o.offer.as_mut().unwrap().candidates.push(2)),
-            ("rerolls_left", |o| o.rerolls_left += 1),
-            ("banishes_left", |o| o.banishes_left += 1),
-            ("extra_candidates", |o| o.extra_candidates += 1),
-            ("taken", |o| o.taken[0] += 1),
-            ("banished", |o| o.banished[0] = !o.banished[0]),
-            ("set_counts", |o| o.set_counts[0] += 1),
-        ];
+        let edits: [(&str, Edit); 1] = [("set_counts", |o| o.set_counts[0] += 1)];
         for (name, edit) in edits {
             let mut s = base.clone();
             edit(offers_of(&mut s, 0));
@@ -663,7 +611,7 @@ mod offers {
                 let some = with_offers(none.clone(), i);
                 assert_ne!(hash_of(&some), hash_of(&none), "{mask:b} slot {i}");
                 let mut moved = some.clone();
-                offers_of(&mut moved, i).rerolls_left += 1;
+                offers_of(&mut moved, i).set_counts[0] += 1;
                 assert_ne!(hash_of(&moved), hash_of(&some), "{mask:b} slot {i} offers");
                 let mut drawn = some.clone();
                 drawn.players.careers_mut_for_test()[usize::from(i)]
@@ -674,9 +622,9 @@ mod offers {
         }
         let both = with_offers(with_offers(party(0b111), 1), 2);
         let mut a = both.clone();
-        offers_of(&mut a, 1).rerolls_left += 1;
+        offers_of(&mut a, 1).set_counts[0] += 1;
         let mut b = both.clone();
-        offers_of(&mut b, 2).rerolls_left += 1;
+        offers_of(&mut b, 2).set_counts[0] += 1;
         assert_ne!(hash_of(&a), hash_of(&b), "slot 2 is written after slot 1");
         let mut swapped = both.clone();
         let c = swapped.players.careers_mut_for_test();
@@ -701,55 +649,11 @@ mod offers {
         for mask in [0b001u8, 0b011] {
             let base = party(mask);
             let mut s = base.clone();
-            offers_of(&mut s, 0).banishes_left += 1;
+            offers_of(&mut s, 0).set_counts[0] += 1;
             assert_ne!(hash_of(&s), hash_of(&base), "{mask:b}");
             let mut s = base.clone();
             s.players.career_mut(PlayerIdx::SOLO).offer.next_u64();
             assert_ne!(hash_of(&s), hash_of(&base), "{mask:b} stream");
-        }
-    }
-
-    #[test]
-    fn reserve_makes_room_in_each_present_slots_due() {
-        let e = crate::bench_fixtures::worst_case::warmed_up();
-        let (world, s) = live(&e);
-        let cap = usize::from(
-            world
-                .stars
-                .as_ref()
-                .expect("stars")
-                .cap
-                .min(crate::validate::limits::MAX_STARS_ON_MAP),
-        );
-        for (mask, present) in [(0b111u8, [true, true, true]), (0b001, [true, false, false])] {
-            let mut s = s.clone();
-            s.players = Players::with_mask(mask, ps(&e)).keeping_career_of(&s.players);
-            for i in 0..MAX_PLAYERS {
-                let c = &mut s.players.careers_mut_for_test()[usize::from(i)];
-                c.offers = Some(offers_of_empty());
-            }
-            super::super::reserve(world, &mut s);
-            for i in 0..MAX_PLAYERS {
-                let c = &s.players.careers_mut_for_test()[usize::from(i)];
-                let have = c.offers.as_ref().unwrap().due.capacity();
-                match present[usize::from(i)] {
-                    true => assert!(have > cap, "{mask:b} slot {i}: {have} <= {cap}"),
-                    false => assert_eq!(have, 0, "{mask:b} slot {i}"),
-                }
-            }
-        }
-    }
-
-    fn offers_of_empty() -> Offers {
-        Offers {
-            due: Vec::new(),
-            offer: None,
-            rerolls_left: 0,
-            banishes_left: 0,
-            extra_candidates: 0,
-            taken: Vec::new(),
-            banished: Vec::new(),
-            set_counts: Vec::new(),
         }
     }
 }
@@ -1006,11 +910,8 @@ mod career_rest {
         ];
         let read = |s: &mut State| {
             let c = career(s, 0);
-            let o = c.offers.as_ref().expect("offers");
             let p = c.progress.as_ref().expect("progress");
             (
-                o.rerolls_left,
-                o.banishes_left,
                 p.totals[StatEffect::Rerolls as usize],
                 p.totals[StatEffect::Banishes as usize],
             )
@@ -1021,8 +922,7 @@ mod career_rest {
             loadout::perk(&mut s, slot(0), e);
         }
         let got = read(&mut s);
-        assert_eq!((got.0, got.1), (base.0, base.1), "offers untouched");
-        assert_eq!((got.2, got.3), (base.2 + 2, base.3 + 1));
+        assert_eq!(got, (base.0 + 2, base.1 + 1));
     }
 }
 

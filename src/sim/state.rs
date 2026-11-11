@@ -464,8 +464,8 @@ impl Clone for ExpertiseGauge {
 }
 
 /// The run part of the star field: falling stars and what the run's setup fixes for every
-/// player's offers (ADR-REPL-5). The offers due and open, and what each player's offers have
-/// used, are per slot in `Offers` (ADR-SIM-7); the live rules open none.
+/// player's offers (ADR-REPL-5). What is left of each player's offers is per slot in `Offers`
+/// (ADR-SIM-7); the live rules open none.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct StarField {
@@ -525,25 +525,11 @@ impl Clone for StarField {
     }
 }
 
-/// One player's star offers: those due and the open one, and what the player's offers have used
-/// (ADR-REPL-5). A slot holds `Some` exactly when the stage has stars (`State::stars`). The live
-/// rules never open an offer, so `due` and `offer` stay empty; the fields are kept, hashed and
-/// saved, until their removal.
+/// One player's star offers, what is left of them (ADR-REPL-5). A slot holds `Some` exactly when
+/// the stage has stars (`State::stars`). The live rules open no offer, so the state holds none.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Offers {
-    /// The offers due that have not opened yet: a boss kill's first, then the stars taken, in
-    /// the order taken.
-    pub due: Vec<Due>,
-    pub offer: Option<OfferState>,
-    pub rerolls_left: u32,
-    pub banishes_left: u32,
-    /// Candidates the offer-candidates rewards taken add to every offer, held to
-    /// `MAX_OFFER_CANDIDATES` less the base `offer_size` of `rules.json`.
-    pub extra_candidates: u8,
-    /// For each reward of the file: times taken, and whether it is banished.
-    pub taken: Vec<u8>,
-    pub banished: Vec<bool>,
     /// For each set of the run's constellations: the members held, counted after every take
     /// (core#NS3).
     pub set_counts: Vec<u8>,
@@ -551,57 +537,18 @@ pub(crate) struct Offers {
 
 impl Clone for Offers {
     fn clone(&self) -> Offers {
-        let Offers {
-            due,
-            offer,
-            rerolls_left,
-            banishes_left,
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
+        let Offers { set_counts } = self;
         Offers {
-            due: due.clone(),
-            offer: offer.clone(),
-            rerolls_left: *rerolls_left,
-            banishes_left: *banishes_left,
-            extra_candidates: *extra_candidates,
-            taken: taken.clone(),
-            banished: banished.clone(),
             set_counts: set_counts.clone(),
         }
     }
 
     /// Copies `source` into `self`, keeping the buffers `self` already holds.
     fn clone_from(&mut self, source: &Offers) {
+        let Offers { set_counts } = self;
         let Offers {
-            due,
-            offer,
-            rerolls_left,
-            banishes_left,
-            extra_candidates,
-            taken,
-            banished,
-            set_counts,
-        } = self;
-        let Offers {
-            due: s_due,
-            offer: s_offer,
-            rerolls_left: s_rerolls_left,
-            banishes_left: s_banishes_left,
-            extra_candidates: s_extra_candidates,
-            taken: s_taken,
-            banished: s_banished,
             set_counts: s_set_counts,
         } = source;
-        due.clone_from(s_due);
-        offer.clone_from(s_offer);
-        *rerolls_left = *s_rerolls_left;
-        *banishes_left = *s_banishes_left;
-        *extra_candidates = *s_extra_candidates;
-        taken.clone_from(s_taken);
-        banished.clone_from(s_banished);
         set_counts.clone_from(s_set_counts);
     }
 }
@@ -620,66 +567,6 @@ pub(crate) struct StarState {
     pub id: EntityId,
     pub at: Point,
     pub rarity: Rarity,
-}
-
-/// What opened an offer (ADR-REPL-5). The live rules open none; the hashed state still holds it
-/// until the offer fields leave the state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OfferKind {
-    /// A falling star the main character took.
-    Star,
-    /// A boss kill.
-    Boss,
-}
-
-/// An offer due: what opens it, and the highest rarity a candidate may have.
-#[derive(Clone, Copy, Debug)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct Due {
-    pub kind: OfferKind,
-    pub rarity: Rarity,
-}
-
-#[derive(Debug)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct OfferState {
-    pub kind: OfferKind,
-    /// The highest rarity a candidate may have: the star's, or the top of the boss offer's tier.
-    pub rarity: Rarity,
-    /// Places in the rewards file, in the offer's order.
-    pub candidates: Vec<u16>,
-}
-
-impl Clone for OfferState {
-    fn clone(&self) -> OfferState {
-        let OfferState {
-            kind,
-            rarity,
-            candidates,
-        } = self;
-        OfferState {
-            kind: *kind,
-            rarity: *rarity,
-            candidates: candidates.clone(),
-        }
-    }
-
-    /// Copies `source` into `self`, keeping the buffers `self` already holds.
-    fn clone_from(&mut self, source: &OfferState) {
-        let OfferState {
-            kind,
-            rarity,
-            candidates,
-        } = self;
-        let OfferState {
-            kind: s_kind,
-            rarity: s_rarity,
-            candidates: s_candidates,
-        } = source;
-        *kind = *s_kind;
-        *rarity = *s_rarity;
-        candidates.clone_from(s_candidates);
-    }
 }
 
 /// What a run stat does, from the run stats file.

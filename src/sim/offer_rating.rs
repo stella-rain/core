@@ -37,7 +37,7 @@ use crate::rewards::{MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_E
 use crate::snapshot::{Category, StatChange, StatKind, SwapItem, SwapRating};
 
 use super::equipment::{EquipSlot, Equipment, Held};
-use super::state::{Career, Offers, PlayerState, Progress, State};
+use super::state::{Career, PlayerState, Progress, State};
 use super::world::World;
 use super::{attacks, combat, levels, slots};
 
@@ -112,14 +112,12 @@ impl Rate {
     }
 }
 
-/// The stats of a build that a pick can move, in `StatKind` order. Without `offers` (a stage
-/// without a stars section) the three stats that live in them are left out.
+/// The stats of a build that a pick can move, in `StatKind` order.
 fn sheet(
     s: &State,
     progress: &Option<Progress>,
     player: &PlayerState,
     regen: u32,
-    offers: Option<&Offers>,
 ) -> Vec<(StatKind, u32)> {
     use crate::run_stats::StatEffect as Total;
     let total = |effect: Total| progress.as_ref().map_or(0, |p| p.totals[effect as usize]);
@@ -170,16 +168,6 @@ fn sheet(
             player.orbits.iter().map(|o| u32::from(o.orbs)).sum(),
         ),
     ]);
-    if let Some(offers) = offers {
-        out.extend([
-            (StatKind::Rerolls, offers.rerolls_left),
-            (StatKind::Banishes, offers.banishes_left),
-            (
-                StatKind::OfferCandidates,
-                u32::from(offers.extra_candidates),
-            ),
-        ]);
-    }
     out
 }
 
@@ -298,13 +286,7 @@ pub(crate) fn swap_ratings(
     let held = &s.players[me];
     let sets = rewards.constellations().sets();
     let before = Rate::of(world, s, &career.progress, held);
-    let before_sheet = sheet(
-        s,
-        &career.progress,
-        held,
-        career.regen,
-        career.offers.as_ref(),
-    );
+    let before_sheet = sheet(s, &career.progress, held, career.regen);
     let before_sets = members_equipped(rewards, &career.equipment);
     let slot_count = base.equipment.slots.len() + usize::from(base.equipment.lumine.is_some());
     let mut out = Vec::new();
@@ -388,7 +370,7 @@ pub(crate) fn swap_ratings(
             .cloned()
             .chain(tier_effects_gained)
             .collect();
-        let after_sheet = sheet(s, &c.progress, &player, c.regen, c.offers.as_ref());
+        let after_sheet = sheet(s, &c.progress, &player, c.regen);
         out.push(SwapRating {
             slot,
             replaces,
@@ -929,19 +911,32 @@ mod tests {
             let r = f.rate_item(i);
             let career = f.s.players.career(ME);
             let held = &f.s.players[ME];
-            let before = sheet(
-                &f.s,
-                &career.progress,
-                held,
-                career.regen,
-                career.offers.as_ref(),
-            );
+            let before = sheet(&f.s, &career.progress, held, career.regen);
             let (mut player, mut c) = (held.clone(), career.clone());
             slots::replace(&f.world, &f.rewards, &mut player, &mut c, i, 0).unwrap();
-            let after = sheet(&f.s, &c.progress, &player, c.regen, c.offers.as_ref());
+            let after = sheet(&f.s, &c.progress, &player, c.regen);
             assert!(!at(&r, 0).changes.is_empty());
             assert_eq!(at(&r, 0).changes, diff_sheets(&before, &after));
             assert_eq!(at(&r, 0).level_after, 3);
+        }
+
+        /// The stat sheet of a run with a `stars` section holds no offer stat: the live state keeps
+        /// no rerolls, banishes or extra candidates for it to read.
+        #[test]
+        fn the_stat_sheet_names_no_offer_stat() {
+            let f = fixture();
+            let career = f.s.players.career(ME);
+            assert!(
+                career.offers.is_some(),
+                "the trial stage has a stars section"
+            );
+            let sheet = sheet(&f.s, &career.progress, &f.s.players[ME], career.regen);
+            let offer_stats = [
+                StatKind::Rerolls,
+                StatKind::Banishes,
+                StatKind::OfferCandidates,
+            ];
+            assert!(sheet.iter().all(|(k, _)| !offer_stats.contains(k)));
         }
 
         /// T4: a slot the check refuses is absent, and so is every item that cannot be rated.
