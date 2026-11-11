@@ -4,6 +4,7 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::pack::{ContentFiles, Pack, PackError};
+use stella_rain_core::rewards::Rarity;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::MAX_LUMINE;
 use stella_rain_core::star_chart::{
@@ -353,4 +354,26 @@ fn a_missing_negative_or_fractional_expertise_cap_is_refused() {
     for bad in [json!(-1), json!(2.5)] {
         assert!(parse(&edited(|v| v["expertise_levels"] = bad)).is_err());
     }
+}
+
+// P6: the Lumine levels and the rewards file's Lumine costs.
+
+/// The catalogue's `lumine_levels` are the Stardust price of each Lumine level; the rewards
+/// file's `lumine_cost` is the Lumine a star of a rarity costs. Different units: neither
+/// decides the other. The only link is the level count, and the dearest star takes them all
+/// (ADR-SAVE-7 point 9: level 10 allows a supernova). A pack may price a supernova lower, so
+/// this guards the bundled pack and is not a validator rule.
+#[test]
+fn the_lumine_levels_cover_the_rewards_lumine_costs() {
+    let pack = Pack::bundled();
+    let levels = pack.star_chart().unwrap().lumine_levels().len();
+    assert_eq!(levels, usize::from(MAX_LUMINE));
+    let rewards = pack.content().rewards();
+    for rarity in Rarity::ALL {
+        assert!(
+            usize::from(rewards.lumine_cost(rarity)) <= levels,
+            "{rarity:?}"
+        );
+    }
+    assert_eq!(rewards.lumine_cost(Rarity::Supernova), MAX_LUMINE);
 }
