@@ -15,7 +15,7 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3, ADR-REL-6.
   `Cargo.lock`, `fuzz/Cargo.lock`, `rust-toolchain.toml` or `rust.yml` changed (they refresh the caches), and weekly.
   `rust checks` passes when each job ran or was skipped by right. Every job installs the toolchain with `rustup toolchain install` (reads `rust-toolchain.toml`).
 - `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
-  stale sets (schema, corpus, goldens, content pack, bench pins), when regenerating them changes a file.
+  stale sets (schema, corpus, goldens, content pack, pack pins, fuzz regression, bench pins), when regenerating them changes a file.
   `rust checks` requires it. Fix: `cargo xtask bless`, review the diff, commit it.
 - Tests run under cargo-nextest, profile `ci` (`.config/nextest.toml`): every failure is
   reported, a test past 30 s is listed SLOW, and each run writes a JUnit file, uploaded as the
