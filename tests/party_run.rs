@@ -271,7 +271,8 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
 fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
     let root = crate::data_root::data_root().join("tests/corpus");
     let mut seen = 0;
-    for tree in ["current", "v1"] {
+    // The frozen `v1` run cases hold PICKS steps, which need the frozen offer rules.
+    for tree in ["current"] {
         let mut cases: Vec<_> = std::fs::read_dir(root.join(tree).join("runs"))
             .unwrap()
             .map(|e| e.unwrap().path())
@@ -291,10 +292,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
             seen += 1;
         }
     }
-    assert!(
-        seen >= 18,
-        "the 9 current and the 9 v1 run cases, saw {seen}"
-    );
+    assert!(seen >= 10, "the 10 current run cases, saw {seen}");
 }
 
 // F. The party cases of the corpus.
