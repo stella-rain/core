@@ -161,6 +161,15 @@ class CiSpeed(unittest.TestCase):
         self.assertRegex(src, r"#\[test\]\nfn the_frozen_corpus_is_unchanged")
         self.assertNotRegex(src, r"#\[ignore[^\n]*\]\nfn the_frozen_corpus_is_unchanged")
 
+    def test_the_bench_head_builds_where_rust_cache_keeps_the_target(self):
+        block = job_block(self.text, "bench")
+        self.assertNotIn("echo \"CARGO_TARGET_DIR=", block)
+        self.assertIn('CARGO_TARGET_DIR="$RUNNER_TEMP/target-base" cargo bench', block)
+        cache = block[block.index("uses: Swatinem/rust-cache@v2"):]
+        cache = cache.split("      - name:")[0]
+        self.assertIn("key: bench\n", cache)
+        self.assertIn("save-if: ${{ github.ref == 'refs/heads/main' }}", cache)
+
 
 if __name__ == "__main__":
     unittest.main()
