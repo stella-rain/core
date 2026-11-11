@@ -1938,7 +1938,12 @@ mod tests {
             sim_version: 1,
             ..RunSetup::default()
         };
-        let mut rec = RunRecorder::start(&frozen).unwrap();
+        // The frozen rules play the pack they were released with, not the bundled files.
+        let v1 = Pack::from_bytes(include_bytes!(
+            "../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack");
+        let mut rec = RunRecorder::start_with_pack(&frozen, &v1).unwrap();
         rec.step(&[Input::default(); 3]).unwrap();
         rec.records.push(Record::Actions {
             actions: vec![Some(EquipAction::Extract { item: 0 })],
@@ -1952,7 +1957,10 @@ mod tests {
             refused.to_string(),
             "an equipment action on tick 1 is not built yet"
         );
-        assert_eq!(verify_run(&replay.to_bytes()).unwrap_err(), refused);
+        assert_eq!(
+            crate::run_replay::verify_run_with(&replay.to_bytes(), v1.content()).unwrap_err(),
+            refused
+        );
         let range = replay.step_range(0, 1, 1_000_000).unwrap();
         assert!(
             range
@@ -1961,7 +1969,7 @@ mod tests {
                 .any(|s| matches!(s, RangeStep::Actions { .. }))
         );
         assert_eq!(
-            RunRecorder::resume_with_pack(&replay, Pack::bundled()).err(),
+            RunRecorder::resume_with_pack(&replay, &v1).err(),
             Some(refused)
         );
     }
