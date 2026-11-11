@@ -776,6 +776,15 @@ impl Engine {
         self.take_picks(inputs);
     }
 
+    /// The version 1 pick seam: takes the picks of a recorded PICKS step, never ticking the world.
+    #[allow(dead_code)] // wired up in the next commit
+    pub(crate) fn v1_pick_step(
+        &mut self,
+        _picks: &[Option<u32>; crate::id::MAX_PLAYERS as usize],
+    ) -> Result<(), ChoiceError> {
+        unimplemented!("the version 1 pick seam")
+    }
+
     /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-7).
     pub fn players(&self) -> usize {
         self.run.party()
