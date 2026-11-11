@@ -48,14 +48,15 @@ class CommandCapStep(unittest.TestCase):
 
     def test_the_test_job_runs_the_command_cap_measurement(self):
         s = step(self.test, STEP_NAME)
-        self.assertEqual(re.findall(r"^\s+(?:- )?if:.*$", s, re.M), ["        if: matrix.arch == 'x86_64'"])
+        self.assertEqual(re.findall(r"^\s+(?:- )?if:.*$", s, re.M), ["        if: matrix.arch == 'x86_64' && matrix.profile == 'release'"])
         self.assertIn(CAP_RUN, s)
         for banned in ("--all-features", "--run-ignored all", "continue-on-error"):
             self.assertNotIn(banned, s)
 
     def test_it_reuses_the_release_build(self):
         lines = self.test.splitlines()
-        plain = lines.index("      - run: " + RELEASE_RUN)
+        plain = lines.index("        run: " + RELEASE_RUN)
+        self.assertEqual(lines[plain - 1], "      - if: matrix.profile == 'release'")
         cap = next(i for i, l in enumerate(lines) if l == f"      - name: {STEP_NAME}")
         self.assertLess(plain, cap)
 
@@ -169,6 +170,32 @@ class CiSpeed(unittest.TestCase):
         cache = cache.split("      - name:")[0]
         self.assertIn("key: bench\n", cache)
         self.assertIn("save-if: ${{ github.ref == 'refs/heads/main' }}", cache)
+
+    def test_debug_and_release_tests_are_parallel_legs(self):
+        block = job_block(self.text, "test")
+        legs = re.findall(
+            r"- arch: (\S+)\n\s+runner: (\S+)\n\s+profile: (\S+)\n", block)
+        self.assertEqual(legs, [
+            ("x86_64", "ubuntu-latest", "debug"),
+            ("x86_64", "ubuntu-latest", "release"),
+            ("arm64", "ubuntu-24.04-arm", "debug"),
+            ("arm64", "ubuntu-24.04-arm", "release"),
+            ("windows-x86_64", "windows-latest", "release"),
+            ("macos-arm64", "macos-latest", "release"),
+        ])
+        self.assertNotIn("matrix.debug", block)
+        self.assertIn("name: tests on ${{ matrix.arch }} (${{ matrix.profile }})", block)
+        debug_run = "cargo nextest run --locked --all-features --profile ci"
+        i = block.index(debug_run)
+        self.assertIn("if: matrix.profile == 'debug'", block[:i].split("      - ")[-1])
+        self.assertNotIn("mv target/nextest", block[i:].split("      - ")[0])
+        doc = block.index("cargo test --doc --locked --all-features")
+        self.assertIn("matrix.arch == 'x86_64' && matrix.profile == 'debug'",
+                      block[:doc].split("      - ")[-1])
+        cache = block[block.index("uses: Swatinem/rust-cache@v2"):].split("      - ")[0]
+        self.assertIn("key: ${{ matrix.profile }}", cache)
+        self.assertIn("name: junit-${{ matrix.arch }}-${{ matrix.profile }}", block)
+        self.assertIn("name: corpus-diff-${{ matrix.arch }}-${{ matrix.profile }}", block)
 
 
 if __name__ == "__main__":
