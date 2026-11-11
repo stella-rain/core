@@ -184,7 +184,8 @@ def run(args, env) -> int:
     serial = args.serial or env.get("ANDROID_SERIAL")
     if args.dry_run:
         try:
-            linker = ndk_linker(env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
+            linker = env.get(LINKER_VARIABLE) or ndk_linker(
+                env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
         except GateError:
             linker = "<the NDK's aarch64-linux-android24-clang>"
         for line in plan_lines(serial or PLACEHOLDER_DEVICE, PLACEHOLDER_BINARY, linker,
@@ -192,10 +193,10 @@ def run(args, env) -> int:
             print(line)
         return 0
 
-    linker = env.get(LINKER_VARIABLE) or ndk_linker(
-        env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
     if shutil.which("adb") is None:
         raise GateError("android-gate: adb is not on PATH (Android platform-tools)")
+    linker = env.get(LINKER_VARIABLE) or ndk_linker(
+        env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
     listing = subprocess.run(["adb", "devices"], capture_output=True, text=True)
     serial = choose_device(parse_devices(listing.stdout), serial)
     abi = shell(serial, "getprop ro.product.cpu.abi", capture=True).stdout.strip()
@@ -227,13 +228,18 @@ def run(args, env) -> int:
             say("push %s" % os.path.basename(src))
             if adb(serial, "push", src, target).returncode != 0:
                 raise GateError("android-gate: pushing %s failed" % src)
-        shell(serial, "chmod 755 " + quote(remote + "/integration"))
+        if shell(serial, "chmod 755 " + quote(remote + "/integration")).returncode != 0:
+            raise GateError("android-gate: chmod of the test binary failed on the phone")
         say("running the corpus and the golden hash")
         status = shell(serial, run_command(remote, env)).returncode
     except KeyboardInterrupt:
         status = 130
     finally:
-        if shell(serial, cleanup_command(remote)).returncode != 0:
+        try:
+            removed = shell(serial, cleanup_command(remote)).returncode == 0
+        except OSError:
+            removed = False
+        if not removed:
             say("could not remove %s from the phone" % remote)
     say("test run exited with %d" % status)
     return status
@@ -250,6 +256,12 @@ def main(argv) -> int:
     except GateError as error:
         print(error, file=sys.stderr)
         return 2
+    except OSError as error:
+        print("android-gate: could not start %s: is it installed and on PATH?" % error.filename,
+              file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == "__main__":

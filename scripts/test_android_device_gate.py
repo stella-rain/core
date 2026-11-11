@@ -232,6 +232,23 @@ class WholeRun(unittest.TestCase):
         self.assertIn("<the connected device>", result.stdout)
         self.assertIn("<test binary>", result.stdout)
 
+    def test_dry_run_shows_the_linker_override(self):
+        result = self.run_script("--dry-run", env={"ANDROID_NDK_HOME": "",
+                                 "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER": "/my/clang"})
+        self.assertIn("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=/my/clang cargo", result.stdout)
+
+    def test_no_adb_is_reported_before_the_ndk(self):
+        result = self.run_script("--serial", "SER1", env={"ANDROID_NDK_HOME": ""}, use_path=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("adb is not on PATH", result.stderr)
+
+    def test_no_cargo_exits_2(self):
+        (self.bin / "cargo").unlink()
+        result = self.run_script("--serial", "SER1", env={"PATH": str(self.bin)})
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("android-gate:", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_good_run_cleans_up(self):
         result = self.run_script("--serial", "SER1")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
