@@ -1,8 +1,9 @@
 //! The savepoint determinism proof (ADR-SAVE-4, ADR-SIM-3): for every run case of the replay
 //! corpus in the current tree, a savepoint taken at a cut, restored and run to the end gives the
 //! hashes, the ledger, the tallies, the snapshot and the replay of the uninterrupted run. The
-//! frozen `v1/` run cases all hold a PICKS step: `prove` skips them (`verify_run` replays them),
-//! and `the_proof_keeps_its_floor` pins how many are proved and skipped per tree. `check_run` is
+//! same holds for every run case of the frozen `v1/` tree: a recorder at `sim_version` 1 writes
+//! the schema 1 file and takes the PICKS steps through its bench-gated seam. `the_proof_keeps_its_floor`
+//! counts the verdicts `prove` returns per tree. `check_run` is
 //! generic over the restore, so the meta-tests can hand it restores that are wrong on purpose and
 //! see it name them.
 //!
@@ -38,44 +39,6 @@ struct Case {
     steps: RunSteps,
 }
 
-/// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
-/// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
-/// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
-/// to the frozen file's. A file already at the written schema is returned as it is, and so is a
-/// frozen run that holds a PICKS step: it needs the frozen offer rules, so it is not re-driven
-/// (`verify_run` replays it).
-fn written_form(file: &RunReplay, pack: &Pack, steps: &RunSteps) -> RunReplay {
-    if file.setup.schema_version >= 2 || steps.steps().iter().any(|s| matches!(s, Step::Picks(_))) {
-        return file.clone();
-    }
-    let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
-    for step in steps.steps() {
-        run_steps::apply_to(&mut rec, step);
-    }
-    let written = rec.replay();
-    assert_eq!(written.setup.schema_version, 2);
-    assert_eq!(written.commands, "");
-    assert_eq!(&RunSteps::of(&written), steps);
-    assert_eq!(
-        (
-            &written.ticks,
-            &written.final_hash,
-            &written.checkpoints,
-            &written.content_sha256
-        ),
-        (
-            &file.ticks,
-            &file.final_hash,
-            &file.checkpoints,
-            &file.content_sha256
-        )
-    );
-    let mut setup = written.setup.clone();
-    setup.schema_version = file.setup.schema_version;
-    assert_eq!(setup, file.setup);
-    written
-}
-
 fn tree_dir(tree: &str) -> PathBuf {
     crate::data_root::data_root()
         .join("tests/corpus")
@@ -88,10 +51,9 @@ fn load_case(tree: &str, name: &str) -> Case {
     let file = RunReplay::from_bytes(&bytes).unwrap();
     let pack = run_case_pack(&dir, &bytes).unwrap();
     let steps = RunSteps::of(&file);
-    let recorded = written_form(&file, &pack, &steps);
     Case {
         label: format!("{tree}/{name}"),
-        recorded,
+        recorded: file,
         pack,
         steps,
     }
@@ -349,25 +311,13 @@ enum Verdict {
     Skipped(&'static str),
 }
 
-/// The one test of whether a case is proved, shared by `prove` and the floor.
-fn skip_reason(case: &Case) -> Option<&'static str> {
-    case.steps
-        .steps()
-        .iter()
-        .any(|s| matches!(s, Step::Picks(_)))
-        .then_some("holds a PICKS step")
-}
-
-/// `None` for a case the tree does not hold (`CURRENT_ONLY` in `v1`).
+/// `None` for a case the tree does not hold (`CURRENT_ONLY` in `v1`). A `Skipped(reason)`
+/// return is counted by the floor.
 fn prove(tree: &str, name: &str, sweep: bool) -> Option<Verdict> {
     if tree == "v1" && CURRENT_ONLY.contains(&name) {
         return None;
     }
     let case = load_case(tree, name);
-    if let Some(why) = skip_reason(&case) {
-        eprintln!("savepoint proof: skipped {tree}/{name}: {why}");
-        return Some(Verdict::Skipped(why));
-    }
     let r = reference(&case);
     let at = if sweep { sweep_cuts(&r) } else { cuts(&r) };
     assert!(!at.is_empty(), "{}: no cuts", case.label);
@@ -409,12 +359,14 @@ macro_rules! run_cases {
             mod $name {
                 #[test]
                 fn current() {
-                    super::verdict("current", stringify!($name));
+                    let v = super::verdict("current", stringify!($name));
+                    assert!(!matches!(v, Some(super::Verdict::Skipped(_))), "{v:?}");
                 }
 
                 #[test]
                 fn v1() {
-                    super::verdict("v1", stringify!($name));
+                    let v = super::verdict("v1", stringify!($name));
+                    assert!(!matches!(v, Some(super::Verdict::Skipped(_))), "{v:?}");
                 }
 
                 #[test]

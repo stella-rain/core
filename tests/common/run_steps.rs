@@ -109,8 +109,8 @@ pub fn start(replay: &RunReplay, content: &RunContent) -> Engine {
     Engine::start_party_with(&replay.setup, content, steps.party).expect("a recorded setup starts")
 }
 
-/// Applies one step to a bare engine. A PICKS step panics: it needs the frozen offer rules, so a
-/// frozen run is replayed with `verify_run`; an action is `check_action` then `act`, slot by slot.
+/// Applies one step to a bare engine. A PICKS step panics (the pick seam of the frozen rules is
+/// crate-private there): a frozen run is replayed through a recorder, `apply_to`; an action is `check_action` then `act`, slot by slot.
 pub fn apply(engine: &mut Engine, step: &Step) {
     match step {
         Step::Tick(inputs) => engine.step(inputs),
@@ -135,7 +135,8 @@ pub fn apply(engine: &mut Engine, step: &Step) {
     }
 }
 
-/// Applies one step through a recorder, which records it as it was.
+/// Applies one step through a recorder, which records it as it was; a PICKS step goes in through
+/// `RunRecorder::v1_pick_step`.
 pub fn apply_to(rec: &mut RunRecorder, step: &Step) {
     match step {
         Step::Tick(inputs) => rec.step(inputs).expect("a recorded tick"),
