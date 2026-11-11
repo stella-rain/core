@@ -6,6 +6,8 @@
 //! The layout is the fields in declaration order, an enum a `u8` tag (the number its
 //! `StableHash` writes), an `Option` a `0`/`1` tag, a list a `u32` length (see `savepoint`).
 
+mod shared;
+
 use crate::id::EntityId;
 use crate::savepoint::codec::{
     Decode, DecodeError, Encode, Reader, Writer, decode_vec, max_guardians, max_hits, max_parts,
@@ -13,12 +15,7 @@ use crate::savepoint::codec::{
 
 use super::equipment::{EquipSlot, Equipment, Held, SlotKind};
 use super::state::*;
-use super::world::RangedPool;
-use crate::engine::Outcome;
-use crate::rewards::Rarity;
-use crate::rune::Rune;
-
-// ---- Attacks, orbs and zones ----
+use shared::{MAX_CONTENT_LEN, cap_u32};
 
 impl Encode for Dir {
     fn encode(&self, w: &mut Writer) {
@@ -529,8 +526,6 @@ impl Decode for ZoneState {
     }
 }
 
-// ---- Agents, the boss and statuses ----
-
 impl Encode for MoveOrder {
     fn encode(&self, w: &mut Writer) {
         let MoveOrder { to, ticks_left } = self;
@@ -966,8 +961,6 @@ impl Decode for BossState {
     }
 }
 
-// ---- Echoes ----
-
 impl Encode for Echo {
     fn encode(&self, w: &mut Writer) {
         let Echo {
@@ -994,8 +987,6 @@ impl Decode for Echo {
     }
 }
 
-// ---- The generators ----
-
 /// Four `u64`, each run generator's state, in the order the hash writes them: `spawn, attack,
 /// loot, horde`. Each player's offer generator is in its block.
 fn encode_streams(rng: &Streams, w: &mut Writer) {
@@ -1021,78 +1012,11 @@ fn decode_streams(r: &mut Reader<'_>) -> Result<Streams, DecodeError> {
     })
 }
 
-// ---- Enums of the state ----
-
-/// A fieldless enum: a literal tag per variant, the numbers its `StableHash` writes, and no
-/// wildcard arm, so a variant added without a number does not compile.
-macro_rules! enum_codec {
-    ($($ty:ty, $what:literal: { $($variant:path => $tag:literal),* $(,)? });* $(;)?) => {$(
-        impl Encode for $ty {
-            fn encode(&self, w: &mut Writer) {
-                w.u8(match self {
-                    $($variant => $tag,)*
-                });
-            }
-        }
-
-        impl Decode for $ty {
-            fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-                match r.u8()? {
-                    $($tag => Ok($variant),)*
-                    _ => Err(DecodeError::Invalid($what)),
-                }
-            }
-        }
-    )*};
-}
-
-enum_codec! {
-    Outcome, "outcome tag": {
-        Outcome::Running => 0,
-        Outcome::Cleared => 1,
-        Outcome::Failed => 2,
-    };
-    Rarity, "rarity tag": {
-        Rarity::Common => 0,
-        Rarity::Uncommon => 1,
-        Rarity::Rare => 2,
-        Rarity::Epic => 3,
-        Rarity::Legendary => 4,
-        Rarity::Supernova => 5,
-    };
-    Rune, "rune tag": {
-        Rune::Explosion => 0,
-        Rune::Thunder => 1,
-        Rune::Boomerang => 2,
-        Rune::HomingMissiles => 3,
-        Rune::Bleed => 4,
-        Rune::Poison => 5,
-        Rune::Burn => 6,
-    };
-    RangedPool, "ranged pool tag": {
-        RangedPool::Zone => 0,
-        RangedPool::Line => 1,
-    };
-}
-
-// ---- The caps of the lists below ----
-
-/// A cap, from the constant that bounds the list in play.
-fn cap_u32(n: usize) -> u32 {
-    u32::try_from(n).expect("a small cap")
-}
-
 /// The most places a list of `u8` places into a content file holds.
 const MAX_PLACES: u32 = 256;
 
 /// The runs one attacker can have at once: one for each `u8` slot.
 const MAX_RUN_SLOTS: u32 = 256;
-
-/// The cap of a list whose length is the content's (waves, bosses): `decode_state` checks it
-/// against the fresh engine's, and the bytes left bound the length before that.
-const MAX_CONTENT_LEN: u32 = 1 << 16;
-
-// ---- The player ----
 
 impl Encode for PlayerState {
     fn encode(&self, w: &mut Writer) {
@@ -1418,8 +1342,6 @@ impl Decode for DashState {
     }
 }
 
-// ---- Progression: levels, stars, offers, healing, expertise and the horde ----
-
 impl Encode for Career {
     fn encode(&self, w: &mut Writer) {
         // Slot 0's offer generator and offers are written by `State`, at the places the run's
@@ -1450,8 +1372,6 @@ impl Decode for Career {
         })
     }
 }
-
-// ---- Equipment ----
 
 impl Encode for Held {
     fn encode(&self, w: &mut Writer) {
@@ -1775,50 +1695,6 @@ impl Decode for Horde {
     }
 }
 
-// ---- Text ----
-
-/// The most bytes of a name the ledger and the tallies hold (a kill key, a star's name).
-const MAX_TEXT_BYTES: u32 = 256;
-
-impl Encode for str {
-    fn encode(&self, w: &mut Writer) {
-        w.len(self.len());
-        w.bytes(self.as_bytes());
-    }
-}
-
-impl Encode for String {
-    fn encode(&self, w: &mut Writer) {
-        self.as_str().encode(w);
-    }
-}
-
-impl Encode for std::sync::Arc<str> {
-    fn encode(&self, w: &mut Writer) {
-        (**self).encode(w);
-    }
-}
-
-/// The text of at most `MAX_TEXT_BYTES` bytes.
-fn decode_text<'a>(r: &mut Reader<'a>) -> Result<&'a str, DecodeError> {
-    let n = r.list_len(MAX_TEXT_BYTES)?;
-    std::str::from_utf8(r.bytes(n)?).map_err(|_| DecodeError::Invalid("utf8"))
-}
-
-impl Decode for String {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        decode_text(r).map(str::to_owned)
-    }
-}
-
-impl Decode for std::sync::Arc<str> {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        decode_text(r).map(std::sync::Arc::from)
-    }
-}
-
-// ---- The state ----
-
 impl Encode for State {
     fn encode(&self, w: &mut Writer) {
         self.encode_fields(w);
@@ -2029,8 +1905,12 @@ impl State {
 
 #[cfg(test)]
 mod enum_tests {
-    use super::*;
+    use crate::engine::Outcome;
+    use crate::rewards::Rarity;
+    use crate::rune::Rune;
+    use crate::savepoint::codec::{Decode, DecodeError, Encode};
     use crate::savepoint::testing::{from_bytes, to_bytes};
+    use crate::sim::world::RangedPool;
 
     /// Every variant, in order, is its number; the number after the last is refused.
     fn tags<T: Encode + Decode + PartialEq + std::fmt::Debug>(all: &[T]) {
