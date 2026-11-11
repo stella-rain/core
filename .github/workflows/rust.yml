@@ -13,9 +13,13 @@
 # auto-merge.yml waits for the workflows it names.
 # The `net/` crate has its own job (`net`): the other jobs select core alone.
 # A PR into main whose files are all `*.md` runs none of them: `what changed` says so, and every
-# Rust job waits on it (a push to main and every run off a PR run every job). `rust checks`
-# always runs and fails when a job it needs failed, was cancelled, or was skipped though it had
-# to run, so auto-merge.yml requires only that one check, which a docs-only PR passes too. A
+# Rust job waits on it. A push to main runs `what changed`, the bench and its profile (the bench
+# saves the per-sha base counts that PRs restore) and the rest of the suite only when
+# Cargo.lock, fuzz/Cargo.lock, rust-toolchain.toml or this file changed (those refresh the
+# caches; every other change was tested in its PR). The weekly run and every PR run all of it.
+# `rust checks` always runs and fails when a job it needs failed, was cancelled, or was skipped
+# though it had to run, so auto-merge.yml requires only that one check, which a docs-only PR
+# passes too. A
 # newer push to a PR cancels the run of the older one. `frozen corpus unchanged` runs on every PR,
 # docs-only ones too (its diff step; the manifest test runs in `tests`): a PR may not modify, delete or rename a frozen corpus file.
 # Weekly, the whole workflow also runs on main, so a toolchain or runner change, or a main that
@@ -35,9 +39,10 @@ on:
 permissions: {}
 
 # One run per PR: a new push cancels the older one. Runs on main (push, weekly) are never
-# cancelled, each event in its own group.
+# cancelled: each has its own group (the sha), so a push gate that diffs one push is never lost
+# to a newer pending run that replaced it.
 concurrency:
-  group: rust-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: rust-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -63,17 +68,23 @@ jobs:
     outputs:
       code: ${{ steps.diff.outputs.code }}
       tune-changes: ${{ steps.diff.outputs.tune-changes }}
+      suite: ${{ steps.diff.outputs.suite }}
     steps:
       - uses: actions/checkout@v7
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         with:
           fetch-depth: 0
           persist-credentials: false
-      # False only for a PR into main whose files are all `*.md` (no Rust code reads one). A
-      # push to main and every run off a PR run every job.
+      # `code` is false only for a PR into main whose files are all `*.md` (no Rust code reads one).
+      # `suite` is false only for a push to main that changed none of the files that refresh the
+      # caches (the lockfiles, the toolchain pin, this workflow): the PR that merged it ran the
+      # suite already, so the push runs the bench alone, which saves the base counts the next PRs
+      # restore. A push whose range cannot be diffed, the weekly run and every PR run the suite.
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
           BASE_REF: ${{ github.base_ref }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: ${{ github.head_ref }}
@@ -82,9 +93,21 @@ jobs:
           if [ "$EVENT" != pull_request ] || [ "$BASE_REF" != main ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
             echo "tune-changes=false" >> "$GITHUB_OUTPUT"
-            echo "$EVENT into ${BASE_REF:-nothing}: every Rust job runs"
+            suite=true
+            if [ "$EVENT" = push ]; then
+              if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                refresh=$(git diff --name-only "$BEFORE" "$SHA" -- \
+                  Cargo.lock fuzz/Cargo.lock rust-toolchain.toml .github/workflows/rust.yml)
+                if [ -z "$refresh" ]; then suite=false; fi
+              else
+                echo "push range $BEFORE..$SHA cannot be diffed: the suite runs"
+              fi
+            fi
+            echo "suite=$suite" >> "$GITHUB_OUTPUT"
+            echo "$EVENT into ${BASE_REF:-nothing}: code=true suite=$suite"
             exit 0
           fi
+          echo "suite=true" >> "$GITHUB_OUTPUT"
           all=$(git diff --name-only "$BASE" HEAD)
           code=false
           if [ -z "$all" ] || grep -qv '\.md$' <<<"$all"; then code=true; fi
@@ -114,7 +137,7 @@ jobs:
   lint:
     name: fmt and clippy
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -139,7 +162,7 @@ jobs:
   bless:
     name: generated sets
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.tune-changes != 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true' && needs.changes.outputs.tune-changes != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -190,7 +213,7 @@ jobs:
   test:
     name: tests on ${{ matrix.arch }} (${{ matrix.profile }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -309,7 +332,7 @@ jobs:
   cross:
     name: cargo check for mobile targets
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -332,7 +355,7 @@ jobs:
   net:
     name: net crate fmt, clippy, tests and mobile check
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -357,7 +380,7 @@ jobs:
   fuzz-stable:
     name: fuzz crate fmt, clippy and tests
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -384,7 +407,7 @@ jobs:
     # reads), weekly and on a PR that touches no parsing. `!cancelled()`: `fuzz-changes` is skipped
     # off a PR, which would skip this job too.
     needs: [changes, fuzz-changes]
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' && needs.fuzz-changes.outputs.parsing != 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true' && needs.fuzz-changes.outputs.parsing != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -842,7 +865,7 @@ jobs:
   cargo-deny:
     name: cargo deny
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -871,8 +894,11 @@ jobs:
         run: cargo deny --manifest-path fuzz/Cargo.toml check
 
   # The one check auto-merge.yml requires from this workflow. A job may be skipped only when it
-  # need not run: `parsing changed` off a PR, the short fuzz run when it says no, the others when
-  # `what changed` says no; every other skipped, failed or cancelled job fails this one.
+  # need not run: `parsing changed` and `frozen corpus unchanged` off a PR, the short fuzz run when
+  # `parsing changed` says no, `fuzz targets build` when it says yes (the short run builds the
+  # same targets), the suite jobs when `what changed` says no (a docs-only PR, or a push that
+  # changed no cache file), the bench jobs when it says no code; every other skipped, failed or
+  # cancelled job fails this one.
   checks:
     name: rust checks
     needs: [changes, fuzz-changes, lint, bless, frozen, test, cross, net, fuzz-stable, fuzz-build, fuzz-short, bench-list, bench, bench-profile, cargo-deny]
@@ -889,6 +915,11 @@ jobs:
           code=$(jq -r '.changes.outputs.code // ""' <<<"$NEEDS")
           parsing=$(jq -r '."fuzz-changes".outputs.parsing // ""' <<<"$NEEDS")
           tune=$(jq -r '.changes.outputs."tune-changes" // ""' <<<"$NEEDS")
+          suite=$(jq -r '.changes.outputs.suite // ""' <<<"$NEEDS")
+          # A job of the suite may be skipped when `what changed` says so; with an empty output (it
+          # failed) a skipped job still fails below.
+          suite_off=false
+          if [ "$code" = false ] || [ "$suite" = false ]; then suite_off=true; fi
           pr=false
           if [ "$EVENT" = pull_request ]; then pr=true; fi
           fail=0
@@ -897,18 +928,20 @@ jobs:
             case "$job" in
               changes) runs=true ;;
               frozen) runs=$pr ;;
+              bench-list|bench|bench-profile) runs=$code ;;
+              lint|test|cross|net|fuzz-stable|cargo-deny) runs=true; if [ "$suite_off" = true ]; then runs=false; fi ;;
               fuzz-changes) runs=$pr ;;
               # No `parsing` off a PR, or when `parsing changed` failed, which fails this anyway.
               fuzz-short) runs=false; if [ "$parsing" = true ]; then runs=true; fi ;;
               # Skipped when the short run builds the same targets (only a PR has `parsing`).
-              fuzz-build) runs=$code; if [ "$parsing" = true ]; then runs=false; fi ;;
-              bless) runs=false; if [ "$code" = true ] && [ "$tune" != true ]; then runs=true; fi ;;
+              fuzz-build) runs=true; if [ "$suite_off" = true ] || [ "$parsing" = true ]; then runs=false; fi ;;
+              bless) runs=false; if [ "$suite_off" = false ] && [ "$tune" != true ]; then runs=true; fi ;;
               *) runs=$code ;;
             esac
             if [ "$result" = success ] || { [ "$result" = skipped ] && [ "$runs" = false ]; }; then
               echo "$job: $result"
             else
-              echo "::error::$job: $result (code=$code parsing=$parsing tune=$tune)"
+              echo "::error::$job: $result (code=$code suite=$suite parsing=$parsing tune=$tune)"
               fail=1
             fi
           done
