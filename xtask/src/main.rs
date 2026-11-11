@@ -139,8 +139,16 @@ fn steps() -> Vec<Step> {
             drop_ci: false,
             filter: "schema::",
         },
+        // The writer alone in its process: it rewrites every case's pack pin, and a reader that
+        // ran beside it would load a pin that is not written yet.
         Step::Test {
             env: Some(("UPDATE_CORPUS", "1")),
+            drop_ci: false,
+            filter: "corpus::the_corpus_matches",
+        },
+        // Then every other corpus test, against the written pins; nothing writes.
+        Step::Test {
+            env: None,
             drop_ci: false,
             filter: "corpus::",
         },
@@ -169,7 +177,7 @@ fn freeze_steps(name: &str) -> Vec<Step> {
             || matches!(
                 s,
                 Step::Test {
-                    filter: "corpus::",
+                    filter: "corpus::the_corpus_matches",
                     ..
                 }
             )
@@ -516,7 +524,12 @@ mod tests {
             [
                 Step::ExportPack,
                 test_step(("UPDATE_SCHEMA", "1"), "schema::"),
-                test_step(("UPDATE_CORPUS", "1"), "corpus::"),
+                test_step(("UPDATE_CORPUS", "1"), "corpus::the_corpus_matches"),
+                Step::Test {
+                    env: None,
+                    drop_ci: false,
+                    filter: "corpus::",
+                },
                 test_step(("INSTA_UPDATE", "always"), "golden::"),
                 Step::Test {
                     env: Some(("UPDATE_BENCH_PINS", "1")),
@@ -525,6 +538,49 @@ mod tests {
                 },
             ]
         );
+    }
+
+    fn filter_of(step: &Step) -> Option<&'static str> {
+        match step {
+            Step::Test { filter, .. } => Some(filter),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn the_corpus_write_step_runs_alone_and_before_every_corpus_read() {
+        let steps = steps();
+        let write = steps
+            .iter()
+            .position(|s| filter_of(s) == Some("corpus::the_corpus_matches"))
+            .expect("no corpus write step");
+        let read = steps
+            .iter()
+            .position(|s| filter_of(s) == Some("corpus::"))
+            .expect("no corpus read step");
+        assert!(write < read, "the write step must run first");
+        assert!(
+            matches!(&steps[read], Step::Test { env: None, .. }),
+            "the read step carries no knob"
+        );
+    }
+
+    #[test]
+    fn only_one_step_sets_update_corpus() {
+        let with_knob: Vec<_> = steps()
+            .into_iter()
+            .filter(|s| {
+                matches!(
+                    s,
+                    Step::Test {
+                        env: Some(("UPDATE_CORPUS", _)),
+                        ..
+                    }
+                )
+            })
+            .collect();
+        assert_eq!(with_knob.len(), 1);
+        assert_eq!(filter_of(&with_knob[0]), Some("corpus::the_corpus_matches"));
     }
 
     fn pins_step() -> Option<usize> {
@@ -546,7 +602,8 @@ mod tests {
             Step::Record(_) => "frozen version",
             Step::Test { filter, .. } => match *filter {
                 "schema::" => "schema",
-                "corpus::" => "corpus",
+                "corpus::the_corpus_matches" => "corpus",
+                "corpus::" => "reads only",
                 "golden::" => "golden",
                 "bench_fixture_pins::" => "bench pins",
                 other => panic!("step {other} writes no known set"),
@@ -677,7 +734,7 @@ mod tests {
             freeze_steps("v1"),
             [
                 Step::ExportPack,
-                test_step(("UPDATE_CORPUS", "1"), "corpus::"),
+                test_step(("UPDATE_CORPUS", "1"), "corpus::the_corpus_matches"),
                 Step::Record("v1".into()),
             ]
         );

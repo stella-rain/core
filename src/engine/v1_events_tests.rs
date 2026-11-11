@@ -665,7 +665,8 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
     let content = pack.content();
     let bytes: &[u8] = include_bytes!("../../tests/corpus/v1/runs/trial/run.replay");
     let recorded = crate::run_replay::RunReplay::from_bytes(bytes).expect("a run replay");
-    let stage = run_setup::stage_with(&recorded.setup, content.time_limit()).expect("a stage");
+    // The stage comes from the version 1 pack's own mode files, not the bundled ones.
+    let stage = run_setup::stage_in(&recorded.setup, content).expect("a stage");
     let inputs = recorded
         .unpack_inputs(run_setup::max_replay_ticks(
             &recorded.setup,
