@@ -871,50 +871,6 @@
       },
       "type": "object"
     },
-    "CandidateView": {
-      "additionalProperties": false,
-      "description": "A reward an offer holds.",
-      "properties": {
-        "constellation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ConstellationProgress"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The set a named star belongs to and how far it is; absent for a reward in no set."
-        },
-        "hidden": {
-          "description": "A random rune: which rune it gives is drawn only when it is taken, so the\nfrontend shows it face down.",
-          "type": "boolean"
-        },
-        "named": {
-          "description": "A named star: the frontend shows `star` as its name.",
-          "type": "boolean"
-        },
-        "rarity": {
-          "$ref": "#/$defs/Rarity"
-        },
-        "reward": {
-          "$ref": "#/$defs/ContentId",
-          "description": "Its ID in the run's rewards file."
-        },
-        "star": {
-          "description": "The named star's display name; with `named` only.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "reward",
-        "rarity"
-      ],
-      "type": "object"
-    },
     "CarriedStar": {
       "additionalProperties": false,
       "description": "A star the run starts holding: a reward of the run's rewards file.",
@@ -1313,35 +1269,6 @@
         "name",
         "members",
         "tiers"
-      ],
-      "type": "object"
-    },
-    "ConstellationProgress": {
-      "additionalProperties": false,
-      "description": "A candidate that is a member of a set: which one, what is held now and what the next tier\nneeds (core#NS3).",
-      "properties": {
-        "held": {
-          "description": "Members held now, before this candidate is taken.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "needed": {
-          "description": "Members the next tier needs; the whole set once the top tier is reached.",
-          "format": "uint8",
-          "maximum": 255,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "set": {
-          "$ref": "#/$defs/ContentId"
-        }
-      },
-      "required": [
-        "set",
-        "held",
-        "needed"
       ],
       "type": "object"
     },
@@ -2927,44 +2854,6 @@
         },
         {
           "additionalProperties": false,
-          "description": "An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "candidates": {
-                  "items": {
-                    "$ref": "#/$defs/ContentId"
-                  },
-                  "type": "array"
-                },
-                "kind": {
-                  "$ref": "#/$defs/OfferKind"
-                },
-                "rarity": {
-                  "$ref": "#/$defs/Rarity"
-                }
-              },
-              "required": [
-                "kind",
-                "rarity",
-                "candidates"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "OfferOpened",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "description": "The reward was taken: the run now has it `taken` times. For a random rune, `rune` is\nthe rune it drew, now on the Main weapon.",
           "properties": {
             "data": {
@@ -3039,81 +2928,6 @@
             },
             "type": {
               "const": "Constellation",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The offer was closed with nothing taken.",
-          "properties": {
-            "type": {
-              "const": "OfferSkipped",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The reward left the run's pool for good.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "reward": {
-                  "$ref": "#/$defs/ContentId"
-                }
-              },
-              "required": [
-                "reward"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "RewardBanished",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "The candidate at `slot` was drawn again, after a reroll or a banish.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "reward": {
-                  "$ref": "#/$defs/ContentId"
-                },
-                "slot": {
-                  "format": "uint8",
-                  "maximum": 255,
-                  "minimum": 0,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "slot",
-                "reward"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "CandidateReplaced",
               "type": "string"
             }
           },
@@ -5477,149 +5291,6 @@
         }
       ]
     },
-    "OfferKind": {
-      "description": "What opened an offer (ADR-REPL-5).",
-      "oneOf": [
-        {
-          "const": "star",
-          "description": "A falling star the main character took; it can be skipped.",
-          "type": "string"
-        },
-        {
-          "const": "boss",
-          "description": "A boss kill: at the highest rarity of the player's tier, with no skip.",
-          "type": "string"
-        }
-      ]
-    },
-    "OfferOption": {
-      "description": "One option of an open offer; `candidate` is a place in its candidates, from 0.",
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "description": "Takes the candidate's reward and closes the offer.",
-          "properties": {
-            "candidate": {
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": {
-              "const": "take",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "candidate"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Draws that candidate again, spending a reroll; the offer stays open.",
-          "properties": {
-            "candidate": {
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": {
-              "const": "reroll",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "candidate"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Closes the offer, taking nothing.",
-          "properties": {
-            "type": {
-              "const": "skip",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Takes the candidate's reward out of the run's pool for good, spending a banish, and\ndraws its place again; the offer stays open, or closes when nothing is left to offer.",
-          "properties": {
-            "candidate": {
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": {
-              "const": "banish",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "candidate"
-          ],
-          "type": "object"
-        }
-      ]
-    },
-    "OfferView": {
-      "additionalProperties": false,
-      "description": "An offer from a falling star (ADR-REPL-5).",
-      "properties": {
-        "banishes_left": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "candidates": {
-          "items": {
-            "$ref": "#/$defs/CandidateView"
-          },
-          "type": "array"
-        },
-        "kind": {
-          "$ref": "#/$defs/OfferKind"
-        },
-        "options": {
-          "description": "What `Engine::choose` takes, by index: the candidates, then a reroll of each while\nrerolls are left and another reward could come, then the skip (not in a boss offer),\nthen a banish of each while banishes are left.",
-          "items": {
-            "$ref": "#/$defs/OfferOption"
-          },
-          "type": "array"
-        },
-        "rarity": {
-          "$ref": "#/$defs/Rarity",
-          "description": "The star's rarity, or for a boss offer the highest of the player's tier. A candidate is\nof a lower one when the pool has too few left of it."
-        },
-        "rerolls_left": {
-          "description": "Rerolls and banishes left in the run.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "kind",
-        "rarity",
-        "candidates",
-        "options",
-        "rerolls_left",
-        "banishes_left"
-      ],
-      "type": "object"
-    },
     "Offset": {
       "additionalProperties": false,
       "properties": {
@@ -6640,17 +6311,6 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
-        },
-        "offer": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OfferView"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The open offer: while it is open the world is stopped, and `Engine::choose` takes one\nof its options (ADR-REPL-5)."
         },
         "spent": {
           "description": "Points spent on each run stat, in the run stats' order (ADR-CONT-1).",
@@ -8581,7 +8241,7 @@
               "type": "null"
             }
           ],
-          "description": "Experience, level, stat points and the open offer; absent in a stage without levels."
+          "description": "Experience, level, stat points; absent in a stage without levels."
         },
         "stardust": {
           "description": "The Stardust earned so far, times 10; absent in a stage without a Stardust\nfactor.",
