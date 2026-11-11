@@ -31,7 +31,7 @@ const KEEPS: &[Keep] = &[
     ("runs/time_limit_overtime", 600, "Failed", "|", 0),
     ("runs/trial", 2706, "Failed", "|", 0),
     ("runs/trial_kinds", 4842, "Cleared", "|", 0),
-    ("runs/tutorial", 4135, "Cleared", "|", 0),
+    ("runs/tutorial", 4130, "Cleared", "|", 0),
     ("runs/tutorial_opening", 240, "Running", "|", 0),
     ("stages/agents", 80, "Running", "|", 0),
     ("stages/assist", 360, "Running", "|", 0),
