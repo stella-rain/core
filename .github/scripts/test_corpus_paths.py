@@ -245,8 +245,11 @@ class FrozenJob(unittest.TestCase):
         self.assertIn("uses: actions/checkout@v7", text)
         self.assertIn("fetch-depth: 0", text)
         self.assertIn("persist-credentials: false", text)
-        self.assertIn("cargo test --locked --test integration corpus::the_frozen", text)
-        self.assertIn("if: always()", text)
+        # Only the diff: the manifest test (`corpus::the_frozen_corpus_is_unchanged`) runs in `tests`.
+        self.assertIn("    if: github.event_name == 'pull_request'", self.job()[:8])
+        self.assertNotIn("always()", text)
+        for banned in ("rustup", "rust-cache", "cargo"):
+            self.assertNotIn(banned, text.replace("name: frozen corpus unchanged", ""))
         for l in self.job():
             if "uses:" in l:
                 self.assertRegex(l, r"@v\d+\s*$")
@@ -261,7 +264,7 @@ class FrozenJob(unittest.TestCase):
         text = "\n".join(self.lines())
         needs = next(l for l in self.lines() if l.strip().startswith("needs:") and "bench-profile" in l)
         self.assertRegex(needs, r"\bfrozen\b")
-        self.assertRegex(text, r"frozen\) +runs=true")
+        self.assertRegex(text, r"frozen\) +runs=\$pr")
 
     def run_step(self, edit):
         if not (shutil.which("bash") and shutil.which("git")):
