@@ -406,7 +406,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
                 by_hand.content.rewards(),
                 by_hand.content.expertise(),
                 state,
-                option.into(),
+                option,
                 &mut frozen,
             );
             e.v1_pick_step(&[Some(0), None, None]).unwrap();

@@ -27,14 +27,15 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
-use crate::snapshot::{OfferOption, SwapItem, SwapRating};
+use crate::sim_v1::views::OfferOption;
+use crate::snapshot::{SwapItem, SwapRating};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 use crate::version::SIM_VERSION;
 
-/// Why `Engine::choose` refused a choice; the run is unchanged.
+/// Why the version 1 pick seam refused a choice; the run is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChoiceError {
+pub(crate) enum ChoiceError {
     /// `player` is not in the run's party.
     NoPlayer { player: PlayerIdx },
     /// No offer is open.
@@ -44,6 +45,20 @@ pub enum ChoiceError {
     /// The run's `sim_version` is not one this game runs (ADR-REPL-2 points 1 to 3). `Engine::new`
     /// refuses such a stage, so this is a fail-closed guard, not a path a valid run takes.
     Unsupported { sim_version: u32 },
+}
+
+impl ChoiceError {
+    /// A fixed phrase for `RunReplayError::ChoiceRefused`, read after "a choice on tick N".
+    pub(crate) fn reason(self) -> &'static str {
+        match self {
+            ChoiceError::NoPlayer { .. } => "names a player outside the party",
+            ChoiceError::NoOffer => "has no offer open",
+            ChoiceError::OutOfRange { .. } => "is out of range of its offer",
+            ChoiceError::Unsupported { .. } => {
+                "is in a run of a sim_version this game does not run"
+            }
+        }
+    }
 }
 
 /// Why `Engine::check_action` refused an equipment action (ADR-SIM-7).

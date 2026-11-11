@@ -15,7 +15,8 @@ use crate::ledger::RunLedger;
 use crate::rewards::{Rarity, Rewards};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
-use crate::snapshot::{OfferOption, Snapshot, SwapItem, SwapRating};
+use crate::sim_v1::views::OfferOption;
+use crate::snapshot::{Snapshot, SwapItem, SwapRating};
 use crate::stage::Stage;
 use crate::validate::Issue;
 use crate::{sim, sim_v1};
@@ -324,15 +325,7 @@ impl Run {
                 state,
                 events: frozen,
             } => {
-                sim_v1::choose(
-                    version,
-                    world,
-                    rewards,
-                    expertise,
-                    state,
-                    option.into(),
-                    frozen,
-                );
+                sim_v1::choose(version, world, rewards, expertise, state, option, frozen);
                 events.extend(frozen.drain(..).filter_map(super::v1_events::adapt));
             }
             // sim_version 2 opens no offer: there is nothing to choose.
@@ -558,10 +551,7 @@ impl Run {
         _player: PlayerIdx,
     ) -> Vec<OfferOption> {
         match self {
-            Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state)
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            Run::V1 { world, state, .. } => sim_v1::offer_options(world, rewards, expertise, state),
             Run::V2 { .. } => Vec::new(),
         }
     }
