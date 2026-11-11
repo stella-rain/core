@@ -1480,10 +1480,12 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
             ("trial", setup, None, commands)
         }
         "stage_skill" => {
-            // Every point on attack: the priority keeps that run.
+            // Every point on attack: the priority keeps that run. The black hole starts in the
+            // Lumine slot (rare, costs 3): no star pool names it any more.
             let setup = equipment_setup(RunSetup {
                 stat_priority: vec!["attack".into()],
-                star_pool: Some(vec!["black_hole_rare".into()]),
+                lumine: 3,
+                lumine_star: Some("black_hole_rare".into()),
                 ..base
             });
             let content = bundled.clone().with_run_stats(common::design_run_stats());
