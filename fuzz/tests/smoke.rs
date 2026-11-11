@@ -927,7 +927,8 @@ fn equipment_action_regression() -> PathBuf {
 
 #[test]
 fn a_replay_with_an_equipment_action_loads_ranges_and_is_refused() {
-    let bytes = fs::read(equipment_action_regression()).expect("the regression");
+    let bytes =
+        fs::read(equipment_action_regression()).expect("the regression: run `cargo xtask bless`");
     replay_load(&bytes);
     let run = RunReplay::from_bytes(&bytes).expect("it loads");
     let range = run.step_range(0, run.ticks, 10_000_000).expect("it ranges");
