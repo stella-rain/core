@@ -29,7 +29,7 @@ fn ranged_held(world: &World, s: &State, pool: RangedPool) -> u32 {
 }
 
 /// The tokens of `pool` cooling now.
-pub(super) fn ranged_cooling(s: &State, pool: RangedPool) -> u32 {
+fn ranged_cooling(s: &State, pool: RangedPool) -> u32 {
     let cooling = s.ranged_cooling.iter().filter(|(_, p)| *p == pool);
     u32::try_from(cooling.count()).unwrap_or(u32::MAX)
 }

@@ -168,13 +168,7 @@ fn next_round(s: &mut State, t: &mut AttackTask, root: &[Emitter], parent: usize
 
 /// The direction a `zone` or `orb` node takes from `origin`, turned by the `rotate`, `ring` and
 /// `spread` nodes round it.
-pub(super) fn heading(
-    s: &mut State,
-    t: &AttackTask,
-    ab: &Above,
-    origin: Point,
-    direction: &Direction,
-) -> Dir {
+fn heading(s: &mut State, t: &AttackTask, ab: &Above, origin: Point, direction: &Direction) -> Dir {
     match direction {
         Direction::Aimed { offset } => {
             let turn = value(s, t, ab, offset).saturating_add(ab.turn);
@@ -191,7 +185,7 @@ pub(super) fn heading(
 }
 
 /// A zone's tick count, from `lo` to `MAX_ZONE_TICKS`.
-pub(super) fn zone_ticks(v: i32, lo: u32) -> u32 {
+fn zone_ticks(v: i32, lo: u32) -> u32 {
     ticks(v).min(MAX_ZONE_TICKS).max(lo)
 }
 

@@ -70,7 +70,7 @@ pub(crate) fn tree_pick_action(
 }
 
 /// The setup's star pool of `s`, empty when the run has no star field.
-pub(super) fn star_pool(s: &State) -> &[u16] {
+fn star_pool(s: &State) -> &[u16] {
     s.stars.as_ref().map_or(&[], |f| &f.pool)
 }
 

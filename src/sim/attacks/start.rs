@@ -200,7 +200,7 @@ pub(in crate::sim) fn start_rune(
 }
 
 /// What starts a run (`launch`).
-pub(super) struct Launch {
+struct Launch {
     owner: Who,
     slot: u8,
     aim: Aim,
@@ -216,7 +216,7 @@ pub(super) struct Launch {
 }
 
 /// Pushes a run of `launch.attack` and begins its first phase.
-pub(super) fn launch(
+fn launch(
     world: &World,
     s: &mut State,
     me: PlayerIdx,

@@ -38,7 +38,7 @@ pub(super) fn spawn_waves(stage: &World, s: &mut State) {
 /// and every other due wave is held one more tick and counted in `Load::held_spawns`. A held
 /// spawn draws no angle and does not count as spawned. The headroom between the target and the
 /// cap stays for the specials, which the cap alone limits.
-pub(super) fn spawn_waves_directed(stage: &World, s: &mut State) {
+fn spawn_waves_directed(stage: &World, s: &mut State) {
     use crate::time_limit::MAX_WAVES;
     let mut due = [0usize; MAX_WAVES];
     let mut n = 0;

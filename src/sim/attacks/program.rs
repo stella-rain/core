@@ -216,7 +216,7 @@ pub(in crate::sim) fn rotate(d: Dir, angle: i32) -> Dir {
 }
 
 /// The direction from `from` to the entity `target`, if it is there.
-pub(super) fn toward(s: &State, from: Point, target: EntityId) -> Option<Dir> {
+fn toward(s: &State, from: Point, target: EntityId) -> Option<Dir> {
     let to = s.at(s.find(target)?);
     Some(normalize(
         i64::from(to.x.0) - i64::from(from.x.0),

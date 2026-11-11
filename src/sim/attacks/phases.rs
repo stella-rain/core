@@ -134,7 +134,7 @@ fn faster_ticks(phases: &[AttackPhase], pct: u32, i: usize) -> u32 {
 
 /// `hit_box` `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and its offset, each
 /// rounded toward zero and held within `i32`; an arc's angle stays.
-pub(super) fn wider_box(hit_box: &HitBox, pct: u32) -> HitBox {
+fn wider_box(hit_box: &HitBox, pct: u32) -> HitBox {
     // The validator holds the amount to `MAX_RANGE_PCT`; the clamp keeps an unvalidated file there.
     let per = 100 + i64::from(pct.min(MAX_RANGE_PCT));
     let grow = |v: &mut Fx| {
