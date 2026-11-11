@@ -9,7 +9,10 @@
 //! the replay stores: the state hash writes nothing for them. The Lumine slot is career state
 //! and is hashed with the equipment.
 
+use std::collections::BTreeMap;
+
 use super::World;
+use crate::id::ContentId;
 use crate::perk_sets::{PerkCategory, PerkEffect, PerkEntry};
 use crate::rewards::{EquipmentRules, Rewards};
 use crate::run_content::RunContent;
@@ -31,28 +34,33 @@ pub(crate) struct Loadout {
     starting_rune: Option<Rune>,
     /// The Lumine star, as a place in the rewards file.
     lumine: Option<u16>,
+    /// The player's own drop weights, by category ID (`RunSetup::drop_weights`).
+    drop_weights: BTreeMap<ContentId, u32>,
 }
 
 impl Loadout {
     /// The setup's drop weight in percent for each category of `rules`, in the rules' order: the
-    /// sum of the set's `drop_weight` amounts naming the category. Empty when the set has none.
+    /// sum of the perk set's `drop_weight` amounts naming the category plus the player's own
+    /// `drop_weights` entry for it (a missing key adds 0), saturating. Empty when neither side has
+    /// any weight, so a run with none draws and hashes as before.
     pub(crate) fn drop_weight_pct(&self, rules: &EquipmentRules) -> Vec<u32> {
         let weighs = |e: &&PerkEntry| e.effect == PerkEffect::DropWeight;
-        if !self.perk.iter().any(|e| weighs(&e)) {
+        if !self.perk.iter().any(|e| weighs(&e)) && self.drop_weights.is_empty() {
             return Vec::new();
         }
         rules
             .categories
             .iter()
             .map(|c| {
-                self.perk
+                let own: u32 = self
+                    .perk
                     .iter()
                     .filter(weighs)
                     .filter(|e| {
                         e.category.as_ref().map(PerkCategory::as_str) == Some(c.id.as_str())
                     })
-                    .map(|e| e.amount)
-                    .sum()
+                    .fold(0, |sum, e| sum.saturating_add(e.amount));
+                own.saturating_add(self.drop_weights.get(&c.id).copied().unwrap_or(0))
             })
             .collect()
     }
@@ -76,6 +84,7 @@ impl Loadout {
                 .as_ref()
                 .and_then(|id| content.rewards().index_of(id))
                 .map(|at| u16::try_from(at).unwrap_or(u16::MAX)),
+            drop_weights: setup.drop_weights.clone(),
         }
     }
 }

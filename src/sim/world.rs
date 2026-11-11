@@ -423,10 +423,12 @@ pub(crate) struct World {
     /// stage run alone holds the empty rules, whose numbers are all zero. Not hashed: the pack
     /// fixes it.
     pub equipment_rules: EquipmentRules,
-    /// The setup's perk `drop_weight` in percent for each category of the equipment rules, in
-    /// the rules' order (0 where its set has none; empty when it has none at all): it scales the
-    /// weight of every star of the category a drop rolls, for every member until the per-player
-    /// setup (ADR-SAVE-7 point 7). Not hashed: the setup, which the replay stores, fixes it.
+    /// The drop weight in percent for each category of the equipment rules, in the rules' order:
+    /// the perk set's `drop_weight` plus the setup's `drop_weights` entry (0 where neither has
+    /// one; empty when neither has any at all). It scales the weight of every star of the
+    /// category a drop rolls. It is the first player's setup for every member (a `PartySetup`
+    /// holds one setup per player, ADR-REPL-5; per-member weights are not built yet). Not hashed:
+    /// the setup, which the replay stores, fixes it.
     pub drop_weight_pct: Vec<u32>,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
