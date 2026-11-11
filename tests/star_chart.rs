@@ -140,11 +140,19 @@ fn the_level_lists_have_their_lengths() {
     assert_eq!(paths(&long), ["$.lumine_levels"]);
     let empty = edited(|v| v["expertise_multiplier"] = json!([]));
     assert_eq!(paths(&empty), ["$.expertise_multiplier"]);
+    let many = edited(|v| {
+        v["expertise_levels"] = json!(MAX_LEVELS);
+        v["expertise_multiplier"] = json!(vec![100; MAX_LEVELS + 1]);
+    });
+    assert_eq!(paths(&many), ["$.expertise_multiplier"]);
 }
 
 #[test]
 fn a_level_list_that_falls_is_refused() {
-    let expertise = edited(|v| v["expertise_multiplier"] = json!([100, 50]));
+    let expertise = edited(|v| {
+        v["expertise_levels"] = json!(2);
+        v["expertise_multiplier"] = json!([100, 50]);
+    });
     assert_eq!(paths(&expertise), ["$.expertise_multiplier"]);
     let stat = edited(|v| v["stats"][1]["prices"] = json!([100, 50]));
     assert_eq!(paths(&stat), ["$.stats[1].prices"]);
@@ -155,7 +163,11 @@ fn a_level_list_that_falls_is_refused() {
         ["$.lumine_levels"]
     );
     // Equal prices do not fall.
-    assert!(parse(&edited(|v| v["expertise_multiplier"] = json!([100, 100]))).is_ok());
+    let equal = edited(|v| {
+        v["expertise_levels"] = json!(2);
+        v["expertise_multiplier"] = json!([100, 100]);
+    });
+    assert!(parse(&equal).is_ok());
 }
 
 #[test]
@@ -272,5 +284,73 @@ fn the_price_list_follows_the_stats_limit_not_a_constant() {
             assert_eq!((limit, found), (20, 21));
         }
         other => panic!("{other:?}"),
+    }
+}
+
+// P5: the expertise multiplier's level cap is pack content.
+
+fn issue_of(v: &Value) -> Vec<(String, String)> {
+    match parse(v) {
+        Err(Error::Invalid(issues)) => issues.into_iter().map(|i| (i.path, i.message)).collect(),
+        other => panic!("not refused as invalid: {other:?}"),
+    }
+}
+
+#[test]
+fn the_expertise_cap_equals_the_length_of_its_price_list() {
+    let f = file();
+    let n = f["expertise_levels"]
+        .as_u64()
+        .expect("the bundled file has the key");
+    assert_eq!(
+        n as usize,
+        f["expertise_multiplier"].as_array().unwrap().len()
+    );
+}
+
+#[test]
+fn the_expertise_price_list_is_as_long_as_the_cap() {
+    let short_cap = edited(|v| v["expertise_levels"] = json!(3));
+    assert_eq!(
+        issue_of(&short_cap),
+        [(
+            "$.expertise_multiplier".into(),
+            "exactly 3 prices (found 5)".into()
+        )]
+    );
+    let three = edited(|v| {
+        v["expertise_levels"] = json!(3);
+        v["expertise_multiplier"] = json!([100, 200, 300]);
+    });
+    assert!(parse(&three).is_ok());
+}
+
+#[test]
+fn the_expertise_cap_is_bounded_by_the_ceiling() {
+    for n in [0, MAX_LEVELS + 1] {
+        let v = edited(|v| v["expertise_levels"] = json!(n));
+        assert_eq!(
+            issue_of(&v),
+            [(
+                "$.expertise_levels".into(),
+                format!("1 to {MAX_LEVELS} (found {n})")
+            )]
+        );
+    }
+    let top = edited(|v| {
+        v["expertise_levels"] = json!(MAX_LEVELS);
+        v["expertise_multiplier"] = json!(vec![100; MAX_LEVELS]);
+    });
+    assert!(parse(&top).is_ok());
+}
+
+#[test]
+fn a_missing_negative_or_fractional_expertise_cap_is_refused() {
+    let missing = edited(|v| {
+        v.as_object_mut().unwrap().remove("expertise_levels");
+    });
+    assert!(parse(&missing).is_err());
+    for bad in [json!(-1), json!(2.5)] {
+        assert!(parse(&edited(|v| v["expertise_levels"] = bad)).is_err());
     }
 }
