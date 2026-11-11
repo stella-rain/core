@@ -4,6 +4,7 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::pack::{ContentFiles, Pack, PackError};
+use stella_rain_core::rewards::Rarity;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::MAX_LUMINE;
 use stella_rain_core::star_chart::{
@@ -140,11 +141,19 @@ fn the_level_lists_have_their_lengths() {
     assert_eq!(paths(&long), ["$.lumine_levels"]);
     let empty = edited(|v| v["expertise_multiplier"] = json!([]));
     assert_eq!(paths(&empty), ["$.expertise_multiplier"]);
+    let many = edited(|v| {
+        v["expertise_levels"] = json!(MAX_LEVELS);
+        v["expertise_multiplier"] = json!(vec![100; MAX_LEVELS + 1]);
+    });
+    assert_eq!(paths(&many), ["$.expertise_multiplier"]);
 }
 
 #[test]
 fn a_level_list_that_falls_is_refused() {
-    let expertise = edited(|v| v["expertise_multiplier"] = json!([100, 50]));
+    let expertise = edited(|v| {
+        v["expertise_levels"] = json!(2);
+        v["expertise_multiplier"] = json!([100, 50]);
+    });
     assert_eq!(paths(&expertise), ["$.expertise_multiplier"]);
     let stat = edited(|v| v["stats"][1]["prices"] = json!([100, 50]));
     assert_eq!(paths(&stat), ["$.stats[1].prices"]);
@@ -155,7 +164,11 @@ fn a_level_list_that_falls_is_refused() {
         ["$.lumine_levels"]
     );
     // Equal prices do not fall.
-    assert!(parse(&edited(|v| v["expertise_multiplier"] = json!([100, 100]))).is_ok());
+    let equal = edited(|v| {
+        v["expertise_levels"] = json!(2);
+        v["expertise_multiplier"] = json!([100, 100]);
+    });
+    assert!(parse(&equal).is_ok());
 }
 
 #[test]
@@ -220,4 +233,147 @@ fn every_frozen_pack_loads_without_a_catalogue() {
         }
     }
     assert!(seen > 0);
+}
+
+// P4: a stat's price list is as long as that stat's `limit`.
+
+#[test]
+fn a_stat_price_list_is_as_long_as_the_stats_limit() {
+    for (found, len) in [(4, "4"), (6, "6")] {
+        let v = edited(|v| v["stats"][0]["prices"] = json!(vec![100; found]));
+        match parse(&v) {
+            Err(Error::Invalid(issues)) => {
+                assert_eq!(issues.len(), 1, "{issues:?}");
+                assert_eq!(issues[0].path, "$.stats[0].prices");
+                assert_eq!(issues[0].message, format!("exactly 5 prices (found {len})"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert!(parse(&edited(|v| v["stats"][0]["prices"] = json!(vec![100; 5]))).is_ok());
+}
+
+fn pack_with_attack_limit(limit: u64, attack_prices: usize) -> Result<Pack, PackError> {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v["run_stats"]["stats"][1]["limit"] = json!(limit);
+    let mut chart = file();
+    chart["stats"][1]["prices"] = json!(vec![100; attack_prices]);
+    v["star_chart"] = chart;
+    Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
+}
+
+#[test]
+fn the_price_list_follows_the_stats_limit_not_a_constant() {
+    // The bundled 5-price list against a limit of 3.
+    match pack_with_attack_limit(3, 5) {
+        Err(PackError::File {
+            file: "star_chart",
+            error: Error::Invalid(issues),
+        }) => {
+            assert_eq!(issues.len(), 1, "{issues:?}");
+            assert_eq!(issues[0].path, "$.stats[1].prices");
+            assert_eq!(issues[0].message, "exactly 3 prices (found 5)");
+        }
+        other => panic!("{other:?}"),
+    }
+    // A limit of 20 takes a 20-price list; the budget allows it.
+    assert!(pack_with_attack_limit(20, 20).is_ok());
+    // 21 prices are over the budget, before the file is read.
+    match pack_with_attack_limit(20, 21) {
+        Err(PackError::Budget { path, limit, found }) => {
+            assert_eq!(path, "$.star_chart.stats[1].prices");
+            assert_eq!((limit, found), (20, 21));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+// P5: the expertise multiplier's level cap is pack content.
+
+fn issue_of(v: &Value) -> Vec<(String, String)> {
+    match parse(v) {
+        Err(Error::Invalid(issues)) => issues.into_iter().map(|i| (i.path, i.message)).collect(),
+        other => panic!("not refused as invalid: {other:?}"),
+    }
+}
+
+#[test]
+fn the_expertise_cap_equals_the_length_of_its_price_list() {
+    let f = file();
+    let n = f["expertise_levels"]
+        .as_u64()
+        .expect("the bundled file has the key");
+    let prices = f["expertise_multiplier"].as_array().unwrap().len();
+    assert_eq!(n, u64::try_from(prices).unwrap());
+    let chart = Pack::bundled().star_chart().unwrap().expertise_levels();
+    assert_eq!(u64::from(chart), n);
+}
+
+#[test]
+fn the_expertise_price_list_is_as_long_as_the_cap() {
+    let short_cap = edited(|v| v["expertise_levels"] = json!(3));
+    assert_eq!(
+        issue_of(&short_cap),
+        [(
+            "$.expertise_multiplier".into(),
+            "exactly 3 prices (found 5)".into()
+        )]
+    );
+    let three = edited(|v| {
+        v["expertise_levels"] = json!(3);
+        v["expertise_multiplier"] = json!([100, 200, 300]);
+    });
+    assert!(parse(&three).is_ok());
+}
+
+#[test]
+fn the_expertise_cap_is_bounded_by_the_ceiling() {
+    for n in [0, MAX_LEVELS + 1] {
+        let v = edited(|v| v["expertise_levels"] = json!(n));
+        assert_eq!(
+            issue_of(&v),
+            [(
+                "$.expertise_levels".into(),
+                format!("1 to {MAX_LEVELS} (found {n})")
+            )]
+        );
+    }
+    let top = edited(|v| {
+        v["expertise_levels"] = json!(MAX_LEVELS);
+        v["expertise_multiplier"] = json!(vec![100; MAX_LEVELS]);
+    });
+    assert!(parse(&top).is_ok());
+}
+
+#[test]
+fn a_missing_negative_or_fractional_expertise_cap_is_refused() {
+    let missing = edited(|v| {
+        v.as_object_mut().unwrap().remove("expertise_levels");
+    });
+    assert!(parse(&missing).is_err());
+    for bad in [json!(-1), json!(2.5)] {
+        assert!(parse(&edited(|v| v["expertise_levels"] = bad)).is_err());
+    }
+}
+
+// P6: the Lumine levels and the rewards file's Lumine costs.
+
+/// The catalogue's `lumine_levels` are the Stardust price of each Lumine level; the rewards
+/// file's `lumine_cost` is the Lumine a star of a rarity costs. Different units: neither
+/// decides the other. The only link is the level count, and the dearest star takes them all
+/// (ADR-SAVE-7 point 9: level 10 allows a supernova). A pack may price a supernova lower, so
+/// this guards the bundled pack and is not a validator rule.
+#[test]
+fn the_lumine_levels_cover_the_rewards_lumine_costs() {
+    let pack = Pack::bundled();
+    let levels = pack.star_chart().unwrap().lumine_levels().len();
+    assert_eq!(levels, usize::from(MAX_LUMINE));
+    let rewards = pack.content().rewards();
+    for rarity in Rarity::ALL {
+        assert!(
+            usize::from(rewards.lumine_cost(rarity)) <= levels,
+            "{rarity:?}"
+        );
+    }
+    assert_eq!(rewards.lumine_cost(Rarity::Supernova), MAX_LUMINE);
 }
