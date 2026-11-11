@@ -631,7 +631,7 @@ fn a_revealed_mimic_beyond_its_range_waits_like_a_grade_elite() {
 fn setup() -> RunSetup {
     RunSetup {
         schema_version: 1,
-        sim_version: 1,
+        sim_version: 2,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
