@@ -232,14 +232,7 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
         .map(|(_, ev)| ev)
         .collect();
     assert!(
-        matches!(
-            this_tick[..],
-            [
-                ..,
-                DomainEvent::StarTaken { .. },
-                DomainEvent::OfferOpened { .. }
-            ]
-        ),
+        matches!(this_tick[..], [.., DomainEvent::StarTaken { .. }]),
         "{this_tick:?}"
     );
     let o = offer(&e);

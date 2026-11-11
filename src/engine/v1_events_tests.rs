@@ -471,7 +471,7 @@ fn a_version_1_replay_shows_the_same_offers() {
         .map(|d| d.unwrap().path())
         .collect();
     dirs.sort();
-    let (mut folded, mut kept, mut offers) = (String::new(), String::new(), 0u32);
+    let (mut kept, mut offers) = (String::new(), 0u32);
     for dir in dirs {
         let replay = crate::run_replay::RunReplay::from_bytes(
             &std::fs::read(dir.join("run.replay")).unwrap(),
@@ -491,14 +491,9 @@ fn a_version_1_replay_shows_the_same_offers() {
             .unwrap();
         let mut e = Engine::start_with(&replay.setup, pack.content()).unwrap();
         let mut next = 0;
-        let mut pick_here = |e: &mut Engine,
-                             tick: usize,
-                             folded: &mut String,
-                             kept: &mut String,
-                             offers: &mut u32| {
+        let mut pick_here = |e: &mut Engine, tick: usize, kept: &mut String, offers: &mut u32| {
             while next < commands.len() && commands[next].tick as usize == tick {
                 if e.offer_open() {
-                    folded.push_str(&serde_json::to_string(&e.snapshot()).unwrap());
                     // The same snapshot without `progress.offer`.
                     let mut snap = serde_json::to_value(e.snapshot()).unwrap();
                     if let Some(p) = snap.get_mut("progress").and_then(|p| p.as_object_mut()) {
@@ -509,45 +504,25 @@ fn a_version_1_replay_shows_the_same_offers() {
                 }
                 e.v1_pick_step(&[Some(commands[next].index), None, None])
                     .unwrap();
-                folded.push_str(&serde_json::to_string(e.events()).unwrap());
-                // The same events without the four that leave the live enum.
-                let mut events = serde_json::to_value(e.events()).unwrap();
-                if let Some(list) = events.as_array_mut() {
-                    list.retain(|ev| {
-                        ![
-                            "OfferOpened",
-                            "OfferSkipped",
-                            "RewardBanished",
-                            "CandidateReplaced",
-                        ]
-                        .iter()
-                        .any(|name| ev["type"] == *name)
-                    });
-                }
+                let events = serde_json::to_value(e.events()).unwrap();
                 kept.push_str(&events.to_string());
                 next += 1;
             }
         };
-        pick_here(&mut e, 0, &mut folded, &mut kept, &mut offers);
+        pick_here(&mut e, 0, &mut kept, &mut offers);
         for (tick, input) in inputs.iter().enumerate() {
             e.step(&[*input, Default::default(), Default::default()]);
-            pick_here(&mut e, tick + 1, &mut folded, &mut kept, &mut offers);
+            pick_here(&mut e, tick + 1, &mut kept, &mut offers);
         }
         assert_eq!(next, commands.len(), "every pick was made");
     }
     assert!(offers > 0, "the corpus opens offers");
     // Seen in the corpus: star offers and constellations; no stat offer and no expertise offer
     // (the hand-built values of `the_offer_views_convert_field_by_field` cover those).
-    assert!(folded.contains("\"constellations\":[{"), "a constellation");
-    assert!(folded.contains("\"OfferOpened\""), "a star offer");
-    // Recorded from a run on the commit before the views moved: a pin in source, not generated.
-    // Re-derived once when the level-offer views left the snapshot: the offers' snapshots lose `taken`.
-    assert_eq!(
-        crate::hash::fnv1a64(folded.as_bytes()),
-        13020489189506330421
-    );
-    // The same fold without `progress.offer` and the four offer events, which leave the live
-    // snapshot and events: recorded before they left, a pin in source, not generated.
+    assert!(kept.contains("\"constellations\":[{"), "a constellation");
+    // The fold without `progress.offer` and the four offer events, which leave the live snapshot
+    // and events: recorded before they left, a pin in source, not generated. The fold with them
+    // (the pin before this one) can no longer be produced.
     assert!(kept.contains("\"RewardTaken\""), "a taken reward");
     assert_eq!(crate::hash::fnv1a64(kept.as_bytes()), 5042547584517530830);
 }

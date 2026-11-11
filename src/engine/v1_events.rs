@@ -137,9 +137,10 @@ impl From<v1::HitSource> for HitSource {
     }
 }
 
-/// The live event of a frozen one, or `None` for the four level-offer events the live rules no
-/// longer have (a stat offer opening, an expertise offer opening, an option taken, a candidate
-/// replaced; ADR-SIM-7). The match is exhaustive, with no `_` arm.
+/// The live event of a frozen one, or `None` for the eight offer events the live rules no
+/// longer have: the four level-offer ones (a stat offer opening, an expertise offer opening, an
+/// option taken, a candidate replaced) and the star offer's (opened, skipped, a reward banished,
+/// a candidate replaced; ADR-REPL-5, ADR-SIM-7). The match is exhaustive, with no `_` arm.
 pub(super) fn adapt(event: v1::DomainEvent) -> Option<DomainEvent> {
     // The four player fields (`player`, `buffed_by`, `source`, `killer`) are `None` below:
     // version 1 names no player.
@@ -245,15 +246,6 @@ pub(super) fn adapt(event: v1::DomainEvent) -> Option<DomainEvent> {
         v1::DomainEvent::ShrineActivated { elite } => DomainEvent::ShrineActivated { elite },
         v1::DomainEvent::MimicRevealed { elite } => DomainEvent::MimicRevealed { elite },
         v1::DomainEvent::OrbBroken { owner, at } => DomainEvent::OrbBroken { owner, at },
-        v1::DomainEvent::OfferOpened {
-            kind,
-            rarity,
-            candidates,
-        } => DomainEvent::OfferOpened {
-            kind: kind.into(),
-            rarity,
-            candidates,
-        },
         v1::DomainEvent::RewardTaken {
             reward,
             taken,
@@ -266,12 +258,11 @@ pub(super) fn adapt(event: v1::DomainEvent) -> Option<DomainEvent> {
             star,
         },
         v1::DomainEvent::Constellation { set, tier } => DomainEvent::Constellation { set, tier },
-        v1::DomainEvent::OfferSkipped => DomainEvent::OfferSkipped,
-        v1::DomainEvent::RewardBanished { reward } => DomainEvent::RewardBanished { reward },
-        v1::DomainEvent::CandidateReplaced { slot, reward } => {
-            DomainEvent::CandidateReplaced { slot, reward }
-        }
-        v1::DomainEvent::ExpertiseOfferOpened { .. }
+        v1::DomainEvent::OfferOpened { .. }
+        | v1::DomainEvent::OfferSkipped
+        | v1::DomainEvent::RewardBanished { .. }
+        | v1::DomainEvent::CandidateReplaced { .. }
+        | v1::DomainEvent::ExpertiseOfferOpened { .. }
         | v1::DomainEvent::ExpertiseOptionTaken { .. }
         | v1::DomainEvent::ExpertiseCandidateReplaced { .. } => return None,
     };

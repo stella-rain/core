@@ -16,10 +16,8 @@
 //! answered through the recorder any more.
 //!
 //! ```text
-//! {"tick":996,"dir":"be>fe","type":"OfferOpened","data":{"kind":"star","rarity":"common","candidates":["sharp_edge","swift_step"]}}
 //! {"tick":996,"dir":"be>fe","type":"StateHash","data":"41109eebb5db56d4"}
 //! {"tick":996,"dir":"fe>be","type":"Choose","data":{"index":1}}
-//! {"tick":996,"dir":"be>fe","type":"RewardTaken","data":{"reward":"swift_step","taken":1}}
 //! ```
 
 use std::fmt;
