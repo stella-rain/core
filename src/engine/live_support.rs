@@ -7,11 +7,10 @@ use super::*;
 use crate::time_limit::TimeLimit;
 use crate::version::Versions;
 
-/// The bundled `time_limit` mode file, as JSON a test may edit before it parses it.
+/// The bundled `time_limit` mode as JSON a test may edit before it parses it again.
 pub(super) fn live_time_limit_json() -> serde_json::Value {
-    let pack: serde_json::Value = serde_json::from_slice(include_bytes!("../../content/pack.json"))
-        .expect("the bundled pack is JSON");
-    pack["modes"]["time_limit"].clone()
+    serde_json::from_slice(RunContent::bundled().time_limit().bytes())
+        .expect("the bundled mode is JSON")
 }
 
 /// A version 2 `time_limit` setup.
