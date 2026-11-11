@@ -131,6 +131,14 @@ impl Saved {
             Saved::V2(_) => panic!("this test reads version 1 state"),
         }
     }
+
+    /// The version 2 state, for the tests that edit it.
+    pub(crate) fn v2(self) -> sim::state::State {
+        match self {
+            Saved::V2(state) => state,
+            Saved::V1(_) => panic!("this test reads version 2 state"),
+        }
+    }
 }
 
 impl Run {
@@ -800,6 +808,61 @@ impl Run {
             Run::V2 { .. } => panic!("this test sets version 1 state"),
         }
     }
+}
+
+/// The live version 2 state for the tests that port the frozen ones (the `Deref` above stays
+/// version 1: a type has one).
+#[cfg(test)]
+impl Run {
+    pub(crate) fn live(&self) -> &sim::state::State {
+        match self {
+            Run::V2 { state, .. } => state,
+            Run::V1 { .. } => panic!("this test reads version 2 state"),
+        }
+    }
+
+    pub(crate) fn live_mut(&mut self) -> &mut sim::state::State {
+        match self {
+            Run::V2 { state, .. } => state,
+            Run::V1 { .. } => panic!("this test edits version 2 state"),
+        }
+    }
+
+    pub(crate) fn live_world(&self) -> &sim::World {
+        match self {
+            Run::V2 { world, .. } => world,
+            Run::V1 { .. } => panic!("this test reads a version 2 world"),
+        }
+    }
+
+    pub(crate) fn live_world_mut(&mut self) -> &mut sim::World {
+        match self {
+            Run::V2 { world, .. } => Arc::make_mut(world),
+            Run::V1 { .. } => panic!("this test edits a version 2 world"),
+        }
+    }
+
+    pub(crate) fn set_live_state(&mut self, new: sim::state::State) {
+        match self {
+            Run::V2 { state, .. } => *state = new,
+            Run::V1 { .. } => panic!("this test sets version 2 state"),
+        }
+    }
+
+    /// The player in slot 0.
+    pub(crate) fn solo(&self) -> &sim::state::PlayerState {
+        &self.live().players[crate::id::PlayerIdx::SOLO]
+    }
+
+    pub(crate) fn solo_mut(&mut self) -> &mut sim::state::PlayerState {
+        &mut self.live_mut().players[crate::id::PlayerIdx::SOLO]
+    }
+}
+
+/// The types of version 2 by one path for the tests.
+#[cfg(test)]
+pub(crate) mod live {
+    pub(crate) use crate::sim::state::*;
 }
 
 /// The types of version 1 by one path for the tests (the rules the tests run, until a version 2

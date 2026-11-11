@@ -4,6 +4,7 @@ globs:
   - "src/sim/drops.rs"
   - "src/sim/starlight.rs"
   - "src/sim/state.rs"
+  - "src/sim/state/**"
   - "src/sim/party_equip_tests.rs"
   - "tests/equipment_party.rs"
 ---
