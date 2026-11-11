@@ -205,11 +205,15 @@ fn without_player_fields(event: &DomainEvent) -> String {
 }
 
 /// The frozen events with no live counterpart (ADR-SIM-7).
-const LEVEL_OFFER_EVENTS: [&str; 4] = [
+const DROPPED_EVENTS: [&str; 8] = [
     "StatOfferOpened",
     "ExpertiseOfferOpened",
     "ExpertiseOptionTaken",
     "ExpertiseCandidateReplaced",
+    "OfferOpened",
+    "OfferSkipped",
+    "RewardBanished",
+    "CandidateReplaced",
 ];
 
 #[test]
@@ -224,7 +228,7 @@ fn the_adapted_events_keep_their_type_names() {
                 let json = serde_json::to_value(&live).unwrap();
                 assert_eq!(json["type"], frozen.as_str());
             }
-            None => assert!(LEVEL_OFFER_EVENTS.contains(&frozen.as_str()), "{frozen}"),
+            None => assert!(DROPPED_EVENTS.contains(&frozen.as_str()), "{frozen}"),
         }
         names.push(frozen);
     }
@@ -246,17 +250,17 @@ fn the_adapter_carries_every_field_in_order() {
             None => dropped += 1,
         }
     }
-    assert_eq!((kept, dropped), (39, 4));
+    assert_eq!((kept, dropped), (35, 8));
 }
 
-/// The adapter has no live event for the four level-offer events, and only for those.
+/// The adapter has no live event for the eight offer events, and only for those.
 #[test]
-fn the_adapter_drops_exactly_the_four_level_offer_events() {
+fn the_adapter_drops_exactly_the_eight_offer_events() {
     for event in every_v1_event() {
         let name = frozen_name(&event);
         assert_eq!(
             adapt(event).is_none(),
-            LEVEL_OFFER_EVENTS.contains(&name.as_str()),
+            DROPPED_EVENTS.contains(&name.as_str()),
             "{name}"
         );
     }
@@ -683,11 +687,11 @@ fn the_offer_views_convert_field_by_field() {
 }
 
 /// A frozen run still stops on a stat or expertise offer and takes its pick, but its snapshot
-/// shows no such offer and its event stream names none of the four events that left the live
+/// shows no such offer and its event stream names none of the eight events that left the live
 /// rules (ADR-REPL-2 point 6, ADR-SIM-7).
 #[test]
 fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
-    const GONE: [&str; 4] = LEVEL_OFFER_EVENTS;
+    const GONE: [&str; 8] = DROPPED_EVENTS;
     let pack = crate::pack::Pack::from_bytes(include_bytes!(
         "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
     ))
@@ -719,6 +723,10 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
         e.step(&[input, Default::default(), Default::default()]);
         let snap = serde_json::to_value(e.snapshot()).unwrap();
         assert!(snap["progress"].get("stat_offer").is_none());
+        assert!(
+            snap["progress"].get("offer").is_none(),
+            "no star offer shown"
+        );
         assert!(snap["expertise"].get("offer").is_none());
         for event in e.events() {
             let name = serde_json::to_value(event).unwrap()["type"]
