@@ -5889,6 +5889,17 @@
         "stage_skills": {
           "$ref": "#/$defs/StageSkillsFile"
         },
+        "star_chart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StarChartFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Star Chart's Stardust prices (ADR-SAVE-17), checked against the pack's own weapons,\nperk sets, stage skills, run stats and starting unlocks. Optional: a pack released before\nit has none, and reports no catalogue, never a guessed one."
+        },
         "stardust": {
           "anyOf": [
             {
@@ -6565,6 +6576,27 @@
         "smash"
       ],
       "type": "string"
+    },
+    "PricedId": {
+      "additionalProperties": false,
+      "description": "One item sold at one price.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId",
+          "description": "A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock."
+        },
+        "price": {
+          "description": "The price in tenths of Stardust, from 1 to `MAX_PRICE`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "price"
+      ],
+      "type": "object"
     },
     "Profile": {
       "additionalProperties": false,
@@ -8809,6 +8841,74 @@
       ],
       "type": "object"
     },
+    "StarChartFile": {
+      "additionalProperties": false,
+      "description": "The star chart file: what the chart sells and at what price.",
+      "properties": {
+        "expertise_multiplier": {
+          "description": "The expertise multiplier's price per level: from 1 to `MAX_LEVELS` prices, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "lumine_levels": {
+          "description": "The Lumine levels' price per level: exactly `MAX_LUMINE` prices, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "perk_sets": {
+          "description": "Perk sets for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        },
+        "stage_skills": {
+          "description": "Stage skills for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        },
+        "starting_rune": {
+          "description": "The price of the unlock that lets a player carry a starting rune, from 1 to `MAX_PRICE`.\nThe runes themselves are unlocked by Rune Shards, so none is priced here.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stats": {
+          "description": "Run stats for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/StatPrices"
+          },
+          "type": "array"
+        },
+        "weapons": {
+          "description": "Weapon presets for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "weapons",
+        "perk_sets",
+        "stage_skills",
+        "starting_rune",
+        "stats",
+        "expertise_multiplier",
+        "lumine_levels"
+      ],
+      "type": "object"
+    },
     "StarPick": {
       "additionalProperties": false,
       "description": "A star in the run's build (core#NS3).",
@@ -9162,6 +9262,30 @@
           "type": "string"
         }
       ]
+    },
+    "StatPrices": {
+      "additionalProperties": false,
+      "description": "A run stat sold level by level.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId",
+          "description": "A stat of the pack's run stats, once in the list."
+        },
+        "prices": {
+          "description": "The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. From 1 to\n`MAX_LEVELS` prices, each from 1 to `MAX_PRICE`, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "prices"
+      ],
+      "type": "object"
     },
     "StatValueView": {
       "additionalProperties": false,
