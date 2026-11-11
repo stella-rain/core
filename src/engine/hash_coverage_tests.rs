@@ -10,9 +10,7 @@ use crate::behaviour::BossCall;
 use crate::fixed::{Fx, Point};
 use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
-use crate::pack::ContentFiles;
 use crate::rewards::Rarity;
-use crate::run_content::RunContent;
 use crate::rune::Rune;
 use crate::sim_v1::views::{ExpertiseOfferKind, OfferKind};
 use crate::sim_v1::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
@@ -716,8 +714,7 @@ pub(super) fn full_state(e: &Engine) -> State {
 }
 
 pub(super) fn engine() -> Engine {
-    let mut v: serde_json::Value =
-        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
+    let mut v: serde_json::Value = super::copy_tests::v1_time_limit_json();
     v["waves"] = serde_json::json!([]);
     let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
         .unwrap_or_else(|e| panic!("{e:?}"));
@@ -740,7 +737,7 @@ pub(super) fn engine() -> Engine {
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
-    Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
+    Engine::start_time_limit(&setup, super::copy_tests::v1_pack().content(), &mode).unwrap()
 }
 
 /// What the invocations of `each_field_moves_the_hash!` share.
