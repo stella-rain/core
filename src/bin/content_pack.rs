@@ -12,7 +12,8 @@
 //! Exit status: 0 valid (or exported); 1 not valid (the pack is at fault); 2 the command line
 //! or the file could not be read. On success, `verify` prints `sha256` (the pack's hash, the
 //! SHA-256 of its bytes), `sim_version` and `starting_unlocks` (the counts of its lists, or
-//! `none` for a pack released without them), `constellations` and `stardust` (its mode count)
+//! `none` for a pack released without them), `constellations`, `stardust` (its mode count) and
+//! `star_chart` (the counts of its lists, or `none`)
 //! as `name: value` lines, and `export` writes the pack
 //! to standard output. Without DIR, `export` writes the pack built into this binary; with DIR
 //! (core's `content/`, as `unpack` takes it; the mode files in `DIR/../modes`), the pack of the
@@ -231,6 +232,16 @@ fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
         pack.content().constellations().sets().len()
     );
     println!("stardust: {} modes", pack.stardust().modes().len());
+    match pack.star_chart() {
+        Some(c) => println!(
+            "star_chart: {} weapons, {} perk_sets, {} stage_skills, {} stats",
+            c.weapons().len(),
+            c.perk_sets().len(),
+            c.stage_skills().len(),
+            c.stats().len()
+        ),
+        None => println!("star_chart: none"),
+    }
     println!(
         "rules: crowd_target {}, cap_headroom_pct {}",
         pack.content().rules().crowd_target(),
