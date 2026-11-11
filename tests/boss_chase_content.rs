@@ -148,7 +148,10 @@ fn run_of(mode: &TimeLimit) -> Result<Engine, Error> {
 
 /// The boss's and the player's place after each step, the player walking down from tick 90 when
 /// `walk` and standing otherwise.
-fn follow(id: &str, ticks: u32, walk: bool) -> Vec<(u32, Option<(i64, i64)>, (i64, i64))> {
+/// One step's row: the tick, the boss's place if it is out, the player's place.
+type Row = (u32, Option<(i64, i64)>, (i64, i64));
+
+fn follow(id: &str, ticks: u32, walk: bool) -> Vec<Row> {
     let mut e = run_of(&one_boss(id)).unwrap();
     let mut rows = Vec::new();
     while e.tick() < ticks {
@@ -174,7 +177,12 @@ fn follow(id: &str, ticks: u32, walk: bool) -> Vec<(u32, Option<(i64, i64)>, (i6
 }
 
 fn dist(a: (i64, i64), b: (i64, i64)) -> i64 {
-    (((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2)) as f64).sqrt() as i64
+    i64::try_from(
+        ((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2))
+            .unsigned_abs()
+            .isqrt(),
+    )
+    .unwrap_or(i64::MAX)
 }
 
 #[test]
