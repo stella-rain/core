@@ -61,7 +61,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
   bless --freeze v1`. `corpus.rs` checks it all (ADR-SIM-3). The `app` repo reads one file,
   `tests/corpus/current/runs/stage_skill/run.replay`; it is not renamed without the app's bump
   (`tests/corpus_contract.rs`). CI readers use `.github/scripts/corpus_paths.py`. An intended
-  change: `cargo xtask bless` (it also regenerates `tests/golden/` and `tests/bench_pins.toml`);
+  change: `cargo xtask bless` (it also regenerates `tests/golden/`, `tests/bench_pins.toml` and the fuzz regression);
   CI runs `cargo xtask bless --check`. `cargo insta test --features record --review` reviews one.
 - `tests/savepoint_proof.rs`: for every solo run case (current and frozen `v1/`) a savepoint
   restored mid-run gives the uninterrupted run's hashes (ADR-SAVE-4); the party round trips are

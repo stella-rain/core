@@ -29,7 +29,7 @@
 # hand-written line count. `test_gitattributes.py` checks every generated file is listed here.
 #
 # Replay corpus (`UPDATE_CORPUS=1`): `git diff` does not print it either (-diff; the per-tick
-# `hashes.bin` is binary). The corpus
+# `hashes.bin` is binary). The fuzz regression (`UPDATE_FUZZ_REGRESSION=1`) is raw bytes: -diff too. The corpus
 # stages (`stage.json`) are written by hand and stay visible. `case.json` (the pack a case
 # pins) and the pack files in `packs/` are written by the same run.
 tests/corpus/**/run.replay linguist-generated=true -diff
@@ -44,3 +44,4 @@ tests/golden/** linguist-generated=true
 content/pack.json linguist-generated=true
 tests/bench_pins.toml linguist-generated=true
 tests/pack_pins.toml linguist-generated=true
+fuzz/regressions/replay_load/equipment-action.replay linguist-generated=true -diff
