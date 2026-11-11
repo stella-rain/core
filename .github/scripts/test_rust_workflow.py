@@ -155,9 +155,9 @@ class CiSpeed(unittest.TestCase):
         self.assertIn("Nothing in a frozen corpus folder changed", frozen)
         self.assertIn("github.event_name == 'pull_request'", frozen)
         # The unfiltered release run covers it: no filter, no skip.
-        run = next(l for l in job_block(self.text, "test").splitlines()
-                   if l.strip().endswith(RELEASE_RUN) and "run:" in l)
-        self.assertEqual(run.strip(), "- run: " + RELEASE_RUN)
+        lines = job_block(self.text, "test").splitlines()
+        i = lines.index("        run: " + RELEASE_RUN)
+        self.assertEqual(lines[i - 1], "      - if: matrix.profile == 'release'")
         src = read_root("tests/corpus.rs")
         self.assertRegex(src, r"#\[test\]\nfn the_frozen_corpus_is_unchanged")
         self.assertNotRegex(src, r"#\[ignore[^\n]*\]\nfn the_frozen_corpus_is_unchanged")

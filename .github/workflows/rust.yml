@@ -188,7 +188,7 @@ jobs:
           echo "no frozen corpus file changed"
 
   test:
-    name: tests on ${{ matrix.arch }}
+    name: tests on ${{ matrix.arch }} (${{ matrix.profile }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.runner }}
@@ -205,23 +205,32 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
-            debug: true
+            profile: debug
+          - arch: x86_64
+            runner: ubuntu-latest
+            profile: release
           - arch: arm64
             runner: ubuntu-24.04-arm
-            debug: true
+            profile: debug
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            profile: release
           - arch: windows-x86_64
             runner: windows-latest
-            debug: false
+            profile: release
           - arch: macos-arm64
             runner: macos-latest
-            debug: false
+            profile: release
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - run: rustup toolchain install
+      # `key`: the debug and release legs of one runner would otherwise share a key, and one of
+      # them could not save.
       - uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.profile }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: uname -m && rustc -vV
       # cargo-nextest runs each test in its own process, times it and writes a JUnit file
@@ -233,21 +242,26 @@ jobs:
           fallback: none
       # `record` (ADR-BRDG-3 point 3) only adds code, so --all-features is a superset of the default build's
       # tests, and it also runs the recording tests that the default build skips. The debug build
-      # (overflow checks on) runs on the two Linux runners; the slower Windows and macOS runners
-      # run the release build only. Both runs write target/nextest/ci/junit.xml: the debug one is
-      # moved aside before the release one overwrites it.
-      - if: matrix.debug
-        run: |
-          cargo nextest run --locked --all-features --profile ci
-          mv target/nextest/ci/junit.xml target/nextest/ci/junit-debug.xml
-      # The corpus and the pinned hashes are not behind `record`: they run here on all four runners.
-      - run: cargo nextest run --locked --release --profile ci
+      # (overflow checks on) runs as its own leg on the two Linux runners, beside the release leg of
+      # the same runner; the slower Windows and macOS runners run the release build only.
+      - if: matrix.profile == 'debug'
+        run: cargo nextest run --locked --all-features --profile ci
+      # nextest skips doctests; there are none today, and this fails the day one is added and
+      # breaks. Once is enough: a doctest does not depend on the architecture. It builds the same
+      # --all-features debug build as the run above, so it sits in the same leg.
+      - if: matrix.arch == 'x86_64' && matrix.profile == 'debug'
+        run: cargo test --doc --locked --all-features
+      # The corpus and the pinned hashes are not behind `record`: they run here in the release
+      # leg of all four runners (and in the debug legs). The unfiltered run also holds
+      # `corpus::the_frozen_corpus_is_unchanged`, so the `frozen` job only diffs.
+      - if: matrix.profile == 'release'
+        run: cargo nextest run --locked --release --profile ci
       # The ignored measurement of MAX_COMMANDS (tests/command_cap.rs), in release, here and not only in
       # deep.yml: a PR that makes a bot run take more commands fails here and re-pins MEASURED_MOST in
       # the same PR. The flags are the release run's above, so nothing is rebuilt (--all-features would
       # rebuild). ~20 s. The JUnit file of the release run is moved aside first, this run's after.
       - name: Command cap measurement (longest bot run)
-        if: matrix.arch == 'x86_64'
+        if: matrix.arch == 'x86_64' && matrix.profile == 'release'
         run: |
           mv target/nextest/ci/junit.xml target/nextest/ci/junit-release.xml
           status=0
@@ -257,10 +271,6 @@ jobs:
             echo "::error title=Command cap measurement::A bot run takes a different number of commands than MEASURED_MOST (more or fewer). Set MEASURED_MOST in tests/command_cap.rs to the 'most commands:' value printed above, in this PR, and keep 2 x it <= MAX_COMMANDS (src/run_replay.rs). If the failure is the MAX_COMMANDS or verify assertion instead, the cap itself is in question: ask Kade."
           fi
           exit "$status"
-      # nextest skips doctests; there are none today, and this fails the day one is added and
-      # breaks. Once is enough: a doctest does not depend on the architecture.
-      - if: matrix.arch == 'x86_64'
-        run: cargo test --doc --locked --all-features
       # The ten slowest tests of each run and the tests counted, from the JUnit files (nextest's
       # own log lists only those past `slow-timeout`, 30 s).
       - name: List the slowest tests
@@ -283,16 +293,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: junit-${{ matrix.arch }}
+          name: junit-${{ matrix.arch }}-${{ matrix.profile }}
           path: target/nextest/ci/junit*.xml
           if-no-files-found: ignore
       # A corpus mismatch writes the snapshots of the first diverging tick and the one before to
-      # target/corpus-diff (tests/corpus.rs); one artifact per architecture to compare them.
+      # target/corpus-diff (tests/corpus.rs); one artifact per architecture and profile to compare them.
       - name: Upload the corpus diff
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: corpus-diff-${{ matrix.arch }}
+          name: corpus-diff-${{ matrix.arch }}-${{ matrix.profile }}
           path: target/corpus-diff
           if-no-files-found: ignore
 
