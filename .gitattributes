@@ -37,9 +37,10 @@ tests/corpus/**/hashes.bin linguist-generated=true
 tests/corpus/**/case.json linguist-generated=true
 tests/corpus/**/packs/*.json linguist-generated=true -diff
 # JSON Schema (`UPDATE_SCHEMA=1`), goldens (`INSTA_UPDATE=always`), the content pack
-# (`content-pack export`) and the bench pins (`UPDATE_BENCH_PINS=1`): still diffed locally,
-# since a change there is what a reviewer checks.
+# (`content-pack export`), the pack pins (`UPDATE_PACK_PINS=1`) and the bench pins
+# (`UPDATE_BENCH_PINS=1`): still diffed locally, since a change there is what a reviewer checks.
 schema/** linguist-generated=true
 tests/golden/** linguist-generated=true
 content/pack.json linguist-generated=true
 tests/bench_pins.toml linguist-generated=true
+tests/pack_pins.toml linguist-generated=true
