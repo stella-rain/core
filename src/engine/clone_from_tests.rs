@@ -188,6 +188,7 @@ fn every_heap_owning_type_names_each_field_in_its_copy() {
         include_str!("../sim/state/player_state.rs"),
         include_str!("../sim/state/players.rs"),
         include_str!("../sim/state/progress.rs"),
+        include_str!("../sim/state/run.rs"),
     ]
     .concat();
     let state = state.as_str();
