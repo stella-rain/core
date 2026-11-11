@@ -246,7 +246,7 @@ class FrozenJob(unittest.TestCase):
         self.assertIn("fetch-depth: 0", text)
         self.assertIn("persist-credentials: false", text)
         # Only the diff: the manifest test (`corpus::the_frozen_corpus_is_unchanged`) runs in `tests`.
-        self.assertIn("if: github.event_name == 'pull_request'", self.job()[:8])
+        self.assertIn("    if: github.event_name == 'pull_request'", self.job()[:8])
         self.assertNotIn("always()", text)
         for banned in ("rustup", "rust-cache", "cargo"):
             self.assertNotIn(banned, text.replace("name: frozen corpus unchanged", ""))
