@@ -1,5 +1,5 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
-//! content pack and the bench pins); `--check` reports any set that
+//! content pack, the pack pins and the bench pins); `--check` reports any set that
 //! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
 //! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
 //! that is not what bless writes, then runs the record test of core, which writes the folder and
@@ -10,11 +10,12 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
-const SETS: [(&str, &str); 5] = [
+const SETS: [(&str, &str); 6] = [
     ("schema", "schema/"),
     ("corpus", "tests/corpus/current/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
+    ("pack pins", "tests/pack_pins.toml"),
     ("bench pins", "tests/bench_pins.toml"),
 ];
 
@@ -151,6 +152,13 @@ fn steps() -> Vec<Step> {
             env: None,
             drop_ci: false,
             filter: "corpus::",
+        },
+        // The test pins that follow the pack: they read the pack compiled in, and `bless --check`
+        // runs the writer under CI too (it compares there), so `CI` stays.
+        Step::Test {
+            env: Some(("UPDATE_PACK_PINS", "1")),
+            drop_ci: false,
+            filter: "pack_pins::",
         },
         Step::Test {
             env: Some(("INSTA_UPDATE", "always")),
@@ -670,7 +678,10 @@ mod tests {
             stale_sets(&["tests/pack_pins.toml".to_string()]),
             ["pack pins"]
         );
-        assert!(stale_sets(&["tests/corpus/current/x.json".to_string()]).is_empty());
+        assert_eq!(
+            stale_sets(&["tests/corpus/current/x.json".to_string()]),
+            ["corpus"]
+        );
     }
 
     #[test]
