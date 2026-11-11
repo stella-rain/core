@@ -2,8 +2,9 @@
 //! corpus in the current tree, a savepoint taken at a cut, restored and run to the end gives the
 //! hashes, the ledger, the tallies, the snapshot and the replay of the uninterrupted run. The
 //! frozen `v1/` run cases all hold a PICKS step: `prove` skips them (`verify_run` replays them),
-//! and `the_proof_keeps_its_floor` pins how many are proved and skipped per tree. `check_run` is generic over the restore, so the meta-tests can hand it
-//! restores that are wrong on purpose and see it name them.
+//! and `the_proof_keeps_its_floor` pins how many are proved and skipped per tree. `check_run` is
+//! generic over the restore, so the meta-tests can hand it restores that are wrong on purpose and
+//! see it name them.
 //!
 //! The stage cases are not here: a stage engine has no `RunSetup`, so it has no savepoint file,
 //! and the state codec behind it is crate-private (the library's own `savepoint_tests` cover
