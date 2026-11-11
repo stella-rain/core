@@ -328,6 +328,81 @@ class PushGating(unittest.TestCase):
             header = job_block(self.text, job).split("    steps:")[0]
             self.assertNotIn("outputs.suite", header, job)
 
+    def tune_guard(self, files):
+        """Run the `what changed` script for a `tune/` PR that writes `files`, stopped where the
+        toolchain install starts (the numbers-only compare needs a base worktree). Returns
+        (exit code, stdout, stderr)."""
+        script = script_after(job_block(self.text, "changes"), "      - id: diff")
+        script, n = re.subn(r"^\s*rustup toolchain install$", "echo guard-passed; exit 0", script, flags=re.M)
+        self.assertEqual(n, 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.git(tmp, "init", "-q")
+            os.makedirs(os.path.join(tmp, "src"))
+            for name in ("README.md", "src/lib.rs"):
+                with open(os.path.join(tmp, name), "w") as f:
+                    f.write("base")
+            self.git(tmp, "add", "-A")
+            self.git(tmp, "commit", "-q", "-m", "base")
+            parent = self.git(tmp, "rev-parse", "HEAD")
+            for name in files:
+                os.makedirs(os.path.dirname(os.path.join(tmp, name)), exist_ok=True)
+                with open(os.path.join(tmp, name), "w") as f:
+                    f.write("changed")
+            self.git(tmp, "add", "-A")
+            self.git(tmp, "commit", "-q", "-m", "change")
+            sha = self.git(tmp, "rev-parse", "HEAD")
+            env = {**os.environ, "EVENT": "pull_request", "BASE_REF": "main", "HEAD_REF": "tune/x",
+                   "BASE": parent, "BEFORE": parent, "SHA": sha,
+                   "GITHUB_OUTPUT": os.path.join(tmp, "out"), "RUNNER_TEMP": tmp}
+            done = subprocess.run(["bash", "-c", script], cwd=tmp, env=env, capture_output=True, text=True)
+            return done.returncode, done.stdout, done.stderr
+
+    TUNE_ALLOWED = [
+        "content/pack.json",
+        "tests/corpus/current/x/run.replay",
+        "tests/golden/x.snap",
+        "tests/bench_pins.toml",
+        "tests/pack_pins.toml",
+        "fuzz/regressions/replay_load/equipment-action.replay",
+        "README.md",
+    ]
+
+    def test_a_tune_pr_may_touch_every_file_a_pack_or_corpus_bless_writes(self):
+        for f in self.TUNE_ALLOWED:
+            code, out, err = self.tune_guard([f])
+            self.assertEqual(code, 0, f"{f}: {err}")
+            self.assertIn("guard-passed", out, f)
+
+    def test_a_tune_pr_may_not_touch_other_files(self):
+        for f in ("fuzz/regressions/replay_load/split-input-run.replay", "src/x.rs"):
+            code, _, err = self.tune_guard([f])
+            self.assertEqual(code, 1, f)
+            self.assertIn(f, err)
+
+    def test_the_tune_guard_error_names_the_two_pins(self):
+        self.assertIn("tests/pack_pins.toml", self.text.split("outside")[1].split("\n")[0])
+        self.assertIn("fuzz/regressions/replay_load/equipment-action.replay",
+                      self.text.split("outside")[1].split("\n")[0])
+
+    def test_checks_expects_bless_on_a_tune_pr(self):
+        self.assertNotEqual(self.checks("pull_request", {"bless": "skipped"}, tune="true"), 0)
+        self.assertEqual(self.checks("pull_request", {}, tune="true"), 0)
+        self.assertNotEqual(self.checks("pull_request", {"bless": "skipped"}, tune="false"), 0)
+        self.assertEqual(self.checks("push", {**self.PUSH_SKIPS, "bless": "skipped"}, suite="false"), 0)
+
+    def test_the_bless_job_runs_on_a_tune_pr_and_its_comment_lists_every_set(self):
+        header = job_block(self.text, "bless").split("    steps:")[0]
+        self.assertIn("if: needs.changes.outputs.code == 'true' && needs.changes.outputs.suite == 'true'\n", header)
+        self.assertNotIn("tune-changes", header)
+        lines = self.text.split("  bless:\n")[0].splitlines()
+        comment = []
+        for l in reversed(lines):
+            if not l.strip().startswith("#"):
+                break
+            comment.append(l)
+        for word in ("schema", "corpus", "goldens", "content pack", "pack pins", "fuzz regression", "bench pins"):
+            self.assertIn(word, " ".join(comment), word)
+
     def test_every_push_has_its_own_concurrency_group(self):
         self.assertIn("github.event.pull_request.number || github.sha", self.text)
         self.assertNotIn("github.ref }}", self.text.split("concurrency:")[1].split("env:")[0])

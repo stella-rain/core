@@ -22,7 +22,11 @@ HAND_WRITTEN = [
 def xtask_sets():
     """The (name, path) pairs of `SETS` in xtask/src/main.rs: the sets `cargo xtask bless` writes."""
     with open(os.path.join(ROOT, "xtask", "src", "main.rs"), encoding="utf-8") as f:
-        src = f.read()
+        return parse_sets(f.read())
+
+
+def parse_sets(src):
+    """The (name, path) pairs of the `SETS` constant in the source text `src`."""
     block = re.search(r"const SETS: \[\(&str, &str\); \d+\] = \[(.*?)\];", src, re.S)
     return re.findall(r'\("(\w+)", "([^"]+)"\)', block.group(1))
 
@@ -66,7 +70,29 @@ def corpus_hashes():
 class Attributes(unittest.TestCase):
     def test_xtask_still_names_its_sets(self):
         self.assertEqual(
-            [name for name, _ in xtask_sets()], ["schema", "corpus", "golden", "pack"]
+            [name for name, _ in xtask_sets()],
+            ["schema", "corpus", "golden", "pack", "pack pins", "fuzz regression", "bench pins"],
+        )
+
+    def test_xtask_sets_reads_a_multi_line_tuple_and_a_name_with_a_space(self):
+        src = (
+            'const SETS: [(&str, &str); 2] = [\n'
+            '    ("schema", "schema/"),\n'
+            '    (\n        "fuzz regression",\n        "fuzz/x.replay",\n    ),\n'
+            '];\n'
+        )
+        self.assertEqual(
+            parse_sets(src), [("schema", "schema/"), ("fuzz regression", "fuzz/x.replay")]
+        )
+
+    def test_the_other_generated_list_names_the_three_single_file_sets(self):
+        self.assertEqual(
+            OTHER_GENERATED,
+            [
+                "tests/bench_pins.toml",
+                "tests/pack_pins.toml",
+                "fuzz/regressions/replay_load/equipment-action.replay",
+            ],
         )
 
     def test_every_generated_file_is_marked_generated(self):
