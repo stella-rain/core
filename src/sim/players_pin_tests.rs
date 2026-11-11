@@ -49,6 +49,6 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
             11_939_255_700_312_239_043,
             14_036_488_647_957_984_731,
         ],
-        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none), then for the six new rewards that lengthen `taken` and `banished` (hit_case and time_limit_case hold star state, worst_case does not), then for the three cases starting in equipment mode, then for the removal of the level-offer fields (worst_case and time_limit_case move; hit_case has no levels and no gauge and does not)"
+        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none), then for the six new rewards that lengthen `taken` and `banished` (hit_case and time_limit_case hold star state, worst_case does not), then for the three cases starting in equipment mode, then for the removal of the level-offer fields (worst_case and time_limit_case move; hit_case has no levels and no gauge and does not); then for the bundled time_limit mode's chasing bosses (time_limit_case moves)"
     );
 }

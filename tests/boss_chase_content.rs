@@ -146,11 +146,11 @@ fn run_of(mode: &TimeLimit) -> Result<Engine, Error> {
     Engine::start_time_limit(&setup, RunContent::bundled(), mode)
 }
 
-/// The boss's and the player's place after each step, the player walking down from tick 90 when
-/// `walk` and standing otherwise.
 /// One step's row: the tick, the boss's place if it is out, the player's place.
 type Row = (u32, Option<(i64, i64)>, (i64, i64));
 
+/// The boss's and the player's place after each step, the player walking down from tick 90 when
+/// `walk` and standing otherwise.
 fn follow(id: &str, ticks: u32, walk: bool) -> Vec<Row> {
     let mut e = run_of(&one_boss(id)).unwrap();
     let mut rows = Vec::new();
