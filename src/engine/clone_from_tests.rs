@@ -185,6 +185,7 @@ fn every_heap_owning_type_names_each_field_in_its_copy() {
         include_str!("../sim/state/orbs_zones.rs"),
         include_str!("../sim/state/attack_run.rs"),
         include_str!("../sim/state/foes.rs"),
+        include_str!("../sim/state/player_state.rs"),
     ]
     .concat();
     let state = state.as_str();
