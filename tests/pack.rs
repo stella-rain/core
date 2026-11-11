@@ -379,6 +379,61 @@ fn a_reward_needs_a_stage_skill_of_the_same_pack() {
     ));
 }
 
+const NO_EQUIPMENT_RULES: &str = "sim_version 2 needs the rewards file's equipment rules";
+
+fn one_issue(result: Result<Pack, PackError>, file: &str) -> validate::Issue {
+    match result {
+        Err(PackError::File {
+            file: f,
+            error: Error::Invalid(mut issues),
+        }) if f == file => {
+            assert_eq!(issues.len(), 1, "{issues:?}");
+            issues.remove(0)
+        }
+        Err(e) => panic!("refused in another way: {e:?}"),
+        Ok(_) => panic!("the pack loaded"),
+    }
+}
+
+#[test]
+fn a_sim_version_2_pack_without_equipment_rules_is_refused_with_the_pack() {
+    // The fuzz target's invariant: a pack that loads starts a run of each mode, and a
+    // run at sim_version 2 needs the rewards file's equipment rules.
+    let mut v = value();
+    v["rewards"].as_object_mut().unwrap().remove("equipment");
+    let issue = one_issue(load(&v), "rewards");
+    assert_eq!(issue.path, "$.equipment");
+    assert_eq!(issue.message, NO_EQUIPMENT_RULES);
+}
+
+#[test]
+fn a_missing_equipment_rule_set_is_refused_once_when_a_perk_names_a_category_too() {
+    let mut v = value();
+    v["rewards"].as_object_mut().unwrap().remove("equipment");
+    let sets = v["perk_sets"]["perk_sets"].as_array_mut().unwrap();
+    let effect = sets
+        .iter_mut()
+        .flat_map(|s| s["effects"].as_array_mut().unwrap().iter_mut())
+        .next()
+        .unwrap();
+    effect["category"] = json!("weapon");
+    let issue = one_issue(load(&v), "rewards");
+    assert_eq!(issue.message, NO_EQUIPMENT_RULES);
+}
+
+#[test]
+fn a_sim_version_1_pack_needs_no_equipment_rules() {
+    let dir = crate::data_root::data_root().join("tests/corpus/v1/packs");
+    let mut loaded = 0;
+    for entry in fs::read_dir(dir).expect("the v1 packs") {
+        let bytes = fs::read(entry.unwrap().path()).unwrap();
+        let pack = Pack::from_bytes(&bytes).expect("a v1 pack loads");
+        assert!(pack.content().rewards().equipment().is_none());
+        loaded += 1;
+    }
+    assert!(loaded > 0);
+}
+
 #[test]
 fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode. A boss

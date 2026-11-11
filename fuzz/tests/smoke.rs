@@ -655,6 +655,23 @@ fn the_regressions_of_real_fuzz_runs_are_survived() {
     }
 }
 
+/// The first real crash of `pack_load`: a `sim_version` 2 pack with no equipment rules loaded,
+/// then refused every run. The loader refuses it now, so the invariant holds.
+#[test]
+fn the_pack_without_equipment_rules_is_refused_by_the_loader() {
+    let bytes =
+        fs::read(root().join("fuzz/regressions/pack_load/sim-version-2-no-equipment-rules.json"))
+            .expect("the regression file");
+    assert!(matches!(
+        Pack::from_bytes(&bytes),
+        Err(stella_rain_core::pack::PackError::File {
+            file: "rewards",
+            ..
+        })
+    ));
+    assert!(!pack_load(&bytes));
+}
+
 /// The `orbs` and `ranged_cap` corpus stages (core Z2) seed the stage targets with an `orb` node
 /// and a `ranged` rule, which the parser, the validator and a run reach.
 #[test]
