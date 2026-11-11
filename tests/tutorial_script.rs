@@ -142,7 +142,7 @@ fn the_bats_kills_pay_for_the_style_point() {
         .sum();
     let expertise: Value =
         serde_json::from_slice(crate::common::bundled_file("expertise")).unwrap();
-    let style = m["level_table"]["style"].as_u64().unwrap() as usize;
+    let style = usize::try_from(m["level_table"]["style"].as_u64().unwrap()).unwrap();
     let need: u64 = expertise["thresholds"]
         .as_array()
         .unwrap()
