@@ -112,9 +112,9 @@ class CiSpeed(unittest.TestCase):
         self.assertNotIn("toolchain install stable", self.text)
         self.assertNotIn("default stable", self.text)
         for job in ("lint", "bless", "test", "cross", "net", "fuzz-stable", "bench",
-                    "cargo-deny", "fuzz-build", "fuzz-short"):
+                    "fuzz-build", "fuzz-short"):
             block = job_block(self.text, job)
-            lines = block.splitlines()
+            lines = block.split("    steps:\n", 1)[1].splitlines()
             self.assertIn("      - run: rustup toolchain install", lines, job)
             install = lines.index("      - run: rustup toolchain install")
             later = [i for i, l in enumerate(lines)
@@ -126,7 +126,6 @@ class CiSpeed(unittest.TestCase):
         for job in ("cross", "net"):
             self.assertNotIn("--target", "\n".join(
                 l for l in job_block(self.text, job).splitlines() if "rustup" in l), job)
-        self.assertNotIn("rustup", job_block(self.text, "frozen"))
 
 
 if __name__ == "__main__":

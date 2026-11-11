@@ -101,7 +101,7 @@ jobs:
               echo "$outside" >&2
               exit 1
             fi
-            rustup default stable 2>/dev/null || true
+            rustup toolchain install
             git worktree add "$RUNNER_TEMP/base" "$BASE"
             cargo run --quiet --bin content-pack -- compare --numbers-only "$RUNNER_TEMP/base/content" content
             cargo test --locked --test integration corpus::
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - run: rustup toolchain install
       # The dependencies' build, per job and runner (this crate's own is dropped before saving).
       # Only runs on main save it (push and the weekly run): a PR reads main's, and the
       # repository's 10 GB of cache holds main's rather than one copy per PR.
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -188,7 +188,7 @@ jobs:
           fi
           echo "no frozen corpus file changed"
       - if: needs.changes.outputs.code == 'true'
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+        run: rustup toolchain install
       - if: needs.changes.outputs.code == 'true'
         uses: Swatinem/rust-cache@v2
         with:
@@ -228,7 +228,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -317,10 +317,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: |
-          rustup toolchain install stable --profile minimal \
-            --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
-          rustup default stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -343,10 +340,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy \
-            --target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android
-          rustup default stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -371,7 +365,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
@@ -394,6 +388,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - run: rustup toolchain install
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
       # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
@@ -463,6 +458,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - run: rustup toolchain install
       - run: rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal
       # The cache's key holds the stable rustc; `key` adds the nightly the fuzz build uses.
       # cargo-fuzz has its own cache below, so this one leaves ~/.cargo/bin alone.
@@ -643,7 +639,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install
       - run: sudo apt-get update && sudo apt-get install -y valgrind
       # The release binary, checked against the checksum pinned in install-action's manifest;
       # never a build from another source (`fallback: none`).

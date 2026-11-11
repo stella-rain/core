@@ -143,7 +143,6 @@ class Workflow(unittest.TestCase):
         self.assertIn("if: needs.changes.outputs.code == 'true'", header)
         self.assertIn("contents: read", j)
         self.assertIn("persist-credentials: false", j)
-        self.assertIn("rustfmt,clippy", j)
         for c in (
             "cargo fmt -p stella-rain-net --check",
             "cargo clippy -p stella-rain-net --all-targets --locked -- -D warnings",
@@ -152,7 +151,8 @@ class Workflow(unittest.TestCase):
             'cargo check -p stella-rain-net --locked --all-targets --target "$t"',
         ):
             self.assertIn(c, j)
-        self.assertIn("--target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android", j)
+        # The toolchain file holds the components and the mobile targets: `rustup toolchain install`.
+        self.assertIn("rustup toolchain install\n", j)
         self.assertIn(f"for t in {MOBILE}; do", j)
 
     def test_net_is_required_by_rust_checks(self):
