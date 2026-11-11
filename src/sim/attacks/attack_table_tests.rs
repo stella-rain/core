@@ -1,7 +1,9 @@
 //! Tests of the attack table: the phase timing against its reference oracle.
 
 use super::*;
-use crate::attack::{AttackRef, Offset};
+use crate::attack::{AttackPhase, AttackRef, HitBox, Offset, PhaseKind};
+use crate::fixed::Fx;
+use crate::rewards::MAX_RANGE_PCT;
 use crate::run_content::RunContent;
 use crate::sim::AttackIndex;
 use crate::sim::state::{Aim, Dir};
