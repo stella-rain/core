@@ -4,9 +4,8 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::fixed::{Fx, Point};
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::{EntityKind, OfferOption};
+use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::version::Versions;
 
 /// The trial mode's length.
@@ -212,46 +211,6 @@ pub fn avoid_orbs(engine: &Engine, mut input: Input, at_elite: bool) -> Input {
         input.evade |= k <= DODGE;
     }
     input
-}
-
-/// Answers the open star or boss offer, the `k`-th of the run, from 0, so that a run uses every
-/// kind of option: the first with a reroll of candidate 0 and a banish of candidate 1, when
-/// they are offered, then a take of candidate 0; the second with a skip; every later one with a
-/// take of candidate 0. It stops when an expertise offer opens after it.
-fn answer(engine: &mut Engine, k: usize, out: &mut Vec<Command>) {
-    let mut step = 0;
-    while let Some(offer) = engine.snapshot().progress.and_then(|p| p.offer) {
-        let options = offer.options;
-        let find = |o: OfferOption| options.iter().position(|x| *x == o);
-        let pick = match (k, step) {
-            (0, 0) => find(OfferOption::Reroll { candidate: 0 }),
-            (0, 1) => find(OfferOption::Banish { candidate: 1 }),
-            (1, _) => find(OfferOption::Skip),
-            _ => None,
-        };
-        step += 1;
-        let Some(pick) = pick.or(if step > 2 || k > 0 { Some(0) } else { None }) else {
-            continue;
-        };
-        let pick = u32::try_from(pick).unwrap();
-        common::pick(engine, pick).unwrap();
-        out.push(Command::Choose(pick));
-    }
-}
-
-/// Answers the open offers: a level offer (a frozen version 1 run's stat or expertise offer, which
-/// has no view) with a take of candidate 0, a star or boss offer as `answer` does, counting those
-/// in `offers`.
-pub fn answer_all(engine: &mut Engine, offers: &mut usize, out: &mut Vec<Command>) {
-    while engine.offer_open() {
-        if engine.snapshot().progress.is_none_or(|p| p.offer.is_none()) {
-            common::pick(engine, 0).unwrap();
-            out.push(Command::Choose(0));
-        } else {
-            answer(engine, *offers, out);
-            *offers += 1;
-        }
-    }
 }
 
 /// The bundled perk sets and a `plain` one with no effects: a run that differs from the same

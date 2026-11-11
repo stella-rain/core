@@ -38,9 +38,11 @@ struct Case {
 /// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
 /// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
 /// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
-/// to the frozen file's. A file already at the written schema is returned as it is.
+/// to the frozen file's. A file already at the written schema is returned as it is, and so is a
+/// frozen run that holds a PICKS step: it needs the frozen offer rules, so it is not re-driven
+/// (`verify_run` replays it).
 fn written_form(file: &RunReplay, pack: &Pack, steps: &RunSteps) -> RunReplay {
-    if file.setup.schema_version >= 2 {
+    if file.setup.schema_version >= 2 || steps.steps().iter().any(|s| matches!(s, Step::Picks(_))) {
         return file.clone();
     }
     let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
@@ -491,13 +493,8 @@ fn the_cuts_are_deterministic() {
 // case, the cut and what differs.
 
 fn tutorial() -> (Case, Reference) {
-    // The frozen offers-era tutorial: an equipment run opens no offer.
-    let case = load_case("v1", "tutorial");
+    let case = load_case("current", "tutorial");
     let r = reference(&case);
-    assert!(
-        r.offer.iter().any(|f| *f),
-        "the frozen tutorial opens an offer"
-    );
     (case, r)
 }
 
@@ -511,7 +508,7 @@ fn a_restore_that_runs_one_tick_too_far_is_named() {
         rec
     };
     let err = check_run(&case, &r, &[100], &too_far).unwrap_err();
-    assert!(err.contains("v1/tutorial cut 100"), "{err}");
+    assert!(err.contains("current/tutorial cut 100"), "{err}");
     assert!(err.contains("diverges first on tick 101"), "{err}");
 }
 
@@ -527,7 +524,7 @@ fn a_restore_with_the_wrong_hash_is_named() {
 #[test]
 fn a_restore_with_another_runs_ledger_is_seen_though_the_hash_matches() {
     let (_, tutorial_ref) = tutorial();
-    let trial = reference(&load_case("v1", "trial"));
+    let trial = reference(&load_case("current", "time_limit"));
     assert_eq!(same_end(&tutorial_ref.end, &trial.end), Some("ledger"));
     // The checker compares the state the hash does not hold, not the hash alone.
     let mut other = tutorial_ref.end.clone();
