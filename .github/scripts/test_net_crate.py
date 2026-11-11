@@ -166,8 +166,10 @@ class Workflow(unittest.TestCase):
             self.assertNotIn("--workspace", block, job)
             self.assertNotIn("stella-rain-net", block, job)
 
-    def test_cargo_deny_matrix_is_unchanged(self):
-        self.assertIn("manifest: [Cargo.toml, fuzz/Cargo.toml]", job_block(self.text, "cargo-deny"))
+    def test_cargo_deny_checks_both_manifests(self):
+        block = job_block(self.text, "cargo-deny")
+        for manifest in ("Cargo.toml", "fuzz/Cargo.toml"):
+            self.assertIn(f"cargo deny --manifest-path {manifest} check", block)
 
 
 class Rules(unittest.TestCase):

@@ -127,6 +127,18 @@ class CiSpeed(unittest.TestCase):
             self.assertNotIn("--target", "\n".join(
                 l for l in job_block(self.text, job).splitlines() if "rustup" in l), job)
 
+    def test_cargo_deny_is_one_job_on_the_pinned_binary(self):
+        block = job_block(self.text, "cargo-deny")
+        self.assertNotIn("strategy", block)
+        self.assertNotIn("cargo-deny-action", block)
+        self.assertIn('CARGO_DENY_VERSION: "0.20.2"', block)
+        self.assertRegex(block, r'CARGO_DENY_SHA256: "?[0-9a-f]{64}"?\n')
+        self.assertLess(block.index("sha256sum -c"), block.index("tar -xzf"))
+        self.assertIn("      - run: rustup toolchain install\n", block)
+        for manifest in ("Cargo.toml", "fuzz/Cargo.toml"):
+            self.assertIn(f"cargo deny --manifest-path {manifest} check", block)
+        self.assertRegex(job_block(self.text, "checks"), r"needs:.*\bcargo-deny\b")
+
 
 if __name__ == "__main__":
     unittest.main()
