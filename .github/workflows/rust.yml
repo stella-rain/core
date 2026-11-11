@@ -646,11 +646,11 @@ jobs:
       # PR's crate for the base's (same name, same path in the workspace), finds it newer than the
       # PR's sources and counts the base twice. iai-callgrind keeps its baselines in one home that
       # both share, so the PR is compared with the base's, on this runner and this architecture.
-      # The head's target directory is the one rust-cache keeps (the base's is built cold when
-      # main's counts of it are not cached).
+      # The head builds in the workspace's ./target, the directory rust-cache restores and saves, so
+      # its dependencies are cached (the base builds in $RUNNER_TEMP/target-base, cold when main's
+      # counts of it are not cached).
       - run: |
           {
-            echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target"
             echo "IAI_CALLGRIND_HOME=$RUNNER_TEMP/iai"
             echo "BENCHES=--bench $BENCH"
           } >> "$GITHUB_ENV"
