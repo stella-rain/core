@@ -24,7 +24,6 @@ UNCHANGED = {
         "cargo clippy --all-targets --all-features --locked -- -D warnings",
     ],
     "bless": ["cargo xtask bless --check"],
-    "frozen": ["cargo test --locked --test integration corpus::the_frozen"],
     "test": [
         "cargo nextest run --locked --release --profile ci",
         "cargo test --doc --locked --all-features",

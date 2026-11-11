@@ -148,6 +148,19 @@ class CiSpeed(unittest.TestCase):
         # It still saves the nightly cache on main, which the short run only reads.
         self.assertIn("save-if: ${{ github.ref == 'refs/heads/main' }}", job_block(self.text, "fuzz-build"))
 
+    def test_the_frozen_manifest_test_runs_in_every_tests_leg(self):
+        frozen = job_block(self.text, "frozen")
+        self.assertIn("fetch-depth: 0", frozen)
+        self.assertIn("Nothing in a frozen corpus folder changed", frozen)
+        self.assertIn("github.event_name == 'pull_request'", frozen)
+        # The unfiltered release run covers it: no filter, no skip.
+        run = next(l for l in job_block(self.text, "test").splitlines()
+                   if l.strip().endswith(RELEASE_RUN) and "run:" in l)
+        self.assertEqual(run.strip(), "- run: " + RELEASE_RUN)
+        src = read_root("tests/corpus.rs")
+        self.assertRegex(src, r"#\[test\]\nfn the_frozen_corpus_is_unchanged")
+        self.assertNotRegex(src, r"#\[ignore[^\n]*\]\nfn the_frozen_corpus_is_unchanged")
+
 
 if __name__ == "__main__":
     unittest.main()
