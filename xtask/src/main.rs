@@ -539,6 +539,7 @@ mod tests {
                     filter: "corpus::",
                 },
                 test_step(("UPDATE_PACK_PINS", "1"), "pack_pins::"),
+                test_step(("UPDATE_FUZZ_REGRESSION", "1"), "fuzz_regression::"),
                 test_step(("INSTA_UPDATE", "always"), "golden::"),
                 Step::Test {
                     env: Some(("UPDATE_BENCH_PINS", "1")),
@@ -615,6 +616,7 @@ mod tests {
                 "corpus::" => "reads only",
                 "golden::" => "golden",
                 "pack_pins::" => "pack pins",
+                "fuzz_regression::" => "fuzz regression",
                 "bench_fixture_pins::" => "bench pins",
                 other => panic!("step {other} writes no known set"),
             },
@@ -654,6 +656,7 @@ mod tests {
                 "golden",
                 "pack",
                 "pack pins",
+                "fuzz regression",
                 "bench pins"
             ]
         );
@@ -725,6 +728,67 @@ mod tests {
         let m = stale_message(&["pack pins"]);
         assert!(
             m.contains("pack pins") && m.contains("cargo xtask bless"),
+            "{m}"
+        );
+    }
+
+    #[test]
+    fn the_fuzz_regression_is_a_generated_set() {
+        let file = "fuzz/regressions/replay_load/equipment-action.replay";
+        assert!(SETS.contains(&("fuzz regression", file)));
+        assert_eq!(stale_sets(&[file.to_string()]), ["fuzz regression"]);
+        // The hand-made regression beside it is not a set.
+        assert!(
+            stale_sets(&["fuzz/regressions/replay_load/split-input-run.replay".to_string()])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn the_fuzz_regression_step_writes_the_set_alone() {
+        let steps = steps();
+        let at: Vec<_> = (0..steps.len())
+            .filter(|&i| filter_of(&steps[i]) == Some("fuzz_regression::"))
+            .collect();
+        assert_eq!(at.len(), 1);
+        assert_eq!(
+            steps[at[0]],
+            Step::Test {
+                env: Some(("UPDATE_FUZZ_REGRESSION", "1")),
+                drop_ci: false,
+                filter: "fuzz_regression::",
+            }
+        );
+        let pack = steps.iter().position(|s| *s == Step::ExportPack).unwrap();
+        let read = steps
+            .iter()
+            .position(|s| filter_of(s) == Some("corpus::"))
+            .unwrap();
+        let golden = steps
+            .iter()
+            .position(|s| filter_of(s) == Some("golden::"))
+            .unwrap();
+        assert!(at[0] > pack && at[0] > read && at[0] < golden);
+        let knobs = steps
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s,
+                    Step::Test {
+                        env: Some(("UPDATE_FUZZ_REGRESSION", _)),
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(knobs, 1);
+    }
+
+    #[test]
+    fn the_message_names_the_fuzz_regression_set() {
+        let m = stale_message(&["fuzz regression"]);
+        assert!(
+            m.contains("fuzz regression") && m.contains("cargo xtask bless"),
             "{m}"
         );
     }
