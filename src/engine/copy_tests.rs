@@ -8,6 +8,28 @@ use crate::pack::Pack;
 use crate::run_replay::RunRecorder;
 use crate::savepoint::{Savepoint, SavepointError, restore};
 
+/// The pack the frozen version 1 `easy`, `rainy`, `time_limit`, `trial` and `tutorial` run cases
+/// play on: the rules and content of version 1 as they were released, not the bundled files (which
+/// version 2 edits). A test that starts the version 1 rules builds from this.
+pub(super) fn v1_pack() -> &'static Pack {
+    static PACK: std::sync::OnceLock<Pack> = std::sync::OnceLock::new();
+    PACK.get_or_init(|| {
+        Pack::from_bytes(include_bytes!(
+            "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack")
+    })
+}
+
+/// The version 1 pack's `time_limit` mode file, as JSON a test may edit before it parses it.
+pub(super) fn v1_time_limit_json() -> serde_json::Value {
+    let pack: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack is JSON");
+    pack["modes"]["time_limit"].clone()
+}
+
 #[test]
 fn version_one_runs_sim_v1() {
     let frozen = RunSetup {
