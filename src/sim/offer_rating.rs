@@ -944,6 +944,31 @@ mod tests {
             assert_eq!(at(&r, 0).level_after, 3);
         }
 
+        /// The stat sheet of a run with a `stars` section holds no offer stat: the live state keeps
+        /// no rerolls, banishes or extra candidates for it to read.
+        #[test]
+        fn the_stat_sheet_names_no_offer_stat() {
+            let f = fixture();
+            let career = f.s.players.career(ME);
+            assert!(
+                career.offers.is_some(),
+                "the trial stage has a stars section"
+            );
+            let sheet = sheet(
+                &f.s,
+                &career.progress,
+                &f.s.players[ME],
+                career.regen,
+                career.offers.as_ref(),
+            );
+            let offer_stats = [
+                StatKind::Rerolls,
+                StatKind::Banishes,
+                StatKind::OfferCandidates,
+            ];
+            assert!(sheet.iter().all(|(k, _)| !offer_stats.contains(k)));
+        }
+
         /// T4: a slot the check refuses is absent, and so is every item that cannot be rated.
         #[test]
         fn refusals_are_absent() {

@@ -713,18 +713,19 @@ fn live_player_state_down_and_out_fields_move_the_encoding() {
     assert!(back.out);
 }
 
-/// The live state holds no stat-offer or expertise-offer fields: the encoding is the Base length
-/// less what they took. Per `Progress` present: `pick_stats` 1, `offers_due` 4, `offer_open` 1.
-/// Per gauge present: `offered` 4, `offer` 1 (absent), `taken` a 4-byte prefix and one byte an
-/// entry.
+/// The live state holds no star-offer fields: the encoding is the Base length less what they
+/// took. Per present player with offers: `due` 4, `offer` 1, `rerolls_left` 4, `banishes_left` 4,
+/// `extra_candidates` 1, and `taken` and `banished` a 4-byte prefix and one byte an entry each
+/// (n entries, the rewards file's length): 22 + 2n.
 #[test]
-fn the_state_has_no_level_offer_fields() {
+fn the_state_has_no_star_offer_fields() {
     use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
     // (case, encoded length at the Base, bytes the removed fields took)
     let cases = [
-        (worst_case::warmed_up(), 144_106, 6),
+        (worst_case::warmed_up(), 144_100, 22 + 2 * 2),
+        // its stage has no `stars` section: no offers to drop
         (hit_case::warmed_up(), 263_006, 0),
-        (time_limit_case::warmed_up(), 30_445, 6 + 4 + 1 + 4 + 5),
+        (time_limit_case::warmed_up(), 30_425, 22 + 2 * 141),
     ];
     for (e, base, removed) in cases {
         assert_eq!(crate::savepoint::encode_state(&e).len(), base - removed);
