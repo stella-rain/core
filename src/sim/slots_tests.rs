@@ -1390,7 +1390,7 @@ mod rules {
 mod curve {
     use super::super::slots::{self, MAX_LEVEL};
 
-    /// T1: the curve rises and a slot takes 870 kills from Lv1 to Lv10.
+    /// T1: the curve rises and a slot takes 575 kills from Lv1 to Lv10.
     #[test]
     fn the_curve_rises_and_ends_at_lv10() {
         assert_eq!(slots::bundled_rules().kills_to_next.len(), 9);
@@ -1403,7 +1403,7 @@ mod curve {
         );
         assert_eq!(
             slots::bundled_rules().kills_to_next.iter().sum::<u32>(),
-            870
+            575
         );
         assert_eq!(MAX_LEVEL, 10);
     }
@@ -1411,10 +1411,10 @@ mod curve {
     /// T2: a slot rises one level at a time and keeps the rest.
     #[test]
     fn gain_levels_a_slot_one_level_at_a_time() {
-        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 9), (1, 9));
-        assert_eq!(slots::gain(slots::bundled_rules(), 1, 9, 1), (2, 0));
-        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 35), (3, 5));
-        assert_eq!(slots::gain(slots::bundled_rules(), 2, 19, 1), (3, 0));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 9), (2, 3));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 9, 1), (2, 4));
+        assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 35), (3, 17));
+        assert_eq!(slots::gain(slots::bundled_rules(), 2, 19, 1), (3, 8));
         assert_eq!(slots::gain(slots::bundled_rules(), 9, 0, 230), (10, 0));
     }
 
@@ -1569,7 +1569,7 @@ mod kills {
     fn a_kill_credits_the_killer_s_star_slots() {
         let mut f = armed();
         let atk = f.total(StatEffect::AttackPct);
-        dead(&mut f, 10, 0);
+        dead(&mut f, slots::bundled_rules().kills_to_next[0], 0);
         tick(&mut f, PlayerIdx::SOLO);
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 0), (2, 0));
         assert_eq!(slot_of(&f, PlayerIdx::SOLO, 12), (2, 0), "the Lumine slot");
@@ -1610,7 +1610,7 @@ mod kills {
             eq.slots[0].level = 1;
         }
         let other = f.total(StatEffect::SpeedPct);
-        dead(&mut f, 10, 0);
+        dead(&mut f, slots::bundled_rules().kills_to_next[0], 0);
         tick(&mut f, one);
         assert_eq!(slot_of(&f, one, 0), (2, 0));
         assert_eq!(slot_of(&f, two, 0), (1, 0));
