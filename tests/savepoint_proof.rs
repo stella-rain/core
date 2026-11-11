@@ -1,8 +1,9 @@
 //! The savepoint determinism proof (ADR-SAVE-4, ADR-SIM-3): for every run case of the replay
 //! corpus in the current tree, a savepoint taken at a cut, restored and run to the end gives the
 //! hashes, the ledger, the tallies, the snapshot and the replay of the uninterrupted run. The
-//! frozen `v1/` run cases all hold a PICKS step: `prove` skips them (`verify_run` replays them),
-//! and `the_proof_keeps_its_floor` pins how many are proved and skipped per tree. `check_run` is
+//! same holds for every run case of the frozen `v1/` tree: a recorder at `sim_version` 1 writes
+//! the schema 1 file and takes the PICKS steps through its bench-gated seam. `the_proof_keeps_its_floor`
+//! counts the verdicts `prove` returns per tree. `check_run` is
 //! generic over the restore, so the meta-tests can hand it restores that are wrong on purpose and
 //! see it name them.
 //!
@@ -15,6 +16,7 @@ use crate::common::run_steps::{self, RunSteps, Step};
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
@@ -37,44 +39,6 @@ struct Case {
     steps: RunSteps,
 }
 
-/// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
-/// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
-/// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
-/// to the frozen file's. A file already at the written schema is returned as it is, and so is a
-/// frozen run that holds a PICKS step: it needs the frozen offer rules, so it is not re-driven
-/// (`verify_run` replays it).
-fn written_form(file: &RunReplay, pack: &Pack, steps: &RunSteps) -> RunReplay {
-    if file.setup.schema_version >= 2 || steps.steps().iter().any(|s| matches!(s, Step::Picks(_))) {
-        return file.clone();
-    }
-    let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
-    for step in steps.steps() {
-        run_steps::apply_to(&mut rec, step);
-    }
-    let written = rec.replay();
-    assert_eq!(written.setup.schema_version, 2);
-    assert_eq!(written.commands, "");
-    assert_eq!(&RunSteps::of(&written), steps);
-    assert_eq!(
-        (
-            &written.ticks,
-            &written.final_hash,
-            &written.checkpoints,
-            &written.content_sha256
-        ),
-        (
-            &file.ticks,
-            &file.final_hash,
-            &file.checkpoints,
-            &file.content_sha256
-        )
-    );
-    let mut setup = written.setup.clone();
-    setup.schema_version = file.setup.schema_version;
-    assert_eq!(setup, file.setup);
-    written
-}
-
 fn tree_dir(tree: &str) -> PathBuf {
     crate::data_root::data_root()
         .join("tests/corpus")
@@ -87,10 +51,9 @@ fn load_case(tree: &str, name: &str) -> Case {
     let file = RunReplay::from_bytes(&bytes).unwrap();
     let pack = run_case_pack(&dir, &bytes).unwrap();
     let steps = RunSteps::of(&file);
-    let recorded = written_form(&file, &pack, &steps);
     Case {
         label: format!("{tree}/{name}"),
-        recorded,
+        recorded: file,
         pack,
         steps,
     }
@@ -340,51 +303,53 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
 /// Run cases recorded after `v1/` was frozen: only `current/` holds them.
 const CURRENT_ONLY: &[&str] = &["tutorial_opening", "trial_kinds"];
 
-/// Why a case is not proved here.
-#[derive(Debug, PartialEq)]
-enum Skip {
-    /// A frozen run that answers an offer needs the frozen offer rules: `verify_run` replays it.
-    Picks,
-}
-
-impl Skip {
-    fn why(&self) -> &'static str {
-        match self {
-            Skip::Picks => "holds a PICKS step (needs the frozen offer rules)",
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+/// What the proof made of a case.
+#[derive(Clone, Debug, PartialEq)]
 enum Verdict {
     Proved,
-    Skipped(Skip),
+    /// Not proved, and why: the floor counts it.
+    Skipped(&'static str),
 }
 
-/// The one test of whether a case is proved, shared by `prove` and the floor.
-fn skip_reason(case: &Case) -> Option<Skip> {
-    case.steps
-        .steps()
-        .iter()
-        .any(|s| matches!(s, Step::Picks(_)))
-        .then_some(Skip::Picks)
-}
-
-/// `None` for a case the tree does not hold (`CURRENT_ONLY` in `v1`).
+/// `None` for a case the tree does not hold (`CURRENT_ONLY` in `v1`). A `Skipped(reason)`
+/// return is counted by the floor.
 fn prove(tree: &str, name: &str, sweep: bool) -> Option<Verdict> {
     if tree == "v1" && CURRENT_ONLY.contains(&name) {
         return None;
     }
     let case = load_case(tree, name);
-    if let Some(skip) = skip_reason(&case) {
-        eprintln!("savepoint proof: skipped {tree}/{name}: {}", skip.why());
-        return Some(Verdict::Skipped(skip));
-    }
     let r = reference(&case);
     let at = if sweep { sweep_cuts(&r) } else { cuts(&r) };
     assert!(!at.is_empty(), "{}: no cuts", case.label);
     check_run(&case, &r, &at, &real_restore).unwrap_or_else(|e| panic!("{e}"));
     Some(Verdict::Proved)
+}
+
+type Memo = std::collections::BTreeMap<String, Arc<OnceLock<Option<Verdict>>>>;
+
+/// `prove`'s verdict without the sweep, once per case: the per-case tests and the floor share
+/// one run. A panic in `prove` leaves the cell empty, so each test that asks fails on it.
+fn verdict(tree: &str, name: &str) -> Option<Verdict> {
+    static MEMO: Mutex<Memo> = Mutex::new(Memo::new());
+    let cell = MEMO
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(format!("{tree}/{name}"))
+        .or_default()
+        .clone();
+    cell.get_or_init(|| prove(tree, name, false)).clone()
+}
+
+/// The proved and the skipped case names of a list of verdicts.
+fn split(verdicts: &[(String, Verdict)]) -> (Vec<String>, Vec<String>) {
+    let named = |proved: bool| {
+        verdicts
+            .iter()
+            .filter(|(_, v)| (*v == Verdict::Proved) == proved)
+            .map(|(n, _)| n.clone())
+            .collect()
+    };
+    (named(true), named(false))
 }
 
 macro_rules! run_cases {
@@ -394,12 +359,14 @@ macro_rules! run_cases {
             mod $name {
                 #[test]
                 fn current() {
-                    super::prove("current", stringify!($name), false);
+                    let v = super::verdict("current", stringify!($name));
+                    assert!(!matches!(v, Some(super::Verdict::Skipped(_))), "{v:?}");
                 }
 
                 #[test]
                 fn v1() {
-                    super::prove("v1", stringify!($name), false);
+                    let v = super::verdict("v1", stringify!($name));
+                    assert!(!matches!(v, Some(super::Verdict::Skipped(_))), "{v:?}");
                 }
 
                 #[test]
@@ -470,8 +437,8 @@ fn the_case_lists_are_the_directories() {
 }
 
 /// The floor of the proof per tree: (tree, proved at least, skipped at most). `current` proves
-/// every case; the frozen `v1/` run cases all hold a PICKS step, so none is proved here.
-const FLOOR: [(&str, usize, usize); 2] = [("current", 11, 0), ("v1", 0, 9)];
+/// every case, and so does the frozen `v1/` (nine cases), counted from `prove`'s own verdicts.
+const FLOOR: [(&str, usize, usize); 2] = [("current", 11, 0), ("v1", 9, 0)];
 
 fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), String> {
     let (min, max) = floor_of(tree);
@@ -480,8 +447,8 @@ fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), 
     }
     Err(format!(
         "savepoint proof, {tree}: {} proved ({}), {} skipped ({}); the floor is at least {min} \
-         proved and at most {max} skipped. A case that now skips needs its PICKS step answered \
-         (a frozen run needs the frozen offer rules: make it provable, do not skip it); a case \
+         proved and at most {max} skipped. A case that now skips must be proved, not skipped \
+         (what does `prove` return early for?); a case \
          that no longer skips or a corpus bless that changed the case list: raise the floor in \
          FLOOR here and say so in the PR, never lower it to get green.",
         proved.len(),
@@ -519,42 +486,49 @@ fn a_current_case_that_skips_fails() {
 }
 
 #[test]
+fn a_skipping_prove_is_counted() {
+    let (proved, skipped) = split(&[
+        ("easy".to_owned(), Verdict::Proved),
+        ("trial".to_owned(), Verdict::Skipped("x")),
+    ]);
+    assert_eq!(proved, names_of(&["easy"]));
+    assert_eq!(skipped, names_of(&["trial"]));
+    let err = check_floor("v1", &proved, &skipped).unwrap_err();
+    assert!(err.contains("1 skipped") && err.contains("trial"), "{err}");
+}
+
+fn frozen_names() -> Vec<String> {
+    RUN_CASES
+        .iter()
+        .filter(|n| !CURRENT_ONLY.contains(n))
+        .map(|n| (*n).to_owned())
+        .collect()
+}
+
+#[test]
 fn the_floor_holds_at_todays_counts() {
     let all = names_of(RUN_CASES);
-    let frozen: Vec<&str> = RUN_CASES
-        .iter()
-        .copied()
-        .filter(|n| !CURRENT_ONLY.contains(n))
-        .collect();
+    let nine = frozen_names();
+    assert_eq!(nine.len(), 9);
+    assert_eq!(floor_of("v1"), (9, 0));
     assert_eq!(check_floor("current", &all, &[]), Ok(()));
-    assert_eq!(check_floor("v1", &[], &names_of(&frozen)), Ok(()));
-    // A tenth skipped v1 case is a corpus change.
-    assert!(check_floor("v1", &[], &all).is_err());
+    assert_eq!(check_floor("v1", &nine, &[]), Ok(()));
+    assert!(check_floor("v1", &[], &nine).is_err());
 }
 
 #[test]
 fn the_proof_keeps_its_floor() {
     for tree in TREES {
-        let (mut proved, mut skipped) = (Vec::new(), Vec::new());
-        for name in RUN_CASES {
-            if tree == "v1" && CURRENT_ONLY.contains(name) {
-                continue;
-            }
-            match skip_reason(&load_case(tree, name)) {
-                None => proved.push((*name).to_owned()),
-                Some(_) => skipped.push((*name).to_owned()),
-            }
-        }
+        let verdicts: Vec<(String, Verdict)> = RUN_CASES
+            .iter()
+            .filter_map(|name| verdict(tree, name).map(|v| ((*name).to_owned(), v)))
+            .collect();
+        let (proved, skipped) = split(&verdicts);
         eprintln!("savepoint proof, {tree}: {proved:?} proved, {skipped:?} skipped");
         check_floor(tree, &proved, &skipped).unwrap_or_else(|e| panic!("{e}"));
         if tree == "v1" {
-            // Every frozen run case but the current-only one: a swapped case is seen.
-            let frozen: Vec<String> = RUN_CASES
-                .iter()
-                .filter(|n| !CURRENT_ONLY.contains(n))
-                .map(|n| (*n).to_owned())
-                .collect();
-            assert_eq!(skipped, frozen, "the skipped v1 cases");
+            // Every frozen run case: a swapped case is seen.
+            assert_eq!(proved, frozen_names(), "the proved v1 cases");
         }
     }
 }
@@ -761,4 +735,211 @@ fn the_fixture_run_is_running_at_its_last_tick() {
 fn the_rand_attack_run_restores_to_the_uninterrupted_run() {
     let (case, r) = rand_attack_case();
     check_run(&case, &r, &rand_cuts(&r), &real_restore).unwrap_or_else(|e| panic!("{e}"));
+}
+
+// The recorded form of a frozen run (ADR-REPL-5, ADR-SAVE-4): a `sim_version` 1 recorder writes
+// the schema 1 file the run was frozen in, and its picks go in through the bench-gated seam.
+
+fn frozen_file(name: &str) -> (RunReplay, Vec<u8>, Pack) {
+    let dir = tree_dir("v1").join("runs").join(name);
+    let bytes = fs::read(dir.join("run.replay")).unwrap();
+    let file = RunReplay::from_bytes(&bytes).unwrap();
+    let pack = run_case_pack(&dir, &bytes).unwrap();
+    (file, bytes, pack)
+}
+
+/// A recorder for the frozen `name`, driven through its first `upto` steps.
+fn driven(name: &str, upto: usize) -> (RunRecorder, RunSteps, Pack, RunReplay) {
+    let (file, _, pack) = frozen_file(name);
+    let steps = RunSteps::of(&file);
+    let mut rec = RunRecorder::start_with_pack(&file.setup, &pack).unwrap();
+    for step in &steps.steps()[..upto.min(steps.steps().len())] {
+        run_steps::apply_to(&mut rec, step);
+    }
+    (rec, steps, pack, file)
+}
+
+fn is_picks(s: &Step) -> bool {
+    matches!(s, Step::Picks(_))
+}
+
+#[test]
+fn a_version_1_recorder_writes_the_frozen_file() {
+    for name in frozen_names() {
+        let (file, bytes, _) = frozen_file(&name);
+        let (rec, ..) = driven(&name, usize::MAX >> 1);
+        let written = rec.replay();
+        assert_eq!(written.setup.schema_version, 1, "{name}");
+        assert_eq!(written.to_bytes(), bytes, "{name}");
+        assert_eq!(written, file, "{name}");
+    }
+}
+
+/// The hex of the SHA-256 of the bytes.
+fn digest(bytes: &[u8]) -> String {
+    stella_rain_core::content_hash::sha256(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+#[test]
+fn a_version_1_savepoint_carries_the_prefix_schema() {
+    use crate::common::run::trial_setup;
+    use crate::run_play::play_run;
+    use stella_rain_core::run_replay::Command;
+    // A version 1 recorder at a cut of the frozen `trial`.
+    let (file, _, pack) = frozen_file("trial");
+    let steps = RunSteps::of(&file);
+    let (mut rec, _, _, _) = driven("trial", 0);
+    for step in &steps.steps()[..steps.at(300)] {
+        run_steps::apply_to(&mut rec, step);
+    }
+    let prefix = rec.replay();
+    let bytes = rec.save();
+    assert_eq!(bytes[12..16], 1u32.to_le_bytes());
+    assert!(RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).is_ok());
+    // A version 2 recorder's savepoint is what it was before: the digest is that of main's
+    // code at the same bundled pack (it moves with a pack bless, not with this header change).
+    let mut live = RunRecorder::start_with_pack(&trial_setup(), Pack::bundled()).unwrap();
+    for c in play_run(300) {
+        if let Command::Step(i) = c {
+            live.step(&[i, Default::default(), Default::default()])
+                .unwrap();
+        }
+    }
+    let saved = live.save();
+    assert_eq!(saved[12..16], 2u32.to_le_bytes());
+    assert_eq!(
+        digest(&saved),
+        "0b8b091bbff0e1ca771708fb4dfcfdbd0abe92f9237037ae9a57922ae9b751a1"
+    );
+}
+
+#[test]
+fn a_version_1_prefix_with_picks_resumes_and_saves_again() {
+    let (file, _, pack) = frozen_file("trial");
+    let steps = RunSteps::of(&file);
+    // The prefix that ends on the second pick.
+    let second = steps
+        .steps()
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| is_picks(s))
+        .nth(1)
+        .map(|(i, _)| i)
+        .expect("trial holds two picks");
+    let (rec, ..) = driven("trial", second + 1);
+    let prefix = rec.replay();
+    let mut resumed = RunRecorder::resume_with_pack(&prefix, &pack).unwrap();
+    let from = resumed.engine().tick();
+    for step in &steps.steps()[second + 1..] {
+        run_steps::apply_to(&mut resumed, step);
+        if resumed.engine().tick() == from + 120 {
+            break;
+        }
+    }
+    let replay = resumed.replay();
+    let bytes = replay.to_bytes();
+    assert_eq!(RunReplay::from_bytes(&bytes), Ok(replay.clone()));
+    assert_eq!(replay.setup.schema_version, 1);
+    assert_ne!(replay.commands, "");
+    let got = RunSteps::of(&replay);
+    assert!(got.steps().iter().filter(|s| is_picks(s)).count() >= 2);
+    assert_eq!(got.steps(), &steps.steps()[..got.steps().len()]);
+    // The savepoint of the resumed run restores too.
+    let save = resumed.save();
+    assert!(RunRecorder::resume_from_savepoint(&save, &replay, &pack).is_ok());
+}
+
+#[test]
+fn a_recorder_resumed_on_an_open_offer_continues() {
+    let (file, _, pack) = frozen_file("tutorial");
+    let steps = RunSteps::of(&file);
+    // The first tick that leaves an offer open, and the step that answers it.
+    let (mut rec, ..) = driven("tutorial", 0);
+    let mut at = 0;
+    for (i, step) in steps.steps().iter().enumerate() {
+        run_steps::apply_to(&mut rec, step);
+        if rec.engine().offer_open() {
+            at = i + 1;
+            break;
+        }
+    }
+    assert!(at > 0, "tutorial opens an offer");
+    assert!(is_picks(&steps.steps()[at]), "the offer is answered next");
+    let prefix = rec.replay();
+    let save = rec.save();
+    let resumed = [
+        RunRecorder::resume_with_pack(&prefix, &pack).unwrap(),
+        RunRecorder::resume_from_savepoint(&save, &prefix, &pack).unwrap(),
+    ];
+    for mut r in resumed {
+        let held = [Input::default(); 3];
+        assert!(matches!(
+            r.step(&held),
+            Err(RunReplayError::OfferOpen { .. })
+        ));
+        for step in &steps.steps()[at..] {
+            run_steps::apply_to(&mut r, step);
+        }
+        assert_eq!(r.replay(), file);
+    }
+}
+
+#[test]
+fn the_pick_seam_refuses_and_records_nothing() {
+    use crate::common::run::trial_setup;
+    let open = |rec: &RunRecorder| (rec.replay(), rec.engine().state_hash());
+    // No pick at all.
+    let (mut rec, ..) = driven("tutorial", 0);
+    let before = open(&rec);
+    assert!(matches!(
+        rec.v1_pick_step(&[None; 3]),
+        Err(RunReplayError::BadInputs(_))
+    ));
+    // A pick with no offer open (tick 0, before the first level).
+    assert!(matches!(
+        rec.v1_pick_step(&[Some(0), None, None]),
+        Err(RunReplayError::ChoiceRefused { .. })
+    ));
+    assert_eq!(open(&rec), before);
+    // An index no offer holds, with the offer open.
+    let (file, ..) = frozen_file("tutorial");
+    let steps = RunSteps::of(&file);
+    for step in steps.steps() {
+        run_steps::apply_to(&mut rec, step);
+        if rec.engine().offer_open() {
+            break;
+        }
+    }
+    assert!(rec.engine().offer_open());
+    let before = open(&rec);
+    assert!(matches!(
+        rec.v1_pick_step(&[Some(99), None, None]),
+        Err(RunReplayError::ChoiceRefused { .. })
+    ));
+    assert_eq!(open(&rec), before);
+    // The live rules have no offer.
+    let mut live = RunRecorder::start_with_pack(&trial_setup(), Pack::bundled()).unwrap();
+    let before = open(&live);
+    assert!(matches!(
+        live.v1_pick_step(&[Some(0), None, None]),
+        Err(RunReplayError::ChoiceRefused { .. })
+    ));
+    assert_eq!(open(&live), before);
+}
+
+#[test]
+fn the_v1_cuts_cover_an_open_offer() {
+    for name in ["tutorial", "trial"] {
+        let case = load_case("v1", name);
+        let r = reference(&case);
+        let at = cuts(&r);
+        assert!(
+            at.iter().any(|t| r.offer[*t as usize - 1]),
+            "{name}: no cut with an offer open"
+        );
+        assert!(case.steps.steps().iter().any(is_picks), "{name}");
+    }
 }

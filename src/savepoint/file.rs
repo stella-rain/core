@@ -13,7 +13,7 @@
 //! | 0 | 4 | magic `SRSV` |
 //! | 4 | 4 | `format` |
 //! | 8 | 4 | `sim_version` |
-//! | 12 | 4 | `schema_version`, compared with this build's |
+//! | 12 | 4 | `schema_version`, the schema of the prefix it was taken with |
 //! | 16 | 32 | `content_sha256` of the pack, for the run's mode |
 //! | 48 | 4 | `tick` |
 //! | 52 | 8 | `state_hash` |
@@ -46,8 +46,7 @@ use crate::run_replay::{
     History, MAX_RUN_REPLAY_BYTES, RunReplay, content_sha256_with, unpack_history,
 };
 use crate::version::{
-    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION,
-    SIM_VERSION,
+    FIRST_SCHEMA_VERSION, FIRST_SIM_VERSION, NEWEST_READ_SCHEMA_VERSION, SIM_VERSION,
 };
 
 use super::{decode_state, encode_state};
@@ -113,7 +112,9 @@ pub struct SavepointHeader {
     pub format: u32,
     /// The simulation rules version of the run.
     pub sim_version: u32,
-    /// The schema version at save time; a file whose value is not this build's is refused.
+    /// The schema of the replay prefix the savepoint was taken with (a `sim_version` 1 run is
+    /// written at schema 1, every other at `SCHEMA_VERSION`); a file whose value is not one this
+    /// build reads is refused, and `restore` wants it equal to the prefix's.
     pub schema_version: u32,
     /// The SHA-256 of the content pack, for the run's mode (`content_sha256_with`).
     pub content_sha256: [u8; 32],
@@ -239,7 +240,7 @@ pub(crate) fn save(engine: &Engine, prefix: &RunReplay) -> Vec<u8> {
         header: SavepointHeader {
             format: SAVEPOINT_FORMAT,
             sim_version: engine.version(),
-            schema_version: SCHEMA_VERSION,
+            schema_version: prefix.setup.schema_version,
             content_sha256,
             tick: engine.tick(),
             state_hash: engine.state_hash(),
@@ -296,8 +297,8 @@ pub(crate) fn restore(
     if engine.state_hash() != head.state_hash {
         return Err(SavepointError::HashMismatch);
     }
-    // The writers agree (the header and the prefix both carry `SCHEMA_VERSION`, or both an older
-    // build's); a header that disagrees with its prefix is forged or mixed.
+    // The writers agree (the header carries the schema of the prefix it was taken with, 1 for a
+    // `sim_version` 1 run, or an older build's); a header that disagrees with its prefix is forged or mixed.
     if prefix.ticks != head.tick
         || head.schema_version != prefix.setup.schema_version
         || prefix.final_hash != hash_to_hex(head.state_hash)
@@ -316,6 +317,7 @@ pub(crate) fn restore(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::version::SCHEMA_VERSION;
 
     fn sample() -> Savepoint {
         Savepoint {
@@ -462,6 +464,44 @@ mod tests {
         assert_ne!(forged.header.schema_version, prefix.setup.schema_version);
         assert!(matches!(
             restore(&forged.to_bytes(), &prefix, Pack::bundled()),
+            Err(SavepointError::PrefixMismatch)
+        ));
+    }
+
+    #[test]
+    fn a_version_1_header_must_agree_with_its_prefix() {
+        use crate::input::Input;
+        use crate::pack::Pack;
+        use crate::run_replay::RunRecorder;
+        use crate::run_setup::RunSetup;
+        let v1 = Pack::from_bytes(include_bytes!(
+            "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack");
+        let frozen = RunSetup {
+            schema_version: 1,
+            sim_version: 1,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_with_pack(&frozen, &v1).unwrap();
+        for _ in 0..30 {
+            rec.step(&[Input::default(), Default::default(), Default::default()])
+                .unwrap();
+        }
+        let prefix = rec.replay();
+        assert_eq!(prefix.setup.schema_version, 1);
+        let bytes = rec.save();
+        // The header carries the prefix's schema: it restores.
+        assert_eq!(
+            Savepoint::from_bytes(&bytes).unwrap().header.schema_version,
+            1
+        );
+        assert!(restore(&bytes, &prefix, &v1).is_ok());
+        // A header forged to schema 2, checksum valid, is another run's.
+        let mut forged = Savepoint::from_bytes(&bytes).unwrap();
+        forged.header.schema_version = 2;
+        assert!(matches!(
+            restore(&forged.to_bytes(), &prefix, &v1),
             Err(SavepointError::PrefixMismatch)
         ));
     }

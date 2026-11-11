@@ -19,8 +19,8 @@
 //! kind is refused; at most `MAX_ACTION_STEPS` ACTIONS records, counted apart from the schema 1 picks. A log
 //! with one has no solo view. Record bytes `0x05` to `0xFF` are unknown; `0x01` is never given
 //! another meaning (a retired kind keeps its byte reserved). A schema 1 replay's picks are
-//! migrated into `Record::Picks` in memory; `encode` writes them, bytes the scanner refuses (a
-//! frozen version 1 run is not re-recorded at schema 2).
+//! migrated into `Record::Picks` in memory; `encode` refuses a log that holds one (a frozen
+//! version 1 run is written at schema 1, by its `commands`).
 
 use crate::input::{EquipAction, Input};
 use crate::replay::{block_of, input_of_block, read_varint, write_varint};
@@ -82,8 +82,10 @@ impl StepLog {
         })
     }
 
-    /// The canonical bytes: `decode(encode(x)) == x` for any log `decode` can return.
-    pub(crate) fn encode(&self) -> Vec<u8> {
+    /// The canonical schema 2 bytes: `decode(encode(x)) == x` for any log `decode` can return.
+    /// A PICKS record has none: it is reserved at schema 2 (a schema 1 log's picks live in its
+    /// `commands`), so a log that holds one is `BadInputs`, and no writer can emit the byte.
+    pub(crate) fn encode(&self) -> Result<Vec<u8>, RunReplayError> {
         let mut out = vec![self.present];
         for record in &self.records {
             match record {
@@ -102,21 +104,14 @@ impl StepLog {
                         write_action(&mut out, *action);
                     }
                 }
-                Record::Picks { picks } => {
-                    out.push(PICKS);
-                    for pick in picks {
-                        match pick {
-                            None => out.push(0),
-                            Some(index) => {
-                                out.push(1);
-                                write_varint(&mut out, *index);
-                            }
-                        }
-                    }
+                Record::Picks { .. } => {
+                    return Err(RunReplayError::BadInputs(
+                        "a PICKS record is reserved at schema 2",
+                    ));
                 }
             }
         }
-        out
+        Ok(out)
     }
 
     /// A schema 1 replay's solo inputs (one per tick) and commands, as a log: a command at tick
@@ -730,6 +725,44 @@ mod tests {
         RunReplayError::BadInputs("a PICKS record is reserved at schema 2")
     }
 
+    #[test]
+    fn encode_refuses_a_picks_record() {
+        let log = StepLog {
+            present: 0b1,
+            records: vec![Record::Picks {
+                picks: vec![Some(0)],
+            }],
+        };
+        assert_eq!(log.encode(), Err(reserved()));
+    }
+
+    /// The bytes of a log as a hostile file could hold them, a PICKS record included (`encode`
+    /// refuses it): each record by `encode`, the PICKS bytes by hand.
+    fn raw_encode(log: &StepLog) -> Vec<u8> {
+        let mut out = vec![log.present];
+        for record in &log.records {
+            if let Record::Picks { picks } = record {
+                out.push(super::PICKS);
+                for pick in picks {
+                    match pick {
+                        None => out.push(0),
+                        Some(index) => {
+                            out.push(1);
+                            crate::replay::write_varint(&mut out, *index);
+                        }
+                    }
+                }
+            } else {
+                let one = StepLog {
+                    present: log.present,
+                    records: vec![record.clone()],
+                };
+                out.extend(&one.encode().unwrap()[1..]);
+            }
+        }
+        out
+    }
+
     fn hex(text: &str) -> Vec<u8> {
         text.split_whitespace()
             .map(|b| u8::from_str_radix(b, 16).unwrap())
@@ -767,7 +800,7 @@ mod tests {
             }],
         };
         assert_eq!(decode(bytes, 5), Ok(expected.clone()));
-        assert_eq!(expected.encode(), hex(bytes));
+        assert_eq!(expected.encode().unwrap(), hex(bytes));
     }
 
     /// PICKS (`0x01`) is reserved at schema 2: the byte stays assigned and every reader
@@ -813,7 +846,7 @@ mod tests {
             }],
         };
         assert_eq!(decode(bytes, 1), Ok(expected.clone()));
-        assert_eq!(expected.encode(), hex(bytes));
+        assert_eq!(expected.encode().unwrap(), hex(bytes));
     }
 
     #[test]
@@ -827,7 +860,7 @@ mod tests {
         };
         assert_eq!(inputs.len(), 2);
         assert!(inputs[1].interact && inputs[1].move_x == -127);
-        assert_eq!(log.encode(), hex(bytes));
+        assert_eq!(log.encode().unwrap(), hex(bytes));
     }
 
     #[test]
@@ -1036,13 +1069,13 @@ mod tests {
             let log = replay.step_log(u32::MAX).unwrap();
             assert_eq!(log, StepLog::from_schema1(&inputs, &commands), "{name}");
             assert_eq!(log.to_solo(), Ok((inputs, commands.clone())), "{name}");
-            // The bytes of a log that holds picks are refused: PICKS is reserved at schema 2
-            // (`encode` writes them for a migrated log; nothing reads them back).
-            let decoded = StepLog::decode(&log.encode(), replay.ticks, u32::MAX);
+            // A log that holds picks has no schema 2 bytes: PICKS is reserved at schema 2, and
+            // `encode` refuses it, so no writer can emit the reserved byte.
             if commands.is_empty() {
+                let decoded = StepLog::decode(&log.encode().unwrap(), replay.ticks, u32::MAX);
                 assert_eq!(decoded, Ok(log), "{name}");
             } else {
-                assert_eq!(decoded, Err(reserved()), "{name}");
+                assert_eq!(log.encode(), Err(reserved()), "{name}");
             }
             with_picks += usize::from(!commands.is_empty());
         }
@@ -1110,7 +1143,7 @@ mod tests {
     fn schema_2_with(replay: &RunReplay, log: &StepLog) -> RunReplay {
         let mut two = replay.clone();
         two.setup.schema_version = 2;
-        two.inputs = base64::encode(&log.encode());
+        two.inputs = base64::encode(&raw_encode(log));
         two.commands = String::new();
         two
     }
@@ -1286,7 +1319,7 @@ mod tests {
                 inputs: vec![Input::default()],
             }],
         };
-        forged.inputs = base64::encode(&log.encode());
+        forged.inputs = base64::encode(&log.encode().unwrap());
         assert_eq!(forged.unpack_commands(), Ok(Vec::new()));
     }
 
@@ -1305,7 +1338,7 @@ mod tests {
             }],
         );
         assert_eq!(
-            log.encode(),
+            raw_encode(&log),
             hex("01 00 05 02 00 00 01 01 00 00 02 02 00 00")
         );
     }
@@ -1694,7 +1727,7 @@ mod tests {
                 rec_ticks(2, vec![main_held(), d]),
             ]
         );
-        assert_eq!(log.encode(), hex(bytes));
+        assert_eq!(log.encode().unwrap(), hex(bytes));
         let bytes = "03 00 03 02 00 00 00 00 00 03 01";
         let log = decode(bytes, 3).unwrap();
         assert_eq!(
@@ -1704,7 +1737,7 @@ mod tests {
                 Record::Leave { slot: 1 }
             ]
         );
-        assert_eq!(log.encode(), hex(bytes));
+        assert_eq!(log.encode().unwrap(), hex(bytes));
         let bytes = "07 03 01 00 01 02 00 00 00 00 00";
         let log = decode(bytes, 1).unwrap();
         assert_eq!(
@@ -1714,7 +1747,7 @@ mod tests {
                 rec_ticks(1, vec![main_held(), d])
             ]
         );
-        assert_eq!(log.encode(), hex(bytes));
+        assert_eq!(log.encode().unwrap(), hex(bytes));
     }
 
     #[test]
@@ -1900,7 +1933,7 @@ mod tests {
     #[test]
     fn an_actions_record_decodes_and_encodes_back() {
         assert_eq!(decode(SOLO_ACTIONS, 2), Ok(solo_actions_log()));
-        assert_eq!(solo_actions_log().encode(), hex(SOLO_ACTIONS));
+        assert_eq!(solo_actions_log().encode().unwrap(), hex(SOLO_ACTIONS));
         let party = StepLog {
             present: 0b11,
             records: vec![Record::Actions {
@@ -1908,7 +1941,7 @@ mod tests {
             }],
         };
         assert_eq!(decode("03 04 00 05 04", 0), Ok(party.clone()));
-        assert_eq!(party.encode(), hex("03 04 00 05 04"));
+        assert_eq!(party.encode().unwrap(), hex("03 04 00 05 04"));
     }
 
     #[test]
@@ -1927,7 +1960,7 @@ mod tests {
                     actions: vec![Some(action)],
                 }],
             };
-            assert_eq!(StepLog::decode(&log.encode(), 0, 0), Ok(log));
+            assert_eq!(StepLog::decode(&log.encode().unwrap(), 0, 0), Ok(log));
         }
     }
 
