@@ -2,6 +2,7 @@
 paths:
   - "src/sim/state_hash.rs"
   - "src/sim/state_codec.rs"
+  - "src/sim/state_codec/**"
   - "src/sim/hash_fields_tests.rs"
   - "src/sim/hash_layout_tests.rs"
   - "src/sim/codec_fields_tests.rs"

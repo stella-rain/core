@@ -1174,15 +1174,25 @@ mod action_tests;
 #[cfg(test)]
 mod clone_from_tests;
 #[cfg(test)]
+mod codec_live_tests;
+#[cfg(test)]
 mod codec_tests;
 #[cfg(test)]
 mod copy_tests;
 #[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
+mod hash_coverage_live_tests;
+#[cfg(test)]
 mod hash_coverage_tests;
 #[cfg(test)]
+mod horde_live_tests;
+#[cfg(test)]
 mod horde_tests;
+#[cfg(test)]
+mod live_access_tests;
+#[cfg(test)]
+mod live_support;
 #[cfg(test)]
 mod move_index_tests;
 #[cfg(test)]
@@ -1191,6 +1201,8 @@ mod party_tests;
 mod players_api_tests;
 #[cfg(test)]
 mod presence_tests;
+#[cfg(test)]
+mod savepoint_live_tests;
 #[cfg(test)]
 mod savepoint_tests;
 #[cfg(test)]
