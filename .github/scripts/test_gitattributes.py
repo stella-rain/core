@@ -8,8 +8,13 @@ import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`, outside `cargo xtask bless`.
-OTHER_GENERATED = ["tests/bench_pins.toml"]
+# The single-file sets `cargo xtask bless` writes. xtask_sets() reads them from xtask too; naming
+# them here keeps a regexp miss from hiding one.
+OTHER_GENERATED = [
+    "tests/bench_pins.toml",
+    "tests/pack_pins.toml",
+    "fuzz/regressions/replay_load/equipment-action.replay",
+]
 
 # Hand-written files beside the generated sets: they must stay counted.
 HAND_WRITTEN = [
@@ -28,7 +33,7 @@ def xtask_sets():
 def parse_sets(src):
     """The (name, path) pairs of the `SETS` constant in the source text `src`."""
     block = re.search(r"const SETS: \[\(&str, &str\); \d+\] = \[(.*?)\];", src, re.S)
-    return re.findall(r'\("(\w+)", "([^"]+)"\)', block.group(1))
+    return re.findall(r'\(\s*"([\w ]+)",\s*"([^"]+)",?\s*\)', block.group(1))
 
 
 def tracked(prefix):
