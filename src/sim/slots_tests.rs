@@ -1415,7 +1415,15 @@ mod curve {
         assert_eq!(slots::gain(slots::bundled_rules(), 1, 9, 1), (2, 4));
         assert_eq!(slots::gain(slots::bundled_rules(), 1, 0, 35), (3, 17));
         assert_eq!(slots::gain(slots::bundled_rules(), 2, 19, 1), (3, 8));
-        assert_eq!(slots::gain(slots::bundled_rules(), 9, 0, 230), (10, 0));
+        assert_eq!(
+            slots::gain(
+                slots::bundled_rules(),
+                9,
+                0,
+                slots::bundled_rules().kills_to_next[8]
+            ),
+            (10, 0)
+        );
     }
 
     /// T3: Lv10 is the end: no overflow, no expertise kept.
