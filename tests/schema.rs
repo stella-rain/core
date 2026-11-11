@@ -53,11 +53,31 @@ fn schema_bundle_and_ref_stubs() {
     }
 }
 
+/// `src/validate.rs` followed by every `src/validate/*.rs` (sorted), as one text: the
+/// limits block lives in the root, the checks that use its constants in the children.
+fn read_validator_source(root: &std::path::Path) -> String {
+    let mut text =
+        std::fs::read_to_string(root.join("src/validate.rs")).expect("read src/validate.rs");
+    let dir = root.join("src/validate");
+    if dir.is_dir() {
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .expect("read src/validate/")
+            .map(|e| e.expect("dir entry").path())
+            .filter(|p| p.extension().is_some_and(|x| x == "rs"))
+            .collect();
+        files.sort();
+        for file in files {
+            text.push('\n');
+            text.push_str(&std::fs::read_to_string(&file).expect("read validator module"));
+        }
+    }
+    text
+}
+
 #[test]
 fn every_validate_limit_const_appears_in_schema_bundle() {
     let manifest_dir = crate::data_root::data_root();
-    let validate_rs = std::fs::read_to_string(manifest_dir.join("src/validate.rs"))
-        .expect("read src/validate.rs");
+    let validate_rs = read_validator_source(&manifest_dir);
     let limits_start = validate_rs
         .find("pub mod limits {")
         .expect("pub mod limits found");
@@ -107,9 +127,12 @@ fn every_validate_limit_const_appears_in_schema_bundle() {
         used_consts.push((name.to_string(), val));
     }
 
-    assert!(
-        !used_consts.is_empty(),
-        "must find used constants in validate.rs"
+    // Pinned: a validator source read that misses the child modules would see only
+    // the root's few uses and pass while guarding almost none of the constants.
+    assert_eq!(
+        used_consts.len(),
+        75,
+        "used MAX_*/MIN_* limit constants found in the validator source"
     );
 
     let bundle_path = manifest_dir.join("schema/content.schema.json");
