@@ -102,5 +102,32 @@ class CommandCapStep(unittest.TestCase):
                 self.assertIn("persist-credentials: false", "\n".join(lines[i : i + 6]))
 
 
+class CiSpeed(unittest.TestCase):
+    """The CI cost rules of rust.yml: one toolchain install, no duplicate builds, pushes to main."""
+
+    def setUp(self):
+        self.text = read("rust.yml")
+
+    def test_one_toolchain_install_that_reads_rust_toolchain_toml(self):
+        self.assertNotIn("toolchain install stable", self.text)
+        self.assertNotIn("default stable", self.text)
+        for job in ("lint", "bless", "test", "cross", "net", "fuzz-stable", "bench",
+                    "cargo-deny", "fuzz-build", "fuzz-short"):
+            block = job_block(self.text, job)
+            lines = block.splitlines()
+            self.assertIn("      - run: rustup toolchain install", lines, job)
+            install = lines.index("      - run: rustup toolchain install")
+            later = [i for i, l in enumerate(lines)
+                     if "Swatinem/rust-cache" in l or re.search(r"\bcargo\b", l)]
+            self.assertTrue(later and install < min(later), job)
+        for job in ("fuzz-build", "fuzz-short"):
+            self.assertIn('rustup toolchain install "$FUZZ_NIGHTLY" --profile minimal',
+                          job_block(self.text, job))
+        for job in ("cross", "net"):
+            self.assertNotIn("--target", "\n".join(
+                l for l in job_block(self.text, job).splitlines() if "rustup" in l), job)
+        self.assertNotIn("rustup", job_block(self.text, "frozen"))
+
+
 if __name__ == "__main__":
     unittest.main()
