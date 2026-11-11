@@ -303,10 +303,10 @@ fn the_expertise_cap_equals_the_length_of_its_price_list() {
     let n = f["expertise_levels"]
         .as_u64()
         .expect("the bundled file has the key");
-    assert_eq!(
-        n as usize,
-        f["expertise_multiplier"].as_array().unwrap().len()
-    );
+    let prices = f["expertise_multiplier"].as_array().unwrap().len();
+    assert_eq!(n, u64::try_from(prices).unwrap());
+    let chart = Pack::bundled().star_chart().unwrap().expertise_levels();
+    assert_eq!(u64::from(chart), n);
 }
 
 #[test]
