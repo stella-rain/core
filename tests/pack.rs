@@ -286,7 +286,7 @@ fn each_count_budget_is_enforced() {
         ("/star_chart/perk_sets", star_chart::MAX_ITEMS),
         ("/star_chart/stage_skills", star_chart::MAX_ITEMS),
         ("/star_chart/stats", star_chart::MAX_ITEMS),
-        ("/star_chart/stats/0/prices", star_chart::MAX_LEVELS),
+        ("/star_chart/stats/0/prices", star_chart::MAX_STAT_LEVELS),
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),

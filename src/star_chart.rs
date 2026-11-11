@@ -6,7 +6,8 @@
 //!
 //! Prices are Stardust in tenths, as core counts it (`progression`), from 1 to `MAX_PRICE`: a
 //! free item is a starting unlock, not a priced one. A levelled item has one price per level, a
-//! list that never falls. No star, reroll or banish has a price (every star is unlocked,
+//! list that never falls; a stat has as many levels as its limit, the expertise multiplier as many
+//! as the file's `expertise_levels`. No star, reroll or banish has a price (every star is unlocked,
 //! ADR-SAVE-17).
 //!
 //! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
@@ -35,8 +36,12 @@ use crate::weapons::Weapons;
 pub const MAX_STAR_CHART_BYTES: usize = 16 * 1024;
 /// The most entries one list holds (a tuning value).
 pub const MAX_ITEMS: usize = 32;
-/// The most levels one levelled item has prices for (a tuning value).
+/// The most levels the expertise multiplier and the Lumine levels have prices for (a tuning
+/// value); a run stat's is `MAX_STAT_LEVELS`.
 pub const MAX_LEVELS: usize = 10;
+/// The most levels one run stat's price list has: the ceiling of a stat's `limit`
+/// (`run_stats::MAX_LIMIT`), a tuning value.
+pub const MAX_STAT_LEVELS: usize = crate::run_stats::MAX_LIMIT as usize;
 /// The ceiling of any price, in tenths of Stardust: 1,000,000 shown (ADR-CONT-3 point 1).
 pub const MAX_PRICE: u32 = 10_000_000;
 
@@ -56,8 +61,9 @@ pub struct PricedId {
 pub struct StatPrices {
     /// A stat of the pack's run stats, once in the list.
     pub id: ContentId,
-    /// The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. From 1 to
-    /// `MAX_LEVELS` prices, each from 1 to `MAX_PRICE`, never falling.
+    /// The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. Exactly as
+    /// many prices as the stat's `limit` in the pack's run stats (at most `MAX_STAT_LEVELS`), each
+    /// from 1 to `MAX_PRICE`, never falling.
     pub prices: Vec<u32>,
 }
 
@@ -76,7 +82,11 @@ pub struct StarChartFile {
     pub starting_rune: u32,
     /// Run stats for sale, at most `MAX_ITEMS`.
     pub stats: Vec<StatPrices>,
-    /// The expertise multiplier's price per level: from 1 to `MAX_LEVELS` prices, never falling.
+    /// The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.
+    #[schemars(range(min = 1, max = MAX_LEVELS))]
+    pub expertise_levels: u8,
+    /// The expertise multiplier's price per level: exactly `expertise_levels` prices, never
+    /// falling.
     pub expertise_multiplier: Vec<u32>,
     /// The Lumine levels' price per level: exactly `MAX_LUMINE` prices, never falling.
     pub lumine_levels: Vec<u32>,
@@ -140,6 +150,11 @@ impl StarChart {
     /// The run stats for sale and the price of each level.
     pub fn stats(&self) -> &[StatPrices] {
         &self.file.stats
+    }
+
+    /// The number of levels the expertise multiplier has.
+    pub fn expertise_levels(&self) -> u8 {
+        self.file.expertise_levels
     }
 
     /// The price of each level of the expertise multiplier.
@@ -315,21 +330,42 @@ pub fn validate(
                     message: "not an ID the game holds".into(),
                 });
             }
+            // A well-formed, first, known ID has a `limit`: the list prices each level of it.
+            // Any other entry already has an ID issue, so its list only gets the outer bound.
+            let limit = run_stats
+                .stats()
+                .iter()
+                .find(|s| s.id == stat.id)
+                .filter(|_| {
+                    registry::is_well_formed(stat.id.as_str())
+                        && !file.stats[..i].iter().any(|s| s.id == stat.id)
+                })
+                .map(|s| usize::from(s.limit));
+            let (min, max) = limit.map_or((1, MAX_STAT_LEVELS), |n| (n, n));
             check_levels(
                 &mut issues,
                 &format!("$.stats[{i}].prices"),
                 &stat.prices,
-                1,
-                MAX_LEVELS,
+                min,
+                max,
             );
         }
     }
+    let cap = usize::from(file.expertise_levels);
+    let cap_ok = (1..=MAX_LEVELS).contains(&cap);
+    if !cap_ok {
+        issues.push(Issue {
+            path: "$.expertise_levels".into(),
+            message: format!("1 to {MAX_LEVELS} (found {cap})"),
+        });
+    }
+    let (min, max) = if cap_ok { (cap, cap) } else { (1, MAX_LEVELS) };
     check_levels(
         &mut issues,
         "$.expertise_multiplier",
         &file.expertise_multiplier,
-        1,
-        MAX_LEVELS,
+        min,
+        max,
     );
     let lumine = usize::from(MAX_LUMINE);
     check_levels(
