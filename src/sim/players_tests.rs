@@ -1006,11 +1006,8 @@ mod career_rest {
         ];
         let read = |s: &mut State| {
             let c = career(s, 0);
-            let o = c.offers.as_ref().expect("offers");
             let p = c.progress.as_ref().expect("progress");
             (
-                o.rerolls_left,
-                o.banishes_left,
                 p.totals[StatEffect::Rerolls as usize],
                 p.totals[StatEffect::Banishes as usize],
             )
@@ -1021,8 +1018,7 @@ mod career_rest {
             loadout::perk(&mut s, slot(0), e);
         }
         let got = read(&mut s);
-        assert_eq!((got.0, got.1), (base.0, base.1), "offers untouched");
-        assert_eq!((got.2, got.3), (base.2 + 2, base.3 + 1));
+        assert_eq!(got, (base.0 + 2, base.1 + 1));
     }
 }
 

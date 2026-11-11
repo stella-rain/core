@@ -639,7 +639,7 @@ mod grants {
         let mut f = fixture();
         let o = |f: &Fixture| {
             let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
-            (o.rerolls_left, o.banishes_left, o.extra_candidates)
+            o.set_counts.clone()
         };
         let base = o(&f);
         f.set(0, Some(REROLL));
@@ -669,7 +669,7 @@ mod grants {
         let mut f = fixture();
         let offers = |f: &Fixture| {
             let o = f.s.players.career(PlayerIdx::SOLO).offers.as_ref().unwrap();
-            (o.rerolls_left, o.banishes_left, o.extra_candidates)
+            o.set_counts.clone()
         };
         let base = offers(&f);
         f.set(0, Some(GROWTH));

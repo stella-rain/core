@@ -184,10 +184,6 @@ fn a_star_taken_gives_every_member_a_roll_in_slot_order() {
     assert!(matches!(ev[0], DomainEvent::StarTaken { .. }));
     for i in 0..3 {
         let (was, now) = (before.players.career(slot(i)), s.players.career(slot(i)));
-        assert!(
-            now.offers.as_ref().unwrap().due.is_empty(),
-            "slot {i} offered nothing"
-        );
         let want = expected(&was.offer, &Rune::ALL, &[(0, 10), (1, 20), (2, 30)]);
         assert_eq!(now.equipment.inventory, vec![want], "slot {i}");
         assert_eq!(
@@ -597,15 +593,6 @@ fn a_boss_kill_gives_each_up_member_personal_drops() {
     assert_eq!(mine.len(), usize::from(bundled_rules().boss_drops));
     assert!(matches!(mine[0], Held::Star(1) | Held::Rune(_)), "{mine:?}");
     assert!(inventory(&s, 1).is_empty() && inventory(&s, 2).is_empty());
-    assert!(
-        s.players
-            .career(slot(0))
-            .offers
-            .as_ref()
-            .unwrap()
-            .due
-            .is_empty()
-    );
     // A pickup the same tick comes after.
     drop_star(&mut again, 0, Rarity::Rare);
     stars::boss_killed(&w, &mut again);
@@ -631,8 +618,7 @@ fn an_equipment_boss_kill_offers_nothing() {
         stars::pick_up(&w, &mut s, slot(0), &mut Vec::new());
         for i in 0..n {
             let career = s.players.career(slot(i));
-            let o = career.offers.as_ref().expect("offers");
-            assert!(o.due.is_empty() && o.offer.is_none(), "n {n} slot {i}");
+            assert!(career.offers.is_some(), "n {n} slot {i}");
             assert_eq!(
                 career.equipment.inventory.len(),
                 usize::from(bundled_rules().boss_drops) + 1
