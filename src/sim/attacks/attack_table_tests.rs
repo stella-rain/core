@@ -6,7 +6,7 @@ use crate::fixed::Fx;
 use crate::rewards::MAX_RANGE_PCT;
 use crate::run_content::RunContent;
 use crate::sim::AttackIndex;
-use crate::sim::state::{Aim, Dir};
+use crate::sim::state::{Aim, AttackRun, Dir};
 use crate::sim::world::World;
 
 // The two functions below are `faster` and `wider` as they were before attacks were compiled
