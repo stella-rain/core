@@ -10,6 +10,7 @@ mod attack_run;
 mod foes;
 mod orbs_zones;
 mod player_state;
+mod players;
 mod shared;
 mod status;
 
@@ -76,37 +77,6 @@ const MAX_PLACES: u32 = 256;
 
 /// The runs one attacker can have at once: one for each `u8` slot.
 const MAX_RUN_SLOTS: u32 = 256;
-
-impl Encode for Career {
-    fn encode(&self, w: &mut Writer) {
-        // Slot 0's offer generator and offers are written by `State`, at the places the run's
-        // generator and star field were (`encode_streams`, `encode_star_field`).
-        let Career {
-            progress,
-            offer: _,
-            offers: _,
-            // not hashed/saved here: written by `State`.
-            expertise: _,
-            // not hashed/saved here: written by `State`.
-            stardust: _,
-            // not hashed/saved here: written by `State`.
-            regen: _,
-            // not hashed/saved here: written by `State`.
-            equipment: _,
-        } = self;
-        progress.encode(w);
-    }
-}
-
-impl Decode for Career {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        // The generator and the offers come from `State`'s own places; `decode_fields` sets them.
-        Ok(Career {
-            progress: Decode::decode(r)?,
-            ..Career::default()
-        })
-    }
-}
 
 impl Encode for Held {
     fn encode(&self, w: &mut Writer) {
