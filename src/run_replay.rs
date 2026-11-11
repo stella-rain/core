@@ -6,8 +6,8 @@
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
 //! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-2 point 4,
-//! ADR-REPL-5): `inputs` is the step log (see `step_log`), each pick inside its step, and
-//! `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! ADR-REPL-5): `inputs` is the step log (see `step_log`; a PICKS record is reserved
+//! and refused) and `commands` is empty. A schema 1 file is still read and verified, and its two streams are
 //! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
 //! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
@@ -124,7 +124,7 @@ const RETIRED_SPEND: u8 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     /// Option `index` of the open offer (ADR-REPL-5). Read from schema 1 files; no writer
-    /// writes it into a file (schema 2 holds a pick inside its step).
+    /// writes it into a file (schema 2 reserves the PICKS record).
     Choose,
 }
 
@@ -644,8 +644,8 @@ impl RunReplay {
     }
 
     /// The commands between ticks, in order: at most `MAX_COMMANDS`, of known kinds, none after
-    /// tick `ticks`. A schema 1 replay's `commands` are this list; at schema 2 it is derived
-    /// from the picks of the step log (the solo view).
+    /// tick `ticks`. A schema 1 replay's `commands` are this list; a schema 2 log holds no picks, so
+    /// it is empty or refused (a PICKS record is reserved, an ACTIONS step has no solo view).
     pub fn unpack_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         if self.setup.schema_version >= 2 {
             return self.step_log(u32::MAX)?.solo_commands();
@@ -729,7 +729,7 @@ impl RunReplay {
 
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
     /// and commands are migrated in memory, a schema 2 replay's `inputs` are decoded and its
-    /// `commands` must be empty (a pick is a field of the step it was made on).
+    /// `commands` must be empty (schema 2 has no picks).
     pub(crate) fn step_log(&self, max_ticks: u32) -> Result<StepLog, RunReplayError> {
         if self.setup.schema_version >= 2 {
             if !self.commands.is_empty() {

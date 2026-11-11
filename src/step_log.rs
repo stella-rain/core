@@ -5,24 +5,26 @@
 //! The schema 2 bytes: a `present` byte (bit `i` for player slot `i`, at least one set, bits 3
 //! to 7 zero), then records until the end. `0x00` TICKS: a varint `run` of at least 1, then one
 //! 3-byte block (`flags`, `move_x`, `move_y`) per present slot in slot order, repeated for `run`
-//! world ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: one step that does not
-//! advance the world, one byte per present slot (`0x00` no pick, `0x01` and a varint index), at
-//! least one pick. `0x02 <slot>` JOIN and `0x03 <slot>` LEAVE change the presence mask between
-//! two records (before the first, after the last): the records after one hold a block per slot
+//! world ticks; two TICKS in a row never hold equal blocks. `0x01` PICKS: reserved, refused at
+//! schema 2 (`BadInputs("a PICKS record is reserved at schema 2")`) and never given another
+//! meaning: a run of the live rules opens no offer. `0x02 <slot>` JOIN and `0x03 <slot>` LEAVE
+//! change the presence mask between two records (before the first, after the last): the records after one hold a block per slot
 //! of the mask in force; slot 0 never leaves; at most `MAX_PRESENCE_CHANGES` of them. The runs
-//! sum to `ticks`; at most `MAX_COMMANDS` PICKS records.
+//! sum to `ticks`.
 //!
 //! `0x04` ACTIONS (ADR-REPL-5 point 8): one step that does not advance the world, one entry per
 //! present slot in slot order, at least one not `0x00`. An entry is `0x00` (no action) or a kind
 //! byte and its operands, each a LEB128 varint `u32`: `0x01` Equip (item, slot), `0x02` Replace
 //! (item, slot), `0x03` Extract (item), `0x04` Craft (star), `0x05` TreePick (option). An unknown
-//! kind is refused; at most `MAX_ACTION_STEPS` ACTIONS records, counted apart from PICKS. A log
+//! kind is refused; at most `MAX_ACTION_STEPS` ACTIONS records, counted apart from the schema 1 picks. A log
 //! with one has no solo view. Record bytes `0x05` to `0xFF` are unknown; `0x01` is never given
-//! another meaning (a retired kind keeps its byte reserved).
+//! another meaning (a retired kind keeps its byte reserved). A schema 1 replay's picks are
+//! migrated into `Record::Picks` in memory; `encode` writes them, bytes the scanner refuses (a
+//! frozen version 1 run is not re-recorded at schema 2).
 
 use crate::input::{EquipAction, Input};
 use crate::replay::{block_of, input_of_block, read_varint, write_varint};
-use crate::run_replay::{CommandKind, MAX_ACTION_STEPS, MAX_COMMANDS, RunReplayError, TickCommand};
+use crate::run_replay::{CommandKind, MAX_ACTION_STEPS, RunReplayError, TickCommand};
 
 const TICKS: u8 = 0;
 const PICKS: u8 = 1;
@@ -429,7 +431,11 @@ impl Sink for RangeSink {
             });
         }
     }
+}
 
+impl RangeSink {
+    /// A PICKS step of a log migrated from schema 1, after `at` world ticks (schema 2 bytes
+    /// hold none: the scanner refuses the record).
     fn picks(&mut self, at: u32, picks: &[Option<u32>]) {
         if self.inside(at) {
             self.steps.push(RangeStep::Picks {
@@ -538,8 +544,6 @@ trait Sink {
     fn leave(&mut self, _at: u32, _slot: u8, _mask: u8) {}
     /// `run` world ticks from world tick `start`, with one input per present slot.
     fn ticks(&mut self, start: u32, run: u32, inputs: &[Input]);
-    /// One PICKS step after `at` world ticks.
-    fn picks(&mut self, at: u32, picks: &[Option<u32>]);
     /// One ACTIONS step after `at` world ticks.
     fn actions(&mut self, _at: u32, _actions: &[Option<EquipAction>]) {}
 }
@@ -565,7 +569,6 @@ impl Sink for LastMask {
         self.mask = mask;
     }
     fn ticks(&mut self, _start: u32, _run: u32, _inputs: &[Input]) {}
-    fn picks(&mut self, _at: u32, _picks: &[Option<u32>]) {}
 }
 
 impl Sink for Collect {
@@ -587,12 +590,6 @@ impl Sink for Collect {
         self.records.push(Record::Ticks {
             run,
             inputs: inputs.to_vec(),
-        });
-    }
-
-    fn picks(&mut self, _at: u32, picks: &[Option<u32>]) {
-        self.records.push(Record::Picks {
-            picks: picks.to_vec(),
         });
     }
 }
@@ -628,14 +625,12 @@ fn scan(
     let mut players = StepLog::players(mask);
     let mut pos = 1;
     let mut world = 0u32;
-    let mut picks_seen = 0u32;
     let mut actions_seen = 0u32;
     let mut actions: Vec<Option<EquipAction>> = Vec::with_capacity(players);
     // The inputs of the record before, when it was a TICKS record.
     let mut before: Vec<Input> = Vec::with_capacity(players);
     let mut after_ticks = false;
     let mut inputs: Vec<Input> = Vec::with_capacity(players);
-    let mut picks: Vec<Option<u32>> = Vec::with_capacity(players);
     while pos < bytes.len() {
         let opcode = bytes[pos];
         pos += 1;
@@ -665,29 +660,9 @@ fn scan(
                 std::mem::swap(&mut before, &mut inputs);
                 after_ticks = true;
             }
-            PICKS => {
-                if picks_seen >= MAX_COMMANDS {
-                    return Err(RunReplayError::TooManyCommands {
-                        limit: MAX_COMMANDS,
-                    });
-                }
-                picks.clear();
-                for _ in 0..players {
-                    let marker = *bytes.get(pos).ok_or(cut.clone())?;
-                    pos += 1;
-                    picks.push(match marker {
-                        0 => None,
-                        1 => Some(read_varint(bytes, &mut pos).map_err(bad)?),
-                        _ => return Err(bad("a pick marker is neither 0 nor 1")),
-                    });
-                }
-                if picks.iter().all(Option::is_none) {
-                    return Err(bad("a record has no pick"));
-                }
-                picks_seen += 1;
-                sink.picks(world, &picks);
-                after_ticks = false;
-            }
+            // Reserved: the byte stays assigned and is never given another meaning. A schema 2
+            // run holds no offer (ADR-REPL-5); a frozen run's picks are schema 1 data.
+            PICKS => return Err(bad("a PICKS record is reserved at schema 2")),
             ACTIONS => {
                 if actions_seen >= MAX_ACTION_STEPS {
                     return Err(RunReplayError::TooManyActions {
@@ -748,11 +723,12 @@ fn scan(
 mod tests {
     use super::{RangeStep, Record, StepLog, StepRange, read_step_range};
     use crate::base64;
-    use crate::engine::ChoiceError;
     use crate::input::Input;
-    use crate::run_replay::{
-        MAX_COMMANDS, RunReplay, RunReplayError, RunVerified, verify_run_with,
-    };
+    use crate::run_replay::{RunReplay, RunReplayError, RunVerified, verify_run_with};
+
+    fn reserved() -> RunReplayError {
+        RunReplayError::BadInputs("a PICKS record is reserved at schema 2")
+    }
 
     fn hex(text: &str) -> Vec<u8> {
         text.split_whitespace()
@@ -819,29 +795,6 @@ mod tests {
     }
 
     #[test]
-    fn a_pick_between_two_runs() {
-        let bytes = "01 00 01 02 00 00 01 01 00 00 02 00 00 00";
-        let expected = StepLog {
-            present: 0b1,
-            records: vec![
-                Record::Ticks {
-                    run: 1,
-                    inputs: vec![main_held()],
-                },
-                Record::Picks {
-                    picks: vec![Some(0)],
-                },
-                Record::Ticks {
-                    run: 2,
-                    inputs: vec![Input::default()],
-                },
-            ],
-        };
-        assert_eq!(decode(bytes, 3), Ok(expected.clone()));
-        assert_eq!(expected.encode(), hex(bytes));
-    }
-
-    #[test]
     fn three_players_are_one_block_each_in_slot_order() {
         let bytes = "07 00 01 02 00 7f 00 00 00 00 00 00";
         let expected = StepLog {
@@ -866,7 +819,7 @@ mod tests {
     #[test]
     fn a_party_with_a_gap_has_blocks_for_the_present_slots_only() {
         // Slots 0 and 2; slot 2 holds interact (bit 6) and the stick at -127.
-        let bytes = "05 00 02 00 00 00 40 81 00 01 01 05 00";
+        let bytes = "05 00 02 00 00 00 40 81 00";
         let log = decode(bytes, 2).unwrap();
         assert_eq!(log.present, 0b101);
         let Record::Ticks { inputs, .. } = &log.records[0] else {
@@ -874,23 +827,22 @@ mod tests {
         };
         assert_eq!(inputs.len(), 2);
         assert!(inputs[1].interact && inputs[1].move_x == -127);
-        let Record::Picks { picks } = &log.records[1] else {
-            panic!("picks")
-        };
-        assert_eq!(picks, &[Some(5), None]);
         assert_eq!(log.encode(), hex(bytes));
     }
 
     #[test]
-    fn a_play_may_end_on_a_pick() {
-        assert!(decode("01 00 01 00 00 00 01 01 02", 1).is_ok());
+    fn a_play_may_not_end_on_a_pick() {
+        assert_eq!(
+            bad_inputs("01 00 01 00 00 00 01 01 02", 1),
+            "a PICKS record is reserved at schema 2"
+        );
     }
 
     // --- Refusals --------------------------------------------------------------------------
 
     #[test]
     fn every_refusal_has_its_message() {
-        let cases: [(&str, u32, &str); 15] = [
+        let cases: [(&str, u32, &str); 14] = [
             ("00 00 01 00 00 00", 1, "no player is present"),
             ("09 00 01 00 00 00", 1, "a player slot beyond the party"),
             ("01 00 01 80 00 00", 1, "a run has unknown flags"),
@@ -903,7 +855,6 @@ mod tests {
                 2,
                 "a run repeats the input of the run before",
             ),
-            ("01 01 00", 0, "a record has no pick"),
             ("01 00 05 02 00", 5, "ends in the middle of a record"),
             ("01 00", 0, "ends in the middle of a number"),
             ("01 00 04 00 00 00", 5, "there are fewer inputs than ticks"),
@@ -936,22 +887,6 @@ mod tests {
             Err(RunReplayError::TooManyTicks {
                 ticks: 11,
                 limit: 10
-            })
-        );
-    }
-
-    #[test]
-    fn the_pick_records_are_capped() {
-        let mut bytes = vec![1u8];
-        for _ in 0..MAX_COMMANDS {
-            bytes.extend([1, 1, 0]);
-        }
-        assert!(StepLog::decode(&bytes, 0, 10).is_ok());
-        bytes.extend([1, 1, 0]);
-        assert_eq!(
-            StepLog::decode(&bytes, 0, 10),
-            Err(RunReplayError::TooManyCommands {
-                limit: MAX_COMMANDS
             })
         );
     }
@@ -1101,11 +1036,14 @@ mod tests {
             let log = replay.step_log(u32::MAX).unwrap();
             assert_eq!(log, StepLog::from_schema1(&inputs, &commands), "{name}");
             assert_eq!(log.to_solo(), Ok((inputs, commands.clone())), "{name}");
-            assert_eq!(
-                StepLog::decode(&log.encode(), replay.ticks, u32::MAX),
-                Ok(log),
-                "{name}"
-            );
+            // The bytes of a log that holds picks are refused: PICKS is reserved at schema 2
+            // (`encode` writes them for a migrated log; nothing reads them back).
+            let decoded = StepLog::decode(&log.encode(), replay.ticks, u32::MAX);
+            if commands.is_empty() {
+                assert_eq!(decoded, Ok(log), "{name}");
+            } else {
+                assert_eq!(decoded, Err(reserved()), "{name}");
+            }
             with_picks += usize::from(!commands.is_empty());
         }
         assert!(with_picks >= 2, "the corpus has runs with picks");
@@ -1191,35 +1129,24 @@ mod tests {
     }
 
     #[test]
-    fn a_schema_2_replay_verifies_like_the_schema_1_one() {
-        let mut verified = 0;
+    fn a_schema_2_form_of_a_frozen_run_is_reserved() {
+        // Every frozen run holds picks, so none has a schema 2 form that verifies: PICKS is
+        // reserved at schema 2 and the verifier refuses the file as the decoder does. The runs
+        // themselves verify through their schema 1 form (`corpus::`).
+        let mut refused = 0;
         for (name, bytes) in corpus_runs() {
             let one = RunReplay::from_bytes(&bytes).unwrap();
+            assert!(!one.unpack_commands().unwrap().is_empty(), "{name}");
             let two = schema_2_of(&one);
             assert_eq!(two.setup.schema_version, 2);
-            let content = content_of(&name);
-            let expected = verify_run_with(&bytes, &content);
-            // A case pinned to another pack is checked by the corpus test with its pack.
-            if expected == Err(RunReplayError::ContentChanged) {
-                assert_eq!(
-                    verify_run_with(&two.to_bytes(), &content),
-                    expected,
-                    "{name}"
-                );
-                continue;
-            }
-            assert!(expected.is_ok(), "{name}: {expected:?}");
             assert_eq!(
-                verify_run_with(&two.to_bytes(), &content),
-                expected,
+                verify_run_with(&two.to_bytes(), &content_of(&name)),
+                Err(reserved()),
                 "{name}"
             );
-            verified += 1;
+            refused += 1;
         }
-        assert!(
-            verified >= 5,
-            "{verified} cases verified with the bundled pack"
-        );
+        assert_eq!(refused, 9);
     }
 
     #[test]
@@ -1234,7 +1161,7 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_pick_in_schema_2_reads_like_the_schema_1_one() {
+    fn a_pick_in_schema_2_is_reserved_whatever_it_picks() {
         let one = run_with_picks();
         let mut log = one.step_log(u32::MAX).unwrap();
         let first = log
@@ -1246,15 +1173,14 @@ mod tests {
             })
             .unwrap();
         first[0] = Some(999);
-        let refused = verify_v1(&schema_2_with(&one, &log).to_bytes());
-        let Err(RunReplayError::ChoiceRefused { error, .. }) = refused else {
-            panic!("{refused:?}")
-        };
-        assert!(matches!(error, ChoiceError::OutOfRange { index: 999, .. }));
+        assert_eq!(
+            verify_v1(&schema_2_with(&one, &log).to_bytes()),
+            Err(reserved())
+        );
     }
 
     #[test]
-    fn a_pick_with_no_offer_open_is_refused() {
+    fn a_pick_with_no_offer_open_is_reserved() {
         let one = run_with_picks();
         let mut log = one.step_log(u32::MAX).unwrap();
         log.records.insert(
@@ -1265,10 +1191,7 @@ mod tests {
         );
         assert_eq!(
             verify_v1(&schema_2_with(&one, &log).to_bytes()),
-            Err(RunReplayError::ChoiceRefused {
-                tick: 0,
-                error: ChoiceError::NoOffer
-            })
+            Err(reserved())
         );
     }
 
@@ -1352,32 +1275,19 @@ mod tests {
 
     #[test]
     fn the_commands_of_a_huge_run_are_read_without_expanding_its_inputs() {
-        use crate::run_replay::{CommandKind, TickCommand};
         let mut forged = run_with_picks();
         forged.setup.schema_version = 2;
         forged.ticks = 4_000_000_000;
         forged.commands = String::new();
         let log = StepLog {
             present: 1,
-            records: vec![
-                Record::Ticks {
-                    run: 4_000_000_000,
-                    inputs: vec![Input::default()],
-                },
-                Record::Picks {
-                    picks: vec![Some(3)],
-                },
-            ],
+            records: vec![Record::Ticks {
+                run: 4_000_000_000,
+                inputs: vec![Input::default()],
+            }],
         };
         forged.inputs = base64::encode(&log.encode());
-        assert_eq!(
-            forged.unpack_commands(),
-            Ok(vec![TickCommand {
-                tick: 4_000_000_000,
-                kind: CommandKind::Choose,
-                index: 3
-            }])
-        );
+        assert_eq!(forged.unpack_commands(), Ok(Vec::new()));
     }
 
     #[test]
@@ -1512,57 +1422,99 @@ mod tests {
         for at in [0, 3, 5] {
             assert_eq!(steps(log, 5, at, at), []);
         }
-        // Even trailing picks are not in an empty range, and the log is still validated.
-        let trailing = "01 00 02 02 00 00 01 01 07";
-        assert_eq!(steps(trailing, 2, 2, 2), []);
+        // Even trailing picks are not in an empty range (a log migrated from schema 1).
+        let trailing = mem(vec![ticks(2, main_held()), picks(&[7])]);
+        assert_eq!(mem_steps(&trailing, 2, 2, 2), []);
+        // And the log is still validated.
         assert_eq!(
             range("01 00 05 02 00", 5, 0, 0),
             Err(RunReplayError::BadInputs("ends in the middle of a record"))
         );
     }
 
+    // The in-memory model of a log migrated from schema 1 still holds PICKS records, and
+    // `StepLog::range` cuts them by the rule of the range reader; schema 2 bytes hold none.
+
+    fn mem(records: Vec<Record>) -> StepLog {
+        StepLog {
+            present: 1,
+            records,
+        }
+    }
+
+    fn ticks(run: u32, input: Input) -> Record {
+        Record::Ticks {
+            run,
+            inputs: vec![input],
+        }
+    }
+
+    fn picks(indexes: &[u32]) -> Record {
+        Record::Picks {
+            picks: indexes.iter().map(|i| Some(*i)).collect(),
+        }
+    }
+
+    fn mem_steps(log: &StepLog, _ticks: u32, a: u32, b: u32) -> Vec<RangeStep> {
+        log.range(a, b).unwrap().steps
+    }
+
     #[test]
     fn a_pick_comes_with_the_tick_after_it() {
         // Tick 0 held, a pick of index 0 after it (position 1), then two idle ticks.
-        let log = "01 00 01 02 00 00 01 01 00 00 02 00 00 00";
-        assert_eq!(steps(log, 3, 0, 1), [run_of(1, main_held())]);
-        assert_eq!(steps(log, 3, 1, 3), [pick_of(0), run_of(2, idle())]);
+        let log = mem(vec![ticks(1, main_held()), picks(&[0]), ticks(2, idle())]);
+        assert_eq!(mem_steps(&log, 3, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(mem_steps(&log, 3, 1, 3), [pick_of(0), run_of(2, idle())]);
         assert_eq!(
-            steps(log, 3, 0, 3),
+            mem_steps(&log, 3, 0, 3),
             [run_of(1, main_held()), pick_of(0), run_of(2, idle())]
         );
-        assert_eq!(steps(log, 3, 1, 2), [pick_of(0), run_of(1, idle())]);
+        assert_eq!(mem_steps(&log, 3, 1, 2), [pick_of(0), run_of(1, idle())]);
         assert_eq!(
-            steps(log, 3, 0, 2),
+            mem_steps(&log, 3, 0, 2),
             [run_of(1, main_held()), pick_of(0), run_of(1, idle())]
         );
-        assert_eq!(steps(log, 3, 2, 3), [run_of(1, idle())]);
+        assert_eq!(mem_steps(&log, 3, 2, 3), [run_of(1, idle())]);
     }
 
     #[test]
     fn a_pick_before_the_first_tick_is_in_a_range_that_starts_at_0() {
-        let log = "01 01 01 00 00 05 02 00 00";
-        assert_eq!(steps(log, 5, 0, 2), [pick_of(0), run_of(2, main_held())]);
-        assert_eq!(steps(log, 5, 1, 2), [run_of(1, main_held())]);
-        assert_eq!(steps(log, 5, 0, 0), []);
+        let log = mem(vec![picks(&[0]), ticks(5, main_held())]);
+        assert_eq!(
+            mem_steps(&log, 5, 0, 2),
+            [pick_of(0), run_of(2, main_held())]
+        );
+        assert_eq!(mem_steps(&log, 5, 1, 2), [run_of(1, main_held())]);
+        assert_eq!(mem_steps(&log, 5, 0, 0), []);
     }
 
     #[test]
     fn the_picks_after_the_last_tick_belong_to_a_range_ending_there() {
-        let log = "01 00 02 02 00 00 01 01 07";
-        assert_eq!(steps(log, 2, 0, 2), [run_of(2, main_held()), pick_of(7)]);
-        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
-        assert_eq!(steps(log, 2, 1, 2), [run_of(1, main_held()), pick_of(7)]);
+        let log = mem(vec![ticks(2, main_held()), picks(&[7])]);
+        assert_eq!(
+            mem_steps(&log, 2, 0, 2),
+            [run_of(2, main_held()), pick_of(7)]
+        );
+        assert_eq!(mem_steps(&log, 2, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(
+            mem_steps(&log, 2, 1, 2),
+            [run_of(1, main_held()), pick_of(7)]
+        );
     }
 
     #[test]
     fn several_picks_at_one_position_keep_their_order() {
-        let log = "01 00 01 02 00 00 01 01 03 01 01 04 00 01 00 00 00";
+        let log = mem(vec![
+            ticks(1, main_held()),
+            picks(&[3]),
+            picks(&[4]),
+            ticks(1, idle()),
+        ]);
         assert_eq!(
-            steps(log, 2, 1, 2),
+            mem_steps(&log, 2, 1, 2),
             [pick_of(3), pick_of(4), run_of(1, idle())]
         );
-        assert_eq!(steps(log, 2, 0, 1), [run_of(1, main_held())]);
+        assert_eq!(mem_steps(&log, 2, 0, 1), [run_of(1, main_held())]);
     }
 
     #[test]
@@ -1600,7 +1552,7 @@ mod tests {
 
     #[test]
     fn the_range_reader_refuses_what_the_decoder_refuses() {
-        let cases: [(&str, u32); 15] = [
+        let cases: [(&str, u32); 14] = [
             ("00 00 01 00 00 00", 1),
             ("09 00 01 00 00 00", 1),
             ("01 00 01 80 00 00", 1),
@@ -1609,7 +1561,6 @@ mod tests {
             ("01 03 00", 0),
             ("01 00 00 00 00 00", 0),
             ("01 00 01 00 00 00 00 01 00 00 00", 2),
-            ("01 01 00", 0),
             ("01 00 05 02 00", 5),
             ("01 00", 0),
             ("01 00 04 00 00 00", 5),
@@ -1626,14 +1577,11 @@ mod tests {
         let damaged = "01 00 02 02 00 00 00 03 00 00 00 07";
         let want = StepLog::decode(&hex(damaged), 5, MAX).unwrap_err();
         assert_eq!(range(damaged, 5, 0, 1).unwrap_err(), want);
-        // The 1001st PICKS is refused after the range ends.
-        let mut many = String::from("01");
-        for _ in 0..=MAX_COMMANDS {
-            many.push_str(" 01 01 00");
-        }
-        let want = StepLog::decode(&hex(&many), 0, MAX).unwrap_err();
-        assert!(matches!(want, RunReplayError::TooManyCommands { .. }));
-        assert_eq!(range(&many, 0, 0, 0).unwrap_err(), want);
+        // A PICKS record after the range ends is refused too: reserved at schema 2.
+        let late = "01 00 02 02 00 00 01 01 00";
+        assert_eq!(StepLog::decode(&hex(late), 2, MAX).unwrap_err(), reserved());
+        assert_eq!(range(late, 2, 0, 1).unwrap_err(), reserved());
+        assert_eq!(range(late, 2, 0, 0).unwrap_err(), reserved());
     }
 
     #[test]
@@ -2005,8 +1953,8 @@ mod tests {
 
     #[test]
     fn the_record_bytes_are_assigned_once() {
-        let pick = decode("01 01 01 00 00 01 00 00 00", 1);
-        assert!(pick.is_ok());
+        // 0x01 stays assigned to PICKS, reserved: it is refused as that, never as unknown.
+        assert_eq!(decode("01 01 01 00 00 01 00 00 00", 1), Err(reserved()));
         for byte in 5..=255u8 {
             let bytes = [1, byte];
             assert_eq!(
@@ -2074,11 +2022,8 @@ mod tests {
         assert_eq!(solo_actions_log().to_solo(), Err(why));
     }
 
-    fn actions_log(actions: u32, picks: u32) -> Vec<u8> {
+    fn actions_log(actions: u32) -> Vec<u8> {
         let mut bytes = vec![1];
-        for _ in 0..picks {
-            bytes.extend([1, 1, 0]);
-        }
         for _ in 0..actions {
             bytes.extend([4, 3, 0]);
         }
@@ -2086,22 +2031,15 @@ mod tests {
     }
 
     #[test]
-    fn the_action_steps_are_capped_apart_from_the_picks() {
+    fn the_action_steps_are_capped() {
         let max = crate::run_replay::MAX_ACTION_STEPS;
         assert_eq!(max, 4096);
-        assert!(StepLog::decode(&actions_log(max, 0), 0, 0).is_ok());
+        assert!(StepLog::decode(&actions_log(max), 0, 0).is_ok());
         assert_eq!(
-            StepLog::decode(&actions_log(max + 1, 0), 0, 0),
+            StepLog::decode(&actions_log(max + 1), 0, 0),
             Err(RunReplayError::TooManyActions { limit: max })
         );
-        assert!(StepLog::decode(&actions_log(max, MAX_COMMANDS), 0, 0).is_ok());
-        assert_eq!(
-            StepLog::decode(&actions_log(0, MAX_COMMANDS + 1), 0, 0),
-            Err(RunReplayError::TooManyCommands {
-                limit: MAX_COMMANDS
-            })
-        );
-        let log = StepLog::decode(&actions_log(3, 2), 0, 0).unwrap();
+        let log = StepLog::decode(&actions_log(3), 0, 0).unwrap();
         assert_eq!(log.actions_made(), 3);
     }
 }
