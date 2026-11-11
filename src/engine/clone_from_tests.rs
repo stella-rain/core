@@ -183,6 +183,7 @@ fn every_heap_owning_type_names_each_field_in_its_copy() {
         include_str!("../sim/state.rs"),
         include_str!("../sim/state/status.rs"),
         include_str!("../sim/state/orbs_zones.rs"),
+        include_str!("../sim/state/attack_run.rs"),
     ]
     .concat();
     let state = state.as_str();
