@@ -1095,7 +1095,10 @@ impl RunRecorder {
             let (inputs, commands) = log.to_solo().expect("a version 1 run is solo");
             (pack_inputs(&inputs), pack_commands(&commands))
         } else {
-            (base64::encode(&log.encode()), String::new())
+            (
+                base64::encode(&log.encode().expect("a schema 2 log holds no picks")),
+                String::new(),
+            )
         }
     }
 
@@ -1957,7 +1960,8 @@ mod tests {
                 present: 0b1,
                 records: rec.records.clone(),
             }
-            .encode(),
+            .encode()
+            .unwrap(),
         );
         replay.commands = String::new();
         let refused = RunReplayError::ActionRefused {
