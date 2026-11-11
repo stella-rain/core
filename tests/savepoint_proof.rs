@@ -785,9 +785,6 @@ fn digest(bytes: &[u8]) -> String {
 
 #[test]
 fn a_version_1_savepoint_carries_the_prefix_schema() {
-    use crate::common::run::trial_setup;
-    use crate::run_play::play_run;
-    use stella_rain_core::run_replay::Command;
     // A version 1 recorder at a cut of the frozen `trial`.
     let (file, _, pack) = frozen_file("trial");
     let steps = RunSteps::of(&file);
@@ -799,8 +796,19 @@ fn a_version_1_savepoint_carries_the_prefix_schema() {
     let bytes = rec.save();
     assert_eq!(bytes[12..16], 1u32.to_le_bytes());
     assert!(RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).is_ok());
-    // A version 2 recorder's savepoint is what it was before: the digest is that of main's
-    // code at the same bundled pack (it moves with a pack bless, not with this header change).
+    // A version 2 recorder's savepoint is what it was before: its digest is read from
+    // `tests/pack_pins.toml`, which `cargo xtask bless` writes (it moves with a pack bless).
+    assert_eq!(
+        live_v2_digest(),
+        crate::pack_pins::blessed("savepoint_v2_trial_300")
+    );
+}
+
+/// The SHA-256 of the version 2 savepoint of the bundled trial run at tick 300.
+pub(crate) fn live_v2_digest() -> String {
+    use crate::common::run::trial_setup;
+    use crate::run_play::play_run;
+    use stella_rain_core::run_replay::Command;
     let mut live = RunRecorder::start_with_pack(&trial_setup(), Pack::bundled()).unwrap();
     for c in play_run(300) {
         if let Command::Step(i) = c {
@@ -810,10 +818,7 @@ fn a_version_1_savepoint_carries_the_prefix_schema() {
     }
     let saved = live.save();
     assert_eq!(saved[12..16], 2u32.to_le_bytes());
-    assert_eq!(
-        digest(&saved),
-        "0b8b091bbff0e1ca771708fb4dfcfdbd0abe92f9237037ae9a57922ae9b751a1"
-    );
+    digest(&saved)
 }
 
 #[test]
