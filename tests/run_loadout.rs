@@ -6,6 +6,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
+use stella_rain_core::pack::Pack;
 use stella_rain_core::perk_sets::PerkSets;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
@@ -32,8 +33,31 @@ fn paths(error: Error) -> Vec<String> {
     issues(error).into_iter().map(|i| i.path).collect()
 }
 
+/// The version 1 pack with the `plain` perk set and the design run stats: what `plain_content`
+/// is to the live rules, for the setups that start the frozen ones.
+fn v1_plain_pack() -> &'static Pack {
+    static PACK: std::sync::OnceLock<Pack> = std::sync::OnceLock::new();
+    PACK.get_or_init(|| {
+        crate::frozen_v1::pack_edited(|v| {
+            v["perk_sets"]["perk_sets"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({ "id": "plain", "effects": [] }));
+            v["introduced"]["perk_sets"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({ "id": "plain", "sim_version": 1 }));
+            v["run_stats"]["enemy_attack_damage"] = json!(100);
+        })
+    })
+}
+
 fn start(setup: &RunSetup) -> Result<Engine, Error> {
-    Engine::start_with(setup, &plain_content())
+    if setup.sim_version == 1 {
+        Engine::start_with(setup, v1_plain_pack().content())
+    } else {
+        Engine::start_with(setup, &plain_content())
+    }
 }
 
 fn carry(ids: &[&str]) -> Vec<CarriedStar> {
@@ -196,12 +220,9 @@ fn the_costs_run_from_one_to_ten_by_rarity() {
     assert_eq!(costs, [1, 2, 3, 4, 6, 10]);
 }
 
-/// The bundled content with `rare` costing 5 Lumine instead of 3.
-fn dearer_rare_content() -> RunContent {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
-    file["rarities"][2]["lumine_cost"] = json!(5);
-    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
-    RunContent::new(RunContent::bundled().run_stats().clone(), rewards)
+/// The version 1 content with `rare` costing 5 Lumine instead of 3.
+fn dearer_rare_pack() -> Pack {
+    crate::frozen_v1::pack_edited(|v| v["rewards"]["rarities"][2]["lumine_cost"] = json!(5))
 }
 
 #[test]
@@ -212,13 +233,13 @@ fn a_run_is_priced_from_its_own_content() {
         lumine,
         ..trial_setup()
     };
-    let dearer = dearer_rare_content();
+    let dearer = dearer_rare_pack();
     assert_eq!(
-        paths(Engine::start_with(&carrying(3), &dearer).unwrap_err()),
+        paths(Engine::start_with(&carrying(3), dearer.content()).unwrap_err()),
         ["$.carried"]
     );
-    assert!(Engine::start_with(&carrying(5), &dearer).is_ok());
-    assert!(Engine::start_with(&carrying(3), RunContent::bundled()).is_ok());
+    assert!(Engine::start_with(&carrying(5), dearer.content()).is_ok());
+    assert!(Engine::start_with(&carrying(3), crate::frozen_v1::pack().content()).is_ok());
 }
 
 // --- Against the content -------------------------------------------------------------------
@@ -278,25 +299,26 @@ fn carried_stars_are_rewards_of_the_file_and_of_the_pool_within_the_budget() {
 
 #[test]
 fn a_reward_is_carried_no_more_times_than_it_stacks() {
-    let rewards = Rewards::parse(
-        json!({ "rarities": common::rarities(), "rewards": [{
+    let pack = crate::frozen_v1::pack_edited(|v| {
+        v["rewards"] = json!({ "rarities": common::rarities(), "rewards": [{
             "id": "once", "rarity": "common", "effect": "max_hp", "amount": 100, "limit": 2
-        }]})
-        .to_string()
-        .as_bytes(),
-        Versions::CURRENT,
-    )
-    .unwrap();
-    let content = RunContent::new(common::design_run_stats(), rewards);
+        }]});
+        v["run_stats"]["enemy_attack_damage"] = json!(100);
+        // The constellations name the bundled rewards; this file has one of its own.
+        v.as_object_mut().unwrap().remove("constellations");
+        v["introduced"]["rewards"] = json!([{ "id": "once", "sim_version": 1 }]);
+        v["introduced"]["constellations"] = json!([]);
+    });
+    let content = pack.content();
     let setup = |n: usize| RunSetup {
         sim_version: 1,
         carried: carry(&vec!["once"; n]),
         lumine: 5,
         ..trial_setup()
     };
-    assert!(Engine::start_with(&setup(2), &content).is_ok());
+    assert!(Engine::start_with(&setup(2), content).is_ok());
     assert_eq!(
-        paths(Engine::start_with(&setup(3), &content).unwrap_err()),
+        paths(Engine::start_with(&setup(3), content).unwrap_err()),
         ["$.carried[2].reward"]
     );
 }
@@ -525,11 +547,16 @@ fn a_setup_with_all_of_it_runs_deterministically() {
         difficulty: "normal".into(),
         ..trial_setup()
     };
-    let run = || hashes(Engine::start(&setup).unwrap(), 400, script);
+    let v1 = crate::frozen_v1::pack().content();
+    let run = || hashes(Engine::start_with(&setup, v1).unwrap(), 400, script);
     assert_eq!(run(), run());
+    let bare = RunSetup {
+        sim_version: 1,
+        ..trial_setup()
+    };
     assert_ne!(
         run(),
-        hashes(Engine::start(&trial_setup()).unwrap(), 400, script)
+        hashes(Engine::start_with(&bare, v1).unwrap(), 400, script)
     );
 }
 
@@ -540,7 +567,13 @@ fn every_seed_setup_of_the_fuzz_targets_starts_a_run() {
     for entry in std::fs::read_dir(dir).unwrap() {
         let bytes = std::fs::read(entry.unwrap().path()).unwrap();
         let setup = run_setup::parse_and_validate(&bytes).unwrap();
-        assert!(Engine::start(&setup).is_ok());
+        // A seed that names version 1 starts from the frozen pack; the rest from the bundled files.
+        let started = if setup.sim_version == 1 {
+            Engine::start_with(&setup, crate::frozen_v1::pack().content())
+        } else {
+            Engine::start(&setup)
+        };
+        assert!(started.is_ok());
         count += 1;
     }
     assert!(count >= 3, "the seeds include the one with every field");

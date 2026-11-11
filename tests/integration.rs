@@ -72,6 +72,7 @@ mod expertise;
 mod expertise_gauge;
 mod explosion;
 mod extremes;
+mod frozen_v1;
 mod gameplay_observables;
 mod golden;
 mod hash;

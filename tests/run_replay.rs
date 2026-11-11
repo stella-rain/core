@@ -495,10 +495,13 @@ fn the_fuzz_regression_of_a_split_input_run_is_refused() {
     let mut replay = RunReplay::from_bytes(bytes).expect("it is a run replay");
     // Recorded under the content of its day: it is checked against today's, so that the refusal
     // under test is the one that comes after the content check (the pack gained `rules`, DIR1).
-    replay.content_sha256 = to_hex(&stella_rain_core::run_replay::content_sha256("trial").unwrap());
+    // The recording is a version 1 run: today's is the version 1 pack's.
+    let v1 = crate::frozen_v1::pack().content();
+    replay.content_sha256 =
+        to_hex(&stella_rain_core::run_replay::content_sha256_with("trial", v1).unwrap());
     let bytes = replay.to_bytes();
     assert_eq!(
-        verify_run(&bytes),
+        stella_rain_core::run_replay::verify_run_with(&bytes, v1),
         Err(RunReplayError::BadInputs(
             "a run repeats the input of the run before"
         ))

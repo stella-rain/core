@@ -1062,7 +1062,7 @@ mod builds {
             seed: 1,
             ..trial_setup()
         };
-        let e = Engine::start(&setup).unwrap();
+        let e = Engine::start_with(&setup, crate::frozen_v1::pack().content()).unwrap();
         assert!(e.snapshot().players[0].slots.is_empty());
         for t in 0..600 {
             for s in 0..1 {

@@ -34,6 +34,14 @@ fn setup() -> RunSetup {
     }
 }
 
+/// The setup of the live rules (`sim_version` 2), which the bundled modes run.
+fn live_setup() -> RunSetup {
+    RunSetup {
+        sim_version: SIM_VERSION,
+        ..setup()
+    }
+}
+
 fn bytes(setup: &RunSetup) -> Vec<u8> {
     serde_json::to_vec(setup).unwrap()
 }
@@ -81,8 +89,9 @@ fn a_setup_file_reads_back_as_the_setup() {
 
 #[test]
 fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
-    let mut by_hand =
-        validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    // A version 1 setup builds from the version 1 pack's trial stage, not the bundled one.
+    let v1 = crate::frozen_v1::pack().content();
+    let mut by_hand = v1.trial().clone();
     by_hand.player.weapon = WeaponRef::Preset {
         id: "giant_sword".into(),
         tree: None,
@@ -90,19 +99,28 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     by_hand.seed = 20_261_010;
     // A stage run alone loads no equipment rules (sim_version 2) while a run with a setup does,
     // so the two no longer show the same views: the stage is what the setup builds.
-    assert_eq!(run_setup::stage(&setup()), Ok(by_hand));
+    assert_eq!(run_setup::stage_in(&setup(), v1), Ok(by_hand));
 }
 
 #[test]
 fn the_same_setup_always_runs_the_same() {
-    let a = hashes(Engine::start(&setup()).unwrap(), 600);
-    let b = hashes(Engine::start(&setup()).unwrap(), 600);
+    let a = hashes(Engine::start(&live_setup()).unwrap(), 600);
+    let b = hashes(Engine::start(&live_setup()).unwrap(), 600);
     assert_eq!(a, b);
 }
 
 #[test]
 fn the_setup_s_seed_seeds_the_run_all_64_bits_of_it() {
-    let run = |seed: u64| hashes(Engine::start(&RunSetup { seed, ..setup() }).unwrap(), 60);
+    let run = |seed: u64| {
+        hashes(
+            Engine::start(&RunSetup {
+                seed,
+                ..live_setup()
+            })
+            .unwrap(),
+            60,
+        )
+    };
     assert_ne!(run(1), run(2), "another seed, another run");
     assert_ne!(run(7), run((1 << 32) | 7), "the high 32 bits count");
 }
@@ -113,7 +131,7 @@ fn the_setup_s_weapons_arm_the_run() {
         hashes(
             Engine::start(&RunSetup {
                 weapon: weapon.into(),
-                ..setup()
+                ..live_setup()
             })
             .unwrap(),
             300,
@@ -423,7 +441,7 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
     // A spawn looks its kind up in the table and stops if it is missing (core#271), so a run
     // through the heaviest modes, bosses included, proves the table holds every kind they bring.
     for mode in ["trial", "time_limit"] {
-        let mut s = setup();
+        let mut s = live_setup();
         s.mode = mode.into();
         let mut e = Engine::start(&s).unwrap();
         assert!(!e.kinds().is_empty(), "{mode}");

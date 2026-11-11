@@ -38,8 +38,17 @@ fn apply(rec: &mut RunRecorder, commands: &[Command]) {
     }
 }
 
+/// The pack a setup plays on: version 1 plays the pack it was released with.
+fn pack_of(setup: &RunSetup) -> &'static Pack {
+    if setup.sim_version == 1 {
+        crate::frozen_v1::pack()
+    } else {
+        Pack::bundled()
+    }
+}
+
 fn recorded(setup: &RunSetup, ticks: u32) -> RunRecorder {
-    let mut rec = RunRecorder::start_with_pack(setup, Pack::bundled()).unwrap();
+    let mut rec = RunRecorder::start_with_pack(setup, pack_of(setup)).unwrap();
     apply(&mut rec, &play_run_from(setup, ticks));
     rec
 }
@@ -54,7 +63,7 @@ fn round_trip(setup: &RunSetup, version: u32) {
         version
     );
     let mut back =
-        RunRecorder::resume_from_savepoint(&bytes, &rec.replay(), Pack::bundled()).unwrap();
+        RunRecorder::resume_from_savepoint(&bytes, &rec.replay(), pack_of(setup)).unwrap();
     assert_eq!(back.replay().final_hash, rec.replay().final_hash);
     let more = play_run_from(setup, 180);
     for rec in [&mut rec, &mut back] {
