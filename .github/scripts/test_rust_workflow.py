@@ -380,9 +380,9 @@ class PushGating(unittest.TestCase):
             self.assertIn(f, err)
 
     def test_the_tune_guard_error_names_the_two_pins(self):
-        self.assertIn("tests/pack_pins.toml", self.text.split("outside")[1].split("\n")[0])
-        self.assertIn("fuzz/regressions/replay_load/equipment-action.replay",
-                      self.text.split("outside")[1].split("\n")[0])
+        error = next(l for l in self.text.splitlines() if "Error: tune/ PR touches files outside" in l)
+        self.assertIn("tests/pack_pins.toml", error)
+        self.assertIn("fuzz/regressions/replay_load/equipment-action.replay", error)
 
     def test_checks_expects_bless_on_a_tune_pr(self):
         self.assertNotEqual(self.checks("pull_request", {"bless": "skipped"}, tune="true"), 0)

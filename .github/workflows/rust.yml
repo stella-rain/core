@@ -118,9 +118,9 @@ jobs:
             tune/*) tune=true ;;
           esac
           if [ "$tune" = true ]; then
-            outside=$(grep -Ev '^content/|^modes/|^tests/corpus/|^tests/golden/|^tests/bench_pins\.toml$|\.md$' <<<"$all" || true)
+            outside=$(grep -Ev '^content/|^modes/|^tests/corpus/|^tests/golden/|^tests/bench_pins\.toml$|^tests/pack_pins\.toml$|^fuzz/regressions/replay_load/equipment-action\.replay$|\.md$' <<<"$all" || true)
             if [ -n "$outside" ]; then
-              echo "Error: tune/ PR touches files outside content/, modes/, tests/corpus/, tests/golden/, tests/bench_pins.toml:" >&2
+              echo "Error: tune/ PR touches files outside content/, modes/, tests/corpus/, tests/golden/, tests/bench_pins.toml, tests/pack_pins.toml, fuzz/regressions/replay_load/equipment-action.replay:" >&2
               echo "$outside" >&2
               exit 1
             fi
