@@ -24,6 +24,7 @@ use stella_rain_core::run_setup::{self, MAX_SETUP_BYTES};
 use stella_rain_core::run_stats::{MAX_RUN_STATS_BYTES, RunStats};
 use stella_rain_core::runes::{MAX_RUNES_BYTES, Runes};
 use stella_rain_core::stage_skill::{MAX_STAGE_SKILLS_BYTES, StageSkills};
+use stella_rain_core::star_chart::{MAX_STAR_CHART_BYTES, StarChart};
 use stella_rain_core::stardust::{MAX_STARDUST_BYTES, Stardust};
 use stella_rain_core::starting_unlocks::{MAX_STARTING_UNLOCKS_BYTES, StartingUnlocks};
 use stella_rain_core::time_limit::{MAX_TIME_LIMIT_BYTES, TimeLimit};
@@ -361,6 +362,23 @@ fn every_versioned_file_refuses_another_game_the_same_way() {
         &file("time_limit"),
         MAX_TIME_LIMIT_BYTES,
         |b, v| TimeLimit::parse(b, v).map(|_| ()),
+    );
+    refuses_content(
+        "star_chart",
+        &file("star_chart"),
+        MAX_STAR_CHART_BYTES,
+        |b, v| {
+            StarChart::parse_with(
+                b,
+                v,
+                content.run_stats(),
+                content.perk_sets(),
+                content.stage_skills(),
+                content.weapons(),
+                content.starting_unlocks(),
+            )
+            .map(|_| ())
+        },
     );
     refuses_content(
         "starting_unlocks",

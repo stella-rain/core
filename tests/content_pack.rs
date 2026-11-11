@@ -68,6 +68,7 @@ fn verify_prints_the_hash_and_sim_version_of_a_valid_pack() {
          starting_unlocks: 1 weapons, 1 perk_sets, 1 stage_skills, 3 runes\n\
          constellations: 4 sets\n\
          stardust: 2 modes\n\
+         star_chart: 1 weapons, 3 perk_sets, 4 stage_skills, 5 stats\n\
          rules: crowd_target 200, cap_headroom_pct 30\n"
     );
     let file = Scratch::new("valid.json", &bytes);
@@ -147,6 +148,7 @@ fn verify_says_when_a_pack_lists_no_starting_unlocks() {
     assert!(
         text(&out.stdout).ends_with(
             "starting_unlocks: none\nconstellations: 4 sets\nstardust: 2 modes\n\
+                 star_chart: 1 weapons, 3 perk_sets, 4 stage_skills, 5 stats\n\
                  rules: crowd_target 200, cap_headroom_pct 30\n"
         ),
         "{}",
@@ -434,4 +436,17 @@ fn unpack_then_export_of_the_same_dir_round_trips() {
 fn help_names_export_with_a_dir() {
     let out = run(&["--help"], b"");
     assert!(text(&out.stdout).contains("content-pack export [DIR]"));
+}
+
+#[test]
+fn verify_says_when_a_pack_has_no_star_chart() {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v.as_object_mut().unwrap().remove("star_chart");
+    let out = run(&["verify", "-"], &serde_json::to_vec(&v).unwrap());
+    assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
+    assert!(
+        text(&out.stdout).contains("stardust: 2 modes\nstar_chart: none\nrules:"),
+        "{}",
+        text(&out.stdout)
+    );
 }

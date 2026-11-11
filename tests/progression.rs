@@ -9,8 +9,8 @@ use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::ContentId;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::progression::{
-    Bank, RunOutcome, RunResult, Settlement, StartingSave, Unlock, UnlockKind, open_difficulties,
-    settle, starting_unlocks,
+    Bank, PriceError, RunOutcome, RunResult, Settlement, StarChartItem, StartingSave, Unlock,
+    UnlockKind, open_difficulties, settle, star_chart_price, starting_unlocks,
 };
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
@@ -477,5 +477,145 @@ proptest! {
         );
         prop_assert_eq!(clear.paid_tenths, e);
         prop_assert!(clear.bank_paid_tenths <= cap);
+    }
+}
+
+// The Star Chart price lookup (ADR-SAVE-17): the figures are read from the bundled file's own
+// JSON, so a price change in content changes no test.
+
+fn chart_file() -> Value {
+    serde_json::from_slice(stella_rain_core::pack::ContentFiles::bundled_file(
+        "star_chart",
+    ))
+    .unwrap()
+}
+
+fn listed_price(list: &str, id: &str) -> u32 {
+    let f = chart_file();
+    let entry = f[list]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == id)
+        .unwrap();
+    entry["price"].as_u64().unwrap() as u32
+}
+
+fn level_price(list: &Value, level: usize) -> u32 {
+    list[level - 1].as_u64().unwrap() as u32
+}
+
+#[test]
+fn a_listed_item_is_priced_from_the_catalogue() {
+    let c = RunContent::bundled();
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::Weapon("giant_hammer")),
+        Ok(listed_price("weapons", "giant_hammer"))
+    );
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::PerkSet("vanguard")),
+        Ok(listed_price("perk_sets", "vanguard"))
+    );
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::StageSkill("hex")),
+        Ok(listed_price("stage_skills", "hex"))
+    );
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::StartingRune),
+        Ok(chart_file()["starting_rune"].as_u64().unwrap() as u32)
+    );
+}
+
+#[test]
+fn a_free_or_unknown_item_is_not_for_sale() {
+    let c = RunContent::bundled();
+    for item in [
+        StarChartItem::Weapon("giant_sword"),
+        StarChartItem::Weapon("nope"),
+        StarChartItem::PerkSet("duelist"),
+        StarChartItem::StageSkill("nova"),
+        StarChartItem::Stat {
+            id: "nope",
+            level: 1,
+        },
+    ] {
+        assert_eq!(
+            star_chart_price(c, &item),
+            Err(PriceError::NotForSale),
+            "{item:?}"
+        );
+    }
+}
+
+#[test]
+fn a_level_is_priced_by_its_place_in_the_list() {
+    let c = RunContent::bundled();
+    let f = chart_file();
+    let attack = f["stats"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == "attack")
+        .unwrap()["prices"]
+        .clone();
+    let n = attack.as_array().unwrap().len() as u8;
+    for level in 1..=n {
+        assert_eq!(
+            star_chart_price(
+                c,
+                &StarChartItem::Stat {
+                    id: "attack",
+                    level
+                }
+            ),
+            Ok(level_price(&attack, usize::from(level)))
+        );
+    }
+    for level in [0, n + 1] {
+        assert_eq!(
+            star_chart_price(
+                c,
+                &StarChartItem::Stat {
+                    id: "attack",
+                    level
+                }
+            ),
+            Err(PriceError::NoSuchLevel)
+        );
+    }
+    let expertise = &f["expertise_multiplier"];
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::ExpertiseMultiplier { level: 2 }),
+        Ok(level_price(expertise, 2))
+    );
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::ExpertiseMultiplier { level: 0 }),
+        Err(PriceError::NoSuchLevel)
+    );
+    let lumine = &f["lumine_levels"];
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::Lumine { level: 10 }),
+        Ok(level_price(lumine, 10))
+    );
+    assert_eq!(
+        star_chart_price(c, &StarChartItem::Lumine { level: 11 }),
+        Err(PriceError::NoSuchLevel)
+    );
+}
+
+#[test]
+fn a_pack_without_a_catalogue_prices_nothing() {
+    let pack = pack_with(|v| {
+        v.as_object_mut().unwrap().remove("star_chart");
+    });
+    for item in [
+        StarChartItem::Weapon("giant_hammer"),
+        StarChartItem::StartingRune,
+        StarChartItem::Lumine { level: 1 },
+    ] {
+        assert_eq!(
+            star_chart_price(pack.content(), &item),
+            Err(PriceError::NoCatalogue)
+        );
     }
 }

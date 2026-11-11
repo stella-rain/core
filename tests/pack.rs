@@ -16,6 +16,7 @@ use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{self, RunReplay};
 use stella_rain_core::run_setup;
+use stella_rain_core::star_chart;
 use stella_rain_core::stardust::Stardust;
 use stella_rain_core::validate::{self, Error};
 
@@ -140,6 +141,7 @@ fn the_exported_pack_has_its_fields_in_order() {
         "\"starting_unlocks\": {",
         "\"constellations\": {",
         "\"stardust\": {",
+        "\"star_chart\": {",
         "\"modes\"",
     ];
     let at: Vec<usize> = keys.iter().map(|k| text.find(k).unwrap()).collect();
@@ -264,7 +266,7 @@ fn an_unknown_pack_version_is_refused() {
 /// the file itself is read (the extra entries are copies, which the file would refuse too).
 #[test]
 fn each_count_budget_is_enforced() {
-    let lists: [(&str, usize); 27] = [
+    let lists: [(&str, usize); 32] = [
         ("/run_stats/stats", pack::MAX_RUN_STATS),
         ("/rewards/rewards", pack::MAX_REWARDS),
         ("/rewards/rarities", rewards::MAX_RARITIES),
@@ -280,6 +282,11 @@ fn each_count_budget_is_enforced() {
         ("/starting_unlocks/perk_sets", pack::MAX_STARTING_UNLOCKS),
         ("/starting_unlocks/stage_skills", pack::MAX_STARTING_UNLOCKS),
         ("/starting_unlocks/runes", pack::MAX_STARTING_UNLOCKS),
+        ("/star_chart/weapons", star_chart::MAX_ITEMS),
+        ("/star_chart/perk_sets", star_chart::MAX_ITEMS),
+        ("/star_chart/stage_skills", star_chart::MAX_ITEMS),
+        ("/star_chart/stats", star_chart::MAX_ITEMS),
+        ("/star_chart/stats/0/prices", star_chart::MAX_LEVELS),
         ("/modes/time_limit/waves", pack::MAX_TIME_LIMIT_WAVES),
         ("/modes/time_limit/boss_ticks", pack::MAX_BOSS_TICKS),
         ("/modes/time_limit/mid_boss_pool", pack::MAX_MID_BOSS_POOL),
@@ -1063,4 +1070,12 @@ mod offer_effects {
         assert!(all.default_pool(1).contains(&index));
         assert_eq!(all.rewards().iter().filter(|r| r.deprecated).count(), 7);
     }
+}
+
+#[test]
+fn the_layout_has_the_catalogue_after_stardust() {
+    assert_eq!(ContentFiles::LAYOUT.len(), 18);
+    let names: Vec<&str> = ContentFiles::LAYOUT.iter().map(|s| s.name).collect();
+    let at = |n: &str| names.iter().position(|x| *x == n).unwrap();
+    assert_eq!(at("star_chart"), at("stardust") + 1);
 }
