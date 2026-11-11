@@ -1085,7 +1085,8 @@ impl Engine {
         self.run.outcome()
     }
 
-    /// An offer is open: `step` does nothing until `choose` closes it (ADR-REPL-5).
+    /// An offer is open: `step` does nothing until a pick closes it. Only a frozen `sim_version` 1
+    /// run opens one, closed by a recorded PICKS step (ADR-REPL-5); the live rules open none.
     pub fn offer_open(&self) -> bool {
         self.run.offer_open()
     }
