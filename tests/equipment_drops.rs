@@ -29,7 +29,9 @@ fn an_equipment_setup_starts() {
         sim_version: 1,
         ..equipment()
     };
-    assert!(Engine::start(&old).is_ok());
+    // The frozen rules play the version 1 pack, not the bundled files.
+    let v1 = crate::frozen_v1::pack().content();
+    assert!(Engine::start_with(&old, v1).is_ok());
     let frozen_with_star = RunSetup {
         sim_version: 1,
         lumine: 1,
@@ -37,7 +39,7 @@ fn an_equipment_setup_starts() {
         ..RunSetup::default()
     };
     assert_eq!(
-        messages(Engine::start(&frozen_with_star).expect_err("refused")),
+        messages(Engine::start_with(&frozen_with_star, v1).expect_err("refused")),
         [(
             "$.lumine_star".to_string(),
             "needs sim_version 2".to_string()

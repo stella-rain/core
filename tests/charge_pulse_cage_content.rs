@@ -422,6 +422,8 @@ fn boss_stage(base: &str, phase: usize, at: (i32, i32), weapon: Option<Value>) -
     boss["spawn"] = json!({ "x": at.0 * PX, "y": at.1 * PX });
     boss.as_object_mut().unwrap().remove("call_elites");
     let mut stage = stage_with(3_000, Some(boss), vec![]);
+    // The bundled bosses chase, which the live rules take (`sim_version` 2).
+    stage.sim_version = 2;
     stage.player.hp = 99_900;
     match weapon {
         Some(w) => armed(stage, w),

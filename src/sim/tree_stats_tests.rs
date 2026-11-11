@@ -718,13 +718,21 @@ fn the_view_follows_the_pick_and_the_level() {
 /// V3: no view in an offers run, without a gauge; the JSON has no key then; each player its own.
 #[test]
 fn no_view_without_equipment_or_content() {
-    let offers = Engine::start(&RunSetup {
-        mode: "time_limit".into(),
-        schema_version: 1,
-        sim_version: 1,
-        weapon: "giant_sword".into(),
-        ..RunSetup::default()
-    })
+    // The frozen rules play the pack they were released with, not the bundled files.
+    let v1 = crate::pack::Pack::from_bytes(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack");
+    let offers = Engine::start_with(
+        &RunSetup {
+            mode: "time_limit".into(),
+            schema_version: 1,
+            sim_version: 1,
+            weapon: "giant_sword".into(),
+            ..RunSetup::default()
+        },
+        v1.content(),
+    )
     .expect("starts");
     assert_eq!(offers.snapshot().players[0].weapon_stats, None);
     let json = serde_json::to_value(&offers.snapshot().players[0]).expect("json");

@@ -394,7 +394,7 @@ fn carried_engine() -> Engine {
         sim_version: 1,
         ..common::run::trial_setup()
     };
-    Engine::start(&setup).unwrap()
+    Engine::start_with(&setup, crate::frozen_v1::pack().content()).unwrap()
 }
 
 #[test]

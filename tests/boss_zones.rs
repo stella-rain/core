@@ -21,7 +21,7 @@ const BOSS_AT: u32 = 120;
 fn setup() -> RunSetup {
     RunSetup {
         schema_version: 1,
-        sim_version: 1,
+        sim_version: 2,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

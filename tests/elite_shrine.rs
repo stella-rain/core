@@ -650,7 +650,7 @@ fn an_active_fight_keeps_running_when_the_boss_calls() {
 fn setup() -> RunSetup {
     RunSetup {
         schema_version: 1,
-        sim_version: 1,
+        sim_version: 2,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,
