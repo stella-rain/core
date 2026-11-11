@@ -3,7 +3,7 @@
   "sim_version": 2,
   "id": "tutorial",
   "title": "Tutorial",
-  "description": "The tutorial mode: three minutes of gentle bats and one weak golem, with no elites, no mid-boss and no Stardust. Placeholder content from the trial stage: the same main character, companion, levels and stars, with the bats weak to Slash and the golem weak to Strike. Every weapon can be switched inside it; the weapon and the seed come from the run setup.",
+  "description": "The tutorial mode: three minutes of gentle bats, then one weak golem that arrives at tick 4,000, with no elites, no mid-boss and no Stardust. The main character, companion, levels and stars are the trial's placeholders, the bats are weak to Slash and the golem to Strike. The weapon and the seed come from the run setup.",
   "seed": 20261010,
   "length_ticks": 10800,
   "map": {
@@ -103,7 +103,7 @@
       "every_ticks": 40,
       "expertise": {
         "hit": 1,
-        "kill": 3
+        "kill": 15
       }
     },
     {
@@ -148,7 +148,7 @@
       "every_ticks": 40,
       "expertise": {
         "hit": 1,
-        "kill": 3
+        "kill": 15
       }
     },
     {
@@ -188,7 +188,7 @@
       "xp": 2,
       "expertise": {
         "hit": 1,
-        "kill": 6
+        "kill": 60
       }
     }
   ],
