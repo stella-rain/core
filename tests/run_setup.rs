@@ -929,3 +929,101 @@ fn a_version_1_pool_may_not_name_an_equipment_only_reward() {
         )]
     );
 }
+
+// --- The player's drop weights per perk category (ADR-SAVE-17, ADR-SAVE-7 point 8) ---------------
+
+/// `base` with the player's `drop_weights`, built from JSON so the file's shape is what is tested.
+fn weighted_from(base: &RunSetup, weights: serde_json::Value) -> RunSetup {
+    let mut v = serde_json::to_value(base).unwrap();
+    v["drop_weights"] = weights;
+    serde_json::from_value(v).expect("a setup with drop weights reads")
+}
+
+fn weighted(weights: serde_json::Value) -> RunSetup {
+    weighted_from(&equipment(), weights)
+}
+
+#[test]
+fn drop_weights_are_written_sorted_and_read_back_and_none_writes_nothing() {
+    let setup = weighted(serde_json::json!({ "mobility": 5, "attack": 20 }));
+    let text = String::from_utf8(bytes(&setup)).unwrap();
+    assert!(
+        text.contains(r#""drop_weights":{"attack":20,"mobility":5}"#),
+        "{text}"
+    );
+    assert_eq!(run_setup::parse_and_validate(text.as_bytes()), Ok(setup));
+    let none = String::from_utf8(bytes(&equipment())).unwrap();
+    assert!(!none.contains("drop_weights"), "{none}");
+    assert_eq!(weighted(serde_json::json!({})), equipment());
+}
+
+#[test]
+fn the_pack_decides_which_categories_may_be_weighted_and_how_far() {
+    let ok = |w| content_check(&weighted(w));
+    assert_eq!(ok(serde_json::json!({ "attack": 100 })), Ok(()));
+    assert_eq!(ok(serde_json::json!({ "attack": 0 })), Ok(()));
+    assert_eq!(ok(serde_json::json!({})), Ok(()));
+    assert_eq!(
+        found_in(&weighted(serde_json::json!({ "attack": 101 }))),
+        [issue("$.drop_weights.attack", "at most 100 (found 101)")]
+    );
+    let two = found_in(&weighted(
+        serde_json::json!({ "support": 1, "attack": 101 }),
+    ));
+    let paths: Vec<&str> = two.iter().map(|i| i.path.as_str()).collect();
+    assert_eq!(paths, ["$.drop_weights.attack", "$.drop_weights.support"]);
+    assert_eq!(two[1].message, "no such category in the run's rewards file");
+}
+
+#[test]
+fn drop_weights_are_checked_without_content_too() {
+    let found_of = |w| found(&weighted(w));
+    assert_eq!(
+        found_of(serde_json::json!({ "Bad Id": 1 }))[0].path,
+        "$.drop_weights"
+    );
+    let nine: serde_json::Map<String, serde_json::Value> =
+        (0..9).map(|i| (format!("c{i}"), 1.into())).collect();
+    assert_eq!(found_of(nine.into())[0].path, "$.drop_weights");
+    assert_eq!(
+        found_of(serde_json::json!({ "attack": 1001 }))[0].path,
+        "$.drop_weights"
+    );
+    let v1 = |w| run_setup::validate(&weighted_from(&setup(), w));
+    assert_eq!(
+        issues(v1(serde_json::json!({ "attack": 1 })).unwrap_err()),
+        [issue("$.drop_weights", "needs sim_version 2")]
+    );
+    assert!(v1(serde_json::json!({})).is_ok());
+}
+
+#[test]
+fn an_equipment_setup_names_no_star_pool() {
+    let pooled = |sim_version| RunSetup {
+        sim_version,
+        star_pool: Some(vec!["max_hp_common".into()]),
+        ..equipment()
+    };
+    let refusal = [issue(
+        "$.star_pool",
+        "none in equipment mode: every star of the pack drops and is craftable",
+    )];
+    assert_eq!(found(&pooled(2)), refusal);
+    assert_eq!(found_in(&pooled(2)), refusal);
+    assert!(run_setup::validate_in(&pooled(1), RunContent::bundled()).is_ok());
+}
+
+#[test]
+fn the_lumine_star_needs_no_pool_and_only_the_level_and_kind_decide() {
+    assert_eq!(content_check(&star_setup(3, "black_hole_rare")), Ok(()));
+    assert_eq!(
+        found_in(&star_setup(2, "black_hole_rare")),
+        [issue(
+            "$.lumine_star",
+            "costs 3 Lumine, more than the level of 2"
+        )]
+    );
+    let source =
+        std::fs::read_to_string(crate::data_root::data_root().join("src/run_setup.rs")).unwrap();
+    assert!(!source.contains("not in the star pool"));
+}
