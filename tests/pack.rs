@@ -486,6 +486,20 @@ fn a_pack_released_without_a_constellation_list_still_loads() {
         .as_object_mut()
         .unwrap()
         .remove("constellations");
+    // Without the list a set is not provably released, so one holding an offer effect is
+    // refused (fail closed, ADR-SVC-1); the sets without such an effect load.
+    assert!(load(&v).is_err());
+    for set in v["constellations"]["constellations"]
+        .as_array_mut()
+        .unwrap()
+    {
+        for tier in set["tiers"].as_array_mut().unwrap() {
+            tier["effects"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|e| e["effect"] != "rerolls" && e["effect"] != "banishes");
+        }
+    }
     let pack = load(&v).expect("a pack without the list loads");
     assert_eq!(pack.content().constellations().sets().len(), 4);
 }
@@ -860,5 +874,193 @@ fn pack_preset_arguments_outside_bounds_are_refused() {
             );
         }
         other => panic!("expected File Invalid error for N = 601, got {other:?}"),
+    }
+}
+
+/// The offer effects are deprecated: a pack of `sim_version` 2 refuses them in content that is
+/// new at 2 and keeps them in released content (ADR-CONT-2, ADR-REPL-2, ADR-SVC-1).
+mod offer_effects {
+    use super::*;
+
+    fn new_star(v: &mut Value, id: &str, effects: Value) {
+        v["rewards"]["rewards"]
+            .as_array_mut()
+            .expect("rewards")
+            .push(json!({
+                "id": id, "rarity": "epic", "named": true, "star": id, "limit": 1,
+                "effects": effects
+            }));
+        v["introduced"]["rewards"]
+            .as_array_mut()
+            .expect("introduced rewards")
+            .push(json!({ "id": id, "sim_version": SIM_VERSION }));
+    }
+
+    /// The paths of the issues the pack is refused with in `file`.
+    fn refused(v: &Value, file: &str) -> Vec<String> {
+        match load(v) {
+            Err(PackError::File {
+                file: f,
+                error: Error::Invalid(issues),
+            }) if f == file => issues.into_iter().map(|i| i.path).collect(),
+            other => panic!("not refused in {file}: {:?}", other.map(|_| ())),
+        }
+    }
+
+    fn index(v: &Value, file: &str, id: &str) -> usize {
+        v[file][file]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|e| e["id"] == id)
+            .unwrap()
+    }
+
+    #[test]
+    fn a_new_reward_with_an_offer_effect_is_refused() {
+        for effect in ["offer_candidates", "rerolls", "banishes"] {
+            let mut v = value();
+            new_star(
+                &mut v,
+                "new_offer",
+                json!([{ "effect": effect, "amount": 1 }]),
+            );
+            let i = index(&v, "rewards", "new_offer");
+            assert_eq!(
+                refused(&v, "rewards"),
+                [format!("$.rewards[{i}].effects[0].effect")],
+                "{effect}"
+            );
+        }
+        let mut v = value();
+        new_star(
+            &mut v,
+            "new_offer",
+            json!([{ "effect": "attack_pct", "amount": 1 }, { "effect": "rerolls", "amount": 1 }]),
+        );
+        let i = index(&v, "rewards", "new_offer");
+        assert_eq!(
+            refused(&v, "rewards"),
+            [format!("$.rewards[{i}].effects[1].effect")]
+        );
+    }
+
+    #[test]
+    fn a_new_perk_set_with_an_offer_effect_is_refused() {
+        for effect in ["extra_rerolls", "extra_banishes"] {
+            let mut v = value();
+            v["perk_sets"]["perk_sets"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({ "id": "new_perk", "effects": [{ "effect": effect, "amount": 1 }] }));
+            v["introduced"]["perk_sets"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({ "id": "new_perk", "sim_version": SIM_VERSION }));
+            let i = index(&v, "perk_sets", "new_perk");
+            assert_eq!(
+                refused(&v, "perk_sets"),
+                [format!("$.perk_sets[{i}].effects[0].effect")],
+                "{effect}"
+            );
+            v["perk_sets"]["perk_sets"][i]["effects"] =
+                json!([{ "effect": "max_hp", "amount": 1 }]);
+            load(&v).expect("the same set without the offer effect loads");
+        }
+    }
+
+    fn with_pair(effect: &str, listed: bool) -> Value {
+        let mut v = value();
+        for id in ["star_a", "star_b"] {
+            new_star(&mut v, id, json!([{ "effect": "attack_pct", "amount": 1 }]));
+        }
+        v["constellations"] = json!({ "constellations": [{
+            "id": "pair", "name": "The Pair", "members": ["star_a", "star_b"],
+            "tiers": [{ "threshold": 2, "effects": [{ "effect": effect, "amount": 1 }] }]
+        }]});
+        let introduced = v["introduced"].as_object_mut().unwrap();
+        if listed {
+            introduced.insert(
+                "constellations".into(),
+                json!([{ "id": "pair", "sim_version": SIM_VERSION }]),
+            );
+        } else {
+            introduced.remove("constellations");
+        }
+        v
+    }
+
+    #[test]
+    fn a_new_constellation_with_an_offer_effect_is_refused() {
+        for listed in [true, false] {
+            for effect in ["rerolls", "banishes"] {
+                let v = with_pair(effect, listed);
+                assert_eq!(
+                    refused(&v, "constellations"),
+                    ["$.constellations[0].tiers[0].effects[0].effect"],
+                    "{effect}, listed {listed}"
+                );
+            }
+            load(&with_pair("attack_pct", listed)).expect("without an offer effect it loads");
+        }
+    }
+
+    #[test]
+    fn released_content_and_frozen_packs_keep_their_offer_effects() {
+        let pack = Pack::bundled();
+        let rewards = pack.content().rewards();
+        let polaris = rewards
+            .rewards()
+            .iter()
+            .find(|r| r.id.as_str() == "star_polaris");
+        assert!(polaris.is_some());
+        let v = value();
+        for (list, id) in [
+            ("rewards", "star_polaris"),
+            ("perk_sets", "scholar"),
+            ("constellations", "big_dipper"),
+        ] {
+            let found = v["introduced"][list]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|e| e["id"] == id)
+                .unwrap_or_else(|| panic!("{id} is listed"));
+            assert_eq!(found["sim_version"], 1, "{id}");
+        }
+        let text = String::from_utf8(Pack::BUNDLED.to_vec()).unwrap();
+        for effect in ["\"rerolls\"", "\"extra_rerolls\"", "\"banishes\""] {
+            assert!(text.contains(effect), "{effect} stays in released content");
+        }
+
+        let dir = crate::data_root::data_root().join("tests/corpus/v1/packs");
+        let mut seen = 0;
+        let mut with_rerolls = 0;
+        for entry in fs::read_dir(dir).unwrap() {
+            let bytes = fs::read(entry.unwrap().path()).unwrap();
+            Pack::from_bytes(&bytes).expect("a frozen pack loads");
+            seen += 1;
+            if String::from_utf8_lossy(&bytes).contains("star_polaris")
+                && String::from_utf8_lossy(&bytes).contains("\"rerolls\"")
+            {
+                with_rerolls += 1;
+            }
+        }
+        assert!(seen > 0 && with_rerolls > 0);
+    }
+
+    #[test]
+    fn star_polaris_is_deprecated_and_the_only_new_flag() {
+        let all = rewards::Rewards::bundled();
+        let polaris = all
+            .rewards()
+            .iter()
+            .position(|r| r.id.as_str() == "star_polaris")
+            .unwrap();
+        assert!(all.rewards()[polaris].deprecated);
+        let index = u16::try_from(polaris).unwrap();
+        assert!(!all.default_pool(2).contains(&index));
+        assert!(all.default_pool(1).contains(&index));
+        assert_eq!(all.rewards().iter().filter(|r| r.deprecated).count(), 7);
     }
 }

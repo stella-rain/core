@@ -399,7 +399,9 @@ fn load(v: &Value) -> Result<Pack, PackError> {
 
 #[test]
 fn a_pack_may_hold_the_file_and_one_released_without_it_has_no_sets() {
-    let with = load(&pack_value(Some(file(vec![pair()])))).expect("a pack with sets");
+    // New content at sim_version 2 may not hold an offer effect, so the set gives max_hp.
+    let pair = set("pair", &["n1", "n2"], vec![tier(2, vec![max_hp(1)])]);
+    let with = load(&pack_value(Some(file(vec![pair])))).expect("a pack with sets");
     assert_eq!(with.content().constellations().sets().len(), 1);
     assert_eq!(with.content().rewards().constellations().sets().len(), 1);
     let without = load(&pack_value(None)).expect("a pack released before the file");

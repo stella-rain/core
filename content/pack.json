@@ -2372,7 +2372,8 @@
       "limit": 1,
       "named": true,
       "star": "Polaris",
-      "weight": 50
+      "weight": 50,
+      "deprecated": true
     },
     {
       "id": "rune_haste_star_common",
@@ -4644,10 +4645,8 @@
   "orbit_step": 384,
   "boss_arrival_above": 30720,
   "default_xp": 1,
-  "offer_size": 3,
   "defence_k": 10000,
   "crit_damage_base_pct": 200,
-  "offer_timer_ticks": 300,
   "party_damage_pct": [100, 100, 100]
 },
   "starting_unlocks": {
