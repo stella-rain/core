@@ -1,8 +1,10 @@
 //! The savepoint determinism proof (ADR-SAVE-4, ADR-SIM-3): for every run case of the replay
-//! corpus, in the current tree and in the frozen `v1/`, a savepoint taken at a cut, restored and
-//! run to the end gives the hashes, the ledger, the tallies, the snapshot and the replay of the
-//! uninterrupted run. `check_run` is generic over the restore, so the meta-tests can hand it
-//! restores that are wrong on purpose and see it name them.
+//! corpus in the current tree, a savepoint taken at a cut, restored and run to the end gives the
+//! hashes, the ledger, the tallies, the snapshot and the replay of the uninterrupted run. The
+//! frozen `v1/` run cases all hold a PICKS step: `prove` skips them (`verify_run` replays them),
+//! and `the_proof_keeps_its_floor` pins how many are proved and skipped per tree. `check_run` is
+//! generic over the restore, so the meta-tests can hand it restores that are wrong on purpose and
+//! see it name them.
 //!
 //! The stage cases are not here: a stage engine has no `RunSetup`, so it has no savepoint file,
 //! and the state codec behind it is crate-private (the library's own `savepoint_tests` cover
@@ -338,24 +340,51 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
 /// Run cases recorded after `v1/` was frozen: only `current/` holds them.
 const CURRENT_ONLY: &[&str] = &["tutorial_opening"];
 
-fn prove(tree: &str, name: &str, sweep: bool) {
-    if tree == "v1" && CURRENT_ONLY.contains(&name) {
-        return;
+/// Why a case is not proved here.
+#[derive(Debug, PartialEq)]
+enum Skip {
+    /// A frozen run that answers an offer needs the frozen offer rules: `verify_run` replays it.
+    Picks,
+}
+
+impl Skip {
+    fn why(&self) -> &'static str {
+        match self {
+            Skip::Picks => "holds a PICKS step (needs the frozen offer rules)",
+        }
     }
-    let case = load_case(tree, name);
-    if case
-        .steps
+}
+
+#[derive(Debug, PartialEq)]
+enum Verdict {
+    Proved,
+    Skipped(Skip),
+}
+
+/// The one test of whether a case is proved, shared by `prove` and the floor.
+fn skip_reason(case: &Case) -> Option<Skip> {
+    case.steps
         .steps()
         .iter()
         .any(|s| matches!(s, Step::Picks(_)))
-    {
-        // A frozen run that answers an offer needs the frozen offer rules: verify_run replays it.
-        return;
+        .then_some(Skip::Picks)
+}
+
+/// `None` for a case the tree does not hold (`CURRENT_ONLY` in `v1`).
+fn prove(tree: &str, name: &str, sweep: bool) -> Option<Verdict> {
+    if tree == "v1" && CURRENT_ONLY.contains(&name) {
+        return None;
+    }
+    let case = load_case(tree, name);
+    if let Some(skip) = skip_reason(&case) {
+        eprintln!("savepoint proof: skipped {tree}/{name}: {}", skip.why());
+        return Some(Verdict::Skipped(skip));
     }
     let r = reference(&case);
     let at = if sweep { sweep_cuts(&r) } else { cuts(&r) };
     assert!(!at.is_empty(), "{}: no cuts", case.label);
     check_run(&case, &r, &at, &real_restore).unwrap_or_else(|e| panic!("{e}"));
+    Some(Verdict::Proved)
 }
 
 macro_rules! run_cases {
@@ -436,6 +465,92 @@ fn the_case_lists_are_the_directories() {
     }
     let features: Vec<&str> = FEATURES.iter().map(|f| f.0).collect();
     assert_eq!(features, RUN_CASES, "FEATURES lists the cases in order");
+}
+
+/// The floor of the proof per tree: (tree, proved at least, skipped at most). `current` proves
+/// every case; the frozen `v1/` run cases all hold a PICKS step, so none is proved here.
+const FLOOR: [(&str, usize, usize); 2] = [("current", 10, 0), ("v1", 0, 9)];
+
+fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), String> {
+    let (min, max) = floor_of(tree);
+    if proved.len() >= min && skipped.len() <= max {
+        return Ok(());
+    }
+    Err(format!(
+        "savepoint proof, {tree}: {} proved ({}), {} skipped ({}); the floor is at least {min} \
+         proved and at most {max} skipped. A case that now skips needs its PICKS step answered \
+         (a frozen run needs the frozen offer rules: make it provable, do not skip it); a case \
+         that no longer skips or a corpus bless that changed the case list: raise the floor in \
+         FLOOR here and say so in the PR, never lower it to get green.",
+        proved.len(),
+        proved.join(", "),
+        skipped.len(),
+        skipped.join(", "),
+    ))
+}
+
+fn names_of(names: &[&str]) -> Vec<String> {
+    names.iter().map(|n| (*n).to_owned()).collect()
+}
+
+fn floor_of(tree: &str) -> (usize, usize) {
+    let f = FLOOR.iter().find(|f| f.0 == tree).unwrap();
+    (f.1, f.2)
+}
+
+#[test]
+fn a_proof_that_proves_nothing_fails() {
+    assert_eq!(floor_of("current"), (10, 0));
+    let err = check_floor("current", &[], &names_of(RUN_CASES)).unwrap_err();
+    assert!(err.contains("savepoint proof, current"), "{err}");
+    assert!(err.contains("0 proved"), "{err}");
+    assert!(err.contains("10 skipped"), "{err}");
+    assert!(err.contains("raise the floor"), "{err}");
+}
+
+#[test]
+fn a_current_case_that_skips_fails() {
+    let nine = names_of(&RUN_CASES[1..]);
+    let err = check_floor("current", &nine, &names_of(&["easy"])).unwrap_err();
+    assert!(err.contains("easy"), "{err}");
+    assert!(err.contains("1 skipped"), "{err}");
+}
+
+#[test]
+fn the_floor_holds_at_todays_counts() {
+    let ten = names_of(RUN_CASES);
+    let nine = names_of(&RUN_CASES[..9]);
+    assert_eq!(check_floor("current", &ten, &[]), Ok(()));
+    assert_eq!(check_floor("v1", &[], &nine), Ok(()));
+    // A tenth skipped v1 case is a corpus change.
+    assert!(check_floor("v1", &[], &ten).is_err());
+}
+
+#[test]
+fn the_proof_keeps_its_floor() {
+    for tree in TREES {
+        let (mut proved, mut skipped) = (Vec::new(), Vec::new());
+        for name in RUN_CASES {
+            if tree == "v1" && CURRENT_ONLY.contains(name) {
+                continue;
+            }
+            match skip_reason(&load_case(tree, name)) {
+                None => proved.push((*name).to_owned()),
+                Some(_) => skipped.push((*name).to_owned()),
+            }
+        }
+        eprintln!("savepoint proof, {tree}: {proved:?} proved, {skipped:?} skipped");
+        check_floor(tree, &proved, &skipped).unwrap_or_else(|e| panic!("{e}"));
+        if tree == "v1" {
+            // Every frozen run case but the current-only one: a swapped case is seen.
+            let frozen: Vec<String> = RUN_CASES
+                .iter()
+                .filter(|n| !CURRENT_ONLY.contains(n))
+                .map(|n| (*n).to_owned())
+                .collect();
+            assert_eq!(skipped, frozen, "the skipped v1 cases");
+        }
+    }
 }
 
 #[test]
