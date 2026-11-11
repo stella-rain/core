@@ -1,754 +1,754 @@
 {
   "difficulties/easy": {
-    "description": "Weaker enemies, a 10-minute Time Limit and no rarer reward than rare",
-    "title": "Easy"
+    "description": "약한 적, 10분의 제한 시간, 희귀보다 높은 등급의 보상은 나오지 않아요",
+    "title": "쉬움"
   },
   "difficulties/hard": {
-    "description": "Tougher enemies that hit harder, and every rarity may drop",
-    "title": "Hard"
+    "description": "더 강하고 더 세게 때리는 적, 모든 등급이 나올 수 있어요",
+    "title": "어려움"
   },
   "difficulties/normal": {
-    "description": "The game as designed",
-    "title": "Normal"
+    "description": "의도한 그대로의 게임이에요",
+    "title": "보통"
   },
   "difficulties/rainy": {
-    "description": "Enemies with twice the hit points, and nothing common drops",
-    "title": "Rainy"
+    "description": "체력이 두 배인 적, 일반 등급은 나오지 않아요",
+    "title": "비 오는 날"
   },
   "expertise/attack_speed": {
-    "description": "Attacks 10 percent faster",
-    "title": "Attack Speed"
+    "description": "공격이 10% 빨라져요",
+    "title": "공격 속도"
   },
   "expertise/bulwark": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Bulwark"
+    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
+    "title": "방벽"
   },
   "expertise/bulwark_10": {
-    "description": "30 percent shorter evade cooldown",
-    "title": "Fortress"
+    "description": "회피 재사용 대기시간이 30% 짧아져요",
+    "title": "요새"
   },
   "expertise/bulwark_6": {
-    "description": "15 percent shorter evade cooldown",
-    "title": "Brace"
+    "description": "회피 재사용 대기시간이 15% 짧아져요",
+    "title": "버티기"
   },
   "expertise/bulwark_9": {
-    "description": "300 more hit points at most, and as many healed",
-    "title": "Stone Skin"
+    "description": "최대 체력이 300 늘고, 그만큼 회복해요",
+    "title": "돌 피부"
   },
   "expertise/crush": {
-    "description": "15 percent more damage",
-    "title": "Crush"
+    "description": "피해가 15% 늘어요",
+    "title": "분쇄"
   },
   "expertise/crush_10": {
-    "description": "40 percent more damage",
-    "title": "Shatter"
+    "description": "피해가 40% 늘어요",
+    "title": "파쇄"
   },
   "expertise/crush_6": {
-    "description": "20 percent more damage",
-    "title": "Heavy Head"
+    "description": "피해가 20% 늘어요",
+    "title": "무거운 머리"
   },
   "expertise/crush_9": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Iron Grip"
+    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
+    "title": "강철 손아귀"
   },
   "expertise/damage": {
-    "description": "10 percent more damage",
-    "title": "Damage"
+    "description": "피해가 10% 늘어요",
+    "title": "피해"
   },
   "expertise/edge": {
-    "description": "10 percent more damage",
-    "title": "Edge"
+    "description": "피해가 10% 늘어요",
+    "title": "칼날"
   },
   "expertise/edge_10": {
-    "description": "30 percent more damage",
-    "title": "Master Edge"
+    "description": "피해가 30% 늘어요",
+    "title": "달인의 칼날"
   },
   "expertise/edge_6": {
-    "description": "15 percent more damage",
-    "title": "Keen Edge"
+    "description": "피해가 15% 늘어요",
+    "title": "예리한 칼날"
   },
   "expertise/edge_9": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Long Edge"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "긴 칼날"
   },
   "expertise/hit_box": {
-    "description": "Every combo step's hit box 10 percent larger",
-    "title": "Hit Box"
+    "description": "모든 콤보 단계의 타격 범위가 10% 커져요",
+    "title": "타격 범위"
   },
   "expertise/quake": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Quake"
+    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
+    "title": "지진"
   },
   "expertise/quake_10": {
-    "description": "Every combo step's hit box 40 percent larger",
-    "title": "Earthshaker"
+    "description": "모든 콤보 단계의 타격 범위가 40% 커져요",
+    "title": "대지 흔들기"
   },
   "expertise/quake_6": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Tremor"
+    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
+    "title": "떨림"
   },
   "expertise/quake_9": {
-    "description": "15 percent more damage",
-    "title": "Aftershock"
+    "description": "피해가 15% 늘어요",
+    "title": "여진"
   },
   "expertise/reach": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Reach"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "도달 범위"
   },
   "expertise/reach_10": {
-    "description": "Every combo step's hit box 30 percent larger",
-    "title": "Far Reach"
+    "description": "모든 콤보 단계의 타격 범위가 30% 커져요",
+    "title": "먼 도달"
   },
   "expertise/reach_6": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Wide Arc"
+    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
+    "title": "넓은 호"
   },
   "expertise/reach_9": {
-    "description": "15 percent more damage",
-    "title": "Sure Strike"
+    "description": "피해가 15% 늘어요",
+    "title": "확실한 일격"
   },
   "expertise/swiftness": {
-    "description": "5 percent faster movement",
-    "title": "Swiftness"
+    "description": "이동 속도가 5% 빨라져요",
+    "title": "민첩"
   },
   "expertise/tempo": {
-    "description": "Attacks 8 percent faster",
-    "title": "Tempo"
+    "description": "공격이 8% 빨라져요",
+    "title": "템포"
   },
   "expertise/tempo_10": {
-    "description": "25 percent shorter evade cooldown",
-    "title": "Flow"
+    "description": "회피 재사용 대기시간이 25% 짧아져요",
+    "title": "흐름"
   },
   "expertise/tempo_6": {
-    "description": "10 percent more speed",
-    "title": "Light Step"
+    "description": "이동 속도가 10% 늘어요",
+    "title": "가벼운 발걸음"
   },
   "expertise/tempo_9": {
-    "description": "Attacks 10 percent faster",
-    "title": "Quick Hands"
+    "description": "공격이 10% 빨라져요",
+    "title": "빠른 손"
   },
   "expertise/vitality": {
-    "description": "100 more hit points at most, and as many healed",
-    "title": "Vitality"
+    "description": "최대 체력이 100 늘고, 그만큼 회복해요",
+    "title": "활력"
   },
   "perk_sets/duelist": {
-    "description": "Hits harder and faster",
-    "title": "Duelist"
+    "description": "더 세고 더 빠르게 공격해요",
+    "title": "결투가"
   },
   "perk_sets/scholar": {
-    "description": "More say in the offers",
-    "title": "Scholar"
+    "description": "선택지를 고를 수 있는 폭이 더 넓어요",
+    "title": "학자"
   },
   "perk_sets/scout": {
-    "description": "Moves and evades more freely",
-    "title": "Scout"
+    "description": "더 자유롭게 움직이고 회피해요",
+    "title": "척후병"
   },
   "perk_sets/vanguard": {
-    "description": "More hit points, and they come back on their own",
-    "title": "Vanguard"
+    "description": "체력이 더 많고, 저절로 회복해요",
+    "title": "선봉"
   },
   "rewards/aegis_rare": {
-    "description": "A shield absorbs the next hits for a while",
-    "title": "Aegis"
+    "description": "방어막이 잠시 동안 다음 공격들을 막아줘요",
+    "title": "이지스"
   },
   "rewards/attack_common": {
-    "description": "5 percent more damage",
-    "title": "Might (Common)"
+    "description": "피해가 5% 늘어요",
+    "title": "힘 (일반)"
   },
   "rewards/attack_epic": {
-    "description": "17 percent more damage",
-    "title": "Might (Epic)"
+    "description": "피해가 17% 늘어요",
+    "title": "힘 (영웅)"
   },
   "rewards/attack_legendary": {
-    "description": "25 percent more damage",
-    "title": "Might (Legendary)"
+    "description": "피해가 25% 늘어요",
+    "title": "힘 (전설)"
   },
   "rewards/attack_rare": {
-    "description": "12 percent more damage",
-    "title": "Might (Rare)"
+    "description": "피해가 12% 늘어요",
+    "title": "힘 (희귀)"
   },
   "rewards/attack_speed_common": {
-    "description": "Attacks 8 percent faster",
-    "title": "Swiftness (Common)"
+    "description": "공격이 8% 빨라져요",
+    "title": "민첩 (일반)"
   },
   "rewards/attack_speed_epic": {
-    "description": "Attacks 28 percent faster",
-    "title": "Swiftness (Epic)"
+    "description": "공격이 28% 빨라져요",
+    "title": "민첩 (영웅)"
   },
   "rewards/attack_speed_legendary": {
-    "description": "Attacks 40 percent faster",
-    "title": "Swiftness (Legendary)"
+    "description": "공격이 40% 빨라져요",
+    "title": "민첩 (전설)"
   },
   "rewards/attack_speed_rare": {
-    "description": "Attacks 20 percent faster",
-    "title": "Swiftness (Rare)"
+    "description": "공격이 20% 빨라져요",
+    "title": "민첩 (희귀)"
   },
   "rewards/attack_speed_supernova": {
-    "description": "Attacks 64 percent faster",
-    "title": "Swiftness (Supernova)"
+    "description": "공격이 64% 빨라져요",
+    "title": "민첩 (초신성)"
   },
   "rewards/attack_speed_uncommon": {
-    "description": "Attacks 12 percent faster",
-    "title": "Swiftness (Uncommon)"
+    "description": "공격이 12% 빨라져요",
+    "title": "민첩 (고급)"
   },
   "rewards/attack_supernova": {
-    "description": "40 percent more damage",
-    "title": "Might (Supernova)"
+    "description": "피해가 40% 늘어요",
+    "title": "힘 (초신성)"
   },
   "rewards/attack_uncommon": {
-    "description": "7 percent more damage",
-    "title": "Might (Uncommon)"
+    "description": "피해가 7% 늘어요",
+    "title": "힘 (고급)"
   },
   "rewards/black_hole_rare": {
-    "description": "Pulls the enemies ahead into one point and holds them there",
-    "title": "Black Hole"
+    "description": "앞쪽의 적을 한 점으로 끌어당겨 붙잡아 둬요",
+    "title": "블랙홀"
   },
   "rewards/evade_common": {
-    "description": "5 percent shorter evade cooldown",
-    "title": "Grace (Common)"
+    "description": "회피 재사용 대기시간이 5% 짧아져요",
+    "title": "우아함 (일반)"
   },
   "rewards/evade_epic": {
-    "description": "17 percent shorter evade cooldown",
-    "title": "Grace (Epic)"
+    "description": "회피 재사용 대기시간이 17% 짧아져요",
+    "title": "우아함 (영웅)"
   },
   "rewards/evade_legendary": {
-    "description": "25 percent shorter evade cooldown",
-    "title": "Grace (Legendary)"
+    "description": "회피 재사용 대기시간이 25% 짧아져요",
+    "title": "우아함 (전설)"
   },
   "rewards/evade_rare": {
-    "description": "12 percent shorter evade cooldown",
-    "title": "Grace (Rare)"
+    "description": "회피 재사용 대기시간이 12% 짧아져요",
+    "title": "우아함 (희귀)"
   },
   "rewards/evade_supernova": {
-    "description": "40 percent shorter evade cooldown",
-    "title": "Grace (Supernova)"
+    "description": "회피 재사용 대기시간이 40% 짧아져요",
+    "title": "우아함 (초신성)"
   },
   "rewards/evade_uncommon": {
-    "description": "7 percent shorter evade cooldown",
-    "title": "Grace (Uncommon)"
+    "description": "회피 재사용 대기시간이 7% 짧아져요",
+    "title": "우아함 (고급)"
   },
   "rewards/hex_rare": {
-    "description": "The enemies ahead take more damage for 5 seconds",
-    "title": "Hex"
+    "description": "앞쪽의 적이 5초 동안 더 많은 피해를 받아요",
+    "title": "저주"
   },
   "rewards/max_hp_common": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Vigour (Common)"
+    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
+    "title": "기력 (일반)"
   },
   "rewards/max_hp_epic": {
-    "description": "700 more hit points at most, and as many healed",
-    "title": "Vigour (Epic)"
+    "description": "최대 체력이 700 늘고, 그만큼 회복해요",
+    "title": "기력 (영웅)"
   },
   "rewards/max_hp_legendary": {
-    "description": "1000 more hit points at most, and as many healed",
-    "title": "Vigour (Legendary)"
+    "description": "최대 체력이 1000 늘고, 그만큼 회복해요",
+    "title": "기력 (전설)"
   },
   "rewards/max_hp_rare": {
-    "description": "500 more hit points at most, and as many healed",
-    "title": "Vigour (Rare)"
+    "description": "최대 체력이 500 늘고, 그만큼 회복해요",
+    "title": "기력 (희귀)"
   },
   "rewards/max_hp_supernova": {
-    "description": "1600 more hit points at most, and as many healed",
-    "title": "Vigour (Supernova)"
+    "description": "최대 체력이 1600 늘고, 그만큼 회복해요",
+    "title": "기력 (초신성)"
   },
   "rewards/max_hp_uncommon": {
-    "description": "300 more hit points at most, and as many healed",
-    "title": "Vigour (Uncommon)"
+    "description": "최대 체력이 300 늘고, 그만큼 회복해요",
+    "title": "기력 (고급)"
   },
   "rewards/nova_rare": {
-    "description": "A burst of starlight strikes the area ahead",
-    "title": "Nova"
+    "description": "별빛이 터져 앞쪽 지역을 강타해요",
+    "title": "노바"
   },
   "rewards/random_rune": {
-    "description": "A rune you do not hold yet, drawn when you take it",
-    "title": "Rune"
+    "description": "획득할 때 아직 가지지 않은 룬 하나를 뽑아요",
+    "title": "룬"
   },
   "rewards/range_common": {
-    "description": "Attacks reach 15 percent wider",
-    "title": "Reach (Common)"
+    "description": "공격 범위가 15% 넓어져요",
+    "title": "도달 범위 (일반)"
   },
   "rewards/range_epic": {
-    "description": "Attacks reach 42 percent wider",
-    "title": "Reach (Epic)"
+    "description": "공격 범위가 42% 넓어져요",
+    "title": "도달 범위 (영웅)"
   },
   "rewards/range_legendary": {
-    "description": "Attacks reach 50 percent wider",
-    "title": "Reach (Legendary)"
+    "description": "공격 범위가 50% 넓어져요",
+    "title": "도달 범위 (전설)"
   },
   "rewards/range_rare": {
-    "description": "Attacks reach 30 percent wider",
-    "title": "Reach (Rare)"
+    "description": "공격 범위가 30% 넓어져요",
+    "title": "도달 범위 (희귀)"
   },
   "rewards/range_supernova": {
-    "description": "Attacks reach 80 percent wider",
-    "title": "Reach (Supernova)"
+    "description": "공격 범위가 80% 넓어져요",
+    "title": "도달 범위 (초신성)"
   },
   "rewards/range_uncommon": {
-    "description": "Attacks reach 23 percent wider",
-    "title": "Reach (Uncommon)"
+    "description": "공격 범위가 23% 넓어져요",
+    "title": "도달 범위 (고급)"
   },
   "rewards/regen_common": {
-    "description": "Hit points come back every second, a little",
-    "title": "Regeneration"
+    "description": "체력이 매초 조금 회복해요",
+    "title": "재생"
   },
   "rewards/regen_epic": {
-    "description": "Hit points come back every second, much",
-    "title": "Regeneration (Epic)"
+    "description": "체력이 매초 많이 회복해요",
+    "title": "재생 (영웅)"
   },
   "rewards/regen_legendary": {
-    "description": "Hit points come back every second, a lot",
-    "title": "Regeneration"
+    "description": "체력이 매초 아주 많이 회복해요",
+    "title": "재생"
   },
   "rewards/regen_rare": {
-    "description": "Hit points come back every second",
-    "title": "Regeneration"
+    "description": "체력이 매초 회복해요",
+    "title": "재생"
   },
   "rewards/regen_supernova": {
-    "description": "Hit points come back every second, a huge amount",
-    "title": "Regeneration (Supernova)"
+    "description": "체력이 매초 엄청나게 많이 회복해요",
+    "title": "재생 (초신성)"
   },
   "rewards/regen_uncommon": {
-    "description": "Hit points come back every second, some",
-    "title": "Regeneration (Uncommon)"
+    "description": "체력이 매초 어느 정도 회복해요",
+    "title": "재생 (고급)"
   },
   "rewards/rune_haste_common": {
-    "description": "Runes recover 25 percent sooner",
-    "title": "Quickening (Common)"
+    "description": "룬이 25% 더 빨리 회복해요",
+    "title": "가속 (일반)"
   },
   "rewards/rune_haste_epic": {
-    "description": "Runes recover 70 percent sooner",
-    "title": "Quickening (Epic)"
+    "description": "룬이 70% 더 빨리 회복해요",
+    "title": "가속 (영웅)"
   },
   "rewards/rune_haste_legendary": {
-    "description": "Runes recover 100 percent sooner",
-    "title": "Quickening (Legendary)"
+    "description": "룬이 100% 더 빨리 회복해요",
+    "title": "가속 (전설)"
   },
   "rewards/rune_haste_rare": {
-    "description": "Runes recover 50 percent sooner",
-    "title": "Quickening (Rare)"
+    "description": "룬이 50% 더 빨리 회복해요",
+    "title": "가속 (희귀)"
   },
   "rewards/rune_haste_star_common": {
-    "description": "Runes recover 25 percent sooner",
-    "title": "Quickening (Common)"
+    "description": "룬이 25% 더 빨리 회복해요",
+    "title": "가속 (일반)"
   },
   "rewards/rune_haste_star_epic": {
-    "description": "Runes recover 70 percent sooner",
-    "title": "Quickening (Epic)"
+    "description": "룬이 70% 더 빨리 회복해요",
+    "title": "가속 (영웅)"
   },
   "rewards/rune_haste_star_legendary": {
-    "description": "Runes recover 100 percent sooner",
-    "title": "Quickening (Legendary)"
+    "description": "룬이 100% 더 빨리 회복해요",
+    "title": "가속 (전설)"
   },
   "rewards/rune_haste_star_rare": {
-    "description": "Runes recover 50 percent sooner",
-    "title": "Quickening (Rare)"
+    "description": "룬이 50% 더 빨리 회복해요",
+    "title": "가속 (희귀)"
   },
   "rewards/rune_haste_star_supernova": {
-    "description": "Runes recover 160 percent sooner",
-    "title": "Quickening (Supernova)"
+    "description": "룬이 160% 더 빨리 회복해요",
+    "title": "가속 (초신성)"
   },
   "rewards/rune_haste_star_uncommon": {
-    "description": "Runes recover 38 percent sooner",
-    "title": "Quickening (Uncommon)"
+    "description": "룬이 38% 더 빨리 회복해요",
+    "title": "가속 (고급)"
   },
   "rewards/rune_haste_supernova": {
-    "description": "Runes recover 160 percent sooner",
-    "title": "Quickening (Supernova)"
+    "description": "룬이 160% 더 빨리 회복해요",
+    "title": "가속 (초신성)"
   },
   "rewards/rune_haste_uncommon": {
-    "description": "Runes recover 38 percent sooner",
-    "title": "Quickening (Uncommon)"
+    "description": "룬이 38% 더 빨리 회복해요",
+    "title": "가속 (고급)"
   },
   "rewards/speed_common": {
-    "description": "4 percent more speed",
-    "title": "Swiftness (Common)"
+    "description": "이동 속도가 4% 늘어요",
+    "title": "민첩 (일반)"
   },
   "rewards/speed_epic": {
-    "description": "14 percent more speed",
-    "title": "Swiftness (Epic)"
+    "description": "이동 속도가 14% 늘어요",
+    "title": "민첩 (영웅)"
   },
   "rewards/speed_legendary": {
-    "description": "20 percent more speed",
-    "title": "Swiftness (Legendary)"
+    "description": "이동 속도가 20% 늘어요",
+    "title": "민첩 (전설)"
   },
   "rewards/speed_rare": {
-    "description": "10 percent more speed",
-    "title": "Swiftness (Rare)"
+    "description": "이동 속도가 10% 늘어요",
+    "title": "민첩 (희귀)"
   },
   "rewards/speed_supernova": {
-    "description": "32 percent more speed",
-    "title": "Swiftness (Supernova)"
+    "description": "이동 속도가 32% 늘어요",
+    "title": "민첩 (초신성)"
   },
   "rewards/speed_uncommon": {
-    "description": "6 percent more speed",
-    "title": "Swiftness (Uncommon)"
+    "description": "이동 속도가 6% 늘어요",
+    "title": "민첩 (고급)"
   },
   "rewards/star_alkaid": {
-    "description": "The tail of the Dipper: 35 percent more range, and 25 percent more Slash, Pierce and Strike damage",
-    "title": "Alkaid"
+    "description": "국자의 꼬리: 범위가 35% 늘고, 베기, 관통, 타격 피해가 25% 늘어요",
+    "title": "알카이드"
   },
   "rewards/star_alnilam": {
-    "description": "The brightest of the Belt: 20 percent more damage and 15 percent more range",
-    "title": "Alnilam"
+    "description": "허리띠에서 가장 밝은 별: 피해가 20%, 범위가 15% 늘어요",
+    "title": "알닐람"
   },
   "rewards/star_alnitak": {
-    "description": "The flame: 30 percent more Pyro damage, and runes recover 40 percent sooner",
-    "title": "Alnitak"
+    "description": "불꽃: 화염 피해가 30% 늘고, 룬이 40% 더 빨리 회복해요",
+    "title": "알니타크"
   },
   "rewards/star_altair": {
-    "description": "The flier: 20 percent faster, and one more evade charge",
-    "title": "Altair"
+    "description": "날아오르는 별: 이동 속도가 20% 빨라지고, 회피를 한 번 더 쓸 수 있어요",
+    "title": "알타이르"
   },
   "rewards/star_antares": {
-    "description": "The red heart: 100 hit points back every 20 kills, and 800 more hit points at most",
-    "title": "Antares"
+    "description": "붉은 심장: 20번 처치할 때마다 체력이 100 회복되고, 최대 체력이 800 늘어요",
+    "title": "안타레스"
   },
   "rewards/star_betelgeuse": {
-    "description": "The dying giant: a kill bursts for 40 percent of its hit points in 120 pixels, chaining 3 times, and 800 more hit points at most",
-    "title": "Betelgeuse"
+    "description": "죽어가는 거성: 적을 처치하면 체력의 40%만큼 120픽셀 범위에서 폭발하고 3번 이어지며, 최대 체력이 800 늘어요",
+    "title": "베텔게우스"
   },
   "rewards/star_deneb": {
-    "description": "The far lamp: a 15 percent chance of a critical hit, and 50 percent more damage on one",
-    "title": "Deneb"
+    "description": "먼 등불: 치명타 확률이 15%이고, 치명타 피해가 50% 늘어요",
+    "title": "데네브"
   },
   "rewards/star_dubhe": {
-    "description": "A pointer: falling stars are picked up from 60 percent farther, and 25 percent more experience",
-    "title": "Dubhe"
+    "description": "가리키는 별: 떨어지는 별을 60% 더 먼 곳에서 줍고, 경험치가 25% 늘어요",
+    "title": "두베"
   },
   "rewards/star_mintaka": {
-    "description": "The sturdy one: 500 more hit points at most, and 30 hit points a second",
-    "title": "Mintaka"
+    "description": "든든한 별: 최대 체력이 500 늘고, 초당 체력이 30 회복돼요",
+    "title": "민타카"
   },
   "rewards/star_mizar": {
-    "description": "The double star: each hit lands again as an echo of 35 percent",
-    "title": "Mizar"
+    "description": "쌍둥이 별: 모든 공격이 35%의 메아리로 한 번 더 들어가요",
+    "title": "미자르"
   },
   "rewards/star_polaris": {
-    "description": "The guide: a fourth candidate in every offer, 3 rerolls, 2 banishes and 40 percent more experience",
-    "title": "Polaris"
+    "description": "이끄는 별: 모든 선택지에 네 번째 후보가 생기고, 다시 뽑기 3번, 제외 2번, 경험치가 40% 늘어요",
+    "title": "폴라리스"
   },
   "rewards/star_procyon": {
-    "description": "Before the dog: a rune for free, and runes recover twice as fast",
-    "title": "Procyon"
+    "description": "개보다 앞선 별: 룬을 공짜로 얻고, 룬이 두 배 빨리 회복해요",
+    "title": "프로키온"
   },
   "rewards/star_rigel": {
-    "description": "The blue giant: 30 percent more Cryo damage and 10 percent faster attacks",
-    "title": "Rigel"
+    "description": "푸른 거성: 냉기 피해가 30%, 공격 속도가 10% 늘어요",
+    "title": "리겔"
   },
   "rewards/star_sirius": {
-    "description": "The Dog Star: a companion of four orbs that attack on their own, and 30 percent more damage",
-    "title": "Sirius"
+    "description": "개의 별: 스스로 공격하는 구슬 네 개의 동료가 생기고, 피해가 30% 늘어요",
+    "title": "시리우스"
   },
   "rewards/star_vega": {
-    "description": "The standard star: stage skills recover 30 percent sooner, and 12 percent more damage",
-    "title": "Vega"
+    "description": "기준별: 스테이지 스킬이 30% 더 빨리 회복하고, 피해가 12% 늘어요",
+    "title": "베가"
   },
   "rewards/type_bonus_anemo_common": {
-    "description": "25 percent more Anemo damage",
-    "title": "Anemo Mastery (Common)"
+    "description": "바람 피해가 25% 늘어요",
+    "title": "바람 숙련 (일반)"
   },
   "rewards/type_bonus_anemo_epic": {
-    "description": "70 percent more Anemo damage",
-    "title": "Anemo Mastery (Epic)"
+    "description": "바람 피해가 70% 늘어요",
+    "title": "바람 숙련 (영웅)"
   },
   "rewards/type_bonus_anemo_legendary": {
-    "description": "80 percent more Anemo damage",
-    "title": "Anemo Mastery (Legendary)"
+    "description": "바람 피해가 80% 늘어요",
+    "title": "바람 숙련 (전설)"
   },
   "rewards/type_bonus_anemo_rare": {
-    "description": "50 percent more Anemo damage",
-    "title": "Anemo Mastery (Rare)"
+    "description": "바람 피해가 50% 늘어요",
+    "title": "바람 숙련 (희귀)"
   },
   "rewards/type_bonus_anemo_supernova": {
-    "description": "128 percent more Anemo damage",
-    "title": "Anemo Mastery (Supernova)"
+    "description": "바람 피해가 128% 늘어요",
+    "title": "바람 숙련 (초신성)"
   },
   "rewards/type_bonus_anemo_uncommon": {
-    "description": "38 percent more Anemo damage",
-    "title": "Anemo Mastery (Uncommon)"
+    "description": "바람 피해가 38% 늘어요",
+    "title": "바람 숙련 (고급)"
   },
   "rewards/type_bonus_cryo_common": {
-    "description": "25 percent more Cryo damage",
-    "title": "Cryo Mastery (Common)"
+    "description": "냉기 피해가 25% 늘어요",
+    "title": "냉기 숙련 (일반)"
   },
   "rewards/type_bonus_cryo_epic": {
-    "description": "70 percent more Cryo damage",
-    "title": "Cryo Mastery (Epic)"
+    "description": "냉기 피해가 70% 늘어요",
+    "title": "냉기 숙련 (영웅)"
   },
   "rewards/type_bonus_cryo_legendary": {
-    "description": "80 percent more Cryo damage",
-    "title": "Cryo Mastery (Legendary)"
+    "description": "냉기 피해가 80% 늘어요",
+    "title": "냉기 숙련 (전설)"
   },
   "rewards/type_bonus_cryo_rare": {
-    "description": "50 percent more Cryo damage",
-    "title": "Cryo Mastery (Rare)"
+    "description": "냉기 피해가 50% 늘어요",
+    "title": "냉기 숙련 (희귀)"
   },
   "rewards/type_bonus_cryo_supernova": {
-    "description": "128 percent more Cryo damage",
-    "title": "Cryo Mastery (Supernova)"
+    "description": "냉기 피해가 128% 늘어요",
+    "title": "냉기 숙련 (초신성)"
   },
   "rewards/type_bonus_cryo_uncommon": {
-    "description": "38 percent more Cryo damage",
-    "title": "Cryo Mastery (Uncommon)"
+    "description": "냉기 피해가 38% 늘어요",
+    "title": "냉기 숙련 (고급)"
   },
   "rewards/type_bonus_dendro_common": {
-    "description": "25 percent more Dendro damage",
-    "title": "Dendro Mastery (Common)"
+    "description": "풀 피해가 25% 늘어요",
+    "title": "풀 숙련 (일반)"
   },
   "rewards/type_bonus_dendro_epic": {
-    "description": "70 percent more Dendro damage",
-    "title": "Dendro Mastery (Epic)"
+    "description": "풀 피해가 70% 늘어요",
+    "title": "풀 숙련 (영웅)"
   },
   "rewards/type_bonus_dendro_legendary": {
-    "description": "80 percent more Dendro damage",
-    "title": "Dendro Mastery (Legendary)"
+    "description": "풀 피해가 80% 늘어요",
+    "title": "풀 숙련 (전설)"
   },
   "rewards/type_bonus_dendro_rare": {
-    "description": "50 percent more Dendro damage",
-    "title": "Dendro Mastery (Rare)"
+    "description": "풀 피해가 50% 늘어요",
+    "title": "풀 숙련 (희귀)"
   },
   "rewards/type_bonus_dendro_supernova": {
-    "description": "128 percent more Dendro damage",
-    "title": "Dendro Mastery (Supernova)"
+    "description": "풀 피해가 128% 늘어요",
+    "title": "풀 숙련 (초신성)"
   },
   "rewards/type_bonus_dendro_uncommon": {
-    "description": "38 percent more Dendro damage",
-    "title": "Dendro Mastery (Uncommon)"
+    "description": "풀 피해가 38% 늘어요",
+    "title": "풀 숙련 (고급)"
   },
   "rewards/type_bonus_electro_common": {
-    "description": "25 percent more Electro damage",
-    "title": "Electro Mastery (Common)"
+    "description": "번개 피해가 25% 늘어요",
+    "title": "번개 숙련 (일반)"
   },
   "rewards/type_bonus_electro_epic": {
-    "description": "70 percent more Electro damage",
-    "title": "Electro Mastery (Epic)"
+    "description": "번개 피해가 70% 늘어요",
+    "title": "번개 숙련 (영웅)"
   },
   "rewards/type_bonus_electro_legendary": {
-    "description": "80 percent more Electro damage",
-    "title": "Electro Mastery (Legendary)"
+    "description": "번개 피해가 80% 늘어요",
+    "title": "번개 숙련 (전설)"
   },
   "rewards/type_bonus_electro_rare": {
-    "description": "50 percent more Electro damage",
-    "title": "Electro Mastery (Rare)"
+    "description": "번개 피해가 50% 늘어요",
+    "title": "번개 숙련 (희귀)"
   },
   "rewards/type_bonus_electro_supernova": {
-    "description": "128 percent more Electro damage",
-    "title": "Electro Mastery (Supernova)"
+    "description": "번개 피해가 128% 늘어요",
+    "title": "번개 숙련 (초신성)"
   },
   "rewards/type_bonus_electro_uncommon": {
-    "description": "38 percent more Electro damage",
-    "title": "Electro Mastery (Uncommon)"
+    "description": "번개 피해가 38% 늘어요",
+    "title": "번개 숙련 (고급)"
   },
   "rewards/type_bonus_geo_common": {
-    "description": "25 percent more Geo damage",
-    "title": "Geo Mastery (Common)"
+    "description": "대지 피해가 25% 늘어요",
+    "title": "대지 숙련 (일반)"
   },
   "rewards/type_bonus_geo_epic": {
-    "description": "70 percent more Geo damage",
-    "title": "Geo Mastery (Epic)"
+    "description": "대지 피해가 70% 늘어요",
+    "title": "대지 숙련 (영웅)"
   },
   "rewards/type_bonus_geo_legendary": {
-    "description": "80 percent more Geo damage",
-    "title": "Geo Mastery (Legendary)"
+    "description": "대지 피해가 80% 늘어요",
+    "title": "대지 숙련 (전설)"
   },
   "rewards/type_bonus_geo_rare": {
-    "description": "50 percent more Geo damage",
-    "title": "Geo Mastery (Rare)"
+    "description": "대지 피해가 50% 늘어요",
+    "title": "대지 숙련 (희귀)"
   },
   "rewards/type_bonus_geo_supernova": {
-    "description": "128 percent more Geo damage",
-    "title": "Geo Mastery (Supernova)"
+    "description": "대지 피해가 128% 늘어요",
+    "title": "대지 숙련 (초신성)"
   },
   "rewards/type_bonus_geo_uncommon": {
-    "description": "38 percent more Geo damage",
-    "title": "Geo Mastery (Uncommon)"
+    "description": "대지 피해가 38% 늘어요",
+    "title": "대지 숙련 (고급)"
   },
   "rewards/type_bonus_hydro_common": {
-    "description": "25 percent more Hydro damage",
-    "title": "Hydro Mastery (Common)"
+    "description": "물 피해가 25% 늘어요",
+    "title": "물 숙련 (일반)"
   },
   "rewards/type_bonus_hydro_epic": {
-    "description": "70 percent more Hydro damage",
-    "title": "Hydro Mastery (Epic)"
+    "description": "물 피해가 70% 늘어요",
+    "title": "물 숙련 (영웅)"
   },
   "rewards/type_bonus_hydro_legendary": {
-    "description": "80 percent more Hydro damage",
-    "title": "Hydro Mastery (Legendary)"
+    "description": "물 피해가 80% 늘어요",
+    "title": "물 숙련 (전설)"
   },
   "rewards/type_bonus_hydro_rare": {
-    "description": "50 percent more Hydro damage",
-    "title": "Hydro Mastery (Rare)"
+    "description": "물 피해가 50% 늘어요",
+    "title": "물 숙련 (희귀)"
   },
   "rewards/type_bonus_hydro_supernova": {
-    "description": "128 percent more Hydro damage",
-    "title": "Hydro Mastery (Supernova)"
+    "description": "물 피해가 128% 늘어요",
+    "title": "물 숙련 (초신성)"
   },
   "rewards/type_bonus_hydro_uncommon": {
-    "description": "38 percent more Hydro damage",
-    "title": "Hydro Mastery (Uncommon)"
+    "description": "물 피해가 38% 늘어요",
+    "title": "물 숙련 (고급)"
   },
   "rewards/type_bonus_pierce_common": {
-    "description": "25 percent more Pierce damage",
-    "title": "Pierce Mastery (Common)"
+    "description": "관통 피해가 25% 늘어요",
+    "title": "관통 숙련 (일반)"
   },
   "rewards/type_bonus_pierce_epic": {
-    "description": "70 percent more Pierce damage",
-    "title": "Pierce Mastery (Epic)"
+    "description": "관통 피해가 70% 늘어요",
+    "title": "관통 숙련 (영웅)"
   },
   "rewards/type_bonus_pierce_legendary": {
-    "description": "80 percent more Pierce damage",
-    "title": "Pierce Mastery (Legendary)"
+    "description": "관통 피해가 80% 늘어요",
+    "title": "관통 숙련 (전설)"
   },
   "rewards/type_bonus_pierce_rare": {
-    "description": "50 percent more Pierce damage",
-    "title": "Pierce Mastery (Rare)"
+    "description": "관통 피해가 50% 늘어요",
+    "title": "관통 숙련 (희귀)"
   },
   "rewards/type_bonus_pierce_supernova": {
-    "description": "128 percent more Pierce damage",
-    "title": "Pierce Mastery (Supernova)"
+    "description": "관통 피해가 128% 늘어요",
+    "title": "관통 숙련 (초신성)"
   },
   "rewards/type_bonus_pierce_uncommon": {
-    "description": "38 percent more Pierce damage",
-    "title": "Pierce Mastery (Uncommon)"
+    "description": "관통 피해가 38% 늘어요",
+    "title": "관통 숙련 (고급)"
   },
   "rewards/type_bonus_pyro_common": {
-    "description": "25 percent more Pyro damage",
-    "title": "Pyro Mastery (Common)"
+    "description": "화염 피해가 25% 늘어요",
+    "title": "화염 숙련 (일반)"
   },
   "rewards/type_bonus_pyro_epic": {
-    "description": "70 percent more Pyro damage",
-    "title": "Pyro Mastery (Epic)"
+    "description": "화염 피해가 70% 늘어요",
+    "title": "화염 숙련 (영웅)"
   },
   "rewards/type_bonus_pyro_legendary": {
-    "description": "80 percent more Pyro damage",
-    "title": "Pyro Mastery (Legendary)"
+    "description": "화염 피해가 80% 늘어요",
+    "title": "화염 숙련 (전설)"
   },
   "rewards/type_bonus_pyro_rare": {
-    "description": "50 percent more Pyro damage",
-    "title": "Pyro Mastery (Rare)"
+    "description": "화염 피해가 50% 늘어요",
+    "title": "화염 숙련 (희귀)"
   },
   "rewards/type_bonus_pyro_supernova": {
-    "description": "128 percent more Pyro damage",
-    "title": "Pyro Mastery (Supernova)"
+    "description": "화염 피해가 128% 늘어요",
+    "title": "화염 숙련 (초신성)"
   },
   "rewards/type_bonus_pyro_uncommon": {
-    "description": "38 percent more Pyro damage",
-    "title": "Pyro Mastery (Uncommon)"
+    "description": "화염 피해가 38% 늘어요",
+    "title": "화염 숙련 (고급)"
   },
   "rewards/type_bonus_slash_common": {
-    "description": "25 percent more Slash damage",
-    "title": "Slash Mastery (Common)"
+    "description": "베기 피해가 25% 늘어요",
+    "title": "베기 숙련 (일반)"
   },
   "rewards/type_bonus_slash_epic": {
-    "description": "70 percent more Slash damage",
-    "title": "Slash Mastery (Epic)"
+    "description": "베기 피해가 70% 늘어요",
+    "title": "베기 숙련 (영웅)"
   },
   "rewards/type_bonus_slash_legendary": {
-    "description": "80 percent more Slash damage",
-    "title": "Slash Mastery (Legendary)"
+    "description": "베기 피해가 80% 늘어요",
+    "title": "베기 숙련 (전설)"
   },
   "rewards/type_bonus_slash_rare": {
-    "description": "50 percent more Slash damage",
-    "title": "Slash Mastery (Rare)"
+    "description": "베기 피해가 50% 늘어요",
+    "title": "베기 숙련 (희귀)"
   },
   "rewards/type_bonus_slash_supernova": {
-    "description": "128 percent more Slash damage",
-    "title": "Slash Mastery (Supernova)"
+    "description": "베기 피해가 128% 늘어요",
+    "title": "베기 숙련 (초신성)"
   },
   "rewards/type_bonus_slash_uncommon": {
-    "description": "38 percent more Slash damage",
-    "title": "Slash Mastery (Uncommon)"
+    "description": "베기 피해가 38% 늘어요",
+    "title": "베기 숙련 (고급)"
   },
   "rewards/type_bonus_strike_common": {
-    "description": "25 percent more Strike damage",
-    "title": "Strike Mastery (Common)"
+    "description": "타격 피해가 25% 늘어요",
+    "title": "타격 숙련 (일반)"
   },
   "rewards/type_bonus_strike_epic": {
-    "description": "70 percent more Strike damage",
-    "title": "Strike Mastery (Epic)"
+    "description": "타격 피해가 70% 늘어요",
+    "title": "타격 숙련 (영웅)"
   },
   "rewards/type_bonus_strike_legendary": {
-    "description": "80 percent more Strike damage",
-    "title": "Strike Mastery (Legendary)"
+    "description": "타격 피해가 80% 늘어요",
+    "title": "타격 숙련 (전설)"
   },
   "rewards/type_bonus_strike_rare": {
-    "description": "50 percent more Strike damage",
-    "title": "Strike Mastery (Rare)"
+    "description": "타격 피해가 50% 늘어요",
+    "title": "타격 숙련 (희귀)"
   },
   "rewards/type_bonus_strike_supernova": {
-    "description": "128 percent more Strike damage",
-    "title": "Strike Mastery (Supernova)"
+    "description": "타격 피해가 128% 늘어요",
+    "title": "타격 숙련 (초신성)"
   },
   "rewards/type_bonus_strike_uncommon": {
-    "description": "38 percent more Strike damage",
-    "title": "Strike Mastery (Uncommon)"
+    "description": "타격 피해가 38% 늘어요",
+    "title": "타격 숙련 (고급)"
   },
   "rewards/war_cry_rare": {
-    "description": "Your attacks hit harder for 5 seconds",
-    "title": "War Cry"
+    "description": "5초 동안 공격이 더 강해져요",
+    "title": "함성"
   },
   "rewards/xp_common": {
-    "description": "10 percent more experience",
-    "title": "Insight (Common)"
+    "description": "경험치가 10% 늘어요",
+    "title": "통찰 (일반)"
   },
   "rewards/xp_epic": {
-    "description": "35 percent more experience",
-    "title": "Insight (Epic)"
+    "description": "경험치가 35% 늘어요",
+    "title": "통찰 (영웅)"
   },
   "rewards/xp_legendary": {
-    "description": "50 percent more experience",
-    "title": "Insight (Legendary)"
+    "description": "경험치가 50% 늘어요",
+    "title": "통찰 (전설)"
   },
   "rewards/xp_rare": {
-    "description": "25 percent more experience",
-    "title": "Insight (Rare)"
+    "description": "경험치가 25% 늘어요",
+    "title": "통찰 (희귀)"
   },
   "rewards/xp_supernova": {
-    "description": "80 percent more experience",
-    "title": "Insight (Supernova)"
+    "description": "경험치가 80% 늘어요",
+    "title": "통찰 (초신성)"
   },
   "rewards/xp_uncommon": {
-    "description": "15 percent more experience",
-    "title": "Insight (Uncommon)"
+    "description": "경험치가 15% 늘어요",
+    "title": "통찰 (고급)"
   },
   "run_stats/attack": {
-    "description": "More damage from every attack",
-    "title": "Attack"
+    "description": "모든 공격의 피해가 늘어나요",
+    "title": "공격력"
   },
   "run_stats/attack_speed": {
-    "description": "Every attack is faster",
-    "title": "Attack Speed"
+    "description": "모든 공격이 빨라져요",
+    "title": "공격 속도"
   },
   "run_stats/evade": {
-    "description": "A shorter evade cooldown",
-    "title": "Evade"
+    "description": "회피 재사용 대기시간이 짧아져요",
+    "title": "회피"
   },
   "run_stats/max_hp": {
-    "description": "100 more hit points at most, and as many healed",
-    "title": "Max HP"
+    "description": "최대 체력이 100 늘고, 그만큼 회복해요",
+    "title": "최대 체력"
   },
   "run_stats/speed": {
-    "description": "Move faster",
-    "title": "Speed"
+    "description": "더 빠르게 움직여요",
+    "title": "이동 속도"
   },
   "stage_skills/aegis": {
-    "description": "A shield absorbs the next hits for a while",
-    "title": "Aegis"
+    "description": "방어막이 잠시 동안 다음 공격들을 막아줘요",
+    "title": "이지스"
   },
   "stage_skills/black_hole": {
-    "description": "Pulls the enemies ahead into one point and holds them there",
-    "title": "Black Hole"
+    "description": "앞쪽의 적을 한 점으로 끌어당겨 붙잡아 둬요",
+    "title": "블랙홀"
   },
   "stage_skills/hex": {
-    "description": "The enemies ahead take more damage for 5 seconds",
-    "title": "Hex"
+    "description": "앞쪽의 적이 5초 동안 더 많은 피해를 받아요",
+    "title": "저주"
   },
   "stage_skills/nova": {
-    "description": "A burst of starlight strikes the area ahead",
-    "title": "Nova"
+    "description": "별빛이 터져 앞쪽 지역을 강타해요",
+    "title": "노바"
   },
   "stage_skills/war_cry": {
-    "description": "Your attacks hit harder for 5 seconds",
-    "title": "War Cry"
+    "description": "5초 동안 공격이 더 강해져요",
+    "title": "함성"
   }
 }
