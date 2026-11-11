@@ -891,7 +891,7 @@ mod decisions {
                         (u64::from(tick) + b.skill_phase(slot)) % 90 < 30,
                         "skill, seed {seed} slot {slot} tick {tick}"
                     );
-                    assert!(!input.evade && !input.interact && input.pick.is_none());
+                    assert!(!input.evade && !input.interact);
                     assert!(input.move_x >= -127 && input.move_y >= -127);
                     mains += u32::from(input.main);
                     skills += u32::from(input.skill);

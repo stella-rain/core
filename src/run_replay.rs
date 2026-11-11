@@ -780,8 +780,6 @@ pub struct RunRecorder {
     /// The run as a step log (ADR-REPL-5): runs of ticks with one input per player, and the
     /// steps of picks between them.
     records: Vec<Record>,
-    /// The number of `Record::Picks` in `records`: what `MAX_COMMANDS` counts.
-    picks_made: u32,
     /// The number of `Record::Actions` in `records`: what `MAX_ACTION_STEPS` counts.
     actions_made: u32,
     checkpoints: Vec<u64>,
@@ -825,7 +823,6 @@ impl RunRecorder {
             engine,
             present: (1u8 << party) - 1,
             records: Vec::new(),
-            picks_made: 0,
             actions_made: 0,
             checkpoints: Vec::new(),
         })
@@ -877,7 +874,6 @@ impl RunRecorder {
             content_sha256: prefix.content_sha256.clone(),
             engine,
             present: run.log.present,
-            picks_made: run.log.picks_made(),
             actions_made: run.log.actions_made(),
             records: run.log.records,
             checkpoints: run.checkpoints,
@@ -907,7 +903,6 @@ impl RunRecorder {
             content_sha256: prefix.content_sha256.clone(),
             engine,
             present: history.log.present,
-            picks_made: history.log.picks_made(),
             actions_made: history.log.actions_made(),
             records: history.log.records,
             checkpoints: history.claimed,
@@ -989,36 +984,6 @@ impl RunRecorder {
         Ok(())
     }
 
-    /// `player` chooses option `index` of its open offer: `picks` with that one pick. A player
-    /// outside the party is `BadInputs`.
-    pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), RunReplayError> {
-        if self.engine.present() >> player.get() & 1 == 0 {
-            return Err(RunReplayError::BadInputs("a player outside the party"));
-        }
-        let mut picks = [None; MAX_PLAYERS as usize];
-        picks[player.get()] = Some(index);
-        self.picks(&picks)
-    }
-
-    /// One step that does not advance the world: the pick of each slot (`None` for no pick),
-    /// at least one among the present slots, taken together. A pick at an absent slot is ignored.
-    /// Refused, recording nothing, when a pick is refused by the engine or the replay already
-    /// holds `MAX_COMMANDS` steps of picks.
-    pub fn picks(
-        &mut self,
-        picks: &[Option<u32>; MAX_PLAYERS as usize],
-    ) -> Result<(), RunReplayError> {
-        let picks = dense(self.engine.present(), picks);
-        if picks.iter().all(Option::is_none) {
-            return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
-        }
-        self.room()?;
-        apply_picks(&mut self.engine, &picks)?;
-        self.records.push(Record::Picks { picks });
-        self.picks_made += 1;
-        Ok(())
-    }
-
     /// One step that does not advance the world: the equipment action of each slot (`None` for
     /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8); an action at
     /// an absent slot is ignored. Refused, recording nothing, after the run ended or when the replay already holds
@@ -1090,15 +1055,6 @@ impl RunRecorder {
         } else {
             Record::Leave { slot }
         });
-        Ok(())
-    }
-
-    fn room(&self) -> Result<(), RunReplayError> {
-        if self.picks_made >= MAX_COMMANDS {
-            return Err(RunReplayError::TooManyCommands {
-                limit: MAX_COMMANDS,
-            });
-        }
         Ok(())
     }
 
@@ -1180,7 +1136,9 @@ pub fn record_run_with(
             Command::Step(input) => {
                 recorder.step(&[input, Default::default(), Default::default()])?
             }
-            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index)?,
+            Command::Choose(_) => {
+                return Err(RunReplayError::BadCommands("a choice cannot be recorded"));
+            }
         }
     }
     Ok(recorder.replay())

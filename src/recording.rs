@@ -25,7 +25,6 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::engine::{Engine, Outcome};
-use crate::id::PlayerIdx;
 use crate::input::Input;
 use crate::replay::{hash_from_hex, hash_to_hex};
 use crate::run_replay::{Command, RunRecorder, RunReplayError};
@@ -96,9 +95,8 @@ pub fn record_run(setup: &RunSetup, commands: &[Command]) -> Result<String, RunR
                 recorder.step(&[input, Default::default(), Default::default()])?;
                 json!({ "type": "Input", "data": input })
             }
-            Command::Choose(index) => {
-                recorder.choose(PlayerIdx::SOLO, index)?;
-                json!({ "type": "Choose", "data": { "index": index } })
+            Command::Choose(_) => {
+                return Err(RunReplayError::BadCommands("a choice cannot be recorded"));
             }
         };
         let engine = recorder.engine();
@@ -243,4 +241,19 @@ fn parse(text: &str) -> Result<Vec<(usize, Line)>, RecordingError> {
         out.push((i + 1, line));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::record_run;
+    use crate::run_replay::{Command, RunReplayError};
+    use crate::run_setup::RunSetup;
+
+    #[test]
+    fn a_choice_cannot_be_recorded() {
+        assert_eq!(
+            record_run(&RunSetup::default(), &[Command::Choose(0)]),
+            Err(RunReplayError::BadCommands("a choice cannot be recorded"))
+        );
+    }
 }

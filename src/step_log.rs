@@ -179,16 +179,6 @@ impl StepLog {
         Some(sink.mask)
     }
 
-    /// The number of PICKS records, the unit `MAX_COMMANDS` counts.
-    pub(crate) fn picks_made(&self) -> u32 {
-        let n = self
-            .records
-            .iter()
-            .filter(|r| matches!(r, Record::Picks { .. }))
-            .count();
-        u32::try_from(n).unwrap_or(u32::MAX)
-    }
-
     /// The number of ACTIONS records, the unit `MAX_ACTION_STEPS` counts.
     pub(crate) fn actions_made(&self) -> u32 {
         let n = self
@@ -2113,6 +2103,5 @@ mod tests {
         );
         let log = StepLog::decode(&actions_log(3, 2), 0, 0).unwrap();
         assert_eq!(log.actions_made(), 3);
-        assert_eq!(log.picks_made(), 2);
     }
 }

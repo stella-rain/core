@@ -48,10 +48,6 @@ pub struct Input {
     /// Auto mode is on for this tick, a switch: the simulation plays the auto combo
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
-    /// On a tick where an offer is open: the option to take, an index into the offer's `options`
-    /// (ADR-REPL-5). Read only then; ignored otherwise. Not part of the schema 1 replay stream.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pick: Option<u32>,
     /// The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down
     /// and revive rules only; the simulation ignores it until they exist. Schema 2 only: the
     /// schema 1 stream cannot carry it.
@@ -62,25 +58,6 @@ pub struct Input {
     /// rule accepts an action yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<EquipAction>,
-}
-
-impl Input {
-    /// An input that takes option `index` of the open offer and presses nothing.
-    pub const fn picking(index: u32) -> Input {
-        Input {
-            move_x: 0,
-            move_y: 0,
-            main: false,
-            smash: false,
-            evade: false,
-            skill: false,
-            assist: false,
-            auto: false,
-            pick: Some(index),
-            interact: false,
-            action: None,
-        }
-    }
 }
 
 /// The buttons of an input as bits, for the state to keep from one tick to the next: `main`,

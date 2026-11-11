@@ -27,7 +27,7 @@ use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
 use crate::run_stats::RunStats;
 use crate::sim::HordeSpec;
-use crate::snapshot::{OfferOption, OfferRating, SwapItem, SwapRating};
+use crate::snapshot::{OfferOption, SwapItem, SwapRating};
 use crate::stage::Stage;
 use crate::validate::{self, Error, Issue};
 use crate::version::SIM_VERSION;
@@ -722,21 +722,19 @@ impl Engine {
     }
 
     /// Advances one tick with `inputs`, one entry per slot, present or not, indexed by
-    /// `PlayerIdx`. The slots read are the present ones; an absent slot's entry, its `pick`
-    /// included, is ignored. Once the run is over this does nothing, so a replay that is longer
-    /// than the run cannot change the final hash.
+    /// `PlayerIdx`. The slots read are the present ones; an absent slot's entry is ignored. Once
+    /// the run is over this does nothing, so a replay that is longer than the run cannot change
+    /// the final hash.
     ///
-    /// While an offer is open for any player the world is stopped (ADR-REPL-5): each player, in
-    /// `PlayerIdx` order, whose `pick` is accepted by `check_pick` takes that option of its own
-    /// offer, the events are the picks' and the tick does not advance; a player with no offer
-    /// open, or a refused pick, is ignored, and with no acceptable pick nothing changes. With no
-    /// offer open `pick` is not read (ADR-REPL-5). `action` is never read: an equipment
-    /// action is made between steps, by `act` or a recorded ACTIONS step (`check_action`).
+    /// While an offer is open the world is stopped (ADR-REPL-5): the events and the load are
+    /// cleared, no input is read and nothing changes. Only a `sim_version` 1 run opens an offer,
+    /// and it is answered by a recorded PICKS step of a frozen run (`v1_pick_step`). `action` is
+    /// never read: an equipment action is made between steps, by `act` or a recorded ACTIONS
+    /// step (`check_action`).
     pub fn step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
         self.events.clear();
         self.load = Load::default();
         if self.offer_open() {
-            self.take_picks(inputs);
             return;
         }
         if self.runs_its_version() {
@@ -752,20 +750,6 @@ impl Engine {
             self.run.fail();
         }
         self.observe_tick();
-    }
-
-    /// Takes, for each present player in `PlayerIdx` order, the pick of its input that
-    /// `check_pick` accepts (each read after the picks before it were taken); the rest are
-    /// ignored.
-    fn take_picks(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
-        for (i, input) in inputs.iter().enumerate() {
-            let Some(player) = u8::try_from(i).ok().and_then(PlayerIdx::new) else {
-                continue;
-            };
-            if let Some(option) = input.pick.and_then(|k| self.pick_option(player, k).ok()) {
-                self.take(player, option);
-            }
-        }
     }
 
     /// The version 1 pick seam: a recorded PICKS step of a frozen run (ADR-REPL-5,
@@ -883,14 +867,6 @@ impl Engine {
         Ok(engine)
     }
 
-    /// Whether `player` could take option `index` of its open offer by a pick in `step`
-    /// (ADR-REPL-5). An open offer belongs to the slot that holds it, and the snapshot shows the
-    /// first player's. Refused for a player outside the party, a player with no offer open, a
-    /// `sim_version` this game does not run, or an index outside its options. Read-only.
-    pub fn check_pick(&self, player: PlayerIdx, index: u32) -> Result<(), ChoiceError> {
-        self.pick_option(player, index).map(|_| ())
-    }
-
     /// Whether `player` could make the equipment action `action` in a step (ADR-SIM-7).
     /// Read-only. `NoPlayer` for a slot outside the party; then, in an equipment run, `Downed`
     /// for a player at 0 hit points and `Out` for one out of the run, for every kind of action
@@ -973,16 +949,9 @@ impl Engine {
         Ok(())
     }
 
-    /// Always empty: the live rules open no star or boss offer, and a `sim_version` 1 run is
-    /// frozen and rates nothing. Read-only; the signature stays for callers that still ask.
-    pub fn offer_ratings(&self, _player: PlayerIdx) -> Vec<OfferRating> {
-        Vec::new()
-    }
-
     /// Rates a star against each slot it could go in, in slot order: for each, whether the swap
     /// is an equip, a replace or a same-option switch, the slot's level before and after, the
-    /// expected signed change in the Main weapon's damage in basis points (the model of
-    /// `offer_ratings`), the set tiers gained or lost and the stats it moves. The swap is made
+    /// expected signed change in the Main weapon's damage in basis points, the set tiers gained or lost and the stats it moves. The swap is made
     /// by the equip and replace rules on a clone, so the answer is what `act` would do. Empty
     /// for a player outside the party, a `sim_version` 1 run, a run without slots, a rune, an
     /// item or star that does not exist, or when no slot takes the star. Read-only, and a

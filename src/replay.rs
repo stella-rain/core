@@ -376,8 +376,6 @@ pub(crate) fn pack_inputs_with(inputs: &[Input], interact: bool) -> String {
     let canonical = |i: &Input| Input {
         move_x: i.move_x.max(-i8::MAX),
         move_y: i.move_y.max(-i8::MAX),
-        // The pick is not part of the stream.
-        pick: None,
         action: None,
         interact: interact && i.interact,
         ..*i
@@ -421,7 +419,6 @@ pub(crate) fn input_of_block(
         skill: flags & 0b1000 != 0,
         assist: flags & 0b1_0000 != 0,
         auto: flags & 0b10_0000 != 0,
-        pick: None,
         action: None,
         interact: flags & INTERACT_FLAG != 0,
     })
