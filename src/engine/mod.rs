@@ -1162,6 +1162,8 @@ mod hash_coverage_tests;
 #[cfg(test)]
 mod horde_tests;
 #[cfg(test)]
+mod live_access_tests;
+#[cfg(test)]
 mod move_index_tests;
 #[cfg(test)]
 mod party_tests;
