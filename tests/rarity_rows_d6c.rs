@@ -14,7 +14,7 @@ use stella_rain_core::stage::Tier;
 use stella_rain_core::validate::{self, Error};
 
 use crate::common;
-use crate::reward_kinds::{near, next_offer, offer, plain, with};
+use crate::reward_kinds::near;
 
 const RARITIES: [&str; 6] = [
     "common",
@@ -157,47 +157,6 @@ fn there_is_one_type_bonus_family_per_damage_type_and_no_group_family() {
 }
 
 // --- The random rune's weight per tier -----------------------------------------------------------
-
-/// How many of `seeds` offers hold the random rune first, in a stage whose one tier has
-/// `tier_weight`, with the random rune weighing `rune_weight` and one other common 1.
-fn rune_first(tier_weight: Option<u16>, rune_weight: u32, seeds: u32) -> u32 {
-    let mut first = 0;
-    for seed in 0..seeds {
-        let mut stage = near(2);
-        stage.seed = seed;
-        stage.stars.as_mut().unwrap().tiers[0].random_rune_weight = tier_weight;
-        let list = vec![
-            json!({ "id": "rune", "rarity": "common", "effect": "random_rune",
-                    "weight": rune_weight }),
-            plain("other", 1),
-        ];
-        let mut e = with(&stage, list);
-        next_offer(&mut e);
-        first += u32::from(offer(&e).candidates[0].reward.as_str() == "rune");
-    }
-    first
-}
-
-#[test]
-fn a_tier_sets_the_random_runes_draw_weight_while_it_applies() {
-    // The reward weighs 1 against 1: about half. The tier's 1000 makes it nearly always first.
-    let own = rune_first(None, 1, 40);
-    assert!((8..=32).contains(&own), "{own} of 40 at weight 1 against 1");
-    let raised = rune_first(Some(1_000), 1, 40);
-    assert!(raised >= 38, "{raised} of 40 at the tier's 1000 against 1");
-}
-
-#[test]
-fn a_tier_without_the_field_uses_the_rewards_own_weight() {
-    // The reward weighs 1000 against 1: nearly always first; a tier of 1 takes it back to half.
-    let own = rune_first(None, 1_000, 40);
-    assert!(own >= 38, "{own} of 40 at the reward's 1000 against 1");
-    let lowered = rune_first(Some(1), 1_000, 40);
-    assert!(
-        (8..=32).contains(&lowered),
-        "{lowered} of 40 at the tier's 1"
-    );
-}
 
 fn stage_with_tier_field(value: Value) -> Vec<String> {
     let mut stage = near(2);

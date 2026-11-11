@@ -11,7 +11,6 @@ use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use std::sync::Arc;
 
 /// An attack in progress, for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -97,7 +96,7 @@ pub struct Snapshot {
     /// Heal pickups on the map, in the order they dropped; empty without healing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heal_pickups: Vec<HealPickupView>,
-    /// Experience, level, stat points and the open offer; absent in a stage without levels.
+    /// Experience, level, stat points; absent in a stage without levels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressView>,
     /// The expertise gauge; absent in a stage whose enemies and boss give no
@@ -247,10 +246,6 @@ pub struct ProgressView {
     pub xp_next: u32,
     /// Points spent on each run stat, in the run stats' order (ADR-CONT-1).
     pub spent: Vec<u8>,
-    /// The open offer: while it is open the world is stopped, and `Engine::choose` takes one
-    /// of its options (ADR-REPL-5).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub offer: Option<OfferView>,
 }
 
 /// A falling star waiting on the map to be taken.
@@ -270,34 +265,6 @@ pub struct HealPickupView {
     pub at: Point,
 }
 
-/// An offer from a falling star (ADR-REPL-5).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct OfferView {
-    pub kind: OfferKind,
-    /// The star's rarity, or for a boss offer the highest of the player's tier. A candidate is
-    /// of a lower one when the pool has too few left of it.
-    pub rarity: Rarity,
-    pub candidates: Vec<CandidateView>,
-    /// What `Engine::choose` takes, by index: the candidates, then a reroll of each while
-    /// rerolls are left and another reward could come, then the skip (not in a boss offer),
-    /// then a banish of each while banishes are left.
-    pub options: Vec<OfferOption>,
-    /// Rerolls and banishes left in the run.
-    pub rerolls_left: u32,
-    pub banishes_left: u32,
-}
-
-/// What opened an offer (ADR-REPL-5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OfferKind {
-    /// A falling star the main character took; it can be skipped.
-    Star,
-    /// A boss kill: at the highest rarity of the player's tier, with no skip.
-    Boss,
-}
-
 /// How far a set of named stars is (core#NS3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -312,55 +279,6 @@ pub struct ConstellationView {
     pub tier: u8,
     /// Members the next tier needs; the whole set once the top tier is reached.
     pub needed: u8,
-}
-
-/// A candidate that is a member of a set: which one, what is held now and what the next tier
-/// needs (core#NS3).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ConstellationProgress {
-    pub set: ContentId,
-    /// Members held now, before this candidate is taken.
-    pub held: u8,
-    /// Members the next tier needs; the whole set once the top tier is reached.
-    pub needed: u8,
-}
-
-/// A reward an offer holds.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct CandidateView {
-    /// Its ID in the run's rewards file.
-    pub reward: ContentId,
-    pub rarity: Rarity,
-    /// A random rune: which rune it gives is drawn only when it is taken, so the
-    /// frontend shows it face down.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub hidden: bool,
-    /// A named star: the frontend shows `star` as its name.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub named: bool,
-    /// The named star's display name; with `named` only.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub star: Option<Arc<str>>,
-    /// The set a named star belongs to and how far it is; absent for a reward in no set.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub constellation: Option<ConstellationProgress>,
-}
-
-/// One option of an open offer; `candidate` is a place in its candidates, from 0.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum OfferOption {
-    /// Takes the candidate's reward and closes the offer.
-    Take { candidate: u8 },
-    /// Draws that candidate again, spending a reroll; the offer stays open.
-    Reroll { candidate: u8 },
-    /// Closes the offer, taking nothing.
-    Skip,
-    /// Takes the candidate's reward out of the run's pool for good, spending a banish, and
-    /// draws its place again; the offer stays open, or closes when nothing is left to offer.
-    Banish { candidate: u8 },
 }
 
 /// What a reward is for, to show it by (ADR-REPL-5). Derived from the effect kinds of the
@@ -462,25 +380,6 @@ pub struct StatChange {
     pub stat: StatKind,
     pub before: u32,
     pub after: u32,
-}
-
-/// What `Engine::offer_ratings` says of one candidate of an open star or boss offer. The model
-/// and its limits are in `sim::offer_rating`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OfferRating {
-    /// The distinct categories of the reward's effects, then those of a set tier the pick
-    /// reaches, in that order: the first is the main one.
-    pub categories: Vec<Category>,
-    /// The expected gain in the main weapon's damage per tick, in basis points (1538 is +15.38%),
-    /// when the pick (or a set tier it reaches) changes a damage term; `Some(0)` when every term
-    /// it raises is already at its cap; `None` for a pick that changes none, or a build with no
-    /// weapon damage to rate.
-    pub dps_bp: Option<u32>,
-    /// The highest set tier, counted from 1, the pick newly reaches; its bonus is in `dps_bp`
-    /// and `changes`.
-    pub set_tier: Option<u8>,
-    /// The stats the pick moves, in `StatKind` order.
-    pub changes: Vec<StatChange>,
 }
 
 /// What `Engine::swap_ratings` rates.

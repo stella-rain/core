@@ -9,7 +9,6 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rewards::{Rarity, Rewards};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::{OfferOption, OfferView};
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{self, Error, limits};
 use stella_rain_core::version::Versions;
@@ -85,22 +84,6 @@ fn commons(n: usize) -> Rewards {
 fn with(stage: &Stage, rewards: Rewards) -> Engine {
     let content = RunContent::new(RunStats::bundled().clone(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-fn offer(e: &Engine) -> OfferView {
-    e.snapshot()
-        .progress
-        .expect("a stage with levels")
-        .offer
-        .expect("an open offer")
-}
-
-fn candidates(e: &Engine) -> Vec<String> {
-    offer(e)
-        .candidates
-        .into_iter()
-        .map(|c| c.reward.to_string())
-        .collect()
 }
 
 /// Steps with `input`, firing, until an offer is open, returning the events of the ticks run.
@@ -219,7 +202,7 @@ fn rarities_are_drawn_by_their_weights() {
 // --- Taking a star -----------------------------------------------------------------------------
 
 #[test]
-fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
+fn taking_a_star_stops_the_world_at_the_end_of_the_tick() {
     let mut e = with(
         &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
         commons(4),
@@ -235,8 +218,7 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
         matches!(this_tick[..], [.., DomainEvent::StarTaken { .. }]),
         "{this_tick:?}"
     );
-    let o = offer(&e);
-    assert_eq!((o.rarity, o.candidates.len()), (Rarity::Common, 3));
+    assert!(e.offer_open(), "the offer is open");
     assert!(e.snapshot().stars.is_empty(), "the star was taken");
     let hash = e.state_hash();
     for _ in 0..10 {
@@ -252,72 +234,6 @@ fn taking_a_star_opens_its_offer_at_the_end_of_the_tick_and_stops_the_world() {
         );
         assert!(e.events().is_empty());
     }
-}
-
-#[test]
-fn an_offer_lists_its_options_in_order() {
-    use OfferOption::{Banish, Reroll, Skip, Take};
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(4),
-    );
-    until_offer(&mut e, idle());
-    let o = offer(&e);
-    assert_eq!((o.rerolls_left, o.banishes_left), (1, 1));
-    let take = (0..3).map(|candidate| Take { candidate });
-    let reroll = (0..3).map(|candidate| Reroll { candidate });
-    let banish = (0..3).map(|candidate| Banish { candidate });
-    let all: Vec<OfferOption> = take
-        .clone()
-        .chain(reroll)
-        .chain([Skip])
-        .chain(banish)
-        .collect();
-    assert_eq!(o.options, all);
-
-    let mut e = with(
-        &starry(
-            &[1000],
-            stars(json!({ "rerolls": 0, "banishes": 0 })),
-            vec![targets(1, 1, NEAR_Y)],
-        ),
-        commons(4),
-    );
-    until_offer(&mut e, idle());
-    let few: Vec<OfferOption> = take.chain([Skip]).collect();
-    assert_eq!(offer(&e).options, few);
-}
-
-#[test]
-fn no_reroll_is_offered_when_no_other_reward_could_come() {
-    let mut e = with(
-        &starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]),
-        commons(3),
-    );
-    until_offer(&mut e, idle());
-    assert!(
-        !offer(&e)
-            .options
-            .iter()
-            .any(|op| matches!(op, OfferOption::Reroll { .. }))
-    );
-}
-
-#[test]
-fn a_pool_short_of_the_star_s_rarity_fills_from_the_rarities_below() {
-    let list = rewards(&[
-        ("common_a", "common", "max_hp", 1, 5),
-        ("rare_a", "rare", "max_hp", 1, 5),
-        ("common_b", "common", "max_hp", 1, 5),
-        ("legend", "legendary", "max_hp", 1, 5),
-    ]);
-    let st = stars(json!({ "tiers": [{ "from_level": 1, "weights": { "legendary": 1 } }] }));
-    let mut e = with(&starry(&[1000], st, vec![targets(1, 1, NEAR_Y)]), list);
-    until_offer(&mut e, idle());
-    let o = offer(&e);
-    assert_eq!(o.rarity, Rarity::Legendary);
-    let rarities: Vec<Rarity> = o.candidates.iter().map(|c| c.rarity).collect();
-    assert_eq!(rarities, [Rarity::Legendary, Rarity::Rare, Rarity::Common]);
 }
 
 // --- The boss offer ----------------------------------------------------------------------------
@@ -507,90 +423,7 @@ fn a_tier_weighs_something_and_no_rarity_weighs_too_much() {
 
 // --- Weights -----------------------------------------------------------------------------------
 
-/// Two common rewards `a` and `b` of the given draw weights.
-fn weighted(a: u16, b: u16) -> Rewards {
-    let one = |id: &str, weight: u16| {
-        json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5,
-                "weight": weight })
-    };
-    let file = json!({ "rarities": common::rarities(), "rewards": [one("a", a), one("b", b)] });
-    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate")
-}
-
-/// The first candidate of the first offer of 10,000 runs of seeds 0.., counted for `b`, and
-/// how often `a` came first, as `(a, b)`.
-fn firsts(rewards: &Rewards) -> (u32, u32) {
-    let mut out = (0, 0);
-    for seed in 0..10_000 {
-        let mut stage = starry(&[1000], stars(json!({})), vec![targets(1, 1, NEAR_Y)]);
-        stage.seed = seed;
-        let mut e = with(&stage, rewards.clone());
-        until_offer(&mut e, idle());
-        match candidates(&e)[0].as_str() {
-            "a" => out.0 += 1,
-            _ => out.1 += 1,
-        }
-    }
-    out
-}
-
-#[test]
-fn a_reward_of_three_times_the_weight_comes_first_three_times_in_four() {
-    let (a, b) = firsts(&weighted(100, 300));
-    assert_eq!(a + b, 10_000);
-    assert!(
-        (7_000..=8_000).contains(&b),
-        "b came first {b} of 10,000 times"
-    );
-}
-
-#[test]
-fn equal_weights_draw_what_the_uniform_draw_drew() {
-    // Weights 100 and 100, and weights 7 and 7, are the same draw as before weights existed:
-    // the same seeds give the same first candidates.
-    let a = firsts(&weighted(100, 100));
-    assert_eq!(a, firsts(&weighted(7, 7)));
-    assert_eq!(a, firsts(&commons_ab()));
-}
-
-/// Two commons with no weight given: the released form.
-fn commons_ab() -> Rewards {
-    let one = |id: &str| json!({ "id": id, "rarity": "common", "effect": "max_hp", "amount": 1, "limit": 5 });
-    let file = json!({ "rarities": common::rarities(), "rewards": [one("a"), one("b")] });
-    Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate")
-}
-
 // --- Named stars -------------------------------------------------------------------------------
-
-#[test]
-fn an_offer_names_its_named_candidate_and_only_that_one() {
-    let file = json!({ "rarities": common::rarities(), "rewards": [
-        { "id": "vega", "rarity": "epic", "effects": [{ "effect": "attack_pct", "amount": 20 }],
-          "limit": 1, "named": true, "star": "Vega", "weight": 50 },
-        { "id": "plain", "rarity": "epic", "effect": "max_hp", "amount": 1, "limit": 2 },
-    ]});
-    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate");
-    let st = stars(json!({ "tiers": [{ "from_level": 1, "weights": { "epic": 1 } }] }));
-    let mut e = with(&starry(&[1000], st, vec![targets(1, 1, NEAR_Y)]), rewards);
-    until_offer(&mut e, idle());
-    let seen: Vec<(String, bool, Option<String>)> = offer(&e)
-        .candidates
-        .into_iter()
-        .map(|c| (c.reward.to_string(), c.named, c.star.map(|s| s.to_string())))
-        .collect();
-    let mut sorted = seen.clone();
-    sorted.sort();
-    assert_eq!(
-        sorted,
-        [
-            ("plain".to_string(), false, None),
-            ("vega".to_string(), true, Some("Vega".to_string()))
-        ]
-    );
-}
 
 #[test]
 fn every_bundled_mode_takes_a_star_a_sword_step_away_without_moving() {

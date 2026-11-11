@@ -2,96 +2,13 @@
 //! (ADR-REPL-2 points 1 to 4). A change to the live event edits this file
 //! and never `sim_v1`. The match is exhaustive and moves every field by name; the fields the
 //! live type gained for players are `None`, since version 1 names no player. It also converts
-//! the offer views the frozen rules build (`sim_v1::views`, copies of the live ones) to the live
-//! types, and the player's pick back, so the live views may change without touching `sim_v1`.
+//! the constellation view the frozen rules build (`sim_v1::views`, a copy of the live one) to the
+//! live type. The offer views and events of version 1 have no live counterpart (ADR-REPL-5).
 
 use crate::event::{DomainEvent, HitKind, HitSource};
 use crate::sim_v1::event as v1;
 use crate::sim_v1::views as views1;
-use crate::snapshot::{
-    CandidateView, ConstellationProgress, ConstellationView, OfferKind, OfferOption, OfferView,
-};
-
-impl From<views1::OfferKind> for OfferKind {
-    fn from(kind: views1::OfferKind) -> Self {
-        match kind {
-            views1::OfferKind::Star => OfferKind::Star,
-            views1::OfferKind::Boss => OfferKind::Boss,
-        }
-    }
-}
-
-impl From<views1::OfferOption> for OfferOption {
-    fn from(option: views1::OfferOption) -> Self {
-        match option {
-            views1::OfferOption::Take { candidate } => OfferOption::Take { candidate },
-            views1::OfferOption::Reroll { candidate } => OfferOption::Reroll { candidate },
-            views1::OfferOption::Skip => OfferOption::Skip,
-            views1::OfferOption::Banish { candidate } => OfferOption::Banish { candidate },
-        }
-    }
-}
-
-/// The one value that flows the other way: the player's pick, handed to the frozen rules.
-impl From<OfferOption> for views1::OfferOption {
-    fn from(option: OfferOption) -> Self {
-        match option {
-            OfferOption::Take { candidate } => views1::OfferOption::Take { candidate },
-            OfferOption::Reroll { candidate } => views1::OfferOption::Reroll { candidate },
-            OfferOption::Skip => views1::OfferOption::Skip,
-            OfferOption::Banish { candidate } => views1::OfferOption::Banish { candidate },
-        }
-    }
-}
-
-impl From<views1::ConstellationProgress> for ConstellationProgress {
-    fn from(progress: views1::ConstellationProgress) -> Self {
-        let views1::ConstellationProgress { set, held, needed } = progress;
-        ConstellationProgress { set, held, needed }
-    }
-}
-
-impl From<views1::CandidateView> for CandidateView {
-    fn from(candidate: views1::CandidateView) -> Self {
-        let views1::CandidateView {
-            reward,
-            rarity,
-            hidden,
-            named,
-            star,
-            constellation,
-        } = candidate;
-        CandidateView {
-            reward,
-            rarity,
-            hidden,
-            named,
-            star,
-            constellation: constellation.map(Into::into),
-        }
-    }
-}
-
-impl From<views1::OfferView> for OfferView {
-    fn from(offer: views1::OfferView) -> Self {
-        let views1::OfferView {
-            kind,
-            rarity,
-            candidates,
-            options,
-            rerolls_left,
-            banishes_left,
-        } = offer;
-        OfferView {
-            kind: kind.into(),
-            rarity,
-            candidates: candidates.into_iter().map(Into::into).collect(),
-            options: options.into_iter().map(Into::into).collect(),
-            rerolls_left,
-            banishes_left,
-        }
-    }
-}
+use crate::snapshot::ConstellationView;
 
 impl From<views1::ConstellationView> for ConstellationView {
     fn from(view: views1::ConstellationView) -> Self {

@@ -21,10 +21,8 @@ fn orb_cage() -> crate::stage::Stage {
 /// What a walk hashes after each tick.
 #[derive(Clone, Copy)]
 enum Hashed {
-    /// The whole snapshot's JSON and the places' debug text.
+    /// The whole snapshot's JSON (as a `Value`) and the places' debug text.
     Whole,
-    /// The same with `progress.offer` taken out of the JSON.
-    WithoutOffer,
     /// Only the first player's view and position.
     FirstPlayer,
 }
@@ -56,14 +54,9 @@ fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen
     e.places(places);
     match hashed {
         Hashed::Whole => {
-            h.write_bytes(&serde_json::to_vec(&snap).expect("a snapshot serializes"));
-            h.write_bytes(format!("{places:?}").as_bytes());
-        }
-        Hashed::WithoutOffer => {
-            let mut value = serde_json::to_value(&snap).expect("a snapshot serializes");
-            if let Some(p) = value.get_mut("progress").and_then(|p| p.as_object_mut()) {
-                p.remove("offer");
-            }
+            // Through a `Value`, whose keys sort: the pins were recorded over the snapshot as a
+            // `Value`, once `progress.offer` had left the text (the offer left the snapshot).
+            let value = serde_json::to_value(&snap).expect("a snapshot serializes");
             h.write_bytes(value.to_string().as_bytes());
             h.write_bytes(format!("{places:?}").as_bytes());
         }
@@ -168,10 +161,12 @@ fn six_walks(seen: &mut Seen, hashed: Hashed) -> [u64; 6] {
     ]
 }
 
-/// The bytes of everything but `progress.offer`, which leaves the snapshot.
+/// The snapshot and places bytes, which are those of before the offer left the snapshot with
+/// `progress.offer` taken out: the offer view's removal changed no other byte.
 #[test]
-fn the_snapshot_and_places_bytes_without_the_offer_are_pinned() {
-    let got = six_walks(&mut Seen::default(), Hashed::WithoutOffer);
+fn the_snapshot_and_places_bytes_are_pinned() {
+    let mut seen = Seen::default();
+    let got = six_walks(&mut seen, Hashed::Whole);
     assert_eq!(
         got,
         [
@@ -184,31 +179,13 @@ fn the_snapshot_and_places_bytes_without_the_offer_are_pinned() {
         ],
         "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
     );
-}
-
-#[test]
-fn the_snapshot_and_places_bytes_are_pinned() {
-    let mut seen = Seen::default();
-    let got = six_walks(&mut seen, Hashed::Whole);
-    assert_eq!(
-        got,
-        [
-            412_818_838_291_876_013,
-            12_829_727_334_647_821_083,
-            3_061_930_009_705_024_715,
-            17_246_493_444_519_606_257,
-            6_438_994_331_722_358_287,
-            12_484_909_366_339_812_250
-        ],
-        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs (time_limit_case moved when the mode bosses began to chase)"
-    );
     let missing: Vec<&str> = [
         (seen.attack, "an entity with an attack"),
         (seen.boss, "a boss entity"),
         (seen.link, "an orb with a link"),
         (seen.zone, "a zone"),
         (seen.star, "a star"),
-        (seen.offer, "progress.offer"),
+        (seen.offer, "an offer open (version 1)"),
     ]
     .iter()
     .filter(|(ok, _)| !ok)

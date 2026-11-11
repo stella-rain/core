@@ -172,7 +172,7 @@ use crate::rewards::Rarity;
 use crate::rng::derive;
 use crate::savepoint::codec::Encode;
 use crate::savepoint::codec::Writer;
-use crate::snapshot::OfferKind;
+use crate::sim::state::OfferKind;
 
 fn encoded(s: &State) -> Vec<u8> {
     let mut w = Writer::new();
