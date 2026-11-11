@@ -273,3 +273,197 @@ fn check_shipped_names_the_locales_a_set_lacks() {
     let set = TextSet::from_files(&[("en", TextTable::BUNDLED)]).unwrap();
     assert_eq!(set.check_shipped(), Err(vec!["ko".to_string()]));
 }
+
+// The Korean text (ADR-CONT-8): one entry per shown key, the same game numbers as the English.
+
+/// Titles that may keep Latin letters because the name has no Korean form. Empty on purpose:
+/// add a key here with a comment saying why.
+const LATIN_TITLE_ALLOWED: &[&str] = &[];
+
+fn is_hangul(c: char) -> bool {
+    ('\u{AC00}'..='\u{D7A3}').contains(&c)
+}
+
+fn has_hangul(s: &str) -> bool {
+    s.chars().any(is_hangul)
+}
+
+/// The runs of ASCII digits in `s`, sorted.
+fn digit_runs(s: &str) -> Vec<String> {
+    let mut runs: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            cur.push(c);
+        } else if !cur.is_empty() {
+            runs.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() {
+        runs.push(cur);
+    }
+    runs.sort();
+    runs
+}
+
+/// The word in a trailing ` (word)` of a title, if it has one.
+fn parenthesised_suffix(title: &str) -> Option<&str> {
+    let (_, rest) = title.rsplit_once(" (")?;
+    rest.strip_suffix(')')
+}
+
+/// The keys (sorted) for which `bad` holds, for a failure message that names them.
+fn keys_where(bad: impl Fn(&str, &str, &str, &str, &str) -> bool) -> Vec<String> {
+    let set = TextSet::bundled();
+    let ko = set.table("ko").unwrap();
+    let en = set.table("en").unwrap();
+    en.entries()
+        .iter()
+        .filter(|(key, e)| {
+            let k = ko.get(key).unwrap_or_else(|| panic!("missing ko {key}"));
+            bad(key, &e.title, &e.description, &k.title, &k.description)
+        })
+        .map(|(key, _)| key.to_string())
+        .collect()
+}
+
+#[test]
+fn every_korean_entry_has_hangul() {
+    let bad = keys_where(|_, _, en_desc, ko_title, ko_desc| {
+        !has_hangul(ko_title) || (!en_desc.is_empty() && !has_hangul(ko_desc))
+    });
+    assert!(bad.is_empty(), "no Hangul in: {bad:?}");
+}
+
+#[test]
+fn no_entry_is_still_the_english_copy() {
+    let bad = keys_where(|key, en_title, en_desc, ko_title, ko_desc| {
+        (ko_title == en_title && !LATIN_TITLE_ALLOWED.contains(&key))
+            || (!en_desc.is_empty() && ko_desc == en_desc)
+    });
+    assert!(bad.is_empty(), "still English: {bad:?}");
+}
+
+#[test]
+fn no_latin_letters_are_left_in_korean_text() {
+    let bad = keys_where(|key, _, _, ko_title, ko_desc| {
+        ko_desc.chars().any(|c| c.is_ascii_alphabetic())
+            || (ko_title.chars().any(|c| c.is_ascii_alphabetic())
+                && !LATIN_TITLE_ALLOWED.contains(&key))
+    });
+    assert!(bad.is_empty(), "Latin letters in: {bad:?}");
+}
+
+#[test]
+fn korean_text_keeps_the_english_numbers() {
+    let set = TextSet::bundled();
+    let ko = set.table("ko").unwrap();
+    let en = set.table("en").unwrap();
+    for (key, e) in en.entries() {
+        let k = ko.get(key).unwrap();
+        assert_eq!(
+            digit_runs(&k.description),
+            digit_runs(&e.description),
+            "numbers differ in the description of {key}"
+        );
+        assert_eq!(
+            digit_runs(&k.title),
+            digit_runs(&e.title),
+            "numbers differ in the title of {key}"
+        );
+    }
+}
+
+#[test]
+fn korean_file_has_the_english_keys_the_bounds_and_the_canonical_form() {
+    let set = TextSet::bundled();
+    let ko = set.table("ko").unwrap();
+    let en = set.table("en").unwrap();
+    assert_eq!(ko.len(), en.len());
+    assert!(ko.entries().keys().eq(en.entries().keys()));
+    let file = std::fs::read(crate::data_root::data_root().join("content/text.ko.json")).unwrap();
+    assert!(TextTable::from_bytes(&file).is_ok());
+    let value: Value = serde_json::from_slice(&file).unwrap();
+    let mut canonical = serde_json::to_string_pretty(&value).unwrap();
+    canonical.push('\n');
+    assert_eq!(
+        canonical.as_bytes(),
+        file.as_slice(),
+        "content/text.ko.json is not sorted two-space pretty JSON with raw UTF-8 and one final newline"
+    );
+}
+
+#[test]
+fn one_korean_word_per_rarity_and_per_damage_type() {
+    let set = TextSet::bundled();
+    let ko = set.table("ko").unwrap();
+    let en = set.table("en").unwrap();
+
+    // Rarity: the parenthesised word of the title.
+    let mut by_rarity: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for (key, e) in en.entries() {
+        let Some(rarity) = parenthesised_suffix(&e.title) else {
+            continue;
+        };
+        let k = ko.get(key).unwrap();
+        let word = parenthesised_suffix(&k.title)
+            .unwrap_or_else(|| panic!("{key}: Korean title has no (rarity) suffix"));
+        assert!(
+            !word.is_empty() && word.chars().all(is_hangul),
+            "{key}: rarity word {word:?} is not Hangul"
+        );
+        by_rarity
+            .entry(rarity.to_string())
+            .or_default()
+            .insert(word.to_string());
+    }
+    assert_eq!(by_rarity.len(), 6, "{by_rarity:?}");
+    let mut words = std::collections::BTreeSet::new();
+    for (rarity, ws) in &by_rarity {
+        assert_eq!(ws.len(), 1, "{rarity} has several Korean words: {ws:?}");
+        words.insert(ws.iter().next().unwrap().clone());
+    }
+    assert_eq!(words.len(), 6, "two rarities share a Korean word");
+
+    // Damage type: the title before ` (` and the description without digits.
+    let mut by_type: std::collections::BTreeMap<
+        String,
+        std::collections::BTreeSet<(String, String)>,
+    > = std::collections::BTreeMap::new();
+    for key in en.entries().keys() {
+        let Some(rest) = key.strip_prefix("rewards/type_bonus_") else {
+            continue;
+        };
+        let (kind, _rarity) = rest.rsplit_once('_').unwrap();
+        let k = ko.get(key).unwrap();
+        let name = k
+            .title
+            .rsplit_once(" (")
+            .map_or(k.title.as_str(), |(n, _)| n);
+        let desc: String = k
+            .description
+            .chars()
+            .filter(|c| !c.is_ascii_digit())
+            .collect();
+        by_type
+            .entry(kind.to_string())
+            .or_default()
+            .insert((name.to_string(), desc));
+    }
+    assert_eq!(by_type.len(), 10, "{:?}", by_type.keys());
+    let mut names = std::collections::BTreeSet::new();
+    for (kind, forms) in &by_type {
+        assert_eq!(forms.len(), 1, "{kind} varies across rarities: {forms:?}");
+        names.insert(forms.iter().next().unwrap().0.clone());
+    }
+    assert_eq!(names.len(), 10, "two damage types share a Korean name");
+}
+
+#[test]
+fn the_korean_draft_leaves_no_shown_key_out() {
+    let set = TextSet::bundled();
+    assert_eq!(set.check_pack(Pack::bundled()), Ok(()));
+    assert_eq!(set.check_shipped(), Ok(()));
+    assert_eq!(Pack::bundled().check_texts(set), Ok(()));
+}
