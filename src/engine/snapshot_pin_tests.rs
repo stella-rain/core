@@ -23,6 +23,8 @@ fn orb_cage() -> crate::stage::Stage {
 enum Hashed {
     /// The whole snapshot's JSON and the places' debug text.
     Whole,
+    /// The same with `progress.offer` taken out of the JSON.
+    WithoutOffer,
     /// Only the first player's view and position.
     FirstPlayer,
 }
@@ -55,6 +57,14 @@ fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen
     match hashed {
         Hashed::Whole => {
             h.write_bytes(&serde_json::to_vec(&snap).expect("a snapshot serializes"));
+            h.write_bytes(format!("{places:?}").as_bytes());
+        }
+        Hashed::WithoutOffer => {
+            let mut value = serde_json::to_value(&snap).expect("a snapshot serializes");
+            if let Some(p) = value.get_mut("progress").and_then(|p| p.as_object_mut()) {
+                p.remove("offer");
+            }
+            h.write_bytes(value.to_string().as_bytes());
             h.write_bytes(format!("{places:?}").as_bytes());
         }
         Hashed::FirstPlayer => {
@@ -156,6 +166,24 @@ fn six_walks(seen: &mut Seen, hashed: Hashed) -> [u64; 6] {
         ),
         corpus_runs(seen, hashed),
     ]
+}
+
+/// The bytes of everything but `progress.offer`, which leaves the snapshot.
+#[test]
+fn the_snapshot_and_places_bytes_without_the_offer_are_pinned() {
+    let got = six_walks(&mut Seen::default(), Hashed::WithoutOffer);
+    assert_eq!(
+        got,
+        [
+            2_527_182_255_434_071_195,
+            6_252_471_399_531_413_061,
+            12_293_412_176_472_972_673,
+            6_602_464_824_282_051_373,
+            12_692_238_744_271_886_087,
+            14_144_782_006_893_370_296
+        ],
+        "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
+    );
 }
 
 #[test]
