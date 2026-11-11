@@ -24,26 +24,19 @@ fn run_cases(tree: &str) -> Vec<PathBuf> {
 
 #[test]
 fn picks_leave_the_replay_bytes_alone() {
-    for tree in ["current", "v1"] {
-        for case in run_cases(tree) {
-            let bytes = fs::read(case.join("run.replay")).unwrap();
-            let run = RunReplay::from_bytes(&bytes).unwrap();
-            let content = case_content(&case).unwrap();
-            let recorded =
-                run_replay::record_run_with(&run.setup, &content, &run_steps::commands(&run))
-                    .unwrap();
-            let name = case.display();
-            // The recorder writes schema 2; a frozen schema 1 file is compared in its form.
-            let recorded = if run.setup.schema_version == 1 {
-                crate::common::schema_1_form(&recorded)
-            } else {
-                recorded
-            };
-            assert_eq!(recorded.inputs, run.inputs, "{name}: inputs");
-            assert_eq!(recorded.commands, run.commands, "{name}: commands");
-            assert_eq!(recorded.checkpoints, run.checkpoints, "{name}: checkpoints");
-            assert_eq!(recorded.final_hash, run.final_hash, "{name}: final hash");
-        }
+    // The current runs only: a frozen v1 run holds PICKS steps no recorder writes any more; it
+    // verifies through `verify_run*` (`corpus::`).
+    for case in run_cases("current") {
+        let bytes = fs::read(case.join("run.replay")).unwrap();
+        let run = RunReplay::from_bytes(&bytes).unwrap();
+        let content = case_content(&case).unwrap();
+        let recorded =
+            run_replay::record_run_with(&run.setup, &content, &run_steps::commands(&run)).unwrap();
+        let name = case.display();
+        assert_eq!(recorded.inputs, run.inputs, "{name}: inputs");
+        assert_eq!(recorded.commands, run.commands, "{name}: commands");
+        assert_eq!(recorded.checkpoints, run.checkpoints, "{name}: checkpoints");
+        assert_eq!(recorded.final_hash, run.final_hash, "{name}: final hash");
     }
 }
 
@@ -63,4 +56,14 @@ fn a_version_1_run_takes_a_one_entry_slice() {
     }
     let diff = std::env::temp_dir();
     assert_eq!(check_case(&case, Path::new(&diff)), Ok(()));
+}
+
+#[test]
+fn a_choice_cannot_be_recorded() {
+    use crate::common::run::trial_setup;
+    use stella_rain_core::run_replay::{Command, RunReplayError};
+    assert_eq!(
+        run_replay::record_run(&trial_setup(), &[Command::Choose(0)]).map(|_| ()),
+        Err(RunReplayError::BadCommands("a choice cannot be recorded"))
+    );
 }

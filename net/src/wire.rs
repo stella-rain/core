@@ -109,7 +109,6 @@ impl WireInput {
             auto: self.auto,
             interact: self.interact,
             action: self.action,
-            ..Input::default()
         }
     }
 }

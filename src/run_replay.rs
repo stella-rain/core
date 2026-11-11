@@ -6,8 +6,8 @@
 //! whose content is bundled in `core`, so no stage file and no save data is needed.
 //!
 //! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-2 point 4,
-//! ADR-REPL-5): `inputs` is the step log (see `step_log`), each pick inside its step, and
-//! `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! ADR-REPL-5): `inputs` is the step log (see `step_log`; a PICKS record is reserved
+//! and refused) and `commands` is empty. A schema 1 file is still read and verified, and its two streams are
 //! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
 //! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
@@ -124,7 +124,7 @@ const RETIRED_SPEND: u8 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     /// Option `index` of the open offer (ADR-REPL-5). Read from schema 1 files; no writer
-    /// writes it into a file (schema 2 holds a pick inside its step).
+    /// writes it into a file (schema 2 reserves the PICKS record).
     Choose,
 }
 
@@ -644,8 +644,8 @@ impl RunReplay {
     }
 
     /// The commands between ticks, in order: at most `MAX_COMMANDS`, of known kinds, none after
-    /// tick `ticks`. A schema 1 replay's `commands` are this list; at schema 2 it is derived
-    /// from the picks of the step log (the solo view).
+    /// tick `ticks`. A schema 1 replay's `commands` are this list; a schema 2 log holds no picks, so
+    /// it is empty or refused (a PICKS record is reserved, an ACTIONS step has no solo view).
     pub fn unpack_commands(&self) -> Result<Vec<TickCommand>, RunReplayError> {
         if self.setup.schema_version >= 2 {
             return self.step_log(u32::MAX)?.solo_commands();
@@ -729,7 +729,7 @@ impl RunReplay {
 
     /// The run's steps as one log, whichever schema the replay is: a schema 1 replay's inputs
     /// and commands are migrated in memory, a schema 2 replay's `inputs` are decoded and its
-    /// `commands` must be empty (a pick is a field of the step it was made on).
+    /// `commands` must be empty (schema 2 has no picks).
     pub(crate) fn step_log(&self, max_ticks: u32) -> Result<StepLog, RunReplayError> {
         if self.setup.schema_version >= 2 {
             if !self.commands.is_empty() {
@@ -780,8 +780,6 @@ pub struct RunRecorder {
     /// The run as a step log (ADR-REPL-5): runs of ticks with one input per player, and the
     /// steps of picks between them.
     records: Vec<Record>,
-    /// The number of `Record::Picks` in `records`: what `MAX_COMMANDS` counts.
-    picks_made: u32,
     /// The number of `Record::Actions` in `records`: what `MAX_ACTION_STEPS` counts.
     actions_made: u32,
     checkpoints: Vec<u64>,
@@ -825,7 +823,6 @@ impl RunRecorder {
             engine,
             present: (1u8 << party) - 1,
             records: Vec::new(),
-            picks_made: 0,
             actions_made: 0,
             checkpoints: Vec::new(),
         })
@@ -877,7 +874,6 @@ impl RunRecorder {
             content_sha256: prefix.content_sha256.clone(),
             engine,
             present: run.log.present,
-            picks_made: run.log.picks_made(),
             actions_made: run.log.actions_made(),
             records: run.log.records,
             checkpoints: run.checkpoints,
@@ -907,7 +903,6 @@ impl RunRecorder {
             content_sha256: prefix.content_sha256.clone(),
             engine,
             present: history.log.present,
-            picks_made: history.log.picks_made(),
             actions_made: history.log.actions_made(),
             records: history.log.records,
             checkpoints: history.claimed,
@@ -989,36 +984,6 @@ impl RunRecorder {
         Ok(())
     }
 
-    /// `player` chooses option `index` of its open offer: `picks` with that one pick. A player
-    /// outside the party is `BadInputs`.
-    pub fn choose(&mut self, player: PlayerIdx, index: u32) -> Result<(), RunReplayError> {
-        if self.engine.present() >> player.get() & 1 == 0 {
-            return Err(RunReplayError::BadInputs("a player outside the party"));
-        }
-        let mut picks = [None; MAX_PLAYERS as usize];
-        picks[player.get()] = Some(index);
-        self.picks(&picks)
-    }
-
-    /// One step that does not advance the world: the pick of each slot (`None` for no pick),
-    /// at least one among the present slots, taken together. A pick at an absent slot is ignored.
-    /// Refused, recording nothing, when a pick is refused by the engine or the replay already
-    /// holds `MAX_COMMANDS` steps of picks.
-    pub fn picks(
-        &mut self,
-        picks: &[Option<u32>; MAX_PLAYERS as usize],
-    ) -> Result<(), RunReplayError> {
-        let picks = dense(self.engine.present(), picks);
-        if picks.iter().all(Option::is_none) {
-            return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
-        }
-        self.room()?;
-        apply_picks(&mut self.engine, &picks)?;
-        self.records.push(Record::Picks { picks });
-        self.picks_made += 1;
-        Ok(())
-    }
-
     /// One step that does not advance the world: the equipment action of each slot (`None` for
     /// none), at least one among the present slots (ADR-SIM-7, ADR-REPL-5 point 8); an action at
     /// an absent slot is ignored. Refused, recording nothing, after the run ended or when the replay already holds
@@ -1090,15 +1055,6 @@ impl RunRecorder {
         } else {
             Record::Leave { slot }
         });
-        Ok(())
-    }
-
-    fn room(&self) -> Result<(), RunReplayError> {
-        if self.picks_made >= MAX_COMMANDS {
-            return Err(RunReplayError::TooManyCommands {
-                limit: MAX_COMMANDS,
-            });
-        }
         Ok(())
     }
 
@@ -1180,7 +1136,9 @@ pub fn record_run_with(
             Command::Step(input) => {
                 recorder.step(&[input, Default::default(), Default::default()])?
             }
-            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index)?,
+            Command::Choose(_) => {
+                return Err(RunReplayError::BadCommands("a choice cannot be recorded"));
+            }
         }
     }
     Ok(recorder.replay())
@@ -1445,29 +1403,12 @@ fn resimulate(
 }
 
 /// One step that does not advance the world: every pick is checked against the engine first,
-/// then taken together.
+/// then taken together (`Engine::v1_pick_step`).
 fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunReplayError> {
     let tick = engine.tick();
-    let mut inputs = [Input::default(); MAX_PLAYERS as usize];
-    let all = slots(engine.present(), chosen);
-    for (slot, pick) in all.iter().enumerate() {
-        let Some(index) = *pick else {
-            continue;
-        };
-        let player =
-            u8::try_from(slot)
-                .ok()
-                .and_then(PlayerIdx::new)
-                .ok_or(RunReplayError::BadInputs(
-                    "the party does not match the run",
-                ))?;
-        engine
-            .check_pick(player, index)
-            .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
-        inputs[slot] = Input::picking(index);
-    }
-    engine.pick_step(&inputs);
-    Ok(())
+    engine
+        .v1_pick_step(&slots(engine.present(), chosen))
+        .map_err(|error| RunReplayError::ChoiceRefused { tick, error })
 }
 
 /// The dense entries of a record, one per slot of `mask` in slot order, placed at their slots
@@ -1899,14 +1840,6 @@ mod tests {
         let one = crate::id::PlayerIdx::new(1).unwrap();
         while rec.engine().snapshot().players[1].down.is_none() {
             assert!(rec.engine().tick() < 4_000, "slot 1 goes down");
-            if rec.engine().offer_open() {
-                let holder = (0..2u8)
-                    .filter_map(crate::id::PlayerIdx::new)
-                    .find(|p| rec.engine().check_pick(*p, 0).is_ok())
-                    .unwrap();
-                rec.choose(holder, 0).unwrap();
-                continue;
-            }
             rec.step(&[walk, Input::default(), Input::default()])
                 .unwrap();
         }

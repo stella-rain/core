@@ -80,14 +80,12 @@ pub fn worst_minute_peak() -> worst_minute_case::Run {
     worst_minute_case::worst_minute_peak()
 }
 
-/// Takes option `index` of the open offer through a step (ADR-REPL-5). A pick the engine refuses
-/// takes nothing and so leaves no events, which a fixture's offer never does.
+/// Takes option `index` of the open offer of a `sim_version` 1 run through the version 1 pick
+/// seam (ADR-REPL-5). A pick the engine refuses takes nothing and so leaves no events, which a
+/// fixture's offer never does.
 #[cfg(test)]
 pub(crate) fn take_option(e: &mut Engine, index: u32) {
-    e.step(&[
-        Input::picking(index),
-        Default::default(),
-        Default::default(),
-    ]);
+    e.v1_pick_step(&[Some(index), None, None])
+        .expect("the open offer has that option");
     assert!(!e.events().is_empty(), "option {index} of the open offer");
 }

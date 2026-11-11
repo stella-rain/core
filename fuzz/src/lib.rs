@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use stella_rain_core::attack_presets::AttackPresets;
 use stella_rain_core::content_hash::sha256;
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::{EquipAction, Input};
@@ -125,8 +125,8 @@ pub fn stage_run(data: &[u8]) -> bool {
     }
     let mut engine = Engine::new(&stage).expect("a stage that validates starts a run");
     let ticks = usize::try_from(stage.length_ticks).map_or(RUN_TICKS, |n| n.min(RUN_TICKS));
-    for (t, input) in inputs_from(data, ticks).into_iter().enumerate() {
-        step_spending(&mut engine, input, pick(data, t));
+    for input in inputs_from(data, ticks) {
+        step_spending(&mut engine, input);
         let _ = engine.snapshot();
     }
     engine.tick() > 0
@@ -155,53 +155,17 @@ pub fn run_setup(data: &[u8]) -> bool {
         );
         return false;
     };
-    for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
-        step_spending(&mut engine, input, pick(data, t));
+    for input in inputs_from(data, RUN_TICKS) {
+        step_spending(&mut engine, input);
         let _ = engine.snapshot();
     }
     engine.tick() > 0
 }
 
-/// One tick of `input`, after the commands between ticks (ADR-REPL-5): a choice with `pick` as it
-/// is, which may be refused and must then change nothing; then, while an offer is open, a choice
-/// of `pick` inside its options, which is never refused, so the world goes on.
-fn step_spending(engine: &mut Engine, input: Input, pick: u8) {
-    let hash = engine.state_hash();
-    if take(engine, u32::from(pick)).is_err() {
-        assert_eq!(
-            engine.state_hash(),
-            hash,
-            "a refused command changed the run"
-        );
-    }
-    // Each choice spends a reroll or a banish, or closes the offer; a run has few of either.
-    for _ in 0..64 {
-        let Some(options) = engine
-            .snapshot()
-            .progress
-            .and_then(|p| p.offer.map(|o| o.options.len()))
-        else {
-            break;
-        };
-        let options = u32::try_from(options).expect("few options");
-        take(engine, u32::from(pick) % options).expect("an option of the open offer is taken");
-    }
-    assert!(
-        !engine.offer_open(),
-        "an offer stayed open after 64 choices"
-    );
+/// One tick of `input` (ADR-REPL-5). A `sim_version` 1 engine that opens an offer stops there:
+/// the live rules open none and no input takes a pick, so the world does not go on.
+fn step_spending(engine: &mut Engine, input: Input) {
     engine.step(&[input, Default::default(), Default::default()]);
-}
-
-/// Takes option `index` of the open offer through a step, as `check_pick` allows it.
-fn take(engine: &mut Engine, index: u32) -> Result<(), ChoiceError> {
-    engine.check_pick(PlayerIdx::SOLO, index)?;
-    engine.step(&[
-        Input::picking(index),
-        Default::default(),
-        Default::default(),
-    ]);
-    Ok(())
 }
 
 /// The option to pick on tick `t`: a byte of `data`, round again at its end.
@@ -229,7 +193,6 @@ fn inputs_from(data: &[u8], ticks: usize) -> Vec<Input> {
             skill: byte(t, 2) & 8 != 0,
             assist: byte(t, 2) & 16 != 0,
             auto: byte(t, 2) & 32 != 0,
-            pick: None,
             action: None,
             interact: false,
         })
@@ -281,10 +244,15 @@ pub fn replay_load(data: &[u8]) -> bool {
                     (&run.final_hash, run.ticks),
                     "a resumed schema 1 prefix replays as another run"
                 );
-                assert!(
-                    run_replay::verify_run(&again.to_bytes()).is_ok(),
-                    "a resumed schema 1 prefix does not verify as schema 2"
-                );
+                // A prefix that holds picks migrates to PICKS records, which schema 2 reserves:
+                // its schema 2 form is refused, not verified (a recorder for frozen runs is
+                // separate work).
+                if run.commands.is_empty() {
+                    assert!(
+                        run_replay::verify_run(&again.to_bytes()).is_ok(),
+                        "a resumed schema 1 prefix does not verify as schema 2"
+                    );
+                }
             }
         }
     }
@@ -369,12 +337,7 @@ pub fn recorder_until(run: &RunReplay, cut: Option<u32>) -> RunRecorder {
                     recorder.step(&all).expect("a verified run steps");
                 }
             }
-            RangeStep::Picks { picks } => {
-                let all = slots(recorder.engine().present(), picks);
-                recorder
-                    .picks(&all)
-                    .expect("a verified run's picks are accepted");
-            }
+            RangeStep::Picks { .. } => panic!("a verified schema 2 run holds no PICKS step"),
             RangeStep::Join { slot } => recorder
                 .join(slot_of(*slot))
                 .expect("a verified run's joins are accepted"),
@@ -498,17 +461,7 @@ pub fn savepoint_load(data: &[u8]) -> bool {
                     if recorder.engine().outcome() != Outcome::Running {
                         break;
                     }
-                    let moved = if recorder.engine().offer_open() {
-                        // The slot that holds the offer answers it with choice 0 (an absent
-                        // slot, in a hole, is refused by `check_pick`).
-                        let holder = (0..3u8)
-                            .filter_map(PlayerIdx::new)
-                            .find(|p| recorder.engine().check_pick(*p, 0).is_ok())
-                            .unwrap_or(PlayerIdx::SOLO);
-                        recorder.choose(holder, 0)
-                    } else {
-                        recorder.step(&[Input::default(); 3])
-                    };
+                    let moved = recorder.step(&[Input::default(); 3]);
                     if moved.is_err() {
                         break;
                     }
@@ -780,8 +733,8 @@ pub fn pack_load(data: &[u8]) -> bool {
         };
         let mut engine = Engine::start_with(&setup, pack.content())
             .expect("a pack that loads starts a run of each mode");
-        for (t, input) in inputs_from(data, RUN_TICKS).into_iter().enumerate() {
-            step_spending(&mut engine, input, pick(data, t));
+        for input in inputs_from(data, RUN_TICKS) {
+            step_spending(&mut engine, input);
             let _ = engine.snapshot();
         }
     }

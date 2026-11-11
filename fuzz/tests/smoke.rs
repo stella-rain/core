@@ -111,9 +111,7 @@ fn run_prefixes() -> Vec<Vec<u8>> {
                             .step(&[input, Default::default(), Default::default()])
                             .expect("a corpus run steps");
                     }
-                    Command::Choose(index) => recorder
-                        .choose(PlayerIdx::SOLO, index)
-                        .expect("a corpus choice"),
+                    Command::Choose(_) => panic!("a current run holds no pick"),
                 }
             }
             recorder.replay().to_bytes()
@@ -447,7 +445,7 @@ fn pack_with_constellations() -> Vec<u8> {
 /// The seeds of `step_log_range`, named for what they are: for each run case of the corpus (all
 /// of them, the target takes the step log alone) the ranges `0..0`, `0..ticks`, the middle
 /// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
-/// ticks, a pick before the first tick and an unknown record. Generated, never committed.
+/// ticks, a PICKS record (reserved: refused) and an unknown record. Generated, never committed.
 fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
     let dir = root().join("tests/corpus/current/runs");
     let mut cases: Vec<_> = fs::read_dir(&dir)
@@ -521,7 +519,7 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             &[0x01, 0x00, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x02, 0x00, 0x00],
         ),
         (
-            "forged-pick-first",
+            "forged-refused-pick-first",
             5,
             &[0x01, 0x01, 0x01, 0x00, 0x00, 0x05, 0x02, 0x00, 0x00],
         ),

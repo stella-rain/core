@@ -87,7 +87,6 @@ fn input_record_holds_the_stick_four_buttons_and_two_switches_only() {
         skill: false,
         assist: true,
         auto: false,
-        pick: None,
         action: None,
         interact: false,
     };

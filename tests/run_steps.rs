@@ -165,9 +165,9 @@ fn commands_record_the_file(replay: &RunReplay, content: &RunContent, name: &str
 
 #[test]
 fn commands_are_the_inverse_of_record_run() {
-    let mut cases = case_dirs(&runs_dir());
-    cases.extend(case_dirs(&frozen_runs_dir()));
-    for case in cases {
+    // The current cases only: the frozen v1 runs hold PICKS steps, which no recorder writes any
+    // more (they verify through `verify_run*`, `corpus::`).
+    for case in case_dirs(&runs_dir()) {
         let (replay, _, pack) = load(&case);
         commands_record_the_file(&replay, pack.content(), &case.display().to_string());
     }

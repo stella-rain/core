@@ -473,7 +473,6 @@ fn from_input_folds_minus_128_and_to_input_gives_it_back() {
         auto: true,
         interact: true,
         action: Some(EquipAction::Craft { star: 3 }),
-        ..Input::default()
     };
     assert_eq!(WireInput::from_input(&i).to_input(), i);
     assert_eq!(WireInput::default().to_input(), Input::default());

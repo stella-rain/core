@@ -45,10 +45,10 @@ fn the_versions_the_writers_write() {
 
 #[test]
 fn a_recorded_run_is_a_step_log() {
-    // `stage_skill` holds picks: the real offers.
-    let case = tree("v1").join("runs/stage_skill");
+    // The current `tutorial` run: equipment actions, no offer (the recorder writes no PICKS).
+    let case = tree("current").join("runs/tutorial");
     let old = read_run(&case);
-    assert!(!old.commands.is_empty(), "the case holds picks");
+    assert_eq!(old.setup.schema_version, 2);
     let content = case_content(&case).unwrap();
     let recorded =
         run_replay::record_run_with(&old.setup, &content, &run_steps::commands(&old)).unwrap();
@@ -62,6 +62,34 @@ fn a_recorded_run_is_a_step_log() {
         run_replay::verify_run_with(&fs::read(case.join("run.replay")).unwrap(), &content).unwrap();
     assert_eq!(verified.commands, before.commands);
     assert_eq!(verified.final_hash, before.final_hash);
+}
+
+#[test]
+fn a_schema_2_log_with_a_picks_record_is_refused() {
+    use stella_rain_core::base64;
+    use stella_rain_core::run_replay::RunReplayError;
+    let case = tree("current").join("runs/tutorial");
+    let content = case_content(&case).unwrap();
+    let run = read_run(&case);
+    // Control: the run as recorded verifies.
+    assert!(verify_run_with(&run.to_bytes(), &content).is_ok());
+    // A PICKS record after the last tick (opcode 1, marker 1, option 0): once legal.
+    let mut bytes = base64::decode(&run.inputs).unwrap();
+    bytes.extend_from_slice(&[0x01, 0x01, 0x00]);
+    let mut edited = run.clone();
+    edited.inputs = base64::encode(&bytes);
+    let reserved = Err(RunReplayError::BadInputs(
+        "a PICKS record is reserved at schema 2",
+    ));
+    assert_eq!(edited.unpack_commands().map(|_| ()), reserved);
+    assert_eq!(
+        edited.step_range(0, edited.ticks, u32::MAX).map(|_| ()),
+        reserved
+    );
+    assert_eq!(
+        verify_run_with(&edited.to_bytes(), &content).map(|_| ()),
+        reserved
+    );
 }
 
 #[test]
@@ -98,21 +126,30 @@ fn the_stage_replay_writer_writes_schema_2_and_keeps_interact() {
 
 #[test]
 fn the_unpack_views_read_both_schemas() {
+    // The frozen runs through their schema 1 views, the current runs through schema 2.
     for case in run_cases("v1") {
         let old = read_run(&case);
-        let content = case_content(&case).unwrap();
-        let two =
-            run_replay::record_run_with(&old.setup, &content, &run_steps::commands(&old)).unwrap();
-        assert_eq!(two.setup.schema_version, 2);
         let name = case.display();
-        let inputs = two.unpack_inputs(u32::MAX).unwrap();
-        assert_eq!(inputs.len(), usize::try_from(two.ticks).unwrap(), "{name}");
-        assert_eq!(inputs, old.unpack_inputs(u32::MAX).unwrap(), "{name}");
-        assert_eq!(
-            two.unpack_commands().unwrap(),
-            old.unpack_commands().unwrap(),
-            "{name}"
-        );
+        assert_eq!(old.setup.schema_version, 1, "{name}");
+        let inputs = old.unpack_inputs(u32::MAX).unwrap();
+        assert_eq!(inputs.len(), usize::try_from(old.ticks).unwrap(), "{name}");
+        old.unpack_commands().unwrap();
+    }
+    for case in run_cases("current") {
+        let run = read_run(&case);
+        let name = case.display();
+        assert_eq!(run.setup.schema_version, 2, "{name}");
+        // An equipment run holds ACTIONS steps, which the solo view refuses.
+        match run.unpack_inputs(u32::MAX) {
+            Ok(inputs) => assert_eq!(inputs.len(), usize::try_from(run.ticks).unwrap(), "{name}"),
+            Err(error) => assert_eq!(
+                error,
+                run_replay::RunReplayError::BadInputs(
+                    "a log with equipment actions has no solo view"
+                ),
+                "{name}"
+            ),
+        }
     }
 }
 

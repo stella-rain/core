@@ -411,7 +411,7 @@ fn steps_of(replay: &RunReplay) -> Vec<Step> {
 fn apply_step(engine: &mut Engine, step: Step) {
     match step {
         Step::Tick(input) => engine.step(&[input, Default::default(), Default::default()]),
-        Step::Pick(i) => crate::engine::pick(engine, crate::id::PlayerIdx::SOLO, i).unwrap(),
+        Step::Pick(i) => engine.v1_pick_step(&[Some(i), None, None]).unwrap(),
         Step::Act(a) => engine.act(crate::id::PlayerIdx::SOLO, a).unwrap(),
     }
 }

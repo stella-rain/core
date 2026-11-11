@@ -56,10 +56,7 @@ fn version_1_runs_the_rules() {
     assert_eq!(e.tick(), 1);
     assert_eq!(e.outcome(), Outcome::Running);
     let mut e = offering_at(1);
-    assert_eq!(
-        crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0),
-        Ok(())
-    );
+    assert_eq!(e.v1_pick_step(&[Some(0), None, None]), Ok(()));
 }
 
 #[test]
@@ -78,12 +75,82 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
         let mut e = offering_at(v);
         let before = e.state_hash();
         assert_eq!(
-            crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0),
+            e.v1_pick_step(&[Some(0), None, None]),
             Err(ChoiceError::Unsupported { sim_version: v }),
             "{v}"
         );
         assert_eq!(e.state_hash(), before, "{v}");
         assert_eq!(e.outcome(), Outcome::Running, "{v}");
+        assert!(e.offer_open(), "{v}");
+    }
+}
+
+const SOLO_PICK_0: [Option<u32>; crate::id::MAX_PLAYERS as usize] = [Some(0), None, None];
+
+#[test]
+fn the_seam_takes_option_0_of_an_open_offer() {
+    let mut e = offering_at(1);
+    let before = e.state_hash();
+    assert_eq!(e.v1_pick_step(&SOLO_PICK_0), Ok(()));
+    assert_ne!(e.state_hash(), before);
+    assert!(!e.events().is_empty());
+}
+
+#[test]
+fn the_seam_refuses_a_pick_with_no_offer() {
+    let mut e = at_version(1);
+    let before = e.state_hash();
+    assert_eq!(e.v1_pick_step(&SOLO_PICK_0), Err(ChoiceError::NoOffer));
+    assert_eq!(e.state_hash(), before);
+    assert!(e.events().is_empty());
+}
+
+#[test]
+fn the_seam_refuses_an_index_past_the_options() {
+    let mut e = offering_at(1);
+    let before = e.state_hash();
+    let options = u32::try_from(
+        e.run
+            .offer_options(
+                e.content.rewards(),
+                e.content.expertise(),
+                crate::id::PlayerIdx::SOLO,
+            )
+            .len(),
+    )
+    .unwrap();
+    assert_eq!(
+        e.v1_pick_step(&[Some(99), None, None]),
+        Err(ChoiceError::OutOfRange { index: 99, options })
+    );
+    assert_eq!(e.state_hash(), before);
+    assert!(e.offer_open());
+}
+
+#[test]
+fn the_seam_checks_every_pick_before_it_takes_one() {
+    let mut e = offering_at(1);
+    let before = e.state_hash();
+    let player = crate::id::PlayerIdx::new(1).unwrap();
+    assert_eq!(
+        e.v1_pick_step(&[Some(0), Some(0), None]),
+        Err(ChoiceError::NoPlayer { player })
+    );
+    assert_eq!(e.state_hash(), before);
+    assert!(e.offer_open());
+}
+
+#[test]
+fn the_seam_at_another_version_is_unsupported_and_changes_nothing() {
+    for v in [0, SIM_VERSION + 1] {
+        let mut e = offering_at(v);
+        let before = e.state_hash();
+        assert_eq!(
+            e.v1_pick_step(&SOLO_PICK_0),
+            Err(ChoiceError::Unsupported { sim_version: v }),
+            "{v}"
+        );
+        assert_eq!(e.state_hash(), before, "{v}");
         assert!(e.offer_open(), "{v}");
     }
 }

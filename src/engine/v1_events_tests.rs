@@ -405,7 +405,7 @@ fn a_version_1_choose_streams_the_frozen_events_in_order() {
                 option.into(),
                 &mut frozen,
             );
-            crate::engine::pick(&mut e, PlayerIdx::SOLO, 0).unwrap();
+            e.v1_pick_step(&[Some(0), None, None]).unwrap();
             let adapted: Vec<DomainEvent> = frozen.into_iter().filter_map(adapt).collect();
             assert_eq!(e.events(), adapted.as_slice(), "pick, tick {tick}");
             total += adapted.len();
@@ -493,7 +493,8 @@ fn a_version_1_replay_shows_the_same_offers() {
                     folded.push_str(&serde_json::to_string(&e.snapshot()).unwrap());
                     *offers += 1;
                 }
-                crate::engine::pick(e, PlayerIdx::SOLO, commands[next].index).unwrap();
+                e.v1_pick_step(&[Some(commands[next].index), None, None])
+                    .unwrap();
                 folded.push_str(&serde_json::to_string(e.events()).unwrap());
                 next += 1;
             }
@@ -683,7 +684,8 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
             assert!(e.offer_open(), "a recorded pick answers an open offer");
             let star = e.snapshot().progress.is_some_and(|p| p.offer.is_some());
             level_offers += usize::from(!star);
-            crate::engine::pick(&mut e, PlayerIdx::SOLO, c.index).expect("a recorded choice");
+            e.v1_pick_step(&[Some(c.index), None, None])
+                .expect("a recorded choice");
         }
         e.step(&[input, Default::default(), Default::default()]);
         let snap = serde_json::to_value(e.snapshot()).unwrap();

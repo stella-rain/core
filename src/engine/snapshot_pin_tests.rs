@@ -77,7 +77,8 @@ fn walk(mut e: Engine, input: fn(u32) -> Input, seen: &mut Seen, hashed: Hashed)
     let mut places = Places::default();
     for _ in 0..TICKS {
         if e.offer_open() {
-            crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, 0).expect("option 0 exists");
+            e.v1_pick_step(&[Some(0), None, None])
+                .expect("option 0 exists");
         }
         let next = e.tick() + 1;
         e.step(&[input(next), Default::default(), Default::default()]);
@@ -120,7 +121,7 @@ fn corpus_runs(seen: &mut Seen, hashed: Hashed) -> u64 {
         let mut places = Places::default();
         for input in inputs {
             while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
-                crate::engine::pick(&mut e, crate::id::PlayerIdx::SOLO, c.index)
+                e.v1_pick_step(&[Some(c.index), None, None])
                     .expect("a recorded choice");
             }
             e.step(&[input, Default::default(), Default::default()]);
