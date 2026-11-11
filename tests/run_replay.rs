@@ -6,7 +6,6 @@ use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
 use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
@@ -28,20 +27,6 @@ use crate::common;
 
 use crate::run_play::{first_point_tick, play_run, play_run_in};
 use common::run::{TRIAL_LENGTH, run_input, run_script, time_limit_setup, trial_setup};
-
-/// The trial at `sim_version` 1, the frozen offers rules: the tests of an open offer, a pick and
-/// a choice run on it (a `sim_version` 2 run is the equipment mode and opens none).
-fn offers_trial() -> RunSetup {
-    RunSetup {
-        sim_version: 1,
-        ..trial_setup()
-    }
-}
-
-/// The commands of the trial's offers run for up to `ticks` ticks, its offers answered.
-fn offers_run(ticks: u32) -> Vec<Command> {
-    crate::run_play::play_run_from(&offers_trial(), ticks)
-}
 
 fn recorded(ticks: u32) -> RunReplay {
     record_run(&trial_setup(), &play_run(ticks)).unwrap()
@@ -93,7 +78,8 @@ fn commands_of(replay: &RunReplay) -> Vec<TickCommand> {
 fn apply(engine: &mut Engine, c: Command) {
     match c {
         Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
-        Command::Choose(index) => common::pick(engine, index).unwrap(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("a run at the live rules holds no choice"),
     }
 }
 
@@ -148,41 +134,8 @@ fn a_run_that_ends_is_recorded_to_the_tick_it_ends() {
     // Commands after the end are left out, as a stage replay leaves them out.
     let (setup, content) = (time_limit_setup(), falling_content());
     let mut more = play_run_in(&setup, &content, TRIAL_LENGTH);
-    more.extend([Command::Step(run_script(0)), Command::Choose(0)]);
+    more.push(Command::Step(run_script(0)));
     assert_eq!(record_run_with(&setup, &content, &more).unwrap(), replay);
-}
-
-#[test]
-fn a_choice_after_the_run_ended_is_refused() {
-    // A choice after the end is refused like a step, and a replay holding one does not verify
-    // (recording would leave it out). The script's run to its end, taking candidate 0 of every
-    // offer.
-    let mut commands = Vec::new();
-    let mut engine = Engine::start(&trial_setup()).unwrap();
-    while engine.outcome() == Outcome::Running {
-        if engine.offer_open() {
-            common::pick(&mut engine, 0).unwrap();
-            commands.push(Command::Choose(0));
-            continue;
-        }
-        let input = run_input(&engine, engine.tick());
-        engine.step(&[input, Default::default(), Default::default()]);
-        commands.push(Command::Step(input));
-    }
-    let replay = record_run(&trial_setup(), &commands).unwrap();
-    assert_ne!(engine.outcome(), Outcome::Running);
-    let hash = engine.state_hash();
-    assert_eq!(common::pick(&mut engine, 0), Err(ChoiceError::NoOffer));
-    assert_eq!(engine.state_hash(), hash);
-    let mut late = commands_of(&replay);
-    late.push(choose(replay.ticks, 0));
-    assert_eq!(
-        verify_run(&with_commands(&replay, &late)),
-        Err(RunReplayError::ChoiceRefused {
-            tick: replay.ticks,
-            error: ChoiceError::NoOffer
-        })
-    );
 }
 
 #[test]
@@ -196,139 +149,7 @@ fn the_final_hash_is_the_one_after_the_last_command() {
     assert_eq!(replay.final_hash, hash_to_hex(engine.state_hash()));
 }
 
-#[test]
-fn recording_fails_closed_on_a_refused_command() {
-    let mut commands = play_run(10);
-    commands.insert(3, Command::Choose(0));
-    assert_eq!(
-        record_run(&trial_setup(), &commands),
-        Err(RunReplayError::ChoiceRefused {
-            tick: 3,
-            error: ChoiceError::NoOffer
-        })
-    );
-}
-
-#[test]
-fn the_recorder_keeps_only_what_the_engine_took() {
-    let commands = offers_run(TRIAL_LENGTH);
-    let at = commands
-        .iter()
-        .position(|c| matches!(c, Command::Choose(_)))
-        .unwrap();
-    let mut recorder = RunRecorder::start(&offers_trial()).unwrap();
-    let take = |recorder: &mut RunRecorder, c: &Command| match *c {
-        Command::Step(input) => recorder
-            .step(&[input, Default::default(), Default::default()])
-            .unwrap(),
-        Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
-    };
-    commands[..at].iter().for_each(|c| take(&mut recorder, c));
-    let before = recorder.replay();
-
-    assert!(matches!(
-        recorder.choose(PlayerIdx::SOLO, 99),
-        Err(RunReplayError::ChoiceRefused { .. })
-    ));
-    assert!(matches!(
-        recorder.step(&[run_script(0), Default::default(), Default::default()]),
-        Err(RunReplayError::OfferOpen { .. })
-    ));
-    assert_eq!(
-        recorder.replay(),
-        before,
-        "refused commands are not recorded"
-    );
-
-    commands[at..].iter().for_each(|c| take(&mut recorder, c));
-    assert_eq!(
-        recorder.replay(),
-        record_run(&offers_trial(), &commands).unwrap()
-    );
-}
-
 // --- Offers (ADR-REPL-5) -------------------------------------------------------------------------
-
-/// The commands of the trial run up to its first offer: the input of the tick that opened it
-/// is the last.
-fn to_first_offer() -> Vec<Command> {
-    let all = offers_run(TRIAL_LENGTH);
-    let first = all
-        .iter()
-        .position(|c| matches!(c, Command::Choose(_)))
-        .expect("the trial run opens an offer");
-    all[..first].to_vec()
-}
-
-#[test]
-fn a_run_that_answers_offers_verifies_and_uses_every_kind_of_option() {
-    let commands = offers_run(TRIAL_LENGTH);
-    let choices = commands
-        .iter()
-        .filter(|c| matches!(c, Command::Choose(_)))
-        .count();
-    assert!(choices >= 4, "{choices} choices");
-    let replay = record_run(&offers_trial(), &commands).unwrap();
-    let verified = verify_run(&replay.to_bytes()).unwrap();
-    assert_eq!(verified.final_hash, replay_hash(&replay));
-}
-
-fn replay_hash(replay: &RunReplay) -> u64 {
-    stella_rain_core::replay::hash_from_hex(&replay.final_hash).unwrap()
-}
-
-#[test]
-fn the_recorder_refuses_an_input_while_an_offer_is_open() {
-    let mut recorder = RunRecorder::start(&offers_trial()).unwrap();
-    for c in to_first_offer() {
-        match c {
-            Command::Step(input) => recorder
-                .step(&[input, Default::default(), Default::default()])
-                .unwrap(),
-            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
-        }
-    }
-    assert!(recorder.engine().offer_open());
-    let before = recorder.replay();
-    let tick = recorder.engine().tick();
-    assert_eq!(
-        recorder.step(&[run_script(0), Default::default(), Default::default()]),
-        Err(RunReplayError::OfferOpen { tick })
-    );
-    assert_eq!(recorder.replay(), before, "the input is not recorded");
-    recorder.choose(PlayerIdx::SOLO, 0).unwrap();
-    recorder
-        .step(&[run_script(0), Default::default(), Default::default()])
-        .unwrap();
-}
-
-#[test]
-fn a_replay_with_an_unanswered_offer_is_refused() {
-    let replay = record_run(&offers_trial(), &offers_run(TRIAL_LENGTH)).unwrap();
-    let commands = commands_of(&replay);
-    let first = commands
-        .iter()
-        .position(|c| c.kind == CommandKind::Choose)
-        .unwrap();
-    let tick = commands[first].tick;
-    // Without the offer's choices, the next input comes while it is open.
-    let unanswered: Vec<TickCommand> = commands
-        .iter()
-        .filter(|c| !(c.kind == CommandKind::Choose && c.tick == tick))
-        .copied()
-        .collect();
-    assert_eq!(
-        verify_run(&with_commands(&replay, &unanswered)),
-        Err(RunReplayError::OfferOpen { tick })
-    );
-}
-
-#[test]
-fn a_replay_that_ends_on_an_open_offer_verifies() {
-    // A bug report may stop while the player looks at an offer.
-    let replay = record_run(&offers_trial(), &to_first_offer()).unwrap();
-    assert!(verify_run(&replay.to_bytes()).is_ok());
-}
 
 #[test]
 fn a_bad_setup_does_not_start_a_recording() {
@@ -354,18 +175,6 @@ fn a_command_left_over_is_refused() {
         verify_run(&with_commands(&replay, &commands)),
         Err(RunReplayError::ChoiceRefused {
             tick: point + 50,
-            error: ChoiceError::NoOffer
-        })
-    );
-}
-
-#[test]
-fn a_choice_is_refused_while_no_offer_is_open() {
-    let replay = recorded(20);
-    assert_eq!(
-        verify_run(&with_commands(&replay, &[choose(5, 0)])),
-        Err(RunReplayError::ChoiceRefused {
-            tick: 5,
             error: ChoiceError::NoOffer
         })
     );
@@ -686,10 +495,13 @@ fn the_fuzz_regression_of_a_split_input_run_is_refused() {
     let mut replay = RunReplay::from_bytes(bytes).expect("it is a run replay");
     // Recorded under the content of its day: it is checked against today's, so that the refusal
     // under test is the one that comes after the content check (the pack gained `rules`, DIR1).
-    replay.content_sha256 = to_hex(&stella_rain_core::run_replay::content_sha256("trial").unwrap());
+    // The recording is a version 1 run: today's is the version 1 pack's.
+    let v1 = crate::frozen_v1::pack().content();
+    replay.content_sha256 =
+        to_hex(&stella_rain_core::run_replay::content_sha256_with("trial", v1).unwrap());
     let bytes = replay.to_bytes();
     assert_eq!(
-        verify_run(&bytes),
+        stella_rain_core::run_replay::verify_run_with(&bytes, v1),
         Err(RunReplayError::BadInputs(
             "a run repeats the input of the run before"
         ))
@@ -799,7 +611,8 @@ fn feed(recorder: &mut RunRecorder, commands: &[Command]) {
             Command::Step(input) => recorder
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => recorder.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
 }
@@ -818,26 +631,6 @@ fn a_resumed_run_ends_with_the_same_replay_as_an_unbroken_one() {
     feed(&mut r, &commands[cut..]);
     assert_eq!(r.replay().to_bytes(), unbroken.to_bytes());
     assert_eq!(unbroken.ticks, 600);
-}
-
-#[test]
-fn a_prefix_with_an_open_offer_resumes_with_it_open() {
-    let (setup, pack) = (offers_trial(), Pack::bundled());
-    let all = offers_run(TRIAL_LENGTH);
-    let first = to_first_offer().len();
-    let prefix = record_run_with_pack(&setup, pack, &all[..first]).unwrap();
-    let mut r = RunRecorder::resume_with_pack(&prefix, pack).unwrap();
-    assert!(r.engine().offer_open());
-    assert_eq!(r.engine().tick(), prefix.ticks);
-    let tick = prefix.ticks;
-    assert_eq!(
-        r.step(&[run_script(0), Default::default(), Default::default()]),
-        Err(RunReplayError::OfferOpen { tick })
-    );
-    let end = after_steps(&all, first, 300);
-    feed(&mut r, &all[first..end]);
-    let expected = record_run_with_pack(&setup, pack, &all[..end]).unwrap();
-    assert_eq!(r.replay().to_bytes(), expected.to_bytes());
 }
 
 #[test]
@@ -919,17 +712,6 @@ fn a_prefix_over_the_caps_is_refused_on_resume() {
             limit: MAX_COMMANDS
         })
     );
-
-    let full = record_run(&offers_trial(), &offers_run(TRIAL_LENGTH)).unwrap();
-    let commands = commands_of(&full);
-    let tick = commands[0].tick;
-    let unanswered: Vec<TickCommand> = commands
-        .iter()
-        .filter(|c| c.tick != tick)
-        .copied()
-        .collect();
-    let unanswered = RunReplay::from_bytes(&with_commands(&full, &unanswered)).unwrap();
-    assert_eq!(err(&unanswered), Some(RunReplayError::OfferOpen { tick }));
 
     let mut big = recorded(20);
     big.commands = "A".repeat(MAX_RUN_REPLAY_BYTES);
@@ -1258,7 +1040,8 @@ fn a_replay_built_at_tick_n_verifies_up_to_n() {
             Command::Step(input) => r
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         // Right after the step that reaches the tick, with no offer open.
         let (tick, hash) = point(&r);
@@ -1290,55 +1073,25 @@ fn a_replay_built_at_tick_n_verifies_up_to_n() {
 }
 
 #[test]
-fn a_replay_built_after_a_choice_keeps_the_command() {
-    let commands = offers_run(TRIAL_LENGTH);
-    let at = commands
-        .iter()
-        .position(|c| matches!(c, Command::Choose(_)))
-        .unwrap();
-    let mut r = RunRecorder::start(&offers_trial()).unwrap();
-    feed(&mut r, &commands[..at]);
-    let (_, before) = point(&r);
-    // Every choice that applies before the next tick belongs to the point.
-    let end = commands[at..]
-        .iter()
-        .position(|c| matches!(c, Command::Step(_)))
-        .map_or(commands.len(), |n| at + n);
-    feed(&mut r, &commands[at..end]);
-    let (tick, after) = point(&r);
-    feed(&mut r, &commands[end..]);
-
-    let verified = verify_run(&r.replay_at(tick, after).to_bytes()).unwrap();
-    assert_eq!(verified.commands as usize, end - at);
-    assert_eq!(verified.final_hash, after);
-    assert!(
-        matches!(
-            verify_run(&r.replay_at(tick, before).to_bytes()),
-            Err(RunReplayError::WrongFinalHash { .. })
-        ),
-        "the hash must include the command at the tick"
-    );
-}
-
-#[test]
 fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
-    let commands = offers_run(TRIAL_LENGTH);
-    let mut r = RunRecorder::start(&offers_trial()).unwrap();
+    let commands = play_run(TRIAL_LENGTH);
+    let mut r = RunRecorder::start(&trial_setup()).unwrap();
     let mut checked = 0;
     for c in &commands {
         match *c {
             Command::Step(input) => r
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => r.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         let (tick, hash) = point(&r);
-        if [59, 60, 130].contains(&tick) || r.engine().offer_open() {
+        if [59, 60, 130].contains(&tick) {
             assert_eq!(r.replay_at(tick, hash), r.replay(), "at tick {tick}");
             checked += 1;
         }
     }
-    assert!(checked >= 4, "ticks and an open offer were checked");
+    assert!(checked >= 3, "the ticks were checked");
 
     let (setup, content) = (time_limit_setup(), falling_content());
     let mut fell = RunRecorder::start_with(&setup, &content).unwrap();
@@ -1347,7 +1100,8 @@ fn replay_at_with_the_engines_own_tick_and_hash_is_replay() {
             Command::Step(input) => fell
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => fell.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
     assert_ne!(fell.engine().outcome(), Outcome::Running);

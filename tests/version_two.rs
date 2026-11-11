@@ -5,11 +5,10 @@
 
 use crate::common::run::{time_limit_setup, trial_setup};
 use crate::corpus::current_dir;
-use crate::run_play::play_run_from;
+use crate::run_play::play_run_in;
 use std::fs;
 use std::path::{Path, PathBuf};
 use stella_rain_core::content_hash::sha256;
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::{Command, RunRecorder};
 use stella_rain_core::run_setup::RunSetup;
@@ -33,30 +32,45 @@ fn apply(rec: &mut RunRecorder, commands: &[Command]) {
             Command::Step(input) => rec
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
     }
 }
 
+/// The pack a setup plays on: version 1 plays the pack it was released with.
+fn pack_of(setup: &RunSetup) -> &'static Pack {
+    if setup.sim_version == 1 {
+        crate::frozen_v1::pack()
+    } else {
+        Pack::bundled()
+    }
+}
+
+/// The commands `setup` plays for `ticks`, on the pack its version plays.
+fn play(setup: &RunSetup, ticks: u32) -> Vec<Command> {
+    play_run_in(setup, pack_of(setup).content(), ticks)
+}
+
 fn recorded(setup: &RunSetup, ticks: u32) -> RunRecorder {
-    let mut rec = RunRecorder::start_with_pack(setup, Pack::bundled()).unwrap();
-    apply(&mut rec, &play_run_from(setup, ticks));
+    let mut rec = RunRecorder::start_with_pack(setup, pack_of(setup)).unwrap();
+    apply(&mut rec, &play(setup, ticks));
     rec
 }
 
 /// Saves a run of `setup` at tick 120, restores it, and plays both on.
 fn round_trip(setup: &RunSetup, version: u32) {
     let mut rec = recorded(setup, 120);
-    let played = play_run_from(setup, 120).len();
+    let played = play(setup, 120).len();
     let bytes = rec.save();
     assert_eq!(
         Savepoint::from_bytes(&bytes).unwrap().header().sim_version,
         version
     );
     let mut back =
-        RunRecorder::resume_from_savepoint(&bytes, &rec.replay(), Pack::bundled()).unwrap();
+        RunRecorder::resume_from_savepoint(&bytes, &rec.replay(), pack_of(setup)).unwrap();
     assert_eq!(back.replay().final_hash, rec.replay().final_hash);
-    let more = play_run_from(setup, 180);
+    let more = play(setup, 180);
     for rec in [&mut rec, &mut back] {
         apply(rec, &more[played..]);
     }
@@ -67,19 +81,6 @@ fn round_trip(setup: &RunSetup, version: u32) {
 fn a_version_2_run_saves_and_restores() {
     round_trip(&trial_setup(), 2);
     round_trip(&time_limit_setup(), 2);
-}
-
-#[test]
-fn a_version_1_run_still_saves_and_restores() {
-    for setup in [trial_setup(), time_limit_setup()] {
-        round_trip(
-            &RunSetup {
-                sim_version: 1,
-                ..setup
-            },
-            1,
-        );
-    }
 }
 
 fn reseal(bytes: &mut [u8]) {

@@ -281,7 +281,8 @@ fn a_default_setup_runs_in_equipment_mode() {
         sim_version: 1,
         ..setup
     };
-    let snap = Engine::start(&frozen).unwrap().snapshot();
+    let v1 = crate::frozen_v1::pack().content();
+    let snap = Engine::start_with(&frozen, v1).unwrap().snapshot();
     assert!(snap.players[0].slots.is_empty());
     assert!(snap.starlight.is_none());
 }
@@ -290,8 +291,6 @@ fn a_default_setup_runs_in_equipment_mode() {
 /// when the offer logic was still in the build (ADR-SIM-3, ADR-REPL-5).
 #[test]
 fn a_live_run_never_opens_a_star_offer() {
-    use stella_rain_core::engine::ChoiceError;
-    use stella_rain_core::id::PlayerIdx;
     use stella_rain_core::input::Input;
 
     let input = Input {
@@ -310,12 +309,7 @@ fn a_live_run_never_opens_a_star_offer() {
             if engine.outcome() != Outcome::Running {
                 break;
             }
-            for i in 0..party {
-                let who = PlayerIdx::new(i).unwrap();
-                assert!(!engine.offer_open());
-                assert_eq!(engine.check_pick(who, 0), Err(ChoiceError::NoOffer));
-                assert!(engine.offer_ratings(who).is_empty());
-            }
+            assert!(!engine.offer_open());
             let snap = engine.snapshot();
             assert!(snap.progress.as_ref().is_none_or(|p| p.offer.is_none()));
             let before = engine.tick();

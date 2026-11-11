@@ -8,9 +8,13 @@ const REPLACE37: EquipAction = EquipAction::Replace { item: 3, slot: 7 };
 fn an_input_without_an_action_writes_no_action_key() {
     let json = serde_json::to_string(&Input::default()).unwrap();
     assert!(!json.contains("action"), "{json}");
-    let json = serde_json::to_string(&Input::picking(2)).unwrap();
+    let json = serde_json::to_string(&Input {
+        main: true,
+        ..Input::default()
+    })
+    .unwrap();
     assert!(!json.contains("action"), "{json}");
-    assert!(json.contains("\"pick\":2"), "{json}");
+    assert!(json.contains("\"main\":true"), "{json}");
 }
 
 #[test]
@@ -62,10 +66,13 @@ mod recorder {
     #[test]
     fn a_refused_action_records_nothing() {
         // Only a sim_version 1 run (the frozen rules) builds nothing.
-        let mut rec = RunRecorder::start(&RunSetup {
-            sim_version: 1,
-            ..RunSetup::default()
-        })
+        let mut rec = RunRecorder::start_with_pack(
+            &RunSetup {
+                sim_version: 1,
+                ..RunSetup::default()
+            },
+            crate::frozen_v1::pack(),
+        )
         .unwrap();
         let before = rec.replay();
         let err = rec.actions(&[Some(REPLACE37), None, None]).unwrap_err();

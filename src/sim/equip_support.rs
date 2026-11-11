@@ -74,7 +74,6 @@ mod tests {
         let mut stage = RunContent::bundled().trial().clone();
         stage.sim_version = SIM_VERSION;
         let setup = RunSetup {
-            star_pool: Some(vec!["crit".into(), "hp".into()]),
             ..RunSetup::default()
         };
         (

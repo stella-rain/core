@@ -109,23 +109,13 @@ pub fn start(replay: &RunReplay, content: &RunContent) -> Engine {
     Engine::start_party_with(&replay.setup, content, steps.party).expect("a recorded setup starts")
 }
 
-/// Applies one step to a bare engine. A pick is the pick step of `common::pick` (it does not
-/// advance the world) and panics with the engine's refusal; an action is `check_action` then
-/// `act`, slot by slot.
+/// Applies one step to a bare engine. A PICKS step panics: it needs the frozen offer rules, so a
+/// frozen run is replayed with `verify_run`; an action is `check_action` then `act`, slot by slot.
 pub fn apply(engine: &mut Engine, step: &Step) {
     match step {
         Step::Tick(inputs) => engine.step(inputs),
-        Step::Picks(picks) => {
-            let mut inputs = [Input::default(); 3];
-            for (slot, pick) in picks.iter().enumerate() {
-                if let Some(index) = *pick {
-                    engine
-                        .check_pick(player(u8::try_from(slot).unwrap()), index)
-                        .unwrap_or_else(|e| panic!("pick {index} of slot {slot}: {e:?}"));
-                    inputs[slot] = Input::picking(index);
-                }
-            }
-            engine.step(&inputs);
+        Step::Picks(_) => {
+            panic!("a PICKS step needs the frozen offer rules; replay it with verify_run")
         }
         Step::Actions(actions) => {
             for (slot, action) in actions.iter().enumerate() {
@@ -149,7 +139,9 @@ pub fn apply(engine: &mut Engine, step: &Step) {
 pub fn apply_to(rec: &mut RunRecorder, step: &Step) {
     match step {
         Step::Tick(inputs) => rec.step(inputs).expect("a recorded tick"),
-        Step::Picks(picks) => rec.picks(picks).expect("a recorded pick"),
+        Step::Picks(_) => {
+            panic!("a PICKS step needs the frozen offer rules; replay it with verify_run")
+        }
         Step::Actions(actions) => rec.actions(actions).expect("a recorded action"),
         Step::Join(slot) => rec.join(*slot).expect("a recorded join"),
         Step::Leave(slot) => rec.leave(*slot).expect("a recorded leave"),

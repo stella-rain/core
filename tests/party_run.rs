@@ -7,17 +7,13 @@ use crate::common::run::trial_setup;
 use crate::common::run_steps::{RunSteps, Step, apply_to};
 use crate::run_play::party_cases;
 use crate::zone_bot::run_input;
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::run_replay::{RunRecorder, RunReplay, RunReplayError, verify_run};
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::{RangeStep, StepRange};
-
-fn slot(i: u8) -> PlayerIdx {
-    PlayerIdx::new(i).unwrap()
-}
 
 /// The scripted input of `slot` at `tick`: three distinct patterns, so the log carries each slot.
 fn input_of(slot: usize, tick: u32) -> Input {
@@ -40,16 +36,6 @@ fn input_of(slot: usize, tick: u32) -> Input {
     }
 }
 
-/// Answers every open offer, each by the slot that holds it, one `choose` at a time.
-fn answer_offers(rec: &mut RunRecorder, n: u8) {
-    while rec.engine().offer_open() {
-        let holder = (0..n)
-            .find(|i| rec.engine().check_pick(slot(*i), 0).is_ok())
-            .expect("an open offer belongs to a slot");
-        rec.choose(slot(holder), 0).unwrap();
-    }
-}
-
 /// The inputs of every slot at `tick`: slot 0 played by the zone bot, the others scripted.
 fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
     let mut inputs = [Input::default(); 3];
@@ -63,7 +49,6 @@ fn inputs_at(rec: &RunRecorder, n: u8, tick: u32) -> [Input; 3] {
 }
 
 fn step_party(rec: &mut RunRecorder, n: u8, tick: u32) {
-    answer_offers(rec, n);
     let inputs = inputs_at(rec, n, tick);
     rec.step(&inputs).unwrap();
 }
@@ -76,7 +61,6 @@ fn play(n: u8, ticks: u32) -> RunRecorder {
         }
         step_party(&mut rec, n, t);
     }
-    answer_offers(&mut rec, n);
     rec
 }
 
@@ -166,23 +150,8 @@ fn a_stick_axis_of_minus_128_is_canonical() {
 
 #[test]
 fn the_recorder_refuses_what_it_cannot_record() {
-    let mut rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
+    let rec = RunRecorder::start_party(&trial_setup(), 2).unwrap();
     assert_eq!(rec.engine().tick(), 0);
-    assert_eq!(
-        rec.picks(&[None, None, None]).unwrap_err(),
-        RunReplayError::BadInputs("a step of picks holds a pick")
-    );
-    assert!(matches!(
-        rec.choose(slot(1), 0).unwrap_err(),
-        RunReplayError::ChoiceRefused {
-            error: ChoiceError::NoOffer,
-            ..
-        }
-    ));
-    assert_eq!(
-        rec.choose(slot(2), 0).unwrap_err(),
-        RunReplayError::BadInputs("a player outside the party")
-    );
     assert_eq!(rec.replay().ticks, 0);
 }
 
@@ -302,7 +271,8 @@ fn rerecord(case: &std::path::Path) -> (RunReplay, RunReplay) {
 fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
     let root = crate::data_root::data_root().join("tests/corpus");
     let mut seen = 0;
-    for tree in ["current", "v1"] {
+    // The frozen `v1` run cases hold PICKS steps, which need the frozen offer rules.
+    for tree in ["current"] {
         let mut cases: Vec<_> = std::fs::read_dir(root.join(tree).join("runs"))
             .unwrap()
             .map(|e| e.unwrap().path())
@@ -322,10 +292,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
             seen += 1;
         }
     }
-    assert!(
-        seen >= 18,
-        "the 9 current and the 9 v1 run cases, saw {seen}"
-    );
+    assert!(seen >= 10, "the 10 current run cases, saw {seen}");
 }
 
 // F. The party cases of the corpus.

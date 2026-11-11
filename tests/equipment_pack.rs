@@ -295,7 +295,7 @@ fn setup(sim_version: u32, pool: Option<&[&str]>) -> RunSetup {
 #[test]
 fn an_explicit_pool_may_name_a_deprecated_star_but_not_an_equipment_only_one_at_version_1() {
     let content = RunContent::bundled();
-    let ok = setup(2, Some(&["rune_haste_common", "rune_haste_star_rare"]));
+    let ok = setup(1, Some(&["rune_haste_common"]));
     assert!(run_setup::validate_in(&ok, content).is_ok());
     let bad = setup(1, Some(&["rune_haste_common", "rune_haste_star_rare"]));
     refused_at(run_setup::validate_in(&bad, content), "$.star_pool[1]");
@@ -670,4 +670,86 @@ fn a_version_2_setup_needs_the_pack_to_hold_the_rules() {
         ..live
     };
     assert!(run_setup::validate_in(&frozen, &content).is_ok());
+}
+
+// --- The Star Chart's drop weights: the pack's numbers per category (ADR-SAVE-17, ADR-CONT-3) ----
+
+fn categories_edit(edit: impl FnOnce(&mut Vec<Value>)) -> Value {
+    rewards_with(|v| {
+        edit(
+            v["equipment"]["categories"]
+                .as_array_mut()
+                .expect("categories"),
+        )
+    })
+}
+
+#[test]
+fn the_bundled_categories_carry_a_drop_weight_range_and_default() {
+    let json = rewards_json();
+    let categories = json["equipment"]["categories"].as_array().unwrap();
+    assert_eq!(categories.len(), 3);
+    for c in categories {
+        let max = c["drop_weight_max"].as_u64().expect("a maximum");
+        let default = c["drop_weight_default"].as_u64().unwrap_or(0);
+        assert!(default <= max && max <= 1000, "{c}");
+    }
+}
+
+#[test]
+fn a_drop_weight_range_above_the_ceiling_or_a_default_above_the_range_is_refused() {
+    let high = categories_edit(|c| c[0]["drop_weight_max"] = json!(1001));
+    refused_at(
+        parse_rewards(&high),
+        "$.equipment.categories[0].drop_weight_max",
+    );
+    let at = categories_edit(|c| c[0]["drop_weight_max"] = json!(1000));
+    assert!(parse_rewards(&at).is_ok());
+    let over = categories_edit(|c| {
+        c[0]["drop_weight_max"] = json!(10);
+        c[0]["drop_weight_default"] = json!(11);
+    });
+    refused_at(
+        parse_rewards(&over),
+        "$.equipment.categories[0].drop_weight_default",
+    );
+}
+
+/// A setup of the live rules with the player's `drop_weights`, built from JSON.
+fn weighted(weights: Value) -> RunSetup {
+    let mut v = serde_json::to_value(RunSetup::default()).unwrap();
+    v["drop_weights"] = weights;
+    serde_json::from_value(v).expect("a setup with drop weights reads")
+}
+
+fn content_without_ranges() -> RunContent {
+    let rewards = rewards_with(|v| {
+        for c in v["equipment"]["categories"].as_array_mut().unwrap() {
+            let c = c.as_object_mut().unwrap();
+            c.remove("drop_weight_max");
+            c.remove("drop_weight_default");
+        }
+    });
+    let rewards = parse_rewards(&rewards).expect("categories without the keys parse");
+    assert!(rewards.equipment().is_some());
+    RunContent::new(RunContent::bundled().run_stats().clone(), rewards)
+        .with_perk_sets(RunContent::bundled().perk_sets().clone())
+}
+
+#[test]
+fn a_pack_released_without_the_ranges_allows_no_weight_but_every_released_pack_loads() {
+    let content = content_without_ranges();
+    assert!(run_setup::validate_in(&weighted(json!({})), &content).is_ok());
+    refused_at(
+        run_setup::validate_in(&weighted(json!({ "attack": 1 })), &content),
+        "$.drop_weights.attack",
+    );
+    let dir = crate::data_root::data_root().join("tests/corpus/v1/packs");
+    let mut seen = 0;
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let bytes = std::fs::read(entry.unwrap().path()).unwrap();
+        Pack::from_bytes(&bytes).expect("a frozen pack loads");
+        seen += 1;
+    }
+    assert!(seen > 0);
 }

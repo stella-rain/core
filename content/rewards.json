@@ -3,15 +3,21 @@
     "categories": [
       {
         "id": "attack",
-        "slots": 5
+        "slots": 5,
+        "drop_weight_max": 100,
+        "drop_weight_default": 0
       },
       {
         "id": "defence",
-        "slots": 2
+        "slots": 2,
+        "drop_weight_max": 100,
+        "drop_weight_default": 0
       },
       {
         "id": "mobility",
-        "slots": 2
+        "slots": 2,
+        "drop_weight_max": 100,
+        "drop_weight_default": 0
       }
     ],
     "rune_slots": 3,
@@ -1485,7 +1491,8 @@
       "limit": 1,
       "named": true,
       "star": "Polaris",
-      "weight": 50
+      "weight": 50,
+      "deprecated": true
     },
     {
       "id": "rune_haste_star_common",

@@ -26,7 +26,8 @@ fn play(rec: &mut RunRecorder, commands: &[Command]) -> (u64, u32) {
             Command::Step(input) => rec
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap(),
-            Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("a run at the live rules holds no choice"),
         }
         for e in rec.engine().events() {
             match e {

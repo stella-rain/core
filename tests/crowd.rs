@@ -103,13 +103,6 @@ fn dense(elite_cap: u64, edit: impl FnOnce(&mut Value)) -> TimeLimit {
     })
 }
 
-/// Takes the first option of an open offer.
-fn answer(e: &mut Engine) {
-    while e.offer_open() {
-        common::pick(e, 0).expect("the first option");
-    }
-}
-
 fn stand(tick: u32) -> Input {
     Input {
         main: tick % 2 == 0,
@@ -135,7 +128,6 @@ fn circle(tick: u32) -> Input {
 fn peak(e: &mut Engine, ticks: u32, bot: fn(u32) -> Input) -> (u32, u32, u32) {
     let (mut most, mut refused, mut held) = (0, 0, 0);
     for _ in 0..ticks {
-        answer(e);
         e.step(&[bot(e.tick()), Default::default(), Default::default()]);
         most = most.max(e.load().enemies);
         refused += e.load().refused_spawns;
@@ -221,7 +213,6 @@ fn held_at(mode: TimeLimit, target: usize) -> Vec<usize> {
     let mut e = Engine::start_with(&setup("normal"), &content).expect("the run starts");
     let mut alive = Vec::new();
     for _ in 0..6_000 {
-        answer(&mut e);
         e.step(&[idle(), Default::default(), Default::default()]);
         let now = enemies(&e.snapshot());
         if !alive.is_empty() || now >= target {
@@ -280,7 +271,6 @@ fn under_the_target_a_run_is_what_it_was() {
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
     let mut t200 = None;
     for _ in 0..90_000 {
-        answer(&mut e);
         e.step(&[stand(e.tick()), Default::default(), Default::default()]);
         let load = e.load();
         if load.enemies >= 200 {

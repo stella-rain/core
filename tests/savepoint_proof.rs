@@ -13,7 +13,6 @@ use crate::common::run_steps::{self, RunSteps, Step};
 use crate::corpus_pins::{case_dirs, run_case_pack};
 use std::fs;
 use std::path::PathBuf;
-use stella_rain_core::id::PlayerIdx;
 
 use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
@@ -39,9 +38,11 @@ struct Case {
 /// What the recorder writes for the run a file holds. A frozen schema 1 file is replayed through
 /// a recorder (which writes schema 2); once, its solo views, `ticks`, `final_hash`,
 /// `checkpoints`, `content_sha256` and its setup other than `schema_version` are asserted equal
-/// to the frozen file's. A file already at the written schema is returned as it is.
+/// to the frozen file's. A file already at the written schema is returned as it is, and so is a
+/// frozen run that holds a PICKS step: it needs the frozen offer rules, so it is not re-driven
+/// (`verify_run` replays it).
 fn written_form(file: &RunReplay, pack: &Pack, steps: &RunSteps) -> RunReplay {
-    if file.setup.schema_version >= 2 {
+    if file.setup.schema_version >= 2 || steps.steps().iter().any(|s| matches!(s, Step::Picks(_))) {
         return file.clone();
     }
     let mut rec = RunRecorder::start_with_pack(&file.setup, pack).unwrap();
@@ -342,6 +343,15 @@ fn prove(tree: &str, name: &str, sweep: bool) {
         return;
     }
     let case = load_case(tree, name);
+    if case
+        .steps
+        .steps()
+        .iter()
+        .any(|s| matches!(s, Step::Picks(_)))
+    {
+        // A frozen run that answers an offer needs the frozen offer rules: verify_run replays it.
+        return;
+    }
     let r = reference(&case);
     let at = if sweep { sweep_cuts(&r) } else { cuts(&r) };
     assert!(!at.is_empty(), "{}: no cuts", case.label);
@@ -485,13 +495,8 @@ fn the_cuts_are_deterministic() {
 // case, the cut and what differs.
 
 fn tutorial() -> (Case, Reference) {
-    // The frozen offers-era tutorial: an equipment run opens no offer.
-    let case = load_case("v1", "tutorial");
+    let case = load_case("current", "tutorial");
     let r = reference(&case);
-    assert!(
-        r.offer.iter().any(|f| *f),
-        "the frozen tutorial opens an offer"
-    );
     (case, r)
 }
 
@@ -505,7 +510,7 @@ fn a_restore_that_runs_one_tick_too_far_is_named() {
         rec
     };
     let err = check_run(&case, &r, &[100], &too_far).unwrap_err();
-    assert!(err.contains("v1/tutorial cut 100"), "{err}");
+    assert!(err.contains("current/tutorial cut 100"), "{err}");
     assert!(err.contains("diverges first on tick 101"), "{err}");
 }
 
@@ -521,7 +526,7 @@ fn a_restore_with_the_wrong_hash_is_named() {
 #[test]
 fn a_restore_with_another_runs_ledger_is_seen_though_the_hash_matches() {
     let (_, tutorial_ref) = tutorial();
-    let trial = reference(&load_case("v1", "trial"));
+    let trial = reference(&load_case("current", "time_limit"));
     assert_eq!(same_end(&tutorial_ref.end, &trial.end), Some("ledger"));
     // The checker compares the state the hash does not hold, not the hash alone.
     let mut other = tutorial_ref.end.clone();
@@ -537,20 +542,6 @@ fn a_restore_with_other_tallies_is_seen() {
     other.tally.0 += 1;
     assert_eq!(other.hash, r.end.hash);
     assert_eq!(first_diff(&r.end, &other), Some("tally"));
-}
-
-#[test]
-fn a_restore_that_forgets_an_open_offer_is_named() {
-    let (case, r) = tutorial();
-    let cut = (1..r.ticks()).find(|t| r.offer[*t as usize - 1]).unwrap();
-    let answered = |rec: &RunRecorder, _: &[u8], _: &RunReplay, _: &Pack| {
-        let mut rec = rec.clone();
-        rec.choose(PlayerIdx::SOLO, 0).unwrap();
-        rec
-    };
-    let err = check_run(&case, &r, &[cut], &answered).unwrap_err();
-    assert!(err.contains(&format!("tutorial cut {cut}")), "{err}");
-    assert!(err.contains("offer_open"), "{err}");
 }
 
 // A run whose enemy attack evaluates `rand` expressions, so `rng.attack` moves. No corpus case
@@ -570,22 +561,16 @@ fn rand_pack() -> Pack {
     Pack::from_bytes(&files.export().unwrap()).unwrap()
 }
 
-/// The run recorded here, not stored: `RAND_TICKS` ticks of the run script, the first reward
-/// taken at every offer.
+/// The run recorded here, not stored: `RAND_TICKS` ticks of the run script.
 fn rand_attack_case() -> (Case, Reference) {
     let pack = rand_pack();
-    // sim_version 1: the frozen rules, the ones whose offers this case answers.
     let setup = RunSetup {
-        sim_version: 1,
         mode: "tutorial".into(),
         seed: RAND_SEED,
         ..RunSetup::default()
     };
     let mut rec = RunRecorder::start_with_pack(&setup, &pack).unwrap();
     for tick in 0..RAND_TICKS {
-        if rec.engine().offer_open() {
-            rec.choose(PlayerIdx::SOLO, 0).unwrap();
-        }
         rec.step(&[
             common::run::run_script(tick),
             Default::default(),
@@ -648,16 +633,9 @@ fn the_fixture_run_draws_from_the_attack_stream_around_the_cut() {
 
 #[test]
 fn the_fixture_run_is_running_at_its_last_tick() {
-    let (case, r) = rand_attack_case();
+    let (_, r) = rand_attack_case();
     assert_eq!(r.end.outcome, Outcome::Running);
     assert_eq!(r.ticks(), RAND_TICKS);
-    assert!(
-        case.steps
-            .steps()
-            .iter()
-            .any(|s| matches!(s, Step::Picks(_))),
-        "no offer was answered"
-    );
 }
 
 #[test]

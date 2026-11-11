@@ -453,18 +453,6 @@ fn near_start_is_the_start_moved_by_whole_pixels() {
     assert_eq!(near_start(5, 3), (START_X + 1_280, START_Y + 768));
 }
 
-/// Takes option `index` of the open offer by a step (ADR-REPL-5), refused as `check_pick`
-/// refuses it.
-pub fn pick(e: &mut Engine, index: u32) -> Result<(), stella_rain_core::engine::ChoiceError> {
-    e.check_pick(stella_rain_core::id::PlayerIdx::SOLO, index)?;
-    e.step(&[
-        Input::picking(index),
-        Default::default(),
-        Default::default(),
-    ]);
-    Ok(())
-}
-
 /// The schema 1 file of a run replay, rebuilt from its solo views: `inputs` and `commands`
 /// packed as schema 1 packs them, `schema_version` 1. A run replay at schema 1 is returned as
 /// it is. The recorder writes schema 2, so a test that damages the schema 1 `commands` string

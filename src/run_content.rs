@@ -18,6 +18,7 @@ use crate::run_stats::RunStats;
 use crate::runes::Runes;
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
+use crate::star_chart::StarChart;
 use crate::stardust::Stardust;
 use crate::starting_unlocks::StartingUnlocks;
 use crate::time_limit::TimeLimit;
@@ -48,6 +49,10 @@ pub struct RunContent {
     /// the bundled one for a pack released without it. Outside what a run reads, as
     /// `starting_unlocks`: the pack's hash covers it, no derived content hash does.
     stardust: Stardust,
+    /// The Star Chart's prices, if the pack holds the file (a pack released before it does not).
+    /// Outside what a run reads, as `starting_unlocks`: the pack's hash covers it, no derived
+    /// content hash does.
+    star_chart: Option<StarChart>,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -78,6 +83,7 @@ impl RunContent {
             rules: bundled.rules.clone(),
             starting_unlocks: bundled.starting_unlocks.clone(),
             stardust: bundled.stardust.clone(),
+            star_chart: bundled.star_chart.clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -102,6 +108,7 @@ impl RunContent {
         rules: Rules,
         starting_unlocks: Option<StartingUnlocks>,
         stardust: Stardust,
+        star_chart: Option<StarChart>,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -122,6 +129,7 @@ impl RunContent {
             rules,
             starting_unlocks,
             stardust,
+            star_chart,
             time_limit,
             trial,
             trial_bytes,
@@ -313,6 +321,12 @@ impl RunContent {
     /// from a pack released without it.
     pub fn stardust(&self) -> &Stardust {
         &self.stardust
+    }
+
+    /// The Star Chart's prices (ADR-SAVE-17), `None` when the pack was released without the
+    /// file: no catalogue, never a guessed one.
+    pub fn star_chart(&self) -> Option<&StarChart> {
+        self.star_chart.as_ref()
     }
 
     /// The sets of named stars (core#NS3): those of the pack the rewards were read from, none

@@ -5,15 +5,12 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::input::Input;
 use stella_rain_core::registry::{ENTRIES, Entry, Kind};
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_replay::Command;
 use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
 use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
 use stella_rain_core::weapon::WeaponRef;
-
-use crate::common;
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -34,6 +31,14 @@ fn setup() -> RunSetup {
         stat_priority: Vec::new(),
         difficulty: "normal".into(),
         ..RunSetup::default()
+    }
+}
+
+/// The setup of the live rules (`sim_version` 2), which the bundled modes run.
+fn live_setup() -> RunSetup {
+    RunSetup {
+        sim_version: SIM_VERSION,
+        ..setup()
     }
 }
 
@@ -84,8 +89,9 @@ fn a_setup_file_reads_back_as_the_setup() {
 
 #[test]
 fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
-    let mut by_hand =
-        validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    // A version 1 setup builds from the version 1 pack's trial stage, not the bundled one.
+    let v1 = crate::frozen_v1::pack().content();
+    let mut by_hand = v1.trial().clone();
     by_hand.player.weapon = WeaponRef::Preset {
         id: "giant_sword".into(),
         tree: None,
@@ -93,19 +99,28 @@ fn a_run_is_the_mode_s_stage_with_the_setup_s_weapons_and_seed() {
     by_hand.seed = 20_261_010;
     // A stage run alone loads no equipment rules (sim_version 2) while a run with a setup does,
     // so the two no longer show the same views: the stage is what the setup builds.
-    assert_eq!(run_setup::stage(&setup()), Ok(by_hand));
+    assert_eq!(run_setup::stage_in(&setup(), v1), Ok(by_hand));
 }
 
 #[test]
 fn the_same_setup_always_runs_the_same() {
-    let a = hashes(Engine::start(&setup()).unwrap(), 600);
-    let b = hashes(Engine::start(&setup()).unwrap(), 600);
+    let a = hashes(Engine::start(&live_setup()).unwrap(), 600);
+    let b = hashes(Engine::start(&live_setup()).unwrap(), 600);
     assert_eq!(a, b);
 }
 
 #[test]
 fn the_setup_s_seed_seeds_the_run_all_64_bits_of_it() {
-    let run = |seed: u64| hashes(Engine::start(&RunSetup { seed, ..setup() }).unwrap(), 60);
+    let run = |seed: u64| {
+        hashes(
+            Engine::start(&RunSetup {
+                seed,
+                ..live_setup()
+            })
+            .unwrap(),
+            60,
+        )
+    };
     assert_ne!(run(1), run(2), "another seed, another run");
     assert_ne!(run(7), run((1 << 32) | 7), "the high 32 bits count");
 }
@@ -116,7 +131,7 @@ fn the_setup_s_weapons_arm_the_run() {
         hashes(
             Engine::start(&RunSetup {
                 weapon: weapon.into(),
-                ..setup()
+                ..live_setup()
             })
             .unwrap(),
             300,
@@ -262,6 +277,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
 
 fn with_pool(ids: &[&str]) -> RunSetup {
     RunSetup {
+        sim_version: 1,
         star_pool: Some(ids.iter().map(|id| (*id).into()).collect()),
         ..setup()
     }
@@ -333,61 +349,6 @@ fn validate_in_refuses_a_pool_naming_a_reward_the_file_does_not_hold() {
             "no such reward in the run's rewards file"
         )]
     );
-}
-
-/// The trial run of `common::run` up to its first offer, from `setup` (a `sim_version` 1 one:
-/// the frozen rules are the ones that offer).
-fn to_first_offer(setup: &RunSetup) -> Engine {
-    let mut engine = Engine::start(setup).unwrap();
-    for c in crate::run_play::play_run_from(setup, common::run::TRIAL_LENGTH) {
-        match c {
-            Command::Step(input) => engine.step(&[input, Default::default(), Default::default()]),
-            Command::Choose(_) => break,
-        }
-        if engine.offer_open() {
-            return engine;
-        }
-    }
-    panic!("no offer");
-}
-
-#[test]
-fn offers_draw_only_from_the_pool_and_the_setup_adds_its_rerolls() {
-    let pool = ["speed_common", "xp_common", "evade_common"];
-    let narrowed = RunSetup {
-        extra_rerolls: 3,
-        upgrades: Vec::new(),
-        ..with_pool(&pool)
-    };
-    let offer = |s: &RunSetup| {
-        to_first_offer(s)
-            .snapshot()
-            .progress
-            .unwrap()
-            .offer
-            .unwrap()
-    };
-    let frozen = || RunSetup {
-        sim_version: 1,
-        ..common::run::trial_setup()
-    };
-    let wide = offer(&frozen());
-    let narrow = offer(&RunSetup {
-        star_pool: narrowed.star_pool.clone(),
-        extra_rerolls: 3,
-        upgrades: Vec::new(),
-        ..frozen()
-    });
-    let mut ids: Vec<&str> = narrow
-        .candidates
-        .iter()
-        .map(|c| c.reward.as_str())
-        .collect();
-    ids.sort_unstable();
-    let mut want = pool.to_vec();
-    want.sort_unstable();
-    assert_eq!(ids, want);
-    assert_eq!(narrow.rerolls_left, wide.rerolls_left + 3);
 }
 
 // --- Permanent upgrades (ADR-REPL-5) -----------------------------------------
@@ -481,7 +442,7 @@ fn every_mode_of_the_bundled_pack_builds_a_kind_table_that_holds_what_it_spawns(
     // A spawn looks its kind up in the table and stops if it is missing (core#271), so a run
     // through the heaviest modes, bosses included, proves the table holds every kind they bring.
     for mode in ["trial", "time_limit"] {
-        let mut s = setup();
+        let mut s = live_setup();
         s.mode = mode.into();
         let mut e = Engine::start(&s).unwrap();
         assert!(!e.kinds().is_empty(), "{mode}");
@@ -710,17 +671,9 @@ fn the_lumine_star_is_a_star_of_the_pool_and_never_a_rune() {
         found_in(&star_setup(10, rune.as_str())),
         [issue("$.lumine_star", "a rune is not a Lumine star")]
     );
-    let pooled = |star: &str| RunSetup {
-        star_pool: Some(vec!["max_hp_common".into()]),
-        ..star_setup(10, star)
-    };
-    assert_eq!(
-        found_in(&pooled("attack_common")),
-        [issue("$.lumine_star", "not in the star pool")]
-    );
-    assert_eq!(content_check(&pooled("max_hp_common")), Ok(()));
     // A pool entry unknown to the rewards file is refused as before.
     let bad_pool = RunSetup {
+        sim_version: 1,
         star_pool: Some(vec!["no_such_reward".into()]),
         ..equipment()
     };
@@ -993,4 +946,103 @@ fn a_version_1_pool_may_not_name_an_equipment_only_reward() {
             "an equipment-only reward is not offered at sim_version 1"
         )]
     );
+}
+
+// --- The player's drop weights per perk category (ADR-SAVE-17, ADR-SAVE-7 point 8) ---------------
+
+/// `base` with the player's `drop_weights`, built from JSON so the file's shape is what is tested.
+fn weighted_from(base: &RunSetup, weights: serde_json::Value) -> RunSetup {
+    let mut v = serde_json::to_value(base).unwrap();
+    v["drop_weights"] = weights;
+    serde_json::from_value(v).expect("a setup with drop weights reads")
+}
+
+fn weighted(weights: serde_json::Value) -> RunSetup {
+    weighted_from(&equipment(), weights)
+}
+
+#[test]
+fn drop_weights_are_written_sorted_and_read_back_and_none_writes_nothing() {
+    let setup = weighted(serde_json::json!({ "mobility": 5, "attack": 20 }));
+    let text = String::from_utf8(bytes(&setup)).unwrap();
+    assert!(
+        text.contains(r#""drop_weights":{"attack":20,"mobility":5}"#),
+        "{text}"
+    );
+    assert_eq!(run_setup::parse_and_validate(text.as_bytes()), Ok(setup));
+    let none = String::from_utf8(bytes(&equipment())).unwrap();
+    assert!(!none.contains("drop_weights"), "{none}");
+    assert_eq!(weighted(serde_json::json!({})), equipment());
+}
+
+#[test]
+fn the_pack_decides_which_categories_may_be_weighted_and_how_far() {
+    let ok = |w| content_check(&weighted(w));
+    assert_eq!(ok(serde_json::json!({ "attack": 100 })), Ok(()));
+    assert_eq!(ok(serde_json::json!({ "attack": 0 })), Ok(()));
+    assert_eq!(ok(serde_json::json!({})), Ok(()));
+    assert_eq!(
+        found_in(&weighted(serde_json::json!({ "attack": 101 }))),
+        [issue("$.drop_weights.attack", "at most 100 (found 101)")]
+    );
+    let two = found_in(&weighted(
+        serde_json::json!({ "support": 1, "attack": 101 }),
+    ));
+    let paths: Vec<&str> = two.iter().map(|i| i.path.as_str()).collect();
+    assert_eq!(paths, ["$.drop_weights.attack", "$.drop_weights.support"]);
+    assert_eq!(two[1].message, "no such category in the run's rewards file");
+}
+
+#[test]
+fn drop_weights_are_checked_without_content_too() {
+    let found_of = |w| found(&weighted(w));
+    assert_eq!(
+        found_of(serde_json::json!({ "Bad Id": 1 }))[0].path,
+        "$.drop_weights"
+    );
+    let nine: serde_json::Map<String, serde_json::Value> =
+        (0..9).map(|i| (format!("c{i}"), 1.into())).collect();
+    assert_eq!(found_of(nine.into())[0].path, "$.drop_weights");
+    assert_eq!(
+        found_of(serde_json::json!({ "attack": 1001 }))[0].path,
+        "$.drop_weights"
+    );
+    let v1 = |w| run_setup::validate(&weighted_from(&setup(), w));
+    assert_eq!(
+        issues(v1(serde_json::json!({ "attack": 1 })).unwrap_err()),
+        [issue("$.drop_weights", "needs sim_version 2")]
+    );
+    assert!(v1(serde_json::json!({})).is_ok());
+}
+
+#[test]
+fn an_equipment_setup_names_no_star_pool() {
+    let pooled = |sim_version| RunSetup {
+        sim_version,
+        star_pool: Some(vec!["max_hp_common".into()]),
+        ..equipment()
+    };
+    let refusal = [issue(
+        "$.star_pool",
+        "none in equipment mode: every star of the pack drops and is craftable",
+    )];
+    assert_eq!(found(&pooled(2)), refusal);
+    assert_eq!(found_in(&pooled(2)), refusal);
+    assert!(run_setup::validate_in(&pooled(1), RunContent::bundled()).is_ok());
+}
+
+#[test]
+fn the_lumine_star_needs_no_pool_and_only_the_level_and_kind_decide() {
+    assert_eq!(content_check(&star_setup(3, "black_hole_rare")), Ok(()));
+    assert_eq!(
+        found_in(&star_setup(2, "black_hole_rare")),
+        [issue(
+            "$.lumine_star",
+            "costs 3 Lumine, more than the level of 2"
+        )]
+    );
+    let source =
+        std::fs::read_to_string(crate::data_root::data_root().join("src/run_setup.rs")).unwrap();
+    // The one left is the carried-star clause of `sim_version` 1; the Lumine clause is gone.
+    assert_eq!(source.matches("not in the star pool").count(), 1);
 }

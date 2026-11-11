@@ -3,7 +3,7 @@
 
 use crate::common::idle;
 use crate::common::run::{TRIAL_LENGTH, trial_setup};
-use crate::run_play::{play_run, play_run_from, play_run_with};
+use crate::run_play::{play_run, play_run_with};
 use serde_json::Value;
 use stella_rain_core::content_hash::sha256;
 use stella_rain_core::engine::Outcome;
@@ -30,7 +30,8 @@ fn apply(rec: &mut RunRecorder, c: &Command) {
         Command::Step(input) => rec
             .step(&[input, Default::default(), Default::default()])
             .unwrap(),
-        Command::Choose(index) => rec.choose(PlayerIdx::SOLO, index).unwrap(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("a run at the live rules holds no choice"),
     }
 }
 
@@ -285,9 +286,6 @@ fn prefix_mismatch_a_prefix_that_is_not_this_savepoints_run_is_refused() {
     let mut other = RunRecorder::start_with_pack(&other_seed, Pack::bundled()).unwrap();
     for c in play_run(300) {
         if let Command::Step(input) = c {
-            if other.engine().offer_open() {
-                other.choose(PlayerIdx::SOLO, 0).unwrap();
-            }
             other
                 .step(&[input, Default::default(), Default::default()])
                 .unwrap();
@@ -386,157 +384,35 @@ fn the_header_is_read_before_the_payload() {
 
 // --- The format guard ----------------------------------------------------------------------------
 
-mod golden {
-    use super::*;
-    use std::fs;
-    use std::path::PathBuf;
-    use stella_rain_core::content_hash::to_hex;
-    use stella_rain_core::replay::hash_from_hex;
-
-    fn corpus() -> PathBuf {
-        crate::data_root::data_root().join("tests/corpus/v1/runs/trial")
+/// The pin files hold the history of the format: `v1.sha256` to `v<SAVEPOINT_FORMAT>.sha256`,
+/// one per format, never re-pinned. The first was re-pinned once, when the replay schema moved
+/// from 1 to 2 and the layout did not: the header carries `SCHEMA_VERSION` and `history_sha256`
+/// hashes the prefix replay's bytes (now the step log), so those two fields changed;
+/// `SAVEPOINT_FORMAT` stayed 1 and a savepoint an older build saved (header 1, schema 1 prefix)
+/// still restores (`a_savepoint_header_must_agree_with_its_prefix`). Old line:
+/// `aa70e16f9c1c228ce7ee88d15d384f017cfcb90dc863122cfe9196c9909b7619  2123`. From there a pinned
+/// format is never re-pinned. Format 2 has its own line in `v2.sha256` (the frozen `trial` case's
+/// version 1 state under the format 2 header and the 60-byte stats record); `v1.sha256` stays as
+/// history, format 1 files being refused. Format 4 adds each player's equipment (`v4.sha256`);
+/// format 5 holds the longer stat totals, 11 instead of 6 (`v5.sha256`); format 7 drops the stale
+/// offer fields (`v7.sha256`); formats 1 to 6 are refused. No test reproduces the pinned bytes
+/// any more (the frozen `trial` run cannot be driven without a pick); the byte pin of the live
+/// format is `sim::players_pin_tests` in `src/`.
+#[test]
+fn every_older_format_has_a_pin_and_is_refused() {
+    let dir = crate::data_root::data_root().join("tests/fixtures/savepoint");
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        let n: u32 = name
+            .strip_prefix('v')
+            .and_then(|n| n.strip_suffix(".sha256"))
+            .and_then(|n| n.parse().ok())
+            .unwrap_or_else(|| panic!("{name}: not a pin file"));
+        found.push(n);
     }
-
-    fn fixtures() -> PathBuf {
-        crate::data_root::data_root().join("tests/fixtures/savepoint")
-    }
-
-    /// The frozen `trial` case, its replay and its pack, read and never written.
-    fn case() -> (RunReplay, Pack) {
-        let dir = corpus();
-        let replay = RunReplay::from_bytes(&fs::read(dir.join("run.replay")).unwrap()).unwrap();
-        let case: Value =
-            serde_json::from_slice(&fs::read(dir.join("case.json")).unwrap()).unwrap();
-        let sha = case["pack_sha256"].as_str().unwrap();
-        let pack = fs::read(corpus().join(format!("../../packs/{sha}.json"))).unwrap();
-        (replay, Pack::from_bytes(&pack).unwrap())
-    }
-
-    /// The case's run driven to `ticks` ticks, its commands applied as the replay holds them.
-    fn drive(
-        replay: &RunReplay,
-        pack: &Pack,
-        ticks: u32,
-        from: Option<RunRecorder>,
-    ) -> RunRecorder {
-        let inputs = replay.unpack_inputs(replay.ticks).unwrap();
-        let commands = replay.unpack_commands().unwrap();
-        let mut rec =
-            from.unwrap_or_else(|| RunRecorder::start_with_pack(&replay.setup, pack).unwrap());
-        let mut next = commands
-            .iter()
-            .take_while(|c| c.tick < rec.engine().tick())
-            .count();
-        let take = |rec: &mut RunRecorder, next: &mut usize| {
-            while let Some(c) = commands
-                .get(*next)
-                .filter(|c| c.tick == rec.engine().tick())
-            {
-                rec.choose(PlayerIdx::SOLO, c.index).unwrap();
-                *next += 1;
-            }
-        };
-        while rec.engine().tick() < ticks {
-            take(&mut rec, &mut next);
-            rec.step(&[
-                inputs[usize::try_from(rec.engine().tick()).unwrap()],
-                Default::default(),
-                Default::default(),
-            ])
-            .unwrap();
-        }
-        take(&mut rec, &mut next);
-        rec
-    }
-
-    /// The case's savepoint at tick 300.
-    fn bytes() -> (Vec<u8>, RunReplay, Pack, RunReplay) {
-        let (replay, pack) = case();
-        let rec = drive(&replay, &pack, 300, None);
-        let bytes = rec.save();
-        let prefix = rec.replay();
-        (bytes, prefix, pack, replay)
-    }
-
-    fn pin_path() -> PathBuf {
-        fixtures().join(format!("v{SAVEPOINT_FORMAT}.sha256"))
-    }
-
-    fn line(bytes: &[u8]) -> String {
-        format!("{}  {}\n", to_hex(&sha256(bytes)), bytes.len())
-    }
-
-    #[expect(clippy::disallowed_methods, reason = "test knob")]
-    fn updating() -> bool {
-        std::env::var("UPDATE_SAVEPOINT_PIN").as_deref() == Ok("1")
-    }
-
-    /// The pin is of the savepoint the recorder saves for a frozen case at tick 300. It was
-    /// re-pinned once, when the replay schema moved from 1 to 2 and the layout did not: the
-    /// header carries `SCHEMA_VERSION` and `history_sha256` hashes the prefix replay's bytes (now
-    /// the step log), so those two fields changed; `SAVEPOINT_FORMAT` stays 1 and a savepoint an
-    /// older build saved (header 1, schema 1 prefix) still restores
-    /// (`a_savepoint_header_must_agree_with_its_prefix`). Old line:
-    /// `aa70e16f9c1c228ce7ee88d15d384f017cfcb90dc863122cfe9196c9909b7619  2123`. From here a
-    /// pinned format is never re-pinned. Format 2 has its own line in `v2.sha256` (the frozen
-    /// `trial` case's version 1 state under the format 2 header and the 60-byte stats record);
-    /// `v1.sha256` stays as history, format 1 files being refused. Format 4 adds each player's
-    /// equipment (`v4.sha256`); format 5 holds the longer stat totals, 11 instead of 6
-    /// (`v5.sha256`); format 7 drops the stale offer fields (`v7.sha256`); formats 1 to 6 are
-    /// refused.
-    #[test]
-    fn the_encoding_matches_its_pinned_format() {
-        let (bytes, ..) = bytes();
-        let path = pin_path();
-        if updating() {
-            assert!(
-                !path.exists(),
-                "{path:?} exists: a pinned format is never re-pinned"
-            );
-            fs::create_dir_all(fixtures()).unwrap();
-            fs::write(&path, line(&bytes)).unwrap();
-        }
-        let pinned = fs::read_to_string(&path).unwrap_or_default();
-        assert_eq!(
-            line(&bytes),
-            pinned,
-            "the savepoint encoding changed without a bump: bump SAVEPOINT_FORMAT in \
-             src/savepoint/file.rs, then `UPDATE_SAVEPOINT_PIN=1 cargo test --test integration \
-             savepoint::golden` writes tests/fixtures/savepoint/v<N>.sha256"
-        );
-    }
-
-    #[test]
-    fn the_pinned_file_loads_and_resumes() {
-        let (bytes, prefix, pack, replay) = bytes();
-        let sp = Savepoint::from_bytes(&bytes).unwrap();
-        assert_eq!(sp.header().format, SAVEPOINT_FORMAT);
-        let r = RunRecorder::resume_from_savepoint(&bytes, &prefix, &pack).unwrap();
-        // To the end of tick 360: the checkpoint is taken before the commands that follow it.
-        let mut r = drive(&replay, &pack, 359, Some(r));
-        let input = replay.unpack_inputs(replay.ticks).unwrap()[359];
-        r.step(&[input, Default::default(), Default::default()])
-            .unwrap();
-        let checkpoints = replay.checkpoints.as_bytes();
-        let want = hash_from_hex(std::str::from_utf8(&checkpoints[5 * 16..6 * 16]).unwrap());
-        assert_eq!(Some(r.engine().state_hash()), want);
-    }
-
-    #[test]
-    fn every_older_format_has_a_pin_and_is_refused() {
-        let mut found = Vec::new();
-        for entry in fs::read_dir(fixtures()).unwrap() {
-            let name = entry.unwrap().file_name().into_string().unwrap();
-            let n: u32 = name
-                .strip_prefix('v')
-                .and_then(|n| n.strip_suffix(".sha256"))
-                .and_then(|n| n.parse().ok())
-                .unwrap_or_else(|| panic!("{name}: not a pin file"));
-            found.push(n);
-        }
-        found.sort_unstable();
-        assert_eq!(found, (1..=SAVEPOINT_FORMAT).collect::<Vec<_>>());
-    }
+    found.sort_unstable();
+    assert_eq!(found, (1..=SAVEPOINT_FORMAT).collect::<Vec<_>>());
 }
 
 // --- Format 2: the player stats record --------------------------------------------------------
@@ -648,22 +524,5 @@ fn a_record_for_a_player_who_is_not_in_the_party_is_accepted() {
             .slot(PlayerIdx::new(2).unwrap())
             .damage_dealt,
         1
-    );
-}
-
-#[test]
-fn a_version_one_run_saves_and_restores_a_zero_record() {
-    let mut setup = trial_setup();
-    setup.sim_version = 1;
-    let rec = recorder_with(&setup, Pack::bundled(), &play_run_from(&setup, 450));
-    let (bytes, prefix) = (rec.save(), rec.replay());
-    assert_eq!(
-        bytes[HEADER_LEN..HEADER_LEN + STATS_RECORD],
-        [0u8; STATS_RECORD]
-    );
-    let restored = restore(&bytes, &prefix).unwrap();
-    assert_eq!(
-        restored.engine().player_stats(),
-        rec.engine().player_stats()
     );
 }

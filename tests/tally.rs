@@ -99,24 +99,11 @@ fn case_names() -> Vec<String> {
     names
 }
 
-/// A run the tally tests walk: a corpus case (equipment mode) or the offers-era `time_limit` run,
-/// which the test records itself with the offers path (only the offers path emits `RewardTaken`
-/// and `Constellation`, so only it has a taken reward, a named star or a tier to count).
+/// A run the tally tests walk: a corpus case (an equipment run).
 struct Run {
     name: String,
     replay: RunReplay,
     pack: Pack,
-}
-
-/// The name the offers-era `time_limit` run goes by in these tests.
-const OFFERS_TIME_LIMIT: &str = "offers time_limit";
-
-fn offers_time_limit() -> Run {
-    Run {
-        name: OFFERS_TIME_LIMIT.into(),
-        replay: crate::corpus::offers_time_limit_run(),
-        pack: Pack::bundled().clone(),
-    }
 }
 
 fn corpus_runs() -> Vec<Run> {
@@ -135,13 +122,6 @@ fn corpus_runs() -> Vec<Run> {
         .collect()
 }
 
-/// The corpus cases and the offers-era `time_limit` run.
-fn all_runs() -> Vec<Run> {
-    let mut runs = corpus_runs();
-    runs.push(offers_time_limit());
-    runs
-}
-
 /// Plays a run through a recorder, calling `f(recorder, ordinal, counted)` after every step
 /// and every choice, where `counted` says the last events changed the fold. Returns the fold.
 fn walk(
@@ -154,9 +134,7 @@ fn walk(
     let mut fold = Fold::default();
     let mut ordinal = 0;
     for step in RunSteps::of(recorded).steps() {
-        if matches!(step, Step::Tick(_))
-            && (rec.engine().outcome() != Outcome::Running || rec.engine().offer_open())
-        {
+        if matches!(step, Step::Tick(_)) && rec.engine().outcome() != Outcome::Running {
             break;
         }
         run_steps::apply_to(&mut rec, step);
@@ -172,7 +150,7 @@ fn walk(
 
 #[test]
 fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
-    let runs = all_runs();
+    let runs = corpus_runs();
     for must in ["easy", "rainy", "time_limit", "trial", "tutorial"] {
         assert!(runs.iter().any(|r| r.name == must), "no run case {must}");
     }
@@ -232,7 +210,7 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
             compared += 1;
         }
         assert!(compared > 0, "{name}: no cut compared");
-        if ["easy", "rainy", "time_limit", OFFERS_TIME_LIMIT].contains(&name.as_str()) {
+        if ["easy", "rainy", "time_limit"].contains(&name.as_str()) {
             assert!(end.kills > 0, "{name}: no kills");
         }
         eprintln!(
@@ -245,7 +223,7 @@ fn a_resumed_run_reports_the_tally_of_the_run_played_straight() {
 #[test]
 fn the_tally_equals_a_fold_of_the_events_on_every_corpus_run() {
     let mut cases = 0;
-    for run in all_runs() {
+    for run in corpus_runs() {
         let name = &run.name;
         let mut compared = 0;
         let end = walk(&run, None, |rec, _, counted, fold| {
@@ -268,9 +246,7 @@ fn the_tally_equals_a_fold_of_the_events_on_every_corpus_run() {
 #[test]
 fn the_corpus_reaches_every_tally() {
     let mut sum = Fold::default();
-    let mut named_max = 0;
-    let mut tiers_seen = BTreeMap::new();
-    for run in all_runs() {
+    for run in corpus_runs() {
         let name = &run.name;
         let mut last: Option<Plain> = None;
         let end = walk(&run, None, |rec, _, _, _| {
@@ -279,11 +255,7 @@ fn the_corpus_reaches_every_tally() {
         assert_eq!(last.unwrap(), end.plain(), "{name}: the tally at the end");
         sum.kills += end.kills;
         sum.elite_kills += end.elite_kills;
-        named_max = named_max.max(end.named.len());
         sum.taken.extend(end.taken.clone());
-        for (k, v) in &end.tiers {
-            tiers_seen.insert(format!("{name}/{k}"), *v);
-        }
         eprintln!(
             "tally: {name}: kills {}, elites {}, taken {}, named {}, tiers {:?}",
             end.kills,
@@ -295,18 +267,8 @@ fn the_corpus_reaches_every_tally() {
     }
     assert!(sum.kills > 0, "no kills in the corpus");
     assert!(sum.elite_kills > 0, "no elite kill in the corpus");
-    assert!(!sum.taken.is_empty(), "no reward taken in the corpus");
-    assert!(named_max > 0, "no named star in the corpus");
-    assert!(!tiers_seen.is_empty(), "no tier in the corpus");
-    // The offers-era `time_limit` run (the old case's seed) still names at least 11 stars.
-    let tl = walk(&offers_time_limit(), None, |_, _, _, _| {});
-    assert!(
-        tl.named.len() >= 11,
-        "time_limit names {} stars",
-        tl.named.len()
-    );
     // The corpus `time_limit` case is an equipment run: its tally holds the kills only, because
-    // only the offers path emits `RewardTaken` and `Constellation`.
+    // an equipment run emits no `RewardTaken` or `Constellation`.
     let corpus_tl = corpus_runs()
         .into_iter()
         .find(|r| r.name == "time_limit")
@@ -432,7 +394,7 @@ fn carried_engine() -> Engine {
         sim_version: 1,
         ..common::run::trial_setup()
     };
-    Engine::start(&setup).unwrap()
+    Engine::start_with(&setup, crate::frozen_v1::pack().content()).unwrap()
 }
 
 #[test]

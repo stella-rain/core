@@ -4,7 +4,7 @@
 //! the main character's damage without a combo step, through the atk-up and the Slash bonus
 //! fixed when it was last applied, then the target's match-up and defence at the tick. Its
 //! damage gives no expertise, fires no rune and applies no bleed. Every number here is worked
-//! out by hand. The on-hit runes are held too, as the random rune draws all seven, but their
+//! out by hand. The on-hit runes are held too, equipped with it, but their
 //! attacks land far from every target (`far`), and poison and burn never tick (`far_dots`).
 
 use serde_json::{Value, json};
@@ -18,6 +18,7 @@ use stella_rain_core::version::Versions;
 
 use crate::common;
 
+use common::equip::wait_for_tough;
 use common::on_hit::*;
 use common::*;
 
@@ -35,14 +36,9 @@ fn runes(interval: u32, duration: u32, damage: u32, max: u32) -> Runes {
     )
 }
 
-/// The stage with seven small enemies and the tough target, every rune taken from their stars.
+/// The stage with the tough target alone, every rune equipped.
 fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(
-        &stage(7, target),
-        &content(vec![random_rune()], None, runes),
-    );
-    take_all(&mut e);
-    e
+    every_rune_held(&target_stage(vec![target]), runes, vec![], None, &[])
 }
 
 /// The bleed statuses on `id`; poison and burn, held too, are beside them.
@@ -70,7 +66,7 @@ fn presses(start: u32, at: &'static [u32]) -> impl Fn(u32) -> Input {
 #[test]
 fn a_combo_step_hit_applies_bleed() {
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     assert!(statuses(&e, target).is_empty());
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
@@ -95,7 +91,7 @@ fn a_combo_step_hit_applies_bleed() {
 #[test]
 fn bleed_ticks_at_its_interval_for_its_duration() {
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 240, once(start));
     // The press on `start` hits on the tick after.
@@ -112,7 +108,7 @@ fn bleed_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
     // Hits at 0, 10, 20 and 40 (ticks after the first): 3 stacks from the third, the fourth held at the maximum. The
     // tick timer runs on, so it ticks at 30, 60, ..., and the last hit's 180 ticks end at 220.
     let mut e = holding(runes(30, 180, 3, 3), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let mut stacks = Vec::new();
     let mut seen = Vec::new();
@@ -170,13 +166,13 @@ fn each_enemy_has_its_own_bleed() {
         START_X + 2_048,
         NEAR_Y,
     );
-    let mut s = stage(7, tough(0, None, None));
-    s.waves.push(serde_json::from_value(beside).unwrap());
-    let mut e = with(
-        &s,
-        &content(vec![random_rune()], None, runes(30, 180, 3, 5)),
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, None, None), beside]),
+        runes(30, 180, 3, 5),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
     while e.tick() < TARGET_TICK {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -232,13 +228,14 @@ fn an_orbit_s_hits_apply_no_bleed() {
         START_X + 10_240,
         START_Y
     ));
-    let mut e = with(
-        &stage(8, target),
-        &content(vec![random_rune(), orbit], None, runes(30, 180, 3, 5)),
+    let mut e = every_rune_held(
+        &target_stage(vec![target]),
+        runes(30, 180, 3, 5),
+        vec![orbit],
+        None,
+        &[("orbit", 0)],
     );
-    take_all(&mut e);
-    take(&mut e, "orbit");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let seen = hits(&mut e, target, 240, |_| idle());
     assert!(!of(&seen, 7).is_empty(), "the orb hits: {seen:?}");
     assert!(of(&seen, 3).is_empty(), "{seen:?}");
@@ -261,7 +258,7 @@ fn an_on_hit_rune_s_hits_apply_no_bleed_and_bleed_fires_no_rune() {
         far_dots_but(dot("bleed", 30, 180, 3, 5)),
     );
     let mut e = holding(runes, tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 20, once(start));
     assert_eq!(of(&seen, 7).len(), 1, "the blast landed: {seen:?}");
@@ -278,7 +275,7 @@ fn an_on_hit_rune_s_hits_apply_no_bleed_and_bleed_fires_no_rune() {
 fn bleed_gives_no_expertise() {
     // The target gives 1 point a hit: the step's, not the bleed's six.
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, Some(1)));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 200, once(start));
     assert_eq!(of(&seen, 3).len(), 6, "{seen:?}");
@@ -291,12 +288,11 @@ fn bleed_gives_no_expertise() {
 /// after the first step.
 fn boosted(ty: &str) -> Vec<(u32, u32)> {
     let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
-        "levels": [{ "cooldown_ticks": 1_000, "effects": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 20 }
         ] }] });
     let rewards = vec![
-        random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
                 "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "bonus", "rarity": "common", "effect": "type_bonus_pct", "type": ty,
@@ -305,14 +301,16 @@ fn boosted(ty: &str) -> Vec<(u32, u32)> {
     let mut target = tough(0, Some(json!({ "weak": ["slash"] })), None);
     // K is 10,000 after the scale: a defence of K halves a hit.
     target["enemy"]["defence"] = json!(10_000);
-    let mut e = with(
-        &stage(9, target),
-        &content(rewards, Some(json!([war_cry])), runes(30, 180, 10, 1)),
+    // The stage skill star arrives cooling for its cooldown: 1 tick, then ready.
+    let mut e = every_rune_held(
+        &target_stage(vec![target]),
+        runes(30, 180, 10, 1),
+        rewards,
+        Some(json!([war_cry])),
+        &[("war_cry_r", 0), ("bonus", 1)],
     );
-    take_all(&mut e);
-    take(&mut e, "war_cry_r");
-    take(&mut e, "bonus");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     e.step(&[
         Input {
             skill: true,
@@ -349,34 +347,21 @@ fn another_type_s_bonus_does_not_raise_bleed() {
 
 #[test]
 fn the_boss_bleeds_too() {
-    // The boss 32 pixels above the main character, in the step's reach, beside the small
-    // enemies; it is the only target once their stars are taken.
-    let waves = vec![wave(
-        1,
-        7,
-        6,
-        enemy(1, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )];
-    let mut s = armed(
-        stage_full(18_000, Some(boss_at(1_000_000, NEAR_Y)), waves, vec![]),
-        weapon(),
-    );
-    let star_stage = stage(7, tough(0, None, None));
-    s.levels = star_stage.levels;
-    s.stars = star_stage.stars;
-    let mut e = with(
-        &s,
-        &content(vec![random_rune()], None, runes(30, 180, 3, 1)),
-    );
-    take_all(&mut e);
-    // The button let go, the last step over and any bleed from the steps that took the stars
-    // run out.
-    let boss = EntityId(1);
+    // The boss 32 pixels above the main character, in the step's reach, alone on the stage.
+    let mut s = target_stage(vec![]);
+    s.boss = Some(serde_json::from_value(boss_at(1_000_000, NEAR_Y)).unwrap());
+    let mut e = every_rune_held(&s, runes(30, 180, 3, 1), vec![], None, &[]);
+    // The button let go and the boss on the map: it is the one enemy with 1 000 000 hit points.
     for _ in 0..10 {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
+    let boss = e
+        .snapshot()
+        .entities
+        .iter()
+        .find(|en| en.hp == 1_000_000)
+        .map(|en| en.id)
+        .expect("the boss");
     while !statuses(&e, boss).is_empty() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
@@ -393,8 +378,8 @@ fn the_state_hash_holds_bleed() {
     // The same run with bleed ticking every 30 or 45 ticks: the same until it is applied.
     let mut a = holding(runes(30, 180, 3, 5), tough(0, None, None));
     let mut b = holding(runes(45, 180, 3, 5), tough(0, None, None));
-    wait_for_target(&mut a);
-    wait_for_target(&mut b);
+    wait_for_tough(&mut a);
+    wait_for_tough(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
     a.step(&[once(start)(start), Default::default(), Default::default()]);
@@ -407,7 +392,7 @@ fn the_bleed_status_in_the_snapshot_counts_down_from_its_duration_and_leaves_at_
     // The status is listed with what is left of it and the ticks it was
     // applied for, beside the damage-over-time view it has always had.
     let mut e = holding(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     // Poison and burn, held on the target too, are beside it in the list.
     let listed = |e: &Engine| -> Vec<StatusView> {
         e.snapshot()
@@ -469,13 +454,10 @@ fn smashing() -> Value {
     w
 }
 
-/// The smashing weapon on the tough target alone, no small enemies to drop a rune, no rune taken.
+/// The smashing weapon on the tough target alone, no rune equipped.
 fn smashing_stage(runes: Runes, target: Value) -> Engine {
-    let stage = armed(
-        stage_full(18_000, Some(far_boss()), vec![target], vec![]),
-        smashing(),
-    );
-    with(&stage, &content(vec![random_rune()], None, runes))
+    let stage = armed(target_stage(vec![target]), smashing());
+    no_rune_held(&stage, runes, vec![], None, &[])
 }
 
 /// Presses of `smash` (B, the smash) on the ticks `start + d` for each `d` in `at`.
@@ -489,7 +471,7 @@ fn smash_presses(start: u32, at: &'static [u32]) -> impl Fn(u32) -> Input {
 #[test]
 fn a_smash_hit_applies_bleed_without_the_rune_held() {
     let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     assert!(statuses(&e, target).is_empty());
     let start = e.tick();
     e.step(&[
@@ -513,7 +495,7 @@ fn a_smash_hit_applies_bleed_without_the_rune_held() {
 #[test]
 fn a_plain_step_applies_no_bleed_without_the_rune_held() {
     let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 240, once(start));
     assert_eq!(of(&seen, 10), [start + 1], "the step's hit");
@@ -524,7 +506,7 @@ fn a_plain_step_applies_no_bleed_without_the_rune_held() {
 #[test]
 fn a_smash_s_bleed_ticks_at_its_interval_for_its_duration() {
     let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 240, smash_presses(start, &[0]));
     let hit = start + 1;
@@ -538,7 +520,7 @@ fn a_smash_s_bleed_ticks_at_its_interval_for_its_duration() {
 #[test]
 fn a_smash_stacks_to_the_maximum_and_each_hit_starts_its_duration_again() {
     let mut e = smashing_stage(runes(30, 180, 3, 3), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let mut stacks = Vec::new();
     for _ in 0..=60 {
@@ -587,7 +569,7 @@ fn a_runes_file_without_bleed_is_refused() {
 fn a_smash_s_bleed_gives_no_expertise() {
     // The target gives 1 point a hit: the smash's, not the bleed's six.
     let mut e = smashing_stage(runes(30, 180, 3, 5), tough(0, None, Some(1)));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 200, smash_presses(start, &[0]));
     assert_eq!(of(&seen, 3).len(), 6, "{seen:?}");
@@ -606,7 +588,7 @@ fn a_smash_that_kills_applies_no_bleed() {
         NEAR_Y,
     );
     let mut e = smashing_stage(runes(30, 180, 3, 5), target);
-    let id = wait_for_target(&mut e);
+    let id = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[
         smash_presses(start, &[0])(start),
@@ -625,12 +607,14 @@ fn a_smash_and_the_rune_share_one_bleed() {
     // Held, the rune bleeds every combo hit. The main step's hit gives one stack. The smash, 60
     // ticks on, is a combo hit too, so the rune adds its stack and the smash adds its own: each
     // source adds to the one bleed, with the rune's numbers.
-    let mut e = with(
-        &armed(stage(7, tough(0, None, None)), smashing()),
-        &content(vec![random_rune()], None, runes(30, 180, 3, 5)),
+    let mut e = every_rune_held(
+        &armed(target_stage(vec![tough(0, None, None)]), smashing()),
+        runes(30, 180, 3, 5),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let mut stacks = Vec::new();
     for _ in 0..=70 {

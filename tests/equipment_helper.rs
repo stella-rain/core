@@ -45,12 +45,9 @@ fn content() -> RunContent {
         .with_perk_sets(plain_content().perk_sets().clone())
 }
 
-/// The equipment setup of the tests: the `plain` perk set, every star in the pool.
+/// The equipment setup of the tests: the `plain` perk set; the pool is the pack's own.
 fn setup() -> RunSetup {
-    RunSetup {
-        star_pool: Some(vec!["a".into(), "b".into(), "c".into()]),
-        ..plain_setup()
-    }
+    plain_setup()
 }
 
 /// A hand-built stage of the live rules, with the test weapon.

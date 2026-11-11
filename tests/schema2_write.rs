@@ -9,11 +9,10 @@ use crate::corpus_pins::case_pack;
 use crate::data_root::data_root;
 use std::fs;
 use std::path::{Path, PathBuf};
-use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{self, Replay, pack_inputs};
-use stella_rain_core::run_replay::{self, Command, RunRecorder, RunReplay, verify_run_with};
+use stella_rain_core::run_replay::{self, RunRecorder, RunReplay, verify_run_with};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::savepoint::Savepoint;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION};
@@ -63,30 +62,6 @@ fn a_recorded_run_is_a_step_log() {
         run_replay::verify_run_with(&fs::read(case.join("run.replay")).unwrap(), &content).unwrap();
     assert_eq!(verified.commands, before.commands);
     assert_eq!(verified.final_hash, before.final_hash);
-}
-
-#[test]
-fn recorded_replays_have_no_command_list() {
-    for case in run_cases("v1") {
-        let old = read_run(&case);
-        let content = case_content(&case).unwrap();
-        let mut rec = RunRecorder::start_with(&old.setup, &content).unwrap();
-        for command in run_steps::commands(&old) {
-            match command {
-                Command::Step(input) => rec
-                    .step(&[input, Default::default(), Default::default()])
-                    .unwrap(),
-                Command::Choose(i) => rec.choose(PlayerIdx::SOLO, i).unwrap(),
-            }
-        }
-        let whole = rec.replay();
-        assert_eq!(whole.commands, "", "{}", case.display());
-        // A cut at every pick: `replay_at` keeps the picks at or before the tick, and verifies.
-        for command in old.unpack_commands().unwrap() {
-            let at = rec.replay_at(command.tick, 0);
-            assert_eq!(at.commands, "");
-        }
-    }
 }
 
 #[test]
@@ -166,52 +141,6 @@ fn a_schema_1_file_of_each_type_still_loads() {
         .unwrap()
         .sha256()
     );
-}
-
-#[test]
-fn resume_from_a_schema_2_replay_works() {
-    let case = tree("v1").join("runs/stage_skill");
-    let old = read_run(&case);
-    let pack = case_pack(&case).unwrap();
-    let mut whole = RunRecorder::start_with_pack(&old.setup, &pack).unwrap();
-    let mut cut = None;
-    let mut ticks = 0;
-    for command in run_steps::commands(&old) {
-        match command {
-            Command::Step(input) => {
-                whole
-                    .step(&[input, Default::default(), Default::default()])
-                    .unwrap();
-                ticks += 1;
-                if ticks == old.ticks / 2 {
-                    cut = Some(whole.clone());
-                }
-            }
-            Command::Choose(i) => whole.choose(PlayerIdx::SOLO, i).unwrap(),
-        }
-    }
-    let prefix = cut.unwrap().replay();
-    assert_eq!(prefix.setup.schema_version, 2);
-    let mut resumed = RunRecorder::resume_with_pack(&prefix, &pack).unwrap();
-    let mut seen = 0;
-    for command in run_steps::commands(&old) {
-        match command {
-            Command::Step(input) => {
-                seen += 1;
-                if seen > prefix.ticks {
-                    resumed
-                        .step(&[input, Default::default(), Default::default()])
-                        .unwrap();
-                }
-            }
-            Command::Choose(i) => {
-                if seen >= prefix.ticks {
-                    resumed.choose(PlayerIdx::SOLO, i).unwrap();
-                }
-            }
-        }
-    }
-    assert_eq!(resumed.replay(), whole.replay());
 }
 
 #[test]

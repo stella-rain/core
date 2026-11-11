@@ -13,7 +13,7 @@ use stella_rain_core::recording::{
     commands_from_jsonl, hashes_from_jsonl, inputs_from_jsonl, record, record_run,
 };
 use stella_rain_core::replay::{self, hash_to_hex};
-use stella_rain_core::run_replay::{Command, RunReplayError};
+use stella_rain_core::run_replay::Command;
 use stella_rain_core::validate::parse_and_validate;
 
 fn recording() -> String {
@@ -193,16 +193,6 @@ fn a_choose_line_reads_back_as_a_choice() {
     );
     let commands = commands_from_jsonl(text).unwrap();
     assert_eq!(commands[1], Command::Choose(2));
-}
-
-#[test]
-fn a_run_recording_fails_closed_like_the_replay() {
-    let mut commands = play_run(10);
-    commands.insert(2, Command::Choose(0));
-    assert!(matches!(
-        record_run(&trial_setup(), &commands),
-        Err(RunReplayError::ChoiceRefused { tick: 2, .. })
-    ));
 }
 
 #[test]

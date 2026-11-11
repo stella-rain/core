@@ -10,18 +10,12 @@ use stella_rain_core::constellations::{
     Constellations, MAX_CONSTELLATIONS, MAX_CONSTELLATIONS_BYTES,
 };
 use stella_rain_core::engine::Engine;
-use stella_rain_core::event::DomainEvent;
 use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::rewards::Rewards;
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
-use stella_rain_core::snapshot::ConstellationProgress;
-use stella_rain_core::stage::{RarityWeights, Stage, Tier};
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::{SIM_VERSION, Versions};
 
-use crate::common::run::CONSTELLATIONS_TRIO_SEED;
-use crate::reward_kinds::{near, next_offer, offer, plain, take};
+use crate::reward_kinds::{near, plain};
 
 fn named(id: &str, star: &str) -> Value {
     json!({ "id": id, "rarity": "epic", "named": true, "star": star, "limit": 1,
@@ -405,7 +399,9 @@ fn load(v: &Value) -> Result<Pack, PackError> {
 
 #[test]
 fn a_pack_may_hold_the_file_and_one_released_without_it_has_no_sets() {
-    let with = load(&pack_value(Some(file(vec![pair()])))).expect("a pack with sets");
+    // New content at sim_version 2 may not hold an offer effect, so the set gives max_hp.
+    let pair = set("pair", &["n1", "n2"], vec![tier(2, vec![max_hp(1)])]);
+    let with = load(&pack_value(Some(file(vec![pair])))).expect("a pack with sets");
     assert_eq!(with.content().constellations().sets().len(), 1);
     assert_eq!(with.content().rewards().constellations().sets().len(), 1);
     let without = load(&pack_value(None)).expect("a pack released before the file");
@@ -441,205 +437,11 @@ fn the_pack_counts_the_sets_before_reading_them() {
 
 // --- In a run ----------------------------------------------------------------------------
 
-/// Stars every kill drops as epic, and enemies enough for a dozen offers.
-fn epic_near() -> Stage {
-    let mut stage = near(14);
-    let stars = stage.stars.as_mut().expect("stars");
-    stars.tiers = vec![Tier {
-        from_level: 1,
-        weights: RarityWeights {
-            epic: 1,
-            ..RarityWeights::default()
-        },
-        random_rune_weight: None,
-    }];
-    stage
-}
-
 /// The trio's three stars and four commons (offers hold three).
 fn trio_list() -> Vec<Value> {
     let mut list = reward_list();
     list.retain(|r| !["n4", "n5"].contains(&r["id"].as_str().unwrap()));
     list
-}
-
-fn engine(stage: &Stage, list: Vec<Value>, sets: Option<Value>) -> Engine {
-    let rewards = rewards_of(list);
-    let rewards = match sets {
-        Some(v) => {
-            let c =
-                Constellations::parse_with(v.to_string().as_bytes(), Versions::CURRENT, &rewards)
-                    .expect("the test sets validate");
-            rewards.with_constellations(c)
-        }
-        None => rewards,
-    };
-    Engine::new_with(
-        stage,
-        &RunContent::new(RunStats::bundled().clone(), rewards),
-    )
-    .expect("the test stage is valid")
-}
-
-fn tiers_reached(e: &Engine) -> Vec<(String, u8)> {
-    e.events()
-        .iter()
-        .filter_map(|ev| match ev {
-            DomainEvent::Constellation { set, tier } => Some((set.to_string(), *tier)),
-            _ => None,
-        })
-        .collect()
-}
-
-fn star_taken(e: &Engine) -> Option<String> {
-    e.events().iter().find_map(|ev| match ev {
-        DomainEvent::RewardTaken { star, .. } => star.as_ref().map(ToString::to_string),
-        _ => None,
-    })
-}
-
-#[test]
-fn the_small_tier_applies_at_two_of_three_and_the_full_one_replaces_it() {
-    let mut stage = epic_near();
-    // A seed whose first offer holds Alpha (n1); the offers are drawn.
-    stage.seed = CONSTELLATIONS_TRIO_SEED;
-    let mut e = engine(&stage, trio_list(), Some(file(vec![trio()])));
-    next_offer(&mut e);
-    assert_eq!(offer(&e).rerolls_left, 0);
-    // A member shows its set and what is held and needed; a common shows none.
-    let o = offer(&e);
-    let progress = |reward: &str| {
-        o.candidates
-            .iter()
-            .find(|c| c.reward.as_str() == reward)
-            .unwrap_or_else(|| panic!("{reward} is not offered"))
-            .constellation
-            .clone()
-    };
-    assert_eq!(
-        progress("n1"),
-        Some(ConstellationProgress {
-            set: "trio".into(),
-            held: 0,
-            needed: 2
-        })
-    );
-    take(&mut e, "n1");
-    assert_eq!(star_taken(&e).as_deref(), Some("Alpha"));
-    assert!(tiers_reached(&e).is_empty(), "one of three is no tier");
-    let view = &e.snapshot().constellations;
-    assert_eq!(
-        (view[0].id.as_str(), view[0].held, view[0].tier),
-        ("trio", 1, 0)
-    );
-
-    next_offer(&mut e);
-    assert_eq!(offer(&e).rerolls_left, 0);
-    take(&mut e, "n2");
-    assert_eq!(tiers_reached(&e), [("trio".to_string(), 1)]);
-    assert_eq!(e.snapshot().constellations[0].tier, 1);
-
-    next_offer(&mut e);
-    assert_eq!(offer(&e).rerolls_left, 1, "the small tier's reroll");
-    let o = offer(&e);
-    let n3 = o
-        .candidates
-        .iter()
-        .find(|c| c.reward.as_str() == "n3")
-        .unwrap();
-    assert_eq!(
-        n3.constellation,
-        Some(ConstellationProgress {
-            set: "trio".into(),
-            held: 2,
-            needed: 3
-        })
-    );
-    take(&mut e, "n3");
-    assert_eq!(tiers_reached(&e), [("trio".to_string(), 2)]);
-
-    next_offer(&mut e);
-    // The full tier has 3 rerolls in all: 3, not 1 + 3.
-    assert_eq!(offer(&e).rerolls_left, 3);
-    let view = &e.snapshot().constellations;
-    assert_eq!((view[0].held, view[0].tier), (3, 2));
-    // A pick that is no member changes nothing, and no tier is reached twice.
-    take(&mut e, "a");
-    assert!(tiers_reached(&e).is_empty());
-    next_offer(&mut e);
-    assert_eq!(offer(&e).rerolls_left, 3);
-}
-
-#[test]
-fn a_tier_that_lists_two_kinds_applies_the_difference_of_each() {
-    let two = set(
-        "trio",
-        &["n1", "n2", "n3"],
-        vec![
-            tier(2, vec![rerolls(1)]),
-            tier(3, vec![rerolls(2), max_hp(1_000)]),
-        ],
-    );
-    let mut e = engine(&epic_near(), trio_list(), Some(file(vec![two])));
-    for star in ["n1", "n2", "n3"] {
-        next_offer(&mut e);
-        take(&mut e, star);
-    }
-    next_offer(&mut e);
-    assert_eq!(offer(&e).rerolls_left, 2);
-}
-
-#[test]
-fn a_star_outside_every_set_has_no_progress_and_changes_no_set() {
-    let pair = set("pair", &["n1", "n2"], vec![tier(2, vec![rerolls(1)])]);
-    let mut e = engine(&epic_near(), trio_list(), Some(file(vec![pair])));
-    next_offer(&mut e);
-    let o = offer(&e);
-    assert!(
-        o.candidates
-            .iter()
-            .filter(|c| c.reward.as_str() == "n3" || c.reward.as_str() == "a")
-            .all(|c| c.constellation.is_none())
-    );
-    take(&mut e, "n3");
-    assert_eq!(e.snapshot().constellations[0].held, 0);
-}
-
-#[test]
-fn a_run_without_sets_keeps_its_hashes() {
-    // The same run with no file, with an empty file, with a set none of its picks touches, and
-    // with one they do.
-    let hashes = |sets: Option<Value>| -> Vec<u64> {
-        let mut e = engine(&epic_near(), trio_list(), sets);
-        next_offer(&mut e);
-        let mut out = vec![e.state_hash()];
-        take(&mut e, "n1");
-        out.push(e.state_hash());
-        next_offer(&mut e);
-        out.push(e.state_hash());
-        out
-    };
-    let none = hashes(None);
-    let empty = hashes(Some(file(vec![])));
-    let untouched = hashes(Some(file(vec![set(
-        "pair",
-        &["n2", "n3"],
-        vec![tier(2, vec![rerolls(1)])],
-    )])));
-    assert_eq!(none, empty);
-    assert_ne!(
-        none, untouched,
-        "the count of every set is part of the state, whether or not a member is held"
-    );
-    let touched = hashes(Some(file(vec![trio()])));
-    assert_eq!(
-        untouched[0], touched[0],
-        "before a pick, every set's count is 0 whichever its members"
-    );
-    assert_ne!(
-        untouched[1], touched[1],
-        "one member held is part of the state"
-    );
 }
 
 /// An orbit of `amount` orbs for a set's tier: each orb one active phase.

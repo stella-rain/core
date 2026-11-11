@@ -4,7 +4,7 @@
 //! and the tick, so a clone of the engine can be driven again from any tick.
 
 use stella_rain_core::RangeStep;
-use stella_rain_core::engine::{ChoiceError, Engine};
+use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::fixed::Point;
 use stella_rain_core::id::PlayerIdx;
@@ -315,30 +315,6 @@ impl PartyBot {
     pub fn input(&self, engine: &Engine, slot: u8, tick: u32) -> Input {
         self.decide(&sight(engine, slot), slot, tick)
     }
-
-    /// The option `slot` takes from its open offer; `None` with no offer. A star or boss offer:
-    /// the candidate with the largest `dps_bp` (none counts as 0), ties to the lowest index; a
-    /// stat or expertise offer: an option chosen by the seed, the slot and the tick. Always a
-    /// take, never a reroll, a skip or a banish.
-    pub fn pick(&self, engine: &Engine, slot: u8, tick: u32) -> Option<u32> {
-        let player = PlayerIdx::new(slot)?;
-        let options = match engine.check_pick(player, u32::MAX) {
-            Err(ChoiceError::OutOfRange { options, .. }) => options,
-            _ => return None,
-        };
-        let ratings = engine.offer_ratings(player);
-        if ratings.is_empty() {
-            if options == 0 {
-                return None;
-            }
-            return Some(
-                u32::try_from(mix(self.seed, slot, u64::from(tick)) % u64::from(options)).unwrap(),
-            );
-        }
-        let best = ratings.iter().map(|r| r.dps_bp.unwrap_or(0)).max()?;
-        let at = ratings.iter().position(|r| r.dps_bp.unwrap_or(0) == best)?;
-        u32::try_from(at).ok()
-    }
 }
 
 /// A test-only party of 1 to 3 for `run_play::PartyCase`, every slot played by a `PartyBot`.
@@ -449,7 +425,7 @@ impl RigParty {
 }
 
 /// A recorded rig run as plain data: the input of every slot at every world tick, and the
-/// picks between ticks. Replayable on a bare `Engine`, or on a clone of one.
+/// picks and actions between ticks (the picks are read data: a rig run plays none). Replayable on a bare `Engine`, or on a clone of one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RigRun {
     pub n: u8,
@@ -459,7 +435,7 @@ pub struct RigRun {
     /// The `Picks` steps in order, each with the world tick it comes before.
     pub picks: Vec<(u32, [Option<u32>; 3])>,
     /// The `Actions` steps in order, each with the world tick it comes before and the action of
-    /// every slot. Applied after the picks of that tick and before the tick.
+    /// every slot. Applied before the tick.
     pub actions: Vec<(u32, [Option<EquipAction>; 3])>,
 }
 
@@ -522,13 +498,13 @@ impl RigRun {
         }
     }
 
-    /// Applies world ticks `from..to` to `engine`, with the picks that come before each of
-    /// them, as `Engine::step` takes them; for `to == ticks.len()` also the picks after the last.
+    /// Applies world ticks `from..to` to `engine`, with the actions that come before each of
+    /// them; for `to == ticks.len()` also the actions after the last.
     pub fn play_onto(&self, engine: &mut Engine, from: u32, to: u32) {
         self.play_with(engine, from, to, |_| {});
     }
 
-    /// `play_onto`, calling `after` with the engine after every step (a tick or a pick).
+    /// `play_onto`, calling `after` with the engine after every tick.
     pub fn play_with(
         &self,
         engine: &mut Engine,
@@ -541,22 +517,6 @@ impl RigRun {
             from <= to && to <= len,
             "window {from}..{to} of {len} ticks"
         );
-        let picks_at = |world: u32, engine: &mut Engine, after: &mut dyn FnMut(&Engine)| {
-            for (_, picks) in self.picks.iter().filter(|(at, _)| *at == world) {
-                assert!(
-                    engine.offer_open(),
-                    "a pick at tick {world} with no offer open"
-                );
-                let mut inputs = [Input::default(); 3];
-                for (input, pick) in inputs.iter_mut().zip(picks) {
-                    if let Some(k) = pick {
-                        *input = Input::picking(*k);
-                    }
-                }
-                engine.step(&inputs);
-                after(engine);
-            }
-        };
         let acts_at = |world: u32, engine: &mut Engine| {
             for (_, acts) in self.actions.iter().filter(|(at, _)| *at == world) {
                 for (slot, action) in acts.iter().enumerate() {
@@ -570,26 +530,13 @@ impl RigRun {
             }
         };
         for t in from..to {
-            picks_at(t, engine, &mut after);
             acts_at(t, engine);
             engine.step(&self.ticks[t as usize]);
             after(engine);
         }
         if to == len {
-            picks_at(len, engine, &mut after);
             acts_at(len, engine);
         }
-    }
-
-    /// How many picks each slot made.
-    pub fn picks_per_slot(&self) -> [u32; 3] {
-        let mut per = [0u32; 3];
-        for (_, picks) in &self.picks {
-            for (n, pick) in per.iter_mut().zip(picks) {
-                *n += u32::from(pick.is_some());
-            }
-        }
-        per
     }
 
     /// How many actions of each kind each slot made.
@@ -1115,7 +1062,7 @@ mod builds {
             seed: 1,
             ..trial_setup()
         };
-        let e = Engine::start(&setup).unwrap();
+        let e = Engine::start_with(&setup, crate::frozen_v1::pack().content()).unwrap();
         assert!(e.snapshot().players[0].slots.is_empty());
         for t in 0..600 {
             for s in 0..1 {
@@ -1537,7 +1484,6 @@ mod search {
                     let bytes = replay.to_bytes();
                     let run = RigRun::of(&replay);
                     let tally = run.tally(&replay);
-                    let per = run.picks_per_slot();
                     let ok = replay.ticks <= 3000
                         && bytes.len() < 64 * 1024
                         && tally.downed >= 1
@@ -1547,7 +1493,6 @@ mod search {
                         && tally
                             .first_out
                             .is_none_or(|out| tally.first_revive.is_some_and(|r| r < out))
-                        && per[1] + per[2] >= 2
                         && (n == 2 || tally.revivers.iter().any(|r| *r != 0));
                     if !ok {
                         continue;
@@ -1557,7 +1502,7 @@ mod search {
                     println!(
                         "N={n} seed={seed} bot_seed={bot_seed} ticks={} outcome={:?} \
                          downed={} revived={} out={} first_down={:?} first_revive={:?} \
-                         revivers={:?} picks={per:?} stardust={} bytes={} final_hash={}",
+                         revivers={:?} stardust={} bytes={} final_hash={}",
                         replay.ticks,
                         v.outcome,
                         tally.downed,

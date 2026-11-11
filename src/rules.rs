@@ -46,6 +46,13 @@ pub const MAX_OFFER_TIMER_TICKS: u32 = 3600;
 /// The countdown of a pack written before the key existed: 5 s at 60 ticks.
 const DEFAULT_OFFER_TIMER_TICKS: u32 = 300;
 
+/// The candidates of an offer in every released pack.
+const DEFAULT_OFFER_SIZE: u8 = 3;
+
+fn default_offer_size() -> u8 {
+    DEFAULT_OFFER_SIZE
+}
+
 fn default_offer_timer_ticks() -> u32 {
     DEFAULT_OFFER_TIMER_TICKS
 }
@@ -108,6 +115,9 @@ pub struct RulesFile {
     /// The experience of a summon or a wave that gives none: 0 to `limits::MAX_ENEMY_XP`.
     pub default_xp: u32,
     /// The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.
+    /// Deprecated (ADR-CONT-2): absent in a pack of `sim_version` 2, where only 3 is accepted;
+    /// read only by the frozen version 1 rules. Absent: 3.
+    #[serde(default = "default_offer_size")]
     pub offer_size: u8,
     /// The defence that halves a hit, in stored units: 1 to 1,000,000.
     pub defence_k: u32,
@@ -115,7 +125,8 @@ pub struct RulesFile {
     pub crit_damage_base_pct: u32,
     /// Ticks a timed run's open offer waits for a pick before its first option is taken
     /// (ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.
-    /// Absent: 300, so a pack published before the key existed still reads.
+    /// Deprecated (ADR-CONT-2): read by no run; absent in a pack of `sim_version` 2, where only
+    /// 300 is accepted. Absent: 300.
     // Read by no run since the offer timer left; kept for pack compatibility. Its doc is the
     // schema's text and moves with the key.
     #[serde(default = "default_offer_timer_ticks")]
@@ -149,7 +160,31 @@ impl Rules {
     /// call for a file's bytes.
     pub fn parse(bytes: &[u8], versions: Versions) -> Result<Rules, Error> {
         let file: RulesFile = version::read_member(bytes, MAX_RULES_BYTES, versions)?;
-        validate(&file)?;
+        let mut issues = match validate(&file) {
+            Ok(()) => Vec::new(),
+            Err(Error::Invalid(issues)) => issues,
+            Err(other) => return Err(other),
+        };
+        // sim_version >= 2: the two offer keys are deprecated, only their released values read.
+        if versions.sim_version >= 2 {
+            for (path, deprecated) in [
+                ("$.offer_size", file.offer_size != DEFAULT_OFFER_SIZE),
+                (
+                    "$.offer_timer_ticks",
+                    file.offer_timer_ticks != DEFAULT_OFFER_TIMER_TICKS,
+                ),
+            ] {
+                if deprecated && !issues.iter().any(|i| i.path == path) {
+                    issues.push(Issue {
+                        path: path.into(),
+                        message: "deprecated: absent or the default at sim_version 2".into(),
+                    });
+                }
+            }
+        }
+        if !issues.is_empty() {
+            return Err(Error::Invalid(issues));
+        }
         Ok(Rules {
             file,
             sha256: Sha256::digest(bytes).into(),

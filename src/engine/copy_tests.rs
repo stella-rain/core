@@ -8,6 +8,28 @@ use crate::pack::Pack;
 use crate::run_replay::RunRecorder;
 use crate::savepoint::{Savepoint, SavepointError, restore};
 
+/// The pack the frozen version 1 `easy`, `rainy`, `time_limit`, `trial` and `tutorial` run cases
+/// play on: the rules and content of version 1 as they were released, not the bundled files (which
+/// version 2 edits). A test that starts the version 1 rules builds from this.
+pub(super) fn v1_pack() -> &'static Pack {
+    static PACK: std::sync::OnceLock<Pack> = std::sync::OnceLock::new();
+    PACK.get_or_init(|| {
+        Pack::from_bytes(include_bytes!(
+            "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack")
+    })
+}
+
+/// The version 1 pack's `time_limit` mode file, as JSON a test may edit before it parses it.
+pub(super) fn v1_time_limit_json() -> serde_json::Value {
+    let pack: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+    ))
+    .expect("the version 1 pack is JSON");
+    pack["modes"]["time_limit"].clone()
+}
+
 #[test]
 fn version_one_runs_sim_v1() {
     let frozen = RunSetup {
@@ -16,7 +38,7 @@ fn version_one_runs_sim_v1() {
         ..RunSetup::default()
     };
     let (a, b) = (
-        Engine::start(&frozen).unwrap(),
+        Engine::start_with(&frozen, v1_pack().content()).unwrap(),
         Engine::start(&RunSetup::default()).unwrap(),
     );
     assert_eq!(a.run.module(), "sim_v1");
@@ -71,7 +93,14 @@ fn recorder_at(version: u32) -> RunRecorder {
         seed: 3,
         ..RunSetup::default()
     };
-    let mut r = Engine::forced(version, || RunRecorder::start(&setup).unwrap());
+    // Version 1 plays its own pack, the rules and content as released; version 2 the bundled one.
+    let mut r = Engine::forced(version, || {
+        if version == 1 {
+            RunRecorder::start_with_pack(&setup, v1_pack()).unwrap()
+        } else {
+            RunRecorder::start(&setup).unwrap()
+        }
+    });
     for _ in 0..120 {
         r.step(&[
             Input {
@@ -102,11 +131,18 @@ fn the_state_of_either_version_round_trips_through_its_codec() {
         let r = recorder_at(version);
         let e = r.engine();
         let setup = RunSetup {
+            sim_version: version,
             mode: "time_limit".into(),
             seed: 3,
             ..RunSetup::default()
         };
-        let fresh = Engine::forced(version, || Engine::start(&setup).unwrap());
+        let fresh = Engine::forced(version, || {
+            if version == 1 {
+                Engine::start_with(&setup, v1_pack().content()).unwrap()
+            } else {
+                Engine::start(&setup).unwrap()
+            }
+        });
         let (state, ledger, counted, stats) = decode_state(&encode_state(e), &fresh).unwrap();
         let back = fresh.with_saved(state, ledger, counted, stats);
         assert_eq!(back.state_hash(), e.state_hash(), "version {version}");
@@ -119,11 +155,11 @@ fn a_savepoint_of_another_version_than_the_setup_is_refused() {
     let r = recorder_at(1);
     let bytes = r.save();
     let mut prefix = r.replay();
-    assert!(restore(&bytes, &prefix, Pack::bundled()).is_ok());
+    assert!(restore(&bytes, &prefix, v1_pack()).is_ok());
     for other in [0, 2] {
         prefix.setup.sim_version = other;
         assert_eq!(
-            restore(&bytes, &prefix, Pack::bundled()).err(),
+            restore(&bytes, &prefix, v1_pack()).err(),
             Some(SavepointError::SimVersion),
             "{other}"
         );

@@ -1,6 +1,4 @@
 use super::*;
-use crate::pack::ContentFiles;
-use crate::run_content::RunContent;
 use crate::time_limit::TimeLimit;
 use crate::version::Versions;
 
@@ -18,8 +16,7 @@ fn engine_edited(
     no_call_ticks: &[u32],
     edit: impl FnOnce(&mut serde_json::Value),
 ) -> Engine {
-    let mut v: serde_json::Value =
-        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
+    let mut v: serde_json::Value = super::copy_tests::v1_time_limit_json();
     v["waves"] = serde_json::json!([]);
     edit(&mut v);
     v["no_call_ticks"] = serde_json::json!(no_call_ticks);
@@ -48,7 +45,7 @@ fn engine_edited(
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
-    Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap()
+    Engine::start_time_limit(&setup, super::copy_tests::v1_pack().content(), &mode).unwrap()
 }
 
 fn run_to(e: &mut Engine, tick: u32) {
@@ -299,8 +296,7 @@ fn the_run_fails_when_the_overtime_runs_out_with_the_final_boss_alive() {
 
 /// A `time_limit` run of `edit`ed bundled mode, no waves, that the main character cannot die in.
 fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
-    let mut v: serde_json::Value =
-        serde_json::from_slice(ContentFiles::bundled_file("time_limit")).unwrap();
+    let mut v: serde_json::Value = super::copy_tests::v1_time_limit_json();
     v["waves"] = serde_json::json!([]);
     edit(&mut v);
     let mode = TimeLimit::parse(v.to_string().as_bytes(), Versions::CURRENT)
@@ -324,7 +320,8 @@ fn run_of(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> Engine {
         difficulty: "normal".into(),
         ..RunSetup::default()
     };
-    let mut e = Engine::start_time_limit(&setup, RunContent::bundled(), &mode).unwrap();
+    let mut e =
+        Engine::start_time_limit(&setup, super::copy_tests::v1_pack().content(), &mode).unwrap();
     e.run.player.hp = u32::MAX;
     e.run.player.max_hp = u32::MAX;
     e
@@ -429,7 +426,7 @@ fn the_draws_are_those_of_a_table_of_the_same_shape_before_types_were_content() 
 
 #[test]
 fn each_grade_is_spawned_from_its_own_definition() {
-    let mode = TimeLimit::bundled();
+    let mode = super::copy_tests::v1_pack().content().time_limit();
     for (id, sprite) in [
         ("elite_low", "bat"),
         ("elite_mid", "fairy_a"),
@@ -544,8 +541,8 @@ fn bundled_run(difficulty: &str, seed: u64) -> Engine {
         difficulty: difficulty.into(),
         ..RunSetup::default()
     };
-    let mode = TimeLimit::bundled();
-    Engine::start_time_limit(&setup, RunContent::bundled(), mode).unwrap()
+    let mode = super::copy_tests::v1_pack().content().time_limit();
+    Engine::start_time_limit(&setup, super::copy_tests::v1_pack().content(), mode).unwrap()
 }
 
 /// The sprite of the boss on the field once the run has reached `tick`.
@@ -629,7 +626,7 @@ fn the_easy_run_draws_one_mid_boss_from_the_four_and_then_the_final_boss_seed_1(
 fn each_mid_boss_s_hit_points_rise_by_its_slot_and_the_final_boss_s_do_not() {
     // Normal difficulty scales nothing; the slots are 100%, 130% and 160%.
     let mut e = engine(&[50, 100, 150, 200]);
-    let mode = TimeLimit::bundled();
+    let mode = super::copy_tests::v1_pack().content().time_limit();
     let mut seen = Vec::new();
     for (t, pct) in [(50, 100), (100, 130), (150, 160), (200, 100)] {
         run_to(&mut e, t);
@@ -689,10 +686,7 @@ fn the_five_minute_boss_calls_no_elites_and_the_later_ones_call_after_30_seconds
 /// A run of the mode with a crowd target of `target` and `waves`, each `(at_tick, count,
 /// every_ticks)`, all of the bundled mode's first wave's enemy.
 fn directed(target: u16, waves: &[(u32, u16, u32)]) -> Engine {
-    let template =
-        serde_json::from_slice::<serde_json::Value>(ContentFiles::bundled_file("time_limit"))
-            .unwrap()["waves"][0]
-            .clone();
+    let template = super::copy_tests::v1_time_limit_json()["waves"][0].clone();
     engine_edited(&[100_000], &[], |v| {
         v["crowd_target"] = serde_json::json!(target);
         v["waves"] = waves

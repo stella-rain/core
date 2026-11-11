@@ -29,7 +29,9 @@ fn an_equipment_setup_starts() {
         sim_version: 1,
         ..equipment()
     };
-    assert!(Engine::start(&old).is_ok());
+    // The frozen rules play the version 1 pack, not the bundled files.
+    let v1 = crate::frozen_v1::pack().content();
+    assert!(Engine::start_with(&old, v1).is_ok());
     let frozen_with_star = RunSetup {
         sim_version: 1,
         lumine: 1,
@@ -37,7 +39,7 @@ fn an_equipment_setup_starts() {
         ..RunSetup::default()
     };
     assert_eq!(
-        messages(Engine::start(&frozen_with_star).expect_err("refused")),
+        messages(Engine::start_with(&frozen_with_star, v1).expect_err("refused")),
         [(
             "$.lumine_star".to_string(),
             "needs sim_version 2".to_string()
@@ -49,7 +51,7 @@ fn an_equipment_setup_starts() {
 /// that tick (the placeholder is one drop, ADR-CONT-3 point 8).
 #[test]
 fn a_boss_kill_drops_for_the_member_who_is_up() {
-    use crate::common::run::{answer_all, trial_setup};
+    use crate::common::run::trial_setup;
     use stella_rain_core::engine::Outcome;
     use stella_rain_core::event::DomainEvent;
     use stella_rain_core::snapshot::EntityKind;
@@ -60,12 +62,10 @@ fn a_boss_kill_drops_for_the_member_who_is_up() {
             ..trial_setup()
         };
         let mut e = Engine::start(&setup).unwrap();
-        let (mut out, mut offers) = (Vec::new(), 0);
         for t in 0..10_800 {
             if e.outcome() != Outcome::Running {
                 break;
             }
-            answer_all(&mut e, &mut offers, &mut out);
             let input = crate::zone_bot::run_input_for(
                 &e,
                 t,

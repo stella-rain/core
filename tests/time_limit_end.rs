@@ -16,7 +16,7 @@ use stella_rain_core::version::Versions;
 fn setup() -> RunSetup {
     RunSetup {
         schema_version: 1,
-        sim_version: 1,
+        sim_version: 2,
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         weapon_tree: None,

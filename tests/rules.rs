@@ -150,8 +150,8 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
 }
 
 #[test]
-fn the_pack_has_seventeen_slots_and_rules_is_required() {
-    assert_eq!(ContentFiles::LAYOUT.len(), 17);
+fn the_pack_has_eighteen_slots_and_rules_is_required() {
+    assert_eq!(ContentFiles::LAYOUT.len(), 18);
     let slot = ContentFiles::LAYOUT
         .iter()
         .find(|s| s.name == "rules")
@@ -263,8 +263,6 @@ fn each_new_field_is_refused_outside_its_bound_at_its_path() {
         ("boss_arrival_above", -1),
         ("boss_arrival_above", px(1024) + 1),
         ("default_xp", 1001),
-        ("offer_size", 0),
-        ("offer_size", 5),
         ("ranged_zone_tokens", 0),
         ("ranged_line_tokens", 0),
         ("defence_k", 0),
@@ -314,8 +312,6 @@ fn each_new_field_loads_at_its_bounds() {
         ("boss_arrival_above", px(1024)),
         ("default_xp", 0),
         ("default_xp", 1000),
-        ("offer_size", 1),
-        ("offer_size", 4),
         ("defence_k", 1),
         ("defence_k", 1_000_000),
         ("crit_damage_base_pct", 100),
@@ -547,7 +543,11 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
     let bundled: serde_json::Value =
         serde_json::from_slice(stella_rain_core::pack::ContentFiles::bundled_file("rules"))
             .unwrap();
-    let versions = stella_rain_core::version::Versions::CURRENT;
+    // At sim_version 2 the key is deprecated; the frozen version 1 rules still read it.
+    let versions = Versions {
+        schema_version: 1,
+        sim_version: 1,
+    };
     let with = |n: u32| {
         let mut v = bundled.clone();
         v["offer_timer_ticks"] = serde_json::json!(n);
@@ -559,4 +559,80 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
         let msg = format!("{:?}", with(bad).unwrap_err());
         assert!(msg.contains("offer_timer_ticks"), "{msg}");
     }
+}
+
+const V1: Versions = Versions {
+    schema_version: 1,
+    sim_version: 1,
+};
+
+fn bundled_value() -> Value {
+    serde_json::from_slice(ContentFiles::bundled_file("rules")).unwrap()
+}
+
+#[test]
+fn offer_size_is_checked_at_its_bounds_at_version_1() {
+    for (n, ok) in [(0, false), (1, true), (4, true), (5, false)] {
+        let result = Rules::parse(&with("offer_size", n), V1);
+        if ok {
+            assert_eq!(
+                result.unwrap().offer_size(),
+                u8::try_from(n).unwrap(),
+                "{n}"
+            );
+        } else {
+            assert_eq!(paths(result), ["$.offer_size"], "{n}");
+        }
+    }
+}
+
+#[test]
+fn a_version_2_file_refuses_a_non_default_offer_key() {
+    let issues = |fields: &[(&str, i64)]| paths(Rules::parse(&with_all(fields), Versions::CURRENT));
+    assert_eq!(issues(&[("offer_size", 4)]), ["$.offer_size"]);
+    assert_eq!(
+        issues(&[("offer_timer_ticks", 600)]),
+        ["$.offer_timer_ticks"]
+    );
+    assert_eq!(
+        issues(&[("offer_size", 4), ("offer_timer_ticks", 600)]),
+        ["$.offer_size", "$.offer_timer_ticks"]
+    );
+    let mut pack: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    pack["rules"]["offer_size"] = json!(4);
+    assert!(matches!(
+        Pack::from_bytes(pack.to_string().as_bytes()),
+        Err(PackError::File { file: "rules", .. })
+    ));
+}
+
+#[test]
+fn the_offer_keys_are_optional_and_their_defaults_are_accepted() {
+    let mut v = bundled_value();
+    v["offer_size"] = json!(3);
+    v["offer_timer_ticks"] = json!(300);
+    Rules::parse(v.to_string().as_bytes(), Versions::CURRENT).expect("the defaults load");
+    let object = v.as_object_mut().unwrap();
+    object.remove("offer_size");
+    object.remove("offer_timer_ticks");
+    let r = Rules::parse(v.to_string().as_bytes(), Versions::CURRENT).expect("absent loads");
+    assert_eq!((r.offer_size(), r.offer_timer_ticks()), (3, 300));
+}
+
+#[test]
+fn version_1_still_reads_the_offer_keys() {
+    let r = Rules::parse(
+        &with_all(&[("offer_size", 4), ("offer_timer_ticks", 600)]),
+        V1,
+    )
+    .unwrap();
+    assert_eq!((r.offer_size(), r.offer_timer_ticks()), (4, 600));
+}
+
+#[test]
+fn the_bundled_file_leaves_out_the_offer_keys() {
+    let v = bundled_value();
+    assert!(v.get("offer_size").is_none() && v.get("offer_timer_ticks").is_none());
+    let r = Rules::bundled();
+    assert_eq!((r.offer_size(), r.offer_timer_ticks()), (3, 300));
 }

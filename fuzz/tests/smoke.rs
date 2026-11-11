@@ -425,8 +425,8 @@ fn pack_with_constellations() -> Vec<u8> {
         "constellations": [{
             "id": "pair", "name": "The Pair", "members": ["star_a", "star_b"],
             "tiers": [
-                { "threshold": 1, "effects": [{ "effect": "rerolls", "amount": 1 }] },
-                { "threshold": 2, "effects": [{ "effect": "rerolls", "amount": 3 }] }
+                { "threshold": 1, "effects": [{ "effect": "attack_pct", "amount": 1 }] },
+                { "threshold": 2, "effects": [{ "effect": "attack_pct", "amount": 3 }] }
             ]
         }]
     });

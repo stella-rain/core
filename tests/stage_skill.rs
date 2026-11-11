@@ -12,7 +12,7 @@ use stella_rain_core::id::{ContentId, EntityId};
 use stella_rain_core::input::Input;
 use stella_rain_core::rewards::Rewards;
 use stella_rain_core::run_content::RunContent;
-use stella_rain_core::snapshot::{EntityKind, OfferOption};
+use stella_rain_core::snapshot::EntityKind;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::stage_skill::StageSkills;
 use stella_rain_core::version::Versions;
@@ -21,26 +21,10 @@ use crate::common;
 
 use common::*;
 
-/// 32 pixels above the main character: inside the pickup circle, so a star dropped here is
-/// taken at once.
-const NEAR_Y: i32 = START_Y - 8_192;
 /// How far ahead the test skills act: 100 pixels.
 const AHEAD: i32 = 25_600;
 const COOLDOWN: u32 = 120;
 const DURATION: u32 = 60;
-
-/// `count` enemies of 10 hp (one shot each), one every 6 ticks from tick 1, straight above the
-/// main character in the line of its shots: each drops a star it takes at once.
-fn targets(count: u16) -> Value {
-    wave(
-        1,
-        count,
-        6,
-        enemy(10, hold(START_X, NEAR_Y), json!([])),
-        START_X,
-        NEAR_Y,
-    )
-}
 
 /// An enemy that never moves or attacks, spawned on `at_tick` at `(x, y)`.
 fn standing(at_tick: u32, hp: u32, x: i32, y: i32) -> Value {
@@ -121,22 +105,6 @@ fn content(skills: Vec<Value>, rewards: &[(&str, &str, u32)]) -> Rewards {
 fn with(stage: &Stage, rewards: Rewards) -> Engine {
     let content = RunContent::new(common::design_run_stats(), rewards);
     Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-/// Fires until an offer is open, then takes the candidate that is `reward`.
-fn take(e: &mut Engine, reward: &str) {
-    fire_until(e, idle(), 1200, Engine::offer_open);
-    let offer = e.snapshot().progress.unwrap().offer.expect("an open offer");
-    let candidate = offer
-        .candidates
-        .iter()
-        .position(|c| c.reward.as_str() == reward)
-        .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).unwrap(),
-    };
-    let index = offer.options.iter().position(|o| *o == option).unwrap();
-    common::pick(e, u32::try_from(index).unwrap()).unwrap();
 }
 
 /// A stage of `waves` with no stars: no drop and no offer.
@@ -249,23 +217,6 @@ fn the_slot_is_empty_at_the_start_and_a_press_does_nothing() {
 }
 
 #[test]
-fn a_skill_taken_arrives_ready_at_the_level_its_reward_gives() {
-    let skills = vec![skill("aura", &[buff(10), buff(20), buff(30)])];
-    let mut e = with(
-        &starry(vec![targets(1)]),
-        content(skills, &[("aura_r", "aura", 2)]),
-    );
-    take(&mut e, "aura_r");
-    let view = e.snapshot().players[0]
-        .skill
-        .clone()
-        .expect("a skill in the slot");
-    assert_eq!(view.skill, ContentId::from("aura"));
-    assert_eq!(view.icon, ContentId::from(ICON));
-    assert_eq!((view.level, view.ready, view.cooldown_left), (2, true, 0));
-}
-
-#[test]
 fn a_press_uses_it_and_its_level_s_cooldown_counts_from_the_use() {
     let skills = vec![skill("aura", &[buff(10), buff(20)])];
     let mut e = equipped_skill(&bare(vec![]), skills, ("aura_r", "aura", 2));
@@ -286,55 +237,6 @@ fn a_press_uses_it_and_its_level_s_cooldown_counts_from_the_use() {
         e.step(&[idle(), Default::default(), Default::default()]);
     }
     assert_eq!(again, Some(at + COOLDOWN - 10));
-}
-
-#[test]
-fn the_same_skill_again_raises_its_level_up_to_its_highest() {
-    let skills = vec![skill("aura", &[buff(10), buff(20)])];
-    let mut e = with(
-        &starry(vec![targets(3)]),
-        content(skills, &[("aura_r", "aura", 1)]),
-    );
-    let mut levels = Vec::new();
-    for _ in 0..3 {
-        take(&mut e, "aura_r");
-        levels.push(e.snapshot().players[0].skill.clone().unwrap().level);
-    }
-    assert_eq!(levels, [1, 2, 2]);
-}
-
-#[test]
-fn the_same_skill_taken_while_it_cools_down_keeps_cooling_down() {
-    let skills = vec![skill("aura", &[buff(10), buff(20)])];
-    let mut e = with(
-        &starry(vec![targets(1), standing(60, 10, START_X, NEAR_Y)]),
-        content(skills, &[("aura_r", "aura", 1)]),
-    );
-    take(&mut e, "aura_r");
-    use_skill(&mut e);
-    take(&mut e, "aura_r");
-    let view = e.snapshot().players[0].skill.clone().unwrap();
-    assert_eq!(view.level, 2);
-    assert!(!view.ready && view.cooldown_left > 0);
-}
-
-#[test]
-fn another_skill_replaces_the_one_held_and_arrives_ready() {
-    let skills = vec![
-        skill("aura", &[buff(10)]),
-        skill("ward", &[shield(5, DURATION), shield(10, DURATION)]),
-    ];
-    let mut e = with(
-        &starry(vec![targets(1), standing(60, 10, START_X, NEAR_Y)]),
-        content(skills, &[("aura_r", "aura", 1), ("ward_r", "ward", 1)]),
-    );
-    take(&mut e, "aura_r");
-    use_skill(&mut e);
-    take(&mut e, "ward_r");
-    let view = e.snapshot().players[0].skill.clone().unwrap();
-    assert_eq!(view.skill, ContentId::from("ward"));
-    assert_eq!(view.icon, ContentId::from(ICON));
-    assert_eq!((view.level, view.ready, view.cooldown_left), (1, true, 0));
 }
 
 // --- The building blocks ---------------------------------------------------------------------
@@ -579,33 +481,6 @@ fn a_pull_and_an_area_status_act_at_the_one_point() {
     assert_eq!(enemies_at(&e)[1], far);
     let view = e.snapshot().players[0].pull.expect("a pull");
     assert_eq!((view.at.x.0, view.at.y.0), (START_X, START_Y - AHEAD));
-}
-
-#[test]
-fn each_level_brings_its_own_effects() {
-    let skills = vec![skill(
-        "aura",
-        &[json!([buff(10)]), json!([buff(20), shield(4, DURATION)])],
-    )];
-    let mut e = with(
-        &starry(vec![targets(1), standing(60, 10, START_X, NEAR_Y)]),
-        content(skills, &[("aura_r", "aura", 1)]),
-    );
-    take(&mut e, "aura_r");
-    use_skill(&mut e);
-    assert_eq!(
-        e.snapshot().players[0].shield,
-        None,
-        "level 1 has no shield"
-    );
-    take(&mut e, "aura_r");
-    for _ in 0..COOLDOWN {
-        e.step(&[idle(), Default::default(), Default::default()]);
-    }
-    let events = use_skill(&mut e);
-    assert_eq!(used(&events), Some(("aura".into(), 2)));
-    assert_eq!(applied(&events), [(EntityId(0), "atk_up".to_string())]);
-    assert_eq!(e.snapshot().players[0].shield.map(|s| s.amount), Some(4));
 }
 
 #[test]

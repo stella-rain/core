@@ -188,7 +188,8 @@ fn a_mode_run_earns_by_its_tier_and_its_replay_verifies() {
             let before = e.stardust();
             match c {
                 Command::Step(input) => e.step(&[*input, Default::default(), Default::default()]),
-                Command::Choose(i) => common::pick(&mut e, *i).unwrap(),
+                #[allow(unreachable_patterns)]
+                _ => unreachable!("a run at the live rules holds no choice"),
             }
             if e.stardust() > before {
                 gains.push(e.stardust() - before);

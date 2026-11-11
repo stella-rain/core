@@ -1841,10 +1841,14 @@ mod pack_rules {
             EquipmentCategory {
                 id: "attack".into(),
                 slots: 3,
+                drop_weight_max: 0,
+                drop_weight_default: 0,
             },
             EquipmentCategory {
                 id: "defence".into(),
                 slots: 3,
+                drop_weight_max: 0,
+                drop_weight_default: 0,
             },
         ];
         r.rune_slots = 2;

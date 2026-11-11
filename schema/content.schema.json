@@ -3909,6 +3909,18 @@
       "additionalProperties": false,
       "description": "One slot category of the equipment layout.",
       "properties": {
+        "drop_weight_default": {
+          "description": "The weight the Star Chart screen starts this category at, 0 to `drop_weight_max`: the app\nwrites it into the setup; core never reads it (a missing key is 0 extra). Absent: 0.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "drop_weight_max": {
+          "description": "The most extra drop weight in percent the player's setup may give this category\n(`RunSetup::drop_weights`, ADR-SAVE-17), 0 to `MAX_DROP_WEIGHT_PCT`. Absent: 0, so a pack\nreleased before it allows none.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "id": {
           "$ref": "#/$defs/ContentId",
           "description": "The category's ID, unique within the list."
@@ -5889,6 +5901,17 @@
         "stage_skills": {
           "$ref": "#/$defs/StageSkillsFile"
         },
+        "star_chart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StarChartFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Star Chart's Stardust prices (ADR-SAVE-17), checked against the pack's own weapons,\nperk sets, stage skills, run stats and starting unlocks. Optional: a pack released before\nit has none, and reports no catalogue, never a guessed one."
+        },
         "stardust": {
           "anyOf": [
             {
@@ -6565,6 +6588,27 @@
         "smash"
       ],
       "type": "string"
+    },
+    "PricedId": {
+      "additionalProperties": false,
+      "description": "One item sold at one price.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId",
+          "description": "A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock."
+        },
+        "price": {
+          "description": "The price in tenths of Stardust, from 1 to `MAX_PRICE`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "price"
+      ],
+      "type": "object"
     },
     "Profile": {
       "additionalProperties": false,
@@ -7297,7 +7341,8 @@
           "type": "integer"
         },
         "offer_size": {
-          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.",
+          "default": 3,
+          "description": "The base candidates of an offer (ADR-REPL-5): 1 to `rewards::MAX_OFFER_CANDIDATES`.\nDeprecated (ADR-CONT-2): absent in a pack of `sim_version` 2, where only 3 is accepted;\nread only by the frozen version 1 rules. Absent: 3.",
           "format": "uint8",
           "maximum": 255,
           "minimum": 0,
@@ -7305,7 +7350,7 @@
         },
         "offer_timer_ticks": {
           "default": 300,
-          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nAbsent: 300, so a pack published before the key existed still reads.",
+          "description": "Ticks a timed run's open offer waits for a pick before its first option is taken\n(ADR-SIM-7 point 4): 1 to 3,600 (`MAX_OFFER_TIMER_TICKS`). A `stop` run never reads it.\nDeprecated (ADR-CONT-2): read by no run; absent in a pack of `sim_version` 2, where only\n300 is accepted. Absent: 300.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -7391,7 +7436,6 @@
         "orbit_step",
         "boss_arrival_above",
         "default_xp",
-        "offer_size",
         "defence_k",
         "crit_damage_base_pct"
       ],
@@ -7536,6 +7580,15 @@
           "default": "normal",
           "description": "The difficulty the run is played on, by the ID of the run's difficulties file:\nit scales the enemies, bounds the rarities and may set the mode's length. A setup written\nbefore difficulties existed reads as `DEFAULT_DIFFICULTY`, `normal`, which changes nothing."
         },
+        "drop_weights": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "The player's extra drop weight in percent for each perk category of the run's rewards file\n(the Star Chart, ADR-SAVE-17), by category ID: at most `MAX_EQUIP_CATEGORIES` keys, each at\nmost the category's `drop_weight_max`. It adds to the perk set's own `drop_weight` for the\ncategory; a missing key adds 0. Only at `sim_version` 2; sorted by key, so the file's bytes\nare stable.",
+          "type": "object"
+        },
         "extra_rerolls": {
           "description": "Rerolls the player's progress adds to the stage's, at most `MAX_EXTRA_REROLLS`. None at\n`sim_version` 2.",
           "format": "uint8",
@@ -7559,7 +7612,7 @@
               "type": "null"
             }
           ],
-          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, from the star pool, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2."
+          "description": "The one star of the Lumine slot (ADR-SAVE-7 points 3 and 4): a reward ID of the run's\nrewards file, never a rune; it starts equipped at Lv1 at tick 0, in\nthe build from the first tick, and then changes like any other slot (equip rules, kills,\nreplace, extract). Its rarity is capped by `lumine`. Only at `sim_version` 2."
         },
         "mode": {
           "$ref": "#/$defs/ContentId",
@@ -7594,7 +7647,7 @@
           "type": "integer"
         },
         "star_pool": {
-          "description": "The Star Chart pool (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the rewards\nan offer may hold at `sim_version` 1, and at 2 the stars drops roll from, crafting draws from\nand the Lumine star is picked from; each at most once. Absent: every reward in the file.",
+          "description": "The pool of offers mode (ADR-SAVE-7 point 2), by the IDs of the run's rewards file: the\nrewards an offer may hold at `sim_version` 1; each at most once. Absent: every reward in\nthe file. None at `sim_version` 2: every star of the pack drops and is craftable, and the\nLumine star is any star the level allows.",
           "items": {
             "$ref": "#/$defs/ContentId"
           },
@@ -8809,6 +8862,74 @@
       ],
       "type": "object"
     },
+    "StarChartFile": {
+      "additionalProperties": false,
+      "description": "The star chart file: what the chart sells and at what price.",
+      "properties": {
+        "expertise_multiplier": {
+          "description": "The expertise multiplier's price per level: from 1 to `MAX_LEVELS` prices, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "lumine_levels": {
+          "description": "The Lumine levels' price per level: exactly `MAX_LUMINE` prices, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "perk_sets": {
+          "description": "Perk sets for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        },
+        "stage_skills": {
+          "description": "Stage skills for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        },
+        "starting_rune": {
+          "description": "The price of the unlock that lets a player carry a starting rune, from 1 to `MAX_PRICE`.\nThe runes themselves are unlocked by Rune Shards, so none is priced here.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stats": {
+          "description": "Run stats for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/StatPrices"
+          },
+          "type": "array"
+        },
+        "weapons": {
+          "description": "Weapon presets for sale, at most `MAX_ITEMS`.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "weapons",
+        "perk_sets",
+        "stage_skills",
+        "starting_rune",
+        "stats",
+        "expertise_multiplier",
+        "lumine_levels"
+      ],
+      "type": "object"
+    },
     "StarPick": {
       "additionalProperties": false,
       "description": "A star in the run's build (core#NS3).",
@@ -9162,6 +9283,30 @@
           "type": "string"
         }
       ]
+    },
+    "StatPrices": {
+      "additionalProperties": false,
+      "description": "A run stat sold level by level.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContentId",
+          "description": "A stat of the pack's run stats, once in the list."
+        },
+        "prices": {
+          "description": "The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. From 1 to\n`MAX_LEVELS` prices, each from 1 to `MAX_PRICE`, never falling.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "prices"
+      ],
+      "type": "object"
     },
     "StatValueView": {
       "additionalProperties": false,

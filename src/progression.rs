@@ -12,6 +12,8 @@
 //! over the cap counts as the cap, and all arithmetic is `u64`. The ad multiplier never reaches
 //! core (ADR-PLAT-3); it multiplies `Settlement::paid_tenths` only. The
 //! simulation reads nothing from this module, so no state hash depends on it.
+//!
+//! `star_chart_price` prices an item of the Star Chart from the pack's catalogue (ADR-SAVE-17).
 
 use crate::engine::{Engine, Outcome};
 use crate::id::{ContentId, PlayerIdx};
@@ -265,4 +267,75 @@ pub fn starting_unlocks(content: &RunContent) -> Option<StartingSave> {
         free_weapon: file.free_weapon().clone(),
         free_perk_set: file.free_perk_set().clone(),
     })
+}
+
+/// One thing the Star Chart sells (ADR-SAVE-17). IDs are the pack's own; a level is counted from 1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StarChartItem<'a> {
+    Weapon(&'a str),
+    PerkSet(&'a str),
+    StageSkill(&'a str),
+    /// The unlock that lets a player carry a starting rune.
+    StartingRune,
+    /// A run stat's level.
+    Stat {
+        id: &'a str,
+        level: u8,
+    },
+    ExpertiseMultiplier {
+        level: u8,
+    },
+    Lumine {
+        level: u8,
+    },
+}
+
+/// Why an item has no price.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PriceError {
+    /// The pack has no star chart: no catalogue, never a guessed one.
+    NoCatalogue,
+    /// The ID is not in the catalogue's list: free from the start, or not sold.
+    NotForSale,
+    /// Level 0, or above the last priced level.
+    NoSuchLevel,
+}
+
+/// The price in tenths of Stardust of an item of the Star Chart; for a level, the price of
+/// reaching that level. Owning the level before it, and spending and unlocking in one
+/// transaction, are the save's (ADR-SAVE-1): this knows no save, keeps nothing and reads no
+/// randomness, and no run reads the catalogue.
+pub fn star_chart_price(content: &RunContent, item: &StarChartItem) -> Result<u32, PriceError> {
+    let chart = content.star_chart().ok_or(PriceError::NoCatalogue)?;
+    let listed = |list: &[crate::star_chart::PricedId], id: &str| {
+        list.iter()
+            .find(|e| e.id.as_str() == id)
+            .map(|e| e.price)
+            .ok_or(PriceError::NotForSale)
+    };
+    let level_of = |prices: &[u32], level: u8| {
+        usize::from(level)
+            .checked_sub(1)
+            .and_then(|i| prices.get(i))
+            .copied()
+            .ok_or(PriceError::NoSuchLevel)
+    };
+    match *item {
+        StarChartItem::Weapon(id) => listed(chart.weapons(), id),
+        StarChartItem::PerkSet(id) => listed(chart.perk_sets(), id),
+        StarChartItem::StageSkill(id) => listed(chart.stage_skills(), id),
+        StarChartItem::StartingRune => Ok(chart.starting_rune()),
+        StarChartItem::Stat { id, level } => {
+            let stat = chart
+                .stats()
+                .iter()
+                .find(|s| s.id.as_str() == id)
+                .ok_or(PriceError::NotForSale)?;
+            level_of(&stat.prices, level)
+        }
+        StarChartItem::ExpertiseMultiplier { level } => {
+            level_of(chart.expertise_multiplier(), level)
+        }
+        StarChartItem::Lumine { level } => level_of(chart.lumine_levels(), level),
+    }
 }

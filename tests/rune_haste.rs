@@ -11,8 +11,6 @@ use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{
     DEFAULT_MAX_RUNE_HASTE_PCT, MAX_RUNE_HASTE_PCT, Rewards, rune_haste_ticks,
 };
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 use stella_rain_core::snapshot::DamageOverTimeView;
@@ -52,23 +50,15 @@ fn runes(cooldown: u32, interval: u32) -> Runes {
     )
 }
 
-/// The engine of the rune stage, the seven runes taken, then each of `picks` Rune Haste
-/// rewards of the list (`haste{n}`) in turn.
-fn holding(runes: Runes, rewards: Vec<Value>, picks: &[&str]) -> Engine {
-    let mut list = vec![random_rune()];
-    list.extend(rewards);
-    let mut e = with(
-        &stage(
-            7 + u16::try_from(picks.len()).unwrap(),
-            tough(0, None, None),
-        ),
-        &content(list, None, runes),
-    );
-    take_all(&mut e);
-    for p in picks {
-        take(&mut e, p);
-    }
-    e
+/// A Rune Haste star of its own id whose `effects` hold one `rune_haste` entry of each of
+/// `amounts`: the stars equip once each, so a sum a test needs is one star's entries (the
+/// snapshot's `rune_haste_pct` is their sum; the cap applies where it is used).
+fn haste_star(id: &str, amounts: &[u32]) -> Value {
+    let effects: Vec<Value> = amounts
+        .iter()
+        .map(|a| json!({ "effect": "rune_haste", "amount": a }))
+        .collect();
+    json!({ "id": id, "rarity": "common", "effects": effects, "limit": 2 })
 }
 
 /// The stage of the equipped runs: the tough target alone, no small enemies and no stars.
@@ -105,7 +95,7 @@ fn equipped_with(runes: Runes, amount: u32, star: bool) -> Engine {
 
 /// The cooldowns left, right after the first step's hit, of the four on-hit runes.
 fn cooldowns_after_a_hit(e: &mut Engine) -> Vec<u32> {
-    wait_for_target(e);
+    wait_for_tough(e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     [
@@ -229,20 +219,32 @@ fn every_damage_over_time_kind_is_shortened() {
 
 #[test]
 fn haste_taken_several_times_sums_up_to_the_cap() {
-    // Two of 200 add up to 400, held to 300 where it applies: 120 × 100 / 400 would be 30.
-    let rewards = vec![haste("h1", 200, 3), haste("h2", 100, 2)];
-    let mut e = holding(runes(120, 30), rewards.clone(), &["h1"]);
+    // The cap is 300 (the file names none) and a reward's entries add up to at most the cap, so
+    // a sum above it comes from the star's level: Lv10 is `amount × (100 + 3 × 9) / 100`,
+    // floored per entry. 300 at Lv10 is 381 and two of 150 are 190 + 190 = 380; held to 300
+    // where it applies, 120 × 100 / 400 = 30 (400 would give the same, 381 and 380 do).
+    let run = |amounts: &[u32], level: u8| {
+        every_rune_held_in(
+            &target_stage(),
+            rewards_file(vec![haste_star("h1", amounts)]),
+            runes(120, 30),
+            None,
+            &[("h1", 0)],
+            level,
+        )
+    };
+    let mut e = run(&[200], 1);
     assert_eq!(e.snapshot().players[0].rune_haste_pct, 200);
     assert_eq!(cooldowns_after_a_hit(&mut e), [40; 4], "120 × 100 / 300");
-    let mut e = holding(runes(120, 30), rewards.clone(), &["h1", "h1"]);
+    let mut e = run(&[300], 10);
     assert_eq!(
         e.snapshot().players[0].rune_haste_pct,
-        400,
-        "the sum as taken"
+        381,
+        "the sum as taken: 300 × 127 / 100"
     );
     assert_eq!(cooldowns_after_a_hit(&mut e), [30; 4], "held to 300");
-    let mut e = holding(runes(120, 30), rewards, &["h1", "h2", "h1"]);
-    assert_eq!(e.snapshot().players[0].rune_haste_pct, 500);
+    let mut e = run(&[150, 150], 10);
+    assert_eq!(e.snapshot().players[0].rune_haste_pct, 380, "190 + 190");
     assert_eq!(cooldowns_after_a_hit(&mut e), [30; 4]);
 }
 
@@ -250,7 +252,7 @@ fn haste_taken_several_times_sums_up_to_the_cap() {
 fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
     // The step's hit ticks, the evade's recovery and the stage skill's cooldown, with and
     // without haste.
-    let timing = |haste_picks: &[&str]| {
+    let timing = |haste_stars: &[(&str, usize)]| {
         let skills = json!([{ "id": "war_cry", "icon": "icon_nova",
             "levels": [{ "cooldown_ticks": 1_000, "effects": [
                 { "type": "self_status", "status": "atk_up", "value_pct": 100,
@@ -258,19 +260,24 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
             ] }] }]);
         let skill = json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
             "skill": "war_cry", "amount": 1, "limit": 2 });
-        let mut list = vec![random_rune(), skill, haste("h1", 100, 2)];
-        list.truncate(3);
-        let small = 8 + u16::try_from(haste_picks.len()).unwrap();
-        let mut e = with(
-            &stage(small, tough(0, None, None)),
-            &content(list, Some(skills), runes(120, 30)),
-        );
-        take_all(&mut e);
-        take(&mut e, "war_cry_r");
-        for p in haste_picks {
-            take(&mut e, p);
+        let list = vec![skill, haste("h1", 100, 2)];
+        let mut stars = vec![("war_cry_r", 0)];
+        stars.extend_from_slice(haste_stars);
+        let mut e = every_rune_held(&target_stage(), runes(120, 30), list, Some(skills), &stars);
+        let target = wait_for_tough(&mut e);
+        // The stage skill star arrives cooling for its 1 000 ticks: wait until it is ready,
+        // so the press below starts the cooldown the assertion reads.
+        for _ in 0..1_100 {
+            if e.snapshot().players[0]
+                .skill
+                .as_ref()
+                .is_some_and(|s| s.ready)
+            {
+                break;
+            }
+            e.step(&[idle(), Default::default(), Default::default()]);
         }
-        let target = wait_for_target(&mut e);
+        assert!(e.snapshot().players[0].skill.as_ref().unwrap().ready);
         let start = e.tick();
         e.step(&[
             Input {
@@ -295,7 +302,7 @@ fn haste_leaves_the_combo_the_evade_and_the_stage_skill_alone() {
             after.evade.ready,
         )
     };
-    let (plain, hasty) = (timing(&[]), timing(&["h1"]));
+    let (plain, hasty) = (timing(&[]), timing(&[("h1", 1)]));
     assert_eq!(plain, hasty);
     assert!(
         plain.1.is_some_and(|c| c > 900),
@@ -330,32 +337,26 @@ fn the_cap_is_the_rewards_file_s_and_the_code_ceiling_bounds_it() {
 
 #[test]
 fn the_picks_add_up_to_the_files_cap_where_it_applies() {
-    // Cap 500: 200 + 200 + 200 = 600 is held to 500, 120 × 100 / 600 = 20; at 400 it is 24.
-    let run = |cap: u32, picks: &[&str]| {
-        let mut list = vec![random_rune()];
-        list.push(haste("h1", 200, 3));
-        let file = json!({
-            "rarities": common::rarities(), "max_rune_haste_pct": cap, "rewards": list
-        });
-        let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT).unwrap();
-        let content =
-            RunContent::new(RunStats::bundled().clone(), rewards).with_runes(runes(120, 30));
-        let mut e = with(
-            &stage(
-                7 + u16::try_from(picks.len()).unwrap(),
-                tough(0, None, None),
-            ),
-            &content,
+    // Cap 500: 600 is held to 500, 120 × 100 / 600 = 20; at cap 400 it is 120 × 100 / 500 = 24.
+    // A reward gives at most the cap, so the sums above it are Lv10 stars: 473 × 127 / 100 = 600
+    // under cap 500 (one entry of 473), 400 × 127 / 100 = 508 under cap 400 (508 and 600 are both
+    // held to 400: the same 24).
+    let run = |cap: u32, amounts: &[u32], level: u8| {
+        let mut file = rewards_file(vec![haste_star("h1", amounts)]);
+        file["max_rune_haste_pct"] = json!(cap);
+        let mut e = every_rune_held_in(
+            &target_stage(),
+            file,
+            runes(120, 30),
+            None,
+            &[("h1", 0)],
+            level,
         );
-        take_all(&mut e);
-        for p in picks {
-            take(&mut e, p);
-        }
         cooldowns_after_a_hit(&mut e)
     };
-    assert_eq!(run(500, &["h1", "h1", "h1"]), [20; 4], "600 held to 500");
-    assert_eq!(run(400, &["h1", "h1", "h1"]), [24; 4], "600 held to 400");
-    assert_eq!(run(500, &["h1", "h1"]), [24; 4], "400 under the cap");
+    assert_eq!(run(500, &[473], 10), [20; 4], "600 held to 500");
+    assert_eq!(run(400, &[400], 10), [24; 4], "508 held to 400");
+    assert_eq!(run(500, &[200, 200], 1), [24; 4], "400 under the cap");
 }
 
 #[test]

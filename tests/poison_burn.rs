@@ -5,7 +5,7 @@
 //! deals its damage per stack times its stacks as a hit of its type: the target's match-up
 //! and defence at the tick. Its damage gives no expertise and fires no rune. Bleed's own
 //! behaviour is `bleed.rs`'s. Every number here is worked out by hand; the on-hit runes are
-//! held too, as the random rune draws all seven, but their attacks land far from every target.
+//! held too, equipped with the other six, but their attacks land far from every target.
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
@@ -17,6 +17,7 @@ use stella_rain_core::snapshot::DamageOverTimeView;
 
 use crate::common;
 
+use common::equip::wait_for_tough;
 use common::on_hit::*;
 use common::*;
 
@@ -52,14 +53,9 @@ fn far_dots_but_in(all: Vec<Value>, entry: Value) -> Vec<Value> {
         .collect()
 }
 
-/// The stage with seven small enemies and the tough target, every rune taken from their stars.
+/// The stage with the tough target alone, every rune equipped.
 fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(
-        &stage(7, target),
-        &content(vec![random_rune()], None, runes),
-    );
-    take_all(&mut e);
-    e
+    every_rune_held(&target_stage(vec![target]), runes, vec![], None, &[])
 }
 
 /// The statuses named `name` on `id`.
@@ -89,7 +85,7 @@ fn a_combo_step_hit_applies_the_status() {
             runes_of_dots(vec![dot(name, 30, 180, 3, 5)]),
             tough(0, None, None),
         );
-        let target = wait_for_target(&mut e);
+        let target = wait_for_tough(&mut e);
         assert!(statuses(&e, target, name).is_empty());
         let start = e.tick();
         e.step(&[once(start)(start), Default::default(), Default::default()]);
@@ -120,7 +116,7 @@ fn it_ticks_at_its_interval_for_its_duration_in_its_type() {
                 runes_of_dots(vec![dot(name, 30, 180, 20, 5)]),
                 tough(0, profile, None),
             );
-            let target = wait_for_target(&mut e);
+            let target = wait_for_tough(&mut e);
             let start = e.tick();
             let seen = hits(&mut e, target, 240, once(start));
             let hit = start + 1;
@@ -161,7 +157,7 @@ fn it_stacks_to_its_maximum_and_each_hit_starts_its_duration_again() {
             runes_of_dots(vec![dot(name, 30, 180, 4, 3)]),
             tough(0, None, None),
         );
-        let target = wait_for_target(&mut e);
+        let target = wait_for_tough(&mut e);
         let start = e.tick();
         let mut stacks = Vec::new();
         let mut damage = Vec::new();
@@ -216,7 +212,7 @@ fn bleed_poison_and_burn_are_three_statuses_each_with_its_own_stacks() {
         ]),
         tough(0, None, None),
     );
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 100, presses(start, &[0, 10]));
     for (name, per_stack) in [("bleed", 20), ("poison", 30), ("burn", 40)] {
@@ -241,7 +237,7 @@ fn their_damage_gives_no_expertise_and_fires_no_rune() {
         ]),
         tough(0, None, Some(1)),
     );
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let before = e.snapshot().expertise.unwrap().points;
     let start = e.tick();
     let seen = hits(&mut e, target, 120, once(start));
@@ -260,8 +256,8 @@ fn the_state_hash_holds_poison_and_burn() {
             runes_of_dots(vec![dot(name, 45, 180, 3, 5)]),
             tough(0, None, None),
         );
-        wait_for_target(&mut a);
-        wait_for_target(&mut b);
+        wait_for_tough(&mut a);
+        wait_for_tough(&mut b);
         assert_eq!(a.state_hash(), b.state_hash(), "{name}");
         let start = a.tick();
         a.step(&[once(start)(start), Default::default(), Default::default()]);

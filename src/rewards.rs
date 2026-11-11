@@ -557,6 +557,19 @@ pub struct EquipmentCategory {
     pub id: ContentId,
     /// Its slots, 1 to `MAX_CATEGORY_SLOTS`.
     pub slots: u8,
+    /// The most extra drop weight in percent the player's setup may give this category
+    /// (`RunSetup::drop_weights`, ADR-SAVE-17), 0 to `MAX_DROP_WEIGHT_PCT`. Absent: 0, so a pack
+    /// released before it allows none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub drop_weight_max: u32,
+    /// The weight the Star Chart screen starts this category at, 0 to `drop_weight_max`: the app
+    /// writes it into the setup; core never reads it (a missing key is 0 extra). Absent: 0.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub drop_weight_default: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// What one rarity of star is worth in Stardust (equipment mode).
@@ -577,6 +590,9 @@ pub const MAX_STARLIGHT: u32 = 1_000_000;
 pub const MAX_LEVEL_PCT: u32 = 50;
 /// The most boss drops a boss kill pays each member.
 pub const MAX_BOSS_DROPS: u8 = 8;
+
+/// The largest `drop_weight_max` of a category, in percent: a ceiling in code (ADR-CONT-3).
+pub const MAX_DROP_WEIGHT_PCT: u32 = 1000;
 
 /// The equipment rules (ADR-CONT-3): the slot layout, the level curve, the Starlight values and
 /// the drop numbers, which a designer tunes. Bounds are code.
@@ -1184,6 +1200,24 @@ fn validate_equipment(rules: &EquipmentRules, issue: &mut dyn FnMut(String, Stri
             );
         }
         slots += usize::from(category.slots);
+        if category.drop_weight_max > MAX_DROP_WEIGHT_PCT {
+            issue(
+                path("drop_weight_max"),
+                format!(
+                    "at most {MAX_DROP_WEIGHT_PCT} (found {})",
+                    category.drop_weight_max
+                ),
+            );
+        }
+        if category.drop_weight_default > category.drop_weight_max {
+            issue(
+                path("drop_weight_default"),
+                format!(
+                    "at most the category's drop_weight_max (found {})",
+                    category.drop_weight_default
+                ),
+            );
+        }
     }
     if !(1..=MAX_CATEGORY_SLOTS).contains(&rules.rune_slots) {
         issue(
