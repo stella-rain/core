@@ -7,7 +7,9 @@
 //!
 //! A `.replay` of a run is one JSON object, written at schema 2 (ADR-REPL-2 point 4,
 //! ADR-REPL-5): `inputs` is the step log (see `step_log`; a PICKS record is reserved
-//! and refused) and `commands` is empty. A schema 1 file is still read and verified, and its two streams are
+//! and refused) and `commands` is empty. A run of `sim_version` 1 (the frozen rules, the only
+//! ones that open an offer) is written at schema 1 by the recorder, the form it was frozen in;
+//! a schema 1 file is read and verified, and its two streams are
 //! described here. Its inputs are packed as a stage replay's are (see `replay`). Its commands
 //! are packed in the order they applied, each as the tick (a LEB128
 //! delta from the previous command's tick, from 0 for the first), the kind (one byte: 0
@@ -52,7 +54,8 @@ use crate::input::{EquipAction, Input};
 use crate::ledger::RunLedger;
 use crate::pack::Pack;
 use crate::replay::{
-    block_of, hash_from_hex, hash_to_hex, input_of_block, read_varint, unpack, write_varint,
+    block_of, hash_from_hex, hash_to_hex, input_of_block, pack_inputs, read_varint, unpack,
+    write_varint,
 };
 use crate::run_content::RunContent;
 use crate::run_setup::{self, RunSetup};
@@ -746,11 +749,17 @@ pub fn pack_commands(commands: &[TickCommand]) -> String {
     base64::encode(&out)
 }
 
-/// The setup as the recorder writes it: at `SCHEMA_VERSION`, the schema its streams are packed
-/// in, whatever schema the setup or the prefix it comes from was read at.
+/// The setup as the recorder writes it, a function of its `sim_version` (ADR-REPL-5): a run of
+/// the frozen rules is written in the schema 1 form it was frozen in (`inputs` and `commands`),
+/// every other at `SCHEMA_VERSION`, whatever schema the setup or the prefix it comes from was
+/// read at.
 fn written(setup: &RunSetup) -> RunSetup {
     RunSetup {
-        schema_version: SCHEMA_VERSION,
+        schema_version: if setup.sim_version == 1 {
+            1
+        } else {
+            SCHEMA_VERSION
+        },
         ..setup.clone()
     }
 }
@@ -916,6 +925,16 @@ impl RunRecorder {
                 tick: self.engine.tick(),
             });
         }
+        let present = self.engine.present();
+        if self.setup.schema_version == 1
+            && inputs
+                .iter()
+                .enumerate()
+                .any(|(slot, input)| present >> slot & 1 == 1 && input.interact)
+        {
+            // Schema 1 packs no `interact`: the file could not reproduce the run.
+            return Err(RunReplayError::BadInputs("a version 1 run has no interact"));
+        }
         let mut cleared = *inputs;
         // The actions the engine accepts are recorded as one ACTIONS step, the rest are ignored
         // as a refused pick is; the tick runs on inputs without actions, so the log holds none
@@ -968,6 +987,25 @@ impl RunRecorder {
         if self.engine.tick() % CHECKPOINT_TICKS == 0 {
             self.checkpoints.push(self.engine.state_hash());
         }
+        Ok(())
+    }
+
+    /// Test seam (ADR-SIM-7's `bench` gate): answers a frozen run's offer with one recorded PICKS
+    /// step, never ticking.
+    ///
+    /// Every pick is checked first (`ChoiceRefused { tick, error }`), so a refusal changes and
+    /// records nothing; a step with no pick among the present slots is `BadInputs`.
+    #[cfg(feature = "bench")]
+    pub fn v1_pick_step(
+        &mut self,
+        picks: &[Option<u32>; MAX_PLAYERS as usize],
+    ) -> Result<(), RunReplayError> {
+        let dense = dense(self.engine.present(), picks);
+        if dense.iter().all(Option::is_none) {
+            return Err(RunReplayError::BadInputs("a step of picks holds a pick"));
+        }
+        apply_picks(&mut self.engine, &dense)?;
+        self.records.push(Record::Picks { picks: dense });
         Ok(())
     }
 
@@ -1045,25 +1083,36 @@ impl RunRecorder {
         Ok(())
     }
 
-    /// The schema 2 `inputs` field for `log`: the step log, then base64.
-    fn encoded(log: &StepLog) -> String {
-        base64::encode(&log.encode())
+    /// The `inputs` and `commands` fields for `log`, in the schema the recorder writes: at
+    /// schema 2 the step log, then base64 (`commands` empty); at schema 1 the solo streams.
+    fn streams(&self, log: &StepLog) -> (String, String) {
+        if self.setup.schema_version == 1 {
+            let (inputs, commands) = log.to_solo().expect("a version 1 run is solo");
+            (pack_inputs(&inputs), pack_commands(&commands))
+        } else {
+            (
+                base64::encode(&log.encode().expect("a schema 2 log holds no picks")),
+                String::new(),
+            )
+        }
     }
 
-    /// The replay of the run so far: complete once the run has ended, a bug report before.
+    /// The replay of the run so far: complete once the run has ended, a bug report before. At
+    /// `sim_version` 1 it is a schema 1 file (`inputs` and `commands`), otherwise schema 2.
     pub fn replay(&self) -> RunReplay {
         let log = StepLog {
             present: self.present,
             records: self.records.clone(),
         };
+        let (inputs, commands) = self.streams(&log);
         RunReplay {
             setup: self.setup.clone(),
             content_sha256: self.content_sha256.clone(),
             ticks: self.engine.tick(),
             final_hash: hash_to_hex(self.engine.state_hash()),
             checkpoints: self.checkpoints.iter().map(|h| hash_to_hex(*h)).collect(),
-            inputs: RunRecorder::encoded(&log),
-            commands: String::new(),
+            inputs,
+            commands,
         }
     }
 
@@ -1086,6 +1135,7 @@ impl RunRecorder {
             records: self.records.clone(),
         }
         .prefix(ticks);
+        let (inputs, commands) = self.streams(&log);
         RunReplay {
             setup: self.setup.clone(),
             content_sha256: self.content_sha256.clone(),
@@ -1095,8 +1145,8 @@ impl RunRecorder {
                 .iter()
                 .map(|h| hash_to_hex(*h))
                 .collect(),
-            inputs: RunRecorder::encoded(&log),
-            commands: String::new(),
+            inputs,
+            commands,
         }
     }
 }
@@ -1850,6 +1900,39 @@ mod tests {
         );
     }
 
+    fn v1_pack() -> crate::pack::Pack {
+        crate::pack::Pack::from_bytes(include_bytes!(
+            "../tests/corpus/v1/packs/32ec7296e6d6391476878f95571c434f7a15ed74236d26988dd8d88573bc3dd5.json"
+        ))
+        .expect("the version 1 pack")
+    }
+
+    #[test]
+    fn a_version_1_recorder_refuses_interact() {
+        let frozen = RunSetup {
+            schema_version: 1,
+            sim_version: 1,
+            ..RunSetup::default()
+        };
+        let mut rec = RunRecorder::start_with_pack(&frozen, &v1_pack()).unwrap();
+        rec.step(&[Input::default(); 3]).unwrap();
+        let (replay, tick) = (rec.replay(), rec.engine().tick());
+        let mut held = [Input::default(); 3];
+        held[0].interact = true;
+        assert_eq!(
+            rec.step(&held),
+            Err(RunReplayError::BadInputs("a version 1 run has no interact"))
+        );
+        assert_eq!((rec.replay(), rec.engine().tick()), (replay, tick));
+        // An absent slot's entry is ignored, as it is at every schema.
+        let mut absent = [Input::default(); 3];
+        absent[1].interact = true;
+        assert_eq!(rec.step(&absent), Ok(()));
+        // The live rules take the same input.
+        let mut live = RunRecorder::start(&RunSetup::default()).unwrap();
+        assert_eq!(live.step(&held), Ok(()));
+    }
+
     #[test]
     fn a_replay_with_an_action_step_loads_and_ranges_but_does_not_verify() {
         use crate::pack::Pack;
@@ -1868,10 +1951,22 @@ mod tests {
         .expect("the version 1 pack");
         let mut rec = RunRecorder::start_with_pack(&frozen, &v1).unwrap();
         rec.step(&[Input::default(); 3]).unwrap();
+        let mut replay = rec.replay();
         rec.records.push(Record::Actions {
             actions: vec![Some(EquipAction::Extract { item: 0 })],
         });
-        let replay = rec.replay();
+        // A schema 1 file cannot hold an action: the replay is forged at schema 2, with the log
+        // written by hand.
+        replay.setup.schema_version = 2;
+        replay.inputs = crate::base64::encode(
+            &crate::step_log::StepLog {
+                present: 0b1,
+                records: rec.records.clone(),
+            }
+            .encode()
+            .unwrap(),
+        );
+        replay.commands = String::new();
         let refused = RunReplayError::ActionRefused {
             tick: 1,
             error: ActionError::NotBuilt,
@@ -1930,7 +2025,7 @@ mod party_size_tests {
         for bad in [0u8, 0b010, 0b101, 0b1000, 0b1111, 0xFF] {
             let mut edited = bytes.clone();
             edited[0] = bad;
-            replay.inputs = base64::encode(&edited);
+            replay.inputs = crate::base64::encode(&edited);
             assert_eq!(replay.party_size(), None, "{bad:#b}");
         }
         replay.inputs = String::new();
