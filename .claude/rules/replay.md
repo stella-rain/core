@@ -1,8 +1,10 @@
 ---
 paths:
   - "src/replay.rs"
-  - "src/run_replay.rs"
-  - "src/step_log.rs"
+  - "src/run_replay*"
+  - "src/run_replay/**"
+  - "src/step_log*"
+  - "src/step_log/**"
   - "src/savepoint/**"
   - "src/share.rs"
   - "src/base64.rs"
