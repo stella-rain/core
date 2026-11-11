@@ -436,13 +436,13 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           changed=$(git diff --name-only "$BASE" HEAD -- \
-            src/validate.rs src/stage.rs src/behaviour.rs src/attack.rs src/input.rs \
+            src/validate.rs src/validate src/stage.rs src/behaviour.rs src/attack.rs src/input.rs \
             src/replay.rs src/share.rs src/base64.rs src/registry.rs src/presets.rs \
             src/id.rs src/fixed.rs src/version.rs src/run_setup.rs modes \
             src/rewards.rs src/run_stats.rs src/expertise.rs src/stage_skill.rs \
-            src/run_replay.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
-            src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs src/attack_presets.rs src/weapons.rs \
-            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs src/step_log.rs content \
+            src/run_replay.rs src/run_replay src/run_replay_tests.rs src/run_content.rs src/weapon.rs src/match_ups.rs \
+            src/runes.rs src/rune.rs src/time_limit.rs src/pack.rs src/pack src/attack_presets.rs src/weapons.rs \
+            src/difficulties.rs src/starting_unlocks.rs src/rules.rs src/stardust.rs src/progression.rs src/constellations.rs src/step_log.rs src/step_log src/step_log_tests.rs content \
             tests/fixtures/run_setup net fuzz .github/workflows/rust.yml)
           if [ -n "$changed" ]; then
             echo "parsing=true" >> "$GITHUB_OUTPUT"
