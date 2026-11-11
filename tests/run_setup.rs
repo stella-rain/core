@@ -259,6 +259,7 @@ fn every_mode_has_content_that_validates_and_nothing_else_has() {
 
 fn with_pool(ids: &[&str]) -> RunSetup {
     RunSetup {
+        sim_version: 1,
         star_pool: Some(ids.iter().map(|id| (*id).into()).collect()),
         ..setup()
     }
@@ -652,17 +653,9 @@ fn the_lumine_star_is_a_star_of_the_pool_and_never_a_rune() {
         found_in(&star_setup(10, rune.as_str())),
         [issue("$.lumine_star", "a rune is not a Lumine star")]
     );
-    let pooled = |star: &str| RunSetup {
-        star_pool: Some(vec!["max_hp_common".into()]),
-        ..star_setup(10, star)
-    };
-    assert_eq!(
-        found_in(&pooled("attack_common")),
-        [issue("$.lumine_star", "not in the star pool")]
-    );
-    assert_eq!(content_check(&pooled("max_hp_common")), Ok(()));
     // A pool entry unknown to the rewards file is refused as before.
     let bad_pool = RunSetup {
+        sim_version: 1,
         star_pool: Some(vec!["no_such_reward".into()]),
         ..equipment()
     };

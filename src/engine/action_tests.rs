@@ -394,10 +394,14 @@ mod equipment_runs {
     /// T13: `check_action` refuses each extract and craft reason, and reads only.
     #[test]
     fn check_action_extract_and_craft() {
-        // The default pool leaves the random rune out (it has no category), so the pool names it.
-        let mut setup = equipment(false);
-        setup.star_pool = Some(vec!["max_hp_common".into(), "random_rune".into()]);
-        let mut e = Engine::start_party(&setup, 1).unwrap();
+        // The live pool leaves the random rune out (it has no category): the test puts it in the
+        // pool by hand, to reach the refusal of a craft of a reward that is not a star.
+        let mut e = Engine::start_party(&equipment(false), 1).unwrap();
+        let random_rune = place(&e, "random_rune");
+        match e.run_mut() {
+            Run::V2 { state, .. } => state.stars.as_mut().expect("stars").pool.push(random_rune),
+            Run::V1 { .. } => panic!("the live rules"),
+        }
         give(&mut e, 0);
         let me = PlayerIdx::SOLO;
         let hash = e.state_hash();
@@ -702,18 +706,21 @@ mod equipment_runs {
     /// T20: the snapshot marks which pool stars a player holds, by the test a craft uses.
     #[test]
     fn the_snapshot_marks_a_held_star() {
-        let pooled = RunSetup {
-            star_pool: Some(vec!["star_altair".into(), "max_hp_common".into()]),
-            ..equipment(true)
-        };
+        let pooled = equipment(true);
         let fresh = || Engine::start_party(&pooled, 2).unwrap();
         let held = |e: &Engine, p: usize| e.snapshot().players[p].pool_held.clone();
+        let size = pool(&fresh()).len();
+        let only = |at: Option<u32>| -> Vec<bool> {
+            (0..size)
+                .map(|i| at == Some(u32::try_from(i).unwrap()))
+                .collect()
+        };
         let agree = |e: &mut Engine| {
             set_starlight(e, 0, 100_000);
             set_starlight(e, 1, 100_000);
             for (p, me) in [slot(0), slot(1)].into_iter().enumerate() {
                 let marks = held(e, p);
-                assert_eq!(marks.len(), 2);
+                assert_eq!(marks.len(), size);
                 for (i, mark) in marks.iter().enumerate() {
                     let refused = e.check_action(me, craft(u32::try_from(i).unwrap()))
                         == Err(ActionError::AlreadyHeld {
@@ -725,24 +732,19 @@ mod equipment_runs {
         };
         let e = fresh();
         let altair = Held::Star(place(&e, "star_altair"));
-        let common = Held::Star(place(&e, "max_hp_common"));
+        let altair_at = pool_index(&e, "star_altair");
         let mut e = fresh();
-        assert_eq!((held(&e, 0), held(&e, 1)), (vec![false; 2], vec![false; 2]));
+        assert_eq!(held(&e, 0), only(None));
+        assert_eq!(held(&e, 1), only(None));
         agree(&mut e);
         for into in ["inventory", "slot", "lumine"] {
             let mut e = fresh();
             put(&mut e, 0, altair, into);
-            assert_eq!(held(&e, 0), [true, false], "{into}");
-            assert_eq!(held(&e, 1), [false, false], "{into}");
+            assert_eq!(held(&e, 0), only(Some(altair_at)), "{into}");
+            assert_eq!(held(&e, 1), only(None), "{into}");
             agree(&mut e);
         }
-        // An unnamed star held does not mark, and a craft of it is accepted.
-        let mut e = fresh();
-        put(&mut e, 0, common, "inventory");
-        assert_eq!(held(&e, 0), [false, false]);
-        agree(&mut e);
-        assert_eq!(e.check_action(slot(0), craft(1)), Ok(()));
-        // Extracting the named star clears the mark.
+        // Extracting the star clears the mark.
         let mut e = fresh();
         put(&mut e, 0, altair, "inventory");
         let at = u32::try_from(
@@ -754,13 +756,13 @@ mod equipment_runs {
         )
         .unwrap();
         e.act(slot(0), extract(at)).unwrap();
-        assert_eq!(held(&e, 0), [false, false]);
+        assert_eq!(held(&e, 0), only(None));
         agree(&mut e);
-        assert_eq!(e.check_action(slot(0), craft(0)), Ok(()));
+        assert_eq!(e.check_action(slot(0), craft(altair_at)), Ok(()));
         let json = serde_json::to_value(e.snapshot()).unwrap();
         assert_eq!(
             json["players"][0]["pool_held"],
-            serde_json::json!([false, false])
+            serde_json::to_value(only(None)).unwrap()
         );
     }
 }

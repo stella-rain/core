@@ -295,7 +295,7 @@ fn setup(sim_version: u32, pool: Option<&[&str]>) -> RunSetup {
 #[test]
 fn an_explicit_pool_may_name_a_deprecated_star_but_not_an_equipment_only_one_at_version_1() {
     let content = RunContent::bundled();
-    let ok = setup(2, Some(&["rune_haste_common", "rune_haste_star_rare"]));
+    let ok = setup(1, Some(&["rune_haste_common"]));
     assert!(run_setup::validate_in(&ok, content).is_ok());
     let bad = setup(1, Some(&["rune_haste_common", "rune_haste_star_rare"]));
     refused_at(run_setup::validate_in(&bad, content), "$.star_pool[1]");
