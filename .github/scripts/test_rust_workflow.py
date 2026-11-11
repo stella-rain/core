@@ -139,6 +139,15 @@ class CiSpeed(unittest.TestCase):
             self.assertIn(f"cargo deny --manifest-path {manifest} check", block)
         self.assertRegex(job_block(self.text, "checks"), r"needs:.*\bcargo-deny\b")
 
+    def test_fuzz_build_is_skipped_when_the_short_run_builds_the_same_targets(self):
+        header = job_block(self.text, "fuzz-build").split("    steps:")[0]
+        self.assertIn("needs: [changes, fuzz-changes]", header)
+        self.assertIn("!cancelled()", header)
+        self.assertIn("needs.changes.outputs.code == 'true'", header)
+        self.assertIn("needs.fuzz-changes.outputs.parsing != 'true'", header)
+        # It still saves the nightly cache on main, which the short run only reads.
+        self.assertIn("save-if: ${{ github.ref == 'refs/heads/main' }}", job_block(self.text, "fuzz-build"))
+
 
 if __name__ == "__main__":
     unittest.main()
