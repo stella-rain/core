@@ -9,17 +9,19 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3, ADR-REL-6.
 
 ## `.github/workflows/`
 
-- Rust gates on x86_64 and arm64 (tests also on Windows and macOS), the mobile `cargo check`,
+- Rust gates on x86_64 and arm64 (debug and release legs; Windows and macOS release only), the mobile `cargo check`,
   the fuzz jobs and the tick benchmarks (`rust.yml`, every target in `benches/budgets.toml`; the bench job uploads `bench-profile-<arch>`: one shard per bench target and arch, merged into that artifact; a PR restores its base's counts from main's push run when the toolchain fingerprint matches, else counts the base itself; a case is compared when its pre-tick digest in `tests/bench_pins.toml` is unchanged). A PR of only `*.md` files skips every
-  Rust job, and `rust checks` passes when each job ran or was skipped by right.
+  Rust job. A push to `main` runs `what changed`, the bench and its profile; the rest only when
+  `Cargo.lock`, `fuzz/Cargo.lock`, `rust-toolchain.toml` or `rust.yml` changed (they refresh the caches), and weekly.
+  `rust checks` passes when each job ran or was skipped by right. Every job installs the toolchain with `rustup toolchain install` (reads `rust-toolchain.toml`).
 - `generated sets` (job `bless`) runs `cargo xtask bless --check` on Linux: it fails, naming the
   stale sets (schema, corpus, goldens, content pack, bench pins), when regenerating them changes a file.
   `rust checks` requires it. Fix: `cargo xtask bless`, review the diff, commit it.
 - Tests run under cargo-nextest, profile `ci` (`.config/nextest.toml`): every failure is
   reported, a test past 30 s is listed SLOW, and each run writes a JUnit file, uploaded as the
-  `junit-<arch>` artifact. nextest skips doctests, so `cargo test --doc` runs beside it
-  (x86_64 only) and fails the day one is added and breaks.
-- `tests on x86_64` also runs the ignored `command_cap::measure_the_longest_run` in release on
+  `junit-<arch>-<profile>` artifact. nextest skips doctests, so `cargo test --doc` runs in the x86_64
+  debug leg and fails the day one is added and breaks.
+- `tests on x86_64 (release)` also runs the ignored `command_cap::measure_the_longest_run` in release on
   every run of the job (md-only PRs skip it): it counts the commands of the frozen `tests/corpus/v1/runs` replays, a folder
   that never changes, so `MEASURED_MOST` in `tests/command_cap.rs` can only fall; a PR that lowers the count re-pins it.
 - The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
@@ -61,4 +63,6 @@ fuzz report (`fuzz-report.sh`) have no tests. Run: `python3 -m unittest discover
   and the corpus run in the iOS Simulator by hand or from Candidate.
 - The replay corpus runs on x86_64, on an arm64 runner, and (tests only) on Windows x86_64 and
   macOS arm64 runners, every PR and weekly on `main` (ADR-SIM-3, ADR-PLAT-1). `frozen corpus unchanged` fails a PR
-  that changes a file in a frozen `tests/corpus/v<N>/`.
+  that changes a file in a frozen `tests/corpus/v<N>/`: the manifest test runs in every `tests` leg,
+  and the `frozen` job (PRs only) is the git diff.
+- `cargo deny` is one job on a pinned binary (version and sha256 in `rust.yml`) and checks both manifests.

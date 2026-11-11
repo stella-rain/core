@@ -24,7 +24,6 @@ UNCHANGED = {
         "cargo clippy --all-targets --all-features --locked -- -D warnings",
     ],
     "bless": ["cargo xtask bless --check"],
-    "frozen": ["cargo test --locked --test integration corpus::the_frozen"],
     "test": [
         "cargo nextest run --locked --release --profile ci",
         "cargo test --doc --locked --all-features",
@@ -143,7 +142,6 @@ class Workflow(unittest.TestCase):
         self.assertIn("if: needs.changes.outputs.code == 'true'", header)
         self.assertIn("contents: read", j)
         self.assertIn("persist-credentials: false", j)
-        self.assertIn("rustfmt,clippy", j)
         for c in (
             "cargo fmt -p stella-rain-net --check",
             "cargo clippy -p stella-rain-net --all-targets --locked -- -D warnings",
@@ -152,7 +150,8 @@ class Workflow(unittest.TestCase):
             'cargo check -p stella-rain-net --locked --all-targets --target "$t"',
         ):
             self.assertIn(c, j)
-        self.assertIn("--target aarch64-apple-ios,aarch64-linux-android,x86_64-linux-android", j)
+        # The toolchain file holds the components and the mobile targets: `rustup toolchain install`.
+        self.assertIn("rustup toolchain install\n", j)
         self.assertIn(f"for t in {MOBILE}; do", j)
 
     def test_net_is_required_by_rust_checks(self):
@@ -166,8 +165,10 @@ class Workflow(unittest.TestCase):
             self.assertNotIn("--workspace", block, job)
             self.assertNotIn("stella-rain-net", block, job)
 
-    def test_cargo_deny_matrix_is_unchanged(self):
-        self.assertIn("manifest: [Cargo.toml, fuzz/Cargo.toml]", job_block(self.text, "cargo-deny"))
+    def test_cargo_deny_checks_both_manifests(self):
+        block = job_block(self.text, "cargo-deny")
+        for manifest in ("Cargo.toml", "fuzz/Cargo.toml"):
+            self.assertIn(f"cargo deny --manifest-path {manifest} check", block)
 
 
 class Rules(unittest.TestCase):
