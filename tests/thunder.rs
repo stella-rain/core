@@ -16,6 +16,7 @@ use stella_rain_core::runes::Runes;
 
 use crate::common;
 
+use common::equip::wait_for_tough;
 use common::on_hit::*;
 use common::*;
 
@@ -55,15 +56,9 @@ fn runes(cooldown: u32, damage: u32, ty: Option<&str>) -> Runes {
     ])
 }
 
-/// The stage with seven small enemies and the tough target, every rune taken from their
-/// stars.
+/// The stage with the tough target alone, every rune equipped.
 fn holding(runes: Runes, target: Value) -> Engine {
-    let mut e = with(
-        &stage(7, target),
-        &content(vec![random_rune()], None, runes),
-    );
-    take_all(&mut e);
-    e
+    every_rune_held(&target_stage(vec![target]), runes, vec![], None, &[])
 }
 
 fn cooldown(e: &Engine) -> u32 {
@@ -73,7 +68,7 @@ fn cooldown(e: &Engine) -> u32 {
 #[test]
 fn a_combo_step_hit_calls_thunder_down_on_the_point_hit_after_its_wind_up() {
     let mut e = holding(runes(60, STRIKE, Some("electro")), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     let step_hit = e.tick();
@@ -102,7 +97,7 @@ fn a_combo_step_hit_calls_thunder_down_on_the_point_hit_after_its_wind_up() {
 #[test]
 fn its_cooldown_blocks_a_second_strike_until_it_reaches_0() {
     let mut e = holding(runes(60, STRIKE, None), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let seen = hits(&mut e, target, 300, |t| firing(idle(), t));
     let steps = of(&seen, 10);
     let strikes = of(&seen, STRIKE);
@@ -134,7 +129,7 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
         far("homing_missiles"),
     ]);
     let mut e = holding(runes, tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     e.step(&[once(start)(start), Default::default(), Default::default()]);
     let step_hit = e.tick();
@@ -162,7 +157,7 @@ fn held_with_explosion_each_fires_on_its_own_cooldown() {
 #[test]
 fn its_hits_fire_no_rune_one_strike_for_one_step() {
     let mut e = holding(runes(6, STRIKE, None), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 60, once(start));
     assert_eq!(of(&seen, 10).len(), 1);
@@ -173,7 +168,7 @@ fn its_hits_fire_no_rune_one_strike_for_one_step() {
 fn its_hits_give_no_expertise() {
     // The target gives 1 point a hit: the step's, not the strike's.
     let mut e = holding(runes(60, STRIKE, None), tough(0, None, Some(1)));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let seen = hits(&mut e, target, 20, once(start));
     assert_eq!(of(&seen, STRIKE).len(), 1, "the strike landed");
@@ -184,25 +179,26 @@ fn its_hits_give_no_expertise() {
 /// and the war cry's atk-up of 100 used before the step: `(step's hit, strike's hit)`.
 fn boosted(ty: Option<&str>, profile: Value) -> (u32, u32) {
     let war_cry = json!({ "id": "war_cry", "icon": "icon_nova",
-        "levels": [{ "cooldown_ticks": 1_000, "effects": [
+        "levels": [{ "cooldown_ticks": 1, "effects": [
             { "type": "self_status", "status": "atk_up", "value_pct": 100,
               "duration_ticks": 600 }
         ] }] });
     let rewards = vec![
-        random_rune(),
         json!({ "id": "war_cry_r", "rarity": "common", "effect": "stage_skill",
                 "skill": "war_cry", "amount": 1, "limit": 2 }),
         json!({ "id": "electro", "rarity": "common", "effect": "type_bonus_pct",
                 "type": "electro", "amount": 50, "limit": 2 }),
     ];
-    let mut e = with(
-        &stage(9, tough(0, Some(profile), None)),
-        &content(rewards, Some(json!([war_cry])), runes(60, 10, ty)),
+    // The stage skill star arrives cooling for its cooldown: 1 tick, then ready.
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, Some(profile), None)]),
+        runes(60, 10, ty),
+        rewards,
+        Some(json!([war_cry])),
+        &[("war_cry_r", 0), ("electro", 1)],
     );
-    take_all(&mut e);
-    take(&mut e, "war_cry_r");
-    take(&mut e, "electro");
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
+    wait_ready(&mut e);
     e.step(&[
         Input {
             skill: true,
@@ -238,8 +234,8 @@ fn a_neutral_strike_gets_atk_up_but_no_electro_bonus_or_match_up() {
 fn the_state_hash_holds_its_cooldown() {
     let mut a = holding(runes(60, STRIKE, None), tough(0, None, None));
     let mut b = holding(runes(70, STRIKE, None), tough(0, None, None));
-    wait_for_target(&mut a);
-    wait_for_target(&mut b);
+    wait_for_tough(&mut a);
+    wait_for_tough(&mut b);
     assert_eq!(a.state_hash(), b.state_hash());
     let start = a.tick();
     a.step(&[once(start)(start), Default::default(), Default::default()]);
@@ -250,7 +246,7 @@ fn the_state_hash_holds_its_cooldown() {
 #[test]
 fn a_thunder_strike_names_its_own_damage_type_and_the_kind_it_struck() {
     let mut e = holding(runes(60, STRIKE, Some("electro")), tough(0, None, None));
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let mut strikes = Vec::new();
     for _ in 0..20 {

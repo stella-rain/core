@@ -9,6 +9,7 @@ use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rune::Rune;
 use stella_rain_core::runes::Runes;
 
+use crate::common::equip::wait_for_tough;
 use crate::common::on_hit::*;
 
 /// An entry whose one attack is a circle of 16 pixels round the point it starts at, active for
@@ -49,12 +50,14 @@ fn runes() -> Runes {
 
 #[test]
 fn rune_hits_carry_their_rune_and_a_combo_step_none() {
-    let mut e = with(
-        &stage(7, tough(0, None, None)),
-        &content(vec![random_rune()], None, runes()),
+    let mut e = every_rune_held(
+        &target_stage(vec![tough(0, None, None)]),
+        runes(),
+        vec![],
+        None,
+        &[],
     );
-    take_all(&mut e);
-    let target = wait_for_target(&mut e);
+    let target = wait_for_tough(&mut e);
     let start = e.tick();
     let mut seen: Vec<(u32, Option<Rune>)> = Vec::new();
     for _ in 0..200 {
