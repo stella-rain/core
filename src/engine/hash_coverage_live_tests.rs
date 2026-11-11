@@ -20,7 +20,7 @@ use crate::sim::{AttackIndex, BossIndex, DefIndex, ProgramIndex, RangedPool};
 
 /// Changes a value to another one of its type, so that its owner's hash has to move if the
 /// field holding it is hashed.
-trait Perturb {
+pub(super) trait Perturb {
     fn perturb(&mut self);
 }
 
@@ -692,7 +692,7 @@ fn player(p: &mut PlayerState) {
 }
 
 /// A state with every list non-empty and every `Option` `Some`, to perturb field by field.
-fn live_full_state(e: &Engine) -> State {
+pub(super) fn live_full_state(e: &Engine) -> State {
     let mut s = e.run.live().clone();
     player(&mut s.players[PlayerIdx::SOLO]);
     s.boss = Some(boss());
@@ -745,7 +745,7 @@ fn live_full_state(e: &Engine) -> State {
     s
 }
 
-fn engine() -> Engine {
+pub(super) fn engine() -> Engine {
     live_bundled_run("normal", 1)
 }
 

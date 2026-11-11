@@ -1152,6 +1152,8 @@ mod action_tests;
 #[cfg(test)]
 mod clone_from_tests;
 #[cfg(test)]
+mod codec_live_tests;
+#[cfg(test)]
 mod codec_tests;
 #[cfg(test)]
 mod copy_tests;
