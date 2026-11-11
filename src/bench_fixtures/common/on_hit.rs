@@ -13,7 +13,6 @@ use crate::run_content::RunContent;
 use crate::rune::Rune;
 use crate::runes::Runes;
 #[cfg(test)]
-use crate::snapshot::OfferOption;
 #[cfg(test)]
 use crate::stage::Stage;
 use crate::stage_skill::StageSkills;
@@ -89,25 +88,13 @@ pub fn take(e: &mut Engine, reward: &str) {
             break;
         }
     }
-    let offer = e
-        .snapshot()
-        .progress
-        .expect("a run")
-        .offer
-        .expect("an open offer");
-    let candidate = offer
-        .candidates
+    // The options of an offer start with a take of each candidate, in order: the index of the
+    // candidate is the index of its option.
+    let index = e
+        .v1_offer_candidates()
         .iter()
-        .position(|c| c.reward.as_str() == reward)
+        .position(|c| c.as_str() == reward)
         .unwrap_or_else(|| panic!("{reward} is not offered"));
-    let option = OfferOption::Take {
-        candidate: u8::try_from(candidate).expect("a candidate index"),
-    };
-    let index = offer
-        .options
-        .iter()
-        .position(|o| *o == option)
-        .expect("the take option");
     crate::bench_fixtures::take_option(e, u32::try_from(index).expect("an option index"));
 }
 

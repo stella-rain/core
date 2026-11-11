@@ -1075,6 +1075,12 @@ impl Engine {
         self.run.offer_open()
     }
 
+    /// The rewards of the open version 1 star or boss offer, in its order (test support).
+    #[cfg(test)]
+    pub(crate) fn v1_offer_candidates(&self) -> Vec<crate::id::ContentId> {
+        self.run.v1_offer_candidates(self.content.rewards())
+    }
+
     /// FNV-1a 64 over the whole state after the last tick (ADR-SIM-3).
     pub fn state_hash(&self) -> u64 {
         self.run.state_hash()

@@ -530,6 +530,26 @@ impl Run {
         }
     }
 
+    /// The rewards the open version 1 star or boss offer names, in the offer's order (test
+    /// support: the public view of it is going).
+    #[cfg(test)]
+    pub(crate) fn v1_offer_candidates(&self, rewards: &Rewards) -> Vec<ContentId> {
+        match self {
+            Run::V1 { state, .. } => state
+                .stars
+                .as_ref()
+                .and_then(|s| s.offer.as_ref())
+                .map(|o| {
+                    o.candidates
+                        .iter()
+                        .map(|&i| rewards.rewards()[usize::from(i)].id.clone())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            Run::V2 { .. } => Vec::new(),
+        }
+    }
+
     /// The options of `player`'s open offer; version 1 has one player and ignores it.
     pub(crate) fn offer_options(
         &self,

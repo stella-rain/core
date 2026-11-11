@@ -78,7 +78,7 @@ fn observe(e: &Engine, places: &mut Places, h: &mut StateHasher, seen: &mut Seen
     seen.link |= snap.orbs.iter().any(|o| o.link_to.is_some());
     seen.zone |= !snap.zones.is_empty();
     seen.star |= !snap.stars.is_empty();
-    seen.offer |= snap.progress.as_ref().is_some_and(|p| p.offer.is_some());
+    seen.offer |= e.offer_open();
 }
 
 /// Plays `TICKS` ticks taking option 0 at every offer, observing each.

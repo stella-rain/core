@@ -715,7 +715,7 @@ fn a_v1_run_stops_on_a_level_offer_without_showing_it() {
     for input in inputs {
         while let Some(c) = next.next_if(|c| c.tick == e.tick()) {
             assert!(e.offer_open(), "a recorded pick answers an open offer");
-            let star = e.snapshot().progress.is_some_and(|p| p.offer.is_some());
+            let star = !e.v1_offer_candidates().is_empty();
             level_offers += usize::from(!star);
             e.v1_pick_step(&[Some(c.index), None, None])
                 .expect("a recorded choice");
