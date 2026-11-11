@@ -801,7 +801,7 @@ fn driven(name: &str, upto: usize) -> (RunRecorder, RunSteps, Pack, RunReplay) {
     let (file, _, pack) = frozen_file(name);
     let steps = RunSteps::of(&file);
     let mut rec = RunRecorder::start_with_pack(&file.setup, &pack).unwrap();
-    for step in &steps.steps()[..upto] {
+    for step in &steps.steps()[..upto.min(steps.steps().len())] {
         run_steps::apply_to(&mut rec, step);
     }
     (rec, steps, pack, file)
