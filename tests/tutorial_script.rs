@@ -130,16 +130,21 @@ fn the_first_weapon_is_the_one_the_setup_names() {
 }
 
 /// The bats alone give the expertise of the style point: the kills of every wave, counted at
-/// their `kill` points, reach the sum of the thresholds up to the `level_table`'s style level.
+/// their `kill` points, reach the sum of the thresholds up to the `level_table`'s style level
+/// even when the one bat worth most goes uncredited: expertise is credited only for a combo
+/// step's hit (`credit`, `src/sim/expertise.rs`), so a bat killed by a rune (Bleed), the stage
+/// skill or the companion gives nothing.
 #[test]
 fn the_bats_kills_pay_for_the_style_point() {
     let m = mode_json();
-    let kills: u64 = m["waves"]
-        .as_array()
-        .unwrap()
+    let kill_of = |w: &Value| w["expertise"]["kill"].as_u64().unwrap();
+    let waves = m["waves"].as_array().unwrap();
+    let all: u64 = waves
         .iter()
-        .map(|w| w["count"].as_u64().unwrap() * w["expertise"]["kill"].as_u64().unwrap())
+        .map(|w| w["count"].as_u64().unwrap() * kill_of(w))
         .sum();
+    let largest = waves.iter().map(kill_of).max().unwrap();
+    let kills = all - largest;
     let expertise: Value =
         serde_json::from_slice(crate::common::bundled_file("expertise")).unwrap();
     let style = usize::try_from(m["level_table"]["style"].as_u64().unwrap()).unwrap();
