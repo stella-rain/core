@@ -5,7 +5,7 @@ use crate::hash::StateHasher;
 
 /// FNV-1a 64 over the files of `src/sim_v1`, sorted by path, each as its path, a zero byte, its
 /// length and its content.
-const SIM_V1_SOURCE: u64 = 14_053_778_199_856_797_551;
+const SIM_V1_SOURCE: u64 = 3_961_583_787_739_307_942;
 
 /// Every source file of `sim_v1`, by path from its folder, sorted. The text is compiled in, so
 /// that the test needs no file on a device; `sim_v1` takes no new file but `event.rs`, its own event types, and `views.rs`, its own offer views, so the list is closed.
@@ -156,15 +156,7 @@ fn sim_v1_imports_nothing_from_the_live_event() {
 }
 
 /// The offer types `sim_v1` owns copies of, in `sim_v1/views.rs`.
-const OFFER_TYPES: [&str; 7] = [
-    "OfferOption",
-    "OfferView",
-    "CandidateView",
-    "ConstellationView",
-    "ConstellationProgress",
-    "OfferKind",
-    "ExpertiseOfferKind",
-];
+const OFFER_TYPES: [&str; 2] = ["ConstellationView", "ExpertiseOfferKind"];
 
 /// The 1-based lines of `text` where a `crate::snapshot::` path names one of `OFFER_TYPES`, as the
 /// item after it or inside its `{ .. }` list (over any number of lines). Line comments are
@@ -215,20 +207,24 @@ fn live_offer_lines(text: &str) -> Vec<usize> {
 #[test]
 fn the_offer_scan_finds_a_live_import() {
     let finds = |text: &str| !live_offer_lines(text).is_empty();
-    assert!(finds("use crate::snapshot::OfferOption;"));
-    assert!(finds("use crate::snapshot::{EntityKind, OfferKind};"));
+    assert!(finds("use crate::snapshot::ConstellationView;"));
+    assert!(finds(
+        "use crate::snapshot::{EntityKind, ConstellationView};"
+    ));
     assert!(finds(
         "use crate::snapshot::{\n    EntityKind,\n    ExpertiseOfferKind,\n};"
     ));
-    assert!(finds("fn f() -> crate::snapshot::OfferView { todo!() }"));
+    assert!(finds(
+        "fn f() -> crate::snapshot::ConstellationView { todo!() }"
+    ));
     assert!(!finds("use crate::snapshot::Press;"));
     assert!(!finds("use crate::snapshot::{EntityKind, PatternView};"));
-    assert!(!finds("use crate::snapshot::OfferViewer;"));
+    assert!(!finds("use crate::snapshot::ConstellationViewer;"));
     assert!(!finds("use crate::snapshot::{ExpertiseOfferKinds};"));
-    assert!(!finds("use super::views::OfferKind;"));
-    assert!(!finds("// was crate::snapshot::OfferKind"));
+    assert!(!finds("use super::views::ConstellationView;"));
+    assert!(!finds("// was crate::snapshot::ConstellationView"));
     assert_eq!(
-        live_offer_lines("a\nuse crate::snapshot::{\n  EntityKind,\n  OfferView,\n};"),
+        live_offer_lines("a\nuse crate::snapshot::{\n  EntityKind,\n  ConstellationView,\n};"),
         [2]
     );
 }

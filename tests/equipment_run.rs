@@ -310,8 +310,6 @@ fn a_live_run_never_opens_a_star_offer() {
                 break;
             }
             assert!(!engine.offer_open());
-            let snap = engine.snapshot();
-            assert!(snap.progress.as_ref().is_none_or(|p| p.offer.is_none()));
             let before = engine.tick();
             engine.step(&[input; 3]);
             assert_eq!(engine.tick(), before + 1);

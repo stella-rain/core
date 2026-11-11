@@ -173,7 +173,7 @@ use grid::Grid;
 pub(crate) use levels::{set_policy, xp_next};
 pub(crate) use loadout::{Loadout, apply as apply_loadout};
 pub(crate) use scratch::Scratch;
-pub(crate) use stars::{constellation_views, offer_view};
+pub(crate) use stars::constellation_views;
 
 /// The most enemies the leash moves in a tick.
 pub(crate) const MAX_LEASH_MOVES_PER_TICK: u32 = 16;

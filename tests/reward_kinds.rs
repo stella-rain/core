@@ -5,13 +5,10 @@
 
 use crate::common;
 use serde_json::{Value, json};
-use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::rewards::{
     MAX_PICKUP_RADIUS_PCT, MAX_SKILL_COOLDOWN_PCT, RewardEffect, Rewards,
 };
-use stella_rain_core::run_content::RunContent;
-use stella_rain_core::run_stats::RunStats;
 use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::Error;
 use stella_rain_core::validate::limits::MAX_HEAL_AMOUNT;
@@ -174,23 +171,6 @@ pub(crate) fn plain(id: &str, weight: u32) -> Value {
 pub(crate) fn kind(id: &str, effects: Vec<Value>, weight: u32, limit: u8) -> Value {
     json!({ "id": id, "rarity": "common", "effects": effects, "limit": limit,
             "weight": weight })
-}
-
-pub(crate) fn with(stage: &Stage, list: Vec<Value>) -> Engine {
-    let file = json!({ "rarities": crate::common::rarities(), "rewards": list });
-    let rewards = Rewards::parse(file.to_string().as_bytes(), Versions::CURRENT)
-        .expect("the test rewards validate");
-    let content = RunContent::new(RunStats::bundled().clone(), rewards);
-    Engine::new_with(stage, &content).expect("the test stage is valid")
-}
-
-pub(crate) fn next_offer(e: &mut Engine) {
-    fire_until(e, idle(), 600, Engine::offer_open);
-    assert!(e.offer_open(), "no offer within 600 ticks");
-}
-
-pub(crate) fn offer(e: &Engine) -> stella_rain_core::snapshot::OfferView {
-    e.snapshot().progress.unwrap().offer.expect("an open offer")
 }
 
 #[test]

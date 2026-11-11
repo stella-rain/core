@@ -832,6 +832,26 @@ fn the_checked_in_schema_names_no_level_offer() {
     }
 }
 
+#[test]
+fn the_checked_in_schema_names_no_star_offer() {
+    let text =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .unwrap();
+    for name in [
+        "OfferView",
+        "CandidateView",
+        "OfferOption",
+        "OfferKind",
+        "ConstellationProgress",
+        "OfferOpened",
+        "OfferSkipped",
+        "RewardBanished",
+        "CandidateReplaced",
+    ] {
+        assert!(!text.contains(&format!("\"{name}\"")), "{name}");
+    }
+}
+
 // --- `build_mode` left core: a setup naming it is refused, `sim_version` is the mode --------------
 
 /// The trial fixture's text with `extra` (a JSON member) added before the closing brace.

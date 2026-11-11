@@ -48,7 +48,7 @@ use sha2::{Digest, Sha256};
 
 use crate::base64;
 use crate::content_hash::to_hex;
-use crate::engine::{ActionError, ChoiceError, Engine, Outcome, PresenceError};
+use crate::engine::{ActionError, Engine, Outcome, PresenceError};
 use crate::id::{MAX_PLAYERS, PlayerIdx};
 use crate::input::{EquipAction, Input};
 use crate::ledger::RunLedger;
@@ -207,10 +207,11 @@ pub enum RunReplayError {
     },
     /// The `final_hash` field is not 16 lowercase hex digits.
     BadHash,
-    /// A choice carrying this tick was refused by the engine.
+    /// A choice carrying this tick was refused by the engine; only a damaged `sim_version` 1
+    /// replay can produce it. `reason` is one of four fixed phrases.
     ChoiceRefused {
         tick: u32,
-        error: ChoiceError,
+        reason: &'static str,
     },
     /// An equipment action on this tick was refused by the engine.
     ActionRefused {
@@ -303,23 +304,9 @@ impl fmt::Display for RunReplayError {
                 write!(f, "the replay has more than {limit} equipment action steps")
             }
             RunReplayError::BadHash => f.write_str("the replay's final hash is not 16 hex digits"),
-            RunReplayError::ChoiceRefused { tick, error } => match error {
-                ChoiceError::NoPlayer { player } => write!(
-                    f,
-                    "a choice on tick {tick} names player {} outside the party",
-                    player.get()
-                ),
-                ChoiceError::NoOffer => write!(f, "a choice on tick {tick} has no offer open"),
-                ChoiceError::OutOfRange { index, options } => write!(
-                    f,
-                    "a choice on tick {tick} is option {index} of an offer of {options}"
-                ),
-                ChoiceError::Unsupported { sim_version } => write!(
-                    f,
-                    "a choice on tick {tick} is in a run of sim_version {sim_version}, \
-                     which this game does not run"
-                ),
-            },
+            RunReplayError::ChoiceRefused { tick, reason } => {
+                write!(f, "a choice on tick {tick} {reason}")
+            }
             RunReplayError::ActionRefused { tick, error } => match error {
                 ActionError::NoPlayer { player } => write!(
                     f,
@@ -1458,7 +1445,10 @@ fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunRep
     let tick = engine.tick();
     engine
         .v1_pick_step(&slots(engine.present(), chosen))
-        .map_err(|error| RunReplayError::ChoiceRefused { tick, error })
+        .map_err(|error| RunReplayError::ChoiceRefused {
+            tick,
+            reason: error.reason(),
+        })
 }
 
 /// The dense entries of a record, one per slot of `mask` in slot order, placed at their slots
