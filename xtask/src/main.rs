@@ -1,5 +1,5 @@
 //! `cargo xtask bless` regenerates every generated set of core (schema, corpus, goldens, the
-//! content pack and the bench pins); `--check` reports any set that
+//! content pack, the pack pins and the bench pins); `--check` reports any set that
 //! is not as committed. `cargo xtask bless --freeze v<N>` records `tests/corpus/current/` into a
 //! new frozen `tests/corpus/v<N>/` (ADR-SIM-3): it refuses an existing `v<N>/` and a `current/`
 //! that is not what bless writes, then runs the record test of core, which writes the folder and
@@ -10,11 +10,12 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 /// Where each generated set lives, in the order `bless` regenerates them.
-const SETS: [(&str, &str); 5] = [
+const SETS: [(&str, &str); 6] = [
     ("schema", "schema/"),
     ("corpus", "tests/corpus/current/"),
     ("golden", "tests/golden/"),
     ("pack", "content/pack.json"),
+    ("pack pins", "tests/pack_pins.toml"),
     ("bench pins", "tests/bench_pins.toml"),
 ];
 
@@ -151,6 +152,13 @@ fn steps() -> Vec<Step> {
             env: None,
             drop_ci: false,
             filter: "corpus::",
+        },
+        // The test pins that follow the pack: they read the pack compiled in, and `bless --check`
+        // runs the writer under CI too (it compares there), so `CI` stays.
+        Step::Test {
+            env: Some(("UPDATE_PACK_PINS", "1")),
+            drop_ci: false,
+            filter: "pack_pins::",
         },
         Step::Test {
             env: Some(("INSTA_UPDATE", "always")),
@@ -530,6 +538,7 @@ mod tests {
                     drop_ci: false,
                     filter: "corpus::",
                 },
+                test_step(("UPDATE_PACK_PINS", "1"), "pack_pins::"),
                 test_step(("INSTA_UPDATE", "always"), "golden::"),
                 Step::Test {
                     env: Some(("UPDATE_BENCH_PINS", "1")),
@@ -605,6 +614,7 @@ mod tests {
                 "corpus::the_corpus_matches" => "corpus",
                 "corpus::" => "reads only",
                 "golden::" => "golden",
+                "pack_pins::" => "pack pins",
                 "bench_fixture_pins::" => "bench pins",
                 other => panic!("step {other} writes no known set"),
             },
@@ -638,7 +648,14 @@ mod tests {
         }
         assert_eq!(
             SETS.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
-            ["schema", "corpus", "golden", "pack", "bench pins"]
+            [
+                "schema",
+                "corpus",
+                "golden",
+                "pack",
+                "pack pins",
+                "bench pins"
+            ]
         );
     }
 
@@ -650,6 +667,64 @@ mod tests {
         let m = stale_message(&["bench pins"]);
         assert!(
             m.contains("bench pins") && m.contains("cargo xtask bless"),
+            "{m}"
+        );
+    }
+
+    #[test]
+    fn pack_pins_is_a_generated_set() {
+        assert!(SETS.contains(&("pack pins", "tests/pack_pins.toml")));
+        assert_eq!(
+            stale_sets(&["tests/pack_pins.toml".to_string()]),
+            ["pack pins"]
+        );
+        assert_eq!(
+            stale_sets(&["tests/corpus/current/x.json".to_string()]),
+            ["corpus"]
+        );
+    }
+
+    #[test]
+    fn the_pack_pins_step_writes_the_set_alone() {
+        let steps = steps();
+        let at: Vec<_> = (0..steps.len())
+            .filter(|&i| filter_of(&steps[i]) == Some("pack_pins::"))
+            .collect();
+        assert_eq!(at.len(), 1);
+        assert_eq!(
+            steps[at[0]],
+            Step::Test {
+                env: Some(("UPDATE_PACK_PINS", "1")),
+                drop_ci: false,
+                filter: "pack_pins::",
+            }
+        );
+        let pack = steps.iter().position(|s| *s == Step::ExportPack).unwrap();
+        let read = steps
+            .iter()
+            .position(|s| filter_of(s) == Some("corpus::"))
+            .unwrap();
+        assert!(at[0] > pack && at[0] > read);
+        let knobs = steps
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s,
+                    Step::Test {
+                        env: Some(("UPDATE_PACK_PINS", _)),
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(knobs, 1);
+    }
+
+    #[test]
+    fn the_message_names_the_pack_pins_set() {
+        let m = stale_message(&["pack pins"]);
+        assert!(
+            m.contains("pack pins") && m.contains("cargo xtask bless"),
             "{m}"
         );
     }
