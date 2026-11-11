@@ -1060,10 +1060,6 @@ enum_codec! {
         Rarity::Legendary => 4,
         Rarity::Supernova => 5,
     };
-    OfferKind, "offer kind tag": {
-        OfferKind::Star => 0,
-        OfferKind::Boss => 1,
-    };
     Rune, "rune tag": {
         Rune::Explosion => 0,
         Rune::Thunder => 1,
@@ -1666,19 +1662,11 @@ fn decode_star_field(r: &mut Reader<'_>) -> Result<Option<StarField>, DecodeErro
 impl Encode for Offers {
     fn encode(&self, w: &mut Writer) {
         let Offers {
-            due,
-            offer,
-            rerolls_left,
-            banishes_left,
             extra_candidates,
             taken,
             banished,
             set_counts,
         } = self;
-        due.encode(w);
-        offer.encode(w);
-        rerolls_left.encode(w);
-        banishes_left.encode(w);
         extra_candidates.encode(w);
         taken.encode(w);
         banished.encode(w);
@@ -1689,10 +1677,6 @@ impl Encode for Offers {
 impl Decode for Offers {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(Offers {
-            due: decode_vec(r, MAX_CONTENT_LEN)?,
-            offer: Decode::decode(r)?,
-            rerolls_left: Decode::decode(r)?,
-            banishes_left: Decode::decode(r)?,
             extra_candidates: Decode::decode(r)?,
             taken: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
             banished: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
@@ -1716,46 +1700,6 @@ impl Decode for StarState {
             id: Decode::decode(r)?,
             at: Decode::decode(r)?,
             rarity: Decode::decode(r)?,
-        })
-    }
-}
-
-impl Encode for Due {
-    fn encode(&self, w: &mut Writer) {
-        let Due { kind, rarity } = self;
-        kind.encode(w);
-        rarity.encode(w);
-    }
-}
-
-impl Decode for Due {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(Due {
-            kind: Decode::decode(r)?,
-            rarity: Decode::decode(r)?,
-        })
-    }
-}
-
-impl Encode for OfferState {
-    fn encode(&self, w: &mut Writer) {
-        let OfferState {
-            kind,
-            rarity,
-            candidates,
-        } = self;
-        kind.encode(w);
-        rarity.encode(w);
-        candidates.encode(w);
-    }
-}
-
-impl Decode for OfferState {
-    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(OfferState {
-            kind: Decode::decode(r)?,
-            rarity: Decode::decode(r)?,
-            candidates: decode_vec(r, cap_u32(crate::limits::MAX_REWARDS))?,
         })
     }
 }
@@ -2124,7 +2068,6 @@ mod enum_tests {
             Rarity::Legendary,
             Rarity::Supernova,
         ]);
-        tags(&[OfferKind::Star, OfferKind::Boss]);
         tags(&[
             Rune::Explosion,
             Rune::Thunder,

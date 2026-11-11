@@ -20,8 +20,8 @@
 //! of the counts held).
 //!
 //! The star field is two parts: the run's (`StarField`: the stars on the map, the pity, the
-//! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: the
-//! offers due and open, the rerolls and banishes left, and what the offers have used). The
+//! rarity range, the rune and reward pools) and each player's (`Offers` in the `Career`: what
+//! is left of the player's offers, the star-set counts). The
 //! hash and the savepoint write the run's part with the shared fields and each present player's
 //! in its block.
 //! Offers are per slot: a star taken is due to the player that took it, the boss's offer to every

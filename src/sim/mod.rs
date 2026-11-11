@@ -54,7 +54,7 @@
 //! the killer, the first hit of the tick (in `collide`'s fixed order) that takes the target to 0
 //! hit points, found through the scratch `killers`; a damage-over-time tick is the hit of the
 //! player who applied the stack last. Every such hit, and an echo, lowers the foe's hit points in
-//! `damage::land`. Offers are per slot and the world stops while any is open.
+//! `damage::land`. The live rules open no offer, so the world never stops for one.
 //! The hash and format 1
 //! write slot 0's where the run's single ones were, and the tail holds the other slots' (progress,
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
@@ -412,14 +412,6 @@ pub(crate) fn reserve(stage: &World, s: &mut State) {
     if let (Some(cfg), Some(f)) = (&stage.stars, s.stars.as_mut()) {
         let stars = usize::from(cfg.cap.min(crate::validate::limits::MAX_STARS_ON_MAP));
         scratch::reserve_to(&mut f.on_map, stars);
-        // Each present slot reserves its own offers due.
-        for me in (0..MAX_PLAYERS).filter_map(PlayerIdx::new) {
-            if s.players.is_present(me) {
-                if let Some(o) = s.players.career_mut(me).offers.as_mut() {
-                    scratch::reserve_to(&mut o.due, stars + 1);
-                }
-            }
-        }
     }
     if let (Some(cfg), Some(pickups)) = (&stage.heal, s.heal_pickups.as_mut()) {
         scratch::reserve_to(pickups, usize::from(cfg.cap));
@@ -529,11 +521,7 @@ fn unreserved_state(
         totals: [0; StatEffect::ALL.len()],
         set_tenths: [0; StatEffect::ALL.len()],
     });
-    let offers = stage.stars.as_ref().map(|st| Offers {
-        due: Vec::new(),
-        offer: None,
-        rerolls_left: u32::from(st.rerolls),
-        banishes_left: u32::from(st.banishes),
+    let offers = stage.stars.as_ref().map(|_| Offers {
         extra_candidates: 0,
         taken: vec![0; rewards],
         banished: vec![false; rewards],

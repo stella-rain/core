@@ -180,13 +180,12 @@ fn the_source_of_a_copy_is_unchanged() {
 #[test]
 fn every_heap_owning_type_names_each_field_in_its_copy() {
     let state = include_str!("../sim/state.rs");
-    let types: [(&str, &str); 22] = [
+    let types: [(&str, &str); 21] = [
         ("State", state),
         ("Horde", state),
         ("ExpertiseGauge", state),
         ("StarField", state),
         ("Offers", state),
-        ("OfferState", state),
         ("Progress", state),
         ("Career", state),
         ("Players", state),

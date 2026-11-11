@@ -167,12 +167,10 @@ fn an_absent_slot_is_not_hashed_and_the_order_and_the_holes_are() {
 
 // ---- Per-field coverage (hash and encoding), for every present slot ----
 
-use super::state::{Due, OfferState, Offers};
-use crate::rewards::Rarity;
+use super::state::Offers;
 use crate::rng::derive;
 use crate::savepoint::codec::Encode;
 use crate::savepoint::codec::Writer;
-use crate::sim::state::OfferKind;
 
 fn encoded(s: &State) -> Vec<u8> {
     let mut w = Writer::new();
@@ -196,10 +194,6 @@ fn every_field_is_listed(c: &Career, o: &Offers) {
         equipment: _, // moves: the `equipment` edits below
     } = c;
     let Offers {
-        due: _,              // moves: `due`
-        offer: _,            // moves: `offer`
-        rerolls_left: _,     // moves: `rerolls_left`
-        banishes_left: _,    // moves: `banishes_left`
         extra_candidates: _, // moves: `extra_candidates`
         taken: _,            // moves: `taken`
         banished: _,         // moves: `banished`
@@ -218,7 +212,7 @@ fn offers_of(s: &mut State, me: PlayerIdx) -> &mut Offers {
 #[test]
 fn every_field_of_every_present_slot_moves_the_hash_and_the_encoding() {
     let base = party(&warm(), 0b111);
-    let edits: [(&str, Edit); 14] = [
+    let edits: [(&str, Edit); 10] = [
         ("player.hp", |s, me| s.players.both_mut(me).0.hp += 1),
         ("player.at", |s, me| s.players.both_mut(me).0.at.x.0 += 1),
         ("offer stream", |s, me| {
@@ -229,25 +223,6 @@ fn every_field_of_every_present_slot_moves_the_hash_and_the_encoding() {
             c.stardust = Some(c.stardust.map_or(5, |v| v + 1));
         }),
         ("regen", |s, me| s.players.career_mut(me).regen += 1),
-        ("due", |s, me| {
-            offers_of(s, me).due.push(Due {
-                kind: OfferKind::Star,
-                rarity: Rarity::Rare,
-            });
-        }),
-        ("offer", |s, me| {
-            let o = offers_of(s, me);
-            o.offer = match o.offer.take() {
-                Some(_) => None,
-                None => Some(OfferState {
-                    kind: OfferKind::Boss,
-                    rarity: Rarity::Epic,
-                    candidates: vec![0],
-                }),
-            };
-        }),
-        ("rerolls_left", |s, me| offers_of(s, me).rerolls_left += 1),
-        ("banishes_left", |s, me| offers_of(s, me).banishes_left += 1),
         ("extra_candidates", |s, me| {
             offers_of(s, me).extra_candidates += 1;
         }),
