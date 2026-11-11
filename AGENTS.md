@@ -57,6 +57,7 @@ What is inside these folders loads from `.claude/rules/` when those files are to
 | `.github/scripts/*.py` | `python3 -m unittest discover -s .github/scripts` (CI: `scripts.yml`) |
 | `scripts/*.py` | `python3 -m unittest discover -s scripts` (CI: `scripts.yml`, job `script unit tests`); with `../app` cloned beside, it also checks `scripts/adr_ids.txt` against the app's ADRs |
 | iPhone corpus run | `cargo test --locked --all-features --test integration --release --target aarch64-apple-ios -- corpus:: the_golden_hash_is_the_same_on_every_platform` (`docs/device-gates.md`); Kade's Mac with the iPhone connected, never CI: add `cmd:verify-needs-iphone` |
+| Android corpus run | `python3 scripts/android_device_gate.py` (`docs/device-gates.md`); Kade's machine with an Android phone connected, never CI: add `cmd:verify-needs-android` |
 | `AGENTS.md`, `CLAUDE.md`, `.claude/` | `python3 ../.github/scripts/claude_md_check.py .` (CI runs it too); `AGENTS.md` at most 100 lines (`wc -l`) |
 | Line endings | CI `eol-check` fails on any CRLF file (`git ls-files --eol`) |
 
