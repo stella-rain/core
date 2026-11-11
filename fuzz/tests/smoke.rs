@@ -916,16 +916,7 @@ fn the_equipment_action_seeds_are_there_and_read_as_they_should() {
 
 /// The committed regression of `replay_load` for an equipment action: the `runs/tutorial` run
 /// replay with a Replace(0, 0) step inserted at tick 0, so it loads and ranges but does not
-/// verify.
-fn equipment_action_replay() -> Vec<u8> {
-    let path = root().join("tests/corpus/current/runs/tutorial/run.replay");
-    let mut run = RunReplay::from_bytes(&fs::read(path).expect("run.replay")).expect("a run");
-    let mut log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-    log.splice(1..1, [0x04, 0x02, 0x00, 0x00]);
-    run.inputs = stella_rain_core::base64::encode(&log);
-    run.to_bytes()
-}
-
+/// verify. `cargo xtask bless` writes it (the root test `fuzz_regression`); this reads it.
 fn equipment_action_regression() -> PathBuf {
     root()
         .join("fuzz")
@@ -934,23 +925,9 @@ fn equipment_action_regression() -> PathBuf {
         .join("equipment-action.replay")
 }
 
-/// Writes the regression from `equipment_action_replay`, after a re-bless of `runs/tutorial`:
-/// `cargo test --test smoke rewrite_the_equipment_action_regression -- --ignored`.
-#[test]
-#[ignore = "rewrites a committed file, run by hand after a re-bless"]
-fn rewrite_the_equipment_action_regression() {
-    fs::write(equipment_action_regression(), equipment_action_replay()).expect("the regression");
-}
-
-#[test]
-fn the_equipment_action_regression_is_the_derived_file() {
-    let committed = fs::read(equipment_action_regression()).expect("the regression");
-    assert_eq!(committed, equipment_action_replay());
-}
-
 #[test]
 fn a_replay_with_an_equipment_action_loads_ranges_and_is_refused() {
-    let bytes = equipment_action_replay();
+    let bytes = fs::read(equipment_action_regression()).expect("the regression");
     replay_load(&bytes);
     let run = RunReplay::from_bytes(&bytes).expect("it loads");
     let range = run.step_range(0, run.ticks, 10_000_000).expect("it ranges");
@@ -962,15 +939,6 @@ fn a_replay_with_an_equipment_action_loads_ranges_and_is_refused() {
         stella_rain_core::run_replay::verify_run(&bytes),
         Err(RunReplayError::ActionRefused { tick: 0, .. })
     ));
-}
-
-/// Writes the regression file of `replay_load` for an equipment action; run once, the output is
-/// committed.
-#[test]
-#[ignore = "writes a file in fuzz/regressions"]
-fn write_equipment_action_regression() {
-    fs::write(equipment_action_regression(), equipment_action_replay())
-        .expect("the regression file");
 }
 
 /// Writes the seeds of `step_log_range` to the folder `STEP_LOG_RANGE_SEEDS_DIR` names, for a
