@@ -852,9 +852,7 @@ impl Run {
 
 /// The types of version 2 by one path for the tests.
 #[cfg(test)]
-#[allow(unused_imports)] // read by the ports that follow
 pub(crate) mod live {
-    pub(crate) use crate::sim::World;
     pub(crate) use crate::sim::state::*;
 }
 

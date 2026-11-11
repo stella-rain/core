@@ -1158,6 +1158,8 @@ mod copy_tests;
 #[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
+mod hash_coverage_live_tests;
+#[cfg(test)]
 mod hash_coverage_tests;
 #[cfg(test)]
 mod horde_live_tests;
