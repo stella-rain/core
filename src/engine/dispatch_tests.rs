@@ -3,10 +3,7 @@
 
 use super::run::v1::{State, World};
 use super::*;
-use crate::pack::ContentFiles;
-use crate::run_content::RunContent;
-use crate::time_limit::TimeLimit;
-use crate::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
+use crate::version::{SCHEMA_VERSION, SIM_VERSION};
 
 fn setup() -> RunSetup {
     RunSetup {
@@ -31,9 +28,8 @@ fn setup() -> RunSetup {
 }
 
 fn engine() -> Engine {
-    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e:?}"));
-    Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap()
+    let content = super::copy_tests::v1_pack().content();
+    Engine::start_time_limit(&setup(), content, content.time_limit()).unwrap()
 }
 
 /// The engine with its run's `sim_version` set to `v`, past what `Engine::new` checks.
@@ -94,20 +90,19 @@ fn a_choice_at_another_version_is_unsupported_and_changes_nothing() {
 
 #[test]
 fn the_run_variant_is_the_stage_version() {
-    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let pack = super::copy_tests::v1_pack();
+    let mode = pack.content().time_limit();
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
-    let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
+    let mut recorder = crate::run_replay::RunRecorder::start_with_pack(&setup(), pack).unwrap();
     recorder
         .step(&[Input::default(), Default::default(), Default::default()])
         .unwrap();
     let prefix = recorder.replay();
-    let (restored, _) =
-        crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
+    let (restored, _) = crate::savepoint::restore(&recorder.save(), &prefix, pack).unwrap();
     let engines = [
         Engine::new(&stage).unwrap(),
-        Engine::start(&setup()).unwrap(),
-        Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap(),
+        Engine::start_with(&setup(), pack.content()).unwrap(),
+        Engine::start_time_limit(&setup(), pack.content(), mode).unwrap(),
         engine().clone(),
         restored,
     ];
@@ -118,20 +113,19 @@ fn the_run_variant_is_the_stage_version() {
 
 #[test]
 fn the_run_owns_its_world() {
-    let mode = TimeLimit::parse(ContentFiles::bundled_file("time_limit"), Versions::CURRENT)
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let pack = super::copy_tests::v1_pack();
+    let mode = pack.content().time_limit();
     let stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
-    let mut recorder = crate::run_replay::RunRecorder::start(&setup()).unwrap();
+    let mut recorder = crate::run_replay::RunRecorder::start_with_pack(&setup(), pack).unwrap();
     recorder
         .step(&[Input::default(), Default::default(), Default::default()])
         .unwrap();
     let prefix = recorder.replay();
-    let (restored, _) =
-        crate::savepoint::restore(&recorder.save(), &prefix, crate::pack::Pack::bundled()).unwrap();
+    let (restored, _) = crate::savepoint::restore(&recorder.save(), &prefix, pack).unwrap();
     let engines = [
         Engine::new(&stage).unwrap(),
-        Engine::start(&setup()).unwrap(),
-        Engine::start_time_limit(&setup(), RunContent::bundled(), &mode).unwrap(),
+        Engine::start_with(&setup(), pack.content()).unwrap(),
+        Engine::start_time_limit(&setup(), pack.content(), mode).unwrap(),
         engine().clone(),
         restored,
     ];
@@ -164,7 +158,13 @@ fn a_setup_runs_the_rules_of_its_own_version() {
                 mode: mode.into(),
                 ..setup()
             };
-            let e = Engine::start(&setup).unwrap_or_else(|e| panic!("{mode} {version}: {e:?}"));
+            // Version 1 starts from its own released pack; version 2 from the bundled files.
+            let started = if version == 1 {
+                Engine::start_with(&setup, super::copy_tests::v1_pack().content())
+            } else {
+                Engine::start(&setup)
+            };
+            let e = started.unwrap_or_else(|e| panic!("{mode} {version}: {e:?}"));
             assert_eq!(e.version(), version, "{mode} {version}");
             assert_eq!(e.run.module(), module, "{mode} {version}");
         }
