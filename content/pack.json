@@ -4844,6 +4844,30 @@
     { "id": "trial", "bank": true, "pay_pct": 50, "bank_pct": 50, "bank_cap": 1000 }
   ]
 },
+  "star_chart": {
+  "weapons": [{ "id": "giant_hammer", "price": 50000 }],
+  "perk_sets": [
+    { "id": "vanguard", "price": 50000 },
+    { "id": "scout", "price": 50000 },
+    { "id": "scholar", "price": 50000 }
+  ],
+  "stage_skills": [
+    { "id": "black_hole", "price": 50000 },
+    { "id": "war_cry", "price": 50000 },
+    { "id": "hex", "price": 50000 },
+    { "id": "aegis", "price": 50000 }
+  ],
+  "starting_rune": 50000,
+  "stats": [
+    { "id": "max_hp", "prices": [600, 1200, 1800, 2400, 3000] },
+    { "id": "attack", "prices": [600, 1200, 1800, 2400, 3000] },
+    { "id": "attack_speed", "prices": [600, 1200, 1800, 2400, 3000] },
+    { "id": "evade", "prices": [600, 1200, 1800, 2400, 3000] },
+    { "id": "speed", "prices": [600, 1200, 1800, 2400, 3000] }
+  ],
+  "expertise_multiplier": [3000, 6000, 9000, 12000, 15000],
+  "lumine_levels": [160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000]
+},
   "modes": {
     "trial": {
   "schema_version": 1,
