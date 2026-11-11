@@ -696,21 +696,11 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         failures.push("State.stars with Career.offers does not move the encoding".into());
     }
     // The offers: `set_counts`, on the engine's own value.
-    for (name, edit) in [(
-        "set_counts",
-        (|o: &mut Offers| o.set_counts.perturb()) as fn(&mut Offers),
-    )] {
-        let mut s = base.clone();
-        edit(
-            s.players
-                .career_mut(PlayerIdx::SOLO)
-                .offers
-                .as_mut()
-                .unwrap(),
-        );
-        if bytes(&s) == bytes(&base) {
-            failures.push(format!("Offers.{name} does not move the encoding"));
-        }
+    let mut s = base.clone();
+    let offers = s.players.career_mut(PlayerIdx::SOLO).offers.as_mut();
+    offers.unwrap().set_counts.perturb();
+    if bytes(&s) == bytes(&base) {
+        failures.push("Offers.set_counts does not move the encoding".into());
     }
     assert!(
         failures.is_empty(),

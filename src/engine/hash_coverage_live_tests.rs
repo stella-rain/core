@@ -1018,23 +1018,13 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     }
     // Offers: `set_counts`, on the engine's own value; the slots are covered by
     // `sim/hash_fields_tests.rs`.
-    for (name, edit) in [(
-        "set_counts",
-        (|o: &mut Offers| o.set_counts.perturb()) as fn(&mut Offers),
-    )] {
-        let moved = p.moves(|s| {
-            edit(
-                s.players
-                    .career_mut(PlayerIdx::SOLO)
-                    .offers
-                    .as_mut()
-                    .unwrap(),
-            )
-        });
-        if !moved {
-            p.failures
-                .push(format!("Offers.{name} does not move the hash"));
-        }
+    let moved = p.moves(|s| {
+        let offers = s.players.career_mut(PlayerIdx::SOLO).offers.as_mut();
+        offers.unwrap().set_counts.perturb()
+    });
+    if !moved {
+        p.failures
+            .push("Offers.set_counts does not move the hash".into());
     }
     p.assert_clean();
 }
