@@ -224,7 +224,7 @@ class WholeRun(unittest.TestCase):
         self.assertIn("STELLA_TEST_DATA_ROOT", out)
         self.assertIn("rm -rf '%s'" % REMOTE, out)
         self.assertEqual(self.lines(), [])
-        self.assertEqual(os.listdir(self.bin), ["adb", "cargo"])
+        self.assertEqual(sorted(os.listdir(self.bin)), ["adb", "cargo"])
 
     def test_dry_run_without_serial_uses_placeholder(self):
         result = self.run_script("--dry-run", use_path=False)
@@ -240,7 +240,8 @@ class WholeRun(unittest.TestCase):
         self.assertTrue(any("linker=" in l and "aarch64-linux-android24-clang" in l for l in lines))
         pushes = [l for l in lines if " push " in l]
         self.assertEqual(len(pushes), 1 + len(gate.DATA_FOLDERS))
-        self.assertTrue(all(l.startswith("-s SER1 ") for l in lines if not l.startswith("cargo")))
+        self.assertTrue(all(l.startswith("-s SER1 ") for l in lines
+                            if not l.startswith(("cargo", "devices"))))
         self.assertEqual(lines[-1], "-s SER1 shell rm -rf '%s'" % REMOTE)
 
     def test_two_devices_without_serial_exit_2(self):

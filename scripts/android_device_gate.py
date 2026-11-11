@@ -9,9 +9,15 @@ the test's status and removes what it pushed. See docs/device-gates.md. Standard
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import platform
+import posixpath
 import re
+import shutil
+import subprocess
+import sys
 
 TRIPLE = "aarch64-linux-android"
 API = 24
@@ -55,8 +61,7 @@ def ndk_linker(env, host_tag: str) -> str:
 def parse_devices(output: str) -> list[tuple[str, str]]:
     """(serial, state) per line of `adb devices`."""
     devices = []
-    lines = output.splitlines()
-    for line in lines:
+    for line in output.splitlines():
         parts = line.split()
         if len(parts) >= 2 and not line.startswith(("*", "List of")):
             devices.append((parts[0], parts[1]))
@@ -134,3 +139,118 @@ def cleanup_command(remote: str) -> str:
     if not remote.startswith("/data/local/tmp/") or remote.rstrip("/") == "/data/local/tmp":
         raise GateError("android-gate: refusing to remove %r" % remote)
     return "rm -rf " + quote(remote)
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HOST_TAGS = {"Linux": "linux-x86_64", "Darwin": "darwin-x86_64", "Windows": "windows-x86_64"}
+LINKER_VARIABLE = "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER"
+PLACEHOLDER_DEVICE = "<the connected device>"
+PLACEHOLDER_BINARY = "<test binary>"
+
+
+def say(message: str) -> None:
+    print("android-gate: " + message, flush=True)
+
+
+def adb(serial: str, *args: str, capture: bool = False) -> subprocess.CompletedProcess:
+    return subprocess.run(["adb", "-s", serial, *args], capture_output=capture, text=True)
+
+
+def shell(serial: str, command: str, capture: bool = False) -> subprocess.CompletedProcess:
+    return adb(serial, "shell", command, capture=capture)
+
+
+def setup_commands(remote: str) -> list[str]:
+    """Clear the folder, then make it with the parents of each pushed data folder."""
+    folders = [remote + "/tmp"] + [posixpath.dirname(remote + "/" + f) for f in DATA_FOLDERS]
+    return [cleanup_command(remote), "mkdir -p " + " ".join(quote(f) for f in folders)]
+
+
+def plan_lines(serial: str, binary: str, linker: str, debug: bool, env) -> list[str]:
+    """Every command of a run, in order, as text (what --dry-run prints)."""
+    remote = REMOTE_DIR
+    lines = ["%s=%s %s" % (LINKER_VARIABLE, linker, " ".join(cargo_command(debug)))]
+    lines += ["adb -s %s shell %s" % (serial, c) for c in setup_commands(remote)]
+    for src, dst in push_plan(ROOT, binary, remote):
+        target = dst if dst.endswith("/integration") else posixpath.dirname(dst)
+        lines.append("adb -s %s push %s %s" % (serial, src, target))
+    lines.append("adb -s %s shell chmod 755 %s" % (serial, quote(remote + "/integration")))
+    lines.append("adb -s %s shell %s" % (serial, run_command(remote, env)))
+    lines.append("adb -s %s shell %s" % (serial, cleanup_command(remote)))
+    return lines
+
+
+def run(args, env) -> int:
+    serial = args.serial or env.get("ANDROID_SERIAL")
+    if args.dry_run:
+        try:
+            linker = ndk_linker(env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
+        except GateError:
+            linker = "<the NDK's aarch64-linux-android24-clang>"
+        for line in plan_lines(serial or PLACEHOLDER_DEVICE, PLACEHOLDER_BINARY, linker,
+                               args.debug, env):
+            print(line)
+        return 0
+
+    linker = env.get(LINKER_VARIABLE) or ndk_linker(
+        env, HOST_TAGS.get(platform.system(), "linux-x86_64"))
+    if shutil.which("adb") is None:
+        raise GateError("android-gate: adb is not on PATH (Android platform-tools)")
+    listing = subprocess.run(["adb", "devices"], capture_output=True, text=True)
+    serial = choose_device(parse_devices(listing.stdout), serial)
+    abi = shell(serial, "getprop ro.product.cpu.abi", capture=True).stdout.strip()
+    if abi != "arm64-v8a":
+        raise GateError("android-gate: device %s is %s, not arm64-v8a" % (serial, abi or "unknown"))
+    if shell(serial, "exit 7").returncode != 7:
+        raise GateError("android-gate: `adb shell` does not return the command's exit status: "
+                        "update platform-tools")
+    say("device %s, %s" % (serial, abi))
+
+    build_env = dict(env)
+    build_env[LINKER_VARIABLE] = linker
+    say("building %s for %s" % ("debug" if args.debug else "release", TRIPLE))
+    build = subprocess.run(cargo_command(args.debug), env=build_env, cwd=ROOT,
+                           stdout=subprocess.PIPE, text=True)
+    if build.returncode != 0:
+        say("the build failed (cargo exit %d)" % build.returncode)
+        return build.returncode
+    binary = find_test_binary(build.stdout.splitlines())
+
+    remote = REMOTE_DIR
+    status = 2
+    try:
+        for command in setup_commands(remote):
+            if shell(serial, command).returncode != 0:
+                raise GateError("android-gate: `%s` failed on the phone" % command)
+        for src, dst in push_plan(ROOT, binary, remote):
+            target = dst if dst.endswith("/integration") else posixpath.dirname(dst)
+            say("push %s" % os.path.basename(src))
+            if adb(serial, "push", src, target).returncode != 0:
+                raise GateError("android-gate: pushing %s failed" % src)
+        shell(serial, "chmod 755 " + quote(remote + "/integration"))
+        say("running the corpus and the golden hash")
+        status = shell(serial, run_command(remote, env)).returncode
+    except KeyboardInterrupt:
+        status = 130
+    finally:
+        if shell(serial, cleanup_command(remote)).returncode != 0:
+            say("could not remove %s from the phone" % remote)
+    say("test run exited with %d" % status)
+    return status
+
+
+def main(argv) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--serial", help="the device serial (else ANDROID_SERIAL)")
+    parser.add_argument("--dry-run", action="store_true", help="print every command, run none")
+    parser.add_argument("--debug", action="store_true", help="the debug profile, not release")
+    args = parser.parse_args(argv)
+    try:
+        return run(args, os.environ)
+    except GateError as error:
+        print(error, file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
