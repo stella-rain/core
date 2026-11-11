@@ -413,7 +413,7 @@ mod tests {
         let bytes = sample().to_bytes();
         assert_eq!(bytes.len(), HEADER_LEN + 3);
         assert_eq!(&bytes[0..4], b"SRSV");
-        assert_eq!(&bytes[4..8], &7u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &8u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &SIM_VERSION.to_le_bytes());
         assert_eq!(&bytes[12..16], &SCHEMA_VERSION.to_le_bytes());
         assert_eq!(&bytes[16..48], &[0xA1; 32]);
