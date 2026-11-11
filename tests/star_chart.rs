@@ -221,3 +221,56 @@ fn every_frozen_pack_loads_without_a_catalogue() {
     }
     assert!(seen > 0);
 }
+
+// P4: a stat's price list is as long as that stat's `limit`.
+
+#[test]
+fn a_stat_price_list_is_as_long_as_the_stats_limit() {
+    for (found, len) in [(4, "4"), (6, "6")] {
+        let v = edited(|v| v["stats"][0]["prices"] = json!(vec![100; found]));
+        match parse(&v) {
+            Err(Error::Invalid(issues)) => {
+                assert_eq!(issues.len(), 1, "{issues:?}");
+                assert_eq!(issues[0].path, "$.stats[0].prices");
+                assert_eq!(issues[0].message, format!("exactly 5 prices (found {len})"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert!(parse(&edited(|v| v["stats"][0]["prices"] = json!(vec![100; 5]))).is_ok());
+}
+
+fn pack_with_attack_limit(limit: u64, attack_prices: usize) -> Result<Pack, PackError> {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    v["run_stats"]["stats"][1]["limit"] = json!(limit);
+    let mut chart = file();
+    chart["stats"][1]["prices"] = json!(vec![100; attack_prices]);
+    v["star_chart"] = chart;
+    Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
+}
+
+#[test]
+fn the_price_list_follows_the_stats_limit_not_a_constant() {
+    // The bundled 5-price list against a limit of 3.
+    match pack_with_attack_limit(3, 5) {
+        Err(PackError::File {
+            file: "star_chart",
+            error: Error::Invalid(issues),
+        }) => {
+            assert_eq!(issues.len(), 1, "{issues:?}");
+            assert_eq!(issues[0].path, "$.stats[1].prices");
+            assert_eq!(issues[0].message, "exactly 3 prices (found 5)");
+        }
+        other => panic!("{other:?}"),
+    }
+    // A limit of 20 takes a 20-price list; the budget allows it.
+    assert!(pack_with_attack_limit(20, 20).is_ok());
+    // 21 prices are over the budget, before the file is read.
+    match pack_with_attack_limit(20, 21) {
+        Err(PackError::Budget { path, limit, found }) => {
+            assert_eq!(path, "$.star_chart.stats[1].prices");
+            assert_eq!((limit, found), (20, 21));
+        }
+        other => panic!("{other:?}"),
+    }
+}
