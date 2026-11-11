@@ -13,7 +13,7 @@ use crate::id::{ContentId, EntityId, PlayerIdx};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::{EntityKind, OfferKind};
+use crate::snapshot::EntityKind;
 
 /// Which button's press took a combo step: A or B.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -271,12 +271,6 @@ pub enum DomainEvent {
         owner: EntityId,
         at: Point,
     },
-    /// An offer opened, and the world stopped until a choice closes it (ADR-REPL-5).
-    OfferOpened {
-        kind: OfferKind,
-        rarity: Rarity,
-        candidates: Vec<ContentId>,
-    },
     /// The reward was taken: the run now has it `taken` times. For a random rune, `rune` is
     /// the rune it drew, now on the Main weapon.
     RewardTaken {
@@ -293,16 +287,5 @@ pub enum DomainEvent {
     Constellation {
         set: ContentId,
         tier: u8,
-    },
-    /// The offer was closed with nothing taken.
-    OfferSkipped,
-    /// The reward left the run's pool for good.
-    RewardBanished {
-        reward: ContentId,
-    },
-    /// The candidate at `slot` was drawn again, after a reroll or a banish.
-    CandidateReplaced {
-        slot: u8,
-        reward: ContentId,
     },
 }

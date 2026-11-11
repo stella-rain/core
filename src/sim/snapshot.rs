@@ -426,7 +426,6 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 xp: p.xp,
                 xp_next: xp_next(world, p.level),
                 spent: p.spent.clone(),
-                offer: None,
             }),
         expertise: s.players.career(shown).expertise.as_ref().map(|g| {
             let (style, path) = expertise_styles_view(world, content.expertise(), g);

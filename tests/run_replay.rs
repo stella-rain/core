@@ -5,7 +5,7 @@
 use serde_json::{Value, json};
 use stella_rain_core::base64;
 use stella_rain_core::content_hash::to_hex;
-use stella_rain_core::engine::{ChoiceError, Engine, Outcome};
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::input::Input;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{hash_to_hex, pack_inputs};
@@ -171,12 +171,17 @@ fn a_command_left_over_is_refused() {
     let replay = recorded(point + 50);
     let mut commands = commands_of(&replay);
     commands.push(choose(point + 50, 0));
+    let refused = verify_run(&with_commands(&replay, &commands));
     assert_eq!(
-        verify_run(&with_commands(&replay, &commands)),
+        refused,
         Err(RunReplayError::ChoiceRefused {
             tick: point + 50,
-            error: ChoiceError::NoOffer
+            reason: "has no offer open"
         })
+    );
+    assert_eq!(
+        refused.unwrap_err().to_string(),
+        format!("a choice on tick {} has no offer open", point + 50)
     );
 }
 

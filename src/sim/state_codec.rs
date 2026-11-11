@@ -17,7 +17,6 @@ use super::world::RangedPool;
 use crate::engine::Outcome;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
-use crate::snapshot::OfferKind;
 
 // ---- Attacks, orbs and zones ----
 

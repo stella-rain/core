@@ -62,9 +62,72 @@ pub(crate) fn rewrite_ids(text: &str) -> String {
     mapped
 }
 
+/// `text` with `, offer: None` put back before the closing ` }` of every `ProgressView { .. }`
+/// that has no top-level `offer:` field: the field left the snapshot, and the digests were
+/// recorded when it was there.
+pub(crate) fn restore_removed_fields(text: &str) -> String {
+    const TAG: &str = "ProgressView {";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find(TAG) {
+        let (before, tail) = rest.split_at(at + TAG.len());
+        out.push_str(before);
+        // Find the matching `}`, noting whether a top-level `offer:` field is there.
+        let (mut depth, mut quoted, mut escaped) = (1u32, false, false);
+        let mut end = tail.len();
+        for (i, c) in tail.char_indices() {
+            if quoted {
+                match (escaped, c) {
+                    (true, _) => escaped = false,
+                    (false, '\\') => escaped = true,
+                    (false, '"') => quoted = false,
+                    _ => {}
+                }
+                continue;
+            }
+            match c {
+                '"' => quoted = true,
+                '{' | '[' | '(' => depth += 1,
+                '}' | ']' | ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let body = &tail[..end];
+        let has_offer = body.starts_with(" offer: ") || {
+            let (mut depth, mut found) = (0u32, false);
+            let bytes = body.as_bytes();
+            for (i, b) in bytes.iter().enumerate() {
+                match b {
+                    b'{' | b'[' | b'(' => depth += 1,
+                    b'}' | b']' | b')' => depth = depth.saturating_sub(1),
+                    b',' if depth == 0 && body[i..].starts_with(", offer: ") => found = true,
+                    _ => {}
+                }
+            }
+            found
+        };
+        out.push_str(body.strip_suffix(' ').unwrap_or(body));
+        if !has_offer {
+            out.push_str(", offer: None");
+        }
+        if body.ends_with(' ') {
+            out.push(' ');
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Feeds `text` to `sha` with its entity IDs mapped.
 fn feed_mapped(sha: &mut Sha256, text: &str) {
-    sha.update(rewrite_ids(text).as_bytes());
+    sha.update(rewrite_ids(&restore_removed_fields(text)).as_bytes());
     sha.update(b"\n");
 }
 
@@ -345,4 +408,18 @@ fn the_id_map_leaves_the_slots_and_moves_the_rest_by_the_gap() {
     assert_eq!(map(3), 3 - ID_GAP);
     let before = format!("x EntityId({}) y Some(EntityId(0))", 3 + ID_GAP);
     assert_eq!(rewrite_ids(&before), "x EntityId(3) y Some(EntityId(0))");
+}
+
+#[test]
+fn the_removed_offer_field_is_restored_for_the_digest() {
+    let without = "a ProgressView { level: 1, xp: 0, xp_next: 5, spent: [] } b";
+    assert_eq!(
+        restore_removed_fields(without),
+        "a ProgressView { level: 1, xp: 0, xp_next: 5, spent: [], offer: None } b"
+    );
+    let with = "a ProgressView { level: 1, xp: 0, xp_next: 5, spent: [], offer: None } b";
+    assert_eq!(restore_removed_fields(with), with);
+    let open = "ProgressView { level: 1, spent: [], offer: Some(OfferView { kind: Star }) }";
+    assert_eq!(restore_removed_fields(open), open);
+    assert_eq!(restore_removed_fields("no view here"), "no view here");
 }

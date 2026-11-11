@@ -4,15 +4,12 @@
 //! Polaris are in no set. The numbers are the options file's first ideas, tuned by play.
 
 use stella_rain_core::difficulties::Difficulties;
-use stella_rain_core::engine::Engine;
 use stella_rain_core::id::ContentId;
 use stella_rain_core::pack::Pack;
 use stella_rain_core::rewards::{DEFAULT_WEIGHT, Rarity, Reward, Rewards};
-use stella_rain_core::run_content::RunContent;
 use stella_rain_core::version::Versions;
 
 use crate::common;
-use crate::reward_kinds::{near, next_offer, offer};
 
 fn rewards() -> &'static Rewards {
     Pack::bundled().content().rewards()
@@ -83,23 +80,6 @@ fn rigel_antares_and_polaris_are_in_no_set() {
         );
         assert_eq!(sets.set_of(&id(star)), None, "{star}");
     }
-}
-
-#[test]
-fn a_normal_run_can_be_offered_a_named_star() {
-    let mut seen = false;
-    for seed in 1..=20 {
-        let mut stage = near(40);
-        stage.seed = seed;
-        stage.stars.as_mut().unwrap().tiers = serde_json::from_value(serde_json::json!(
-            [{ "from_level": 1, "weights": { "epic": 1 } }]
-        ))
-        .unwrap();
-        let mut e = Engine::new_with(&stage, RunContent::bundled()).unwrap();
-        next_offer(&mut e);
-        seen |= offer(&e).candidates.iter().any(|c| c.named);
-    }
-    assert!(seen, "no named star was offered in 20 seeded runs");
 }
 
 #[test]

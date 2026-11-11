@@ -455,7 +455,7 @@ mod offers {
     use super::*;
     use crate::rewards::Rarity;
     use crate::rng::{TAG_OFFER, TAG_OFFER_1, TAG_OFFER_2, derive};
-    use crate::snapshot::OfferKind;
+    use crate::sim::state::OfferKind;
 
     fn slot(i: u8) -> PlayerIdx {
         PlayerIdx::new(i).unwrap()

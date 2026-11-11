@@ -251,3 +251,26 @@ fn a_setup_of_another_version_fails_closed() {
         }
     }
 }
+
+/// The four refusals of the seam have their four fixed phrases, which `RunReplayError` shows.
+#[test]
+fn the_seams_refusals_have_their_reasons() {
+    let player = crate::id::PlayerIdx::new(1).unwrap();
+    assert_eq!(
+        ChoiceError::NoPlayer { player }.reason(),
+        "names a player outside the party"
+    );
+    assert_eq!(ChoiceError::NoOffer.reason(), "has no offer open");
+    assert_eq!(
+        ChoiceError::OutOfRange {
+            index: 9,
+            options: 3
+        }
+        .reason(),
+        "is out of range of its offer"
+    );
+    assert_eq!(
+        ChoiceError::Unsupported { sim_version: 7 }.reason(),
+        "is in a run of a sim_version this game does not run"
+    );
+}
