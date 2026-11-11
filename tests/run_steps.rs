@@ -204,7 +204,8 @@ fn schema_1_form_refuses_an_equipment_run() {
 
 #[test]
 fn at_finds_the_first_step_of_a_tick() {
-    // The frozen offers-era tutorial: an equipment run opens no offer and holds no PICKS step.
+    // The frozen offers-era tutorial: its first PICKS step is the first step of tick 230,
+    // so every step before it applies to a bare engine.
     let (replay, _, pack) = load(&frozen_runs_dir().join("tutorial"));
     let steps = RunSteps::of(&replay);
     let at = steps.at(230);
