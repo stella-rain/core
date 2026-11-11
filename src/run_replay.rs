@@ -1445,29 +1445,12 @@ fn resimulate(
 }
 
 /// One step that does not advance the world: every pick is checked against the engine first,
-/// then taken together.
+/// then taken together (`Engine::v1_pick_step`).
 fn apply_picks(engine: &mut Engine, chosen: &[Option<u32>]) -> Result<(), RunReplayError> {
     let tick = engine.tick();
-    let mut inputs = [Input::default(); MAX_PLAYERS as usize];
-    let all = slots(engine.present(), chosen);
-    for (slot, pick) in all.iter().enumerate() {
-        let Some(index) = *pick else {
-            continue;
-        };
-        let player =
-            u8::try_from(slot)
-                .ok()
-                .and_then(PlayerIdx::new)
-                .ok_or(RunReplayError::BadInputs(
-                    "the party does not match the run",
-                ))?;
-        engine
-            .check_pick(player, index)
-            .map_err(|error| RunReplayError::ChoiceRefused { tick, error })?;
-        inputs[slot] = Input::picking(index);
-    }
-    engine.pick_step(&inputs);
-    Ok(())
+    engine
+        .v1_pick_step(&slots(engine.present(), chosen))
+        .map_err(|error| RunReplayError::ChoiceRefused { tick, error })
 }
 
 /// The dense entries of a record, one per slot of `mask` in slot order, placed at their slots

@@ -768,21 +768,34 @@ impl Engine {
         }
     }
 
-    /// Takes only the picks of `inputs`, never ticking the world: a recorded PICKS step
-    /// (ADR-REPL-5), the same in both modes. `action` is not read.
-    pub(crate) fn pick_step(&mut self, inputs: &[Input; crate::id::MAX_PLAYERS as usize]) {
-        self.events.clear();
-        self.load = Load::default();
-        self.take_picks(inputs);
-    }
-
-    /// The version 1 pick seam: takes the picks of a recorded PICKS step, never ticking the world.
-    #[allow(dead_code)] // wired up in the next commit
+    /// The version 1 pick seam: a recorded PICKS step of a frozen run (ADR-REPL-5,
+    /// ADR-REPL-2 point 6), one entry per slot, never ticking the world. Every `Some(index)` is
+    /// checked in slot order against the state as it is and the first refusal is returned,
+    /// changing nothing; then the events are cleared and each pick is taken in slot order, each
+    /// read after the picks before it. An all-`None` array takes nothing.
     pub(crate) fn v1_pick_step(
         &mut self,
-        _picks: &[Option<u32>; crate::id::MAX_PLAYERS as usize],
+        picks: &[Option<u32>; crate::id::MAX_PLAYERS as usize],
     ) -> Result<(), ChoiceError> {
-        unimplemented!("the version 1 pick seam")
+        let player = |slot: usize| {
+            u8::try_from(slot)
+                .ok()
+                .and_then(PlayerIdx::new)
+                .expect("a slot below MAX_PLAYERS")
+        };
+        for (slot, pick) in picks.iter().enumerate() {
+            if let Some(index) = *pick {
+                self.pick_option(player(slot), index)?;
+            }
+        }
+        self.events.clear();
+        self.load = Load::default();
+        for (slot, pick) in picks.iter().enumerate() {
+            if let Some(option) = pick.and_then(|k| self.pick_option(player(slot), k).ok()) {
+                self.take(player(slot), option);
+            }
+        }
+        Ok(())
     }
 
     /// The players in the run's party: `1..=MAX_PLAYERS` (ADR-SIM-7).
