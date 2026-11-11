@@ -8857,8 +8857,15 @@
       "additionalProperties": false,
       "description": "The star chart file: what the chart sells and at what price.",
       "properties": {
+        "expertise_levels": {
+          "description": "The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
         "expertise_multiplier": {
-          "description": "The expertise multiplier's price per level: from 1 to `MAX_LEVELS` prices, never falling.",
+          "description": "The expertise multiplier's price per level: exactly `expertise_levels` prices, never\nfalling.",
           "items": {
             "format": "uint32",
             "minimum": 0,
@@ -8916,6 +8923,7 @@
         "stage_skills",
         "starting_rune",
         "stats",
+        "expertise_levels",
         "expertise_multiplier",
         "lumine_levels"
       ],
@@ -9284,7 +9292,7 @@
           "description": "A stat of the pack's run stats, once in the list."
         },
         "prices": {
-          "description": "The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. From 1 to\n`MAX_LEVELS` prices, each from 1 to `MAX_PRICE`, never falling.",
+          "description": "The price of each level in tenths of Stardust: level n costs `prices[n - 1]`. Exactly as\nmany prices as the stat's `limit` in the pack's run stats (at most `MAX_STAT_LEVELS`), each\nfrom 1 to `MAX_PRICE`, never falling.",
           "items": {
             "format": "uint32",
             "minimum": 0,
