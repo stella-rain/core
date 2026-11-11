@@ -24,9 +24,9 @@
 //! is left of the player's offers, the star-set counts). The
 //! hash and the savepoint write the run's part with the shared fields and each present player's
 //! in its block.
-//! Offers are per slot: a star taken is due to the player that took it, the boss's offer to every
-//! player that is up at one rarity, and each offer draws from its slot's generator. The
-//! drops on the map are shared, and a drop's tier is the highest level among the present players.
+//! The drops are per slot: a star taken gives the player that took it a roll from its own
+//! generator, and a boss kill gives every player that is up one, at one tier. The drops on the
+//! map are shared, and a drop's tier is the highest level among the present players.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -142,10 +142,9 @@ pub(super) fn top_up_level(s: &State) -> Option<u32> {
         .max()
 }
 
-/// The boss died this tick: every present player that is up has its offer due first, at one
-/// rarity for all, the highest of the drop table's tier for the highest level among them. A
-/// downed or out player gets none and sets nothing; nobody up, nothing is due (ADR-SIM-7
-/// point 5). A solo player at 0 hit points is not up.
+/// The boss died this tick: every present player that is up gets the boss's drops, at one tier
+/// for all, the drop table's tier for the highest level among them. A downed or out player gets
+/// none; nobody up, nothing is given (ADR-SIM-7 point 5). A solo player at 0 hit points is not up.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
     super::starlight::boss_bonus(&stage.equipment_rules, s);
     super::drops::boss_killed(stage, s)
@@ -170,7 +169,7 @@ fn draw_rarity(rng: &mut SplitMix64, weights: &RarityWeights, range: (Rarity, Ra
     range.0
 }
 
-/// The main character takes the stars inside its pickup circle; their offers are due.
+/// The main character takes the stars inside its pickup circle; each gives it a drop roll.
 pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     super::drops::pick_up(stage, s, me, events)
 }
