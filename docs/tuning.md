@@ -61,6 +61,7 @@
 | `MAX_DOWN_TICKS` | 180 | ticks | ADR-SIM-5 |
 | `MAX_STAGGER` | 10000 | stagger | ADR-SIM-5 |
 | `MAX_STAGGER_BREAKS` | 1000 | breaks | ADR-SIM-5 |
+| `MAX_STAGGER_REFILLS` | 8 | bars | ADR-SIM-5 |
 | `MAX_STAGGER_DRAIN_TICKS` | 600 | ticks | ADR-SIM-5 |
 | `MAX_STAGGERED_TICKS` | 600 | ticks | ADR-SIM-5 |
 | `MAX_PERFECT_WINDOW_TICKS` | 30 | ticks | ADR-SIM-5 |
