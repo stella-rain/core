@@ -202,7 +202,10 @@ fn without_player_fields(event: &DomainEvent) -> String {
         text = text.replace(field, "");
     }
     // `OrbBroken`'s player is its last field.
-    text.replace(", player: None }", " }")
+    if text.starts_with("OrbBroken") {
+        text = text.replace(", player: None }", " }");
+    }
+    text
 }
 
 /// The frozen events with no live counterpart (ADR-SIM-7).
