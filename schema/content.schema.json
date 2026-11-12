@@ -1820,6 +1820,10 @@
                   ],
                   "description": "The player credited with the hit, by its entity number (0 to 2, as `Healed::target`\nnames one): the owner of the shot, or slot 0 for a companion's. Left out for a hit\non an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7)."
                 },
+                "repeat": {
+                  "description": "The hit is a step's delayed repeat (a style's `repeat` kind); left out when not.",
+                  "type": "boolean"
+                },
                 "rune": {
                   "anyOf": [
                     {
@@ -6649,6 +6653,21 @@
       },
       "type": "object"
     },
+    "RepeatAnchorKind": {
+      "description": "Where a repeat lands: on what the step's last `active` phase hit, or on the place it hit.",
+      "oneOf": [
+        {
+          "const": "hit_list",
+          "description": "The enemies that phase hit, still standing when the repeat is due.",
+          "type": "string"
+        },
+        {
+          "const": "place",
+          "description": "The place the hit box was centred on, with the range the step had.",
+          "type": "string"
+        }
+      ]
+    },
     "Replay": {
       "additionalProperties": false,
       "properties": {
@@ -9695,6 +9714,78 @@
         },
         {
           "additionalProperties": false,
+          "description": "The step reached by `step` repeats: `after_ticks` after its last `active` phase ends,\n`repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at\n`proc_pct` (absent: every ready rune, no draw). Not on a held step; at most\n`MAX_STEP_REPEATS` per step over one style's path.",
+          "properties": {
+            "after_ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "anchor": {
+              "$ref": "#/$defs/RepeatAnchorKind"
+            },
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "repeat_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "repeat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "after_ticks",
+            "repeat_pct",
+            "anchor"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls\nunder `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.",
+          "properties": {
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "proc_factor",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "proc_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "The style's weapon gauge: it fills from the player's normal (A) steps that hit and from the\nhit points lost, and a B press with it full plays the full-gauge attack and empties it\n(ADR-SIM-9 points 3 and 7). One per style path: a second is refused.",
           "properties": {
             "from_damage_pct": {
@@ -9791,6 +9882,78 @@
           "required": [
             "type",
             "effect"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The step repeats after `after_ticks`, `repeat_pct` percent of its damage, on `anchor`.",
+          "properties": {
+            "after_ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "anchor": {
+              "$ref": "#/$defs/RepeatAnchorKind"
+            },
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "repeat_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "repeat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "after_ticks",
+            "repeat_pct",
+            "anchor"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.",
+          "properties": {
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "proc_factor",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "proc_pct"
           ],
           "type": "object"
         },
