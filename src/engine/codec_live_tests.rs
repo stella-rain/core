@@ -160,9 +160,32 @@ fn the_attack_side_types_of_the_full_state_round_trip() {
         Smash::Knockback(pull),
         Smash::Bleed,
         Smash::Stun { ticks: 5 },
+        Smash::Reap {
+            stacks: 6,
+            boss_pct: 50,
+        },
     ] {
         round_trip_hashed(&smash);
     }
+}
+
+/// `Smash::Reap` is tag 4 (tags 0 to 3 keep their bytes); both numbers move the encoding and the
+/// hash; tag 5 is refused.
+#[test]
+fn the_reap_smash_has_its_own_tag() {
+    let reap = |stacks, boss_pct| Smash::Reap { stacks, boss_pct };
+    assert_eq!(to_bytes(&reap(6, 50)), [4, 6, 0, 0, 0, 50, 0, 0, 0]);
+    assert_eq!(
+        from_bytes::<Smash>(&[4, 6, 0, 0, 0, 50, 0, 0, 0]),
+        Ok(reap(6, 50))
+    );
+    assert!(from_bytes::<Smash>(&[5, 0, 0, 0, 0, 0, 0, 0, 0]).is_err());
+    assert_eq!(to_bytes(&Smash::Bleed), [2]);
+    assert_eq!(to_bytes(&Smash::Stun { ticks: 5 }), [3, 5, 0, 0, 0]);
+    assert_ne!(to_bytes(&reap(6, 50)), to_bytes(&reap(7, 50)));
+    assert_ne!(to_bytes(&reap(6, 50)), to_bytes(&reap(6, 51)));
+    assert_ne!(hash_of(&reap(6, 50)), hash_of(&reap(7, 50)));
+    assert_ne!(hash_of(&reap(6, 50)), hash_of(&reap(6, 51)));
 }
 
 #[test]
