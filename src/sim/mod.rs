@@ -145,6 +145,8 @@ mod levels_tests;
 mod loadout;
 mod offer_rating;
 mod slots;
+#[cfg(test)]
+mod try_styles_tests;
 pub(crate) use expertise::TreeError;
 pub(crate) use offer_rating::swap_ratings;
 pub(crate) use slots::{
