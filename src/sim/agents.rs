@@ -267,6 +267,10 @@ fn act_one<const ONE: bool>(
     me: Who,
     events: &mut Vec<DomainEvent>,
 ) {
+    // The perfect evade: a slowed agent does nothing on a holding tick (ADR-SIM-8).
+    if super::player::slowed(s, s.id_of(me)) == Some(true) {
+        return;
+    }
     let a = agent_mut(s, me);
     let def = stage.defs.agent(a.def);
     a.age = a.age.saturating_add(1);

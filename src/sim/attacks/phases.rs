@@ -69,6 +69,12 @@ pub(in crate::sim) fn dash_of(world: &World, r: &AttackRun) -> Option<Dash> {
     p.dash.filter(|_| p.kind == PhaseKind::Active)
 }
 
+/// The `advance` of run `r`'s current phase (attack magnetism): the slide of a combo step, any
+/// phase kind. Read from the compiled phase, like `dash_of`.
+pub(in crate::sim) fn advance_of(world: &World, r: &AttackRun) -> Option<crate::fixed::Fx> {
+    compiled(world, r).get(r.phase as usize)?.advance
+}
+
 /// How many phases run `r` has.
 pub(in crate::sim) fn phase_count(world: &World, r: &AttackRun) -> usize {
     compiled(world, r).len()

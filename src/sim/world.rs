@@ -415,6 +415,8 @@ pub(crate) struct Tuning {
     pub defence_k: u64,
     pub crit_damage_base_pct: u64,
     pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
+    /// The perfect evade (`sim_version` 2); `None`: the rule is off.
+    pub perfect_evade: Option<crate::rules::PerfectEvade>,
 }
 
 impl Tuning {
@@ -444,6 +446,7 @@ impl Tuning {
             defence_k: u64::from(rules.defence_k()),
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
             party_damage_pct: rules.party_damage_pct(),
+            perfect_evade: rules.perfect_evade(),
         }
     }
 }
@@ -499,6 +502,9 @@ pub(crate) struct World {
     attack_presets: Arc<AttackPresets>,
     /// Some compiled attack has a phase that dashes: the tick looks for a dasher only then.
     pub has_dash: bool,
+    /// Some compiled phase names an `advance` (attack magnetism): the player's tick looks for a
+    /// slide only then.
+    pub has_advance: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -648,6 +654,7 @@ impl World {
             program_colours: Vec::new(),
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
+            has_advance: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -660,6 +667,10 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
+        world.has_advance = world
+            .attacks
+            .iter()
+            .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
         Ok(world)
     }
 
@@ -776,6 +787,10 @@ impl World {
             .phases
             .iter()
             .any(|p| p.dash.is_some());
+        self.has_advance |= self.attacks[usize::from(index.0)]
+            .phases
+            .iter()
+            .any(|p| p.advance.is_some());
         Ok(index)
     }
 

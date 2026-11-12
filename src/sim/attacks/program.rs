@@ -21,6 +21,11 @@ pub(super) fn step_task(
     if t.origin == Origin::Owner && s.find(t.owner).is_none() {
         return false;
     }
+    // A slowed owner's attack holds on a holding tick: no step, no age (an orb's burst, `Origin::At`,
+    // keeps its timing).
+    if t.origin == Origin::Owner && crate::sim::player::slowed(s, t.owner) == Some(true) {
+        return true;
+    }
     if t.wait_left > 0 {
         t.wait_left -= 1;
         if t.wait_left > 0 {

@@ -94,6 +94,12 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     let Some(def) = s.boss_def(stage) else {
         return;
     };
+    // The perfect evade: a slowed boss does nothing on a holding tick (ADR-SIM-8).
+    if let Some(b) = &s.boss {
+        if super::player::slowed(s, b.id) == Some(true) {
+            return;
+        }
+    }
     {
         // An attack phase with `move_pct` 0 holds the boss where it is.
         let pct = s.boss.as_ref().map(|b| attacks::move_pct(stage, s, b.id));

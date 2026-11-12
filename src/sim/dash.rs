@@ -38,6 +38,10 @@ pub(super) fn act(stage: &World, s: &mut State) {
         let Some(d) = attacks::dash_of(stage, r) else {
             continue;
         };
+        // Held with its run (the perfect evade): the share would move twice for one `tick`.
+        if super::player::slowed(s, r.owner) == Some(true) {
+            continue;
+        }
         let p = attacks::phase(stage, r, r.phase as usize);
         if r.tick >= p.ticks {
             continue;

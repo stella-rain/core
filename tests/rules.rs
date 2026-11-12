@@ -639,3 +639,128 @@ fn the_bundled_file_leaves_out_the_offer_keys() {
     let r = Rules::bundled();
     assert_eq!((r.offer_size(), r.offer_timer_ticks()), (3, 300));
 }
+
+// --- The perfect evade's five keys (ADR-CONT-3, ADR-SVC-1) ---------------------------------------
+
+const EVADE_KEYS: [&str; 5] = [
+    "perfect_evade_window_ticks",
+    "perfect_evade_slow_ticks",
+    "perfect_evade_cooldown_ticks",
+    "perfect_evade_reach",
+    "perfect_evade_slow_every",
+];
+
+/// The five keys at `[window, slow, cooldown, reach, every]` set on the bundled file.
+fn evade_with(values: [i64; 5]) -> Vec<u8> {
+    let fields: Vec<(&str, i64)> = EVADE_KEYS.into_iter().zip(values).collect();
+    with_all(&fields)
+}
+
+const EVADE_OK: [i64; 5] = [10, 60, 300, 200 * 256, 2];
+
+#[test]
+fn the_five_perfect_evade_keys_load_at_their_bounds() {
+    let px = |n: i64| n * 256;
+    for values in [
+        EVADE_OK,
+        [1, 1, 1, px(1), 2],
+        [30, 300, 3600, px(420), 8],
+        [10, 60, 60, px(200), 2],
+    ] {
+        Rules::parse(&evade_with(values), Versions::CURRENT)
+            .unwrap_or_else(|e| panic!("{values:?} refused: {e:?}"));
+    }
+}
+
+#[test]
+fn each_perfect_evade_key_is_refused_one_past_its_bound_at_its_own_path() {
+    let px = |n: i64| n * 256;
+    let cases: [(usize, i64); 10] = [
+        (0, 0),
+        (0, 31),
+        (1, 0),
+        (1, 301),
+        (2, 3601),
+        (3, 0),
+        (3, px(420) + 1),
+        (4, 1),
+        (4, 9),
+        (2, 59), // below the slow of 60
+    ];
+    for (key, value) in cases {
+        let mut values = EVADE_OK;
+        values[key] = value;
+        assert_eq!(
+            paths(Rules::parse(&evade_with(values), Versions::CURRENT)),
+            [format!("$.{}", EVADE_KEYS[key])],
+            "{} = {value}",
+            EVADE_KEYS[key]
+        );
+    }
+}
+
+#[test]
+fn some_but_not_all_perfect_evade_keys_is_refused_naming_each_missing_key() {
+    for present in 1..5 {
+        let mut v: Value = serde_json::from_slice(&evade_with(EVADE_OK)).unwrap();
+        for key in &EVADE_KEYS[present..] {
+            v.as_object_mut().unwrap().remove(*key);
+        }
+        let want: Vec<String> = EVADE_KEYS[present..]
+            .iter()
+            .map(|k| format!("$.{k}"))
+            .collect();
+        assert_eq!(
+            paths(Rules::parse(v.to_string().as_bytes(), Versions::CURRENT)),
+            want,
+            "{present} present"
+        );
+    }
+}
+
+#[test]
+fn the_perfect_evade_keys_need_sim_version_2() {
+    let v1 = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    for key in EVADE_KEYS {
+        let got = paths(Rules::parse(&evade_with(EVADE_OK), v1));
+        assert!(got.contains(&format!("$.{key}")), "{key}: {got:?}");
+    }
+}
+
+#[test]
+fn the_bundled_file_names_no_perfect_evade_key() {
+    let v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    for key in EVADE_KEYS {
+        assert!(v.get(key).is_none(), "{key}");
+    }
+    assert!(Rules::bundled().perfect_evade().is_none());
+}
+
+#[test]
+fn a_loaded_perfect_evade_reads_back_clamped_to_the_caps() {
+    let rules = Rules::parse(&evade_with(EVADE_OK), Versions::CURRENT).unwrap();
+    let got = rules.perfect_evade().expect("all five keys");
+    assert_eq!(
+        (got.window_ticks, got.slow_ticks, got.cooldown_ticks),
+        (10, 60, 300)
+    );
+    assert_eq!((got.reach, got.slow_every), (200 * 256, 2));
+}
+
+#[test]
+fn the_perfect_evade_keys_change_the_derived_content_hash() {
+    let base = RunContent::bundled().clone();
+    let changed = run_content_with(
+        Rules::parse(&evade_with(EVADE_OK), Versions::CURRENT).expect("the keys load"),
+    );
+    for mode in ["trial", "time_limit", "tutorial"] {
+        assert_ne!(
+            content_sha256_with(mode, &base),
+            content_sha256_with(mode, &changed),
+            "{mode}"
+        );
+    }
+}

@@ -1,6 +1,15 @@
 //! The main character: movement from the input's stick, the persistent facing,
 //! the evade on its charges, and the combos of its Main weapon, made by hand.
 //!
+//! The perfect evade (when the pack names it): a press that starts an evade opens a window of
+//! `window_ticks`; an enemy hit, zone or orb that the evade's own invulnerability alone stops
+//! inside it is a near miss (`near_miss`), and with no cooldown running the evade is perfect: for
+//! `slow_ticks` the enemies, the boss and their runs within `reach` of this player advance only
+//! every `slow_every` ticks (`perfect_slow`, the schedule's step), ranged runs among them free
+//! their token, and the slow has its own cooldown. Other players are never slowed (ADR-SIM-8).
+//! Attack magnetism: a combo step's phase that names an `advance` slides the player along the
+//! facing the step took, toward its current target, no further than touching it (`magnetism`).
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the
@@ -33,6 +42,7 @@ use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
+use crate::limits::{MAX_ADVANCE_DISTANCE, MAX_ADVANCE_PER_TICK};
 use crate::rewards::Rewards;
 use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
@@ -147,6 +157,10 @@ pub(super) fn update(
         let cooldown = levels::evade_cooldown(s, me, stage.player.evade.cooldown_ticks);
         start_evade(stage, &mut s.players[me], cooldown, events);
         cancel(stage, s, me, events);
+        // The perfect evade (sim_version >= 2, named by the pack): every press reopens the window.
+        if let Some(t) = stage.tuning.perfect_evade {
+            s.players[me].combat.perfect_window = t.window_ticks;
+        }
         let strike = main.map_or(0, |m| m.dash_strike_ticks);
         s.players[me].combo.dash_strike_left = stage.player.evade.ticks.saturating_add(strike);
     }
@@ -156,11 +170,169 @@ pub(super) fn update(
     if let Some(main) = main {
         combo(stage, s, me, main, input, pressed, events);
     }
+    if stage.has_advance {
+        magnetism(stage, s, me);
+    }
     if s.players[me].dash.is_some() {
         dash(stage, &mut s.players[me]);
     } else {
         move_player(stage, s, me, x, y);
     }
+}
+
+/// Attack magnetism (sim_version >= 2): while the combo step's phase names an `advance`, the
+/// player slides along the facing the step took toward its target, by the dash's share of the
+/// distance each tick (`dash.rs`), at most `MAX_ADVANCE_PER_TICK` and at most the gap that leaves
+/// the two circles touching. No slide without a current target, with the target behind the
+/// facing or gone. The evade cancels the run, so it ends the slide.
+fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
+    let Some(target) = s.players[me].target else {
+        return;
+    };
+    let id = s.players.id(me);
+    let Some(r) = s
+        .runs
+        .iter()
+        .find(|r| r.owner == id && r.slot == COMBO_SLOT)
+    else {
+        return;
+    };
+    let Some(advance) = attacks::advance_of(stage, r) else {
+        return;
+    };
+    let phase_ticks = attacks::phase(stage, r, r.phase as usize).ticks;
+    if r.tick >= phase_ticks {
+        return;
+    }
+    let ticks = i64::from(phase_ticks);
+    let Some((at, radius)) = select::target_circle(stage, s, target) else {
+        return;
+    };
+    let distance = i64::from(advance.0).clamp(0, i64::from(Fx::px(MAX_ADVANCE_DISTANCE).0));
+    let (k, facing) = (i64::from(r.tick) + 1, r.facing);
+    let share = distance * k / ticks - distance * (k - 1) / ticks;
+    let p = &s.players[me];
+    let dx = i64::from(at.x.0) - i64::from(p.at.x.0);
+    let dy = i64::from(at.y.0) - i64::from(p.at.y.0);
+    if i64::from(facing.x) * dx + i64::from(facing.y) * dy <= 0 {
+        return;
+    }
+    let reach = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+    let gap = (reach - i64::from(stage.tuning.player_radius) - i64::from(radius)).max(0);
+    let step = share
+        .min(i64::from(Fx::px(MAX_ADVANCE_PER_TICK).0))
+        .min(gap);
+    let scale = i64::from(SCALE);
+    move_by(
+        stage,
+        &mut s.players[me],
+        i64::from(facing.x) * step / scale,
+        i64::from(facing.y) * step / scale,
+    );
+}
+
+/// A near miss: the evade's own invulnerability stopped a hit on player `me` (the caller has
+/// seen the hit overlap and `invulnerable > 0`). Inside the window, and when the skip is the
+/// evade's (`invulnerable` is what the evade has left, a tie goes to the evade; more is a hit's or
+/// a revive's residue), the window closes and, with no cooldown running, the evade is perfect: the
+/// slow and its own cooldown start (ADR-SIM-8: only this player's reach is slowed). No damage, no
+/// record of the hit. The one place the counter window will add its line.
+pub(super) fn near_miss(stage: &World, s: &mut State, me: PlayerIdx) {
+    let Some(t) = stage.tuning.perfect_evade else {
+        return;
+    };
+    let p = &mut s.players[me];
+    if p.hp == 0 || p.combat.perfect_window == 0 {
+        return;
+    }
+    let since = u32::from(t.window_ticks.saturating_sub(p.combat.perfect_window));
+    let left = stage.player.evade.invulnerable_ticks.saturating_sub(since);
+    if p.invulnerable != left {
+        return;
+    }
+    p.combat.perfect_window = 0;
+    if p.combat.perfect_cooldown == 0 {
+        p.combat.perfect_slow = t.slow_ticks;
+        p.combat.perfect_cooldown = t.cooldown_ticks;
+    }
+}
+
+/// The step `perfect_slow`: works out the slowed set of this tick from the positions at its
+/// start, then runs the three timers of every player down one (a downed or out player's too).
+/// Nothing is slowed unless the pack names the perfect evade.
+pub(super) fn perfect_slow(stage: &World, s: &mut State) {
+    let Some(t) = stage.tuning.perfect_evade else {
+        return;
+    };
+    s.scratch.slowed.clear();
+    if s.players.indices().any(|me| {
+        let c = &s.players[me];
+        c.is_up() && c.combat.perfect_slow > 0
+    }) {
+        slow_set(s, t);
+    }
+    for me in s.players.indices() {
+        let c = &mut s.players[me].combat;
+        c.perfect_window = c.perfect_window.saturating_sub(1);
+        c.perfect_cooldown = c.perfect_cooldown.saturating_sub(1);
+        c.perfect_slow = c.perfect_slow.saturating_sub(1);
+    }
+}
+
+/// The enemies (and the boss with its parts) within `reach` of an up player with a slow running,
+/// each once, by the lowest such slot; `holds` is whether it stops this tick. Allies, players,
+/// zones and orbs are never in it.
+fn slow_set(s: &mut State, t: crate::rules::PerfectEvade) {
+    let reach = i64::from(t.reach);
+    let every = u16::from(t.slow_every.max(2));
+    let near = |s: &State, at: Point| -> Option<bool> {
+        s.players.indices().find_map(|me| {
+            let p = &s.players[me];
+            let c = &p.combat;
+            let dx = i64::from(p.at.x.0) - i64::from(at.x.0);
+            let dy = i64::from(p.at.y.0) - i64::from(at.y.0);
+            (p.is_up() && c.perfect_slow > 0 && dx * dx + dy * dy <= reach * reach)
+                .then_some(c.perfect_slow % every != 0)
+        })
+    };
+    let mut set = std::mem::take(&mut s.scratch.slowed);
+    // Room is made on the first slow, not at load: a run that never slows allocates nothing.
+    super::scratch::reserve_to(&mut set, s.enemies.len() + 1 + 16);
+    for e in &s.enemies {
+        if e.hp > 0 {
+            if let Some(hold) = near(s, e.at) {
+                set.push((e.id, hold));
+            }
+        }
+    }
+    if let Some(b) = &s.boss {
+        let mut found = if b.hp > 0 { near(s, b.at) } else { None };
+        for (i, part) in b.parts.iter().enumerate() {
+            if part.hp > 0 && found.is_none() {
+                found = near(s, s.at(Who::BossPart(i)));
+            }
+        }
+        if let Some(hold) = found {
+            set.push((b.id, hold));
+            set.extend(b.parts.iter().map(|part| (part.id, hold)));
+        }
+    }
+    set.sort_unstable_by_key(|&(id, _)| id);
+    s.scratch.slowed = set;
+}
+
+/// Whether the entity `id` is slowed this tick and holds: `Some(holds)`, `None` if it is not in
+/// the set. One test of "is the set empty" for every tick that slows no one.
+pub(super) fn slowed(s: &State, id: EntityId) -> Option<bool> {
+    if s.scratch.slowed.is_empty() {
+        return None;
+    }
+    let at = s
+        .scratch
+        .slowed
+        .binary_search_by_key(&id, |&(i, _)| i)
+        .ok()?;
+    Some(s.scratch.slowed[at].1)
 }
 
 /// The distance between the farthest two up players past which the soft tether pulls (ADR-SIM-5's

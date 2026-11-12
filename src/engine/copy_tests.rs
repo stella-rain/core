@@ -79,7 +79,7 @@ fn the_two_schedules_name_the_same_steps_in_the_same_order() {
     // star offers' `open_offers`, which the live rules no longer open: ADR-REPL-5) is left out
     // of the frozen list.
     let mut live = tick_names(include_str!("../sim/schedule.rs"));
-    live.retain(|name| *name != "tether");
+    live.retain(|name| !matches!(*name, "tether" | "perfect_slow"));
     let mut frozen = tick_names(include_str!("../sim_v1/schedule.rs"));
     frozen.retain(|name| *name != "open_offers");
     assert!(live.len() > 10);
