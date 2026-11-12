@@ -243,7 +243,12 @@ fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
 /// a revive's residue), the window closes and, with no cooldown running, the evade is perfect: the
 /// slow and its own cooldown start (ADR-SIM-8: only this player's reach is slowed). No damage, no
 /// record of the hit. The one place the counter window will add its line.
-pub(super) fn near_miss(stage: &World, s: &mut State, me: PlayerIdx) {
+pub(super) fn near_miss(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
     let Some(t) = stage.tuning.perfect_evade else {
         return;
     };
@@ -260,6 +265,7 @@ pub(super) fn near_miss(stage: &World, s: &mut State, me: PlayerIdx) {
     if p.combat.perfect_cooldown == 0 {
         p.combat.perfect_slow = t.slow_ticks;
         p.combat.perfect_cooldown = t.cooldown_ticks;
+        perfect_evade_event(events, me);
     }
 }
 
@@ -861,7 +867,13 @@ fn take_step(
 /// A friendly swing of player `owner`'s combo hit `n` enemies this tick: a normal (A) step fills
 /// the weapon gauge its style grants by `per_step` once and `per_hit` for each, to the step's cap
 /// and the gauge's `max`. A smash, a downed player and a style without a gauge fill nothing.
-pub(super) fn gauge_from_hits(stage: &World, s: &mut State, owner: EntityId, n: u32) {
+pub(super) fn gauge_from_hits(
+    stage: &World,
+    s: &mut State,
+    owner: EntityId,
+    n: u32,
+    events: &mut Vec<DomainEvent>,
+) {
     let Some(me) = s.players.of_id(owner) else {
         return;
     };
@@ -886,11 +898,47 @@ pub(super) fn gauge_from_hits(stage: &World, s: &mut State, owner: EntityId, n: 
     let c = &mut s.players[me].combat;
     c.weapon_gauge += added;
     c.gauge_step_fill += added;
+    if added > 0 {
+        gauge_filled(events, me, added, c.weapon_gauge, g.max);
+    }
+}
+
+/// The weapon gauge of `me` gained `added` and holds `value` of `max`. Cold: the benched packs
+/// name no gauge, so the callers gain one call on a branch no bench takes.
+#[cold]
+#[inline(never)]
+fn gauge_filled(events: &mut Vec<DomainEvent>, me: PlayerIdx, added: u32, value: u32, max: u32) {
+    events.push(DomainEvent::GaugeFilled {
+        player: me,
+        amount: added,
+        value,
+        full: value >= max,
+    });
+}
+
+/// The full-gauge smash of `me` spent `amount`. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn gauge_spent(events: &mut Vec<DomainEvent>, me: PlayerIdx, amount: u32) {
+    events.push(DomainEvent::GaugeSpent { player: me, amount });
+}
+
+/// `me`'s near miss was a perfect evade. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn perfect_evade_event(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::PerfectEvade { player: me });
 }
 
 /// Player `me` lost `lost` hit points to a hit: the gauge gains `max * lost * pct / (max_hp *
 /// 100)`, to `max` at most, when the player is still up. The step cap does not hold it.
-pub(super) fn gauge_from_damage(stage: &World, s: &mut State, me: PlayerIdx, lost: u32) {
+pub(super) fn gauge_from_damage(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    lost: u32,
+    events: &mut Vec<DomainEvent>,
+) {
     let p = &s.players[me];
     if lost == 0 || !p.is_up() {
         return;
@@ -906,6 +954,9 @@ pub(super) fn gauge_from_damage(stage: &World, s: &mut State, me: PlayerIdx, los
     let room = g.max.saturating_sub(p.combat.weapon_gauge);
     let added = u32::try_from(share.min(u64::from(room))).unwrap_or(room);
     s.players[me].combat.weapon_gauge += added;
+    if added > 0 {
+        gauge_filled(events, me, added, s.players[me].combat.weapon_gauge, g.max);
+    }
 }
 
 /// Whether player `me`'s weapon gauge is full. The kinds that read the gauge go through it.
@@ -936,8 +987,10 @@ fn spend_gauge(
         return false;
     };
     let c = &mut s.players[me];
+    let spent = c.combat.weapon_gauge;
     c.combat.weapon_gauge = 0;
     c.combat.gauge_step_fill = 0;
+    gauge_spent(events, me, spent);
     // No hold begins after it (`begins_hold`).
     c.combo.released = true;
     strike(stage, s, me, attack, 0, aim, events);

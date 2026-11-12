@@ -2927,6 +2927,17 @@
                 },
                 "owner": {
                   "$ref": "#/$defs/EntityId"
+                },
+                "player": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/PlayerIdx"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The player whose swing or full-gauge clear broke it; absent in a version 1 run."
                 }
               },
               "required": [
@@ -3022,6 +3033,109 @@
             },
             "type": {
               "const": "Constellation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The weapon gauge of `player` gained `amount` (more than 0, after the step cap and the\nmax); `value` is the gauge after. A friendly combo swing or a hit taken fills it\n(ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "amount": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "full": {
+                  "description": "`value` reached the style's max.",
+                  "type": "boolean"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "value": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "player",
+                "amount",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "GaugeFilled",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The full-gauge smash of `player` spent `amount`, the whole gauge (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "amount": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player",
+                "amount"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "GaugeSpent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A near miss of `player` was a perfect evade: its slow and its cooldown have just started\n(ADR-SIM-8).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "PerfectEvade",
               "type": "string"
             }
           },
@@ -3659,7 +3773,7 @@
           "type": "integer"
         },
         "statuses": {
-          "description": "Its statuses and auras, sorted by ID.",
+          "description": "Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,\n`bleed`, `poison`, `burn`, `stun`, `flinch` and `aura`, each with `remaining` and `total`\nticks; `flinch` is the enemy's own control state, shown as a status.",
           "items": {
             "$ref": "#/$defs/StatusView"
           },
@@ -4480,6 +4594,29 @@
         "full_smash"
       ],
       "type": "string"
+    },
+    "GaugeView": {
+      "additionalProperties": false,
+      "description": "A player's weapon gauge (ADR-SIM-9).",
+      "properties": {
+        "max": {
+          "description": "The style's maximum: the bar is this long, and the gauge is full at `value == max`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "value": {
+          "description": "The gauge now, in gauge units.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "value",
+        "max"
+      ],
+      "type": "object"
     },
     "Guardians": {
       "additionalProperties": false,
@@ -5872,6 +6009,35 @@
       ],
       "type": "object"
     },
+    "PerfectEvadeView": {
+      "additionalProperties": false,
+      "description": "A player's perfect evade after the near miss (ADR-SIM-8).",
+      "properties": {
+        "cooldown_left": {
+          "description": "Ticks until another near miss can be perfect.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reach": {
+          "description": "The slow's reach around the player, in 1/256 px.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "slow_left": {
+          "description": "Ticks of the slow left; enemies within `reach` of the player's `at` are slowed.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slow_left",
+        "cooldown_left",
+        "reach"
+      ],
+      "type": "object"
+    },
     "PerkEffect": {
       "description": "What a perk does, `amount` times over. The closed list of perk effects; the\nstat kinds are the run stats' (`StatEffect`) and add to the same totals.",
       "oneOf": [
@@ -6196,6 +6362,17 @@
           "$ref": "#/$defs/Facing",
           "description": "The last non-zero movement direction."
         },
+        "gauge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GaugeView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The weapon gauge of its style, while the style grants one (ADR-SIM-9); absent otherwise."
+        },
         "hold": {
           "anyOf": [
             {
@@ -6246,6 +6423,17 @@
         "out": {
           "description": "Out state when a downed player's out timer expired (ADR-SIM-7).",
           "type": "boolean"
+        },
+        "perfect_evade": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerfectEvadeView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The perfect evade's slow and cooldown, while either runs and the run's rules name the\nperfect evade (ADR-SIM-8); absent otherwise."
         },
         "pickup_radius_pct": {
           "description": "The pickup circle of stars and heal pickups is that much wider, in percent: the pickup\nradius rewards taken plus the `PickupRadiusPct` stat, held to `MAX_PICKUP_RADIUS_TOTAL_PCT`.",

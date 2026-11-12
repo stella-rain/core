@@ -283,6 +283,11 @@ fn a_smash_and_another_players_hits_fill_nothing() {
 
 /// A hit of `damage` on player 0; the hit points it really took.
 fn hurt(r: &mut Rig, damage: u32) -> u32 {
+    hurt_logged(r, damage).0
+}
+
+/// As `hurt`, with the events the hit pushed.
+fn hurt_logged(r: &mut Rig, damage: u32) -> (u32, Vec<DomainEvent>) {
     let Run::V2 { world, state } = r.e.run_mut() else {
         panic!("the live rules");
     };
@@ -303,8 +308,9 @@ fn hurt(r: &mut Rig, damage: u32) -> u32 {
         by: Culprit::Run(crate::sim::world::AttackIndex(0)),
     };
     let before = state.players[ME].hp;
-    hurt_player(world, state, ME, shot, by, &mut Vec::new());
-    before - state.players[ME].hp
+    let mut events = Vec::new();
+    hurt_player(world, state, ME, shot, by, &mut events);
+    (before - state.players[ME].hp, events)
 }
 
 /// B6: hit points lost fill the bar by `max * lost * pct / (max_hp * 100)`, and not to the cap.
@@ -521,4 +527,250 @@ fn the_bundled_run_keeps_the_gauge_at_zero() {
         let c = &st(&mut e).players[ME].combat;
         assert_eq!((c.weapon_gauge, c.gauge_step_fill), (0, 0), "tick {t}");
     }
+}
+
+// The views and events of the gauge, read as JSON so the tests name the wire shape.
+
+fn as_json(events: &[DomainEvent]) -> Vec<Value> {
+    events
+        .iter()
+        .map(|e| serde_json::to_value(e).expect("an event"))
+        .collect()
+}
+
+/// The `data` of every event of type `ty`.
+fn data_of(events: &[Value], ty: &str) -> Vec<Value> {
+    events
+        .iter()
+        .filter(|e| e["type"] == ty)
+        .map(|e| e["data"].clone())
+        .collect()
+}
+
+fn view(r: &Rig, i: usize) -> Value {
+    serde_json::to_value(&r.e.snapshot().players[i]).expect("a view")
+}
+
+impl Rig {
+    /// Every event of a press of `a` or `b` by player 0 and `ticks` idle ticks, as JSON.
+    fn press_events(&mut self, b: bool, ticks: u32) -> Vec<Value> {
+        let press = Input {
+            main: !b,
+            smash: b,
+            ..Input::default()
+        };
+        self.step([press, Input::default(), Input::default()]);
+        let mut all = as_json(self.e.events());
+        for _ in 0..ticks {
+            self.step([Input::default(); 3]);
+            all.extend(as_json(self.e.events()));
+        }
+        all
+    }
+}
+
+/// V1: the view holds the gauge while the style grants one, and no key otherwise.
+#[test]
+fn the_player_view_shows_the_gauge_of_its_style() {
+    let mut r = rig(1, Some(STEP), None, 1);
+    assert_eq!(view(&r, 0)["gauge"], json!({ "value": 0, "max": 100 }));
+    r.press(false, 40);
+    assert_eq!(view(&r, 0)["gauge"], json!({ "value": 10, "max": 100 }));
+    r.set_gauge(0, 100);
+    assert_eq!(view(&r, 0)["gauge"], json!({ "value": 100, "max": 100 }));
+
+    let none = rig(1, None, None, 1);
+    assert!(
+        view(&none, 0).get("gauge").is_none(),
+        "a pack with no gauge"
+    );
+
+    let mut party = rig(3, Some(STEP), None, 1);
+    if let Some(g) = st(&mut party.e)
+        .players
+        .career_mut(slot(1))
+        .expertise
+        .as_mut()
+    {
+        g.style = Some(1);
+    }
+    assert!(view(&party, 0).get("gauge").is_some());
+    assert!(view(&party, 1).get("gauge").is_none(), "off the style");
+    assert!(view(&party, 2).get("gauge").is_some());
+}
+
+/// V1: the view's value is the state's, every tick of a press-and-take-a-hit walk.
+#[test]
+fn the_viewed_gauge_is_the_states_every_tick() {
+    let cfg = Cfg { pct: 100, ..STEP };
+    let mut r = rig(1, Some(cfg), None, 2);
+    for t in 0..120 {
+        if t % 30 == 0 {
+            r.step([
+                Input {
+                    main: true,
+                    ..Input::default()
+                },
+                Input::default(),
+                Input::default(),
+            ]);
+        } else if t % 30 == 15 {
+            hurt(&mut r, 100);
+        } else {
+            r.idle(1);
+        }
+        assert_eq!(view(&r, 0)["gauge"]["value"], r.gauge(0).0, "tick {t}");
+    }
+}
+
+/// E1: one event for the swing, at the amount really added.
+#[test]
+fn a_swing_that_fills_the_gauge_says_so_once() {
+    let mut r = rig(1, Some(STEP), None, 1);
+    let events = r.press_events(false, 40);
+    assert_eq!(
+        data_of(&events, "GaugeFilled"),
+        vec![json!({ "player": ME, "amount": 10, "value": 10 })]
+    );
+
+    let cfg = Cfg { per_hit: 3, ..STEP };
+    let mut two = rig(1, Some(cfg), None, 2);
+    let events = two.press_events(false, 40);
+    let filled = data_of(&events, "GaugeFilled");
+    assert_eq!(filled.len(), 1);
+    assert_eq!(filled[0]["amount"], 14, "10 + 2 * 3 held to the step cap");
+
+    let mut many = rig(
+        1,
+        Some(Cfg {
+            per_step: 0,
+            per_hit: 2,
+            ..STEP
+        }),
+        None,
+        10,
+    );
+    let mut sum = 0;
+    for _ in 0..2 {
+        let events = many.press_events(false, 40);
+        sum += data_of(&events, "GaugeFilled")
+            .iter()
+            .map(|d| d["amount"].as_u64().unwrap())
+            .sum::<u64>();
+    }
+    assert_eq!(sum, 28);
+    assert_eq!(
+        u64::from(many.gauge(0).0),
+        sum,
+        "the events add up to the gauge"
+    );
+}
+
+/// E1: nothing is said for a fill of 0.
+#[test]
+fn a_fill_of_nothing_says_nothing() {
+    let mut full = rig(1, Some(STEP), None, 1);
+    full.set_gauge(0, 100);
+    let events = full.press_events(false, 40);
+    assert!(data_of(&events, "GaugeFilled").is_empty(), "at the max");
+    let mut smash = rig(1, Some(STEP), None, 3);
+    let events = smash.press_events(true, 60);
+    assert!(data_of(&events, "GaugeFilled").is_empty(), "a smash");
+    let mut none = rig(1, None, None, 1);
+    let events = none.press_events(false, 40);
+    assert!(data_of(&events, "GaugeFilled").is_empty(), "no gauge");
+    let mut off = rig(1, Some(STEP), None, 1);
+    if let Some(g) = st(&mut off.e).players.career_mut(ME).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    let events = off.press_events(false, 40);
+    assert!(data_of(&events, "GaugeFilled").is_empty(), "off the style");
+}
+
+/// E1: a hit taken says what it filled.
+#[test]
+fn a_hit_taken_that_fills_the_gauge_says_so() {
+    let cfg = Cfg { pct: 100, ..STEP };
+    let mut r = rig(1, Some(cfg), None, 0);
+    let (lost, events) = hurt_logged(&mut r, 400);
+    let filled = data_of(&as_json(&events), "GaugeFilled");
+    assert_eq!(filled.len(), 1);
+    assert_eq!(filled[0]["amount"], lost / 10);
+    assert_eq!(filled[0]["value"], r.gauge(0).0);
+    let mut off = rig(1, Some(STEP), None, 0);
+    let (_, events) = hurt_logged(&mut off, 400);
+    assert!(data_of(&as_json(&events), "GaugeFilled").is_empty());
+}
+
+/// E2: the event that reaches the max says so.
+#[test]
+fn the_fill_that_reaches_the_max_is_full() {
+    let mut r = rig(1, Some(STEP), None, 1);
+    r.set_gauge(0, 95);
+    let events = r.press_events(false, 40);
+    assert_eq!(
+        data_of(&events, "GaugeFilled"),
+        vec![json!({ "player": ME, "amount": 5, "value": 100, "full": true })]
+    );
+}
+
+/// E3: the full-gauge smash says what it spent, once per player.
+#[test]
+fn the_full_gauge_smash_says_what_it_spent() {
+    let mut r = rig(1, Some(STEP), None, 1);
+    r.set_gauge(0, 100);
+    let b = Input {
+        smash: true,
+        ..Input::default()
+    };
+    r.step([b, Input::default(), Input::default()]);
+    let events = as_json(r.e.events());
+    assert_eq!(
+        data_of(&events, "GaugeSpent"),
+        vec![json!({ "player": ME, "amount": 100 })]
+    );
+    assert!(data_of(&events, "GaugeFilled").is_empty());
+    assert_eq!(view(&r, 0)["gauge"]["value"], 0);
+
+    let mut party = rig(3, Some(STEP), None, 1);
+    for i in 0..3 {
+        party.set_gauge(i, 100);
+    }
+    party.step([b, b, b]);
+    let spent = data_of(&as_json(party.e.events()), "GaugeSpent");
+    let players: Vec<_> = spent.iter().map(|d| d["player"].clone()).collect();
+    assert_eq!(players, (0..3).map(|i| json!(slot(i))).collect::<Vec<_>>());
+}
+
+/// E4: an orb the player broke names the player, by swing and by the full-gauge clear.
+#[test]
+fn a_broken_orb_names_the_player_that_broke_it() {
+    let mut r = rig(1, Some(STEP), Some(100), 0);
+    let me = st(&mut r.e).players[ME].at;
+    st(&mut r.e).orbs.push(orb(px(me, 50, 0), true));
+    st(&mut r.e).orbs.push(orb(px(me, 60, 0), true));
+    r.set_gauge(0, 100);
+    let events = r.press_events(true, 4);
+    let orbs = data_of(&events, "OrbBroken");
+    assert_eq!(orbs.len(), 2);
+    assert!(orbs.iter().all(|d| d["player"] == json!(ME)), "{orbs:?}");
+
+    let mut party = rig(3, Some(STEP), Some(100), 0);
+    let me = st(&mut party.e).players[slot(1)].at;
+    st(&mut party.e).orbs.push(orb(px(me, 50, 0), true));
+    party.set_gauge(1, 100);
+    let b = Input {
+        smash: true,
+        ..Input::default()
+    };
+    let mut all = Vec::new();
+    party.step([Input::default(), b, Input::default()]);
+    all.extend(as_json(party.e.events()));
+    for _ in 0..4 {
+        party.step([Input::default(); 3]);
+        all.extend(as_json(party.e.events()));
+    }
+    let orbs = data_of(&all, "OrbBroken");
+    assert_eq!(orbs.len(), 1);
+    assert_eq!(orbs[0]["player"], json!(slot(1)));
 }

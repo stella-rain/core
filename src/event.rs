@@ -278,6 +278,9 @@ pub enum DomainEvent {
     OrbBroken {
         owner: EntityId,
         at: Point,
+        /// The player whose swing or full-gauge clear broke it; absent in a version 1 run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        player: Option<PlayerIdx>,
     },
     /// The reward was taken: the run now has it `taken` times. For a random rune, `rune` is
     /// the rune it drew, now on the Main weapon.
@@ -295,5 +298,26 @@ pub enum DomainEvent {
     Constellation {
         set: ContentId,
         tier: u8,
+    },
+    /// The weapon gauge of `player` gained `amount` (more than 0, after the step cap and the
+    /// max); `value` is the gauge after. A friendly combo swing or a hit taken fills it
+    /// (ADR-SIM-9).
+    GaugeFilled {
+        player: PlayerIdx,
+        amount: u32,
+        value: u32,
+        /// `value` reached the style's max.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        full: bool,
+    },
+    /// The full-gauge smash of `player` spent `amount`, the whole gauge (ADR-SIM-9).
+    GaugeSpent {
+        player: PlayerIdx,
+        amount: u32,
+    },
+    /// A near miss of `player` was a perfect evade: its slow and its cooldown have just started
+    /// (ADR-SIM-8).
+    PerfectEvade {
+        player: PlayerIdx,
     },
 }
