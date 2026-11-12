@@ -707,6 +707,40 @@ impl Deref for World {
     }
 }
 
+/// The copies of `base`, the run's weapon, for each style of the weapon's expertise that grants
+/// a kind: one per number of places of its path taken (0 to 3). Empty when the weapon is not a
+/// preset with expertise content or no style grants anything.
+fn grant_weapons(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<Weapon>> {
+    let (WeaponRef::Preset { id, .. }, Some(base)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let grants = |s: &crate::expertise::Style| {
+        !s.kinds.is_empty()
+            || crate::expertise::style_levels(s)
+                .into_iter()
+                .any(|(_, o)| o.is_some_and(|o| !o.kinds.is_empty()))
+    };
+    if !expertise.styles.iter().any(grants) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(
+                grants(style).then(|| crate::expertise::weapon_with_style(base, style, taken)),
+            );
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -795,38 +829,4 @@ mod tests {
         assert!(!leash_eligible(&still(), AgentSource::BossRule, true));
         assert!(!leash_eligible(&still(), AgentSource::Companion, false));
     }
-}
-
-/// The copies of `base`, the run's weapon, for each style of the weapon's expertise that grants
-/// a kind: one per number of places of its path taken (0 to 3). Empty when the weapon is not a
-/// preset with expertise content or no style grants anything.
-fn grant_weapons(
-    main: &WeaponRef<Weapon>,
-    base: Option<&Weapon>,
-    content: &RunContent,
-) -> Vec<Option<Weapon>> {
-    let (WeaponRef::Preset { id, .. }, Some(base)) = (main, base) else {
-        return Vec::new();
-    };
-    let Some(expertise) = content.expertise().weapon(id) else {
-        return Vec::new();
-    };
-    let grants = |s: &crate::expertise::Style| {
-        !s.kinds.is_empty()
-            || crate::expertise::style_levels(s)
-                .into_iter()
-                .any(|(_, o)| o.is_some_and(|o| !o.kinds.is_empty()))
-    };
-    if !expertise.styles.iter().any(grants) {
-        return Vec::new();
-    }
-    let mut out = Vec::new();
-    for style in &expertise.styles {
-        for taken in 0..PATH_PLACES {
-            out.push(
-                grants(style).then(|| crate::expertise::weapon_with_style(base, style, taken)),
-            );
-        }
-    }
-    out
 }
