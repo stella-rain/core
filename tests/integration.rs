@@ -131,6 +131,7 @@ mod rarities;
 mod rarity_rows_d6c;
 mod recording;
 mod registry;
+mod repeat;
 mod replay;
 mod reward_kinds;
 mod rewards;
