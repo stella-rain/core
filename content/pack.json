@@ -924,37 +924,37 @@
       {
         "rarity": "common",
         "extract": 5,
-        "craft_price": 25
+        "craft_price": 15
       },
       {
         "rarity": "uncommon",
         "extract": 10,
-        "craft_price": 50
+        "craft_price": 30
       },
       {
         "rarity": "rare",
         "extract": 20,
-        "craft_price": 100
+        "craft_price": 60
       },
       {
         "rarity": "epic",
         "extract": 40,
-        "craft_price": 200
+        "craft_price": 120
       },
       {
         "rarity": "legendary",
         "extract": 80,
-        "craft_price": 400
+        "craft_price": 240
       },
       {
         "rarity": "supernova",
         "extract": 160,
-        "craft_price": 800
+        "craft_price": 480
       }
     ],
-    "rune_extract": 10,
-    "boss_bonus": 50,
-    "boss_drops": 1,
+    "rune_extract": 20,
+    "boss_bonus": 150,
+    "boss_drops": 2,
     "rune_share_permille": 100
   },
   "max_rune_haste_pct": 500,
@@ -4851,19 +4851,19 @@
   ]
 },
   "star_chart": {
-  "weapons": [{ "id": "giant_hammer", "price": 50000 }],
+  "weapons": [{ "id": "giant_hammer", "price": 12000 }],
   "perk_sets": [
-    { "id": "vanguard", "price": 50000 },
-    { "id": "scout", "price": 50000 },
-    { "id": "scholar", "price": 50000 }
+    { "id": "vanguard", "price": 8000 },
+    { "id": "scout", "price": 8000 },
+    { "id": "scholar", "price": 8000 }
   ],
   "stage_skills": [
-    { "id": "black_hole", "price": 50000 },
-    { "id": "war_cry", "price": 50000 },
-    { "id": "hex", "price": 50000 },
-    { "id": "aegis", "price": 50000 }
+    { "id": "black_hole", "price": 6000 },
+    { "id": "war_cry", "price": 6000 },
+    { "id": "hex", "price": 6000 },
+    { "id": "aegis", "price": 6000 }
   ],
-  "starting_rune": 50000,
+  "starting_rune": 6000,
   "stats": [
     { "id": "max_hp", "prices": [600, 1200, 1800, 2400, 3000] },
     { "id": "attack", "prices": [600, 1200, 1800, 2400, 3000] },
@@ -4873,7 +4873,7 @@
   ],
   "expertise_levels": 5,
   "expertise_multiplier": [3000, 6000, 9000, 12000, 15000],
-  "lumine_levels": [160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000, 160000]
+  "lumine_levels": [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
 },
   "modes": {
     "trial": {

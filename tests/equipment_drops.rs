@@ -76,7 +76,7 @@ fn a_boss_kill_drops_for_the_member_who_is_up() {
             e.step(&[input, Default::default(), Default::default()]);
             if e.events().contains(&DomainEvent::StageCleared) {
                 let after = e.snapshot().players[0].inventory.len();
-                assert_eq!(after, before + 1, "seed {seed}: one personal drop");
+                assert_eq!(after, before + 2, "seed {seed}: two personal drops");
             }
         }
         assert_eq!(e.outcome(), Outcome::Cleared, "seed {seed}");

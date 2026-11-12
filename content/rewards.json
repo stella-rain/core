@@ -37,37 +37,37 @@
       {
         "rarity": "common",
         "extract": 5,
-        "craft_price": 25
+        "craft_price": 15
       },
       {
         "rarity": "uncommon",
         "extract": 10,
-        "craft_price": 50
+        "craft_price": 30
       },
       {
         "rarity": "rare",
         "extract": 20,
-        "craft_price": 100
+        "craft_price": 60
       },
       {
         "rarity": "epic",
         "extract": 40,
-        "craft_price": 200
+        "craft_price": 120
       },
       {
         "rarity": "legendary",
         "extract": 80,
-        "craft_price": 400
+        "craft_price": 240
       },
       {
         "rarity": "supernova",
         "extract": 160,
-        "craft_price": 800
+        "craft_price": 480
       }
     ],
-    "rune_extract": 10,
-    "boss_bonus": 50,
-    "boss_drops": 1,
+    "rune_extract": 20,
+    "boss_bonus": 150,
+    "boss_drops": 2,
     "rune_share_permille": 100
   },
   "max_rune_haste_pct": 500,
