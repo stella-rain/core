@@ -152,6 +152,7 @@ mod schema2_range;
 mod schema2_write;
 mod share;
 mod shot;
+mod smash_styles;
 mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;

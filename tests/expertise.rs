@@ -639,3 +639,89 @@ fn a_common_option_names_no_kind() {
     invalid_at(&v, "$.weapons[0].common[0].kinds");
     valid(&with(at, option("plain", "attack_pct", 5)));
 }
+
+fn smash_kind(effect: Value) -> Value {
+    json!({ "type": "smash_effect", "effect": effect })
+}
+
+/// A style level sets its weapon's smash effect (ADR-SIM-9 point 4): the closed list, every
+/// effect bounded by the weapon validator's caps, one per style path.
+#[test]
+fn a_level_sets_a_smash_effect() {
+    let at = "/weapons/0/styles/0/kinds";
+    let path = "$.weapons[0].styles[0].kinds[0].effect";
+    for effect in [
+        json!({ "type": "reap", "stacks": 4, "boss_pct": 30 }),
+        json!({ "type": "pull", "distance": 4096, "ticks": 10 }),
+        json!({ "type": "knockback", "distance": 4096, "ticks": 10 }),
+        json!({ "type": "bleed" }),
+        json!({ "type": "stun", "ticks": 30 }),
+    ] {
+        let v = with(at, json!([smash_kind(effect.clone())]));
+        valid(&v);
+    }
+    let bad = |effect: Value, sub: &str| {
+        invalid_at(
+            &with(at, json!([smash_kind(effect)])),
+            &format!("{path}{sub}"),
+        );
+    };
+    bad(
+        json!({ "type": "reap", "stacks": 0, "boss_pct": 30 }),
+        ".stacks",
+    );
+    bad(
+        json!({ "type": "reap", "stacks": 11, "boss_pct": 30 }),
+        ".stacks",
+    );
+    bad(
+        json!({ "type": "reap", "stacks": 4, "boss_pct": 101 }),
+        ".boss_pct",
+    );
+    bad(
+        json!({ "type": "pull", "distance": 16385, "ticks": 10 }),
+        ".distance",
+    );
+    bad(
+        json!({ "type": "pull", "distance": 10, "ticks": 0 }),
+        ".ticks",
+    );
+    bad(json!({ "type": "stun", "ticks": 0 }), ".ticks");
+}
+
+#[test]
+fn a_style_sets_the_smash_effect_once() {
+    let stun = || smash_kind(json!({ "type": "stun", "ticks": 30 }));
+    let mut v = with("/weapons/0/styles/0/kinds", json!([stun()]));
+    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([kind_level("again", json!([stun()]))]);
+    invalid_at(&v, "$.weapons[0].styles[0].upgrade_1[0].kinds[0]");
+    // One in each of two styles, and one beside a replace_step in a level, are fine.
+    let mut v = with("/weapons/0/styles/0/kinds", json!([stun()]));
+    v["weapons"][0]["styles"][1]["kinds"] = json!([stun()]);
+    valid(&v);
+    valid(&with(
+        "/weapons/0/styles/0/kinds",
+        json!([stun(), charge_kind(json!(AAA))]),
+    ));
+}
+
+#[test]
+fn a_smash_effect_needs_sim_version_2() {
+    let v = with(
+        "/weapons/0/styles/0/kinds",
+        json!([smash_kind(json!({ "type": "bleed" }))]),
+    );
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&v, old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}
