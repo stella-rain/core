@@ -171,6 +171,7 @@ mod swap_rating;
 mod sync_rig;
 mod tally;
 mod text_table;
+mod threat_colours;
 mod thunder;
 mod time_limit;
 mod time_limit_end;

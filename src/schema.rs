@@ -28,6 +28,7 @@ use crate::stage_skill::StageSkillsFile;
 use crate::star_chart::StarChartFile;
 use crate::stardust::StardustFile;
 use crate::starting_unlocks::StartingUnlocksFile;
+use crate::threat_colours::ThreatColoursFile;
 use crate::time_limit::TimeLimitFile;
 use crate::weapons::WeaponsFile;
 
@@ -61,6 +62,7 @@ pub fn all() -> Vec<(&'static str, String)> {
         PerkSetsFile,
         RulesFile,
         StardustFile,
+        ThreatColoursFile,
         StarChartFile,
         StartingUnlocksFile,
         DifficultiesFile,
@@ -179,6 +181,10 @@ pub fn all() -> Vec<(&'static str, String)> {
         ("perk_sets.schema.json", stub(&PerkSetsFile::schema_name())),
         ("rules.schema.json", stub(&RulesFile::schema_name())),
         ("stardust.schema.json", stub(&StardustFile::schema_name())),
+        (
+            "threat_colours.schema.json",
+            stub(&ThreatColoursFile::schema_name()),
+        ),
         (
             "star_chart.schema.json",
             stub(&StarChartFile::schema_name()),

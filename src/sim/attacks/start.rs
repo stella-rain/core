@@ -70,7 +70,7 @@ pub(in crate::sim) fn start_with(
     if busy(s, id, slot) {
         return false;
     }
-    let attack = world.attack_index(attack);
+    let attack = world.attack_index(attack, world.colour_of_owner(s, owner));
     if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
     }
@@ -130,7 +130,7 @@ pub(in crate::sim) fn start_player(
     if busy(s, s.id_of(Who::Player(me)), slot) {
         return false;
     }
-    let attack = world.attack_index(attack);
+    let attack = world.attack_index(attack, None);
     if world.attacks[usize::from(attack.0)].phases.is_empty() {
         return false;
     }
