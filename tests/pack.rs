@@ -482,6 +482,71 @@ fn a_difficulty_with_more_boss_times_than_the_pool_has_bosses_is_refused_with_th
     load(&v).expect("one boss time more than the pool has mid-bosses is the last, not a mid-boss");
 }
 
+/// The bundled pack without the entry `id` of the file `file` (member `list`), and of the
+/// pack's `introduced` list of the same name.
+fn without_entry(file: &str, list: &str, id: &str) -> Value {
+    let mut v = value();
+    v[file][list]
+        .as_array_mut()
+        .unwrap()
+        .retain(|e| e["id"] != json!(id));
+    v["introduced"][file]
+        .as_array_mut()
+        .unwrap()
+        .retain(|e| e["id"] != json!(id));
+    v
+}
+
+#[test]
+fn a_pack_without_the_default_perk_set_is_refused_with_the_pack() {
+    // A run that names no perk set starts with `duelist` (the fuzz invariant's own setup).
+    let mut v = without_entry("perk_sets", "perk_sets", run_setup::DEFAULT_PERK_SET);
+    // The star chart and the starting unlocks name `duelist` too; both are optional.
+    let pack = v.as_object_mut().unwrap();
+    pack.remove("star_chart");
+    pack.remove("starting_unlocks");
+    let issue = one_issue(load(&v), "perk_sets");
+    assert_eq!(issue.path, "$.perk_sets");
+    assert_eq!(
+        issue.message,
+        "the default perk set (duelist) is missing: a run that names none starts with it"
+    );
+}
+
+#[test]
+fn a_pack_without_the_default_difficulty_is_refused_with_the_pack() {
+    let mut v = without_entry(
+        "difficulties",
+        "difficulties",
+        run_setup::DEFAULT_DIFFICULTY,
+    );
+    // `hard` opens after `normal`: repoint it so that the missing default is the only issue.
+    for d in v["difficulties"]["difficulties"].as_array_mut().unwrap() {
+        if d["opens_after"] == json!(run_setup::DEFAULT_DIFFICULTY) {
+            d["opens_after"] = json!("easy");
+        }
+    }
+    let issue = one_issue(load(&v), "difficulties");
+    assert_eq!(issue.path, "$.difficulties");
+    assert_eq!(
+        issue.message,
+        "the default difficulty (normal) is missing: a run that names none starts with it"
+    );
+}
+
+#[test]
+fn the_default_setup_starts_a_run_of_the_bundled_pack() {
+    let pack = load(&value()).expect("the bundled pack loads");
+    let setup = run_setup::RunSetup {
+        mode: "trial".into(),
+        weapon: "giant_sword".into(),
+        sim_version: pack.sim_version(),
+        ..run_setup::RunSetup::default()
+    };
+    stella_rain_core::engine::Engine::start_with(&setup, pack.content())
+        .expect("a pack that loads starts a run");
+}
+
 #[test]
 fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode. A boss
