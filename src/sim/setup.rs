@@ -15,7 +15,7 @@ use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::sim::state::{
     AgentKey, AgentSource, BossState, Career, Dir, Offers, PartState, PlayerState, Progress,
-    StarField, StatRule, State, Streams,
+    Stagger, StarField, StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::trig;
@@ -359,6 +359,7 @@ pub(crate) fn boss_state(
         // A boss that calls no elites hashes nothing for it, a no-call boss too.
         elites_called: b.call_elites.filter(|_| !arrival.no_call).map(|_| false),
         age: 0,
+        stagger: Stagger::default(),
         parts: b
             .parts
             .iter()

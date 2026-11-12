@@ -451,6 +451,7 @@ fn dropped(n: u8, levels: [u32; 3], elite: bool, f: impl Fn(&mut State)) -> Rari
             called: false,
             boss_call: Default::default(),
             disguised: false,
+            stagger: Default::default(),
         });
     }
     f(&mut s);

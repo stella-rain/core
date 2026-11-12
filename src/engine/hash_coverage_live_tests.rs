@@ -137,6 +137,8 @@ perturb_through! {
     ShrineState => guardians,
     LeaveState => go,
     EliteState => called,
+    FoeControl => flinch,
+    Stagger => gauge,
     OrbLink => group,
     Hook => left,
     StatRule => step,
@@ -385,11 +387,24 @@ fn agent() -> AgentState {
         crowded: true,
         burst: true,
         stun_immune: 5,
+        control: FoeControl {
+            flinch: 1,
+            flinch_immune: 2,
+            hard_controls: 3,
+            hard_control_reset: 4,
+            knocked_down: 5,
+        },
         elite: Some(EliteState {
             home: pt(3),
             called: true,
             boss_call: BossCall::Leave,
             disguised: true,
+            stagger: Stagger {
+                gauge: 6,
+                breaks: 7,
+                drain: 8,
+                staggered: 9,
+            },
         }),
         leave: Some(LeaveState {
             disturbed: Some(2),
@@ -437,6 +452,12 @@ fn boss() -> BossState {
         }],
         elites_called: Some(true),
         age: 9,
+        stagger: Stagger {
+            gauge: 6,
+            breaks: 7,
+            drain: 8,
+            staggered: 9,
+        },
     }
 }
 
@@ -923,9 +944,13 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, BossState, |s| s.boss.as_mut().unwrap(),
-        moves: [id, origin, no_call, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age],
+        moves: [id, origin, no_call, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger],
         not_hashed: [],
         content: [boss, kind]);
+    each_field_moves_the_hash!(p, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
+        moves: [gauge, breaks, drain, staggered],
+        not_hashed: [],
+        content: []);
     each_field_moves_the_hash!(p, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         moves: [id, hp, max_hp, defence, offset, radius, statuses],
         not_hashed: [],
@@ -935,9 +960,13 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, AgentState, |s| &mut s.enemies[0],
-        moves: [id, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, elite, leave, shrine],
+        moves: [id, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, control, elite, leave, shrine],
         not_hashed: [],
         content: [def, kind]);
+    each_field_moves_the_hash!(p, FoeControl, |s| &mut s.enemies[0].control,
+        moves: [flinch, flinch_immune, hard_controls, hard_control_reset, knocked_down],
+        not_hashed: [],
+        content: []);
     each_field_moves_the_hash!(p, ShrineState, |s| s.enemies[0].shrine.as_deref_mut().unwrap(),
         moves: [fight, guardians],
         not_hashed: [],
@@ -947,8 +976,12 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
-        moves: [home, called, disguised],
+        moves: [home, called, disguised, stagger],
         not_hashed: [boss_call],
+        content: []);
+    each_field_moves_the_hash!(p, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
+        moves: [gauge, breaks, drain, staggered],
+        not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         moves: [to, ticks_left],

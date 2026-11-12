@@ -22,6 +22,88 @@ impl Decode for MoveOrder {
     }
 }
 
+/// A decoded value past its cap is refused (ADR-SIM-5 point 9).
+pub(super) fn within<T: PartialOrd>(v: T, cap: T, what: &'static str) -> Result<T, DecodeError> {
+    if v > cap {
+        Err(DecodeError::Invalid(what))
+    } else {
+        Ok(v)
+    }
+}
+
+impl Encode for FoeControl {
+    fn encode(&self, w: &mut Writer) {
+        let FoeControl {
+            flinch,
+            flinch_immune,
+            hard_controls,
+            hard_control_reset,
+            knocked_down,
+        } = self;
+        flinch.encode(w);
+        flinch_immune.encode(w);
+        hard_controls.encode(w);
+        hard_control_reset.encode(w);
+        knocked_down.encode(w);
+    }
+}
+
+impl Decode for FoeControl {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        use crate::limits::*;
+        Ok(FoeControl {
+            flinch: within(r.u16()?, MAX_FLINCH_TICKS, "flinch past its bound")?,
+            flinch_immune: within(
+                r.u16()?,
+                MAX_FLINCH_IMMUNE_TICKS,
+                "flinch_immune past its bound",
+            )?,
+            hard_controls: within(r.u8()?, MAX_CONTROL_REPEATS, "hard_controls past its bound")?,
+            hard_control_reset: within(
+                r.u16()?,
+                MAX_CONTROL_RESET_TICKS,
+                "hard_control_reset past its bound",
+            )?,
+            knocked_down: within(r.u16()?, MAX_DOWN_TICKS, "knocked_down past its bound")?,
+        })
+    }
+}
+
+impl Encode for Stagger {
+    fn encode(&self, w: &mut Writer) {
+        let Stagger {
+            gauge,
+            breaks,
+            drain,
+            staggered,
+        } = self;
+        gauge.encode(w);
+        breaks.encode(w);
+        drain.encode(w);
+        staggered.encode(w);
+    }
+}
+
+impl Decode for Stagger {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        use crate::limits::*;
+        Ok(Stagger {
+            gauge: within(r.u32()?, MAX_STAGGER, "stagger past its bound")?,
+            breaks: within(
+                r.u16()?,
+                MAX_STAGGER_BREAKS,
+                "stagger_breaks past its bound",
+            )?,
+            drain: within(
+                r.u16()?,
+                MAX_STAGGER_DRAIN_TICKS,
+                "stagger_drain past its bound",
+            )?,
+            staggered: within(r.u16()?, MAX_STAGGERED_TICKS, "staggered past its bound")?,
+        })
+    }
+}
+
 impl Encode for AgentSource {
     fn encode(&self, w: &mut Writer) {
         w.u8(match self {
@@ -113,11 +195,13 @@ impl Encode for EliteState {
             called,
             boss_call,
             disguised,
+            stagger,
         } = self;
         home.encode(w);
         called.encode(w);
         boss_call.encode(w);
         disguised.encode(w);
+        stagger.encode(w);
     }
 }
 
@@ -128,6 +212,7 @@ impl Decode for EliteState {
             called: Decode::decode(r)?,
             boss_call: Decode::decode(r)?,
             disguised: Decode::decode(r)?,
+            stagger: Decode::decode(r)?,
         })
     }
 }
@@ -155,6 +240,7 @@ impl Encode for AgentState {
             elite,
             leave,
             shrine,
+            control,
         } = self;
         id.encode(w);
         def.encode(w);
@@ -176,6 +262,7 @@ impl Encode for AgentState {
         elite.encode(w);
         leave.encode(w);
         shrine.encode(w);
+        control.encode(w);
     }
 }
 
@@ -202,6 +289,7 @@ impl Decode for AgentState {
             elite: Decode::decode(r)?,
             leave: Decode::decode(r)?,
             shrine: Decode::decode(r)?,
+            control: Decode::decode(r)?,
         })
     }
 }
@@ -270,6 +358,7 @@ impl Encode for BossState {
             parts,
             elites_called,
             age,
+            stagger,
         } = self;
         id.encode(w);
         boss.encode(w);
@@ -291,6 +380,7 @@ impl Encode for BossState {
         parts.encode(w);
         elites_called.encode(w);
         age.encode(w);
+        stagger.encode(w);
     }
 }
 
@@ -317,6 +407,7 @@ impl Decode for BossState {
             parts: decode_vec(r, max_parts())?,
             elites_called: Decode::decode(r)?,
             age: Decode::decode(r)?,
+            stagger: Decode::decode(r)?,
         })
     }
 }

@@ -499,10 +499,44 @@ impl StableHash for EliteState {
             // not hashed: what the boss's call does to the elite is its definition's.
             boss_call: _,
             disguised,
+            stagger,
         } = self;
         home.stable_hash(h);
         called.stable_hash(h);
         disguised.stable_hash(h);
+        stagger.stable_hash(h);
+    }
+}
+
+impl StableHash for FoeControl {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let FoeControl {
+            flinch,
+            flinch_immune,
+            hard_controls,
+            hard_control_reset,
+            knocked_down,
+        } = self;
+        flinch.stable_hash(h);
+        flinch_immune.stable_hash(h);
+        hard_controls.stable_hash(h);
+        hard_control_reset.stable_hash(h);
+        knocked_down.stable_hash(h);
+    }
+}
+
+impl StableHash for Stagger {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Stagger {
+            gauge,
+            breaks,
+            drain,
+            staggered,
+        } = self;
+        gauge.stable_hash(h);
+        breaks.stable_hash(h);
+        drain.stable_hash(h);
+        staggered.stable_hash(h);
     }
 }
 
@@ -531,6 +565,7 @@ impl StableHash for AgentState {
             elite,
             leave,
             shrine,
+            control,
         } = self;
         id.stable_hash(h);
         key.stable_hash(h);
@@ -550,6 +585,7 @@ impl StableHash for AgentState {
         elite.stable_hash(h);
         leave.stable_hash(h);
         shrine.stable_hash(h);
+        control.stable_hash(h);
     }
 }
 
@@ -603,6 +639,7 @@ impl StableHash for BossState {
             parts,
             elites_called,
             age,
+            stagger,
         } = self;
         id.stable_hash(h);
         origin.stable_hash(h);
@@ -622,6 +659,7 @@ impl StableHash for BossState {
         parts.stable_hash(h);
         elites_called.stable_hash(h);
         age.stable_hash(h);
+        stagger.stable_hash(h);
     }
 }
 

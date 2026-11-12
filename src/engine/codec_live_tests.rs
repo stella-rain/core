@@ -355,19 +355,25 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     let mut failures: Vec<String> = Vec::new();
 
     each_field_moves_the_encoding!(failures, base, BossState, |s| s.boss.as_mut().unwrap(),
-        fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age]);
+        fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger]);
+    each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
+        fields: [gauge, breaks, drain, staggered]);
     each_field_moves_the_encoding!(failures, base, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         fields: [id, name, kind, hp, max_hp, defence, offset, radius, statuses]);
     each_field_moves_the_encoding!(failures, base, AgentKey, |s| &mut s.enemies[0].key,
         fields: [source, index, rule]);
     each_field_moves_the_encoding!(failures, base, AgentState, |s| &mut s.enemies[0],
-        fields: [id, def, kind, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, elite, leave, shrine]);
+        fields: [id, def, kind, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, control, elite, leave, shrine]);
+    each_field_moves_the_encoding!(failures, base, FoeControl, |s| &mut s.enemies[0].control,
+        fields: [flinch, flinch_immune, hard_controls, hard_control_reset, knocked_down]);
     each_field_moves_the_encoding!(failures, base, ShrineState, |s| s.enemies[0].shrine.as_deref_mut().unwrap(),
         fields: [fight, guardians]);
     each_field_moves_the_encoding!(failures, base, LeaveState, |s| s.enemies[0].leave.as_mut().unwrap(),
         fields: [disturbed, go]);
     each_field_moves_the_encoding!(failures, base, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
-        fields: [home, called, boss_call, disguised]);
+        fields: [home, called, boss_call, disguised, stagger]);
+    each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
+        fields: [gauge, breaks, drain, staggered]);
     each_field_moves_the_encoding!(failures, base, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         fields: [to, ticks_left]);
     each_field_moves_the_encoding!(failures, base, RuleState, |s| &mut s.enemies[0].rules[0],
@@ -731,4 +737,59 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// Each cap of the enemy combat fields (ADR-SIM-5 point 9): the value at the cap decodes and
+/// round-trips, one past it is refused, and a fresh agent holds zero.
+#[test]
+fn the_enemy_combat_fields_are_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::{FoeControl, Stagger};
+    let at_cap = FoeControl {
+        flinch: MAX_FLINCH_TICKS,
+        flinch_immune: MAX_FLINCH_IMMUNE_TICKS,
+        hard_controls: MAX_CONTROL_REPEATS,
+        hard_control_reset: MAX_CONTROL_RESET_TICKS,
+        knocked_down: MAX_DOWN_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut FoeControl)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<FoeControl>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.flinch += 1);
+    refused(&|c| c.flinch_immune += 1);
+    refused(&|c| c.hard_controls += 1);
+    refused(&|c| c.hard_control_reset += 1);
+    refused(&|c| c.knocked_down += 1);
+
+    let at_cap = Stagger {
+        gauge: MAX_STAGGER,
+        breaks: MAX_STAGGER_BREAKS,
+        drain: MAX_STAGGER_DRAIN_TICKS,
+        staggered: MAX_STAGGERED_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut Stagger)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<Stagger>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.gauge += 1);
+    refused(&|c| c.breaks += 1);
+    refused(&|c| c.drain += 1);
+    refused(&|c| c.staggered += 1);
+
+    let fresh = engine();
+    let s = fresh.run.live();
+    for a in s.enemies.iter().chain(&s.companions) {
+        assert_eq!(a.control, FoeControl::default());
+    }
 }

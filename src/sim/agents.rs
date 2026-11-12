@@ -10,8 +10,8 @@ use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::sim::state::{
-    AgentKey, AgentSource, AgentState, EliteState, LeaveState, MoveOrder, RuleState, Rules,
-    ShrineState, State, Statuses, UNLIMITED,
+    AgentKey, AgentSource, AgentState, EliteState, FoeControl, LeaveState, MoveOrder, RuleState,
+    Rules, ShrineState, Stagger, State, Statuses, UNLIMITED,
 };
 use crate::trig;
 
@@ -49,11 +49,13 @@ pub(super) fn new_agent(
         crowded: false,
         burst: false,
         stun_immune: 0,
+        control: FoeControl::default(),
         elite: def.elite.as_ref().map(|elite| EliteState {
             home: at,
             called: false,
             boss_call: elite.boss_call,
             disguised: elite.mimic.is_some(),
+            stagger: Stagger::default(),
         }),
         leave: (matches!(def.movement, Movement::FleeWhenDisturbed { .. })
             || def
