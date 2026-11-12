@@ -67,6 +67,17 @@
 //! and no phase names an `advance`, so no state, hash or replay moves. The slowed set is
 //! `Scratch::slowed`, recomputed each tick from the state.
 //!
+//! The weapon gauge a style grants (`World::gauge_of`, the `gauge` style kind) is just as dormant:
+//! it reads and writes only `PlayerCombat::weapon_gauge` and `gauge_step_fill`, fills in
+//! `hit_boxes::land` (`player::gauge_from_hits`) and `player_hits::hurt_player`
+//! (`player::gauge_from_damage`), is spent by a B step at a full gauge (`player::spend_gauge`),
+//! and the orb clear (`hit_boxes::clear_orbs`) follows that attack. A run whose pack names no
+//! gauge keeps every one of those at zero, one bool test each.
+//!
+//! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
+//! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
+//! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
+//!
 //! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
 //! character's damage in `collide`.
@@ -134,6 +145,8 @@ pub(crate) mod equipment;
 mod expertise;
 #[cfg(test)]
 mod frozen_tests;
+#[cfg(test)]
+mod gauge_tests;
 mod grid;
 #[cfg(test)]
 mod hash_fields_tests;

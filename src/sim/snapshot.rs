@@ -15,10 +15,10 @@ use crate::rewards::{EquipmentRules, Rarity};
 use crate::run_content::RunContent;
 use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
-    EntityView, EvadeView, ExpertiseView, Facing, HealPickupView, HeldView, HoldView, MapView,
-    OrbView, OrbitView, PlayerView, ProgressView, PullView, RuneView, ShieldView, SkillView,
-    SlotKindView, SlotView, Snapshot, StarView, StarlightPrice, StarlightView, StatusView,
-    TypeBonusView, ZoneView,
+    EntityView, EvadeView, ExpertiseView, Facing, GaugeView, HealPickupView, HeldView, HoldView,
+    MapView, OrbView, OrbitView, PerfectEvadeView, PlayerView, ProgressView, PullView, RuneView,
+    ShieldView, SkillView, SlotKindView, SlotView, Snapshot, StarView, StarlightPrice,
+    StarlightView, StatusView, TypeBonusView, ZoneView,
 };
 
 use super::equipment::{Held, SlotKind};
@@ -250,6 +250,18 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             recovering: s.players[me].evade_recovering.clone(),
             dash_left: s.players[me].dash.map_or(0, |d| d.left),
         },
+        gauge: world.gauge_of(s, me).map(|g| GaugeView {
+            value: s.players[me].combat.weapon_gauge,
+            max: g.max,
+        }),
+        perfect_evade: world.tuning.perfect_evade.and_then(|t| {
+            let c = &s.players[me].combat;
+            (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {
+                slow_left: u32::from(c.perfect_slow),
+                cooldown_left: u32::from(c.perfect_cooldown),
+                reach: Fx(t.reach),
+            })
+        }),
         combo: {
             let (presses, dash, buffered, window_left, auto) = combo_view(s, me);
             ComboView {

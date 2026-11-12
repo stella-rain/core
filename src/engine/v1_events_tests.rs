@@ -201,6 +201,10 @@ fn without_player_fields(event: &DomainEvent) -> String {
     ] {
         text = text.replace(field, "");
     }
+    // `OrbBroken`'s player is its last field.
+    if text.starts_with("OrbBroken") {
+        text = text.replace(", player: None }", " }");
+    }
     text
 }
 

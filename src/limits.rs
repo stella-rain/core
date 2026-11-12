@@ -119,6 +119,11 @@ pub const MAX_PERFECT_SLOW_TICKS: u16 = 300;
 pub const MAX_PERFECT_COOLDOWN_TICKS: u16 = 3_600;
 /// The farthest a perfect evade's reach may be, in px: the view's half width.
 pub const MAX_PERFECT_REACH: i32 = VIEW_HALF_WIDTH;
+/// The most a style's `gauge` may fill from damage taken, in percent of the gauge per percent of
+/// maximum hit points lost (100 is one for one).
+pub const MAX_GAUGE_DAMAGE_PCT: u32 = 1_000;
+/// The farthest the orb clear's radius may be, in px: the view's half width.
+pub const MAX_ORB_CLEAR_RADIUS: i32 = VIEW_HALF_WIDTH;
 /// The most a slowed entity's `perfect_evade_slow_every` may be: it acts one tick in this many.
 pub const MAX_PERFECT_SLOW_EVERY: u8 = 8;
 /// The longest slide a combo phase's `advance` may name, in px.
@@ -245,6 +250,8 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_PERFECT_SLOW_TICKS", "300", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_COOLDOWN_TICKS", "3600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_REACH", "420", "px", "ADR-SIM-5"),
+    LimitEntry::new("MAX_GAUGE_DAMAGE_PCT", "1000", "percent", "ADR-SIM-5"),
+    LimitEntry::new("MAX_ORB_CLEAR_RADIUS", "420", "px", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_SLOW_EVERY", "8", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_ADVANCE_DISTANCE", "240", "px", "ADR-SIM-5"),
     LimitEntry::new("MAX_ADVANCE_PER_TICK", "12", "px", "ADR-SIM-5"),
@@ -434,6 +441,23 @@ mod tests {
         assert_eq!(rows.len(), 28);
         assert_eq!(MAX_RALLY, crate::validate::limits::MAX_PLAYER_HP);
         for (name, value, unit) in rows {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
+    }
+
+    /// The gauge's caps (ADR-SIM-5): a fill formula's percent and the orb clear's radius.
+    #[test]
+    fn the_gauge_caps_have_rows() {
+        for (name, value, unit) in [
+            ("MAX_GAUGE_DAMAGE_PCT", "1000", "percent"),
+            ("MAX_ORB_CLEAR_RADIUS", "420", "px"),
+        ] {
             let row = LIMITS
                 .iter()
                 .find(|e| e.name == name)

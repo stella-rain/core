@@ -1154,3 +1154,59 @@ fn the_perfect_evade_keys_change_the_derived_content_hash() {
         );
     }
 }
+
+// --- The orb clear's radius (the full-gauge smash's clear) -------------------------------------
+
+#[test]
+fn orb_clear_radius_loads_at_its_bounds_and_is_refused_past_them() {
+    for stored in [256, 420 * 256] {
+        let rules = Rules::parse(&with("orb_clear_radius", stored), Versions::CURRENT)
+            .unwrap_or_else(|e| panic!("{stored} refused: {e:?}"));
+        assert_eq!(
+            rules.orb_clear_radius(),
+            Some(Fx(i32::try_from(stored).expect("fits")))
+        );
+    }
+    for stored in [0, 420 * 256 + 1] {
+        assert_eq!(
+            paths(Rules::parse(
+                &with("orb_clear_radius", stored),
+                Versions::CURRENT
+            )),
+            ["$.orb_clear_radius"],
+            "{stored}"
+        );
+    }
+}
+
+#[test]
+fn orb_clear_radius_needs_sim_version_2() {
+    let v1 = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    let got = paths(Rules::parse(&with("orb_clear_radius", 25_600), v1));
+    assert!(got.contains(&"$.orb_clear_radius".to_string()), "{got:?}");
+}
+
+#[test]
+fn the_bundled_file_names_no_orb_clear_radius() {
+    let v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    assert!(v.get("orb_clear_radius").is_none());
+    assert_eq!(Rules::bundled().orb_clear_radius(), None);
+}
+
+#[test]
+fn orb_clear_radius_changes_the_derived_content_hash() {
+    let base = RunContent::bundled().clone();
+    let changed = run_content_with(
+        Rules::parse(&with("orb_clear_radius", 25_600), Versions::CURRENT).expect("the key loads"),
+    );
+    for mode in ["trial", "time_limit", "tutorial"] {
+        assert_ne!(
+            content_sha256_with(mode, &base),
+            content_sha256_with(mode, &changed),
+            "{mode}"
+        );
+    }
+}

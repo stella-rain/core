@@ -57,6 +57,9 @@ pub(super) fn hurt_player(
         // A dash, charge, hold or combo step does not wait for the revive.
         player::stand_down(stage, s, me, events);
     }
+    if stage.has_gauge {
+        player::gauge_from_damage(stage, s, me, before_hp - s.players[me].hp, events);
+    }
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
         player::break_charge(stage, s, me, events);
@@ -213,7 +216,7 @@ pub(super) fn hit_players_side(
             );
         if p.invulnerable > 0 {
             if touches && p.combat.perfect_window > 0 {
-                super::player::near_miss(stage, s, me);
+                super::player::near_miss(stage, s, me, events);
             }
         } else if touches {
             hurt_player(stage, s, me, aided(stage, s, b), by, events);

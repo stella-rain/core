@@ -10,9 +10,11 @@ use super::drops::DropTable;
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement};
+use crate::expertise::{Gauge, StyleKind};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
+use crate::limits::{MAX_GAUGE_DAMAGE_PCT, MAX_WEAPON_GAUGE};
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
 use crate::run_content::RunContent;
@@ -448,6 +450,8 @@ pub(crate) struct Tuning {
     pub stagger_damage_pct: u32,
     pub staggered_ticks: u16,
     pub vulnerable_stagger_pct: u16,
+    /// The orb clear's radius in 1/256 px, clamped to the cap; 0: no clear (`sim_version` 2).
+    pub orb_clear_radius: i32,
 }
 
 impl Tuning {
@@ -513,6 +517,7 @@ impl Tuning {
             staggered_ticks: rules.staggered_ticks(),
             vulnerable_stagger_pct: u16::try_from(rules.vulnerable_stagger_pct())
                 .unwrap_or(u16::MAX),
+            orb_clear_radius: rules.orb_clear_radius().map_or(0, |r| r.0),
         }
     }
 }
@@ -585,6 +590,11 @@ pub(crate) struct World {
     /// that grants something (ADR-SIM-9 point 3), at `style * 4 + taken`; empty for a run whose
     /// weapon has no grant, which is every run of the bundled pack.
     grant_weapons: Vec<Option<Weapon>>,
+    /// The weapon gauge each of those copies has (the first `gauge` kind of the style's own level
+    /// and the path levels taken), at the same index; empty when no style names one.
+    grant_gauges: Vec<Option<Gauge>>,
+    /// Some style names a gauge: the tick looks for one only then.
+    pub has_gauge: bool,
 }
 
 /// The places of a style's path (0 to 3 taken): the copies of one style.
@@ -709,6 +719,7 @@ impl World {
         }
         let weapon = content.weapons().resolve(main).cloned();
         let grant_weapons = grant_weapons(main, weapon.as_ref(), content);
+        let grant_gauges = grant_gauges(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -763,6 +774,8 @@ impl World {
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
+            has_gauge: grant_gauges.iter().any(Option::is_some),
+            grant_gauges,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -859,20 +872,39 @@ impl World {
         if self.grant_weapons.is_empty() {
             return self.weapon();
         }
-        let granted = s.players.career(me).expertise.as_ref().and_then(|g| {
-            let style = usize::from(g.style?);
-            // Under `try_styles` the path is the log of the picks, not upgrades taken: the style's
-            // own grants only (ADR-SIM-9 point 3).
-            let taken = if self.try_styles {
-                0
-            } else {
-                g.path.len().min(PATH_PLACES - 1)
-            };
-            self.grant_weapons
-                .get(style * PATH_PLACES + taken)?
-                .as_ref()
-        });
+        let granted = self
+            .grant_slot(s, me)
+            .and_then(|at| self.grant_weapons.get(at)?.as_ref());
         granted.or_else(|| self.weapon())
+    }
+
+    /// Where the style player `me` holds and the places of its path taken put it in the grant
+    /// lists (`style * PATH_PLACES + taken`), read from the recorded style and path, so no state
+    /// or input is added. Under `try_styles` the path is the log of the picks, not upgrades
+    /// taken: the style's own grants only (ADR-SIM-9 point 3).
+    fn grant_slot(&self, s: &super::state::State, me: PlayerIdx) -> Option<usize> {
+        let g = s.players.career(me).expertise.as_ref()?;
+        let style = usize::from(g.style?);
+        let taken = if self.try_styles {
+            0
+        } else {
+            g.path.len().min(PATH_PLACES - 1)
+        };
+        Some(style * PATH_PLACES + taken)
+    }
+
+    /// The weapon gauge player `me`'s style gives, read from the same slot as `weapon_of`; none
+    /// after one bool test for a run that names no gauge.
+    pub(crate) fn gauge_of(&self, s: &super::state::State, me: PlayerIdx) -> Option<&Gauge> {
+        if !self.has_gauge {
+            return None;
+        }
+        self.grant_gauges.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// Every full-gauge attack, for the attack table.
+    pub(super) fn granted_gauges(&self) -> impl Iterator<Item = &Gauge> {
+        self.grant_gauges.iter().flatten()
     }
 
     /// Every copy of the weapon with a style's grants, for the attack table.
@@ -990,6 +1022,58 @@ fn grant_weapons(
         }
     }
     out
+}
+
+/// The gauge of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), numbers clamped to their caps again (ADR-SVC-1). Empty when no style of the
+/// weapon names one.
+fn grant_gauges(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<Gauge>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let gauge_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::Gauge(g) => Some(clamped(g)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(gauge_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `g` with every number inside its cap.
+fn clamped(g: &Gauge) -> Gauge {
+    let max = g.max.clamp(1, MAX_WEAPON_GAUGE);
+    Gauge {
+        max,
+        per_step: g.per_step.min(max),
+        per_hit: g.per_hit.min(max),
+        from_damage_pct: g.from_damage_pct.min(MAX_GAUGE_DAMAGE_PCT),
+        step_cap: g.step_cap.clamp(1, max),
+        spend: g.spend.clone(),
+    }
 }
 
 #[cfg(test)]
