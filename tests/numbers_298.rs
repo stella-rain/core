@@ -277,3 +277,86 @@ fn the_combat_picks_are_applied() {
     }
     assert_eq!(equipment["rune_share_permille"], 100);
 }
+
+/// The economy picks (ADR-CONT-3, ADR-CONT-4): the Star Chart prices in tenths of Stardust, the
+/// Lumine levels, the Starlight craft price at three times the extract, the rune extract and the
+/// boss bonus and drops; the Stardust shares and bank are kept.
+#[test]
+fn the_economy_picks_are_applied() {
+    let chart = bundled(std::str::from_utf8(common::bundled_file("star_chart")).unwrap());
+    let num = |v: &Value| v.as_u64().unwrap();
+    let nums = |v: &Value| -> Vec<u64> { v.as_array().unwrap().iter().map(num).collect() };
+    let priced = |list: &str, price: u64| {
+        let items = chart[list].as_array().unwrap();
+        for item in items {
+            assert_eq!(num(&item["price"]), price, "{list} {}", item["id"]);
+        }
+        items.len() as u64 * price
+    };
+    let mut total = 0;
+    assert_eq!(chart["weapons"].as_array().unwrap().len(), 1);
+    total += priced("weapons", 12000);
+    assert_eq!(chart["perk_sets"].as_array().unwrap().len(), 3);
+    total += priced("perk_sets", 8000);
+    assert_eq!(chart["stage_skills"].as_array().unwrap().len(), 4);
+    total += priced("stage_skills", 6000);
+    assert_eq!(num(&chart["starting_rune"]), 6000);
+    total += 6000;
+    let stats = chart["stats"].as_array().unwrap();
+    assert_eq!(stats.len(), 5);
+    for s in stats {
+        assert_eq!(
+            nums(&s["prices"]),
+            [600, 1200, 1800, 2400, 3000],
+            "{}",
+            s["id"]
+        );
+        total += nums(&s["prices"]).iter().sum::<u64>();
+    }
+    let expertise = nums(&chart["expertise_multiplier"]);
+    assert_eq!(expertise, [3000, 6000, 9000, 12000, 15000]);
+    total += expertise.iter().sum::<u64>();
+    assert_eq!(total, 156_000);
+    let lumine = nums(&chart["lumine_levels"]);
+    assert_eq!(
+        lumine,
+        (1..=10).map(|k| 10_000 * k).collect::<Vec<u64>>(),
+        "Lumine level k costs 1,000 x k shown"
+    );
+    assert_eq!(lumine.iter().sum::<u64>(), 550_000);
+
+    let rewards = bundled(std::str::from_utf8(common::bundled_file("rewards")).unwrap());
+    let equipment = &rewards["equipment"];
+    let rarities = equipment["rarities"].as_array().unwrap();
+    let extract: Vec<u64> = rarities.iter().map(|r| num(&r["extract"])).collect();
+    let craft: Vec<u64> = rarities.iter().map(|r| num(&r["craft_price"])).collect();
+    assert_eq!(extract, [5, 10, 20, 40, 80, 160]);
+    assert_eq!(craft, [15, 30, 60, 120, 240, 480]);
+    for (c, e) in craft.iter().zip(&extract) {
+        assert_eq!(*c, 3 * e, "a craft costs three times the extract");
+    }
+    assert_eq!(equipment["rune_extract"], 20);
+    assert_eq!(equipment["boss_bonus"], 150);
+    assert_eq!(equipment["boss_drops"], 2);
+    assert_eq!(equipment["rune_share_permille"], 100);
+    let lumine_cost: Vec<u64> = rarities.iter().map(|r| num(&r["lumine_cost"])).collect();
+    assert_eq!(lumine_cost, [1, 2, 3, 4, 6, 10]);
+
+    // The Stardust shares and the bank are kept for both modes.
+    let stardust = bundled(std::str::from_utf8(common::bundled_file("stardust")).unwrap());
+    let modes = stardust["modes"].as_array().unwrap();
+    assert_eq!(modes.len(), 2);
+    for m in modes {
+        assert_eq!(m["bank"], true, "{}", m["id"]);
+        assert_eq!(
+            (
+                m["pay_pct"].clone(),
+                m["bank_pct"].clone(),
+                m["bank_cap"].clone()
+            ),
+            (json!(50), json!(50), json!(1000)),
+            "{}",
+            m["id"]
+        );
+    }
+}
