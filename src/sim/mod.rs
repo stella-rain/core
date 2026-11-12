@@ -159,6 +159,8 @@ mod levels;
 mod levels_tests;
 mod loadout;
 mod offer_rating;
+#[cfg(test)]
+mod repeat_tests;
 mod slots;
 #[cfg(test)]
 mod try_styles_tests;
