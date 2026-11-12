@@ -92,6 +92,37 @@ pub(crate) struct PlayerState {
     pub revive_hold: u32,
     /// Whether the player is permanently out for the run (ADR-SIM-7).
     pub out: bool,
+    /// The combat rules' counters; all zero until a rule writes them.
+    pub combat: PlayerCombat,
+}
+
+/// A player's combat counters (ADR-SIM-5 point 9: each is capped at decode by its `limits.rs`
+/// constant). Ticks left unless the name says otherwise; zero is none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PlayerCombat {
+    /// Ticks left of the perfect-evade window.
+    pub perfect_window: u16,
+    /// Ticks left of the slow a perfect evade gives.
+    pub perfect_slow: u16,
+    /// Ticks left before another perfect evade slows.
+    pub perfect_cooldown: u16,
+    /// The weapon gauge, and what one step has filled into it.
+    pub weapon_gauge: u32,
+    pub gauge_step_fill: u32,
+    /// Hit points that can be won back by hitting, and the ticks left before they lapse.
+    pub rally: u32,
+    pub rally_ticks: u16,
+    /// The spirit level and the ticks left before it decays.
+    pub spirit_level: u8,
+    pub spirit_decay: u16,
+    /// Ticks left of the counter window.
+    pub counter_window: u16,
+    /// The combo tempo stacks held.
+    pub combo_tempo: u8,
+    /// Ticks left before the giant trigger can fire again.
+    pub giant_trigger: u16,
+    /// Ticks left in which a ranged start is refused against this player as its target.
+    pub ranged_grace: u16,
 }
 
 impl Clone for PlayerState {
@@ -134,6 +165,7 @@ impl Clone for PlayerState {
             down_ticks,
             revive_hold,
             out,
+            combat,
         } = self;
         PlayerState {
             at: *at,
@@ -173,6 +205,7 @@ impl Clone for PlayerState {
             down_ticks: *down_ticks,
             revive_hold: *revive_hold,
             out: *out,
+            combat: *combat,
         }
     }
 
@@ -216,6 +249,7 @@ impl Clone for PlayerState {
             down_ticks,
             revive_hold,
             out,
+            combat,
         } = self;
         let PlayerState {
             at: s_at,
@@ -255,6 +289,7 @@ impl Clone for PlayerState {
             down_ticks: s_down_ticks,
             revive_hold: s_revive_hold,
             out: s_out,
+            combat: s_combat,
         } = source;
         *at = *s_at;
         *hp = *s_hp;
@@ -293,6 +328,7 @@ impl Clone for PlayerState {
         *down_ticks = *s_down_ticks;
         *revive_hold = *s_revive_hold;
         *out = *s_out;
+        *combat = *s_combat;
     }
 }
 

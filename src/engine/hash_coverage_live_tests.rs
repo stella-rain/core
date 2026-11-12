@@ -144,6 +144,7 @@ perturb_through! {
     StatRule => step,
     Streams => spawn,
     PlayerState => at,
+    PlayerCombat => perfect_window,
     BossState => hp,
     PartState => hp,
     AgentState => hp,
@@ -664,6 +665,21 @@ fn player(p: &mut PlayerState) {
     p.down_ticks = 1;
     p.revive_hold = 2;
     p.out = false;
+    p.combat = PlayerCombat {
+        perfect_window: 1,
+        perfect_slow: 2,
+        perfect_cooldown: 3,
+        weapon_gauge: 4,
+        gauge_step_fill: 5,
+        rally: 6,
+        rally_ticks: 7,
+        spirit_level: 1,
+        spirit_decay: 9,
+        counter_window: 10,
+        combo_tempo: 4,
+        giant_trigger: 12,
+        ranged_grace: 13,
+    };
     p.combo = ComboState {
         path: 5,
         depth: 2,
@@ -912,7 +928,11 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [stats],
         content: []);
     each_field_moves_the_hash!(p, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out],
+        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
+        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,

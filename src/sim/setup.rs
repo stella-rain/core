@@ -14,8 +14,8 @@ use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Career, Dir, Offers, PartState, PlayerState, Progress,
-    Stagger, StarField, StatRule, State, Streams,
+    AgentKey, AgentSource, BossState, Career, Dir, Offers, PartState, PlayerCombat, PlayerState,
+    Progress, Stagger, StarField, StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::trig;
@@ -256,6 +256,7 @@ fn unreserved_state(
                 down_ticks: 0,
                 revive_hold: 0,
                 out: false,
+                combat: PlayerCombat::default(),
             },
             Career::new(
                 seed,

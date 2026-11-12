@@ -679,7 +679,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
     each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out]);
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat]);
     each_field_moves_the_encoding!(failures, base, Career, |s| s.players.career_mut(PlayerIdx::SOLO),
         fields: [progress, offer, expertise, stardust, regen, equipment],
         skip: [offers]);
@@ -687,6 +687,8 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         fields: [inventory, slots, lumine, starlight, tree_points]);
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
+    each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -792,4 +794,64 @@ fn the_enemy_combat_fields_are_bounded_at_decode() {
     for a in s.enemies.iter().chain(&s.companions) {
         assert_eq!(a.control, FoeControl::default());
     }
+}
+
+/// Each cap of the player combat fields: the value at the cap decodes and round-trips, one past
+/// it is refused; a rally above the player's own maximum is refused too.
+#[test]
+fn the_player_combat_fields_are_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::PlayerCombat;
+    let at_cap = PlayerCombat {
+        perfect_window: MAX_PERFECT_WINDOW_TICKS,
+        perfect_slow: MAX_PERFECT_SLOW_TICKS,
+        perfect_cooldown: MAX_PERFECT_COOLDOWN_TICKS,
+        weapon_gauge: MAX_WEAPON_GAUGE,
+        gauge_step_fill: MAX_WEAPON_GAUGE,
+        rally: MAX_RALLY,
+        rally_ticks: MAX_RALLY_TICKS,
+        spirit_level: MAX_SPIRIT_LEVEL,
+        spirit_decay: MAX_SPIRIT_DECAY_TICKS,
+        counter_window: MAX_COUNTER_WINDOW_TICKS,
+        combo_tempo: MAX_TEMPO_STACKS,
+        giant_trigger: MAX_TRIGGER_TICKS,
+        ranged_grace: MAX_RANGED_GRACE_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut PlayerCombat)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<PlayerCombat>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.perfect_window += 1);
+    refused(&|c| c.perfect_slow += 1);
+    refused(&|c| c.perfect_cooldown += 1);
+    refused(&|c| c.weapon_gauge += 1);
+    refused(&|c| c.gauge_step_fill += 1);
+    refused(&|c| c.rally += 1);
+    refused(&|c| c.rally_ticks += 1);
+    refused(&|c| c.spirit_level += 1);
+    refused(&|c| c.spirit_decay += 1);
+    refused(&|c| c.counter_window += 1);
+    refused(&|c| c.combo_tempo += 1);
+    refused(&|c| c.giant_trigger += 1);
+    refused(&|c| c.ranged_grace += 1);
+
+    let mut p = solo(&base()).clone();
+    p.combat.rally = p.max_hp;
+    round_trip(&p);
+    p.combat.rally = p.max_hp + 1;
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("rally past its bound"))
+    );
+
+    let fresh = engine();
+    assert_eq!(
+        fresh.run.live().players[PlayerIdx::SOLO].combat,
+        PlayerCombat::default()
+    );
 }

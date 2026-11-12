@@ -508,6 +508,39 @@ impl StableHash for EliteState {
     }
 }
 
+impl StableHash for PlayerCombat {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let PlayerCombat {
+            perfect_window,
+            perfect_slow,
+            perfect_cooldown,
+            weapon_gauge,
+            gauge_step_fill,
+            rally,
+            rally_ticks,
+            spirit_level,
+            spirit_decay,
+            counter_window,
+            combo_tempo,
+            giant_trigger,
+            ranged_grace,
+        } = self;
+        perfect_window.stable_hash(h);
+        perfect_slow.stable_hash(h);
+        perfect_cooldown.stable_hash(h);
+        weapon_gauge.stable_hash(h);
+        gauge_step_fill.stable_hash(h);
+        rally.stable_hash(h);
+        rally_ticks.stable_hash(h);
+        spirit_level.stable_hash(h);
+        spirit_decay.stable_hash(h);
+        counter_window.stable_hash(h);
+        combo_tempo.stable_hash(h);
+        giant_trigger.stable_hash(h);
+        ranged_grace.stable_hash(h);
+    }
+}
+
 impl StableHash for FoeControl {
     fn stable_hash(&self, h: &mut StateHasher) {
         let FoeControl {
@@ -817,6 +850,7 @@ impl StableHash for PlayerState {
             down_ticks,
             revive_hold,
             out,
+            combat,
         } = self;
         at.stable_hash(h);
         hp.stable_hash(h);
@@ -855,6 +889,7 @@ impl StableHash for PlayerState {
         down_ticks.stable_hash(h);
         revive_hold.stable_hash(h);
         out.stable_hash(h);
+        combat.stable_hash(h);
     }
 }
 
