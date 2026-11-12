@@ -14,7 +14,8 @@ use super::{
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::expertise::{
-    Expertise, MAX_STEP_REPEATS, StyleKind, apply_grant, step_mut, style_levels,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, StyleKind, apply_grant, step_mut, style_levels,
+    weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -204,6 +205,7 @@ pub(super) fn check_style_grants(
             let mut tree = base.clone();
             // Each repeat kind's path and step, for the checks that need the whole path applied.
             let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
+            let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             'style: for (path, kinds) in levels {
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
@@ -245,6 +247,11 @@ pub(super) fn check_style_grants(
                             }
                             continue;
                         }
+                        StyleKind::Gauge(g) => {
+                            let GaugeSpend::FullSmash { attack } = &g.spend;
+                            gauges.push((format!("{at}.spend.attack"), attack));
+                            continue;
+                        }
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()
@@ -268,6 +275,19 @@ pub(super) fn check_style_grants(
                     issues.push(validate::Issue {
                         path: at,
                         message: "a held step does not repeat".into(),
+                    });
+                }
+            }
+            // A full-gauge attack equal to an attack the style's tree can play would clear orbs
+            // as an ordinary step (the run tells it apart by its compiled index alone).
+            let played = weapon_attacks(base)
+                .into_iter()
+                .chain(weapon_attacks(&tree));
+            for (path, attack) in gauges {
+                if played.clone().any(|a| a == attack) {
+                    issues.push(validate::Issue {
+                        path,
+                        message: "the same as an attack of the base tree".into(),
                     });
                 }
             }

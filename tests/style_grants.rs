@@ -8,6 +8,7 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
+use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::version::Versions;
 
 use crate::common;
@@ -366,4 +367,112 @@ fn a_grant_replaces_the_step_s_charge_with_a_hold() {
         (false, true),
         "the grant leaves a hold and no charge"
     );
+}
+
+fn gauge_kind(attack: Value) -> Value {
+    json!({
+        "type": "gauge", "max": 100, "per_step": 10, "per_hit": 2, "step_cap": 14,
+        "spend": { "type": "full_smash", "attack": attack }
+    })
+}
+
+/// Every attack of a weapon tree's JSON: a step's, a charge level's (and its perfect one), a
+/// hold's loop and release.
+fn tree_attacks(v: &Value, out: &mut Vec<Value>) {
+    match v {
+        Value::Object(map) => {
+            for (key, inner) in map {
+                if matches!(
+                    key.as_str(),
+                    "attack" | "loop" | "release" | "perfect_attack"
+                ) {
+                    out.push(inner.clone());
+                }
+                tree_attacks(inner, out);
+            }
+        }
+        Value::Array(list) => list.iter().for_each(|i| tree_attacks(i, out)),
+        _ => {}
+    }
+}
+
+fn hammer_pack(kinds: Vec<Value>) -> Value {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .expect("the Hammer's expertise");
+    w["styles"][0]["kinds"] = json!(kinds);
+    w["styles"][0]["upgrade_1"][0]["effect"] = json!("attack_pct");
+    v
+}
+
+/// G2: a full-gauge attack equal to an attack of the weapon's base tree is refused at its
+/// `spend.attack` (the clear could not tell it from an ordinary step); a different one loads.
+#[test]
+fn a_gauge_attack_differs_from_every_attack_of_the_base_tree() {
+    let bundled: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let hammer = bundled["weapons"]["weapons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["id"] == "giant_hammer")
+        .unwrap();
+    let mut base = Vec::new();
+    tree_attacks(&hammer["trees"][0]["weapon"], &mut base);
+    assert!(
+        base.len() >= 3,
+        "the Hammer's tree has attacks: {}",
+        base.len()
+    );
+    for attack in base {
+        let v = hammer_pack(vec![gauge_kind(attack.clone())]);
+        match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+            Err(PackError::File {
+                file: "expertise",
+                error,
+            }) => {
+                let issues = format!("{error:?}");
+                assert!(
+                    issues.contains("$.weapons[0].styles[0].kinds[0].spend.attack"),
+                    "{attack}: {issues}"
+                );
+            }
+            other => panic!("{attack}: expected a refusal, got {:?}", other.map(|_| ())),
+        }
+    }
+    let ok = hammer_pack(vec![gauge_kind(json!({ "preset": { "id": "slash" } }))]);
+    // The Hammer's own steps are presets or inline; `slash` is none of them or this test says so.
+    let loaded = Pack::from_bytes(&serde_json::to_vec(&ok).unwrap());
+    assert!(loaded.is_ok(), "{:?}", loaded.err());
+    assert!(Pack::from_bytes(Pack::BUNDLED).is_ok());
+}
+
+/// G5: the views carry a gauge kind compactly (no attack inside) and the bundled pack names none.
+#[test]
+fn the_views_carry_the_gauge_kind() {
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    let w = file["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    w["base"] = json!([]);
+    for s in w["styles"].as_array_mut().unwrap() {
+        s["stats"] = json!([]);
+    }
+    w["styles"][0]["kinds"] = json!([gauge_kind(json!({ "preset": { "id": "slash" } }))]);
+    let expertise =
+        Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the expertise");
+    let e = build(expertise);
+    let snap = e.snapshot();
+    let want = json!({ "type": "gauge", "max": 100, "spend": "full_smash" });
+    let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
+    assert_eq!(ready["kinds"][0], json!([want]));
+    let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
+    assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
 }

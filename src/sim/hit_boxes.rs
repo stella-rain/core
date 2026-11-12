@@ -19,6 +19,9 @@
 //!   after its last hit. A homing missile's hits only the first, once, and the
 //!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not
 //!   counted as hit.
+//! - The orb clear: on the first active tick of a player's full-gauge attack, every breakable orb
+//!   within the run rules' `orb_clear_radius` of that player is removed before the swings land
+//!   (`clear_orbs`), reported as a broken orb, with no burst.
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
@@ -161,6 +164,9 @@ pub(super) fn resolve(
         for me in s.players.indices() {
             break_orbs(stage, s, me, &swings, events);
         }
+        if stage.has_gauge && stage.tuning.orb_clear_radius > 0 {
+            clear_orbs(stage, s, events);
+        }
     }
     land(stage, s, grid, &swings, (&mut bits, &mut found), events);
     if swings.iter().any(|w| w.once) {
@@ -192,10 +198,22 @@ fn land(
             cage_beams(stage, s, me, events);
         }
     }
+    let gauge = stage.has_gauge;
     for w in swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (bits, found), events);
+            if gauge && w.combo {
+                // The enemies this swing hit now, each counted once: the weapon gauge's fill.
+                let tick = s.tick;
+                let n = hits_of(s, w).iter().filter(|h| h.1 == tick).count();
+                super::player::gauge_from_hits(
+                    stage,
+                    s,
+                    w.owner,
+                    u32::try_from(n).unwrap_or(u32::MAX),
+                );
+            }
         } else {
             hit_players_side(stage, s, w, events);
             hit_companions_side(stage, s, w, events);
@@ -268,6 +286,57 @@ fn break_orbs(
         }
         !hit
     });
+}
+
+/// The full-gauge smash's clear: on the first active tick of a player's full-gauge attack every
+/// breakable orb within the run rules' `orb_clear_radius` of that player's centre (edge included)
+/// is removed, with the same event as a broken orb and no burst. The attack is told by its
+/// compiled index, which the pack check keeps apart from every attack of the base tree. One
+/// player's clear is the party's. Zones and unbreakable orbs stay.
+fn clear_orbs(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let radius = i64::from(stage.tuning.orb_clear_radius);
+    for me in s.players.indices() {
+        let Some(crate::expertise::Gauge {
+            spend: crate::expertise::GaugeSpend::FullSmash { attack },
+            ..
+        }) = stage.gauge_of(s, me)
+        else {
+            continue;
+        };
+        let (owner, attack) = (s.players.id(me), stage.attack_index(attack, None));
+        let starting = s.runs.iter().any(|r| {
+            r.owner == owner
+                && r.slot == super::player::COMBO_SLOT
+                && r.attack == attack
+                && r.tick == 0
+                && first_active(stage, r)
+        });
+        if !starting {
+            continue;
+        }
+        let from = s.players[me].at;
+        s.orbs.retain(|b| {
+            let (dx, dy) = (
+                i64::from(b.at.x.0) - i64::from(from.x.0),
+                i64::from(b.at.y.0) - i64::from(from.y.0),
+            );
+            let cleared = b.breakable && dx * dx + dy * dy <= radius * radius;
+            if cleared {
+                events.push(DomainEvent::OrbBroken {
+                    owner: b.owner,
+                    at: b.at,
+                });
+            }
+            !cleared
+        });
+    }
+}
+
+/// Whether `r` is in the first active phase of its attack (the one that clears its hit list).
+fn first_active(stage: &World, r: &super::state::AttackRun) -> bool {
+    let kind = |i: usize| super::attacks::phase(stage, r, i).kind;
+    kind(r.phase as usize) == PhaseKind::Active
+        && (r.phase == 0 || kind(r.phase as usize - 1) != PhaseKind::Active)
 }
 
 /// The beams of the orbs' cages hurt the main character (Z3a-3), a beam at most once per its

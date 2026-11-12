@@ -725,3 +725,141 @@ fn a_smash_effect_needs_sim_version_2() {
         other => panic!("{other:?}"),
     }
 }
+
+// --- The weapon gauge kind (ADR-SIM-9 points 2 to 7, ADR-SIM-5) ---------------------------------
+
+fn gauge_json() -> Value {
+    json!({
+        "type": "gauge", "max": 100, "per_step": 10, "per_hit": 2, "from_damage_pct": 0,
+        "step_cap": 14,
+        "spend": { "type": "full_smash", "attack": { "preset": { "id": "slash" } } }
+    })
+}
+
+fn gauge_with(key: &str, value: Value) -> Value {
+    let mut g = gauge_json();
+    g[key] = value;
+    g
+}
+
+const GAUGE_AT: &str = "/weapons/0/styles/0/kinds";
+const GAUGE_PATH: &str = "$.weapons[0].styles[0].kinds[0]";
+
+/// G1: every number of the gauge kind loads at its bounds and is refused one past them, at its own path.
+#[test]
+fn the_gauge_kind_is_bounded() {
+    valid(&with(GAUGE_AT, json!([gauge_json()])));
+    let ok = |g: Value| valid(&with(GAUGE_AT, json!([g])));
+    ok(json!({ "type": "gauge", "max": 1, "step_cap": 1,
+        "spend": { "type": "full_smash", "attack": { "preset": { "id": "slash" } } } }));
+    let mut top = gauge_json();
+    for key in ["max", "per_step", "per_hit", "step_cap"] {
+        top[key] = json!(10_000);
+    }
+    ok(top);
+    for (key, v) in [
+        ("per_step", 0),
+        ("per_step", 100),
+        ("per_hit", 0),
+        ("per_hit", 100),
+        ("from_damage_pct", 0),
+        ("from_damage_pct", 1_000),
+        ("step_cap", 1),
+        ("step_cap", 100),
+    ] {
+        ok(gauge_with(key, json!(v)));
+    }
+    let bad = |g: Value, key: &str| {
+        invalid_at(&with(GAUGE_AT, json!([g])), &format!("{GAUGE_PATH}.{key}"));
+    };
+    bad(gauge_with("max", json!(0)), "max");
+    bad(gauge_with("max", json!(10_001)), "max");
+    bad(gauge_with("per_step", json!(101)), "per_step");
+    bad(gauge_with("per_hit", json!(101)), "per_hit");
+    bad(
+        gauge_with("from_damage_pct", json!(1_001)),
+        "from_damage_pct",
+    );
+    bad(gauge_with("step_cap", json!(0)), "step_cap");
+    bad(gauge_with("step_cap", json!(101)), "step_cap");
+}
+
+/// G1: `spend` is required and a closed list: `segment_burst` is not built.
+#[test]
+fn the_gauge_spend_is_a_closed_list() {
+    let mut g = gauge_json();
+    g.as_object_mut().unwrap().remove("spend");
+    assert!(matches!(
+        parse(&with(GAUGE_AT, json!([g]))),
+        Err(Error::Parse { .. })
+    ));
+    let g = gauge_with(
+        "spend",
+        json!({ "type": "segment_burst", "attack": { "preset": { "id": "slash" } } }),
+    );
+    assert!(matches!(
+        parse(&with(GAUGE_AT, json!([g]))),
+        Err(Error::Parse { .. })
+    ));
+    let mut g = gauge_json();
+    g.as_object_mut().unwrap().remove("step_cap");
+    assert!(matches!(
+        parse(&with(GAUGE_AT, json!([g]))),
+        Err(Error::Parse { .. })
+    ));
+}
+
+/// G1: the full-gauge attack is checked as a player's attack, at `...spend.attack`.
+#[test]
+fn the_full_gauge_attack_is_checked() {
+    let at = |attack: Value| gauge_with("spend", json!({ "type": "full_smash", "attack": attack }));
+    let refused = |attack: Value| {
+        let v = with(GAUGE_AT, json!([at(attack)]));
+        match parse(&v) {
+            Err(Error::Invalid(issues)) => assert!(
+                issues
+                    .iter()
+                    .any(|i| i.path.starts_with(&format!("{GAUGE_PATH}.spend.attack"))),
+                "{issues:?}"
+            ),
+            other => panic!("expected invalid, got {other:?}"),
+        }
+    };
+    refused(json!({ "preset": { "id": "no_such_preset" } }));
+    refused(json!({ "preset": { "id": "slash", "args": [1, 2, 3, 4, 5, 6, 7, 8, 9] } }));
+}
+
+/// G1: one gauge per style path; a level with it and four more kinds is over the level's bound.
+#[test]
+fn a_style_path_names_one_gauge() {
+    let mut v = with(GAUGE_AT, json!([gauge_json()]));
+    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([kind_level("again", json!([gauge_json()]))]);
+    invalid_at(&v, "$.weapons[0].styles[0].upgrade_1[0].kinds[0]");
+    // Two styles may each name one.
+    let mut v = with(GAUGE_AT, json!([gauge_json()]));
+    v["weapons"][0]["styles"][1]["kinds"] = json!([gauge_json()]);
+    valid(&v);
+    // Inside one level too.
+    invalid_at(
+        &with(GAUGE_AT, json!([gauge_json(), gauge_json()])),
+        "$.weapons[0].styles[0].kinds[1]",
+    );
+}
+
+#[test]
+fn the_gauge_needs_sim_version_2() {
+    let v = with(GAUGE_AT, json!([gauge_json()]));
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&v, old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}

@@ -13,8 +13,9 @@
 //! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
-//! step's charge or hold, a delayed repeat or a proc factor of a step's hits, or the weapon's smash
-//! effect, `reap` among them (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
+//! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
+//! on a full-gauge attack (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -28,8 +29,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::attack::AttackRef;
 use crate::event::Press;
 use crate::id::ContentId;
+use crate::limits::{MAX_GAUGE_DAMAGE_PCT, MAX_WEAPON_GAUGE};
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
@@ -183,6 +186,48 @@ pub enum StyleKind {
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    /// The style's weapon gauge: it fills from the player's normal (A) steps that hit and from the
+    /// hit points lost, and a B press with it full plays the full-gauge attack and empties it
+    /// (ADR-SIM-9 points 3 and 7). One per style path: a second is refused.
+    Gauge(Gauge),
+}
+
+/// A weapon gauge's numbers, every one bounded by the validator and clamped again when the
+/// world is built (ADR-SVC-1, ADR-SIM-5). Units are gauge units; the bar is `max` long.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Gauge {
+    /// The gauge never passes it; full is `max` reached. 1 to `MAX_WEAPON_GAUGE`.
+    #[schemars(range(min = 1, max = MAX_WEAPON_GAUGE))]
+    pub max: u32,
+    /// Added once to a normal step the first time one of its hit boxes hits an enemy; absent
+    /// (0): no rule. At most `max`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_step: u32,
+    /// Added for each enemy a normal step's hit box hits on a tick; absent (0): no rule. At most
+    /// `max`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_hit: u32,
+    /// A hit taken adds `max * lost * pct / (max_hp * 100)` (floor), `lost` the hit points really
+    /// lost; absent (0): no rule. At most `MAX_GAUGE_DAMAGE_PCT`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    #[schemars(range(min = 0, max = MAX_GAUGE_DAMAGE_PCT))]
+    pub from_damage_pct: u32,
+    /// The most one step's hits add (the bound on a horde, ADR-SIM-5): 1 to `max`. The damage
+    /// fill is not held to it.
+    pub step_cap: u32,
+    /// What a full gauge buys.
+    pub spend: GaugeSpend,
+}
+
+/// What a full gauge is spent on: a closed list, one variant now.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GaugeSpend {
+    /// A B press with the gauge full plays `attack` in place of the step's own and empties the
+    /// gauge. It is checked as a player's attack and differs from every attack of the weapon's
+    /// base tree (the orb clear tells it by its compiled index).
+    FullSmash { attack: AttackRef },
 }
 
 fn is_zero(v: &u32) -> bool {
@@ -583,6 +628,48 @@ fn check_level(
                 check_step_len(issue, &at, step);
                 check_proc_pct(issue, &at, Some(*proc_pct));
             }
+            StyleKind::Gauge(g) => check_gauge(issue, &at, g),
+        }
+    }
+}
+
+/// A gauge's numbers, each in its own range, and its full-gauge attack as a player's attack.
+fn check_gauge(issue: &mut impl FnMut(String, String), at: &str, g: &Gauge) {
+    if !(1..=MAX_WEAPON_GAUGE).contains(&g.max) {
+        issue(
+            format!("{at}.max"),
+            format!("1 to {MAX_WEAPON_GAUGE} (found {})", g.max),
+        );
+    }
+    // The fill bounds are read against the gauge's own length; a `max` out of range is its own issue.
+    let most = g.max.min(MAX_WEAPON_GAUGE);
+    for (key, v) in [("per_step", g.per_step), ("per_hit", g.per_hit)] {
+        if v > most {
+            issue(
+                format!("{at}.{key}"),
+                format!("0 to the gauge's max {most} (found {v})"),
+            );
+        }
+    }
+    if g.from_damage_pct > MAX_GAUGE_DAMAGE_PCT {
+        issue(
+            format!("{at}.from_damage_pct"),
+            format!("0 to {MAX_GAUGE_DAMAGE_PCT} (found {})", g.from_damage_pct),
+        );
+    }
+    if g.step_cap == 0 || g.step_cap > most {
+        issue(
+            format!("{at}.step_cap"),
+            format!("1 to the gauge's max {most} (found {})", g.step_cap),
+        );
+    }
+    let GaugeSpend::FullSmash { attack } = &g.spend;
+    if let Err(found) = validate::validate_attack_ref(attack, registry::ENTRIES) {
+        for f in found {
+            issue(
+                format!("{at}.spend.attack{}", f.path.trim_start_matches('$')),
+                f.message,
+            );
         }
     }
 }
@@ -615,12 +702,13 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
     ]
 }
 
-/// One grant on a step per style, and one smash effect: a second grant on a step an earlier level
-/// of the same style granted, or a second smash effect, is refused at the later one.
+/// One grant on a step per style, and one smash effect and one gauge: a second grant on a step an earlier level
+/// of the same style granted, or a second smash effect or gauge, is refused at the later one.
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
     let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
+    let mut gauge_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -660,6 +748,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                     } else {
                         factored.push(step);
                     }
+                }
+                StyleKind::Gauge(_) => {
+                    if gauge_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already names a gauge".into(),
+                        );
+                    }
+                    gauge_set = true;
                 }
             }
         }
@@ -815,8 +912,35 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
                     }
                 }
+                // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
+                StyleKind::Gauge(_) => {}
             }
         }
     }
     weapon
+}
+
+/// Every attack a weapon's combo and dash trees can start: a step's, a charge level's (and its
+/// perfect one), a hold's loop and release.
+pub(crate) fn weapon_attacks(weapon: &Weapon) -> Vec<&AttackRef> {
+    fn branches<'a>(b: &'a Branches, out: &mut Vec<&'a AttackRef>) {
+        for step in [&b.main, &b.smash].into_iter().flatten() {
+            out.push(&step.attack);
+            if let Some(charge) = &step.charge {
+                for level in &charge.levels {
+                    out.push(&level.attack);
+                    out.extend(level.perfect_attack.as_ref());
+                }
+            }
+            if let Some(hold) = &step.hold {
+                out.push(&hold.loop_attack);
+                out.push(&hold.release);
+            }
+            branches(&step.next, out);
+        }
+    }
+    let mut out = Vec::new();
+    branches(&weapon.combo, &mut out);
+    branches(&weapon.dash, &mut out);
+    out
 }

@@ -20,6 +20,10 @@
 //! not below the slow, so a slow cannot restart inside itself. Only enemies in the evader's reach
 //! are slowed (`sim::player`), never other players (ADR-SIM-8).
 //!
+//! The orb clear is one optional key, `orb_clear_radius` (1 px to `MAX_ORB_CLEAR_RADIUS`, clamped
+//! again into `Tuning.orb_clear_radius`; `sim_version` 2): absent, a full-gauge smash clears
+//! nothing beyond what its hit box covers.
+//!
 //! Unlike `stardust`, the simulation reads this file, so the pack must hold it (a required slot)
 //! and the derived content hash covers it: a replay never depends on the client's build.
 //!
@@ -36,8 +40,9 @@ use sha2::{Digest, Sha256};
 use crate::fixed::Fx;
 use crate::limits::{
     MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_FLINCH_IMMUNE_TICKS, MAX_FLINCH_TICKS,
-    MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH, MAX_PERFECT_SLOW_EVERY,
-    MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH,
+    MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
+    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT,
+    VIEW_HALF_WIDTH,
 };
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
@@ -219,6 +224,11 @@ pub struct RulesFile {
     /// 2 to `MAX_PERFECT_SLOW_EVERY` (8).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perfect_evade_slow_every: Option<u8>,
+    /// The radius of the orb clear (`sim_version` 2): when a full-gauge attack starts its first
+    /// active tick, every breakable orb whose centre is this near the player's is removed, in
+    /// 1/256 px, 1 px to `MAX_ORB_CLEAR_RADIUS` (420) px, the edge included. Absent: no clear.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orb_clear_radius: Option<Fx>,
 }
 
 /// The perfect evade's numbers (ADR-CONT-3), read once into `Tuning` and clamped to the caps
@@ -306,6 +316,15 @@ impl Rules {
                         message: "needs sim_version 2".into(),
                     });
                 }
+            }
+            // sim_version >= 2: the orb clear is a rule of the open version too.
+            if file.orb_clear_radius.is_some()
+                && !issues.iter().any(|i| i.path == "$.orb_clear_radius")
+            {
+                issues.push(Issue {
+                    path: "$.orb_clear_radius".into(),
+                    message: "needs sim_version 2".into(),
+                });
             }
         }
         if !issues.is_empty() {
@@ -497,6 +516,13 @@ impl Rules {
             reach: f.perfect_evade_reach?.0.min(Fx::px(MAX_PERFECT_REACH).0),
             slow_every: f.perfect_evade_slow_every?.min(MAX_PERFECT_SLOW_EVERY),
         })
+    }
+
+    /// The orb clear's radius, clamped to the cap; `None` when the pack names none (ADR-SVC-1).
+    pub fn orb_clear_radius(&self) -> Option<Fx> {
+        self.file
+            .orb_clear_radius
+            .map(|r| Fx(r.0.min(Fx::px(MAX_ORB_CLEAR_RADIUS).0)))
     }
 
     /// The defence that halves a hit, in stored units.
@@ -810,6 +836,15 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
     }
     validate_combat_keys(file, issues);
     validate_perfect_evade(file, issues);
+    if let Some(radius) = file.orb_clear_radius {
+        within(
+            issues,
+            "orb_clear_radius",
+            i64::from(radius.0),
+            i64::from(Fx::px(1).0),
+            i64::from(Fx::px(MAX_ORB_CLEAR_RADIUS).0),
+        );
+    }
 }
 
 /// The checks of the flinch, control and vulnerable keys: each bound, and each key with its

@@ -205,6 +205,10 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
         branches(&weapon.combo, &mut refs);
         branches(&weapon.dash, &mut refs);
     }
+    for gauge in world.granted_gauges() {
+        let crate::expertise::GaugeSpend::FullSmash { attack } = &gauge.spend;
+        refs.push(attack.clone());
+    }
     for orbit in content.rewards().orbits() {
         refs.push(orbit.attack.clone());
     }
