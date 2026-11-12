@@ -2,7 +2,9 @@
 
 use crate::attack::DamageType;
 use crate::engine::Outcome;
+use crate::fixed::Point;
 use crate::id::EntityId;
+use crate::inline::InlineVec;
 use crate::kinds::KindTable;
 use crate::match_ups::MatchUps;
 use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_SPAWN, derive};
@@ -11,8 +13,8 @@ use crate::sim::RangedPool;
 use std::sync::Arc;
 
 use super::{
-    AgentState, AttackRun, AttackTask, BossState, HealPickup, Horde, MoveIndex, OrbState, Players,
-    StarField, ZoneState,
+    AgentState, AttackRun, AttackTask, BossState, Dir, HealPickup, Horde, MoveIndex, OrbState,
+    Players, StarField, ZoneState,
 };
 
 /// Firings or casts left when there is no limit.
@@ -129,6 +131,9 @@ pub(crate) struct State {
     /// The echoes of last tick's hits, waiting for this tick's `collide`, in the order the hits
     /// landed; at most `MAX_ECHOES_PER_TICK`.
     pub echoes: Vec<Echo>,
+    /// The repeats waiting to be dealt, at most `MAX_REPEATS_QUEUED`; empty until a rule queues
+    /// one.
+    pub repeats: Vec<Repeat>,
 }
 
 impl Clone for State {
@@ -165,6 +170,7 @@ impl Clone for State {
             damage_pct,
             crit_seed,
             echoes,
+            repeats,
         } = self;
         State {
             scratch: scratch.clone(),
@@ -198,6 +204,7 @@ impl Clone for State {
             damage_pct: *damage_pct,
             crit_seed: *crit_seed,
             echoes: echoes.clone(),
+            repeats: repeats.clone(),
         }
     }
 
@@ -235,6 +242,7 @@ impl Clone for State {
             damage_pct,
             crit_seed,
             echoes,
+            repeats,
         } = self;
         let State {
             scratch: s_scratch,
@@ -268,6 +276,7 @@ impl Clone for State {
             damage_pct: s_damage_pct,
             crit_seed: s_crit_seed,
             echoes: s_echoes,
+            repeats: s_repeats,
         } = source;
         scratch.clone_from(s_scratch);
         kinds.clone_from(s_kinds);
@@ -300,6 +309,39 @@ impl Clone for State {
         *damage_pct = *s_damage_pct;
         *crit_seed = *s_crit_seed;
         echoes.clone_from(s_echoes);
+        repeats.clone_from(s_repeats);
+    }
+}
+
+/// A repeat of a step's damage, queued to be dealt at its tick (ADR-SIM-5 point 9: the queue and
+/// each entry are capped at decode). `Copy`: the hit list is inline, so an entry allocates nothing.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct Repeat {
+    /// The slot of the player whose step it repeats.
+    pub owner: u8,
+    /// The tick it is dealt on.
+    pub due: u32,
+    /// The part of the step's damage it deals, in percent.
+    pub percent: u16,
+    /// The factor a proc of the step is scaled by, in percent.
+    pub proc_pct: u16,
+    /// What it hits.
+    pub anchor: RepeatAnchor,
+}
+
+/// Where a repeat lands: on the enemies the step hit, or on a place.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) enum RepeatAnchor {
+    HitList(InlineVec<EntityId, { crate::limits::MAX_REPEAT_TARGETS }>),
+    Place { at: Point, facing: Dir },
+}
+
+/// The unused places of an inline hit list hold it; they are never read.
+impl Default for EntityId {
+    fn default() -> Self {
+        EntityId(0)
     }
 }
 

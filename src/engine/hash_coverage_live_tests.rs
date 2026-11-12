@@ -132,6 +132,7 @@ perturb_through! {
     StatusState => remaining,
     DotState => damage,
     Echo => damage,
+    Repeat => due,
     HealPickup => id,
     StarState => id,
     ShrineState => guardians,
@@ -159,6 +160,16 @@ perturb_through! {
     StarField => misses,
     ExpertiseGauge => points,
     Horde => spawned,
+}
+
+/// A hit list gains a target; a place moves.
+impl Perturb for RepeatAnchor {
+    fn perturb(&mut self) {
+        match self {
+            RepeatAnchor::HitList(list) => list.perturb(),
+            RepeatAnchor::Place { at, .. } => at.perturb(),
+        }
+    }
 }
 
 impl Perturb for crate::rng::SplitMix64 {
@@ -750,6 +761,13 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         id: EntityId(60),
         at: pt(1),
     }]);
+    s.repeats = vec![Repeat {
+        owner: 1,
+        due: 2,
+        percent: 3,
+        proc_pct: 4,
+        anchor: RepeatAnchor::HitList([EntityId(5)].into_iter().collect()),
+    }];
     s.echoes = vec![Echo {
         source: EntityId(1),
         target: EntityId(2),
@@ -878,13 +896,17 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     let mut p = Probe::new();
 
     each_field_moves_the_hash!(p, State, |s| s,
-        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes],
+        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
         not_hashed: [move_index],
         // `stars` and each career's `offers` are `Some` together (`hash_fields` asserts it):
         // they are perturbed as a pair below.
         content: [scratch, kinds, match_ups, runes, stun, stars]);
     each_field_moves_the_hash!(p, Streams, |s| &mut s.rng,
         moves: [spawn, attack, loot, horde],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, Repeat, |s| &mut s.repeats[0],
+        moves: [owner, due, percent, proc_pct, anchor],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],

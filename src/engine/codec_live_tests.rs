@@ -250,6 +250,7 @@ fn the_agent_boss_and_status_types_of_the_full_state_round_trip() {
     round_trip_hashed(&status);
     round_trip_hashed(&status.dot.unwrap());
     round_trip_hashed(&s.echoes[0]);
+    round_trip_hashed(&s.repeats[0]);
     for kind in StatusKind::ALL {
         round_trip_hashed(&kind);
     }
@@ -271,6 +272,7 @@ fn a_cut_or_damaged_agent_or_boss_never_panics_a_decode() {
     never_panics(&s.enemies[0]);
     never_panics(s.boss.as_ref().unwrap());
     never_panics(&s.echoes[0]);
+    never_panics(&s.repeats[0]);
 }
 
 #[test]
@@ -382,6 +384,8 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
         fields: [kind, source, remaining, total, stacks, value_pct, dot]);
     each_field_moves_the_encoding!(failures, base, DotState, |s| s.players[PlayerIdx::SOLO].statuses[0].dot.as_mut().unwrap(),
         fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
+    each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
+        fields: [owner, due, percent, proc_pct, anchor]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -674,7 +678,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     let base = base();
     let mut failures: Vec<String> = Vec::new();
     each_field_moves_the_encoding!(failures, base, State, |s| s,
-        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes],
+        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
         rebuilt: [scratch, kinds, move_index, match_ups, runes, stun],
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
@@ -854,4 +858,74 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         fresh.run.live().players[PlayerIdx::SOLO].combat,
         PlayerCombat::default()
     );
+}
+
+/// The queue and its entries are bounded at decode: a `Repeat` at its caps round-trips, an owner
+/// of `MAX_PLAYERS`, a percent past `MAX_PCT`, a hit list past `MAX_REPEAT_TARGETS` and a queue
+/// past `MAX_REPEATS_QUEUED` are each refused; the place anchor round-trips; a fresh state's
+/// queue is empty.
+#[test]
+fn the_repeat_queue_is_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::{MAX_PLAYERS, Repeat, RepeatAnchor};
+    let pct = u16::try_from(MAX_PCT).unwrap();
+    let targets = u32::try_from(MAX_REPEAT_TARGETS).unwrap();
+    let place = Repeat {
+        owner: MAX_PLAYERS - 1,
+        due: 9,
+        percent: pct,
+        proc_pct: pct,
+        anchor: RepeatAnchor::Place {
+            at: crate::fixed::Point::default(),
+            facing: crate::sim::state::Dir::UP,
+        },
+    };
+    round_trip_hashed(&place);
+    let full = Repeat {
+        anchor: RepeatAnchor::HitList((0..targets).map(EntityId).collect()),
+        ..place
+    };
+    round_trip_hashed(&full);
+    let refused = |r: &Repeat| {
+        assert!(matches!(
+            from_bytes::<Repeat>(&to_bytes(r)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&Repeat {
+        owner: MAX_PLAYERS,
+        ..place
+    });
+    refused(&Repeat {
+        percent: pct + 1,
+        ..place
+    });
+    refused(&Repeat {
+        proc_pct: pct + 1,
+        ..place
+    });
+    // A hit list of one past the cap: the bytes are written by hand (the type holds no more).
+    let mut bytes = to_bytes(&full);
+    let at = 1 + 4 + 2 + 2 + 1;
+    bytes[at..at + 4].copy_from_slice(&(targets + 1).to_le_bytes());
+    bytes.splice(at + 4..at + 4, 0u32.to_le_bytes());
+    assert!(matches!(
+        from_bytes::<Repeat>(&bytes),
+        Err(DecodeError::Invalid(_))
+    ));
+
+    let mut s = base();
+    s.repeats = vec![place; MAX_REPEATS_QUEUED];
+    let fresh = engine();
+    assert!(decoded(&bytes_of(&s), fresh.run.live()).is_ok());
+    s.repeats.push(place);
+    assert!(matches!(
+        decoded(&bytes_of(&s), fresh.run.live()),
+        Err(DecodeError::Invalid(_))
+    ));
+    assert!(fresh.run.live().repeats.is_empty());
+}
+
+fn bytes_of(s: &State) -> Vec<u8> {
+    bytes(s)
 }

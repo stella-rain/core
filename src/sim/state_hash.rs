@@ -508,6 +508,39 @@ impl StableHash for EliteState {
     }
 }
 
+impl StableHash for Repeat {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Repeat {
+            owner,
+            due,
+            percent,
+            proc_pct,
+            anchor,
+        } = self;
+        owner.stable_hash(h);
+        due.stable_hash(h);
+        percent.stable_hash(h);
+        proc_pct.stable_hash(h);
+        anchor.stable_hash(h);
+    }
+}
+
+impl StableHash for RepeatAnchor {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            RepeatAnchor::HitList(targets) => {
+                h.write_u8(0);
+                targets.stable_hash(h);
+            }
+            RepeatAnchor::Place { at, facing } => {
+                h.write_u8(1);
+                at.stable_hash(h);
+                facing.stable_hash(h);
+            }
+        }
+    }
+}
+
 impl StableHash for PlayerCombat {
     fn stable_hash(&self, h: &mut StateHasher) {
         let PlayerCombat {
@@ -1070,6 +1103,7 @@ impl State {
             damage_pct,
             crit_seed,
             echoes,
+            repeats,
         } = self;
         tick.stable_hash(h);
         hash_streams(rng, h);
@@ -1095,6 +1129,7 @@ impl State {
         damage_pct.stable_hash(h);
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
+        repeats.stable_hash(h);
         // The presence byte (bit `i` is slot `i`, as in the step log's byte 0), then the block of
         // each present player, ascending. Absent slots write nothing.
         h.write_u8(players.mask());

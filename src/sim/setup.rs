@@ -301,6 +301,7 @@ fn unreserved_state(
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
         echoes: Vec::new(),
+        repeats: Vec::new(),
         kinds: std::sync::Arc::new(kinds),
     }
 }
