@@ -255,6 +255,9 @@ pub(super) fn damage(
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, me, target, events);
         }
+        if let Some(Smash::Reap { stacks, boss_pct }) = b.smash.filter(|_| !dead) {
+            runes::reap_smash(stage, s, me, target, stacks, boss_pct, events);
+        }
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }

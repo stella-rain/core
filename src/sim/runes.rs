@@ -64,8 +64,8 @@ use crate::runes::{
 use crate::sim::state::{DotState, HeldRune, State, StatusKind};
 use crate::validate::limits::{MAX_ASSIST_RANGE, MAX_DAMAGE};
 
-use super::entity::{Who, status_pct};
-use super::{AttackIndex, attacks, select};
+use super::entity::{Who, scale_damage, status_pct};
+use super::{AttackIndex, Shot, attacks, select};
 
 /// The first on-hit rune's slot: after the combo (0), the stage skill (1) and the orbits' orbs
 /// (2 to 33); each rune's is this plus its place in `Rune::ALL`.
@@ -172,6 +172,76 @@ pub(super) fn apply_smash_bleed(
     events: &mut Vec<DomainEvent>,
 ) {
     apply_dot(s, me, target, Rune::Bleed, events);
+}
+
+/// A reap smash's hit that leaves `target` standing (ADR-SIM-9): on a target holding the bleed
+/// at `stacks` stacks or more it cashes them, the status goes and the target takes at once the
+/// damage of the bleed ticks still due, each as `tick_dots_of` scales it, a boss and its parts
+/// `boss_pct` percent of it (an invulnerable boss absorbs it, as it does a tick); else it adds a
+/// bleed stack as `apply_smash_bleed` does. The burst is a bleed hit: no expertise, no on-hit rune.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn reap_smash(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    target: Who,
+    stacks: u32,
+    boss_pct: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    let held = s
+        .statuses(target)
+        .iter()
+        .position(|st| st.kind == StatusKind::Bleed && st.dot.is_some());
+    let cash = held.filter(|&i| u32::from(s.statuses(target)[i].stacks) >= stacks.max(1));
+    let Some(i) = cash else {
+        apply_smash_bleed(s, me, target, events);
+        return;
+    };
+    let st = s.statuses(target)[i];
+    let Some(dot) = st.dot else { return };
+    s.statuses_mut(target).remove(i);
+    let boss = matches!(target, Who::Boss | Who::BossPart(_));
+    if boss && s.boss.as_ref().is_some_and(|b| b.invulnerable > 0) {
+        return;
+    }
+    let interval = dot.interval.max(1);
+    let due = if st.remaining < dot.next_in {
+        0
+    } else {
+        (st.remaining - dot.next_in) / interval + 1
+    };
+    let tick = scale_damage(
+        dot.damage.saturating_mul(u32::from(st.stacks)),
+        dot.atk_up_pct,
+        dot.type_bonus_pct,
+        0,
+        0,
+        0,
+        stage.tuning.defence_k,
+    );
+    let mut burst = u64::from(tick) * u64::from(due);
+    if boss {
+        burst = burst * u64::from(boss_pct.min(100)) / 100;
+    }
+    let damage = u32::try_from(burst).unwrap_or(u32::MAX);
+    if damage == 0 {
+        return;
+    }
+    let shot = Shot {
+        at: s.at(target),
+        owner: st.source,
+        friendly: true,
+        damage,
+        damage_type: dot.damage_type,
+        breaks_charge: false,
+        smash: None,
+        combo: false,
+        rune: Rune::of_dot(st.kind),
+        chain: false,
+    };
+    let me = super::hitter(s, st.source);
+    super::damage(stage, s, me, shot, target, events);
 }
 
 /// Puts `rune`'s status on `target`, when `rune` is damage over time and the run's content has

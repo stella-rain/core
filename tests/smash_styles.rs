@@ -77,7 +77,11 @@ fn expertise(s0: Value, s1: Option<Value>, up: Option<Value>) -> Expertise {
 
 fn build(expertise: Expertise, target_hp: u32, boss: bool) -> (Engine, EntityId) {
     let (boss_json, waves) = if boss {
-        (boss_at(target_hp, TARGET_Y), vec![])
+        // The stage must give expertise points: a harmless enemy far off does.
+        let e = enemy(10, hold(START_X, START_Y - 90_000), json!([]));
+        let mut w = wave(TARGET_TICK, 1, 0, e, START_X, START_Y - 90_000);
+        w["expertise"] = json!({ "hit": 0, "kill": 0 });
+        (boss_at(target_hp, TARGET_Y), vec![w])
     } else {
         let e = enemy(target_hp, hold(START_X, TARGET_Y), json!([]));
         let mut w = wave(TARGET_TICK, 1, 0, e, START_X, TARGET_Y);
@@ -244,6 +248,49 @@ fn an_upgrade_sets_its_effect_only_once_it_is_taken() {
     assert_eq!(bleed_stacks(&e, t), 1, "no stack added by the knockback");
 }
 
+/// The ticks a bleed status still has due: as the rule counts them.
+fn due(remaining: u32, next_in: u32, interval: u32) -> u32 {
+    if remaining < next_in {
+        0
+    } else {
+        (remaining - next_in) / interval + 1
+    }
+}
+
+/// One smash press and the 80 ticks after it, tick by tick: the events of each tick and the
+/// bleed status of `id` (ticks left, ticks to the next tick, stacks) as it stood before it.
+type Ticks = Vec<(Vec<DomainEvent>, Option<(u32, u32, u16)>)>;
+
+fn smash_ticks(e: &mut Engine, id: EntityId) -> Ticks {
+    let mut out = Vec::new();
+    for t in 0..81 {
+        let before = entity(e, id).and_then(|en| {
+            en.damage_over_time
+                .into_iter()
+                .find(|d| d.status.as_str() == "bleed")
+                .map(|d| (d.ticks_left, d.next_tick_in, d.stacks))
+        });
+        step(
+            e,
+            Input {
+                smash: t == 0,
+                ..idle()
+            },
+        );
+        out.push((e.events().to_vec(), before));
+    }
+    out
+}
+
+/// The bleed damage dealt on the tick the smash's own hit landed, and the status before it.
+fn burst(ticks: &Ticks, id: EntityId) -> (u32, Option<(u32, u32, u16)>) {
+    let (events, before) = ticks
+        .iter()
+        .find(|(ev, _)| !hit_on(ev, id, None).is_empty())
+        .expect("the smash hit");
+    (hit_on(events, id, Some(Rune::Bleed)).iter().sum(), *before)
+}
+
 #[test]
 fn reap_adds_stacks_and_cashes_at_its_count() {
     let (mut e, t) = build(expertise(reap(3, 50), None, None), 1_000_000, false);
@@ -252,38 +299,18 @@ fn reap_adds_stacks_and_cashes_at_its_count() {
         smash(&mut e);
         assert_eq!(bleed_stacks(&e, t), n);
     }
-    // The fourth smash finds 3 stacks: it cashes the due ticks the status still holds.
-    let status = entity(&e, t).unwrap().damage_over_time[0].clone();
-    let (stacks, remaining, next_in) = (
-        u32::from(status.stacks),
-        status.ticks_left,
-        status.next_tick_in,
+    // The fourth smash finds 3 stacks and cashes the bleed ticks still due.
+    let ticks = smash_ticks(&mut e, t);
+    let (dealt, before) = burst(&ticks, t);
+    let (left, next_in, stacks) = before.expect("the bleed");
+    assert_eq!(stacks, 3);
+    // The tick may run before or after the hit within the tick: one tick's difference.
+    let by = |left, next_in| due(left, next_in, 20) * 3 * BLEED_DAMAGE;
+    assert!(
+        dealt == by(left, next_in) || (next_in > 1 && dealt == by(left - 1, next_in - 1)),
+        "{dealt} for {left} left, next in {next_in}"
     );
-    let mut events = Vec::new();
-    step(
-        &mut e,
-        Input {
-            smash: true,
-            ..idle()
-        },
-    );
-    events.extend(e.events().iter().cloned());
-    let mut ticks_waited = 1;
-    while hit_on(&events, t, Some(Rune::Bleed)).is_empty() && ticks_waited < 60 {
-        step(&mut e, idle());
-        events.extend(e.events().iter().cloned());
-        ticks_waited += 1;
-    }
-    let bursts = hit_on(&events, t, Some(Rune::Bleed));
-    assert_eq!(bursts.len(), 1, "one burst: {bursts:?}");
-    // The bleed advanced `ticks_waited - 1` ticks before the hit landed; the burst holds the
-    // ticks still due then, and is a bleed tick's damage times them.
-    let elapsed = ticks_waited - 1;
-    let (remaining, next_in) = (remaining.saturating_sub(elapsed), next_in);
-    assert!(remaining > 0);
-    let _ = next_in;
-    assert_eq!(bursts[0] % (stacks * BLEED_DAMAGE), 0, "{bursts:?}");
-    assert!(bursts[0] >= stacks * BLEED_DAMAGE);
+    assert!(dealt > 0);
     assert_eq!(bleed_stacks(&e, t), 0, "the status is consumed");
 }
 
@@ -295,16 +322,14 @@ fn a_boss_takes_its_share_of_the_burst() {
         smash(&mut e);
         smash(&mut e);
         assert_eq!(bleed_stacks(&e, t), 2);
-        let events = smash(&mut e);
+        let ticks = smash_ticks(&mut e, t);
         assert_eq!(bleed_stacks(&e, t), 0);
-        hit_on(&events, t, Some(Rune::Bleed))
+        burst(&ticks, t).0
     };
     let regular = run(false);
     let boss = run(true);
-    assert_eq!(regular.len(), 1, "{regular:?}");
-    assert_eq!(boss.len(), 1, "{boss:?}");
-    assert!(regular[0] > 0 && boss[0] > 0);
-    assert!(boss[0] <= regular[0] / 2 + 1, "{boss:?} {regular:?}");
+    assert!(regular > 0);
+    assert_eq!(boss, regular * 50 / 100, "{boss} of {regular}");
 }
 
 #[test]
@@ -370,4 +395,26 @@ fn a_weapon_naming_reap_needs_sim_version_2() {
     assert!(check(2, reap(0, 50)).is_err());
     assert!(check(2, reap(11, 50)).is_err());
     assert!(check(2, reap(3, 101)).is_err());
+}
+
+/// The views name the effect compactly, no numbers; the bundled expertise names none.
+#[test]
+fn the_views_name_the_smash_effect() {
+    let (e, _) = build(
+        expertise(reap(3, 50), Some(knockback()), None),
+        1_000_000,
+        false,
+    );
+    let snap = e.snapshot();
+    let ready =
+        serde_json::to_value(snap.players[0].tree_ready.as_ref().expect("a point")).unwrap();
+    let kind = |name: &str| json!([{ "type": "smash_effect", "effect": name }]);
+    assert_eq!(ready["kinds"], json!([kind("reap"), kind("knockback"), []]));
+    let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
+    assert_eq!(stats["trees"][0]["grants"][0]["kinds"], kind("reap"));
+    let bundled = Expertise::bundled().clone();
+    let (e, _) = build(bundled, 1_000_000, false);
+    let snap = e.snapshot();
+    let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
+    assert!(ready.get("kinds").is_none());
 }
