@@ -67,6 +67,9 @@ pub(crate) struct AttackDef {
     /// none and for every attack of the players and companions. The colour decides nothing in
     /// the simulation: it is read by the snapshot only, never hashed or saved.
     pub colour: Option<ThreatColourIndex>,
+    /// Whether a phase after the first has a hit box or a `spawn`: a channelled attack, whose
+    /// ranged token a cancel cools (`attacks::cancel_runs_of`). A zone-leaving attack is not.
+    pub channelled: bool,
 }
 
 /// The two pools of the ranged tokens (RA1, DS83): an attack that lays a line zone takes the
@@ -415,11 +418,33 @@ pub(crate) struct Tuning {
     pub defence_k: u64,
     pub crit_damage_base_pct: u64,
     pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
+    /// The poise damage of an A step's and of a smash step's combo hit that names none, the
+    /// flinch's ticks and the immunity after it (0: no enemy flinches), `sim_version` 2 only.
+    pub poise_damage_a: u32,
+    pub poise_damage_b: u32,
+    pub flinch_ticks: u16,
+    pub flinch_immune_ticks: u16,
+    /// What percent of its ticks the n-th hard control on one enemy keeps; `control_repeat_len`
+    /// entries are used, 0 when no list is named (today's stun immunity alone).
+    pub control_repeat_pcts: [u8; crate::limits::MAX_CONTROL_REPEATS as usize],
+    pub control_repeat_len: u8,
+    pub control_reset_ticks: u16,
+    pub control_immune_ticks: u32,
+    /// The `vulnerable` percent a stun that lands puts on its target; 0: none.
+    pub vulnerable_stun_pct: u16,
 }
 
 impl Tuning {
     fn of(rules: &Rules) -> Tuning {
         let margin = rules.spawn_margin();
+        let mut control_repeat_pcts = [0u8; crate::limits::MAX_CONTROL_REPEATS as usize];
+        for (to, from) in control_repeat_pcts
+            .iter_mut()
+            .zip(rules.control_repeat_pcts())
+        {
+            // Validated 1 to 100.
+            *to = u8::try_from(*from).unwrap_or(100);
+        }
         Tuning {
             player_speed: rules.player_speed().0,
             player_radius: rules.player_radius().0,
@@ -444,6 +469,15 @@ impl Tuning {
             defence_k: u64::from(rules.defence_k()),
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
             party_damage_pct: rules.party_damage_pct(),
+            poise_damage_a: rules.poise_damage_a(),
+            poise_damage_b: rules.poise_damage_b(),
+            flinch_ticks: rules.flinch_ticks(),
+            flinch_immune_ticks: rules.flinch_immune_ticks(),
+            control_repeat_pcts,
+            control_repeat_len: u8::try_from(rules.control_repeat_pcts().len()).unwrap_or(0),
+            control_reset_ticks: rules.control_reset_ticks(),
+            control_immune_ticks: rules.control_immune_ticks(),
+            vulnerable_stun_pct: u16::try_from(rules.vulnerable_stun_pct()).unwrap_or(u16::MAX),
         }
     }
 }
@@ -533,6 +567,23 @@ impl World {
                 .flat_map(|h| h.bosses.iter().chain(std::iter::once(&h.template)))
                 .collect();
             crate::threat_colours::check(&stage, &horde_bosses, colours)?;
+            // An agent naming a `poise` needs rules naming `flinch_ticks`: it could never flinch.
+            if content.rules().flinch_ticks() == 0 {
+                let mut found = None;
+                crate::kinds::visit_foes(&stage, &horde_bosses, &mut |foe, path| {
+                    if let crate::kinds::Foe::Agent(a) = foe {
+                        if found.is_none() && a.poise.is_some() {
+                            found = Some(format!("{path}.poise"));
+                        }
+                    }
+                });
+                if let Some(path) = found {
+                    return Err(Issue {
+                        path,
+                        message: "needs flinch_ticks in the run's rules".into(),
+                    });
+                }
+            }
         }
         let mut defs = AgentDefs::build(&stage, kinds, colours)?;
         let mut bosses = Vec::new();

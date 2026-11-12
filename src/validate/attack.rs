@@ -97,6 +97,21 @@ impl<'a> Ctx<'a> {
         if let Some(d) = &p.dash {
             self.key("dash", |c| c.dash(p, d));
         }
+        if let Some(d) = p.poise_damage {
+            let refusal = if p.kind != PhaseKind::Active || p.hit_box.is_none() {
+                Some("only an active phase with a hit box deals poise damage")
+            } else if self.foe != Foe::Other {
+                Some("a main character's or an ally's attack only")
+            } else if self.sim_version < 2 {
+                Some("needs sim_version 2")
+            } else {
+                None
+            };
+            match refusal {
+                Some(why) => self.key("poise_damage", |c| c.fail(why)),
+                None => self.within("poise_damage", i64::from(d), 0, i64::from(MAX_POISE_DAMAGE)),
+            }
+        }
         if let Some(r) = p.rehit_ticks {
             if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 self.key("rehit_ticks", |c| {

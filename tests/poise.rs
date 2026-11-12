@@ -73,9 +73,8 @@ fn c6_a_poise_is_an_enemys_or_elites_within_its_bound() {
     let mut stage = quiet_stage(vec![], far_boss());
     stage.companions = vec![serde_json::from_value(companion).unwrap()];
     assert_eq!(invalid(&stage)[0].0, "$.companions[0].poise");
-    let mut boss = far_boss();
-    boss["poise"] = json!(5);
-    assert_eq!(invalid(&quiet_stage(vec![], boss))[0].0, "$.boss.poise");
+    // The boss is not an agent: it has no `poise` key at all (a summon of its phases is a
+    // regular enemy and may name one).
 }
 
 #[test]

@@ -80,6 +80,10 @@ pub mod limits {
     pub const MAX_PULL_TICKS: u32 = 60;
     /// A stun lasts at most 2 seconds (a placeholder bound).
     pub const MAX_STUN_TICKS: u32 = 120;
+    /// The most poise an enemy or an elite may name, and the most poise damage a hit phase or
+    /// the run rules may deal (placeholder bounds).
+    pub const MAX_POISE: u32 = 1_000;
+    pub const MAX_POISE_DAMAGE: u32 = 1_000;
     /// A reap smash cashes at most at the bleed's stack maximum (`MAX_DOT_STACKS`, kept equal by a test), and a boss takes at most all of
     /// the burst (placeholder bounds).
     pub const MAX_REAP_STACKS: u32 = 10;

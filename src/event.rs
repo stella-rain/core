@@ -136,6 +136,11 @@ pub enum DomainEvent {
     StunEnded {
         target: EntityId,
     },
+    /// `target`'s flinch ran out, or a stun that landed on it ended it; it is immune to a new
+    /// flinch for the rules' `flinch_immune_ticks`.
+    FlinchEnded {
+        target: EntityId,
+    },
     /// The main character started an evade.
     Evaded,
     /// The main character used its stage skill, at `level`.
