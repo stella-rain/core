@@ -70,7 +70,7 @@
     "boss_drops": 2,
     "rune_share_permille": 100
   },
-  "max_rune_haste_pct": 500,
+  "max_rune_haste_pct": 300,
   "rarities": [
     {
       "rarity": "common",
