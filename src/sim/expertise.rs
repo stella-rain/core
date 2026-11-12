@@ -182,6 +182,9 @@ impl<'a> Choice<'a> {
     }
 }
 
+// The offered-styles mask (`World::styles_offered`) is one bit for each style.
+const _: () = assert!(crate::expertise::STYLES <= 8);
+
 /// Whether the style at place `at` is offered under the setup's mask (`World::styles_offered`).
 fn style_offered(mask: Option<u8>, at: usize) -> bool {
     mask.is_none_or(|m| {
@@ -440,20 +443,20 @@ pub(super) fn tree_pick(
     let Some(c) = next.choices.get(usize::from(place)) else {
         return Err(TreeError::NoTreePoint);
     };
-    let (effect, amount, kind, place) = (c.effect, c.amount, next.kind, c.place);
+    let (effect, amount, kind, at) = (c.effect, c.amount, next.kind, c.place);
     // A style adds nothing of its own: the tree's stat set is everything it gives.
     if kind != ExpertiseOfferKind::Style {
         apply(&mut g.range_pct, progress, player, effect, amount);
     }
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
-        g.style = Some(place);
+        g.style = Some(at);
         if let Some(p) = progress.as_mut() {
             // The tree's set replaces the base set at the weapon's level.
             write_set(stage, expertise, p, player, Some(was), (g.style, g.level));
         }
     } else {
-        g.path.push(place);
+        g.path.push(at);
     }
     Ok(())
 }
