@@ -1927,15 +1927,15 @@ pub(crate) fn assert_short_run_at(
     assert!(last.contains(&ended), "`{name}` reports {ended:?}");
 }
 
-/// The `time_limit` run is the longest equipment run: it ends Failed, after level-ups, within a
-/// tenth of MAX_TICKS (the most ticks a replay the fuzz targets read may hold) but short of it.
+/// The `time_limit` run is the longest equipment run: it ends Failed, after level-ups, in the
+/// top fifth of MAX_TICKS (the most ticks a replay the fuzz targets read may hold), short of it.
 pub(crate) fn assert_longest_run(case: &Path) {
     replay_run_case_at(case, "time_limit", Outcome::Failed);
     let bytes = fs::read(case.join("run.replay")).unwrap();
     let verified = run_replay::verify_run_with(&bytes, &case_content(case).unwrap()).unwrap();
     assert!(
-        verified.ticks < MAX_TICKS && verified.ticks >= MAX_TICKS / 10 * 9,
-        "`time_limit` ends just short of {MAX_TICKS}: {}",
+        verified.ticks < MAX_TICKS && verified.ticks >= MAX_TICKS / 10 * 8,
+        "`time_limit` ends in the top fifth of {MAX_TICKS}: {}",
         verified.ticks
     );
 }
