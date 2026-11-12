@@ -379,6 +379,174 @@ fn a_reward_needs_a_stage_skill_of_the_same_pack() {
     ));
 }
 
+/// The bundled pack with the rewards file as a file made before the equipment rules: no rules,
+/// and no reward or perk names a category.
+fn without_equipment_rules() -> Value {
+    let mut v = value();
+    let rewards = v["rewards"].as_object_mut().unwrap();
+    rewards.remove("equipment");
+    for r in rewards["rewards"].as_array_mut().unwrap() {
+        r.as_object_mut().unwrap().remove("category");
+    }
+    for set in v["perk_sets"]["perk_sets"].as_array_mut().unwrap() {
+        let effects = set["effects"].as_array_mut().unwrap();
+        effects.retain(|e| e.get("category").is_none());
+    }
+    v
+}
+
+const NO_EQUIPMENT_RULES: &str = "sim_version 2 needs the rewards file's equipment rules";
+
+fn one_issue(result: Result<Pack, PackError>, file: &str) -> validate::Issue {
+    match result {
+        Err(PackError::File {
+            file: f,
+            error: Error::Invalid(mut issues),
+        }) if f == file => {
+            assert_eq!(issues.len(), 1, "{issues:?}");
+            issues.remove(0)
+        }
+        Err(e) => panic!("refused in another way: {e:?}"),
+        Ok(_) => panic!("the pack loaded"),
+    }
+}
+
+#[test]
+fn a_sim_version_2_pack_without_equipment_rules_is_refused_with_the_pack() {
+    // The fuzz target's invariant: a pack that loads starts a run of each mode, and a
+    // run at sim_version 2 needs the rewards file's equipment rules.
+    let v = without_equipment_rules();
+    let issue = one_issue(load(&v), "rewards");
+    assert_eq!(issue.path, "$.equipment");
+    assert_eq!(issue.message, NO_EQUIPMENT_RULES);
+}
+
+#[test]
+fn a_missing_equipment_rule_set_is_refused_once_when_a_perk_names_a_category_too() {
+    let mut v = without_equipment_rules();
+    let sets = v["perk_sets"]["perk_sets"].as_array_mut().unwrap();
+    let effect = sets
+        .iter_mut()
+        .flat_map(|s| s["effects"].as_array_mut().unwrap().iter_mut())
+        .next()
+        .unwrap();
+    effect["category"] = json!("weapon");
+    let issue = one_issue(load(&v), "rewards");
+    assert_eq!(issue.message, NO_EQUIPMENT_RULES);
+}
+
+#[test]
+fn a_sim_version_1_pack_needs_no_equipment_rules() {
+    let dir = crate::data_root::data_root().join("tests/corpus/v1/packs");
+    let mut loaded = 0;
+    for entry in fs::read_dir(dir).expect("the v1 packs") {
+        let bytes = fs::read(entry.unwrap().path()).unwrap();
+        let pack = Pack::from_bytes(&bytes).expect("a v1 pack loads");
+        assert!(pack.content().rewards().equipment().is_none());
+        loaded += 1;
+    }
+    assert!(loaded > 0);
+}
+
+/// The bundled pack with `normal` running `times` boss times, 3,000 ticks apart.
+fn normal_with_boss_times(times: usize) -> (Value, usize) {
+    let mut v = value();
+    let ticks: Vec<u64> = (1..=times as u64).map(|t| t * 3_000).collect();
+    let length = *ticks.last().unwrap();
+    let list = v["difficulties"]["difficulties"].as_array_mut().unwrap();
+    let at = list
+        .iter()
+        .position(|d| d["id"] == json!("normal"))
+        .unwrap();
+    list[at]["length_ticks"] = json!(length);
+    list[at]["boss_ticks"] = json!(ticks);
+    (v, at)
+}
+
+#[test]
+fn a_difficulty_with_more_boss_times_than_the_pool_has_bosses_is_refused_with_the_pack() {
+    // One mid-boss for each boss time but the last, each pool entry once: the run start refuses
+    // more, so the pack does at load.
+    let pool = value()["modes"]["time_limit"]["mid_boss_pool"]
+        .as_array()
+        .unwrap()
+        .len();
+    let (v, at) = normal_with_boss_times(pool + 2);
+    let issue = one_issue(load(&v), "difficulties");
+    assert_eq!(issue.path, format!("$.difficulties[{at}].boss_ticks"));
+    assert_eq!(
+        issue.message,
+        "more mid-boss times than the time_limit mode's pool has bosses"
+    );
+    let (v, _) = normal_with_boss_times(pool + 1);
+    load(&v).expect("one boss time more than the pool has mid-bosses is the last, not a mid-boss");
+}
+
+/// The bundled pack without the entry `id` of the file `file` (member `list`), and of the
+/// pack's `introduced` list of the same name.
+fn without_entry(file: &str, list: &str, id: &str) -> Value {
+    let mut v = value();
+    v[file][list]
+        .as_array_mut()
+        .unwrap()
+        .retain(|e| e["id"] != json!(id));
+    v["introduced"][file]
+        .as_array_mut()
+        .unwrap()
+        .retain(|e| e["id"] != json!(id));
+    v
+}
+
+#[test]
+fn a_pack_without_the_default_perk_set_is_refused_with_the_pack() {
+    // A run that names no perk set starts with `duelist` (the fuzz invariant's own setup).
+    let mut v = without_entry("perk_sets", "perk_sets", run_setup::DEFAULT_PERK_SET);
+    // The star chart and the starting unlocks name `duelist` too; both are optional.
+    let pack = v.as_object_mut().unwrap();
+    pack.remove("star_chart");
+    pack.remove("starting_unlocks");
+    let issue = one_issue(load(&v), "perk_sets");
+    assert_eq!(issue.path, "$.perk_sets");
+    assert_eq!(
+        issue.message,
+        "the default perk set (duelist) is missing: a run that names none starts with it"
+    );
+}
+
+#[test]
+fn a_pack_without_the_default_difficulty_is_refused_with_the_pack() {
+    let mut v = without_entry(
+        "difficulties",
+        "difficulties",
+        run_setup::DEFAULT_DIFFICULTY,
+    );
+    // `hard` opens after `normal`: repoint it so that the missing default is the only issue.
+    for d in v["difficulties"]["difficulties"].as_array_mut().unwrap() {
+        if d["opens_after"] == json!(run_setup::DEFAULT_DIFFICULTY) {
+            d["opens_after"] = json!("easy");
+        }
+    }
+    let issue = one_issue(load(&v), "difficulties");
+    assert_eq!(issue.path, "$.difficulties");
+    assert_eq!(
+        issue.message,
+        "the default difficulty (normal) is missing: a run that names none starts with it"
+    );
+}
+
+#[test]
+fn the_default_setup_starts_a_run_of_the_bundled_pack() {
+    let pack = load(&value()).expect("the bundled pack loads");
+    let setup = run_setup::RunSetup {
+        mode: "trial".into(),
+        weapon: "giant_sword".into(),
+        sim_version: pack.sim_version(),
+        ..run_setup::RunSetup::default()
+    };
+    stella_rain_core::engine::Engine::start_with(&setup, pack.content())
+        .expect("a pack that loads starts a run");
+}
+
 #[test]
 fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode. A boss
