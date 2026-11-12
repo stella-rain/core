@@ -256,6 +256,26 @@ pub(super) fn assist_target(
     best.map(|(_, _, id)| id)
 }
 
+/// The circle (centre and radius) of the boss, a part or an enemy with this `id`, if it is
+/// still there and alive: what attack magnetism stops against.
+pub(super) fn target_circle(stage: &World, s: &State, id: EntityId) -> Option<(Point, i32)> {
+    match s.find(id)? {
+        Who::Boss => {
+            let (def, boss) = s.boss_pair(stage)?;
+            (boss.hp > 0).then_some((boss.at, def.radius.0))
+        }
+        who @ Who::BossPart(i) => {
+            let part = &s.boss.as_ref()?.parts[i];
+            (part.hp > 0).then(|| (s.at(who), part.radius))
+        }
+        Who::Enemy(i) => {
+            let e = &s.enemies[i];
+            (e.hp > 0).then(|| (e.at, stage.defs.agent(e.def).radius.0))
+        }
+        _ => None,
+    }
+}
+
 /// Aim assist's first `n` targets, in its order (`assist_target`'s first): the aim of homing
 /// missiles. `kept` is the working list and `targets` the result; both are cleared on entry and
 /// come from the scratch. One pass over the enemies, each set against at most `n` kept. Its own

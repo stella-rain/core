@@ -12,6 +12,14 @@
 //! splitter's children, guardians, the boss's summons) spawn in while the waves are held at the
 //! target. A mode or a stage may override the target, not the headroom.
 //!
+//! The perfect evade is five optional keys, all or none (`perfect_evade_window_ticks`,
+//! `perfect_evade_slow_ticks`, `perfect_evade_cooldown_ticks`, `perfect_evade_reach`,
+//! `perfect_evade_slow_every`): none, and the rule is off (today's pack); some, and the file is
+//! refused at each missing key; any of them at `sim_version` 1 is refused. Each is bounded by a
+//! cap in `limits` and clamped again into `Tuning.perfect_evade` (ADR-SVC-1); the cooldown is
+//! not below the slow, so a slow cannot restart inside itself. Only enemies in the evader's reach
+//! are slowed (`sim::player`), never other players (ADR-SIM-8).
+//!
 //! Unlike `stardust`, the simulation reads this file, so the pack must hold it (a required slot)
 //! and the derived content hash covers it: a replay never depends on the client's build.
 //!
@@ -28,7 +36,8 @@ use sha2::{Digest, Sha256};
 use crate::fixed::Fx;
 use crate::limits::{
     MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_FLINCH_IMMUNE_TICKS, MAX_FLINCH_TICKS,
-    MAX_PCT, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH,
+    MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH, MAX_PERFECT_SLOW_EVERY,
+    MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH,
 };
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
@@ -190,7 +199,48 @@ pub struct RulesFile {
     /// `sim_version` 2 only. Absent: none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vulnerable_pcts: Option<VulnerablePcts>,
+    /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
+    /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
+    /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade_window_ticks: Option<u32>,
+    /// Ticks the enemies in the evader's reach are slowed: 1 to `MAX_PERFECT_SLOW_TICKS` (300).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade_slow_ticks: Option<u32>,
+    /// Ticks before the evader's next perfect evade: from `perfect_evade_slow_ticks` to
+    /// `MAX_PERFECT_COOLDOWN_TICKS` (3,600).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade_cooldown_ticks: Option<u32>,
+    /// How near the evader an enemy's centre is slowed, in 1/256 px: 1 px to `MAX_PERFECT_REACH`
+    /// (420) px.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade_reach: Option<Fx>,
+    /// A slowed enemy acts on the ticks where the slow's remaining ticks are a multiple of this:
+    /// 2 to `MAX_PERFECT_SLOW_EVERY` (8).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade_slow_every: Option<u8>,
 }
+
+/// The perfect evade's numbers (ADR-CONT-3), read once into `Tuning` and clamped to the caps
+/// (ADR-SVC-1). Present only when the pack names all five keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PerfectEvade {
+    pub window_ticks: u16,
+    pub slow_ticks: u16,
+    pub cooldown_ticks: u16,
+    /// In 1/256 px.
+    pub reach: i32,
+    pub slow_every: u8,
+}
+
+/// The five keys of the perfect evade, in the order the file documents them.
+const PERFECT_EVADE_KEYS: [&str; 5] = [
+    "perfect_evade_window_ticks",
+    "perfect_evade_slow_ticks",
+    "perfect_evade_cooldown_ticks",
+    "perfect_evade_reach",
+    "perfect_evade_slow_every",
+];
 
 /// A rules file that passed validation, and the SHA-256 of the bytes it came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -244,6 +294,18 @@ impl Rules {
                     path: path.into(),
                     message: "needs sim_version 2".into(),
                 });
+            }
+        }
+        // sim_version >= 2: the perfect evade is a rule of the open version.
+        if versions.sim_version < 2 {
+            for (key, present) in PERFECT_EVADE_KEYS.iter().zip(file.perfect_evade_present()) {
+                let path = format!("$.{key}");
+                if present && !issues.iter().any(|i| i.path == path) {
+                    issues.push(Issue {
+                        path,
+                        message: "needs sim_version 2".into(),
+                    });
+                }
             }
         }
         if !issues.is_empty() {
@@ -424,6 +486,19 @@ impl Rules {
         table
     }
 
+    /// The perfect evade's numbers, clamped to the caps; `None` when the pack names none.
+    pub fn perfect_evade(&self) -> Option<PerfectEvade> {
+        let f = &self.file;
+        let cap = |v: u32, most: u16| u16::try_from(v).map_or(most, |v| v.min(most));
+        Some(PerfectEvade {
+            window_ticks: cap(f.perfect_evade_window_ticks?, MAX_PERFECT_WINDOW_TICKS),
+            slow_ticks: cap(f.perfect_evade_slow_ticks?, MAX_PERFECT_SLOW_TICKS),
+            cooldown_ticks: cap(f.perfect_evade_cooldown_ticks?, MAX_PERFECT_COOLDOWN_TICKS),
+            reach: f.perfect_evade_reach?.0.min(Fx::px(MAX_PERFECT_REACH).0),
+            slow_every: f.perfect_evade_slow_every?.min(MAX_PERFECT_SLOW_EVERY),
+        })
+    }
+
     /// The defence that halves a hit, in stored units.
     pub fn defence_k(&self) -> u32 {
         self.file.defence_k
@@ -450,6 +525,19 @@ impl Rules {
     /// The SHA-256 of the bytes it was parsed from.
     pub fn sha256(&self) -> [u8; 32] {
         self.sha256
+    }
+}
+
+impl RulesFile {
+    /// Which of the five perfect-evade keys the file names.
+    fn perfect_evade_present(&self) -> [bool; 5] {
+        [
+            self.perfect_evade_window_ticks.is_some(),
+            self.perfect_evade_slow_ticks.is_some(),
+            self.perfect_evade_cooldown_ticks.is_some(),
+            self.perfect_evade_reach.is_some(),
+            self.perfect_evade_slow_every.is_some(),
+        ]
     }
 }
 
@@ -721,6 +809,7 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
         }
     }
     validate_combat_keys(file, issues);
+    validate_perfect_evade(file, issues);
 }
 
 /// The checks of the flinch, control and vulnerable keys: each bound, and each key with its
@@ -815,4 +904,68 @@ fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
             i64::from(MAX_PCT),
         );
     }
+}
+
+/// The perfect evade's keys: all five or none, each bounded; the cooldown is not below the slow,
+/// so a slow cannot restart inside itself.
+fn validate_perfect_evade(file: &RulesFile, issues: &mut Vec<Issue>) {
+    let present = file.perfect_evade_present();
+    if present.iter().all(|p| !p) {
+        return;
+    }
+    if present.iter().any(|p| !p) {
+        for (key, here) in PERFECT_EVADE_KEYS.iter().zip(present) {
+            if !here {
+                issues.push(Issue {
+                    path: format!("$.{key}"),
+                    message: "all five perfect_evade keys or none".into(),
+                });
+            }
+        }
+        return;
+    }
+    let (Some(window), Some(slow), Some(cooldown), Some(reach), Some(every)) = (
+        file.perfect_evade_window_ticks,
+        file.perfect_evade_slow_ticks,
+        file.perfect_evade_cooldown_ticks,
+        file.perfect_evade_reach,
+        file.perfect_evade_slow_every,
+    ) else {
+        return;
+    };
+    within(
+        issues,
+        "perfect_evade_window_ticks",
+        i64::from(window),
+        1,
+        i64::from(MAX_PERFECT_WINDOW_TICKS),
+    );
+    let slow_ok = within(
+        issues,
+        "perfect_evade_slow_ticks",
+        i64::from(slow),
+        1,
+        i64::from(MAX_PERFECT_SLOW_TICKS),
+    );
+    within(
+        issues,
+        "perfect_evade_cooldown_ticks",
+        i64::from(cooldown),
+        if slow_ok { i64::from(slow) } else { 1 },
+        i64::from(MAX_PERFECT_COOLDOWN_TICKS),
+    );
+    within(
+        issues,
+        "perfect_evade_reach",
+        i64::from(reach.0),
+        i64::from(Fx::px(1).0),
+        i64::from(Fx::px(MAX_PERFECT_REACH).0),
+    );
+    within(
+        issues,
+        "perfect_evade_slow_every",
+        i64::from(every),
+        2,
+        i64::from(MAX_PERFECT_SLOW_EVERY),
+    );
 }

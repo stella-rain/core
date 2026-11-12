@@ -79,6 +79,12 @@ pub struct AttackPhase {
     /// attack's locked facing over the phase, hit box and boss parts with it (DS11).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dash: Option<Dash>,
+    /// A phase of the main character's combo step (attack magnetism): the player slides along the
+    /// facing the step took toward the assist's target over the phase, this far in all (1/256 px, 1 px to `limits::MAX_ADVANCE_DISTANCE`). Absent:
+    /// no slide. Read at `sim_version` 2, for a combo step only (ADR-CONT-3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 256, max = crate::limits::MAX_ADVANCE_DISTANCE * 256))]
+    pub advance: Option<Fx>,
 }
 
 /// A phase that carries its attacker forward: it covers `distance` over the phase's ticks, held

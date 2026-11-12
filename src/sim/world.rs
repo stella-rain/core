@@ -432,6 +432,8 @@ pub(crate) struct Tuning {
     pub control_immune_ticks: u32,
     /// The `vulnerable` percent a stun that lands puts on its target; 0: none.
     pub vulnerable_stun_pct: u16,
+    /// The perfect evade (`sim_version` 2); `None`: the rule is off.
+    pub perfect_evade: Option<crate::rules::PerfectEvade>,
 }
 
 impl Tuning {
@@ -478,6 +480,7 @@ impl Tuning {
             control_reset_ticks: rules.control_reset_ticks(),
             control_immune_ticks: rules.control_immune_ticks(),
             vulnerable_stun_pct: u16::try_from(rules.vulnerable_stun_pct()).unwrap_or(u16::MAX),
+            perfect_evade: rules.perfect_evade(),
         }
     }
 }
@@ -533,6 +536,9 @@ pub(crate) struct World {
     attack_presets: Arc<AttackPresets>,
     /// Some compiled attack has a phase that dashes: the tick looks for a dasher only then.
     pub has_dash: bool,
+    /// Some compiled phase names an `advance` (attack magnetism): the player's tick looks for a
+    /// slide only then.
+    pub has_advance: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -699,6 +705,7 @@ impl World {
             program_colours: Vec::new(),
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
+            has_advance: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -711,6 +718,10 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
+        world.has_advance = world
+            .attacks
+            .iter()
+            .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
         Ok(world)
     }
 
@@ -827,6 +838,10 @@ impl World {
             .phases
             .iter()
             .any(|p| p.dash.is_some());
+        self.has_advance |= self.attacks[usize::from(index.0)]
+            .phases
+            .iter()
+            .any(|p| p.advance.is_some());
         Ok(index)
     }
 

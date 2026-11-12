@@ -18,6 +18,7 @@
 //! | `spawn_elite` | a `time_limit` run's elite table brings an elite when its time comes (`horde`) |
 //! | `leash` | a regular, unanchored enemy outside the leash's reach rectangle (`leash_reach_x`, `leash_reach_y` of `rules.json`) around the view's centre (`view_centre`) moves to the centre's rectangle of `leash_land_x`, `leash_land_y` on the opposite side (or on the enemy's own side when that one is off the map), at most `MAX_LEASH_MOVES_PER_TICK` a tick (`leash`) |
 //! | `statuses_and_aggro` | statuses run out and aggro fades, but damage-over-time statuses wait for `collide` (`entity`) |
+//! | `perfect_slow` | the perfect evade's slowed set (enemies in the reach of a player whose slow runs) is worked out from the tick's start positions, then every player's window, cooldown and slow run down one (`player`) |
 //! | `runes_tick` | each on-hit rune's cooldown counts down (`runes`) |
 //! | `advance_runs` | every running phased attack advances a tick (`attacks`) |
 //! | `tether` | with two or more up players, when the farthest two are more than `TETHER_RANGE` apart, each up player farthest from the bounding box's centre that is not dashing is pulled toward it by an eighth of the overshoot, so a dash is never blocked; downed and out players are neither measured nor pulled (ADR-SIM-7, `player`) |
@@ -60,6 +61,11 @@
 //! offer generator, offers, expertise, Stardust, regen), a layout the hash-layout work settles.
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches (`stars`); the live rules open no star offer.
+//!
+//! The perfect evade (`player::near_miss`, the step `perfect_slow`) and attack magnetism
+//! (`player::magnetism`) are dormant until the pack names them: `Tuning.perfect_evade` is `None`
+//! and no phase names an `advance`, so no state, hash or replay moves. The slowed set is
+//! `Scratch::slowed`, recomputed each tick from the state.
 //!
 //! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
@@ -159,6 +165,8 @@ mod damage_tests;
 mod drops_tests;
 #[cfg(test)]
 mod equip_support;
+#[cfg(test)]
+mod magnet_tests;
 mod orbit;
 #[cfg(test)]
 mod party_act_tests;
@@ -166,6 +174,8 @@ mod party_act_tests;
 mod party_equip_tests;
 #[cfg(test)]
 mod party_fix_tests;
+#[cfg(test)]
+mod perfect_evade_tests;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;

@@ -277,7 +277,9 @@ fn break_orbs(
 fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     for i in 0..s.orbs.len() {
         let p = &s.players[me];
-        if p.hp == 0 || p.invulnerable > 0 {
+        // An invulnerable player is only looked at while a perfect-evade window is open: the tick
+        // cost of every other evade stays what it was.
+        if p.hp == 0 || (p.invulnerable > 0 && p.combat.perfect_window == 0) {
             return;
         }
         let Some(j) = super::beam_to(&s.orbs, i) else {
@@ -301,6 +303,13 @@ fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<Doma
         );
         if !line.touches(d, stage.tuning.player_radius) {
             continue;
+        }
+        if p.invulnerable > 0 {
+            // The beam is stopped by the invulnerability: a near miss, or nothing at all.
+            if p.combat.perfect_window > 0 {
+                super::player::near_miss(stage, s, me);
+            }
+            return;
         }
         let shot = Shot {
             at: p.at,
@@ -671,11 +680,13 @@ fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Do
     for me in s.players.indices() {
         let id = s.players.id(me);
         let p = &s.players[me];
-        if p.hp > 0
-            && p.invulnerable == 0
-            && covers(w, p.at, stage.tuning.player_radius)
-            && take_hit(s, w, id)
-        {
+        if p.invulnerable > 0 {
+            if p.combat.perfect_window > 0 && covers(w, p.at, stage.tuning.player_radius) {
+                super::player::near_miss(stage, s, me);
+            }
+            continue;
+        }
+        if p.hp > 0 && covers(w, p.at, stage.tuning.player_radius) && take_hit(s, w, id) {
             let by = match w.source {
                 Source::Run(i) => Blame {
                     kind: HitKind::Attack,
@@ -951,6 +962,169 @@ mod party_tests {
             "the shared last hit spares slot 1 this tick"
         );
         assert_eq!(hurt_in(&ev), 1);
+    }
+
+    // The near miss (the perfect evade): the evade's own invulnerability stopped a hit inside the
+    // window. Test values: window 10, slow 60, cooldown 300, an evade of 10 ticks.
+
+    const EVADE_TICKS: u32 = 10;
+
+    fn tuned() -> (World, State) {
+        let (mut w, s) = party();
+        w.tuning.perfect_evade = Some(crate::rules::PerfectEvade {
+            window_ticks: 10,
+            slow_ticks: 60,
+            cooldown_ticks: 300,
+            reach: Fx::px(200).0,
+            slow_every: 2,
+        });
+        w.stage.player.evade.invulnerable_ticks = EVADE_TICKS;
+        (w, s)
+    }
+
+    /// Slot `i` pressed its evade `since` ticks ago.
+    fn pressed(s: &mut State, i: u8, since: u16) {
+        let p = &mut s.players[slot(i)];
+        p.combat.perfect_window = 10 - since;
+        p.invulnerable = EVADE_TICKS - u32::from(since);
+    }
+
+    fn timers(s: &State, i: u8) -> (u16, u16, u16) {
+        let c = &s.players[slot(i)].combat;
+        (c.perfect_window, c.perfect_slow, c.perfect_cooldown)
+    }
+
+    fn hit_solo(w: &World, s: &mut State, ev: &mut Vec<DomainEvent>) {
+        let sw = swing(
+            s.players[PlayerIdx::SOLO].at,
+            w.tuning.player_radius,
+            false,
+            FOE,
+        );
+        hit_players_side(w, s, &sw, ev);
+    }
+
+    #[test]
+    fn a_hit_box_the_evade_stops_inside_the_window_is_a_perfect_near_miss() {
+        for since in [0, 3, 9] {
+            let (w, mut s) = tuned();
+            pressed(&mut s, 0, since);
+            let before = hp(&s);
+            let mut ev = Vec::new();
+            hit_solo(&w, &mut s, &mut ev);
+            assert_eq!(hp(&s), before, "since {since}");
+            assert_eq!(hurt_in(&ev), 0);
+            assert_eq!(timers(&s, 0), (0, 60, 300), "since {since}");
+        }
+        let (w, mut s) = tuned();
+        pressed(&mut s, 0, 9);
+        s.players[slot(0)].invulnerable = 0;
+        s.players[slot(0)].combat.perfect_window = 0;
+        let before = hp(&s);
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert!(hp(&s)[0] < before[0], "nothing left to stop it hits");
+    }
+
+    #[test]
+    fn a_hit_residue_longer_than_the_evade_is_not_a_near_miss_and_a_tie_is() {
+        // A hit 5 ticks before the press left 55 ticks; two ticks after the press the evade has 8.
+        let (w, mut s) = tuned();
+        pressed(&mut s, 0, 2);
+        s.players[slot(0)].invulnerable = 53;
+        let before = hp(&s);
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert_eq!(hp(&s), before, "skipped");
+        assert_eq!(timers(&s, 0), (8, 0, 0), "the window stays open, no slow");
+        // Residue equal to what the evade has left: a tie goes to the evade.
+        s.players[slot(0)].invulnerable = 8;
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert_eq!(timers(&s, 0), (0, 60, 300));
+    }
+
+    #[test]
+    fn a_skip_outside_the_window_or_of_a_downed_player_opens_nothing() {
+        let (w, mut s) = tuned();
+        // The window ran out (4 ticks) while the evade's 10 go on: skipped, not a near miss.
+        s.players[slot(0)].invulnerable = 4;
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert_eq!(timers(&s, 0), (0, 0, 0));
+        // A downed player records nothing.
+        pressed(&mut s, 0, 0);
+        s.players[slot(0)].hp = 0;
+        let mut ev = Vec::new();
+        hit_solo(&w, &mut s, &mut ev);
+        assert_eq!(timers(&s, 0), (10, 0, 0));
+        assert_eq!(hurt_in(&ev), 0);
+    }
+
+    #[test]
+    fn a_near_miss_in_the_cooldown_closes_the_window_and_slows_nothing() {
+        let (w, mut s) = tuned();
+        pressed(&mut s, 0, 1);
+        s.players[slot(0)].combat.perfect_cooldown = 5;
+        let before = hp(&s);
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert_eq!(hp(&s), before);
+        assert_eq!(timers(&s, 0), (0, 0, 5));
+        // A second near miss 59 ticks into a slow cannot restart it.
+        pressed(&mut s, 0, 0);
+        s.players[slot(0)].combat.perfect_slow = 1;
+        hit_solo(&w, &mut s, &mut Vec::new());
+        assert_eq!(timers(&s, 0), (0, 1, 5));
+    }
+
+    #[test]
+    fn an_orb_and_a_cage_beam_the_evade_stops_are_near_misses() {
+        let (w, mut s) = tuned();
+        pressed(&mut s, 0, 0);
+        let shot = Shot {
+            at: s.players[PlayerIdx::SOLO].at,
+            owner: FOE,
+            friendly: false,
+            damage: 10,
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: false,
+        };
+        let by = Blame::of_program(HitKind::Attack, crate::sim::world::ProgramIndex(0));
+        let before = hp(&s);
+        let used = super::super::hit_players_side(&w, &mut s, shot, by, &mut Vec::new());
+        assert!(!used, "the orb flies on");
+        assert_eq!(hp(&s), before);
+        assert_eq!(timers(&s, 0), (0, 60, 300));
+
+        let (w, mut s) = tuned();
+        pressed(&mut s, 0, 0);
+        let link = |slot| crate::sim::state::OrbLink {
+            group: 1,
+            slot,
+            of: 2,
+            width: Fx::px(40),
+            damage: 10,
+            rehit_ticks: 30,
+            last_hit: None,
+        };
+        let far = Point {
+            x: Fx::px(200),
+            y: Fx(0),
+        };
+        s.orbs = vec![
+            orb(Point::default(), FOE, Some(link(0))),
+            orb(far, FOE, Some(link(1))),
+        ];
+        s.players[slot(0)].at = Point {
+            x: Fx::px(100),
+            y: Fx(0),
+        };
+        let before = hp(&s);
+        let mut ev = Vec::new();
+        cage_beams(&w, &mut s, slot(0), &mut ev);
+        assert_eq!(hp(&s), before);
+        assert_eq!(hurt_in(&ev), 0);
+        assert_eq!(timers(&s, 0), (0, 60, 300));
     }
 
     // A run end made during the pass (a player downed, a hold broken, a stun) must not shift the

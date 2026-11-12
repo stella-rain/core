@@ -153,16 +153,6 @@
             }
           ]
         },
-        "poise": {
-          "description": "A regular enemy's or an elite's poise: a combo hit of a main character that deals at\nleast this much poise damage makes it flinch (`flinch_ticks` of the rules). 0 to\n`limits::MAX_POISE` (1,000); `sim_version` 2 only, and the rules must name `flinch_ticks`.\nAbsent: it never flinches.",
-          "format": "uint32",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "profile": {
           "anyOf": [
             {
@@ -243,6 +233,16 @@
       "additionalProperties": false,
       "description": "One phase of an attack.",
       "properties": {
+        "advance": {
+          "description": "A phase of the main character's combo step (attack magnetism): the player slides along the\nfacing the step took toward the assist's target over the phase, this far in all (1/256 px, 1 px to `limits::MAX_ADVANCE_DISTANCE`). Absent:\nno slide. Read at `sim_version` 2, for a combo step only (ADR-CONT-3).",
+          "format": "int32",
+          "maximum": 61440,
+          "minimum": 256,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "breaks_charge": {
           "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
@@ -288,16 +288,6 @@
           "maximum": 100,
           "minimum": 0,
           "type": "integer"
-        },
-        "poise_damage": {
-          "description": "An active phase with a hit box of a main character's or an ally's attack only: the poise\ndamage of its combo hits, 0 to `limits::MAX_POISE_DAMAGE` (1,000); `sim_version` 2 only.\nAbsent: the rules' `poise_damage_a` or `poise_damage_b` by the press.",
-          "format": "uint32",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
         },
         "rehit_ticks": {
           "description": "An active phase only: a target already hit may be hit again after this many ticks.",
@@ -2131,33 +2121,6 @@
             },
             "type": {
               "const": "StunEnded",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "`target`'s flinch ran out, or a stun that landed on it ended it; it is immune to a new\nflinch for the rules' `flinch_immune_ticks`.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "target": {
-                  "$ref": "#/$defs/EntityId"
-                }
-              },
-              "required": [
-                "target"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "FlinchEnded",
               "type": "string"
             }
           },
@@ -7069,37 +7032,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "control_immune_ticks": {
-          "description": "Ticks an enemy is immune to hard controls after one is refused for its count: 1 to 600.\nOnly with `control_repeat_pcts`.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "control_repeat_pcts": {
-          "description": "What percent of its ticks each further hard control (a stun) on one enemy keeps: 1 to\n`limits::MAX_CONTROL_REPEATS` (8) entries of 1 to 100; the first control keeps the first\nentry, and a control past the last entry is refused. Named together with\n`control_reset_ticks` and `control_immune_ticks`, `sim_version` 2 only. Absent: the stun\nimmunity of the run stats alone.",
-          "items": {
-            "format": "uint32",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "control_reset_ticks": {
-          "description": "Ticks without a hard control after which an enemy's count of them starts over: 1 to\n`limits::MAX_CONTROL_RESET_TICKS` (600). Only with `control_repeat_pcts`.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "crit_damage_base_pct": {
           "description": "What a critical hit deals before any bonus, in percent: 100 to 1,000.",
           "format": "uint32",
@@ -7124,26 +7056,6 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
-        },
-        "flinch_immune_ticks": {
-          "description": "Ticks after a flinch ends in which the enemy cannot flinch again: 0 to\n`limits::MAX_FLINCH_IMMUNE_TICKS` (120). Only with `flinch_ticks`. Absent: 0.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "flinch_ticks": {
-          "description": "Ticks an enemy that names a `poise` flinches for when a hit deals at least that much\npoise damage: 1 to `limits::MAX_FLINCH_TICKS` (60). `sim_version` 2 only. Absent: no\nenemy flinches, and no enemy may name a `poise`.",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
         },
         "hit_invulnerable_ticks": {
           "description": "Ticks of invulnerability after the main character is hit: 0 to 600.",
@@ -7211,6 +7123,51 @@
           },
           "type": "array"
         },
+        "perfect_evade_cooldown_ticks": {
+          "description": "Ticks before the evader's next perfect evade: from `perfect_evade_slow_ticks` to\n`MAX_PERFECT_COOLDOWN_TICKS` (3,600).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_reach": {
+          "description": "How near the evader an enemy's centre is slowed, in 1/256 px: 1 px to `MAX_PERFECT_REACH`\n(420) px.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_slow_every": {
+          "description": "A slowed enemy acts on the ticks where the slow's remaining ticks are a multiple of this:\n2 to `MAX_PERFECT_SLOW_EVERY` (8).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_slow_ticks": {
+          "description": "Ticks the enemies in the evader's reach are slowed: 1 to `MAX_PERFECT_SLOW_TICKS` (300).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_window_ticks": {
+          "description": "The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the\nrule is off). Ticks after an effective evade press in which a hit the evade alone stops is\na near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "player_radius": {
           "description": "The main character's hurt circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
           "format": "int32",
@@ -7220,24 +7177,6 @@
           "description": "The main character's speed at full stick, in 1/256 px a tick: 1 to 4,096.",
           "format": "int32",
           "type": "integer"
-        },
-        "poise_damage_a": {
-          "description": "The poise damage of a main character's combo hit of an A (`main`) step when its phase\nnames none: 0 to `validate::limits::MAX_POISE_DAMAGE` (1,000). `sim_version` 2 only.\nAbsent: 0.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "poise_damage_b": {
-          "description": "The same for a smash step (B): 0 to 1,000. `sim_version` 2 only. Absent: 0.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
         },
         "ranged_line_tokens": {
           "description": "Tokens of the line attacks' pool: at least 1; the two pools sum to at most 4.",
@@ -7261,17 +7200,6 @@
           "description": "How far outside the view an enemy spawns, in 1/256 px: 0 to 1,024 px.",
           "format": "int32",
           "type": "integer"
-        },
-        "vulnerable_pcts": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/VulnerablePcts"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "The `vulnerable` percent a landing control puts on its target, by kind of control.\n`sim_version` 2 only. Absent: none."
         }
       },
       "required": [
@@ -9269,7 +9197,7 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId",
-          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
+          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
         },
         "remaining": {
           "description": "Ticks left. An aura has none: it lasts while its entity is in reach, so both this and\n`total` are 0 for it.",
@@ -10097,23 +10025,6 @@
       "required": [
         "side"
       ],
-      "type": "object"
-    },
-    "VulnerablePcts": {
-      "additionalProperties": false,
-      "description": "What a control adds to the target's damage taken as `vulnerable`, in percent, by the kind of\ncontrol that landed. Only the stun for now; the other controls add their own key later.",
-      "properties": {
-        "stun": {
-          "description": "A stun that lands puts `vulnerable` of this many percent on its target for the stun's\nown ticks: 1 to `limits::MAX_PCT` (1,000). Absent: a stun puts none.",
-          "format": "uint32",
-          "maximum": 1000,
-          "minimum": 1,
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      },
       "type": "object"
     },
     "Wave": {
