@@ -818,6 +818,9 @@ fn take_step(
         // A new step starts its fill again (the step cap, ADR-SIM-5).
         s.players[me].combat.gauge_step_fill = 0;
     }
+    if smash && stage.has_gauge && spend_gauge(stage, s, me, input.assist || !by_hand, events) {
+        return;
+    }
     let held = by_hand && if smash { input.smash } else { input.main };
     // Auto mode charges a step to the level recorded for it, with no button.
     let auto_level = step.charge.as_ref().filter(|_| !by_hand).map_or(0, |_| {
@@ -894,6 +897,35 @@ pub(super) fn gauge_full(stage: &World, s: &State, me: PlayerIdx) -> bool {
     stage
         .gauge_of(s, me)
         .is_some_and(|g| s.players[me].combat.weapon_gauge >= g.max)
+}
+
+/// A B step taken at a full gauge: spends it and plays the style's full-gauge attack in place of
+/// the step's own, which starts no charge and no hold. True when it played. The one place a kind
+/// that reacts to a spent gauge adds its line.
+fn spend_gauge(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    aim: bool,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if !gauge_full(stage, s, me) {
+        return false;
+    }
+    let Some(crate::expertise::Gauge {
+        spend: crate::expertise::GaugeSpend::FullSmash { attack },
+        ..
+    }) = stage.gauge_of(s, me)
+    else {
+        return false;
+    };
+    let c = &mut s.players[me];
+    c.combat.weapon_gauge = 0;
+    c.combat.gauge_step_fill = 0;
+    // No hold begins after it (`begins_hold`).
+    c.combo.released = true;
+    strike(stage, s, me, attack, 0, aim, events);
+    true
 }
 
 /// The current step's attack starts in the combo slot along the facing, at the
