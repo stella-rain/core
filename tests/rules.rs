@@ -736,6 +736,18 @@ fn the_bundled_file_names_no_perfect_evade_key() {
     for key in EVADE_KEYS {
         assert!(v.get(key).is_none(), "{key}");
     }
+    assert!(Rules::bundled().perfect_evade().is_none());
+}
+
+#[test]
+fn a_loaded_perfect_evade_reads_back_clamped_to_the_caps() {
+    let rules = Rules::parse(&evade_with(EVADE_OK), Versions::CURRENT).unwrap();
+    let got = rules.perfect_evade().expect("all five keys");
+    assert_eq!(
+        (got.window_ticks, got.slow_ticks, got.cooldown_ticks),
+        (10, 60, 300)
+    );
+    assert_eq!((got.reach, got.slow_every), (200 * 256, 2));
 }
 
 #[test]

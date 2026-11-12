@@ -415,6 +415,8 @@ pub(crate) struct Tuning {
     pub defence_k: u64,
     pub crit_damage_base_pct: u64,
     pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
+    /// The perfect evade (`sim_version` 2); `None`: the rule is off.
+    pub perfect_evade: Option<crate::rules::PerfectEvade>,
 }
 
 impl Tuning {
@@ -444,6 +446,7 @@ impl Tuning {
             defence_k: u64::from(rules.defence_k()),
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
             party_damage_pct: rules.party_damage_pct(),
+            perfect_evade: rules.perfect_evade(),
         }
     }
 }
