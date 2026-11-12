@@ -304,7 +304,7 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
     ("three_tutorial", 4392, Outcome::Cleared, [0, 0, 0], 0),
     ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
-    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 990),
+    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 980),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -328,7 +328,7 @@ const ACTIONS: [(&str, [u32; 3]); 7] = [
     ("three_time_limit", [67, 70, 67]),
     ("three_tutorial", [3, 3, 4]),
     ("join_two", [49, 48, 0]),
-    ("leave_hole", [64, 14, 45]),
+    ("leave_hole", [65, 14, 46]),
     ("two_revive", [51, 56, 0]),
     ("three_revive", [56, 59, 55]),
 ];
@@ -349,8 +349,8 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [2, 2, 0], 2074, 2254, "8ad435552107ac79"),
-    ("three_revive", [3, 3, 0], 2074, 2254, "2b671e9e6e05dc22"),
+    ("two_revive", [2, 2, 0], 2074, 2254, "2f2df9da4a8401fe"),
+    ("three_revive", [3, 3, 0], 2074, 2254, "b9671025b482ef1d"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,

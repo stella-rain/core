@@ -137,7 +137,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "hydro"
           ]
         },
         "movement": {
@@ -168,7 +169,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "geo"
           ]
         },
         "movement": {
@@ -198,7 +200,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "pierce"
+            "pierce",
+            "anemo"
           ]
         },
         "movement": {
@@ -318,7 +321,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "cryo"
           ]
         },
         "movement": {
@@ -442,7 +446,8 @@
         "radius": 2048,
         "profile": {
           "weak": [
-            "strike"
+            "strike",
+            "pyro"
           ]
         },
         "movement": {
