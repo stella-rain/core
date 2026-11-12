@@ -34,6 +34,12 @@ struct ModeLists {
     modes: Vec<IgnoredAny>,
 }
 
+#[derive(Deserialize)]
+struct ColourLists {
+    #[serde(default)]
+    colours: Vec<IgnoredAny>,
+}
+
 /// The lists of the star chart file, counted.
 #[derive(Deserialize)]
 struct StarChartLists {
@@ -378,6 +384,17 @@ pub(super) fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
                 MAX_STARTING_UNLOCKS,
             )?;
         }
+    }
+    if let Some(l) = pack
+        .threat_colours
+        .as_deref()
+        .and_then(counts::<ColourLists>)
+    {
+        budget(
+            "$.threat_colours.colours",
+            l.colours.len(),
+            crate::threat_colours::MAX_THREAT_COLOURS,
+        )?;
     }
     if let Some(l) = pack.stardust.as_deref().and_then(counts::<ModeLists>) {
         budget("$.stardust.modes", l.modes.len(), MAX_STARDUST_MODES)?;

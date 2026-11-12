@@ -150,8 +150,8 @@ fn unknown_fields_other_versions_and_big_files_are_refused() {
 }
 
 #[test]
-fn the_pack_has_eighteen_slots_and_rules_is_required() {
-    assert_eq!(ContentFiles::LAYOUT.len(), 18);
+fn the_pack_has_nineteen_slots_and_rules_is_required() {
+    assert_eq!(ContentFiles::LAYOUT.len(), 19);
     let slot = ContentFiles::LAYOUT
         .iter()
         .find(|s| s.name == "rules")
@@ -165,8 +165,11 @@ fn a_pack_without_rules_is_refused() {
     let bundled = ContentFiles::bundled();
     let mut files = ContentFiles::default();
     for slot in ContentFiles::LAYOUT {
+        // The bundled pack holds no threat colour table: that slot stays empty.
         if slot.name != "rules" {
-            files.insert(slot.name, bundled.get(slot.name).unwrap().to_vec());
+            if let Some(bytes) = bundled.get(slot.name) {
+                files.insert(slot.name, bytes.to_vec());
+            }
         }
     }
     assert!(matches!(

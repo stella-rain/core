@@ -242,6 +242,9 @@ fn verify_cmd(args: &[&str]) -> Result<(), Failure> {
         ),
         None => println!("star_chart: none"),
     }
+    if !pack.threat_colours().is_empty() {
+        println!("threat_colours: {}", pack.threat_colours().len());
+    }
     println!(
         "rules: crowd_target {}, cap_headroom_pct {}",
         pack.content().rules().crowd_target(),

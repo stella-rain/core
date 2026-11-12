@@ -554,6 +554,12 @@ pub struct Boss {
     pub base: ContentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette: Option<ContentId>,
+    /// Names an entry of the pack's threat colour table (ADR-CONT-1, ADR-BRDG-4): the colour of
+    /// this enemy's attack areas. Which entry exists is checked where the table is known (pack
+    /// load, run build); the validator holds the shape. `sim_version` 2 only; an enemy's or the
+    /// boss's, never a companion's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threat_colour: Option<ContentId>,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_BOSS_HP))]
     pub hp: u32,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_RADIUS))]

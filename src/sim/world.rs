@@ -18,6 +18,7 @@ use crate::rules::Rules;
 use crate::run_content::RunContent;
 use crate::sim::state::{AgentKey, AgentSource};
 use crate::stage::{Boss, Stage};
+use crate::threat_colours::{ThreatColourIndex, ThreatColours};
 use crate::time_limit::EliteTier;
 use crate::validate::Issue;
 use crate::weapon::{Weapon, WeaponRef};
@@ -60,6 +61,12 @@ pub(crate) struct AttackDef {
     pub programs: Vec<ProgramIndex>,
     /// The ranged-token pool a ranged start of this attack draws from (RA1, DS83).
     pub pool: RangedPool,
+    /// The threat colour of the areas this attack makes: that of the enemy or boss it was
+    /// compiled for (the colour is part of an enemy's attack key, so one preset used by two
+    /// enemies of two colours is two attacks). `None` for every attack of an enemy that names
+    /// none and for every attack of the players and companions. The colour decides nothing in
+    /// the simulation: it is read by the snapshot only, never hashed or saved.
+    pub colour: Option<ThreatColourIndex>,
 }
 
 /// The two pools of the ranged tokens (RA1, DS83): an attack that lays a line zone takes the
@@ -107,6 +114,15 @@ impl DefIndex {
     }
 }
 
+/// The index of the entry `name` names, `None` for no name. A name the table lacks was refused
+/// before (`threat_colours::check`), so it reads as no colour here.
+pub(super) fn colour_of(
+    colours: &ThreatColours,
+    name: Option<&ContentId>,
+) -> Option<ThreatColourIndex> {
+    colours.index_of(name?.as_str())
+}
+
 /// An agent definition and its kind.
 #[derive(Clone, Debug)]
 pub(crate) struct AgentDef {
@@ -114,6 +130,8 @@ pub(crate) struct AgentDef {
     pub agent: Agent,
     /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
     pub ranged_pools: Vec<Option<RangedPool>>,
+    /// The entry of the run's threat colour table its `threat_colour` names (snapshot only).
+    pub colour: Option<ThreatColourIndex>,
     /// The leash may move an enemy of this definition (EC2b): `leash_eligible`. Decided once when
     /// the world is compiled; never hashed.
     pub leash: bool,
@@ -163,8 +181,8 @@ pub(crate) struct AgentDefs {
 }
 
 impl AgentDefs {
-    pub(super) fn agents(&self) -> impl Iterator<Item = &Agent> {
-        self.defs.iter().map(|d| &d.agent)
+    pub(super) fn defs_iter(&self) -> impl Iterator<Item = &AgentDef> {
+        self.defs.iter()
     }
 
     fn push(
@@ -173,6 +191,7 @@ impl AgentDefs {
         agent: &Agent,
         source: AgentSource,
         owner_is_elite: bool,
+        colours: &ThreatColours,
     ) -> Result<DefIndex, Issue> {
         let at = u16::try_from(self.defs.len()).map_err(|_| Issue {
             path: "$".into(),
@@ -182,6 +201,13 @@ impl AgentDefs {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
             ranged_pools: Vec::new(),
+            // A companion has none (the validator refuses the field), so the compile side and
+            // `colour_of_owner`, which gives a companion's attacks none, agree even for a stage
+            // that skipped validation.
+            colour: match source {
+                AgentSource::Companion => None,
+                _ => colour_of(colours, agent.threat_colour.as_ref()),
+            },
             leash: leash_eligible(agent, source, owner_is_elite),
         });
         Ok(DefIndex(at))
@@ -193,15 +219,20 @@ impl AgentDefs {
         key: AgentKey,
         agent: &Agent,
         owner_is_elite: bool,
+        colours: &ThreatColours,
     ) -> Result<(), Issue> {
-        let at = self.push(kinds, agent, key.source, owner_is_elite)?;
+        let at = self.push(kinds, agent, key.source, owner_is_elite, colours)?;
         self.keys.push((key, at));
         Ok(())
     }
 
     /// The definitions of `stage`'s companions and waves; those of its bosses are added by
     /// `BossDef::compile`.
-    fn build(stage: &Stage, kinds: &KindTable) -> Result<AgentDefs, Issue> {
+    fn build(
+        stage: &Stage,
+        kinds: &KindTable,
+        colours: &ThreatColours,
+    ) -> Result<AgentDefs, Issue> {
         let mut defs = AgentDefs::default();
         let index = |i: usize| u32::try_from(i).unwrap_or(u32::MAX);
         for (i, agent) in stage.companions.iter().enumerate() {
@@ -210,7 +241,7 @@ impl AgentDefs {
                 index: index(i),
                 rule: 0,
             };
-            defs.keyed(kinds, key, agent, false)?;
+            defs.keyed(kinds, key, agent, false, colours)?;
         }
         for (i, wave) in stage.waves.iter().enumerate() {
             let at = |source, rule| AgentKey {
@@ -218,7 +249,7 @@ impl AgentDefs {
                 index: index(i),
                 rule,
             };
-            defs.keyed(kinds, at(AgentSource::Wave, 0), &wave.enemy, false)?;
+            defs.keyed(kinds, at(AgentSource::Wave, 0), &wave.enemy, false, colours)?;
             for (r, rule) in wave.enemy.rules.iter().enumerate() {
                 if let Action::Summon { agent, .. } = &rule.action {
                     let owner_is_elite = wave.enemy.elite.is_some();
@@ -227,14 +258,27 @@ impl AgentDefs {
                         at(AgentSource::Summoned, index(r)),
                         agent,
                         owner_is_elite,
+                        colours,
                     )?;
                 }
             }
             if let Movement::Shrine { guardians, .. } = &wave.enemy.movement {
-                defs.keyed(kinds, at(AgentSource::Guardian, 0), &guardians.enemy, true)?;
+                defs.keyed(
+                    kinds,
+                    at(AgentSource::Guardian, 0),
+                    &guardians.enemy,
+                    true,
+                    colours,
+                )?;
             }
             if let Some(escort) = wave.enemy.elite.as_ref().and_then(|e| e.escort.as_ref()) {
-                defs.keyed(kinds, at(AgentSource::Escort, 0), &escort.enemy, true)?;
+                defs.keyed(
+                    kinds,
+                    at(AgentSource::Escort, 0),
+                    &escort.enemy,
+                    true,
+                    colours,
+                )?;
             }
         }
         defs.keys.sort_by_key(|(k, _)| *k);
@@ -272,12 +316,19 @@ impl AgentDefs {
 pub(crate) struct BossDef {
     pub boss: Boss,
     pub kind: KindIndex,
+    /// The entry of the run's threat colour table its `threat_colour` names (snapshot only).
+    pub colour: Option<ThreatColourIndex>,
     /// The summon rules, by (phase, rule).
     pub summons: Vec<(u32, u32, DefIndex)>,
 }
 
 impl BossDef {
-    fn compile(defs: &mut AgentDefs, kinds: &KindTable, boss: Boss) -> Result<BossDef, Issue> {
+    fn compile(
+        defs: &mut AgentDefs,
+        kinds: &KindTable,
+        colours: &ThreatColours,
+        boss: Boss,
+    ) -> Result<BossDef, Issue> {
         let index = |i: usize| u32::try_from(i).unwrap_or(u32::MAX);
         let mut summons = Vec::new();
         for (p, phase) in boss.phases.iter().enumerate() {
@@ -286,13 +337,14 @@ impl BossDef {
                     summons.push((
                         index(p),
                         index(r),
-                        defs.push(kinds, agent, AgentSource::BossRule, true)?,
+                        defs.push(kinds, agent, AgentSource::BossRule, true, colours)?,
                     ));
                 }
             }
         }
         Ok(BossDef {
             kind: kinds.of(&boss.base),
+            colour: colour_of(colours, boss.threat_colour.as_ref()),
             boss,
             summons,
         })
@@ -439,6 +491,10 @@ pub(crate) struct World {
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
+    /// The threat colour of each program, by `ProgramIndex`; empty when no attack of the run
+    /// has a colour (every run of a pack that names none), so the snapshot's zones cost one
+    /// `is_empty` test.
+    program_colours: Vec<Option<ThreatColourIndex>>,
     /// The run's attack presets (CS1b-1): what a preset reference compiles from.
     attack_presets: Arc<AttackPresets>,
     /// Some compiled attack has a phase that dashes: the tick looks for a dasher only then.
@@ -468,14 +524,24 @@ impl World {
         kinds: &KindTable,
         content: &RunContent,
     ) -> Result<World, Issue> {
-        let mut defs = AgentDefs::build(&stage, kinds)?;
+        let colours = content.threat_colours();
+        // The threat colour each enemy names must be an entry of the run's table: the stage's
+        // enemies and bosses, and the bosses a horde brings.
+        {
+            let horde_bosses: Vec<&Boss> = horde
+                .iter()
+                .flat_map(|h| h.bosses.iter().chain(std::iter::once(&h.template)))
+                .collect();
+            crate::threat_colours::check(&stage, &horde_bosses, colours)?;
+        }
+        let mut defs = AgentDefs::build(&stage, kinds, colours)?;
         let mut bosses = Vec::new();
         let mut push = |defs: &mut AgentDefs, boss: Boss| -> Result<BossIndex, Issue> {
             let at = u16::try_from(bosses.len()).map_err(|_| Issue {
                 path: "$".into(),
                 message: format!("a run brings more than {} boss definitions", u16::MAX),
             })?;
-            bosses.push(BossDef::compile(defs, kinds, boss)?);
+            bosses.push(BossDef::compile(defs, kinds, colours, boss)?);
             Ok(BossIndex(at))
         };
         if let Some(boss) = &stage.boss {
@@ -579,6 +645,7 @@ impl World {
             horde,
             attacks: Vec::new(),
             attack_keys: AttackKeys::default(),
+            program_colours: Vec::new(),
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
             emitters: Vec::new(),
@@ -588,11 +655,49 @@ impl World {
         };
         attack_table::compile_run(&mut world, content)?;
         world.resolve_ranged_pools();
+        world.resolve_program_colours();
         world.has_dash = world
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
         Ok(world)
+    }
+
+    /// Fills `program_colours` from the compiled attacks, unless none has a colour.
+    fn resolve_program_colours(&mut self) {
+        if self.attacks.iter().all(|a| a.colour.is_none()) {
+            return;
+        }
+        self.program_colours = vec![None; self.emitters.len()];
+        for attack in &self.attacks {
+            for program in &attack.programs {
+                self.program_colours[program.0 as usize] = attack.colour;
+            }
+        }
+    }
+
+    /// The threat colour of the area a zone with `program` made: `None` for an enemy that
+    /// names none, a friendly area, and every run of a pack that names no colour.
+    pub(crate) fn program_colour(&self, program: ProgramIndex) -> Option<ThreatColourIndex> {
+        self.program_colours
+            .get(program.0 as usize)
+            .copied()
+            .flatten()
+    }
+
+    /// The threat colour of the attacks `owner` starts: the definition's, `None` for a player,
+    /// a companion and an owner that is gone.
+    pub(crate) fn colour_of_owner(
+        &self,
+        s: &super::state::State,
+        owner: super::entity::Who,
+    ) -> Option<ThreatColourIndex> {
+        use super::entity::Who;
+        match owner {
+            Who::Enemy(i) => self.defs.get(s.enemies.get(i)?.def).colour,
+            Who::Boss | Who::BossPart(_) => s.boss.as_ref().and_then(|b| self.boss(b.boss).colour),
+            Who::Player(_) | Who::Companion(_) => None,
+        }
     }
 
     /// Sets each agent definition's `ranged_pools`, now that the attacks are compiled.
@@ -602,6 +707,7 @@ impl World {
             if self.defs.defs[i].agent.elite.is_some() {
                 continue;
             }
+            let colour = self.defs.defs[i].colour;
             let pools: Vec<Option<RangedPool>> = self.defs.defs[i]
                 .agent
                 .rules
@@ -610,7 +716,7 @@ impl World {
                     Action::Attack {
                         attack,
                         ranged: true,
-                    } => Some(self.attacks[usize::from(self.attack_index(attack).0)].pool),
+                    } => Some(self.attacks[usize::from(self.attack_index(attack, colour).0)].pool),
                     _ => None,
                 })
                 .collect();
@@ -654,12 +760,17 @@ impl World {
     }
 
     /// Compiles `attack` unless the run has it already, and returns its index.
-    pub fn compile_attack(&mut self, attack: &AttackRef) -> Result<AttackIndex, Issue> {
+    pub fn compile_attack(
+        &mut self,
+        attack: &AttackRef,
+        colour: Option<ThreatColourIndex>,
+    ) -> Result<AttackIndex, Issue> {
         let index = self.attack_keys.compile(
             &mut self.attacks,
             &mut self.emitters,
             &self.attack_presets,
             attack,
+            colour,
         )?;
         self.has_dash |= self.attacks[usize::from(index.0)]
             .phases
@@ -669,9 +780,13 @@ impl World {
     }
 
     /// The index of `attack`, which the run compiled when it started.
-    pub fn attack_index(&self, attack: &AttackRef) -> AttackIndex {
+    pub fn attack_index(
+        &self,
+        attack: &AttackRef,
+        colour: Option<ThreatColourIndex>,
+    ) -> AttackIndex {
         self.attack_keys
-            .find(attack)
+            .find(attack, colour)
             .expect("every attack a run can start was compiled")
     }
 
@@ -765,12 +880,25 @@ mod tests {
         let mut defs = AgentDefs::default();
         for i in 0..=u16::MAX {
             assert_eq!(
-                defs.push(&kinds, &agent, AgentSource::Wave, false).unwrap(),
+                defs.push(
+                    &kinds,
+                    &agent,
+                    AgentSource::Wave,
+                    false,
+                    &ThreatColours::default(),
+                )
+                .unwrap(),
                 DefIndex(i)
             );
         }
         let refused = defs
-            .push(&kinds, &agent, AgentSource::Wave, false)
+            .push(
+                &kinds,
+                &agent,
+                AgentSource::Wave,
+                false,
+                &ThreatColours::default(),
+            )
             .unwrap_err();
         assert!(refused.message.contains("65535"), "{refused:?}");
     }
