@@ -75,7 +75,7 @@ fn a_slot_is_where_the_layout_puts_it() {
         .map(|s| s.path(dir).to_string_lossy().replace('\\', "/"))
         .collect();
     assert_eq!(paths[0], "c/content/run_stats.json");
-    assert_eq!(paths[15], "c/content/../modes/trial.json");
+    assert_eq!(paths[16], "c/content/../modes/trial.json");
 }
 
 /// The files read out of the pack are the files in the tree: `content/` and `modes/`, byte for
@@ -84,6 +84,14 @@ fn a_slot_is_where_the_layout_puts_it() {
 fn the_bundled_files_are_the_files_on_disk() {
     let dir = crate::data_root::data_root().join("content");
     for slot in ContentFiles::LAYOUT {
+        // The threat colour table is optional and the bundled pack holds none: no file in the
+        // tree either (the shipped content names no colour).
+        if slot.name == "threat_colours" {
+            assert!(slot.optional);
+            assert!(ContentFiles::bundled().get(slot.name).is_none());
+            assert!(fs::read(slot.path(&dir)).is_err());
+            continue;
+        }
         let on_disk = fs::read(slot.path(&dir)).expect("the file is in the tree");
         let bundled = ContentFiles::bundled()
             .get(slot.name)
@@ -1242,7 +1250,7 @@ mod offer_effects {
 
 #[test]
 fn the_layout_has_the_catalogue_after_stardust() {
-    assert_eq!(ContentFiles::LAYOUT.len(), 18);
+    assert_eq!(ContentFiles::LAYOUT.len(), 19);
     let names: Vec<&str> = ContentFiles::LAYOUT.iter().map(|s| s.name).collect();
     let at = |n: &str| names.iter().position(|x| *x == n).unwrap();
     assert_eq!(at("star_chart"), at("stardust") + 1);

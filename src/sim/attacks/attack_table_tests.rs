@@ -160,7 +160,7 @@ fn run_of(attack: AttackIndex, speed_pct: u32, width_pct: u32) -> AttackRun {
 fn a_phase_read_through_the_table_is_what_faster_and_wider_made() {
     let attack = AttackRef::Inline(combo_step());
     let mut world = World::for_test(RunContent::bundled().trial().clone());
-    let index = world.compile_attack(&attack).unwrap();
+    let index = world.compile_attack(&attack, None).unwrap();
     // (attack speed, range): none, the case of the task, each alone, and the cap.
     let cases = [
         (0, 0),
@@ -200,9 +200,9 @@ fn a_phase_read_through_the_table_is_what_faster_and_wider_made() {
 fn an_attack_compiles_once_and_a_preset_keeps_its_name() {
     let mut world = World::for_test(RunContent::bundled().trial().clone());
     let inline = AttackRef::Inline(combo_step());
-    let a = world.compile_attack(&inline).unwrap();
-    assert_eq!(world.compile_attack(&inline).unwrap(), a);
+    let a = world.compile_attack(&inline, None).unwrap();
+    assert_eq!(world.compile_attack(&inline, None).unwrap(), a);
     assert_eq!(world.attacks[usize::from(a.0)].preset, None);
     let other = AttackRef::Inline(vec![phase_of(PhaseKind::Active, 2, None)]);
-    assert_ne!(world.compile_attack(&other).unwrap(), a);
+    assert_ne!(world.compile_attack(&other, None).unwrap(), a);
 }

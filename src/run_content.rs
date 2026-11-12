@@ -21,6 +21,7 @@ use crate::stage_skill::StageSkills;
 use crate::star_chart::StarChart;
 use crate::stardust::Stardust;
 use crate::starting_unlocks::StartingUnlocks;
+use crate::threat_colours::ThreatColours;
 use crate::time_limit::TimeLimit;
 use crate::weapons::Weapons;
 
@@ -53,6 +54,11 @@ pub struct RunContent {
     /// Outside what a run reads, as `starting_unlocks`: the pack's hash covers it, no derived
     /// content hash does.
     star_chart: Option<StarChart>,
+    /// The threat colour table (ADR-CONT-1, ADR-BRDG-4): empty for content from a pack without
+    /// the member. An enemy's `threat_colour` names an entry of it; the run resolves the name
+    /// once (`Engine::threat_colours`). The colour decides nothing in the simulation, and the
+    /// pack's hash covers the file.
+    threat_colours: ThreatColours,
     time_limit: TimeLimit,
     /// The `trial` mode's stage, and its file's bytes as they are in the pack.
     trial: Stage,
@@ -84,6 +90,7 @@ impl RunContent {
             starting_unlocks: bundled.starting_unlocks.clone(),
             stardust: bundled.stardust.clone(),
             star_chart: bundled.star_chart.clone(),
+            threat_colours: bundled.threat_colours.clone(),
             time_limit: TimeLimit::bundled().clone(),
             trial: bundled.trial.clone(),
             trial_bytes: bundled.trial_bytes.clone(),
@@ -109,6 +116,7 @@ impl RunContent {
         starting_unlocks: Option<StartingUnlocks>,
         stardust: Stardust,
         star_chart: Option<StarChart>,
+        threat_colours: Option<ThreatColours>,
         time_limit: TimeLimit,
         trial: Stage,
         trial_bytes: Vec<u8>,
@@ -130,6 +138,7 @@ impl RunContent {
             starting_unlocks,
             stardust,
             star_chart,
+            threat_colours: threat_colours.unwrap_or_default(),
             time_limit,
             trial,
             trial_bytes,
@@ -327,6 +336,11 @@ impl RunContent {
     /// file: no catalogue, never a guessed one.
     pub fn star_chart(&self) -> Option<&StarChart> {
         self.star_chart.as_ref()
+    }
+
+    /// The threat colour table: the pack's member, empty for content from a pack without it.
+    pub fn threat_colours(&self) -> &ThreatColours {
+        &self.threat_colours
     }
 
     /// The sets of named stars (core#NS3): those of the pack the rewards were read from, none

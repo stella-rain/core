@@ -1,0 +1,4 @@
+{
+  "$ref": "content.schema.json#/$defs/ThreatColoursFile",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
