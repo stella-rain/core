@@ -77,6 +77,11 @@ pub struct Stage {
     /// How a kill's Stardust grows over the run: without it the run counts none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stardust: Option<StardustFactor>,
+    /// Under it each tree point of the level table is a style pick again, recorded as a
+    /// `TreePick` (ADR-SIM-9 point 8); absent and `false` are the same. `sim_version` 2. Only
+    /// the tutorial mode takes it: the run builder drops it from every other mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub try_styles: bool,
 }
 
 /// The Stardust time factor: a table of time tiers, each the tick it starts
