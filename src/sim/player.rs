@@ -10,6 +10,12 @@
 //! Attack magnetism: a combo step's phase that names an `advance` slides the player along the
 //! facing the step took, toward its current target, no further than touching it (`magnetism`).
 //!
+//! The weapon gauge (when the style names the `gauge` kind): a normal (A) step whose swing hits
+//! adds `per_step` once and `per_hit` for each enemy, to the step's cap and the gauge's `max`
+//! (`gauge_from_hits`); a hit taken adds a share of the hit points lost (`gauge_from_damage`); a
+//! B step at a full gauge plays the style's full-gauge attack in place of the step's own, empties
+//! the gauge and lets no hold begin after it (`spend_gauge`). A new step resets the step's fill.
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the

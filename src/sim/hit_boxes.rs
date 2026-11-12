@@ -19,6 +19,9 @@
 //!   after its last hit. A homing missile's hits only the first, once, and the
 //!   missile is gone once every hit box has landed. A target that cannot be hurt (invulnerable, dead) is not hit and not
 //!   counted as hit.
+//! - The orb clear: on the first active tick of a player's full-gauge attack, every breakable orb
+//!   within the run rules' `orb_clear_radius` of that player is removed before the swings land
+//!   (`clear_orbs`), reported as a broken orb, with no burst.
 //! - Attackers resolve in entity-ID order, and every hit box active at the start of the step
 //!   lands, even if its attacker dies earlier in the step: hits on the same tick trade.
 
