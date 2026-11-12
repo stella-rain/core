@@ -406,7 +406,7 @@ fn a_v1_stage_hashes_the_same_whatever_the_bundled_caps() {
     // rules hash the content's caps, so the same swap must move a sim_version 2 stage.
     let (low, high) = (content_with_caps_of(300), content_with_caps_of(500));
     let v1 = &include_bytes!("corpus/v1/stages/clear/stage.json")[..];
-    let before = hashes_of(v1, &RunContent::bundled());
+    let before = hashes_of(v1, RunContent::bundled());
     assert_eq!(before, hashes_of(v1, &low));
     assert_eq!(before, hashes_of(v1, &high));
     let live = &include_bytes!("corpus/current/stages/clear/stage.json")[..];
