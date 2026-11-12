@@ -244,6 +244,7 @@ pub(super) fn damage(
         rune: b.rune,
         crit,
         echo: false,
+        repeat: false,
         buffed_by,
     };
     let dead = damage::land(stage, s, me, target, dealt, how, events).dead;

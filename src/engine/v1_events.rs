@@ -82,6 +82,7 @@ pub(super) fn adapt(event: v1::DomainEvent) -> Option<DomainEvent> {
             rune,
             crit,
             echo,
+            repeat: false,
             player: None,
             buffed_by: None,
         },

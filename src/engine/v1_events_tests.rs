@@ -195,6 +195,7 @@ fn frozen_name(event: &v1::DomainEvent) -> String {
 fn without_player_fields(event: &DomainEvent) -> String {
     let mut text = format!("{event:?}");
     for field in [
+        ", repeat: false",
         ", player: None, buffed_by: None",
         ", source: None",
         ", killer: None",

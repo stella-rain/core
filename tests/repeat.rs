@@ -312,3 +312,17 @@ fn the_views_carry_the_kinds() {
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert!(ready.get("kinds").is_none());
 }
+
+/// R12 (the event): a `Hit` that is no repeat serializes without the key; a repeat's carries it.
+#[test]
+fn only_a_repeat_s_hit_carries_the_repeat_key() {
+    use stella_rain_core::event::DomainEvent;
+    let hit = |repeat: bool| {
+        let v = json!({ "type": "Hit", "data": {
+            "source": 1, "target": 2, "damage": 5, "repeat": repeat } });
+        let e: DomainEvent = serde_json::from_value(v).expect("a hit with a repeat flag");
+        serde_json::to_value(&e).unwrap()
+    };
+    assert_eq!(hit(true)["data"]["repeat"], json!(true));
+    assert!(hit(false)["data"].get("repeat").is_none());
+}

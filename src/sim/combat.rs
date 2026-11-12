@@ -120,6 +120,7 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             rune: None,
             crit: false,
             echo: true,
+            repeat: false,
             buffed_by: None,
         };
         super::damage::land(stage, s, me, target, echo.damage, how, events);
