@@ -229,7 +229,11 @@ fn refuses_file(name: &str, bytes: &[u8], limit: usize, read: impl Fn(&[u8]) -> 
 fn no_content_file_has_its_own_version() {
     let content_dir = crate::data_root::data_root().join("content");
     for slot in ContentFiles::LAYOUT {
-        let bytes = std::fs::read(slot.path(&content_dir)).unwrap();
+        // An optional slot the bundled pack leaves empty (the threat colour table) has no file.
+        let Ok(bytes) = std::fs::read(slot.path(&content_dir)) else {
+            assert!(slot.optional, "{} has no file", slot.name);
+            continue;
+        };
         let file: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let object = file.as_object().unwrap();
         let is_stage = matches!(slot.name, "trial" | "tutorial");

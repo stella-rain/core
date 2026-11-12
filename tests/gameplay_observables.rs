@@ -125,13 +125,15 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
     out
 }
 
-/// `text` without the fields the style kinds added to two views, `TreeReadyView.kinds` and
-/// `TreeStatsView.grants`, while they are empty (every kind is dormant): the digests were
+/// `text` without the fields added to views, while they are empty (every added feature is
+/// dormant): `TreeReadyView.kinds`, `TreeStatsView.grants` (the style kinds) and
+/// `threat_colour` of `AttackView` and `ZoneView` (the threat colours). The digests were
 /// recorded before the fields existed, and an empty one changes no gameplay. A view that names
-/// a kind keeps its field and so moves the digest.
+/// a kind or a colour keeps its field and so moves the digest.
 pub(crate) fn drop_empty_added_fields(text: &str) -> String {
     text.replace(", kinds: [] }", " }")
         .replace(", grants: [] }", " }")
+        .replace(", threat_colour: None }", " }")
 }
 
 /// Feeds `text` to `sha` with its entity IDs mapped.
