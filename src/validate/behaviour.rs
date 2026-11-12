@@ -23,12 +23,26 @@ impl<'a> Ctx<'a> {
         });
     }
 
+    /// An enemy's or an elite's `poise`: `sim_version` 2, 0 to `MAX_POISE`, never a companion's
+    /// or the boss's.
+    pub(super) fn poise(&mut self, poise: Option<u32>) {
+        let Some(poise) = poise else { return };
+        if self.foe != Foe::Enemy {
+            self.key("poise", |c| c.fail("a regular enemy's or an elite's only"));
+        } else if self.sim_version < 2 {
+            self.key("poise", |c| c.fail("needs sim_version 2"));
+        } else {
+            self.within("poise", i64::from(poise), 0, i64::from(MAX_POISE));
+        }
+    }
+
     pub(super) fn agent(&mut self, a: &Agent, summon_ok: bool) {
         self.content_id("base", &a.base, Kind::Asset);
         if let Some(p) = &a.palette {
             self.content_id("palette", p, Kind::Palette);
         }
         self.threat_colour(&a.threat_colour);
+        self.poise(a.poise);
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
         self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
         if let Some(p) = &a.profile {

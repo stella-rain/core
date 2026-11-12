@@ -283,9 +283,9 @@ fn act_one<const ONE: bool>(
         reveal(s, up, me, def, events);
         return;
     }
-    // A stunned enemy does nothing while the stun lasts: no movement and no
-    // rule. Its cooldowns counted above, so they run on through the stun.
-    if super::stun::stunned(&a.statuses) {
+    // A stunned or flinching enemy does nothing while it lasts: no movement and no
+    // rule. Its cooldowns counted above, so they run on through it.
+    if super::stun::stunned(&a.statuses) || a.control.flinch > 0 {
         return;
     }
     move_agent::<ONE>(stage, s, up, me, def);

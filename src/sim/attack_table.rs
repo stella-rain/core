@@ -144,6 +144,10 @@ impl AttackKeys {
             AttackRef::Inline(_) => None,
         };
         let pool = RangedPool::of(&phases);
+        let channelled = phases
+            .iter()
+            .skip(1)
+            .any(|p| p.hit_box.is_some() || !p.spawn.is_empty());
         attacks.push(AttackDef {
             phases,
             preset_id: preset.as_ref().map(|p| Arc::from(p.as_str())),
@@ -151,6 +155,7 @@ impl AttackKeys {
             programs,
             pool,
             colour,
+            channelled,
         });
         let at = AttackIndex(at);
         let first = self.first(attack, colour);

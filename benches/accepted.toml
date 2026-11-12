@@ -163,3 +163,12 @@ base = 386434
 count = 395000
 reason = "player index threaded through every system for N players (ADR-SIM-12)"
 pr = 516
+
+[[accepted]]
+bench = "worst_minute_peak"
+case = "worst_minute_peak"
+arch = "arm64"
+base = 362463
+count = 371000
+reason = "dormant flinch and control rules: the per-enemy status step and the act step read the new combat counters every tick (+2.01%); x86_64 +0.95% is within budget"
+pr = 688

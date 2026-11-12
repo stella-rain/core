@@ -640,6 +640,210 @@ fn the_bundled_file_leaves_out_the_offer_keys() {
     assert_eq!((r.offer_size(), r.offer_timer_ticks()), (3, 300));
 }
 
+// --- Flinch, control repeats and vulnerable after a stun (dormant keys) --------------------------
+
+/// The eight keys these rules add, each named by one value in range.
+fn poise_keys() -> Value {
+    json!({
+        "poise_damage_a": 5,
+        "poise_damage_b": 50,
+        "flinch_ticks": 20,
+        "flinch_immune_ticks": 40,
+        "control_repeat_pcts": [100, 50, 25],
+        "control_reset_ticks": 300,
+        "control_immune_ticks": 120,
+        "vulnerable_pcts": { "stun": 20 },
+    })
+}
+
+/// The bundled file with `patch` merged over it, as bytes.
+fn patched(patch: &Value) -> Vec<u8> {
+    let mut v = bundled_value();
+    for (key, value) in patch.as_object().unwrap() {
+        v[key] = value.clone();
+    }
+    v.to_string().into_bytes()
+}
+
+/// The bundled file with `key` set to `value` after every key of `poise_keys` is named.
+fn with_key(key: &str, value: Value) -> Vec<u8> {
+    let mut all = poise_keys();
+    all[key] = value;
+    patched(&all)
+}
+
+/// The bundled file with only `keys` of `poise_keys`, then `key` set to `value`.
+fn with_only(keys: &[&str], key: &str, value: Value) -> Vec<u8> {
+    let all = poise_keys();
+    let mut chosen = serde_json::Map::new();
+    for k in keys {
+        chosen.insert((*k).into(), all[*k].clone());
+    }
+    chosen.insert(key.into(), value);
+    patched(&Value::Object(chosen))
+}
+
+#[test]
+fn c1_the_bundled_file_names_none_of_the_poise_keys() {
+    let v = bundled_value();
+    for key in poise_keys().as_object().unwrap().keys() {
+        assert!(v.get(key).is_none(), "{key}");
+    }
+}
+
+#[test]
+fn c2_every_bound_is_checked_at_its_key() {
+    // (key, in range, first values out of range, the path of the issue)
+    let cases: [(&str, Value, Vec<Value>, &str); 9] = [
+        (
+            "flinch_ticks",
+            json!(60),
+            vec![json!(0), json!(61)],
+            "$.flinch_ticks",
+        ),
+        (
+            "flinch_immune_ticks",
+            json!(120),
+            vec![json!(121)],
+            "$.flinch_immune_ticks",
+        ),
+        (
+            "poise_damage_a",
+            json!(1000),
+            vec![json!(1001)],
+            "$.poise_damage_a",
+        ),
+        (
+            "poise_damage_b",
+            json!(1000),
+            vec![json!(1001)],
+            "$.poise_damage_b",
+        ),
+        (
+            "control_repeat_pcts",
+            json!([100, 100, 100, 100, 100, 100, 100, 100]),
+            vec![
+                json!([]),
+                json!([100, 100, 100, 100, 100, 100, 100, 100, 100]),
+            ],
+            "$.control_repeat_pcts",
+        ),
+        (
+            "control_reset_ticks",
+            json!(600),
+            vec![json!(0), json!(601)],
+            "$.control_reset_ticks",
+        ),
+        (
+            "control_immune_ticks",
+            json!(600),
+            vec![json!(0), json!(601)],
+            "$.control_immune_ticks",
+        ),
+        (
+            "vulnerable_pcts",
+            json!({ "stun": 1000 }),
+            vec![json!({ "stun": 1001 })],
+            "$.vulnerable_pcts.stun",
+        ),
+        (
+            "vulnerable_pcts",
+            json!({ "stun": 1 }),
+            vec![json!({ "stun": 0 })],
+            "$.vulnerable_pcts.stun",
+        ),
+    ];
+    for (key, ok, bad, path) in cases {
+        assert!(
+            Rules::parse(&with_key(key, ok.clone()), Versions::CURRENT).is_ok(),
+            "{key} {ok}"
+        );
+        for b in bad {
+            assert_eq!(
+                paths(Rules::parse(&with_key(key, b.clone()), Versions::CURRENT)),
+                [path],
+                "{key} {b}"
+            );
+        }
+    }
+    for (value, path) in [
+        (json!([100, 0]), "$.control_repeat_pcts[1]"),
+        (json!([100, 101]), "$.control_repeat_pcts[1]"),
+    ] {
+        assert_eq!(
+            paths(Rules::parse(
+                &with_key("control_repeat_pcts", value),
+                Versions::CURRENT
+            )),
+            [path]
+        );
+    }
+}
+
+#[test]
+fn c3_a_key_without_its_partner_is_refused() {
+    let cur = Versions::CURRENT;
+    // The immunity needs the flinch.
+    assert_eq!(
+        paths(Rules::parse(
+            &patched(&json!({ "flinch_immune_ticks": 40 })),
+            cur
+        )),
+        ["$.flinch_immune_ticks"]
+    );
+    // The reset and the immunity need the list, and the list needs both.
+    assert_eq!(
+        paths(Rules::parse(
+            &patched(&json!({ "control_reset_ticks": 300 })),
+            cur
+        )),
+        ["$.control_reset_ticks"]
+    );
+    assert_eq!(
+        paths(Rules::parse(
+            &patched(&json!({ "control_immune_ticks": 120 })),
+            cur
+        )),
+        ["$.control_immune_ticks"]
+    );
+    for named in [
+        &["control_reset_ticks"][..],
+        &["control_immune_ticks"][..],
+        &[][..],
+    ] {
+        let bytes = with_only(named, "control_repeat_pcts", json!([100]));
+        assert_eq!(
+            paths(Rules::parse(&bytes, cur)),
+            ["$.control_repeat_pcts"],
+            "{named:?}"
+        );
+    }
+    // The partners together load.
+    assert!(Rules::parse(&patched(&poise_keys()), cur).is_ok());
+}
+
+#[test]
+fn c4_a_pack_at_sim_version_1_refuses_every_key() {
+    for (key, value) in poise_keys().as_object().unwrap() {
+        let bytes = patched(&json!({ key: value }));
+        let Err(Error::Invalid(issues)) = Rules::parse(&bytes, V1) else {
+            panic!("{key} not refused at sim_version 1");
+        };
+        let at = format!("$.{key}");
+        let hit = issues.iter().find(|i| i.path.starts_with(&at));
+        assert!(
+            hit.is_some_and(|i| i.message.contains("needs sim_version 2")),
+            "{key}: {issues:?}"
+        );
+    }
+}
+
+#[test]
+fn c5_a_file_naming_every_key_is_within_the_size_limit_and_parses() {
+    let bytes = patched(&poise_keys());
+    assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
+    Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}
 // --- The perfect evade's five keys (ADR-CONT-3, ADR-SVC-1) ---------------------------------------
 
 const EVADE_KEYS: [&str; 5] = [

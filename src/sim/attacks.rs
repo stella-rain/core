@@ -65,8 +65,9 @@ pub(super) use program::{normalize, rotate};
 mod runs;
 use runs::begin_phase;
 pub(super) use runs::{
-    advance_runs, capped_type_bonus, end_run, end_runs_of, fire_hooks, hold_ready, in_end_recovery,
-    is_combo, phase_damage, retain_runs, run, swing_damage,
+    advance_runs, cancel_runs_of, cancelled_token, capped_type_bonus, end_run, end_runs_of,
+    fire_hooks, hold_ready, in_end_recovery, is_combo, phase_damage, retain_runs, run,
+    swing_damage,
 };
 
 mod start;
@@ -78,6 +79,7 @@ pub(crate) use phases::phase;
 pub(super) use phases::{advance_of, dash_of, move_pct, phase_count, phase_ticks};
 
 mod ranged;
+pub(in crate::sim) use ranged::cool_into;
 #[cfg(test)]
 pub(super) use ranged::in_view;
 use ranged::{cool_token, holds_token};

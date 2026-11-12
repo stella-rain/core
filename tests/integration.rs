@@ -118,6 +118,7 @@ mod pick_pins;
 mod places;
 mod player_stats;
 mod players_api;
+mod poise;
 mod poison_burn;
 mod progression;
 mod properties;

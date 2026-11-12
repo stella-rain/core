@@ -26,6 +26,13 @@ pub struct Agent {
     /// boss's, never a companion's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threat_colour: Option<ContentId>,
+    /// A regular enemy's or an elite's poise: a combo hit of a main character that deals at
+    /// least this much poise damage makes it flinch (`flinch_ticks` of the rules). 0 to
+    /// `limits::MAX_POISE` (1,000); `sim_version` 2 only, and the rules must name `flinch_ticks`.
+    /// Absent: it never flinches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_POISE))]
+    pub poise: Option<u32>,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_AGENT_HP))]
     pub hp: u32,
     /// Radius of the hurt circle.

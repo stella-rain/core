@@ -13,6 +13,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AttackRun, AttackTask, Frame, Frames, Origin, Path, State};
+use crate::sim::world::RangedPool;
 
 /// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
 /// or away after its last phase or when its attacker is gone. Called at the start of a tick,
@@ -139,6 +140,32 @@ pub(in crate::sim) fn end_runs_of(world: &World, s: &mut State, owner: EntityId)
     if s.scratch.ends_pinned.is_some() {
         s.scratch.push_end(RunEnd::All(owner));
         return;
+    }
+    retain_runs(s, |r| r.owner != owner);
+    s.move_index.rebuild(world, &s.runs);
+}
+
+/// The pool whose token run `r` holds and a cancel cools: a ranged run of a channelled attack
+/// in a wind-up or active phase. A zone-leaving run frees its token at once, with no cooling.
+pub(in crate::sim) fn cancelled_token(world: &World, r: &AttackRun) -> Option<RangedPool> {
+    let attack = &world.attacks[usize::from(r.attack.0)];
+    (attack.channelled && holds_token(world, r)).then_some(attack.pool)
+}
+
+/// Ends every run of `owner` because a control cancelled it: as `end_runs_of`, and each
+/// channelled ranged run that held a token starts its cooling. Inside the hit pass the end is
+/// deferred to `apply_ends`, which cools once for each run it removes.
+pub(in crate::sim) fn cancel_runs_of(world: &World, s: &mut State, owner: EntityId) {
+    if s.scratch.ends_pinned.is_some() {
+        s.scratch.push_end(RunEnd::Cancel(owner));
+        return;
+    }
+    for i in 0..s.runs.len() {
+        if s.runs[i].owner == owner {
+            if let Some(pool) = cancelled_token(world, &s.runs[i]) {
+                cool_token(world, s, pool);
+            }
+        }
     }
     retain_runs(s, |r| r.owner != owner);
     s.move_index.rebuild(world, &s.runs);

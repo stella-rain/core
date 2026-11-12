@@ -124,7 +124,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 elite: false,
                 aura_radius: None,
                 damage_over_time: dot_views(&b.statuses),
-                statuses: status_views(&b.statuses, false),
+                statuses: status_views(&b.statuses, false, (0, 0)),
                 fight: None,
             });
         }
@@ -159,7 +159,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     .and_then(|e| e.aura)
                     .map(|aura| aura.radius),
                 damage_over_time: dot_views(&a.statuses),
-                statuses: status_views(&a.statuses, reached),
+                statuses: status_views(
+                    &a.statuses,
+                    reached,
+                    (a.control.flinch, world.tuning.flinch_ticks),
+                ),
                 fight: match (&def.movement, a.shrine.as_deref()) {
                     (
                         Movement::Shrine { fight_ticks, .. },
@@ -198,7 +202,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&part.statuses),
-                    statuses: status_views(&part.statuses, false),
+                    statuses: status_views(&part.statuses, false, (0, 0)),
                     fight: None,
                 });
             }
@@ -340,7 +344,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             runs.sort_by_key(|r| r.slot);
             runs.into_iter().map(view).collect()
         },
-        statuses: status_views(&s.players[me].statuses, false),
+        statuses: status_views(&s.players[me].statuses, false, (0, 0)),
         down: if !s.players.is_solo() && s.players[me].is_downed() {
             Some(DownView {
                 ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
@@ -506,10 +510,14 @@ fn dot_views(statuses: &[StatusState]) -> Vec<DamageOverTimeView> {
 /// The ID of a pack leader's aura, shared like the statuses' (`StatusKind::id`).
 static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
 
+/// The ID of an enemy's flinch, shared like the aura's: a flinch is a counter of its state,
+/// not a status in its list.
+pub(super) static FLINCH_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("flinch"));
+
 /// The statuses of `statuses` for the snapshot, sorted by ID: each with
 /// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
 /// which has no timer: it lasts while its entity is in reach.
-fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
+fn status_views(statuses: &[StatusState], aura: bool, flinch: (u16, u16)) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
         .map(|st| StatusView {
@@ -518,6 +526,14 @@ fn status_views(statuses: &[StatusState], aura: bool) -> Vec<StatusView> {
             total: st.total,
         })
         .collect();
+    // An enemy's flinch, with what is left of it and the ticks the rules give one.
+    if flinch.0 > 0 {
+        views.push(StatusView {
+            id: FLINCH_ID.clone(),
+            remaining: u32::from(flinch.0),
+            total: u32::from(flinch.1),
+        });
+    }
     if aura {
         views.push(StatusView {
             id: AURA_ID.clone(),

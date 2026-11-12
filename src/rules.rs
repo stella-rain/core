@@ -39,13 +39,18 @@ use sha2::{Digest, Sha256};
 
 use crate::fixed::Fx;
 use crate::limits::{
-    MAX_ORB_CLEAR_RADIUS, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH, MAX_PERFECT_SLOW_EVERY,
-    MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH,
+    MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_FLINCH_IMMUNE_TICKS, MAX_FLINCH_TICKS,
+    MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
+    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT,
+    VIEW_HALF_WIDTH,
 };
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
+use crate::run_stats::MAX_STUN_IMMUNE_TICKS;
 use crate::sim::MAX_RANGED_ATTACKERS;
-use crate::validate::limits::{MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_RADIUS};
+use crate::validate::limits::{
+    MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_POISE_DAMAGE, MAX_RADIUS,
+};
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
 
@@ -80,6 +85,18 @@ const PARTY_SIZES: usize = crate::id::MAX_PLAYERS as usize;
 
 fn default_party_damage_pct() -> Vec<u32> {
     vec![MAX_PARTY_DAMAGE_PCT; PARTY_SIZES]
+}
+
+/// What a control adds to the target's damage taken as `vulnerable`, in percent, by the kind of
+/// control that landed. Only the stun for now; the other controls add their own key later.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VulnerablePcts {
+    /// A stun that lands puts `vulnerable` of this many percent on its target for the stun's
+    /// own ticks: 1 to `limits::MAX_PCT` (1,000). Absent: a stun puts none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub stun: Option<u32>,
 }
 
 /// The rules file.
@@ -151,6 +168,42 @@ pub struct RulesFile {
     /// Absent: `[100, 100, 100]`, so a pack published before the key existed still reads.
     #[serde(default = "default_party_damage_pct")]
     pub party_damage_pct: Vec<u32>,
+    /// The poise damage of a main character's combo hit of an A (`main`) step when its phase
+    /// names none: 0 to `validate::limits::MAX_POISE_DAMAGE` (1,000). `sim_version` 2 only.
+    /// Absent: 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poise_damage_a: Option<u32>,
+    /// The same for a smash step (B): 0 to 1,000. `sim_version` 2 only. Absent: 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poise_damage_b: Option<u32>,
+    /// Ticks an enemy that names a `poise` flinches for when a hit deals at least that much
+    /// poise damage: 1 to `limits::MAX_FLINCH_TICKS` (60). `sim_version` 2 only. Absent: no
+    /// enemy flinches, and no enemy may name a `poise`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flinch_ticks: Option<u16>,
+    /// Ticks after a flinch ends in which the enemy cannot flinch again: 0 to
+    /// `limits::MAX_FLINCH_IMMUNE_TICKS` (120). Only with `flinch_ticks`. Absent: 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flinch_immune_ticks: Option<u16>,
+    /// What percent of its ticks each further hard control (a stun) on one enemy keeps: 1 to
+    /// `limits::MAX_CONTROL_REPEATS` (8) entries of 1 to 100; the first control keeps the first
+    /// entry, and a control past the last entry is refused. Named together with
+    /// `control_reset_ticks` and `control_immune_ticks`, `sim_version` 2 only. Absent: the stun
+    /// immunity of the run stats alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control_repeat_pcts: Option<Vec<u32>>,
+    /// Ticks without a hard control after which an enemy's count of them starts over: 1 to
+    /// `limits::MAX_CONTROL_RESET_TICKS` (600). Only with `control_repeat_pcts`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control_reset_ticks: Option<u16>,
+    /// Ticks an enemy is immune to hard controls after one is refused for its count: 1 to 600.
+    /// Only with `control_repeat_pcts`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control_immune_ticks: Option<u32>,
+    /// The `vulnerable` percent a landing control puts on its target, by kind of control.
+    /// `sim_version` 2 only. Absent: none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vulnerable_pcts: Option<VulnerablePcts>,
     /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
     /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
     /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
@@ -243,6 +296,16 @@ impl Rules {
                 }
             }
         }
+        // sim_version >= 2: the flinch, control and vulnerable keys are read at version 2 only.
+        if versions.sim_version < 2 {
+            for path in named_combat_keys(&file) {
+                issues.retain(|i| !i.path.starts_with(path));
+                issues.push(Issue {
+                    path: path.into(),
+                    message: "needs sim_version 2".into(),
+                });
+            }
+        }
         // sim_version >= 2: the perfect evade is a rule of the open version.
         if versions.sim_version < 2 {
             for (key, present) in PERFECT_EVADE_KEYS.iter().zip(file.perfect_evade_present()) {
@@ -271,6 +334,50 @@ impl Rules {
             file,
             sha256: Sha256::digest(bytes).into(),
         })
+    }
+
+    /// The poise damage of an A step's hit that names none: 0 when absent.
+    pub fn poise_damage_a(&self) -> u32 {
+        self.file.poise_damage_a.unwrap_or(0)
+    }
+
+    /// The same for a smash step's hit.
+    pub fn poise_damage_b(&self) -> u32 {
+        self.file.poise_damage_b.unwrap_or(0)
+    }
+
+    /// The ticks of a flinch; 0 when no enemy flinches.
+    pub fn flinch_ticks(&self) -> u16 {
+        self.file.flinch_ticks.unwrap_or(0)
+    }
+
+    /// The ticks of immunity after a flinch ends; 0 when absent.
+    pub fn flinch_immune_ticks(&self) -> u16 {
+        self.file.flinch_immune_ticks.unwrap_or(0)
+    }
+
+    /// The percent of its ticks each further hard control keeps; empty when no list is named.
+    pub fn control_repeat_pcts(&self) -> &[u32] {
+        self.file.control_repeat_pcts.as_deref().unwrap_or(&[])
+    }
+
+    /// Ticks after which an enemy's hard-control count starts over; 0 when no list is named.
+    pub fn control_reset_ticks(&self) -> u16 {
+        self.file.control_reset_ticks.unwrap_or(0)
+    }
+
+    /// Ticks of immunity to hard controls once the list is used up; 0 when no list is named.
+    pub fn control_immune_ticks(&self) -> u32 {
+        self.file.control_immune_ticks.unwrap_or(0)
+    }
+
+    /// The `vulnerable` percent a stun that lands puts on its target; 0 when absent.
+    pub fn vulnerable_stun_pct(&self) -> u32 {
+        self.file
+            .vulnerable_pcts
+            .as_ref()
+            .and_then(|v| v.stun)
+            .unwrap_or(0)
     }
 
     /// The crowd target of a run that overrides nothing.
@@ -486,6 +593,28 @@ pub fn validate(file: &RulesFile) -> Result<(), Error> {
     } else {
         Err(Error::Invalid(issues))
     }
+}
+
+/// The paths of the flinch, control and vulnerable keys the file names (`sim_version` 2 only).
+fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
+    let named = [
+        ("$.poise_damage_a", file.poise_damage_a.is_some()),
+        ("$.poise_damage_b", file.poise_damage_b.is_some()),
+        ("$.flinch_ticks", file.flinch_ticks.is_some()),
+        ("$.flinch_immune_ticks", file.flinch_immune_ticks.is_some()),
+        ("$.control_repeat_pcts", file.control_repeat_pcts.is_some()),
+        ("$.control_reset_ticks", file.control_reset_ticks.is_some()),
+        (
+            "$.control_immune_ticks",
+            file.control_immune_ticks.is_some(),
+        ),
+        ("$.vulnerable_pcts", file.vulnerable_pcts.is_some()),
+    ];
+    named
+        .into_iter()
+        .filter(|(_, named)| *named)
+        .map(|(path, _)| path)
+        .collect()
 }
 
 /// A number outside `least` to `most` is one issue at `$.<field>`.
@@ -705,6 +834,7 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
             );
         }
     }
+    validate_combat_keys(file, issues);
     validate_perfect_evade(file, issues);
     if let Some(radius) = file.orb_clear_radius {
         within(
@@ -713,6 +843,100 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
             i64::from(radius.0),
             i64::from(Fx::px(1).0),
             i64::from(Fx::px(MAX_ORB_CLEAR_RADIUS).0),
+        );
+    }
+}
+
+/// The checks of the flinch, control and vulnerable keys: each bound, and each key with its
+/// partners (the control list, its reset and its immunity come together; the flinch immunity
+/// needs the flinch).
+fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
+    let max_damage = i64::from(MAX_POISE_DAMAGE);
+    for (field, value) in [
+        ("poise_damage_a", file.poise_damage_a),
+        ("poise_damage_b", file.poise_damage_b),
+    ] {
+        if let Some(n) = value {
+            within(issues, field, i64::from(n), 0, max_damage);
+        }
+    }
+    if let Some(n) = file.flinch_ticks {
+        within(
+            issues,
+            "flinch_ticks",
+            i64::from(n),
+            1,
+            i64::from(MAX_FLINCH_TICKS),
+        );
+    }
+    if let Some(n) = file.flinch_immune_ticks {
+        if file.flinch_ticks.is_none() {
+            issues.push(Issue {
+                path: "$.flinch_immune_ticks".into(),
+                message: "needs flinch_ticks".into(),
+            });
+        } else {
+            within(
+                issues,
+                "flinch_immune_ticks",
+                i64::from(n),
+                0,
+                i64::from(MAX_FLINCH_IMMUNE_TICKS),
+            );
+        }
+    }
+    if let Some(list) = &file.control_repeat_pcts {
+        let most = usize::from(MAX_CONTROL_REPEATS);
+        if list.is_empty() || list.len() > most {
+            issues.push(Issue {
+                path: "$.control_repeat_pcts".into(),
+                message: format!("1 to {most} entries (found {})", list.len()),
+            });
+        } else if file.control_reset_ticks.is_none() || file.control_immune_ticks.is_none() {
+            issues.push(Issue {
+                path: "$.control_repeat_pcts".into(),
+                message: "needs control_reset_ticks and control_immune_ticks".into(),
+            });
+        }
+        for (i, pct) in list.iter().take(most).enumerate() {
+            within(
+                issues,
+                &format!("control_repeat_pcts[{i}]"),
+                i64::from(*pct),
+                1,
+                100,
+            );
+        }
+    }
+    for (field, value, most) in [
+        (
+            "control_reset_ticks",
+            file.control_reset_ticks.map(i64::from),
+            i64::from(MAX_CONTROL_RESET_TICKS),
+        ),
+        (
+            "control_immune_ticks",
+            file.control_immune_ticks.map(i64::from),
+            i64::from(MAX_STUN_IMMUNE_TICKS),
+        ),
+    ] {
+        let Some(n) = value else { continue };
+        if file.control_repeat_pcts.is_none() {
+            issues.push(Issue {
+                path: format!("$.{field}"),
+                message: "needs control_repeat_pcts".into(),
+            });
+        } else {
+            within(issues, field, n, 1, most);
+        }
+    }
+    if let Some(stun) = file.vulnerable_pcts.as_ref().and_then(|v| v.stun) {
+        within(
+            issues,
+            "vulnerable_pcts.stun",
+            i64::from(stun),
+            1,
+            i64::from(MAX_PCT),
         );
     }
 }

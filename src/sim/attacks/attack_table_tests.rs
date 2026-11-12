@@ -81,6 +81,7 @@ fn phase_of(kind: PhaseKind, ticks: u32, hit_box: Option<HitBox>) -> AttackPhase
         move_pct: 100,
         breaks_charge: false,
         dash: None,
+        poise_damage: None,
         advance: None,
     }
 }
