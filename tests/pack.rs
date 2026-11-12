@@ -379,6 +379,22 @@ fn a_reward_needs_a_stage_skill_of_the_same_pack() {
     ));
 }
 
+/// The bundled pack with the rewards file as a file made before the equipment rules: no rules,
+/// and no reward or perk names a category.
+fn without_equipment_rules() -> Value {
+    let mut v = value();
+    let rewards = v["rewards"].as_object_mut().unwrap();
+    rewards.remove("equipment");
+    for r in rewards["rewards"].as_array_mut().unwrap() {
+        r.as_object_mut().unwrap().remove("category");
+    }
+    for set in v["perk_sets"]["perk_sets"].as_array_mut().unwrap() {
+        let effects = set["effects"].as_array_mut().unwrap();
+        effects.retain(|e| e.get("category").is_none());
+    }
+    v
+}
+
 const NO_EQUIPMENT_RULES: &str = "sim_version 2 needs the rewards file's equipment rules";
 
 fn one_issue(result: Result<Pack, PackError>, file: &str) -> validate::Issue {
@@ -399,8 +415,7 @@ fn one_issue(result: Result<Pack, PackError>, file: &str) -> validate::Issue {
 fn a_sim_version_2_pack_without_equipment_rules_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode, and a
     // run at sim_version 2 needs the rewards file's equipment rules.
-    let mut v = value();
-    v["rewards"].as_object_mut().unwrap().remove("equipment");
+    let mut v = without_equipment_rules();
     let issue = one_issue(load(&v), "rewards");
     assert_eq!(issue.path, "$.equipment");
     assert_eq!(issue.message, NO_EQUIPMENT_RULES);
@@ -408,8 +423,7 @@ fn a_sim_version_2_pack_without_equipment_rules_is_refused_with_the_pack() {
 
 #[test]
 fn a_missing_equipment_rule_set_is_refused_once_when_a_perk_names_a_category_too() {
-    let mut v = value();
-    v["rewards"].as_object_mut().unwrap().remove("equipment");
+    let mut v = without_equipment_rules();
     let sets = v["perk_sets"]["perk_sets"].as_array_mut().unwrap();
     let effect = sets
         .iter_mut()

@@ -42,7 +42,7 @@ mod files;
 mod introduced;
 pub mod trust;
 
-use check::{check_budgets, check_holds, check_perk_categories};
+use check::{check_budgets, check_equipment_rules, check_holds, check_perk_categories};
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
 pub use compare::{CompareError, compare_json_values, compare_numbers_only};
@@ -446,6 +446,7 @@ impl Pack {
             .map_err(PackError::in_file("stage_skills"))?;
         let rewards = Rewards::parse_with(&file_bytes(&pack.rewards), versions, &stage_skills)
             .map_err(PackError::in_file("rewards"))?;
+        check_equipment_rules(pack.sim_version, &rewards)?;
         let rewards = match pack.constellations.as_deref() {
             Some(raw) => {
                 let sets = Constellations::parse_with(&file_bytes(raw), versions, &rewards)

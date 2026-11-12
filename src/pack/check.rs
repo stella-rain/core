@@ -371,6 +371,21 @@ pub(super) fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
     Ok(())
 }
 
+/// A run at `sim_version` 2 or later needs the rewards file's equipment rules; the run start
+/// refuses a pack without them, so the pack is refused at load (the same text and condition).
+pub(super) fn check_equipment_rules(sim_version: u32, rewards: &Rewards) -> Result<(), PackError> {
+    if sim_version >= 2 && rewards.equipment().is_none() {
+        return Err(PackError::File {
+            file: "rewards",
+            error: Error::Invalid(vec![Issue {
+                path: "$.equipment".into(),
+                message: "sim_version 2 needs the rewards file's equipment rules".into(),
+            }]),
+        });
+    }
+    Ok(())
+}
+
 /// A perk's drop-weight category is a category of the rewards' equipment rules.
 pub(super) fn check_perk_categories(
     perk_sets: &PerkSets,
