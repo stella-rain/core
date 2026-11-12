@@ -234,7 +234,7 @@
       "description": "One phase of an attack.",
       "properties": {
         "advance": {
-          "description": "A phase of the main character's combo step: the player slides toward the assist's target\nover the phase, this far in all (1/256 px, 1 px to `limits::MAX_ADVANCE_DISTANCE`). Absent:\nno slide. Read at `sim_version` 2, for a combo step only (ADR-CONT-3).",
+          "description": "A phase of the main character's combo step (attack magnetism): the player slides along the\nfacing the step took toward the assist's target over the phase, this far in all (1/256 px, 1 px to `limits::MAX_ADVANCE_DISTANCE`). Absent:\nno slide. Read at `sim_version` 2, for a combo step only (ADR-CONT-3).",
           "format": "int32",
           "maximum": 61440,
           "minimum": 256,
