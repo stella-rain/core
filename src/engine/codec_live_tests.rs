@@ -385,7 +385,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, DotState, |s| s.players[PlayerIdx::SOLO].statuses[0].dot.as_mut().unwrap(),
         fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
     each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
-        fields: [owner, due, percent, proc_pct, anchor]);
+        fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -882,7 +882,7 @@ fn the_repeat_queue_is_bounded_at_decode() {
         attack: crate::sim::AttackIndex(3),
         phase: 2,
         damage: u32::MAX,
-        width_pct: u32::try_from(crate::rewards::MAX_RANGE_PCT).unwrap(),
+        width_pct: crate::rewards::MAX_RANGE_PCT,
     };
     round_trip_hashed(&place);
     let full = Repeat {
@@ -909,7 +909,7 @@ fn the_repeat_queue_is_bounded_at_decode() {
         ..place
     });
     refused(&Repeat {
-        width_pct: u32::try_from(crate::rewards::MAX_RANGE_PCT).unwrap() + 1,
+        width_pct: crate::rewards::MAX_RANGE_PCT + 1,
         ..place
     });
     // No factor round-trips too.

@@ -562,6 +562,16 @@ macro_rules! state_codec_v2 {
                 let phases = world.attacks[usize::from(run.attack.0)].phases.len();
                 below(run.phase as usize, phases, "run phase out of range")?;
             }
+            // A queued repeat deals from a phase of an attack, read unchecked at the due tick.
+            for r in &s.repeats {
+                below(
+                    usize::from(r.attack.0),
+                    attacks,
+                    "repeat attack out of range",
+                )?;
+                let phases = world.attacks[usize::from(r.attack.0)].phases.len();
+                below(usize::from(r.phase), phases, "repeat phase out of range")?;
+            }
             for t in &s.tasks {
                 below(t.program.0 as usize, programs, "task program out of range")?;
             }

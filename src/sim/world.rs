@@ -539,6 +539,9 @@ pub(crate) struct World {
     /// Some compiled phase names an `advance` (attack magnetism): the player's tick looks for a
     /// slide only then.
     pub has_advance: bool,
+    /// Some style's copy of the tree gives a step a repeat: a run queues repeats only then
+    /// (false for the bundled pack).
+    pub has_repeat: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -706,6 +709,7 @@ impl World {
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
             has_advance: false,
+            has_repeat: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,

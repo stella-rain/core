@@ -9,7 +9,7 @@ use crate::kinds::KindTable;
 use crate::match_ups::MatchUps;
 use crate::rng::{SplitMix64, TAG_ATTACK, TAG_HORDE, TAG_LOOT, TAG_SPAWN, derive};
 use crate::runes::Runes;
-use crate::sim::RangedPool;
+use crate::sim::{AttackIndex, RangedPool};
 use std::sync::Arc;
 
 use super::{
@@ -324,10 +324,21 @@ pub(crate) struct Repeat {
     pub due: u32,
     /// The part of the step's damage it deals, in percent.
     pub percent: u16,
-    /// The factor a proc of the step is scaled by, in percent.
-    pub proc_pct: u16,
+    /// The chance, in percent, that a hit of the repeat fires a ready on-hit rune; none: every
+    /// ready rune fires, no draw.
+    pub proc_pct: Option<u16>,
     /// What it hits.
     pub anchor: RepeatAnchor,
+    /// The attack whose phase `phase` was the step's last `active` one: its hit box and damage
+    /// type are read from `world.attacks[attack].phases[phase]`.
+    pub attack: AttackIndex,
+    /// The index of that phase in the attack.
+    pub phase: u8,
+    /// The damage of that hit per target before `percent`, with the attack-up and the type bonus
+    /// the step had when it started.
+    pub damage: u32,
+    /// The range the run had, in percent (at most `MAX_RANGE_PCT`), widening a `Place` hit box.
+    pub width_pct: u32,
 }
 
 /// Where a repeat lands: on the enemies the step hit, or on a place.
