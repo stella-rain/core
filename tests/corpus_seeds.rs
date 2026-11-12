@@ -254,8 +254,9 @@ fn search_corpus_party_seeds() {
 
 /// `three_tutorial` over world seeds 1..=20 x bot seeds 1..=20: a line per pair (outcome, ticks and
 /// the ticks past the later of the first empty field after the last spawn (or that spawn, tick
-/// 1260, when the boss dies first) and the golem's arrival tick), then the Cleared count and the largest overrun. `cargo test --release
-/// --locked --test integration search_tutorial_clear_rate -- --ignored --nocapture`.
+/// 1260, when the boss dies first) and the golem's arrival tick), then the Cleared count and the
+/// largest overrun. `cargo test --release --locked --test integration search_tutorial_clear_rate
+/// -- --ignored --nocapture`.
 #[test]
 #[ignore = "a seed search, run by hand"]
 fn search_tutorial_clear_rate() {
