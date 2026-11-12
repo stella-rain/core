@@ -35,6 +35,17 @@ pub(in crate::sim) fn advance_runs(world: &World, s: &mut State, events: &mut Ve
             continue;
         }
         s.runs.swap(kept, i);
+        // The perfect evade (ADR-SIM-8): a slowed owner's ranged run frees its token for good, and
+        // on a holding tick its run waits.
+        if let Some(hold) = crate::sim::player::slowed(s, s.runs[kept].owner) {
+            if holds_token(world, &s.runs[kept]) {
+                s.runs[kept].ranged = false;
+            }
+            if hold {
+                kept += 1;
+                continue;
+            }
+        }
         let r = &mut s.runs[kept];
         r.tick = r.tick.saturating_add(1);
         if r.tick >= phase(world, r, r.phase as usize).ticks {

@@ -111,14 +111,24 @@ fn a_run_that_names_no_rule_never_sets_a_timer() {
 #[test]
 fn an_enemy_in_the_evaders_reach_advances_every_other_tick_and_the_rest_do_not() {
     let run = |slow: u16| {
-        let mut e = rig(3, Some(RULE));
+        // A small reach: the leash lands the far enemy about 9 px from where the near one stands.
+        let rule = PerfectEvade {
+            reach: 6 * 256,
+            ..RULE
+        };
+        let mut e = rig(3, Some(rule));
         let (near, far) = two_enemies(st(&mut e));
         let s = st(&mut e);
-        let home = s.players[slot(0)].at;
-        put(s, near, home);
+        // Alone, so that the push-apart of a crowd does not carry them out of place.
+        s.enemies.retain(|x| x.id == near || x.id == far);
+        // One tick for the leash to settle them, then arrange them where they stand.
+        idle(&mut e, 1);
+        let s = st(&mut e);
+        let home = s.enemies.iter().find(|x| x.id == near).expect("near").at;
+        s.players[slot(0)].at = home;
         let away = Point {
-            x: home.x.saturating_add(Fx::px(900)),
-            y: home.y,
+            x: home.x,
+            y: home.y.saturating_add(Fx::px(60)),
         };
         put(s, far, away);
         s.players[slot(1)].at = away;

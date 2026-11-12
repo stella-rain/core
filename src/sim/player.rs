@@ -257,8 +257,6 @@ fn slow_set(s: &mut State, t: crate::rules::PerfectEvade) {
 
 /// Whether the entity `id` is slowed this tick and holds: `Some(holds)`, `None` if it is not in
 /// the set. One test of "is the set empty" for every tick that slows no one.
-// Read by the holds of the next step; remove this allow there.
-#[allow(dead_code)]
 pub(super) fn slowed(s: &State, id: EntityId) -> Option<bool> {
     if s.scratch.slowed.is_empty() {
         return None;
