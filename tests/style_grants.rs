@@ -55,17 +55,26 @@ fn level(id: &str, kinds: Vec<Value>) -> Value {
 /// Style 0 grants a two-level charge on A; style 1 names no kind; style 2's first upgrade grants
 /// a hold on AA and its capstone a charge on B.
 fn test_expertise(kinds: bool) -> Expertise {
+    expertise_for("giant_hammer", kinds)
+}
+
+fn expertise_for(weapon: &str, kinds: bool) -> Expertise {
     let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
-        if w["weapon"] != "giant_hammer" {
+        if w["weapon"] != weapon {
             continue;
         }
         w["base"] = json!([]);
         for s in w["styles"].as_array_mut().unwrap() {
             s["stats"] = json!([]);
         }
-        if kinds {
+        if weapon == "giant_sword" {
+            // The Sword's base AAA has a charge: a hold replaces it.
+            if kinds {
+                w["styles"][0]["kinds"] = json!([kind(&["main", "main", "main"], hold_grant())]);
+            }
+        } else if kinds {
             w["styles"][0]["kinds"] = json!([kind(&["main"], charge([6_000, 8_000]))]);
             w["styles"][2]["upgrade_1"] = json!([level(
                 "hold_aa",
@@ -81,6 +90,10 @@ fn test_expertise(kinds: bool) -> Expertise {
 }
 
 fn build(expertise: Expertise) -> Engine {
+    build_with("giant_hammer", expertise)
+}
+
+fn build_with(weapon: &str, expertise: Expertise) -> Engine {
     let far = START_Y - 90_000;
     let mut w = wave(
         1,
@@ -93,7 +106,7 @@ fn build(expertise: Expertise) -> Engine {
     w["expertise"] = json!({ "hit": 0, "kill": 10 });
     let mut stage = armed(
         stage_full(18_000, Some(far_boss()), vec![w], vec![]),
-        json!({ "preset": { "id": "giant_hammer" } }),
+        json!({ "preset": { "id": weapon } }),
     );
     stage.sim_version = 2;
     let parts = Parts {
@@ -323,4 +336,34 @@ fn the_views_carry_the_kinds() {
     for t in stats["trees"].as_array().unwrap() {
         assert!(t.get("grants").is_none());
     }
+}
+
+/// (5) A grant replaces: a hold granted on the step where the base has a charge leaves a hold
+/// and no charge there.
+#[test]
+fn a_grant_replaces_the_step_s_charge_with_a_hold() {
+    let aaa = |e: &mut Engine| {
+        let (mut charged, mut held) = (false, false);
+        for _ in 0..2 {
+            step(e, main_held());
+            for _ in 0..12 {
+                step(e, idle());
+            }
+        }
+        for _ in 0..40 {
+            step(e, main_held());
+            charged |= charge_of(e).is_some();
+            held |= hold_of(e);
+        }
+        (charged, held)
+    };
+    let mut e = build_with("giant_sword", expertise_for("giant_sword", true));
+    assert_eq!(aaa(&mut e), (true, false), "the base AAA charges");
+    settle(&mut e);
+    pick(&mut e, 0);
+    assert_eq!(
+        aaa(&mut e),
+        (false, true),
+        "the grant leaves a hold and no charge"
+    );
 }
