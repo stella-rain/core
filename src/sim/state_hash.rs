@@ -499,10 +499,110 @@ impl StableHash for EliteState {
             // not hashed: what the boss's call does to the elite is its definition's.
             boss_call: _,
             disguised,
+            stagger,
         } = self;
         home.stable_hash(h);
         called.stable_hash(h);
         disguised.stable_hash(h);
+        stagger.stable_hash(h);
+    }
+}
+
+impl StableHash for Repeat {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Repeat {
+            owner,
+            due,
+            percent,
+            proc_pct,
+            anchor,
+        } = self;
+        owner.stable_hash(h);
+        due.stable_hash(h);
+        percent.stable_hash(h);
+        proc_pct.stable_hash(h);
+        anchor.stable_hash(h);
+    }
+}
+
+impl StableHash for RepeatAnchor {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            RepeatAnchor::HitList(targets) => {
+                h.write_u8(0);
+                targets.stable_hash(h);
+            }
+            RepeatAnchor::Place { at, facing } => {
+                h.write_u8(1);
+                at.stable_hash(h);
+                facing.stable_hash(h);
+            }
+        }
+    }
+}
+
+impl StableHash for PlayerCombat {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let PlayerCombat {
+            perfect_window,
+            perfect_slow,
+            perfect_cooldown,
+            weapon_gauge,
+            gauge_step_fill,
+            rally,
+            rally_ticks,
+            spirit_level,
+            spirit_decay,
+            counter_window,
+            combo_tempo,
+            giant_trigger,
+            ranged_grace,
+        } = self;
+        perfect_window.stable_hash(h);
+        perfect_slow.stable_hash(h);
+        perfect_cooldown.stable_hash(h);
+        weapon_gauge.stable_hash(h);
+        gauge_step_fill.stable_hash(h);
+        rally.stable_hash(h);
+        rally_ticks.stable_hash(h);
+        spirit_level.stable_hash(h);
+        spirit_decay.stable_hash(h);
+        counter_window.stable_hash(h);
+        combo_tempo.stable_hash(h);
+        giant_trigger.stable_hash(h);
+        ranged_grace.stable_hash(h);
+    }
+}
+
+impl StableHash for FoeControl {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let FoeControl {
+            flinch,
+            flinch_immune,
+            hard_controls,
+            hard_control_reset,
+            knocked_down,
+        } = self;
+        flinch.stable_hash(h);
+        flinch_immune.stable_hash(h);
+        hard_controls.stable_hash(h);
+        hard_control_reset.stable_hash(h);
+        knocked_down.stable_hash(h);
+    }
+}
+
+impl StableHash for Stagger {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Stagger {
+            gauge,
+            breaks,
+            drain,
+            staggered,
+        } = self;
+        gauge.stable_hash(h);
+        breaks.stable_hash(h);
+        drain.stable_hash(h);
+        staggered.stable_hash(h);
     }
 }
 
@@ -531,6 +631,7 @@ impl StableHash for AgentState {
             elite,
             leave,
             shrine,
+            control,
         } = self;
         id.stable_hash(h);
         key.stable_hash(h);
@@ -550,6 +651,7 @@ impl StableHash for AgentState {
         elite.stable_hash(h);
         leave.stable_hash(h);
         shrine.stable_hash(h);
+        control.stable_hash(h);
     }
 }
 
@@ -603,6 +705,7 @@ impl StableHash for BossState {
             parts,
             elites_called,
             age,
+            stagger,
         } = self;
         id.stable_hash(h);
         origin.stable_hash(h);
@@ -622,6 +725,7 @@ impl StableHash for BossState {
         parts.stable_hash(h);
         elites_called.stable_hash(h);
         age.stable_hash(h);
+        stagger.stable_hash(h);
     }
 }
 
@@ -779,6 +883,7 @@ impl StableHash for PlayerState {
             down_ticks,
             revive_hold,
             out,
+            combat,
         } = self;
         at.stable_hash(h);
         hp.stable_hash(h);
@@ -817,6 +922,7 @@ impl StableHash for PlayerState {
         down_ticks.stable_hash(h);
         revive_hold.stable_hash(h);
         out.stable_hash(h);
+        combat.stable_hash(h);
     }
 }
 
@@ -997,6 +1103,7 @@ impl State {
             damage_pct,
             crit_seed,
             echoes,
+            repeats,
         } = self;
         tick.stable_hash(h);
         hash_streams(rng, h);
@@ -1022,6 +1129,7 @@ impl State {
         damage_pct.stable_hash(h);
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
+        repeats.stable_hash(h);
         // The presence byte (bit `i` is slot `i`, as in the step log's byte 0), then the block of
         // each present player, ascending. Absent slots write nothing.
         h.write_u8(players.mask());

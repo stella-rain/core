@@ -728,6 +728,40 @@ fn the_state_has_no_star_offer_fields() {
         (time_limit_case::warmed_up(), 30_425, 22 + 2 * 141),
     ];
     for (e, base, removed) in cases {
-        assert_eq!(crate::savepoint::encode_state(&e).len(), base - removed);
+        let len = crate::savepoint::encode_state(&e).len();
+        assert_eq!(len - combat_bytes(&e), base - removed);
+    }
+}
+
+/// The live state holds the combat fields (format 9): the encoding is the Base length plus what
+/// they take. Per enemy and companion `FoeControl` 9 bytes, per elite and the boss `Stagger` 10,
+/// per present player `PlayerCombat` 30 (thirteen fields: 8 of 2 bytes, 3 of 4, 2 of 1; the
+/// plan's 28 left out one of the 2-byte fields), and the queue's 4-byte length prefix.
+/// The bytes the combat fields add: 9 per enemy and companion, 10 per elite and boss, 30 per
+/// present player and the queue's 4-byte prefix, the counts read from the state.
+fn combat_bytes(e: &crate::engine::Engine) -> usize {
+    let st = match e.run() {
+        crate::engine::run::Run::V2 { state, .. } => state,
+        crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
+    };
+    let agents = st.companions.len() + st.enemies.len();
+    let elites = st.enemies.iter().filter(|a| a.elite.is_some()).count();
+    let boss = usize::from(st.boss.is_some());
+    let players = st.players.iter().count();
+    9 * agents + 10 * (elites + boss) + 30 * players + 4
+}
+
+#[test]
+fn the_state_holds_the_combat_fields() {
+    use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
+    // (case, encoded length at the Base after the star-offer fields went)
+    let cases = [
+        (worst_case::warmed_up(), 144_100 - 22 - 2 * 2),
+        (hit_case::warmed_up(), 263_006),
+        (time_limit_case::warmed_up(), 30_425 - 22 - 2 * 141),
+    ];
+    for (e, base) in cases {
+        let added = combat_bytes(&e);
+        assert_eq!(crate::savepoint::encode_state(&e).len(), base + added);
     }
 }

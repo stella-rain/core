@@ -132,16 +132,20 @@ perturb_through! {
     StatusState => remaining,
     DotState => damage,
     Echo => damage,
+    Repeat => due,
     HealPickup => id,
     StarState => id,
     ShrineState => guardians,
     LeaveState => go,
     EliteState => called,
+    FoeControl => flinch,
+    Stagger => gauge,
     OrbLink => group,
     Hook => left,
     StatRule => step,
     Streams => spawn,
     PlayerState => at,
+    PlayerCombat => perfect_window,
     BossState => hp,
     PartState => hp,
     AgentState => hp,
@@ -156,6 +160,16 @@ perturb_through! {
     StarField => misses,
     ExpertiseGauge => points,
     Horde => spawned,
+}
+
+/// A hit list gains a target; a place moves.
+impl Perturb for RepeatAnchor {
+    fn perturb(&mut self) {
+        match self {
+            RepeatAnchor::HitList(list) => list.perturb(),
+            RepeatAnchor::Place { at, .. } => at.perturb(),
+        }
+    }
 }
 
 impl Perturb for crate::rng::SplitMix64 {
@@ -385,11 +399,24 @@ fn agent() -> AgentState {
         crowded: true,
         burst: true,
         stun_immune: 5,
+        control: FoeControl {
+            flinch: 1,
+            flinch_immune: 2,
+            hard_controls: 3,
+            hard_control_reset: 4,
+            knocked_down: 5,
+        },
         elite: Some(EliteState {
             home: pt(3),
             called: true,
             boss_call: BossCall::Leave,
             disguised: true,
+            stagger: Stagger {
+                gauge: 6,
+                breaks: 7,
+                drain: 8,
+                staggered: 9,
+            },
         }),
         leave: Some(LeaveState {
             disturbed: Some(2),
@@ -437,6 +464,12 @@ fn boss() -> BossState {
         }],
         elites_called: Some(true),
         age: 9,
+        stagger: Stagger {
+            gauge: 6,
+            breaks: 7,
+            drain: 8,
+            staggered: 9,
+        },
     }
 }
 
@@ -643,6 +676,21 @@ fn player(p: &mut PlayerState) {
     p.down_ticks = 1;
     p.revive_hold = 2;
     p.out = false;
+    p.combat = PlayerCombat {
+        perfect_window: 1,
+        perfect_slow: 2,
+        perfect_cooldown: 3,
+        weapon_gauge: 4,
+        gauge_step_fill: 5,
+        rally: 6,
+        rally_ticks: 7,
+        spirit_level: 1,
+        spirit_decay: 9,
+        counter_window: 10,
+        combo_tempo: 4,
+        giant_trigger: 12,
+        ranged_grace: 13,
+    };
     p.combo = ComboState {
         path: 5,
         depth: 2,
@@ -713,6 +761,13 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         id: EntityId(60),
         at: pt(1),
     }]);
+    s.repeats = vec![Repeat {
+        owner: 1,
+        due: 2,
+        percent: 3,
+        proc_pct: 4,
+        anchor: RepeatAnchor::HitList([EntityId(5)].into_iter().collect()),
+    }];
     s.echoes = vec![Echo {
         source: EntityId(1),
         target: EntityId(2),
@@ -841,13 +896,17 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     let mut p = Probe::new();
 
     each_field_moves_the_hash!(p, State, |s| s,
-        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes],
+        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
         not_hashed: [move_index],
         // `stars` and each career's `offers` are `Some` together (`hash_fields` asserts it):
         // they are perturbed as a pair below.
         content: [scratch, kinds, match_ups, runes, stun, stars]);
     each_field_moves_the_hash!(p, Streams, |s| &mut s.rng,
         moves: [spawn, attack, loot, horde],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, Repeat, |s| &mut s.repeats[0],
+        moves: [owner, due, percent, proc_pct, anchor],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],
@@ -891,7 +950,11 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [stats],
         content: []);
     each_field_moves_the_hash!(p, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out],
+        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
+        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
@@ -923,9 +986,13 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, BossState, |s| s.boss.as_mut().unwrap(),
-        moves: [id, origin, no_call, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age],
+        moves: [id, origin, no_call, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger],
         not_hashed: [],
         content: [boss, kind]);
+    each_field_moves_the_hash!(p, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
+        moves: [gauge, breaks, drain, staggered],
+        not_hashed: [],
+        content: []);
     each_field_moves_the_hash!(p, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         moves: [id, hp, max_hp, defence, offset, radius, statuses],
         not_hashed: [],
@@ -935,9 +1002,13 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, AgentState, |s| &mut s.enemies[0],
-        moves: [id, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, elite, leave, shrine],
+        moves: [id, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, control, elite, leave, shrine],
         not_hashed: [],
         content: [def, kind]);
+    each_field_moves_the_hash!(p, FoeControl, |s| &mut s.enemies[0].control,
+        moves: [flinch, flinch_immune, hard_controls, hard_control_reset, knocked_down],
+        not_hashed: [],
+        content: []);
     each_field_moves_the_hash!(p, ShrineState, |s| s.enemies[0].shrine.as_deref_mut().unwrap(),
         moves: [fight, guardians],
         not_hashed: [],
@@ -947,8 +1018,12 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
-        moves: [home, called, disguised],
+        moves: [home, called, disguised, stagger],
         not_hashed: [boss_call],
+        content: []);
+    each_field_moves_the_hash!(p, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
+        moves: [gauge, breaks, drain, staggered],
+        not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         moves: [to, ticks_left],

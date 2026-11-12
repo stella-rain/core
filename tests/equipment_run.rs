@@ -273,8 +273,8 @@ fn a_default_setup_runs_in_equipment_mode() {
     for _ in 0..600 {
         engine.step(&Default::default());
     }
-    // The state hash the same seed's run gave before `sim_version` 2 became the equipment mode.
-    assert_eq!(format!("{:016x}", engine.state_hash()), "e3c98c2f59978c47");
+    // The state hash of this run at tick 600; re-pinned when the combat fields joined the hash.
+    assert_eq!(format!("{:016x}", engine.state_hash()), "61873985ced03045");
 
     let frozen = RunSetup {
         schema_version: 1,

@@ -14,8 +14,8 @@ use crate::rewards::Rarity;
 use crate::run_content::RunContent;
 use crate::run_stats::StatEffect;
 use crate::sim::state::{
-    AgentKey, AgentSource, BossState, Career, Dir, Offers, PartState, PlayerState, Progress,
-    StarField, StatRule, State, Streams,
+    AgentKey, AgentSource, BossState, Career, Dir, Offers, PartState, PlayerCombat, PlayerState,
+    Progress, Stagger, StarField, StatRule, State, Streams,
 };
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx, Players};
 use crate::trig;
@@ -256,6 +256,7 @@ fn unreserved_state(
                 down_ticks: 0,
                 revive_hold: 0,
                 out: false,
+                combat: PlayerCombat::default(),
             },
             Career::new(
                 seed,
@@ -300,6 +301,7 @@ fn unreserved_state(
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
         echoes: Vec::new(),
+        repeats: Vec::new(),
         kinds: std::sync::Arc::new(kinds),
     }
 }
@@ -359,6 +361,7 @@ pub(crate) fn boss_state(
         // A boss that calls no elites hashes nothing for it, a no-call boss too.
         elites_called: b.call_elites.filter(|_| !arrival.no_call).map(|_| false),
         age: 0,
+        stagger: Stagger::default(),
         parts: b
             .parts
             .iter()

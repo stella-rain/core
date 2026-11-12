@@ -32,6 +32,75 @@ impl Decode for Echo {
     }
 }
 
+impl Encode for Repeat {
+    fn encode(&self, w: &mut Writer) {
+        let Repeat {
+            owner,
+            due,
+            percent,
+            proc_pct,
+            anchor,
+        } = self;
+        owner.encode(w);
+        due.encode(w);
+        percent.encode(w);
+        proc_pct.encode(w);
+        anchor.encode(w);
+    }
+}
+
+impl Decode for Repeat {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        let owner: u8 = Decode::decode(r)?;
+        if u32::from(owner) >= u32::from(MAX_PLAYERS) {
+            return Err(DecodeError::Invalid("repeat owner past its bound"));
+        }
+        let due = Decode::decode(r)?;
+        let max_pct = u16::try_from(crate::limits::MAX_PCT).unwrap_or(u16::MAX);
+        let pct = |r: &mut Reader<'_>| {
+            super::foes::within(r.u16()?, max_pct, "repeat percent past its bound")
+        };
+        let percent = pct(r)?;
+        let proc_pct = pct(r)?;
+        Ok(Repeat {
+            owner,
+            due,
+            percent,
+            proc_pct,
+            anchor: Decode::decode(r)?,
+        })
+    }
+}
+
+impl Encode for RepeatAnchor {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            RepeatAnchor::HitList(targets) => {
+                w.u8(0);
+                targets.encode(w);
+            }
+            RepeatAnchor::Place { at, facing } => {
+                w.u8(1);
+                at.encode(w);
+                facing.encode(w);
+            }
+        }
+    }
+}
+
+impl Decode for RepeatAnchor {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        match r.u8()? {
+            0 => Ok(RepeatAnchor::HitList(Decode::decode(r)?)),
+            1 => Ok(RepeatAnchor::Place {
+                at: Decode::decode(r)?,
+                facing: Decode::decode(r)?,
+            }),
+            _ => Err(DecodeError::Invalid("repeat anchor tag")),
+        }
+    }
+}
+
 /// Four `u64`, each run generator's state, in the order the hash writes them: `spawn, attack,
 /// loot, horde`. Each player's offer generator is in its block.
 fn encode_streams(rng: &Streams, w: &mut Writer) {
@@ -106,6 +175,7 @@ impl State {
             damage_pct,
             crit_seed,
             echoes,
+            repeats,
         } = self;
         tick.encode(w);
         encode_streams(rng, w);
@@ -131,6 +201,7 @@ impl State {
         damage_pct.encode(w);
         crit_seed.encode(w);
         echoes.encode(w);
+        repeats.encode(w);
         // The presence byte, then the block of each present player in slot order, as the hash.
         w.u8(players.mask());
         for g in players.generations() {
@@ -228,6 +299,7 @@ impl State {
             damage_pct: Decode::decode(r)?,
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
+            repeats: decode_vec(r, cap_u32(crate::limits::MAX_REPEATS_QUEUED))?,
         };
         // The presence byte: slot 0 always, never a slot past the last, and the party the setup
         // started.

@@ -100,6 +100,33 @@ pub const MAX_CATEGORY_SLOTS: u8 = 16;
 pub const MAX_SET_STATS: usize = 8;
 pub const MAX_STARS_ON_MAP: u16 = 64;
 
+// The combat state's caps (ADR-SIM-5 point 9): they bound the combat fields of the live state
+// at decode and are tuning values; a cap fixes no behaviour. A tick cap stays below 65,536 (a
+// `u16`); a raise past a field's type is another hash move.
+pub const MAX_FLINCH_TICKS: u16 = 60;
+pub const MAX_FLINCH_IMMUNE_TICKS: u16 = 120;
+pub const MAX_CONTROL_REPEATS: u8 = 8;
+pub const MAX_CONTROL_RESET_TICKS: u16 = 600;
+pub const MAX_DOWN_TICKS: u16 = 180;
+pub const MAX_STAGGER: u32 = 10_000;
+pub const MAX_STAGGER_BREAKS: u16 = 1_000;
+pub const MAX_STAGGER_DRAIN_TICKS: u16 = 600;
+pub const MAX_STAGGERED_TICKS: u16 = 600;
+pub const MAX_PERFECT_WINDOW_TICKS: u16 = 30;
+pub const MAX_PERFECT_SLOW_TICKS: u16 = 300;
+pub const MAX_PERFECT_COOLDOWN_TICKS: u16 = 3_600;
+pub const MAX_WEAPON_GAUGE: u32 = 10_000;
+pub const MAX_RALLY: u32 = crate::validate::limits::MAX_PLAYER_HP;
+pub const MAX_RALLY_TICKS: u16 = 600;
+pub const MAX_SPIRIT_LEVEL: u8 = 3;
+pub const MAX_SPIRIT_DECAY_TICKS: u16 = 3_600;
+pub const MAX_COUNTER_WINDOW_TICKS: u16 = 60;
+pub const MAX_TEMPO_STACKS: u8 = 10;
+pub const MAX_TRIGGER_TICKS: u16 = 3_600;
+pub const MAX_RANGED_GRACE_TICKS: u16 = 600;
+pub const MAX_REPEATS_QUEUED: usize = 64;
+pub const MAX_REPEAT_TARGETS: usize = 16;
+
 // Time limit (ADR-SVC-1)
 pub const MAX_WAVES: usize = 16;
 pub const MAX_TIME_LIMIT_BYTES: usize = 128 * 1024;
@@ -194,6 +221,29 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_SET_STATS", "8", "stats", "ADR-CONT-3"),
     LimitEntry::new("MAX_STARS_ON_MAP", "64", "stars", "ADR-REPL-5"),
     LimitEntry::new("MAX_WAVES", "16", "waves", "ADR-SVC-1"),
+    LimitEntry::new("MAX_FLINCH_TICKS", "60", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_FLINCH_IMMUNE_TICKS", "120", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_CONTROL_REPEATS", "8", "hard controls", "ADR-SIM-5"),
+    LimitEntry::new("MAX_CONTROL_RESET_TICKS", "600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_DOWN_TICKS", "180", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STAGGER", "10000", "stagger", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STAGGER_BREAKS", "1000", "breaks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STAGGER_DRAIN_TICKS", "600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STAGGERED_TICKS", "600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_PERFECT_WINDOW_TICKS", "30", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_PERFECT_SLOW_TICKS", "300", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_PERFECT_COOLDOWN_TICKS", "3600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_WEAPON_GAUGE", "10000", "gauge", "ADR-SIM-5"),
+    LimitEntry::new("MAX_RALLY", "99900", "hit points", "ADR-SIM-5"),
+    LimitEntry::new("MAX_RALLY_TICKS", "600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SPIRIT_LEVEL", "3", "level", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SPIRIT_DECAY_TICKS", "3600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_COUNTER_WINDOW_TICKS", "60", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_TEMPO_STACKS", "10", "stacks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_TRIGGER_TICKS", "3600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_RANGED_GRACE_TICKS", "600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_REPEATS_QUEUED", "64", "entries", "ADR-SIM-5"),
+    LimitEntry::new("MAX_REPEAT_TARGETS", "16", "targets", "ADR-SIM-5"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
 ];
 
@@ -326,6 +376,52 @@ mod tests {
             MAX_TIME_LIMIT_BYTES,
             crate::time_limit::MAX_TIME_LIMIT_BYTES
         );
+    }
+
+    /// The combat state's caps (ADR-SIM-5 point 9): 23 rows, `MAX_WEAPON_GAUGE` bounding two
+    /// fields. Tuning values: a cap bounds a decode and fixes no behaviour.
+    #[test]
+    fn the_combat_caps_have_rows() {
+        let rows = [
+            ("MAX_FLINCH_TICKS", "60", "ticks"),
+            ("MAX_FLINCH_IMMUNE_TICKS", "120", "ticks"),
+            ("MAX_CONTROL_REPEATS", "8", "hard controls"),
+            ("MAX_CONTROL_RESET_TICKS", "600", "ticks"),
+            ("MAX_DOWN_TICKS", "180", "ticks"),
+            ("MAX_STAGGER", "10000", "stagger"),
+            ("MAX_STAGGER_BREAKS", "1000", "breaks"),
+            ("MAX_STAGGER_DRAIN_TICKS", "600", "ticks"),
+            ("MAX_STAGGERED_TICKS", "600", "ticks"),
+            ("MAX_PERFECT_WINDOW_TICKS", "30", "ticks"),
+            ("MAX_PERFECT_SLOW_TICKS", "300", "ticks"),
+            ("MAX_PERFECT_COOLDOWN_TICKS", "3600", "ticks"),
+            ("MAX_WEAPON_GAUGE", "10000", "gauge"),
+            (
+                "MAX_RALLY",
+                &crate::validate::limits::MAX_PLAYER_HP.to_string(),
+                "hit points",
+            ),
+            ("MAX_RALLY_TICKS", "600", "ticks"),
+            ("MAX_SPIRIT_LEVEL", "3", "level"),
+            ("MAX_SPIRIT_DECAY_TICKS", "3600", "ticks"),
+            ("MAX_COUNTER_WINDOW_TICKS", "60", "ticks"),
+            ("MAX_TEMPO_STACKS", "10", "stacks"),
+            ("MAX_TRIGGER_TICKS", "3600", "ticks"),
+            ("MAX_RANGED_GRACE_TICKS", "600", "ticks"),
+            ("MAX_REPEATS_QUEUED", "64", "entries"),
+            ("MAX_REPEAT_TARGETS", "16", "targets"),
+        ];
+        assert_eq!(rows.len(), 23);
+        assert_eq!(MAX_RALLY, crate::validate::limits::MAX_PLAYER_HP);
+        for (name, value, unit) in rows {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
     }
 
     #[test]

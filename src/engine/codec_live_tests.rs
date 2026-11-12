@@ -250,6 +250,7 @@ fn the_agent_boss_and_status_types_of_the_full_state_round_trip() {
     round_trip_hashed(&status);
     round_trip_hashed(&status.dot.unwrap());
     round_trip_hashed(&s.echoes[0]);
+    round_trip_hashed(&s.repeats[0]);
     for kind in StatusKind::ALL {
         round_trip_hashed(&kind);
     }
@@ -271,6 +272,7 @@ fn a_cut_or_damaged_agent_or_boss_never_panics_a_decode() {
     never_panics(&s.enemies[0]);
     never_panics(s.boss.as_ref().unwrap());
     never_panics(&s.echoes[0]);
+    never_panics(&s.repeats[0]);
 }
 
 #[test]
@@ -355,19 +357,25 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     let mut failures: Vec<String> = Vec::new();
 
     each_field_moves_the_encoding!(failures, base, BossState, |s| s.boss.as_mut().unwrap(),
-        fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age]);
+        fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger]);
+    each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
+        fields: [gauge, breaks, drain, staggered]);
     each_field_moves_the_encoding!(failures, base, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         fields: [id, name, kind, hp, max_hp, defence, offset, radius, statuses]);
     each_field_moves_the_encoding!(failures, base, AgentKey, |s| &mut s.enemies[0].key,
         fields: [source, index, rule]);
     each_field_moves_the_encoding!(failures, base, AgentState, |s| &mut s.enemies[0],
-        fields: [id, def, kind, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, elite, leave, shrine]);
+        fields: [id, def, kind, key, at, hp, max_hp, defence, age, rules, statuses, aggro, order, orbit_angle, crowded, burst, stun_immune, control, elite, leave, shrine]);
+    each_field_moves_the_encoding!(failures, base, FoeControl, |s| &mut s.enemies[0].control,
+        fields: [flinch, flinch_immune, hard_controls, hard_control_reset, knocked_down]);
     each_field_moves_the_encoding!(failures, base, ShrineState, |s| s.enemies[0].shrine.as_deref_mut().unwrap(),
         fields: [fight, guardians]);
     each_field_moves_the_encoding!(failures, base, LeaveState, |s| s.enemies[0].leave.as_mut().unwrap(),
         fields: [disturbed, go]);
     each_field_moves_the_encoding!(failures, base, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
-        fields: [home, called, boss_call, disguised]);
+        fields: [home, called, boss_call, disguised, stagger]);
+    each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
+        fields: [gauge, breaks, drain, staggered]);
     each_field_moves_the_encoding!(failures, base, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         fields: [to, ticks_left]);
     each_field_moves_the_encoding!(failures, base, RuleState, |s| &mut s.enemies[0].rules[0],
@@ -376,6 +384,8 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
         fields: [kind, source, remaining, total, stacks, value_pct, dot]);
     each_field_moves_the_encoding!(failures, base, DotState, |s| s.players[PlayerIdx::SOLO].statuses[0].dot.as_mut().unwrap(),
         fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
+    each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
+        fields: [owner, due, percent, proc_pct, anchor]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -668,12 +678,12 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     let base = base();
     let mut failures: Vec<String> = Vec::new();
     each_field_moves_the_encoding!(failures, base, State, |s| s,
-        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes],
+        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
         rebuilt: [scratch, kinds, move_index, match_ups, runes, stun],
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
     each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out]);
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat]);
     each_field_moves_the_encoding!(failures, base, Career, |s| s.players.career_mut(PlayerIdx::SOLO),
         fields: [progress, offer, expertise, stardust, regen, equipment],
         skip: [offers]);
@@ -681,6 +691,8 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         fields: [inventory, slots, lumine, starlight, tree_points]);
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
+    each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -731,4 +743,189 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// Each cap of the enemy combat fields (ADR-SIM-5 point 9): the value at the cap decodes and
+/// round-trips, one past it is refused, and a fresh agent holds zero.
+#[test]
+fn the_enemy_combat_fields_are_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::{FoeControl, Stagger};
+    let at_cap = FoeControl {
+        flinch: MAX_FLINCH_TICKS,
+        flinch_immune: MAX_FLINCH_IMMUNE_TICKS,
+        hard_controls: MAX_CONTROL_REPEATS,
+        hard_control_reset: MAX_CONTROL_RESET_TICKS,
+        knocked_down: MAX_DOWN_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut FoeControl)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<FoeControl>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.flinch += 1);
+    refused(&|c| c.flinch_immune += 1);
+    refused(&|c| c.hard_controls += 1);
+    refused(&|c| c.hard_control_reset += 1);
+    refused(&|c| c.knocked_down += 1);
+
+    let at_cap = Stagger {
+        gauge: MAX_STAGGER,
+        breaks: MAX_STAGGER_BREAKS,
+        drain: MAX_STAGGER_DRAIN_TICKS,
+        staggered: MAX_STAGGERED_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut Stagger)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<Stagger>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.gauge += 1);
+    refused(&|c| c.breaks += 1);
+    refused(&|c| c.drain += 1);
+    refused(&|c| c.staggered += 1);
+
+    let fresh = engine();
+    let s = fresh.run.live();
+    for a in s.enemies.iter().chain(&s.companions) {
+        assert_eq!(a.control, FoeControl::default());
+    }
+}
+
+/// Each cap of the player combat fields: the value at the cap decodes and round-trips, one past
+/// it is refused; a rally above the player's own maximum is refused too.
+#[test]
+fn the_player_combat_fields_are_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::PlayerCombat;
+    let at_cap = PlayerCombat {
+        perfect_window: MAX_PERFECT_WINDOW_TICKS,
+        perfect_slow: MAX_PERFECT_SLOW_TICKS,
+        perfect_cooldown: MAX_PERFECT_COOLDOWN_TICKS,
+        weapon_gauge: MAX_WEAPON_GAUGE,
+        gauge_step_fill: MAX_WEAPON_GAUGE,
+        rally: MAX_RALLY,
+        rally_ticks: MAX_RALLY_TICKS,
+        spirit_level: MAX_SPIRIT_LEVEL,
+        spirit_decay: MAX_SPIRIT_DECAY_TICKS,
+        counter_window: MAX_COUNTER_WINDOW_TICKS,
+        combo_tempo: MAX_TEMPO_STACKS,
+        giant_trigger: MAX_TRIGGER_TICKS,
+        ranged_grace: MAX_RANGED_GRACE_TICKS,
+    };
+    round_trip(&at_cap);
+    let refused = |f: &dyn Fn(&mut PlayerCombat)| {
+        let mut c = at_cap;
+        f(&mut c);
+        assert!(matches!(
+            from_bytes::<PlayerCombat>(&to_bytes(&c)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&|c| c.perfect_window += 1);
+    refused(&|c| c.perfect_slow += 1);
+    refused(&|c| c.perfect_cooldown += 1);
+    refused(&|c| c.weapon_gauge += 1);
+    refused(&|c| c.gauge_step_fill += 1);
+    refused(&|c| c.rally += 1);
+    refused(&|c| c.rally_ticks += 1);
+    refused(&|c| c.spirit_level += 1);
+    refused(&|c| c.spirit_decay += 1);
+    refused(&|c| c.counter_window += 1);
+    refused(&|c| c.combo_tempo += 1);
+    refused(&|c| c.giant_trigger += 1);
+    refused(&|c| c.ranged_grace += 1);
+
+    let mut p = solo(&base()).clone();
+    p.combat.rally = p.max_hp;
+    round_trip(&p);
+    p.combat.rally = p.max_hp + 1;
+    assert_eq!(
+        from_bytes::<PlayerState>(&to_bytes(&p)),
+        Err(DecodeError::Invalid("rally past its bound"))
+    );
+
+    let fresh = engine();
+    assert_eq!(
+        fresh.run.live().players[PlayerIdx::SOLO].combat,
+        PlayerCombat::default()
+    );
+}
+
+/// The queue and its entries are bounded at decode: a `Repeat` at its caps round-trips, an owner
+/// of `MAX_PLAYERS`, a percent past `MAX_PCT`, a hit list past `MAX_REPEAT_TARGETS` and a queue
+/// past `MAX_REPEATS_QUEUED` are each refused; the place anchor round-trips; a fresh state's
+/// queue is empty.
+#[test]
+fn the_repeat_queue_is_bounded_at_decode() {
+    use crate::limits::*;
+    use crate::sim::state::{MAX_PLAYERS, Repeat, RepeatAnchor};
+    let pct = u16::try_from(MAX_PCT).unwrap();
+    let targets = u32::try_from(MAX_REPEAT_TARGETS).unwrap();
+    let place = Repeat {
+        owner: MAX_PLAYERS - 1,
+        due: 9,
+        percent: pct,
+        proc_pct: pct,
+        anchor: RepeatAnchor::Place {
+            at: crate::fixed::Point::default(),
+            facing: crate::sim::state::Dir::UP,
+        },
+    };
+    round_trip_hashed(&place);
+    let full = Repeat {
+        anchor: RepeatAnchor::HitList((0..targets).map(EntityId).collect()),
+        ..place
+    };
+    round_trip_hashed(&full);
+    let refused = |r: &Repeat| {
+        assert!(matches!(
+            from_bytes::<Repeat>(&to_bytes(r)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    refused(&Repeat {
+        owner: MAX_PLAYERS,
+        ..place
+    });
+    refused(&Repeat {
+        percent: pct + 1,
+        ..place
+    });
+    refused(&Repeat {
+        proc_pct: pct + 1,
+        ..place
+    });
+    // A hit list of one past the cap: the bytes are written by hand (the type holds no more).
+    let mut bytes = to_bytes(&full);
+    let at = 1 + 4 + 2 + 2 + 1;
+    bytes[at..at + 4].copy_from_slice(&(targets + 1).to_le_bytes());
+    bytes.splice(at + 4..at + 4, 0u32.to_le_bytes());
+    assert!(matches!(
+        from_bytes::<Repeat>(&bytes),
+        Err(DecodeError::Invalid(_))
+    ));
+
+    let mut s = base();
+    s.repeats = vec![place; MAX_REPEATS_QUEUED];
+    let fresh = engine();
+    assert!(decoded(&bytes_of(&s), fresh.run.live()).is_ok());
+    s.repeats.push(place);
+    assert!(matches!(
+        decoded(&bytes_of(&s), fresh.run.live()),
+        Err(DecodeError::Invalid(_))
+    ));
+    assert!(fresh.run.live().repeats.is_empty());
+}
+
+fn bytes_of(s: &State) -> Vec<u8> {
+    bytes(s)
 }

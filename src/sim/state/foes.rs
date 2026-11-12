@@ -49,6 +49,8 @@ pub(crate) struct BossState {
     /// Ticks since it arrived: 1 on its first tick. The call of its elites counts them
     /// and so does the announcement of that call.
     pub age: u32,
+    /// The boss's stagger gauge and what it did (zero until a rule writes it; ADR-SIM-5).
+    pub stagger: Stagger,
 }
 
 impl Clone for BossState {
@@ -74,6 +76,7 @@ impl Clone for BossState {
             parts,
             elites_called,
             age,
+            stagger,
         } = self;
         BossState {
             id: *id,
@@ -96,6 +99,7 @@ impl Clone for BossState {
             parts: parts.clone(),
             elites_called: *elites_called,
             age: *age,
+            stagger: *stagger,
         }
     }
 
@@ -122,6 +126,7 @@ impl Clone for BossState {
             parts,
             elites_called,
             age,
+            stagger,
         } = self;
         let BossState {
             id: s_id,
@@ -144,6 +149,7 @@ impl Clone for BossState {
             parts: s_parts,
             elites_called: s_elites_called,
             age: s_age,
+            stagger: s_stagger,
         } = source;
         *id = *s_id;
         *boss = *s_boss;
@@ -165,6 +171,7 @@ impl Clone for BossState {
         parts.clone_from(s_parts);
         *elites_called = *s_elites_called;
         *age = *s_age;
+        *stagger = *s_stagger;
     }
 }
 
@@ -210,6 +217,33 @@ pub(crate) enum AgentSource {
     Escort,
 }
 
+/// What the hit rules do to an enemy: ticks left or counts, all zero until a rule writes them
+/// (ADR-SIM-5 point 9: each is capped at decode by its `limits.rs` constant). Every agent holds
+/// one, zero for a companion or a type no rule touches.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct FoeControl {
+    /// Ticks left in which it flinches.
+    pub flinch: u16,
+    /// Ticks left in which it cannot flinch again.
+    pub flinch_immune: u16,
+    /// Hard controls it took since the count last reset.
+    pub hard_controls: u8,
+    /// Ticks left before `hard_controls` resets.
+    pub hard_control_reset: u16,
+    /// Ticks left on the ground.
+    pub knocked_down: u16,
+}
+
+/// An elite's or the boss's stagger: the gauge, the breaks so far, the ticks to the next drain
+/// step and the ticks left staggered. All zero until a rule writes them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Stagger {
+    pub gauge: u32,
+    pub breaks: u16,
+    pub drain: u16,
+    pub staggered: u16,
+}
+
 /// A companion or an enemy: a movement and a rule list (ADR-SIM-4 tier 1).
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -246,6 +280,8 @@ pub(crate) struct AgentState {
     /// Ticks left in which a new stun cannot land on this enemy, from the end of its last stun
     ///; 0 for none.
     pub stun_immune: u32,
+    /// Its flinch, hard control and knockdown counters; zero for an agent no rule touches.
+    pub control: FoeControl,
     /// An elite's own state; `None` for every other agent.
     pub elite: Option<EliteState>,
     /// An agent that leaves the map unkilled (a goblin, or any elite whose `boss_call` is
@@ -275,6 +311,7 @@ impl Clone for AgentState {
             crowded,
             burst,
             stun_immune,
+            control,
             elite,
             leave,
             shrine,
@@ -297,6 +334,7 @@ impl Clone for AgentState {
             crowded: *crowded,
             burst: *burst,
             stun_immune: *stun_immune,
+            control: *control,
             elite: *elite,
             leave: *leave,
             shrine: shrine.clone(),
@@ -323,6 +361,7 @@ impl Clone for AgentState {
             crowded,
             burst,
             stun_immune,
+            control,
             elite,
             leave,
             shrine,
@@ -345,6 +384,7 @@ impl Clone for AgentState {
             crowded: s_crowded,
             burst: s_burst,
             stun_immune: s_stun_immune,
+            control: s_control,
             elite: s_elite,
             leave: s_leave,
             shrine: s_shrine,
@@ -366,6 +406,7 @@ impl Clone for AgentState {
         *crowded = *s_crowded;
         *burst = *s_burst;
         *stun_immune = *s_stun_immune;
+        *control = *s_control;
         *elite = *s_elite;
         *leave = *s_leave;
         shrine.clone_from(s_shrine);
@@ -448,6 +489,8 @@ pub(crate) struct EliteState {
     pub boss_call: BossCall,
     /// A mimic that has not revealed yet; false for every other elite.
     pub disguised: bool,
+    /// Its stagger gauge and what it did (zero until a rule writes it).
+    pub stagger: Stagger,
 }
 
 #[derive(Clone, Copy, Debug)]

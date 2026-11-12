@@ -104,6 +104,7 @@ impl Encode for PlayerState {
             down_ticks,
             revive_hold,
             out,
+            combat,
         } = self;
         at.encode(w);
         hp.encode(w);
@@ -142,12 +143,13 @@ impl Encode for PlayerState {
         down_ticks.encode(w);
         revive_hold.encode(w);
         out.encode(w);
+        combat.encode(w);
     }
 }
 
 impl Decode for PlayerState {
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
-        Ok(PlayerState {
+        let player = PlayerState {
             at: Decode::decode(r)?,
             hp: Decode::decode(r)?,
             max_hp: Decode::decode(r)?,
@@ -188,6 +190,91 @@ impl Decode for PlayerState {
             down_ticks: Decode::decode(r)?,
             revive_hold: Decode::decode(r)?,
             out: Decode::decode(r)?,
+            combat: Decode::decode(r)?,
+        };
+        // The hit points a rally can win back never pass the player's own maximum.
+        if player.combat.rally > player.max_hp {
+            return Err(DecodeError::Invalid("rally past its bound"));
+        }
+        Ok(player)
+    }
+}
+
+impl Encode for PlayerCombat {
+    fn encode(&self, w: &mut Writer) {
+        let PlayerCombat {
+            perfect_window,
+            perfect_slow,
+            perfect_cooldown,
+            weapon_gauge,
+            gauge_step_fill,
+            rally,
+            rally_ticks,
+            spirit_level,
+            spirit_decay,
+            counter_window,
+            combo_tempo,
+            giant_trigger,
+            ranged_grace,
+        } = self;
+        perfect_window.encode(w);
+        perfect_slow.encode(w);
+        perfect_cooldown.encode(w);
+        weapon_gauge.encode(w);
+        gauge_step_fill.encode(w);
+        rally.encode(w);
+        rally_ticks.encode(w);
+        spirit_level.encode(w);
+        spirit_decay.encode(w);
+        counter_window.encode(w);
+        combo_tempo.encode(w);
+        giant_trigger.encode(w);
+        ranged_grace.encode(w);
+    }
+}
+
+impl Decode for PlayerCombat {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        use super::foes::within;
+        use crate::limits::*;
+        Ok(PlayerCombat {
+            perfect_window: within(
+                r.u16()?,
+                MAX_PERFECT_WINDOW_TICKS,
+                "perfect_window past its bound",
+            )?,
+            perfect_slow: within(
+                r.u16()?,
+                MAX_PERFECT_SLOW_TICKS,
+                "perfect_slow past its bound",
+            )?,
+            perfect_cooldown: within(
+                r.u16()?,
+                MAX_PERFECT_COOLDOWN_TICKS,
+                "perfect_cooldown past its bound",
+            )?,
+            weapon_gauge: within(r.u32()?, MAX_WEAPON_GAUGE, "weapon_gauge past its bound")?,
+            gauge_step_fill: within(r.u32()?, MAX_WEAPON_GAUGE, "gauge_step_fill past its bound")?,
+            rally: within(r.u32()?, MAX_RALLY, "rally past its bound")?,
+            rally_ticks: within(r.u16()?, MAX_RALLY_TICKS, "rally_ticks past its bound")?,
+            spirit_level: within(r.u8()?, MAX_SPIRIT_LEVEL, "spirit_level past its bound")?,
+            spirit_decay: within(
+                r.u16()?,
+                MAX_SPIRIT_DECAY_TICKS,
+                "spirit_decay past its bound",
+            )?,
+            counter_window: within(
+                r.u16()?,
+                MAX_COUNTER_WINDOW_TICKS,
+                "counter_window past its bound",
+            )?,
+            combo_tempo: within(r.u8()?, MAX_TEMPO_STACKS, "combo_tempo past its bound")?,
+            giant_trigger: within(r.u16()?, MAX_TRIGGER_TICKS, "giant_trigger past its bound")?,
+            ranged_grace: within(
+                r.u16()?,
+                MAX_RANGED_GRACE_TICKS,
+                "ranged_grace past its bound",
+            )?,
         })
     }
 }

@@ -2,4 +2,4 @@
 # writes them (`UPDATE_PACK_PINS=1 cargo test --test integration pack_pins::`) and `--check`
 # reads them. Never edit by hand; a pin that does not move with the pack stays in its test.
 pack_sha256 = "efa482a37c14ddaf8604ffd61d9d544b0502146c4789dec105bb77a146a6a929"
-savepoint_v2_trial_300 = "b71dd64ebbc11e3a085f252500fde2428666eef0fb2ef91114dd7222a75f4132"
+savepoint_v2_trial_300 = "0e1a085f41d71872297944d2eadca7b8dc044d42983ad3db946e0deb4d271881"

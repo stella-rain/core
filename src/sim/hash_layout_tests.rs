@@ -9,7 +9,8 @@ use crate::hash::{StableHash, StateHasher, fnv1a64};
 use crate::id::EntityId;
 use crate::kinds::KindIndex;
 use crate::sim::state::{
-    AgentKey, AgentSource, AgentState, Aim, Dir, Frame, Hook, OrbState, PathStep, ZoneState,
+    AgentKey, AgentSource, AgentState, Aim, Dir, FoeControl, Frame, Hook, OrbState, PathStep,
+    ZoneState,
 };
 
 fn hash_of(v: &impl StableHash) -> u64 {
@@ -208,6 +209,13 @@ fn an_agent_is_all_its_fields_with_a_tag_for_each_option() {
         crowded: true,
         burst: false,
         stun_immune: 14,
+        control: FoeControl {
+            flinch: 15,
+            flinch_immune: 16,
+            hard_controls: 17,
+            hard_control_reset: 18,
+            knocked_down: 19,
+        },
         elite: None,
         leave: None,
         shrine: None,
@@ -233,6 +241,11 @@ fn an_agent_is_all_its_fields_with_a_tag_for_each_option() {
     live.push(0); // elite: none
     live.push(0); // leave: none
     live.push(0); // shrine: none
+    live.extend(15u16.to_le_bytes()); // control.flinch
+    live.extend(16u16.to_le_bytes()); // control.flinch_immune
+    live.push(17); // control.hard_controls
+    live.extend(18u16.to_le_bytes()); // control.hard_control_reset
+    live.extend(19u16.to_le_bytes()); // control.knocked_down
     assert_eq!(hash_of(&a), fnv1a64(&live));
 }
 
