@@ -167,6 +167,8 @@ mod party_act_tests;
 mod party_equip_tests;
 #[cfg(test)]
 mod party_fix_tests;
+#[cfg(test)]
+mod perfect_evade_tests;
 mod player;
 #[cfg(test)]
 mod players_pin_tests;
