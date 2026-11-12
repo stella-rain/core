@@ -60,6 +60,7 @@ pub mod stardust;
 pub mod starting_unlocks;
 pub(crate) mod step_log;
 pub mod text;
+pub mod threat_colours;
 pub mod time_limit;
 pub mod trig;
 pub mod validate;
