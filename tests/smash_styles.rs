@@ -390,6 +390,10 @@ fn a_weapon_naming_reap_needs_sim_version_2() {
         stage.sim_version = version;
         stella_rain_core::validate::validate(&stage)
     };
+    assert_eq!(
+        stella_rain_core::validate::limits::MAX_REAP_STACKS,
+        stella_rain_core::runes::MAX_DOT_STACKS
+    );
     assert!(check(1, reap(3, 50)).is_err());
     assert!(check(2, reap(3, 50)).is_ok());
     assert!(check(2, reap(0, 50)).is_err());

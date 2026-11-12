@@ -12,7 +12,8 @@
 //! (`StatEffect`), under the same names, or `range_pct`, the range reward's widening.
 //! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
-//! upgrades and capstone (`sim`).
+//! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
+//! step's charge or hold, or the weapon's smash effect, `reap` among them (ADR-SIM-9).
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,

@@ -2,7 +2,8 @@
 //! weapon owns the combo tree, reached by presses of `main` (A) and `smash` (B), each step a
 //! phased attack that may charge. A weapon is a preset by ID or an inline definition,
 //! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
-//! reached by B) may carry one smash effect. The run's setup takes one ID.
+//! reached by B) may carry one smash effect (pull, knockback, bleed, stun or reap); a style may set
+//! it in place of the base's (`expertise`, ADR-SIM-9). The run's setup takes one ID.
 //!
 //! Field names are placeholders until the freeze (ADR-REPL-1).
 
