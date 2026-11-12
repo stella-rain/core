@@ -192,10 +192,22 @@ fn land(
             cage_beams(stage, s, me, events);
         }
     }
+    let gauge = stage.has_gauge;
     for w in swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (bits, found), events);
+            if gauge && w.combo {
+                // The enemies this swing hit now, each counted once: the weapon gauge's fill.
+                let tick = s.tick;
+                let n = hits_of(s, w).iter().filter(|h| h.1 == tick).count();
+                super::player::gauge_from_hits(
+                    stage,
+                    s,
+                    w.owner,
+                    u32::try_from(n).unwrap_or(u32::MAX),
+                );
+            }
         } else {
             hit_players_side(stage, s, w, events);
             hit_companions_side(stage, s, w, events);

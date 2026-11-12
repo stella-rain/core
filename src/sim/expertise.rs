@@ -469,6 +469,11 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
+        if stage.has_gauge && was.0 != Some(at) {
+            // The new style's bar starts empty; a style with no gauge reads empty.
+            player.combat.weapon_gauge = 0;
+            player.combat.gauge_step_fill = 0;
+        }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
         if stage.try_styles && spent > 0 {
