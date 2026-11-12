@@ -204,15 +204,18 @@ pub(super) fn hit_players_side(
 ) -> bool {
     for me in s.players.indices() {
         let p = &s.players[me];
-        if p.invulnerable == 0
-            && p.hp > 0
+        let touches = p.hp > 0
             && overlaps(
                 b.at,
                 stage.tuning.orb_radius,
                 p.at,
                 stage.tuning.player_radius,
-            )
-        {
+            );
+        if p.invulnerable > 0 {
+            if touches && p.combat.perfect_window > 0 {
+                super::player::near_miss(stage, s, me);
+            }
+        } else if touches {
             hurt_player(stage, s, me, aided(stage, s, b), by, events);
             return true;
         }

@@ -267,7 +267,7 @@ fn break_orbs(
 fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     for i in 0..s.orbs.len() {
         let p = &s.players[me];
-        if p.hp == 0 || p.invulnerable > 0 {
+        if p.hp == 0 {
             return;
         }
         let Some(j) = super::beam_to(&s.orbs, i) else {
@@ -291,6 +291,13 @@ fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<Doma
         );
         if !line.touches(d, stage.tuning.player_radius) {
             continue;
+        }
+        if p.invulnerable > 0 {
+            // The beam is stopped by the invulnerability: a near miss, or nothing at all.
+            if p.combat.perfect_window > 0 {
+                super::player::near_miss(stage, s, me);
+            }
+            return;
         }
         let shot = Shot {
             at: p.at,
@@ -626,11 +633,13 @@ fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Do
     for me in s.players.indices() {
         let id = s.players.id(me);
         let p = &s.players[me];
-        if p.hp > 0
-            && p.invulnerable == 0
-            && covers(w, p.at, stage.tuning.player_radius)
-            && take_hit(s, w, id)
-        {
+        if p.invulnerable > 0 {
+            if p.combat.perfect_window > 0 && covers(w, p.at, stage.tuning.player_radius) {
+                super::player::near_miss(stage, s, me);
+            }
+            continue;
+        }
+        if p.hp > 0 && covers(w, p.at, stage.tuning.player_radius) && take_hit(s, w, id) {
             let by = match w.source {
                 Source::Run(i) => Blame {
                     kind: HitKind::Attack,

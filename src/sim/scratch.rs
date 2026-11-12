@@ -89,6 +89,9 @@ pub(crate) struct Scratch {
     pub(super) ends_pinned: Option<usize>,
     /// The run ends the hit pass has deferred, applied after its last swing.
     pub(super) ends_pending: Vec<RunEnd>,
+    /// The entities the perfect evade slows this tick, by id, and whether each holds (the
+    /// step `perfect_slow`); empty when no one slows. Recomputed from the state each tick.
+    pub(super) slowed: Vec<(EntityId, bool)>,
     /// What `reserve` made room for; `None` for a scratch that was never reserved.
     reserved: Option<Reserved>,
 }
@@ -142,6 +145,7 @@ impl Scratch {
         reserve_to(&mut self.offsets, enemies);
         reserve_to(&mut self.found, enemies);
         reserve_to(&mut self.shrine_ids, enemies);
+        reserve_to(&mut self.slowed, enemies + 1 + HIT_LIST_SPARE);
         reserve_to(&mut self.killers, enemies);
         reserve_to(&mut self.bases, enemies);
         reserve_to(&mut self.fallen, enemies);

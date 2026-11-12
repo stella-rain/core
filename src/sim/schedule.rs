@@ -117,6 +117,11 @@ pub(super) mod steps {
     }
 
     #[inline(never)]
+    pub(super) fn perfect_slow(c: &mut Ctx) {
+        player::perfect_slow(c.world, c.s);
+    }
+
+    #[inline(never)]
     pub(super) fn runes_tick(c: &mut Ctx) {
         if c.s.players.is_solo() {
             return runes::tick(c.s, PlayerIdx::SOLO);
@@ -288,6 +293,7 @@ pub(super) const TICK: &[(&str, Step)] = steps![
     spawn_elite,
     leash,
     statuses_and_aggro,
+    perfect_slow,
     runes_tick,
     advance_runs,
     tether,
