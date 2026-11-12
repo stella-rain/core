@@ -134,6 +134,8 @@ pub(crate) mod equipment;
 mod expertise;
 #[cfg(test)]
 mod frozen_tests;
+#[cfg(test)]
+mod gauge_tests;
 mod grid;
 #[cfg(test)]
 mod hash_fields_tests;
