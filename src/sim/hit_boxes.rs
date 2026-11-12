@@ -379,7 +379,7 @@ fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<Doma
         if p.invulnerable > 0 {
             // The beam is stopped by the invulnerability: a near miss, or nothing at all.
             if p.combat.perfect_window > 0 {
-                super::player::near_miss(stage, s, me);
+                super::player::near_miss(stage, s, me, events);
             }
             return;
         }
@@ -754,7 +754,7 @@ fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Do
         let p = &s.players[me];
         if p.invulnerable > 0 {
             if p.combat.perfect_window > 0 && covers(w, p.at, stage.tuning.player_radius) {
-                super::player::near_miss(stage, s, me);
+                super::player::near_miss(stage, s, me, events);
             }
             continue;
         }

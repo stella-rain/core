@@ -243,7 +243,12 @@ fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
 /// a revive's residue), the window closes and, with no cooldown running, the evade is perfect: the
 /// slow and its own cooldown start (ADR-SIM-8: only this player's reach is slowed). No damage, no
 /// record of the hit. The one place the counter window will add its line.
-pub(super) fn near_miss(stage: &World, s: &mut State, me: PlayerIdx) {
+pub(super) fn near_miss(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
     let Some(t) = stage.tuning.perfect_evade else {
         return;
     };
@@ -260,6 +265,7 @@ pub(super) fn near_miss(stage: &World, s: &mut State, me: PlayerIdx) {
     if p.combat.perfect_cooldown == 0 {
         p.combat.perfect_slow = t.slow_ticks;
         p.combat.perfect_cooldown = t.cooldown_ticks;
+        perfect_evade_event(events, me);
     }
 }
 
