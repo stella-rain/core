@@ -1,5 +1,11 @@
 //! The render snapshot: what the frontend draws and interpolates between ticks (ADR-BRDG-4). It is
 //! a view of the state, not the state; the state hash does not read it.
+//!
+//! An enemy's attack (`AttackView`) and zone (`ZoneView`, lanes included) may carry a
+//! `threat_colour`: the index of an entry of the run's threat colour table
+//! (`Engine::threat_colours`, ADR-BRDG-4 point 9) that the enemy or boss names. Absent is the key
+//! missing from the JSON, and means the frontend's own hostile colour; it is never present on a
+//! friendly area or on the main character's or a companion's attack.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

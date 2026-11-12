@@ -21,6 +21,11 @@
 //! and is refused when it is recorded lower (ADR-REPL-2, ADR-CONT-2). The registry's IDs a
 //! file names are checked against the registry by the file's own parser.
 //!
+//! The threat colour table (`threat_colours`, ADR-CONT-1, ADR-BRDG-4) is an optional member: a pack
+//! without it has an empty table, and an enemy or boss naming a colour is refused at load (the
+//! stages in `modes`, and the `time_limit` file's waves, elite types and bosses) and at run
+//! build. The bundled pack holds none, so no shipped run carries a colour.
+//!
 //! The content files have no versions of their own: the pack's header is the only one, and each
 //! file is read at it (CS1a-2). The stages in `modes` are stages and keep theirs.
 //!
