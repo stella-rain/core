@@ -3,6 +3,8 @@
 //! state carry the index, a `Copy` number: no allocation and no reference count on a hit, a
 //! death or a view (ADR-SIM-5). The app maps an index back to its ID through `Engine::kinds`.
 
+use std::fmt::Write;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -69,15 +71,13 @@ impl KindTable {
         limit: usize,
     ) -> Result<KindTable, Issue> {
         let mut found = Vec::new();
-        for agent in &stage.companions {
-            agent_kinds(agent, &mut found);
-        }
-        for wave in &stage.waves {
-            agent_kinds(&wave.enemy, &mut found);
-        }
-        for boss in stage.boss.iter().chain(bosses.iter().copied()) {
-            boss_kinds(boss, &mut found);
-        }
+        visit_foes(stage, bosses, &mut |foe, _| match foe {
+            Foe::Agent(agent) => found.push(&agent.base),
+            Foe::Boss(boss) => {
+                found.push(&boss.base);
+                found.extend(boss.parts.iter().map(|part| &part.id));
+            }
+        });
         found.extend(extra);
         KindTable::from_ids(found, limit)
     }
@@ -116,31 +116,95 @@ impl KindTable {
     }
 }
 
-fn rules_kinds<'a>(rules: &'a [Rule], out: &mut Vec<&'a ContentId>) {
-    for rule in rules {
+/// One enemy definition a stage can bring: a regular enemy, an elite, a summoned agent, a
+/// shrine's guardian, a leader's escort or a companion (`Agent`), or a boss (`Boss`).
+#[derive(Clone, Copy)]
+pub(crate) enum Foe<'a> {
+    Agent(&'a Agent),
+    Boss(&'a Boss),
+}
+
+/// Calls `visit` with every agent and boss `stage` can bring, and the JSON path of each in the
+/// stage: the companions, the waves' enemies, the boss, the agents their rules summon, the
+/// guardians and escorts, and the boss's phases' summons. `bosses` are the bosses a
+/// `time_limit` run brings later; their paths are `$.bosses[i]`. The kind table and the colour
+/// check both walk the stage with this, so they cannot drift.
+pub(crate) fn visit_foes<'a>(
+    stage: &'a Stage,
+    bosses: &[&'a Boss],
+    visit: &mut impl FnMut(Foe<'a>, &str),
+) {
+    let mut path = String::from("$");
+    for (i, agent) in stage.companions.iter().enumerate() {
+        let at = path.len();
+        let _ = write!(path, ".companions[{i}]");
+        visit_agent(agent, &mut path, visit);
+        path.truncate(at);
+    }
+    for (i, wave) in stage.waves.iter().enumerate() {
+        let at = path.len();
+        let _ = write!(path, ".waves[{i}].enemy");
+        visit_agent(&wave.enemy, &mut path, visit);
+        path.truncate(at);
+    }
+    if let Some(boss) = &stage.boss {
+        let at = path.len();
+        path.push_str(".boss");
+        visit_boss(boss, &mut path, visit);
+        path.truncate(at);
+    }
+    for (i, boss) in bosses.iter().enumerate() {
+        let at = path.len();
+        let _ = write!(path, ".bosses[{i}]");
+        visit_boss(*boss, &mut path, visit);
+        path.truncate(at);
+    }
+}
+
+fn visit_rules<'a>(rules: &'a [Rule], path: &mut String, visit: &mut impl FnMut(Foe<'a>, &str)) {
+    for (i, rule) in rules.iter().enumerate() {
         if let Action::Summon { agent, .. } = &rule.action {
-            agent_kinds(agent, out);
+            let at = path.len();
+            let _ = write!(path, ".rules[{i}].do.agent");
+            visit_agent(agent, path, visit);
+            path.truncate(at);
         }
     }
 }
 
-fn agent_kinds<'a>(agent: &'a Agent, out: &mut Vec<&'a ContentId>) {
-    out.push(&agent.base);
-    rules_kinds(&agent.rules, out);
+/// Visits an agent at `path`, then what it brings.
+pub(crate) fn visit_agent<'a>(
+    agent: &'a Agent,
+    path: &mut String,
+    visit: &mut impl FnMut(Foe<'a>, &str),
+) {
+    visit(Foe::Agent(agent), path);
+    visit_rules(&agent.rules, path, visit);
     if let Movement::Shrine { guardians, .. } = &agent.movement {
-        agent_kinds(&guardians.enemy, out);
+        let at = path.len();
+        path.push_str(".movement.guardians.enemy");
+        visit_agent(&guardians.enemy, path, visit);
+        path.truncate(at);
     }
     if let Some(escort) = agent.elite.as_ref().and_then(|e| e.escort.as_ref()) {
-        agent_kinds(&escort.enemy, out);
+        let at = path.len();
+        path.push_str(".elite.escort.enemy");
+        visit_agent(&escort.enemy, path, visit);
+        path.truncate(at);
     }
 }
 
-fn boss_kinds<'a>(boss: &'a Boss, out: &mut Vec<&'a ContentId>) {
-    out.push(&boss.base);
-    for part in &boss.parts {
-        out.push(&part.id);
-    }
-    for phase in &boss.phases {
-        rules_kinds(&phase.rules, out);
+/// Visits a boss at `path`, then the agents its phases summon.
+pub(crate) fn visit_boss<'a>(
+    boss: &'a Boss,
+    path: &mut String,
+    visit: &mut impl FnMut(Foe<'a>, &str),
+) {
+    visit(Foe::Boss(boss), path);
+    for (i, phase) in boss.phases.iter().enumerate() {
+        let at = path.len();
+        let _ = write!(path, ".phases[{i}]");
+        visit_rules(&phase.rules, path, visit);
+        path.truncate(at);
     }
 }
