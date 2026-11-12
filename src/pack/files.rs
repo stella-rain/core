@@ -27,6 +27,7 @@ use crate::stage_skill::StageSkills;
 use crate::star_chart::StarChart;
 use crate::stardust::Stardust;
 use crate::starting_unlocks::StartingUnlocks;
+use crate::threat_colours::ThreatColours;
 use crate::time_limit::TimeLimit;
 use crate::validate;
 use crate::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
@@ -73,7 +74,7 @@ pub struct ContentFiles {
 
 impl ContentFiles {
     /// Every file, in the order the pack lists them.
-    pub const LAYOUT: [FileSlot; 18] = [
+    pub const LAYOUT: [FileSlot; 19] = [
         slot("run_stats", false, false),
         slot("rewards", false, false),
         slot("stage_skills", false, false),
@@ -89,6 +90,7 @@ impl ContentFiles {
         slot("constellations", false, true),
         slot("stardust", false, true),
         slot("star_chart", false, true),
+        slot("threat_colours", false, true),
         slot("trial", true, false),
         slot("time_limit", true, false),
         slot("tutorial", true, false),
@@ -154,6 +156,7 @@ impl ContentFiles {
                 ("constellations", pack.constellations),
                 ("stardust", pack.stardust),
                 ("star_chart", pack.star_chart),
+                ("threat_colours", pack.threat_colours),
                 ("trial", Some(pack.modes.trial)),
                 ("time_limit", Some(pack.modes.time_limit)),
                 ("tutorial", Some(pack.modes.tutorial)),
@@ -300,6 +303,10 @@ impl ContentFiles {
             })
             .transpose()
             .map_err(PackError::in_file("star_chart"))?;
+        let threat_colours = optional("threat_colours")
+            .map(|b| ThreatColours::parse(b, Versions::CURRENT))
+            .transpose()
+            .map_err(PackError::in_file("threat_colours"))?;
         let trial = get("trial")?;
         let tutorial = get("tutorial")?;
         let content = RunContent::from_parts(
@@ -318,6 +325,7 @@ impl ContentFiles {
             starting_unlocks,
             stardust,
             star_chart,
+            threat_colours,
             TimeLimit::parse(get("time_limit")?, Versions::CURRENT)
                 .map_err(PackError::in_file("time_limit"))?,
             validate::parse_and_validate(trial).map_err(PackError::in_file("trial"))?,
@@ -374,6 +382,7 @@ fn members(pack: &PackFile) -> Vec<(&'static str, &RawValue)> {
         ("constellations", &pack.constellations),
         ("stardust", &pack.stardust),
         ("star_chart", &pack.star_chart),
+        ("threat_colours", &pack.threat_colours),
     ] {
         if let Some(raw) = raw {
             out.push((name, raw));

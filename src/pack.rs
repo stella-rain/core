@@ -68,6 +68,7 @@ use crate::stage_skill::{StageSkills, StageSkillsFile};
 use crate::star_chart::{StarChart, StarChartFile};
 use crate::stardust::{Stardust, StardustFile};
 use crate::starting_unlocks::{StartingUnlocks, StartingUnlocksFile};
+use crate::threat_colours::{ThreatColours, ThreatColoursFile};
 use crate::time_limit::{TimeLimit, TimeLimitFile};
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, ReadError, Versions};
@@ -159,6 +160,8 @@ struct BorrowedPack<'a> {
     stardust: Option<&'a RawValue>,
     #[serde(borrow, default)]
     star_chart: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    threat_colours: Option<&'a RawValue>,
     #[serde(borrow)]
     modes: BorrowedModes<'a>,
 }
@@ -229,6 +232,12 @@ pub struct PackFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<StarChartFile>")]
     pub star_chart: Option<Box<RawValue>>,
+    /// The colours an enemy's attack areas may be drawn in (ADR-CONT-1, ADR-BRDG-4): an ID and
+    /// an RGB value each, which an enemy or a boss may name. Optional: a pack released before it
+    /// has an empty table, and an enemy naming a colour is then refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<ThreatColoursFile>")]
+    pub threat_colours: Option<Box<RawValue>>,
     pub modes: PackModes,
 }
 
@@ -519,13 +528,36 @@ impl Pack {
             })
             .transpose()
             .map_err(PackError::in_file("star_chart"))?;
+        let threat_colours = pack
+            .threat_colours
+            .as_deref()
+            .map(|raw| ThreatColours::parse(&file_bytes(raw), versions))
+            .transpose()
+            .map_err(PackError::in_file("threat_colours"))?;
         let trial = validate::parse_and_validate(&file_bytes(&pack.modes.trial))
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit), versions)
             .map_err(PackError::in_file("time_limit"))?;
+        let empty = ThreatColours::default();
+        let table = threat_colours.as_ref().unwrap_or(&empty);
+        // A pack that loads can run: every colour an enemy of the pack names is in its table.
+        crate::threat_colours::check(&trial, &[], table).map_err(|i| PackError::File {
+            file: "trial",
+            error: Error::Invalid(vec![i]),
+        })?;
+        crate::threat_colours::check_time_limit(&time_limit, table).map_err(|i| {
+            PackError::File {
+                file: "time_limit",
+                error: Error::Invalid(vec![i]),
+            }
+        })?;
         check_difficulty_boss_times(&difficulties, &time_limit)?;
         let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
             .map_err(PackError::in_file("tutorial"))?;
+        crate::threat_colours::check(&tutorial, &[], table).map_err(|i| PackError::File {
+            file: "tutorial",
+            error: Error::Invalid(vec![i]),
+        })?;
         // Its bosses are checked against the trial stage they are placed in.
         crate::run_setup::check_bosses(&trial, &time_limit)
             .map_err(PackError::in_file("time_limit"))?;
@@ -558,6 +590,7 @@ impl Pack {
             starting_unlocks,
             stardust,
             star_chart,
+            threat_colours,
             time_limit,
             trial,
             file_bytes(&pack.modes.trial),
@@ -611,6 +644,11 @@ impl Pack {
     /// no catalogue, never a guessed one.
     pub fn star_chart(&self) -> Option<&StarChart> {
         self.content.star_chart()
+    }
+
+    /// The threat colour table: the pack's member, empty for a pack released without it.
+    pub fn threat_colours(&self) -> &ThreatColours {
+        self.content.threat_colours()
     }
 
     /// The `trial` mode's stage.
