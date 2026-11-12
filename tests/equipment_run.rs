@@ -274,7 +274,7 @@ fn a_default_setup_runs_in_equipment_mode() {
         engine.step(&Default::default());
     }
     // The state hash the same seed's run gave before `sim_version` 2 became the equipment mode.
-    assert_eq!(format!("{:016x}", engine.state_hash()), "29ed083cd4132cc7");
+    assert_eq!(format!("{:016x}", engine.state_hash()), "e3c98c2f59978c47");
 
     let frozen = RunSetup {
         schema_version: 1,

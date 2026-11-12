@@ -249,5 +249,5 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
 }
 
 /// Re-pinned when the case moved to equipment mode (the equipment section is in the hash).
-const PINNED_CLUSTERED: [u64; 3] = [0xe4aa9b3a2758ca20, 0x2d3e98601ee2035b, 0x1d7ae5de6f949a0b];
-const PINNED_SPREAD: [u64; 3] = [0x620f7affafb5160e, 0xcb63351bad3fc842, 0xf0ee68cdce6b2154];
+const PINNED_CLUSTERED: [u64; 3] = [0x0e604c3de94d6060, 0xcb350cc0efd9020b, 0xcda6556d4560339b];
+const PINNED_SPREAD: [u64; 3] = [0x7a1bcc90df8af5be, 0xa36d2b8f07550052, 0xc3495d9615c8df44];

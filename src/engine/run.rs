@@ -23,6 +23,11 @@ use crate::{sim, sim_v1};
 
 use super::{Load, Outcome, Places};
 
+/// The attack speed cap `sim_version` 1 was recorded with (percent): every frozen v1 pack holds it.
+const V1_MAX_ATTACK_SPEED_PCT: u32 = 500;
+/// The Rune Haste cap `sim_version` 1 was recorded with (percent).
+const V1_MAX_RUNE_HASTE_PCT: u32 = 500;
+
 /// A run under the rules of one `sim_version`: the compiled stage and the state it changes, both
 /// of that version's types (the live world is shared behind an `Arc`, so a clone copies the state
 /// alone; the frozen world stays inline). The engine reaches them, and the snapshot view, only through here.
@@ -192,6 +197,10 @@ impl Run {
             difficulty,
         };
         let mut state = sim_v1::initial_state(&world, b.content, pool, b.seed, b.kinds);
+        // The frozen rules keep the caps `sim_version` 1 was recorded with, whatever the content
+        // holds now (ADR-REPL-2 point 6); both are hashed, so a bundled cap must not reach them.
+        state.max_attack_speed_pct = V1_MAX_ATTACK_SPEED_PCT;
+        state.max_rune_haste_pct = V1_MAX_RUNE_HASTE_PCT;
         state.horde = horde;
         sim_v1::set_policy(&mut state, b.content.run_stats(), b.stat_priority, false);
         if let Some(setup) = b.setup {

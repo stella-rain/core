@@ -320,7 +320,7 @@ fn capped(cap: u32, rewards: Vec<Value>) -> Result<Rewards, stella_rain_core::va
 
 #[test]
 fn the_cap_is_the_rewards_file_s_and_the_code_ceiling_bounds_it() {
-    assert_eq!(Rewards::bundled().max_rune_haste_pct(), 500, "core#298");
+    assert_eq!(Rewards::bundled().max_rune_haste_pct(), 300, "core#298");
     assert_eq!(DEFAULT_MAX_RUNE_HASTE_PCT, 300, "a file naming none");
     let none = json!({ "rarities": common::rarities(), "rewards": [haste("h", 1, 2)] });
     let none = Rewards::parse(none.to_string().as_bytes(), Versions::CURRENT).unwrap();

@@ -307,7 +307,7 @@ fn the_attack_speed_total_saturates_at_its_cap() {
 
 #[test]
 fn the_attack_speed_cap_is_the_files_and_the_code_ceiling_bounds_it() {
-    assert_eq!(RunStats::bundled().max_attack_speed_pct(), 500, "core#298");
+    assert_eq!(RunStats::bundled().max_attack_speed_pct(), 300, "core#298");
     assert_eq!(DEFAULT_MAX_ATTACK_SPEED_PCT, 500, "a file naming none");
     let with_cap = |cap: Value| {
         let mut v = file(vec![stat("a")]);
