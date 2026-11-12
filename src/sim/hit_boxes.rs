@@ -223,7 +223,7 @@ pub(super) fn apply_ends(stage: &World, s: &mut State) {
             });
         if ended {
             // A cancel cools a channelled run's token, once however many ends asked.
-            let cancelled = ends.iter().any(|e| *e == RunEnd::Cancel(r.owner));
+            let cancelled = ends.contains(&RunEnd::Cancel(r.owner));
             if let Some(pool) = cancelled
                 .then(|| super::attacks::cancelled_token(stage, r))
                 .flatten()
