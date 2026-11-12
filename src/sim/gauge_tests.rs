@@ -132,11 +132,22 @@ fn rig(players: u8, cfg: Option<Cfg>, radius_px: Option<i32>, foes: u32) -> Rig 
 
 impl Rig {
     fn stack(&mut self) {
-        let at = st(&mut self.e).players[ME].at;
         let s = st(&mut self.e);
+        let (at, facing) = (s.players[ME].at, s.players[ME].facing);
         s.enemies.retain(|x| self.foes.contains(&x.id));
-        for f in &mut s.enemies {
-            f.at = at;
+        // A column across the facing, 24 px ahead and a few px apart, inside every sword swing.
+        let scale = i64::from(crate::trig::SCALE);
+        let (fx, fy) = (i64::from(facing.x), i64::from(facing.y));
+        let n = i64::try_from(s.enemies.len()).unwrap_or(0);
+        for (i, f) in s.enemies.iter_mut().enumerate() {
+            let along = i64::from(Fx::px(24).0);
+            let across = (i64::try_from(i).unwrap_or(0) - n / 2) * i64::from(Fx::px(3).0);
+            let dx = (fx * along - fy * across) / scale;
+            let dy = (fy * along + fx * across) / scale;
+            f.at = Point {
+                x: Fx(at.x.0 + i32::try_from(dx).unwrap_or(0)),
+                y: Fx(at.y.0 + i32::try_from(dy).unwrap_or(0)),
+            };
             f.hp = BIG;
         }
     }
