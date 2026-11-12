@@ -62,6 +62,11 @@
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches (`stars`); the live rules open no star offer.
 //!
+//! The perfect evade (`player::near_miss`, the step `perfect_slow`) and attack magnetism
+//! (`player::magnetism`) are dormant until the pack names them: `Tuning.perfect_evade` is `None`
+//! and no phase names an `advance`, so no state, hash or replay moves. The slowed set is
+//! `Scratch::slowed`, recomputed each tick from the state.
+//!
 //! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
 //! character's damage in `collide`.

@@ -1,6 +1,15 @@
 //! The main character: movement from the input's stick, the persistent facing,
 //! the evade on its charges, and the combos of its Main weapon, made by hand.
 //!
+//! The perfect evade (when the pack names it): a press that starts an evade opens a window of
+//! `window_ticks`; an enemy hit, zone or orb that the evade's own invulnerability alone stops
+//! inside it is a near miss (`near_miss`), and with no cooldown running the evade is perfect: for
+//! `slow_ticks` the enemies, the boss and their runs within `reach` of this player advance only
+//! every `slow_every` ticks (`perfect_slow`, the schedule's step), ranged runs among them free
+//! their token, and the slow has its own cooldown. Other players are never slowed (ADR-SIM-8).
+//! Attack magnetism: a combo step's phase that names an `advance` slides the player along the
+//! facing the step took, toward its current target, no further than touching it (`magnetism`).
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the

@@ -12,6 +12,14 @@
 //! splitter's children, guardians, the boss's summons) spawn in while the waves are held at the
 //! target. A mode or a stage may override the target, not the headroom.
 //!
+//! The perfect evade is five optional keys, all or none (`perfect_evade_window_ticks`,
+//! `perfect_evade_slow_ticks`, `perfect_evade_cooldown_ticks`, `perfect_evade_reach`,
+//! `perfect_evade_slow_every`): none, and the rule is off (today's pack); some, and the file is
+//! refused at each missing key; any of them at `sim_version` 1 is refused. Each is bounded by a
+//! cap in `limits` and clamped again into `Tuning.perfect_evade` (ADR-SVC-1); the cooldown is
+//! not below the slow, so a slow cannot restart inside itself. Only enemies in the evader's reach
+//! are slowed (`sim::player`), never other players (ADR-SIM-8).
+//!
 //! Unlike `stardust`, the simulation reads this file, so the pack must hold it (a required slot)
 //! and the derived content hash covers it: a replay never depends on the client's build.
 //!
