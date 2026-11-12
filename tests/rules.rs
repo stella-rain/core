@@ -976,7 +976,10 @@ fn orb_clear_radius_loads_at_its_bounds_and_is_refused_past_them() {
     for stored in [256, 420 * 256] {
         let rules = Rules::parse(&with("orb_clear_radius", stored), Versions::CURRENT)
             .unwrap_or_else(|e| panic!("{stored} refused: {e:?}"));
-        assert_eq!(rules.orb_clear_radius(), Some(Fx(stored as i32)));
+        assert_eq!(
+            rules.orb_clear_radius(),
+            Some(Fx(i32::try_from(stored).expect("fits")))
+        );
     }
     for stored in [0, 420 * 256 + 1] {
         assert_eq!(
