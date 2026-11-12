@@ -9,7 +9,7 @@ use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{DotState, FoeControl, State, StatusKind, StatusState, Statuses};
+use crate::sim::state::{DotState, State, StatusKind, StatusState, Statuses};
 
 use super::{MAX_AGGRO, Shot};
 
@@ -567,8 +567,10 @@ pub(super) fn tick_statuses_and_aggro(
             events.push(DomainEvent::StunEnded { target: e.id });
         }
         // Flinch and hard-control counters, all zero (and so skipped) until a rule writes them.
+        // `hard_controls` is never set without `hard_control_reset`, so three reads tell whether
+        // anything counts down.
         let c = &mut e.control;
-        if *c != FoeControl::default() {
+        if c.flinch | c.flinch_immune | c.hard_control_reset != 0 {
             c.flinch_immune = c.flinch_immune.saturating_sub(1);
             if c.flinch > 0 {
                 c.flinch -= 1;
