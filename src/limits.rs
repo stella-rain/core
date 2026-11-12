@@ -115,6 +115,14 @@ pub const MAX_STAGGERED_TICKS: u16 = 600;
 pub const MAX_PERFECT_WINDOW_TICKS: u16 = 30;
 pub const MAX_PERFECT_SLOW_TICKS: u16 = 300;
 pub const MAX_PERFECT_COOLDOWN_TICKS: u16 = 3_600;
+/// The farthest a perfect evade's reach may be, in px: the view's half width.
+pub const MAX_PERFECT_REACH: i32 = VIEW_HALF_WIDTH;
+/// The most a slowed entity's `perfect_evade_slow_every` may be: it acts one tick in this many.
+pub const MAX_PERFECT_SLOW_EVERY: u8 = 8;
+/// The longest slide a combo phase's `advance` may name, in px.
+pub const MAX_ADVANCE_DISTANCE: i32 = 240;
+/// The most the slide moves the player in one tick, in px (the player walks 3 px a tick).
+pub const MAX_ADVANCE_PER_TICK: i32 = 12;
 pub const MAX_WEAPON_GAUGE: u32 = 10_000;
 pub const MAX_RALLY: u32 = crate::validate::limits::MAX_PLAYER_HP;
 pub const MAX_RALLY_TICKS: u16 = 600;
@@ -233,6 +241,10 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_PERFECT_WINDOW_TICKS", "30", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_SLOW_TICKS", "300", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_COOLDOWN_TICKS", "3600", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_PERFECT_REACH", "420", "px", "ADR-SIM-5"),
+    LimitEntry::new("MAX_PERFECT_SLOW_EVERY", "8", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_ADVANCE_DISTANCE", "240", "px", "ADR-SIM-5"),
+    LimitEntry::new("MAX_ADVANCE_PER_TICK", "12", "px", "ADR-SIM-5"),
     LimitEntry::new("MAX_WEAPON_GAUGE", "10000", "gauge", "ADR-SIM-5"),
     LimitEntry::new("MAX_RALLY", "99900", "hit points", "ADR-SIM-5"),
     LimitEntry::new("MAX_RALLY_TICKS", "600", "ticks", "ADR-SIM-5"),

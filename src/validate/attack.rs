@@ -462,8 +462,7 @@ mod advance_tests {
 
     use crate::fixed::Fx;
     use crate::stage::Stage;
-    /// `MAX_ADVANCE_DISTANCE` in px (step 2 adds the constant).
-    const MAX_ADVANCE_DISTANCE: i32 = 240;
+    use crate::limits::MAX_ADVANCE_DISTANCE;
     use crate::validate::{Error, validate};
 
     const STAGE: &str = include_str!("../../tests/fixtures/stage_v0.json");
