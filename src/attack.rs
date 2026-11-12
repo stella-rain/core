@@ -53,6 +53,12 @@ pub struct AttackPhase {
     /// are neutral and never get a match-up.
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub damage_type: Option<DamageType>,
+    /// An active phase with a hit box of a main character's or an ally's attack only: the poise
+    /// damage of its combo hits, 0 to `limits::MAX_POISE_DAMAGE` (1,000); `sim_version` 2 only.
+    /// Absent: the rules' `poise_damage_a` or `poise_damage_b` by the press.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::validate::limits::MAX_POISE_DAMAGE))]
+    pub poise_damage: Option<u32>,
     /// An active phase only: a target already hit may be hit again after this many ticks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]

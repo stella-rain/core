@@ -859,7 +859,7 @@ pub struct Countdown {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StatusView {
-    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `bleed`, `poison`, `burn`, or
+    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `bleed`, `poison`, `burn`, or
     /// `aura` for a pack leader's aura, which has no content ID of its own.
     pub id: ContentId,
     /// Ticks left. An aura has none: it lasts while its entity is in reach, so both this and

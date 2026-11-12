@@ -15,6 +15,7 @@ fn phase(move_pct: u8) -> AttackPhase {
         move_pct,
         breaks_charge: false,
         dash: None,
+        poise_damage: None,
         advance: None,
     }
 }

@@ -46,10 +46,20 @@ pub(super) fn holds_token(world: &World, r: &AttackRun) -> bool {
 
 /// Starts the cooling of a token of `pool` that was freed on the current tick.
 pub(super) fn cool_token(world: &World, s: &mut State, pool: RangedPool) {
+    cool_into(&mut s.ranged_cooling, s.tick, world, pool);
+}
+
+/// `cool_token` on the cooling list alone, for a caller that holds another part of the state.
+pub(in crate::sim) fn cool_into(
+    cooling: &mut Vec<(u32, RangedPool)>,
+    tick: u32,
+    world: &World,
+    pool: RangedPool,
+) {
     let cooldown = world.tuning.ranged_token_cooldown_ticks;
-    let entry = (s.tick.saturating_add(cooldown), pool);
-    let at = s.ranged_cooling.partition_point(|e| *e <= entry);
-    s.ranged_cooling.insert(at, entry);
+    let entry = (tick.saturating_add(cooldown), pool);
+    let at = cooling.partition_point(|e| *e <= entry);
+    cooling.insert(at, entry);
 }
 
 /// Whether the regular enemy `id` may start a ranged attack of `pool` now (RA1): it holds this
@@ -103,11 +113,12 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
     let area = super::Area::of_view(&world.map(), &s.players);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
-        // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
+        // A stunned or flinching enemy fires nothing (`act_one`), so it could not use a grant.
         if def.ranged_pools.is_empty()
             || e.hp == 0
             || !in_view(e.at, area)
             || super::stun::stunned(&e.statuses)
+            || e.control.flinch > 0
         {
             continue;
         }

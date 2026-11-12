@@ -131,7 +131,7 @@ fn every_validate_limit_const_appears_in_schema_bundle() {
     // the root's few uses and pass while guarding almost none of the constants.
     assert_eq!(
         used_consts.len(),
-        77,
+        79,
         "used MAX_*/MIN_* limit constants found in the validator source"
     );
 

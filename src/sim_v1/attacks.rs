@@ -1556,6 +1556,7 @@ mod attack_table_tests {
             move_pct: 100,
             breaks_charge: false,
             dash: None,
+            poise_damage: None,
             advance: None,
         }
     }

@@ -59,6 +59,8 @@ pub(super) struct Swing {
     breaks_charge: bool,
     smash: Option<Smash>,
     combo: bool,
+    /// The poise damage the hit phase names, if any (`AttackPhase::poise_damage`).
+    poise_damage: Option<u32>,
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
@@ -204,22 +206,30 @@ fn land(
 
 /// Ends the runs that ended during the pass, in the order they were asked for, among the runs
 /// that existed when it began: a run a hit started in the pass is not touched.
-fn apply_ends(stage: &World, s: &mut State) {
+pub(super) fn apply_ends(stage: &World, s: &mut State) {
     let pinned = s.scratch.ends_pinned.take().unwrap_or(s.runs.len());
     if s.scratch.ends_pending.is_empty() {
         return;
     }
     let ends = std::mem::take(&mut s.scratch.ends_pending);
-    let mut at = 0;
+    let (tick, mut at) = (s.tick, 0);
     s.runs.retain_mut(|r| {
         let place = at;
         at += 1;
         let ended = place < pinned
             && ends.iter().any(|e| match *e {
                 RunEnd::Slot(owner, slot) => r.owner == owner && r.slot == slot,
-                RunEnd::All(owner) => r.owner == owner,
+                RunEnd::All(owner) | RunEnd::Cancel(owner) => r.owner == owner,
             });
         if ended {
+            // A cancel cools a channelled run's token, once however many ends asked.
+            let cancelled = ends.contains(&RunEnd::Cancel(r.owner));
+            if let Some(pool) = cancelled
+                .then(|| super::attacks::cancelled_token(stage, r))
+                .flatten()
+            {
+                super::attacks::cool_into(&mut s.ranged_cooling, tick, stage, pool);
+            }
             Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
         }
         !ended
@@ -372,6 +382,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
             breaks_charge: p.breaks_charge,
             smash: r.smash,
             combo: super::attacks::is_combo(s, r),
+            poise_damage: p.poise_damage,
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
@@ -403,6 +414,7 @@ fn zone_swings(s: &State, swings: &mut Vec<Swing>) {
             breaks_charge: z.breaks_charge,
             smash: None,
             combo: false,
+            poise_damage: None,
             rune: None,
             once: false,
         });
@@ -625,8 +637,41 @@ fn hit_enemy_side(
                 Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, me, i, push),
                 _ => {}
             }
+            // C02: a combo hit that deals the enemy's poise makes it flinch; a smash's own stun
+            // (applied inside `damage`) has already won.
+            if w.combo
+                && stage.tuning.flinch_ticks > 0
+                && stage.defs.agent(s.enemies[i].def).poise.is_some()
+            {
+                flinch_by(stage, s, me, i, w, events);
+            }
         }
     }
+}
+
+/// The poise damage of a combo hit of `me`'s: the phase's own, else the rules' for the press kind
+/// (an A step or a smash step, read from the combo the running step still names). A downed or
+/// out player's hit deals none.
+fn flinch_by(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    i: usize,
+    w: &Swing,
+    events: &mut Vec<DomainEvent>,
+) {
+    if !s.players[me].is_up() {
+        return;
+    }
+    let poise_damage =
+        w.poise_damage
+            .unwrap_or(if super::player::last_press_smash(&s.players[me].combo) {
+                stage.tuning.poise_damage_b
+            } else {
+                stage.tuning.poise_damage_a
+            });
+    let source = s.players.id(me);
+    super::stun::flinch(stage, s, i, poise_damage, source, events);
 }
 
 /// Every player in the party that the swing covers, in slot order, unless it is invulnerable:
@@ -726,6 +771,7 @@ mod party_tests {
             breaks_charge: false,
             smash: None,
             combo: false,
+            poise_damage: None,
             rune: None,
             once: false,
         }
