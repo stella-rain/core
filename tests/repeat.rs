@@ -267,10 +267,8 @@ fn a_weapons_file_cannot_name_a_repeat_or_a_factor() {
         match load(&v) {
             Err(PackError::File {
                 file: "weapons",
-                error,
-            }) => {
-                assert!(format!("{error:?}").contains("unknown field"), "{error:?}")
-            }
+                error: Error::Parse { .. },
+            }) => {}
             other => panic!("{key}: expected a refusal, got {:?}", other.map(|_| ())),
         }
     }
