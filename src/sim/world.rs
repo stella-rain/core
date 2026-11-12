@@ -417,6 +417,8 @@ pub(crate) struct Tuning {
     pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
     /// The perfect evade (`sim_version` 2); `None`: the rule is off.
     pub perfect_evade: Option<crate::rules::PerfectEvade>,
+    /// The orb clear's radius in 1/256 px, clamped to the cap; 0: no clear (`sim_version` 2).
+    pub orb_clear_radius: i32,
 }
 
 impl Tuning {
@@ -447,6 +449,7 @@ impl Tuning {
             crit_damage_base_pct: u64::from(rules.crit_damage_base_pct()),
             party_damage_pct: rules.party_damage_pct(),
             perfect_evade: rules.perfect_evade(),
+            orb_clear_radius: rules.orb_clear_radius().map_or(0, |r| r.0),
         }
     }
 }
