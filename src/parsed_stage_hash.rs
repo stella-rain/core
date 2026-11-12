@@ -49,6 +49,9 @@ struct Hashed<'a> {
     /// Last, and skipped when absent, so that a stage without it hashes as it did (DIR1).
     #[serde(skip_serializing_if = "Option::is_none")]
     crowd_target: &'a Option<u16>,
+    /// Last and skipped when false, so a stage without it hashes as it did (as `crowd_target`).
+    #[serde(skip_serializing_if = "crate::behaviour::is_false")]
+    try_styles: &'a bool,
 }
 
 /// The bytes the parsed-stage hash is taken over. `stage` must have passed the validator.
@@ -74,6 +77,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         level_table,
         stardust,
         crowd_target,
+        try_styles,
     } = stage;
     let hashed = Hashed {
         schema_version: *schema_version,
@@ -94,6 +98,7 @@ pub fn parsed_stage_hash_input(stage: &Stage) -> Vec<u8> {
         level_table,
         stardust,
         crowd_target,
+        try_styles,
     };
     let mut bytes = TAG.to_vec();
     // Writing these types to a `Vec` cannot fail: no maps with non-string keys, no I/O.

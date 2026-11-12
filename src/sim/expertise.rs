@@ -23,6 +23,9 @@
 //! its place. An inline weapon has no expertise content, so none of its levels is a tree point;
 //! an upgrade or capstone level with no style chosen holds nothing (fail closed: the table
 //! puts the style first).
+//!
+//! Under a stage's `try_styles` every table level is a style pick again; the gauge's `path` is
+//! then the log of the picks after the first, and no upgrade or capstone is ever taken.
 
 use super::World;
 use crate::expertise::{
@@ -216,7 +219,15 @@ fn fixed<'a>(
                     .collect()
             })
     };
-    match slot(&table, level) {
+    // Under `try_styles` every table level is a style pick.
+    let kind = slot(&table, level).map(|k| {
+        if stage.try_styles {
+            ExpertiseOfferKind::Style
+        } else {
+            k
+        }
+    });
+    match kind {
         Some(ExpertiseOfferKind::Style) => w
             .styles
             .iter()
@@ -382,6 +393,11 @@ pub(super) fn tree_next<'a>(
         3 => (ExpertiseOfferKind::Capstone, table.capstone),
         _ => return None,
     };
+    let kind = if stage.try_styles {
+        ExpertiseOfferKind::Style
+    } else {
+        kind
+    };
     let choices = fixed(stage, expertise, g, level);
     // No option, no waiting point: a run with no style unlocked plays the plain base.
     if choices.is_empty() {
@@ -444,6 +460,8 @@ pub(super) fn tree_pick(
         return Err(TreeError::NoTreePoint);
     };
     let (effect, amount, kind, at) = (c.effect, c.amount, next.kind, c.place);
+    // Points spent before this pick: under `try_styles` the log in `path` counts them.
+    let spent = tree_taken(g);
     // A style adds nothing of its own: the tree's stat set is everything it gives.
     if kind != ExpertiseOfferKind::Style {
         apply(&mut g.range_pct, progress, player, effect, amount);
@@ -451,6 +469,11 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
+        // Under `try_styles` the gauge's path is the log of the picks after the first, so the
+        // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
+        if stage.try_styles && spent > 0 {
+            g.path.push(at);
+        }
         if let Some(p) = progress.as_mut() {
             // The tree's set replaces the base set at the weapon's level.
             write_set(stage, expertise, p, player, Some(was), (g.style, g.level));
@@ -604,17 +627,21 @@ pub(crate) fn check_tree(
         return Err(out);
     }
     // A place indexes the list of the level it was taken at, which an offers run's out player may
-    // have passed over, so it is held to the longest of the style's three lists.
-    let longest = g
-        .style
-        .and_then(|i| w.styles.get(usize::from(i)))
-        .map_or(0, |st| {
-            [&st.upgrade_1, &st.upgrade_2, &st.capstone]
-                .iter()
-                .map(|list| list.len())
-                .max()
-                .unwrap_or(0)
-        });
+    // have passed over, so it is held to the longest of the style's three lists; under
+    // `try_styles` it is a style's place, held to the weapon's styles.
+    let longest = if stage.try_styles {
+        w.styles.len()
+    } else {
+        g.style
+            .and_then(|i| w.styles.get(usize::from(i)))
+            .map_or(0, |st| {
+                [&st.upgrade_1, &st.upgrade_2, &st.capstone]
+                    .iter()
+                    .map(|list| list.len())
+                    .max()
+                    .unwrap_or(0)
+            })
+    };
     if g.path.iter().any(|place| usize::from(*place) >= longest) {
         return Err(out);
     }
@@ -650,6 +677,10 @@ pub(crate) fn styles_view(
         let chosen = g.style?;
         Some(w.styles.get(usize::from(chosen))?.id.clone())
     });
+    if stage.try_styles {
+        // The path is the log of the picks, not an upgrade path.
+        return (style, Vec::new());
+    }
     let table = stage.level_table();
     let levels = [table.upgrades[0], table.upgrades[1], table.capstone];
     let path = levels
