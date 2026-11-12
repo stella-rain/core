@@ -54,6 +54,29 @@
 | `MAX_SET_STATS` | 8 | stats | ADR-CONT-3 |
 | `MAX_STARS_ON_MAP` | 64 | stars | ADR-REPL-5 |
 | `MAX_WAVES` | 16 | waves | ADR-SVC-1 |
+| `MAX_FLINCH_TICKS` | 60 | ticks | ADR-SIM-5 |
+| `MAX_FLINCH_IMMUNE_TICKS` | 120 | ticks | ADR-SIM-5 |
+| `MAX_CONTROL_REPEATS` | 8 | hard controls | ADR-SIM-5 |
+| `MAX_CONTROL_RESET_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_DOWN_TICKS` | 180 | ticks | ADR-SIM-5 |
+| `MAX_STAGGER` | 10000 | stagger | ADR-SIM-5 |
+| `MAX_STAGGER_BREAKS` | 1000 | breaks | ADR-SIM-5 |
+| `MAX_STAGGER_DRAIN_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_STAGGERED_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_PERFECT_WINDOW_TICKS` | 30 | ticks | ADR-SIM-5 |
+| `MAX_PERFECT_SLOW_TICKS` | 300 | ticks | ADR-SIM-5 |
+| `MAX_PERFECT_COOLDOWN_TICKS` | 3600 | ticks | ADR-SIM-5 |
+| `MAX_WEAPON_GAUGE` | 10000 | gauge | ADR-SIM-5 |
+| `MAX_RALLY` | 99900 | hit points | ADR-SIM-5 |
+| `MAX_RALLY_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_SPIRIT_LEVEL` | 3 | level | ADR-SIM-5 |
+| `MAX_SPIRIT_DECAY_TICKS` | 3600 | ticks | ADR-SIM-5 |
+| `MAX_COUNTER_WINDOW_TICKS` | 60 | ticks | ADR-SIM-5 |
+| `MAX_TEMPO_STACKS` | 10 | stacks | ADR-SIM-5 |
+| `MAX_TRIGGER_TICKS` | 3600 | ticks | ADR-SIM-5 |
+| `MAX_RANGED_GRACE_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_REPEATS_QUEUED` | 64 | entries | ADR-SIM-5 |
+| `MAX_REPEAT_TARGETS` | 16 | targets | ADR-SIM-5 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-1 |
 
 The numbers a designer tunes (the leash, the spawn margin, the ranged tokens and the others) are content, not listed here: see content/rules.json (ADR-CONT-3).
