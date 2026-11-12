@@ -225,6 +225,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             recovering: s.players[me].evade_recovering.clone(),
             dash_left: s.players[me].dash.map_or(0, |d| d.left),
         },
+        gauge: None,
+        perfect_evade: None,
         combo: {
             let (presses, dash, buffered, window_left, auto) = combo_view(s, me);
             ComboView {

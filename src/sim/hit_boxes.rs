@@ -282,6 +282,7 @@ fn break_orbs(
             events.push(DomainEvent::OrbBroken {
                 owner: b.owner,
                 at: b.at,
+                player: Some(me),
             });
         }
         !hit
@@ -325,6 +326,7 @@ fn clear_orbs(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
                 events.push(DomainEvent::OrbBroken {
                     owner: b.owner,
                     at: b.at,
+                    player: Some(me),
                 });
             }
             !cleared

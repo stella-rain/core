@@ -162,7 +162,11 @@ pub(super) fn adapt(event: v1::DomainEvent) -> Option<DomainEvent> {
         v1::DomainEvent::EliteLeft { elite } => DomainEvent::EliteLeft { elite },
         v1::DomainEvent::ShrineActivated { elite } => DomainEvent::ShrineActivated { elite },
         v1::DomainEvent::MimicRevealed { elite } => DomainEvent::MimicRevealed { elite },
-        v1::DomainEvent::OrbBroken { owner, at } => DomainEvent::OrbBroken { owner, at },
+        v1::DomainEvent::OrbBroken { owner, at } => DomainEvent::OrbBroken {
+            owner,
+            at,
+            player: None,
+        },
         v1::DomainEvent::RewardTaken {
             reward,
             taken,
