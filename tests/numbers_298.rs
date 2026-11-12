@@ -377,12 +377,12 @@ fn the_economy_picks_are_applied() {
     }
 }
 
-/// The bundled content with both caps at 300, as the bundle will hold them.
-fn content_with_caps_of_300() -> RunContent {
+/// The bundled content with both caps at `cap`, whatever the bundle holds.
+fn content_with_caps_of(cap: u32) -> RunContent {
     let mut stats: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
-    stats["max_attack_speed_pct"] = json!(300);
+    stats["max_attack_speed_pct"] = json!(cap);
     let mut rewards: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
-    rewards["max_rune_haste_pct"] = json!(300);
+    rewards["max_rune_haste_pct"] = json!(cap);
     RunContent::new(
         RunStats::parse(stats.to_string().as_bytes(), Versions::CURRENT).unwrap(),
         Rewards::parse(rewards.to_string().as_bytes(), Versions::CURRENT).unwrap(),
@@ -404,15 +404,11 @@ fn hashes_of(stage_json: &[u8], content: &RunContent) -> [u64; 2] {
 fn a_v1_stage_hashes_the_same_whatever_the_bundled_caps() {
     // The frozen rules keep the caps they were recorded with (ADR-REPL-2 point 6); the live
     // rules hash the content's caps, so the same swap must move a sim_version 2 stage.
-    let capped = content_with_caps_of_300();
+    let (low, high) = (content_with_caps_of(300), content_with_caps_of(500));
     let v1 = &include_bytes!("corpus/v1/stages/clear/stage.json")[..];
-    assert_eq!(
-        hashes_of(v1, &RunContent::bundled()),
-        hashes_of(v1, &capped)
-    );
+    let before = hashes_of(v1, &RunContent::bundled());
+    assert_eq!(before, hashes_of(v1, &low));
+    assert_eq!(before, hashes_of(v1, &high));
     let live = &include_bytes!("corpus/current/stages/clear/stage.json")[..];
-    assert_ne!(
-        hashes_of(live, &RunContent::bundled()),
-        hashes_of(live, &capped)
-    );
+    assert_ne!(hashes_of(live, &low), hashes_of(live, &high));
 }
