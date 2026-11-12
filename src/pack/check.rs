@@ -46,9 +46,17 @@ struct StarChartLists {
     #[serde(default)]
     stats: Vec<StatPriceLists>,
     #[serde(default)]
+    styles: Vec<StyleRowLists>,
+    #[serde(default)]
     expertise_multiplier: Vec<IgnoredAny>,
     #[serde(default)]
     lumine_levels: Vec<IgnoredAny>,
+}
+
+#[derive(Deserialize)]
+struct StyleRowLists {
+    #[serde(default)]
+    styles: Vec<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -384,8 +392,16 @@ pub(super) fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
             ("perk_sets", l.perk_sets.len()),
             ("stage_skills", l.stage_skills.len()),
             ("stats", l.stats.len()),
+            ("styles", l.styles.len()),
         ] {
             budget(format!("$.star_chart.{name}"), found, star_chart::MAX_ITEMS)?;
+        }
+        for (i, row) in l.styles.iter().enumerate() {
+            budget(
+                format!("$.star_chart.styles[{i}].styles"),
+                row.styles.len(),
+                crate::run_setup::MAX_UNLOCKED_STYLES,
+            )?;
         }
         for (i, stat) in l.stats.iter().enumerate() {
             budget(

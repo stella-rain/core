@@ -26,6 +26,7 @@ fn parse_bytes(bytes: &[u8]) -> Result<StarChart, Error> {
         content.perk_sets(),
         content.stage_skills(),
         content.weapons(),
+        content.expertise(),
         content.starting_unlocks(),
     )
 }
@@ -487,4 +488,18 @@ fn the_style_lists_have_count_budgets_before_the_file_is_read() {
         }
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn the_accessor_returns_the_rows_and_the_bundled_chart_has_none() {
+    let chart = parse(&with_styles(json!([hammer_row()]))).expect("a Hammer row");
+    assert_eq!(chart.styles().len(), 1);
+    assert_eq!(chart.styles()[0].weapon.as_str(), "giant_hammer");
+    let ids: Vec<&str> = chart.styles()[0]
+        .styles
+        .iter()
+        .map(|s| s.id.as_str())
+        .collect();
+    assert_eq!(ids, ["crush", "quake"]);
+    assert!(Pack::bundled().star_chart().unwrap().styles().is_empty());
 }
