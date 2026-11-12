@@ -634,7 +634,13 @@ impl World {
         }
         let granted = s.players.career(me).expertise.as_ref().and_then(|g| {
             let style = usize::from(g.style?);
-            let taken = g.path.len().min(PATH_PLACES - 1);
+            // Under `try_styles` the path is the log of the picks, not upgrades taken: the style's
+            // own grants only (ADR-SIM-9 point 3).
+            let taken = if self.try_styles {
+                0
+            } else {
+                g.path.len().min(PATH_PLACES - 1)
+            };
             self.grant_weapons
                 .get(style * PATH_PLACES + taken)?
                 .as_ref()
