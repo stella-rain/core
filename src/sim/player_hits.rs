@@ -58,7 +58,7 @@ pub(super) fn hurt_player(
         player::stand_down(stage, s, me, events);
     }
     if stage.has_gauge {
-        player::gauge_from_damage(stage, s, me, before_hp - s.players[me].hp);
+        player::gauge_from_damage(stage, s, me, before_hp - s.players[me].hp, events);
     }
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
