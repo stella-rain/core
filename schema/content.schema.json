@@ -8530,6 +8530,10 @@
           "minLength": 1,
           "type": "string"
         },
+        "try_styles": {
+          "description": "Under it each tree point of the level table is a style pick again, recorded as a\n`TreePick` (ADR-SIM-9 point 8); absent and `false` are the same. `sim_version` 2. Only\nthe tutorial mode takes it: the run builder drops it from every other mode.",
+          "type": "boolean"
+        },
         "waves": {
           "default": [],
           "items": {
