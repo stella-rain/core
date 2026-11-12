@@ -203,3 +203,77 @@ fn the_first_match_up_profiles_are_the_decided_ones() {
         }
     }
 }
+
+/// The combat picks (ADR-CONT-3, ADR-CONT-4): every regular wave of the Time Limit and the
+/// trial holds two weak types, each damage type is some wave's or boss's weakness, and the picks
+/// that keep today's value still hold it.
+#[test]
+fn the_combat_picks_are_applied() {
+    use stella_rain_core::attack::DamageType;
+
+    let weak = |e: &Value| e["profile"]["weak"].clone();
+    let time_limit = bundled(std::str::from_utf8(common::bundled_file("time_limit")).unwrap());
+    let trial = bundled(std::str::from_utf8(common::bundled_file("trial")).unwrap());
+    let tutorial = bundled(std::str::from_utf8(common::bundled_file("tutorial")).unwrap());
+
+    let waves = time_limit["waves"].as_array().unwrap();
+    for (i, pair) in [
+        (2, ["slash", "hydro"]),
+        (3, ["strike", "geo"]),
+        (4, ["pierce", "anemo"]),
+        (6, ["slash", "cryo"]),
+        (8, ["strike", "pyro"]),
+    ] {
+        assert_eq!(weak(&waves[i]["enemy"]), json!(pair), "time_limit wave {i}");
+    }
+    assert!(
+        weak(&waves[5]["enemy"]).is_null(),
+        "the tank has no weakness"
+    );
+    let trial_waves = trial["waves"].as_array().unwrap();
+    assert_eq!(weak(&trial_waves[2]["enemy"]), json!(["slash", "hydro"]));
+    for (mode, file) in [("time_limit", &time_limit), ("trial", &trial)] {
+        for (i, w) in file["waves"].as_array().unwrap().iter().enumerate() {
+            if let Some(list) = weak(&w["enemy"]).as_array() {
+                assert_eq!(list.len(), 2, "{mode} wave {i}");
+            }
+        }
+    }
+
+    let mut seen: Vec<String> = Vec::new();
+    let mut enemies: Vec<&Value> = waves.iter().map(|w| &w["enemy"]).collect();
+    enemies.extend(time_limit["bosses"].as_array().into_iter().flatten());
+    enemies.extend(time_limit.get("boss"));
+    for e in enemies {
+        for t in e["profile"]["weak"].as_array().into_iter().flatten() {
+            seen.push(t.as_str().unwrap().to_string());
+        }
+    }
+    for t in DamageType::ALL {
+        let name = serde_json::to_value(t).unwrap();
+        assert!(
+            seen.iter().any(|s| name == *s),
+            "{name} is nobody's weakness"
+        );
+    }
+
+    for w in tutorial["waves"].as_array().unwrap() {
+        assert_eq!(
+            weak(&w["enemy"]),
+            json!(["slash"]),
+            "the tutorial stays single"
+        );
+    }
+    let ups = bundled(std::str::from_utf8(common::bundled_file("match_ups")).unwrap());
+    for k in ["weak_pct", "strong_pct", "resisted_pct"] {
+        assert_eq!(ups[k], 20, "{k}");
+    }
+    assert_eq!(ups["max_type_bonus_pct"], 1000);
+    let rewards = bundled(std::str::from_utf8(common::bundled_file("rewards")).unwrap());
+    let equipment = &rewards["equipment"];
+    for c in equipment["categories"].as_array().unwrap() {
+        assert_eq!(c["drop_weight_max"], 100, "{}", c["id"]);
+        assert_eq!(c["drop_weight_default"], 0, "{}", c["id"]);
+    }
+    assert_eq!(equipment["rune_share_permille"], 100);
+}

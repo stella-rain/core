@@ -161,7 +161,8 @@
         "radius": 2560,
         "profile": {
           "weak": [
-            "slash"
+            "slash",
+            "hydro"
           ]
         },
         "movement": {

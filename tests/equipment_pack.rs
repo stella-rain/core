@@ -62,10 +62,7 @@ fn the_bundled_pack_holds_the_equipment_rules() {
         .collect();
     assert_eq!(cats, [("attack", 5), ("defence", 2), ("mobility", 2)]);
     assert_eq!(rules.rune_slots, 3);
-    assert_eq!(
-        rules.kills_to_next,
-        [10, 20, 35, 55, 80, 110, 145, 185, 230]
-    );
+    assert_eq!(rules.kills_to_next, [6, 12, 22, 35, 52, 72, 96, 124, 156]);
     assert_eq!(rules.level_pct, 3);
     let extract: Vec<u32> = rules.rarities.iter().map(|r| r.extract).collect();
     let craft: Vec<u32> = rules.rarities.iter().map(|r| r.craft_price).collect();
