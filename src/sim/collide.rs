@@ -206,6 +206,12 @@ pub(super) fn damage(
         s.statuses(target),
         crate::sim::state::StatusKind::Vulnerable,
     );
+    // C03: a staggered elite or boss takes more (a part takes its boss's).
+    let vulnerable = if stage.has_stagger {
+        stun::raised(stage, s, target, vulnerable)
+    } else {
+        vulnerable
+    };
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-SIM-5).

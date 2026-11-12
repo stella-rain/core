@@ -112,6 +112,26 @@ impl<'a> Ctx<'a> {
                 None => self.within("poise_damage", i64::from(d), 0, i64::from(MAX_POISE_DAMAGE)),
             }
         }
+        if let Some(d) = p.stagger {
+            let refusal = if p.kind != PhaseKind::Active || p.hit_box.is_none() {
+                Some("only an active phase with a hit box adds stagger")
+            } else if self.foe != Foe::Other {
+                Some("a main character's or an ally's attack only")
+            } else if self.sim_version < 2 {
+                Some("needs sim_version 2")
+            } else {
+                None
+            };
+            match refusal {
+                Some(why) => self.key("stagger", |c| c.fail(why)),
+                None => self.within(
+                    "stagger",
+                    i64::from(d),
+                    0,
+                    i64::from(crate::limits::MAX_STAGGER),
+                ),
+            }
+        }
         if let Some(a) = p.advance {
             self.key("advance", |c| c.advance(a));
         }

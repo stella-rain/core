@@ -33,6 +33,17 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_POISE))]
     pub poise: Option<u32>,
+    /// An elite's stagger gauge: a main character's smash and a control it resists fill it, and a
+    /// full gauge staggers the elite (`staggered_ticks`, else the rules'). 1 to
+    /// `limits::MAX_STAGGER` (10,000); `sim_version` 2 only; an elite's only. Absent: no gauge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub stagger_max: Option<u32>,
+    /// Ticks a staggered elite stays staggered: 1 to `limits::MAX_STAGGERED_TICKS` (600). Only
+    /// with `stagger_max`. Absent: the rules' `staggered_ticks`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGERED_TICKS))]
+    pub staggered_ticks: Option<u16>,
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_AGENT_HP))]
     pub hp: u32,
     /// Radius of the hurt circle.

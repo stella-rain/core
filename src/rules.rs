@@ -41,7 +41,8 @@ use crate::fixed::Fx;
 use crate::limits::{
     MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_FLINCH_IMMUNE_TICKS, MAX_FLINCH_TICKS,
     MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
-    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, VIEW_HALF_HEIGHT,
+    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, MAX_STAGGER,
+    MAX_STAGGER_DRAIN_TICKS, MAX_STAGGER_REFILLS, MAX_STAGGERED_TICKS, VIEW_HALF_HEIGHT,
     VIEW_HALF_WIDTH,
 };
 use crate::pack::Pack;
@@ -97,6 +98,30 @@ pub struct VulnerablePcts {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
     pub stun: Option<u32>,
+    /// A stagger puts `vulnerable` of this many percent on the staggered elite or boss for the
+    /// stagger's own ticks: 1 to `limits::MAX_PCT` (1,000). Absent: a stagger puts none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub stagger: Option<u32>,
+}
+
+/// What a resisted control adds to a stagger gauge, by kind of control (each 1 to
+/// `limits::MAX_STAGGER`); a kind left out adds nothing. The other controls add their own key later.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StaggerValues {
+    /// A smash's stun on an elite or the boss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub stun: Option<u32>,
+    /// A smash's pull.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub pull: Option<u32>,
+    /// A smash's knockback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub knockback: Option<u32>,
 }
 
 /// The rules file.
@@ -204,6 +229,40 @@ pub struct RulesFile {
     /// `sim_version` 2 only. Absent: none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vulnerable_pcts: Option<VulnerablePcts>,
+    /// Ticks an elite or the boss stays staggered when its own definition names none: 1 to
+    /// `limits::MAX_STAGGERED_TICKS` (600). `sim_version` 2 only. Absent: each elite or boss that
+    /// names a `stagger_max` must name its own `staggered_ticks`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staggered_ticks: Option<u16>,
+    /// The stagger a main character's smash (B) step adds to the gauge of an elite or the boss
+    /// when its phase names none: 0 to `limits::MAX_STAGGER` (10,000). `sim_version` 2 only.
+    /// Absent: 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::limits::MAX_STAGGER))]
+    pub stagger_smash: Option<u32>,
+    /// What a control a smash puts on an elite or the boss, and that it resists, adds to the
+    /// gauge. `sim_version` 2 only. Absent: none adds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_values: Option<StaggerValues>,
+    /// What percent of its value a fill keeps by the number of bars already broken: 1 to
+    /// `limits::MAX_STAGGER_REFILLS` (8) entries of 1 to 100; past the last entry the last one
+    /// holds. `sim_version` 2 only. Absent: every bar fills at 100.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_refill_pcts: Option<Vec<u32>>,
+    /// Ticks after a fill before the gauge drains: 1 to `limits::MAX_STAGGER_DRAIN_TICKS` (600).
+    /// Only with `stagger_drain_per_tick`, `sim_version` 2 only. Absent: the gauge never drains.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_drain_delay_ticks: Option<u16>,
+    /// What an idle gauge loses each tick once the delay is over: 1 to `limits::MAX_STAGGER`.
+    /// Only with `stagger_drain_delay_ticks`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub stagger_drain_per_tick: Option<u32>,
+    /// The percent a staggered elite or boss (and its parts) takes more damage: 1 to
+    /// `limits::MAX_PCT` (1,000). `sim_version` 2 only. Absent: none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub stagger_damage_pct: Option<u32>,
     /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
     /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
     /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
@@ -377,6 +436,56 @@ impl Rules {
             .vulnerable_pcts
             .as_ref()
             .and_then(|v| v.stun)
+            .unwrap_or(0)
+    }
+
+    /// The ticks of a stagger an elite or boss that names none has; 0 when absent.
+    pub fn staggered_ticks(&self) -> u16 {
+        self.file.staggered_ticks.unwrap_or(0)
+    }
+
+    /// The stagger a smash step adds when its phase names none; 0 when absent.
+    pub fn stagger_smash(&self) -> u32 {
+        self.file.stagger_smash.unwrap_or(0)
+    }
+
+    /// The gauge value of a resisted `[stun, pull, knockback]`; 0 for a kind left out.
+    pub fn stagger_values(&self) -> [u32; 3] {
+        let v = self.file.stagger_values.as_ref();
+        [
+            v.and_then(|v| v.stun).unwrap_or(0),
+            v.and_then(|v| v.pull).unwrap_or(0),
+            v.and_then(|v| v.knockback).unwrap_or(0),
+        ]
+    }
+
+    /// The fill percent by bars broken; empty when every bar fills in full.
+    pub fn stagger_refill_pcts(&self) -> &[u32] {
+        self.file.stagger_refill_pcts.as_deref().unwrap_or(&[])
+    }
+
+    /// The drain of an idle gauge as `(delay ticks, per tick)`; `(0, 0)` when it never drains.
+    pub fn stagger_drain(&self) -> (u16, u32) {
+        match (
+            self.file.stagger_drain_delay_ticks,
+            self.file.stagger_drain_per_tick,
+        ) {
+            (Some(delay), Some(per_tick)) => (delay, per_tick),
+            _ => (0, 0),
+        }
+    }
+
+    /// The percent a staggered target takes more damage; 0 when absent.
+    pub fn stagger_damage_pct(&self) -> u32 {
+        self.file.stagger_damage_pct.unwrap_or(0)
+    }
+
+    /// The `vulnerable` percent a stagger puts on its target; 0 when absent.
+    pub fn vulnerable_stagger_pct(&self) -> u32 {
+        self.file
+            .vulnerable_pcts
+            .as_ref()
+            .and_then(|v| v.stagger)
             .unwrap_or(0)
     }
 
@@ -609,6 +718,19 @@ fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
             file.control_immune_ticks.is_some(),
         ),
         ("$.vulnerable_pcts", file.vulnerable_pcts.is_some()),
+        ("$.staggered_ticks", file.staggered_ticks.is_some()),
+        ("$.stagger_smash", file.stagger_smash.is_some()),
+        ("$.stagger_values", file.stagger_values.is_some()),
+        ("$.stagger_refill_pcts", file.stagger_refill_pcts.is_some()),
+        (
+            "$.stagger_drain_delay_ticks",
+            file.stagger_drain_delay_ticks.is_some(),
+        ),
+        (
+            "$.stagger_drain_per_tick",
+            file.stagger_drain_per_tick.is_some(),
+        ),
+        ("$.stagger_damage_pct", file.stagger_damage_pct.is_some()),
     ];
     named
         .into_iter()
@@ -935,6 +1057,103 @@ fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
             issues,
             "vulnerable_pcts.stun",
             i64::from(stun),
+            1,
+            i64::from(MAX_PCT),
+        );
+    }
+    validate_stagger_keys(file, issues);
+}
+
+/// The checks of the stagger keys: each bound, and the drain pair together.
+fn validate_stagger_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
+    if let Some(stagger) = file.vulnerable_pcts.as_ref().and_then(|v| v.stagger) {
+        within(
+            issues,
+            "vulnerable_pcts.stagger",
+            i64::from(stagger),
+            1,
+            i64::from(MAX_PCT),
+        );
+    }
+    if let Some(n) = file.staggered_ticks {
+        within(
+            issues,
+            "staggered_ticks",
+            i64::from(n),
+            1,
+            i64::from(MAX_STAGGERED_TICKS),
+        );
+    }
+    if let Some(n) = file.stagger_smash {
+        within(
+            issues,
+            "stagger_smash",
+            i64::from(n),
+            0,
+            i64::from(MAX_STAGGER),
+        );
+    }
+    if let Some(v) = &file.stagger_values {
+        for (field, value) in [
+            ("stagger_values.stun", v.stun),
+            ("stagger_values.pull", v.pull),
+            ("stagger_values.knockback", v.knockback),
+        ] {
+            if let Some(n) = value {
+                within(issues, field, i64::from(n), 1, i64::from(MAX_STAGGER));
+            }
+        }
+    }
+    if let Some(list) = &file.stagger_refill_pcts {
+        let most = usize::from(MAX_STAGGER_REFILLS);
+        if list.is_empty() || list.len() > most {
+            issues.push(Issue {
+                path: "$.stagger_refill_pcts".into(),
+                message: format!("1 to {most} entries (found {})", list.len()),
+            });
+        }
+        for (i, pct) in list.iter().take(most).enumerate() {
+            within(
+                issues,
+                &format!("stagger_refill_pcts[{i}]"),
+                i64::from(*pct),
+                1,
+                100,
+            );
+        }
+    }
+    match (file.stagger_drain_delay_ticks, file.stagger_drain_per_tick) {
+        (Some(_), None) => issues.push(Issue {
+            path: "$.stagger_drain_delay_ticks".into(),
+            message: "needs stagger_drain_per_tick".into(),
+        }),
+        (None, Some(_)) => issues.push(Issue {
+            path: "$.stagger_drain_per_tick".into(),
+            message: "needs stagger_drain_delay_ticks".into(),
+        }),
+        (Some(delay), Some(per_tick)) => {
+            within(
+                issues,
+                "stagger_drain_delay_ticks",
+                i64::from(delay),
+                1,
+                i64::from(MAX_STAGGER_DRAIN_TICKS),
+            );
+            within(
+                issues,
+                "stagger_drain_per_tick",
+                i64::from(per_tick),
+                1,
+                i64::from(MAX_STAGGER),
+            );
+        }
+        (None, None) => {}
+    }
+    if let Some(n) = file.stagger_damage_pct {
+        within(
+            issues,
+            "stagger_damage_pct",
+            i64::from(n),
             1,
             i64::from(MAX_PCT),
         );

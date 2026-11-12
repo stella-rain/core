@@ -844,6 +844,192 @@ fn c5_a_file_naming_every_key_is_within_the_size_limit_and_parses() {
     assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
     Rules::parse(&bytes, Versions::CURRENT).expect("parses");
 }
+// --- The stagger gauge's keys (dormant until content names them) --------------------------------
+
+/// The keys the stagger gauge adds to the rules file, each named by one value in range.
+fn stagger_keys() -> Value {
+    json!({
+        "staggered_ticks": 20,
+        "stagger_smash": 40,
+        "stagger_values": { "stun": 30, "pull": 20, "knockback": 10 },
+        "stagger_refill_pcts": [100, 50],
+        "stagger_drain_delay_ticks": 10,
+        "stagger_drain_per_tick": 5,
+        "stagger_damage_pct": 50,
+        "vulnerable_pcts": { "stagger": 20 },
+    })
+}
+
+#[test]
+fn r1_the_bundled_file_names_none_of_the_stagger_keys() {
+    let v = bundled_value();
+    for key in stagger_keys().as_object().unwrap().keys() {
+        assert!(v.get(key).is_none(), "{key}");
+    }
+    let rules = Rules::bundled();
+    assert_eq!(rules.staggered_ticks(), 0);
+    assert_eq!(rules.stagger_smash(), 0);
+    assert_eq!(rules.stagger_values(), [0, 0, 0]);
+    assert!(rules.stagger_refill_pcts().is_empty());
+    assert_eq!(rules.stagger_drain(), (0, 0));
+    assert_eq!(rules.stagger_damage_pct(), 0);
+    assert_eq!(rules.vulnerable_stagger_pct(), 0);
+}
+
+/// The bundled file with `key` set to `value` after every stagger key is named.
+fn stagger_with(key: &str, value: Value) -> Vec<u8> {
+    let mut all = stagger_keys();
+    all[key] = value;
+    patched(&all)
+}
+
+#[test]
+fn r2_every_stagger_bound_is_checked_at_its_key() {
+    // (key, in range, first values out of range, the path of the issue)
+    let cases: Vec<(&str, Value, Vec<Value>, &str)> = vec![
+        (
+            "staggered_ticks",
+            json!(600),
+            vec![json!(0), json!(601)],
+            "$.staggered_ticks",
+        ),
+        (
+            "stagger_smash",
+            json!(10_000),
+            vec![json!(10_001)],
+            "$.stagger_smash",
+        ),
+        (
+            "stagger_values",
+            json!({ "pull": 10_000 }),
+            vec![json!({ "pull": 0 }), json!({ "pull": 10_001 })],
+            "$.stagger_values.pull",
+        ),
+        (
+            "stagger_values",
+            json!({ "stun": 1 }),
+            vec![json!({ "stun": 0 })],
+            "$.stagger_values.stun",
+        ),
+        (
+            "stagger_values",
+            json!({ "knockback": 1 }),
+            vec![json!({ "knockback": 10_001 })],
+            "$.stagger_values.knockback",
+        ),
+        (
+            "stagger_refill_pcts",
+            json!([100, 100, 100, 100, 100, 100, 100, 100]),
+            vec![
+                json!([]),
+                json!([100, 100, 100, 100, 100, 100, 100, 100, 100]),
+            ],
+            "$.stagger_refill_pcts",
+        ),
+        (
+            "stagger_drain_delay_ticks",
+            json!(600),
+            vec![json!(0), json!(601)],
+            "$.stagger_drain_delay_ticks",
+        ),
+        (
+            "stagger_drain_per_tick",
+            json!(10_000),
+            vec![json!(0), json!(10_001)],
+            "$.stagger_drain_per_tick",
+        ),
+        (
+            "stagger_damage_pct",
+            json!(1000),
+            vec![json!(0), json!(1001)],
+            "$.stagger_damage_pct",
+        ),
+        (
+            "vulnerable_pcts",
+            json!({ "stagger": 1000 }),
+            vec![json!({ "stagger": 0 }), json!({ "stagger": 1001 })],
+            "$.vulnerable_pcts.stagger",
+        ),
+    ];
+    for (key, ok, bad, path) in cases {
+        assert!(
+            Rules::parse(&stagger_with(key, ok.clone()), Versions::CURRENT).is_ok(),
+            "{key} {ok}"
+        );
+        for b in bad {
+            assert_eq!(
+                paths(Rules::parse(
+                    &stagger_with(key, b.clone()),
+                    Versions::CURRENT
+                )),
+                [path],
+                "{key} {b}"
+            );
+        }
+    }
+    for (value, path) in [
+        (json!([100, 0]), "$.stagger_refill_pcts[1]"),
+        (json!([100, 101]), "$.stagger_refill_pcts[1]"),
+    ] {
+        assert_eq!(
+            paths(Rules::parse(
+                &stagger_with("stagger_refill_pcts", value),
+                Versions::CURRENT
+            )),
+            [path]
+        );
+    }
+}
+
+#[test]
+fn r3_one_drain_key_alone_is_refused_at_that_key() {
+    let cur = Versions::CURRENT;
+    for key in ["stagger_drain_delay_ticks", "stagger_drain_per_tick"] {
+        let one = patched(&json!({ key: stagger_keys()[key].clone() }));
+        assert_eq!(
+            paths(Rules::parse(&one, cur)),
+            [format!("$.{key}")],
+            "{key}"
+        );
+    }
+    let both = patched(&json!({
+        "stagger_drain_delay_ticks": 10,
+        "stagger_drain_per_tick": 5,
+    }));
+    assert!(Rules::parse(&both, cur).is_ok());
+}
+
+#[test]
+fn r4_a_pack_at_sim_version_1_refuses_every_stagger_key() {
+    for (key, value) in stagger_keys().as_object().unwrap() {
+        let bytes = patched(&json!({ key: value }));
+        let Err(Error::Invalid(issues)) = Rules::parse(&bytes, V1) else {
+            panic!("{key} not refused at sim_version 1");
+        };
+        let at = format!("$.{key}");
+        let hit = issues.iter().find(|i| i.path.starts_with(&at));
+        assert!(
+            hit.is_some_and(|i| i.message.contains("needs sim_version 2")),
+            "{key}: {issues:?}"
+        );
+    }
+}
+
+#[test]
+fn r5_a_file_naming_every_stagger_key_is_within_the_size_limit_and_parses() {
+    let mut all = poise_keys();
+    for (k, v) in stagger_keys().as_object().unwrap() {
+        if k == "vulnerable_pcts" {
+            all["vulnerable_pcts"]["stagger"] = v["stagger"].clone();
+        } else {
+            all[k] = v.clone();
+        }
+    }
+    let bytes = patched(&all);
+    assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
+    Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}
+
 // --- The perfect evade's five keys (ADR-CONT-3, ADR-SVC-1) ---------------------------------------
 
 const EVADE_KEYS: [&str; 5] = [

@@ -6,7 +6,9 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::id::EntityId;
-use crate::sim::state::{AgentState, State, StatusKind, StatusState};
+use crate::limits::MAX_STAGGER_BREAKS;
+use crate::sim::PlayerIdx;
+use crate::sim::state::{AgentState, Stagger, State, StatusKind, StatusState};
 use crate::sim::world::Tuning;
 use crate::validate::limits::MAX_STUN_TICKS;
 
@@ -51,6 +53,29 @@ pub(super) fn apply(
     ticks: u32,
     events: &mut Vec<DomainEvent>,
 ) {
+    // C04: a stun an elite or the boss resists fills its gauge, before the immunity test (an
+    // immune elite resisted it too). The boss and a part resist it whole, an elite the share
+    // its stun does not land.
+    if stage.has_stagger {
+        if let Some(me) = s.players.of_id(source) {
+            let value = stage.tuning.stagger_values[0];
+            let resisted = match target {
+                Who::Boss | Who::BossPart(_) => 100,
+                Who::Enemy(i) if s.enemies[i].elite.is_some() => {
+                    100u32.saturating_sub(s.stun.elite_pct.min(100))
+                }
+                _ => 0,
+            };
+            fill(
+                stage,
+                s,
+                target,
+                me,
+                value.saturating_mul(resisted) / 100,
+                events,
+            );
+        }
+    }
     let Who::Enemy(i) = target else {
         return;
     };
@@ -115,6 +140,7 @@ pub(super) fn flinch(
         || e.control.flinch_immune > 0
         || e.control.knocked_down > 0
         || stunned(&e.statuses)
+        || (stage.has_stagger && e.elite.as_ref().is_some_and(|el| el.stagger.staggered > 0))
     {
         return;
     }
@@ -132,6 +158,182 @@ pub(super) fn flinch(
         duration_ticks: u32::from(ticks),
         source: s.players.of_id(source).map(|p| s.players.id(p)),
     });
+}
+
+/// The gauge numbers of `target`: its `stagger_max` and the ticks of its stagger (its own, else
+/// the rules'). A part has none of its own: the boss's. `None` for a target with no gauge.
+pub(super) fn stagger_of(stage: &World, s: &State, target: Who) -> Option<(u32, u16)> {
+    let (max, own) = match target {
+        Who::Boss | Who::BossPart(_) => {
+            let def = &stage.boss(s.boss.as_ref()?.boss).boss;
+            (def.stagger_max?, def.staggered_ticks)
+        }
+        Who::Enemy(i) => {
+            let e = &s.enemies[i];
+            e.elite.as_ref()?;
+            let def = stage.defs.agent(e.def);
+            (def.stagger_max?, def.staggered_ticks)
+        }
+        _ => return None,
+    };
+    Some((max, own.unwrap_or(stage.tuning.staggered_ticks)))
+}
+
+/// The gauge of `target`, which must have one.
+fn gauge_of(s: &mut State, target: Who) -> Option<&mut Stagger> {
+    match target {
+        Who::Boss | Who::BossPart(_) => s.boss.as_mut().map(|b| &mut b.stagger),
+        Who::Enemy(i) => s.enemies[i].elite.as_mut().map(|e| &mut e.stagger),
+        _ => None,
+    }
+}
+
+/// Whether `target` is staggered now: the boss, a part (the boss's) or an elite.
+pub(super) fn is_staggered(s: &State, target: Who) -> bool {
+    match target {
+        Who::Boss | Who::BossPart(_) => s.boss.as_ref().is_some_and(|b| b.stagger.staggered > 0),
+        Who::Enemy(i) => s.enemies[i]
+            .elite
+            .as_ref()
+            .is_some_and(|e| e.stagger.staggered > 0),
+        _ => false,
+    }
+}
+
+/// The percent `vulnerable` and the staggered target's extra damage make together, in place of
+/// `vulnerable` alone: kinds multiply, `(100 + v) * (100 + d) / 100 - 100` (C03).
+pub(super) fn raised(stage: &World, s: &State, target: Who, vulnerable: u32) -> u32 {
+    let pct = stage.tuning.stagger_damage_pct;
+    if pct == 0 || !is_staggered(s, target) {
+        return vulnerable;
+    }
+    let both = (100 + u64::from(vulnerable)) * (100 + u64::from(pct)) / 100 - 100;
+    u32::try_from(both).unwrap_or(u32::MAX)
+}
+
+/// Adds `value` (scaled by the refill list for the bars already broken) to the gauge of `target`,
+/// and staggers it when the gauge is full. It does nothing without a gauge, for a dead, staggered
+/// or invulnerable (a boss in transition) target, for a value that scales to nothing, or for a
+/// player who is not up. A part's hit fills the boss's gauge (C12).
+pub(super) fn fill(
+    stage: &World,
+    s: &mut State,
+    target: Who,
+    me: PlayerIdx,
+    value: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    if !stage.has_stagger || value == 0 || !s.players[me].is_up() {
+        return;
+    }
+    let target = if let Who::BossPart(_) = target {
+        Who::Boss
+    } else {
+        target
+    };
+    let Some((max, ticks)) = stagger_of(stage, s, target) else {
+        return;
+    };
+    let alive = match target {
+        Who::Boss => s
+            .boss
+            .as_ref()
+            .is_some_and(|b| b.hp > 0 && b.invulnerable == 0),
+        Who::Enemy(i) => s.enemies[i].hp > 0,
+        _ => false,
+    };
+    if !alive {
+        return;
+    }
+    let t = &stage.tuning;
+    let Some(g) = gauge_of(s, target) else {
+        return;
+    };
+    if g.staggered > 0 {
+        return;
+    }
+    let pct = if t.stagger_refill_len == 0 {
+        100
+    } else {
+        let last = usize::from(t.stagger_refill_len) - 1;
+        u32::from(t.stagger_refill_pcts[usize::from(g.breaks).min(last)])
+    };
+    let add = value.saturating_mul(pct) / 100;
+    if add == 0 {
+        return;
+    }
+    g.gauge = g.gauge.saturating_add(add).min(max);
+    g.drain = t.stagger_drain_delay;
+    if g.gauge >= max {
+        stagger(stage, s, target, s.players.id(me), ticks, events);
+    }
+}
+
+/// Staggers `target` (the boss or an elite) for `ticks`: its gauge empties, its next bar fills
+/// slower, its attacks end, and it reports the status and, when the rules say so, takes
+/// `vulnerable` for the stagger's ticks. It is no hard control (C03).
+fn stagger(
+    stage: &World,
+    s: &mut State,
+    target: Who,
+    source: EntityId,
+    ticks: u16,
+    events: &mut Vec<DomainEvent>,
+) {
+    if let Some(g) = gauge_of(s, target) {
+        g.staggered = ticks;
+        g.gauge = 0;
+        g.drain = 0;
+        g.breaks = g.breaks.saturating_add(1).min(MAX_STAGGER_BREAKS);
+    }
+    let id = s.id_of(target);
+    attacks::cancel_runs_of(stage, s, id);
+    events.push(DomainEvent::StatusApplied {
+        target: id,
+        status: super::snapshot::STAGGERED_ID.clone(),
+        stacks: 1,
+        duration_ticks: u32::from(ticks),
+        source: Some(source),
+    });
+    let pct = stage.tuning.vulnerable_stagger_pct;
+    if pct > 0 {
+        s.add_status(
+            target,
+            StatusKind::Vulnerable,
+            source,
+            pct,
+            u32::from(ticks),
+            events,
+        );
+    }
+}
+
+/// One tick of every gauge: a stagger counts down and reports its end; an idle gauge waits out its
+/// drain delay and then loses the rules' amount a tick (the tick after the delay is the first to
+/// drain). A gauge that holds nothing costs one compare.
+pub(super) fn stagger_tick(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let per_tick = stage.tuning.stagger_drain_per_tick;
+    fn tick(g: &mut Stagger, id: EntityId, per_tick: u32, events: &mut Vec<DomainEvent>) {
+        if g.staggered > 0 {
+            g.staggered -= 1;
+            if g.staggered == 0 {
+                events.push(DomainEvent::StaggerEnded { target: id });
+            }
+        } else if g.drain > 0 {
+            g.drain -= 1;
+        } else if g.gauge > 0 && per_tick > 0 {
+            g.gauge = g.gauge.saturating_sub(per_tick);
+        }
+    }
+    if let Some(b) = s.boss.as_mut() {
+        tick(&mut b.stagger, b.id, per_tick, events);
+    }
+    for e in &mut s.enemies {
+        let id = e.id;
+        if let Some(el) = e.elite.as_mut() {
+            tick(&mut el.stagger, id, per_tick, events);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -275,6 +477,21 @@ mod tests {
                 }
             }
             assert!(zone_attacks > 0);
+        }
+    }
+
+    #[test]
+    fn the_bench_worlds_name_no_gauge() {
+        // The worst case and the time-limit case are the shipped content: no elite or boss names a
+        // `stagger_max`, so the stagger rules never run there.
+        for engine in [
+            worst_case::warmed_up(),
+            crate::bench_fixtures::time_limit_case::warmed_up(),
+        ] {
+            let Run::V2 { world, .. } = engine.run() else {
+                panic!("the live rules");
+            };
+            assert!(!world.has_stagger);
         }
     }
 }

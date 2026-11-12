@@ -36,6 +36,38 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// An agent's or the boss's `stagger_max` and `staggered_ticks`: `sim_version` 2, 1 to the
+    /// caps, the ticks only with a gauge. `elite` says whether the agent is an elite; the boss
+    /// always may, a regular enemy or a companion never.
+    pub(super) fn stagger(&mut self, max: Option<u32>, ticks: Option<u16>, may: bool) {
+        if let Some(max) = max {
+            if !may {
+                self.key("stagger_max", |c| c.fail("an elite's or the boss's only"));
+            } else if self.sim_version < 2 {
+                self.key("stagger_max", |c| c.fail("needs sim_version 2"));
+            } else {
+                self.within(
+                    "stagger_max",
+                    i64::from(max),
+                    1,
+                    i64::from(crate::limits::MAX_STAGGER),
+                );
+            }
+        }
+        if let Some(ticks) = ticks {
+            if max.is_none() {
+                self.key("staggered_ticks", |c| c.fail("needs stagger_max"));
+            } else {
+                self.within(
+                    "staggered_ticks",
+                    i64::from(ticks),
+                    1,
+                    i64::from(crate::limits::MAX_STAGGERED_TICKS),
+                );
+            }
+        }
+    }
+
     pub(super) fn agent(&mut self, a: &Agent, summon_ok: bool) {
         self.content_id("base", &a.base, Kind::Asset);
         if let Some(p) = &a.palette {
@@ -43,6 +75,8 @@ impl<'a> Ctx<'a> {
         }
         self.threat_colour(&a.threat_colour);
         self.poise(a.poise);
+        let elite = self.foe == Foe::Enemy && a.elite.is_some();
+        self.stagger(a.stagger_max, a.staggered_ticks, elite);
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
         self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
         if let Some(p) = &a.profile {
