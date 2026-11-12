@@ -16,6 +16,7 @@ use crate::run_content::RunContent;
 use crate::rune::Rune;
 use crate::stage::Step as BossStep;
 use crate::stage_skill::SkillEffect;
+use crate::threat_colours::{ThreatColourIndex, ThreatColours};
 use crate::validate::Issue;
 use crate::weapon::{Branches, Step};
 
@@ -67,8 +68,21 @@ fn total_ticks(phases: &[AttackPhase]) -> u64 {
 #[derive(Clone, Debug)]
 struct Entry {
     key: Key,
+    /// The threat colour the attack was compiled for: part of the key, so one reference used by
+    /// two enemies of two colours is two attacks. `None` sorts first, so a run that names no
+    /// colour has the order it always had.
+    colour: Option<ThreatColourIndex>,
     source: AttackRef,
     at: AttackIndex,
+}
+
+impl Entry {
+    /// The order of this entry against `(attack, colour)`, without making a key.
+    fn cmp_with(&self, attack: &AttackRef, colour: Option<ThreatColourIndex>) -> Ordering {
+        self.key
+            .cmp_attack(attack)
+            .then_with(|| self.colour.cmp(&colour))
+    }
 }
 
 /// The attacks of a run by the reference that names them, sorted by key like `AgentDefs::keys`.
@@ -79,15 +93,19 @@ pub(super) struct AttackKeys {
 
 impl AttackKeys {
     /// The first entry that may hold `attack`.
-    fn first(&self, attack: &AttackRef) -> usize {
+    fn first(&self, attack: &AttackRef, colour: Option<ThreatColourIndex>) -> usize {
         self.entries
-            .partition_point(|e| e.key.cmp_attack(attack) == Ordering::Less)
+            .partition_point(|e| e.cmp_with(attack, colour) == Ordering::Less)
     }
 
-    pub fn find(&self, attack: &AttackRef) -> Option<AttackIndex> {
-        self.entries[self.first(attack)..]
+    pub fn find(
+        &self,
+        attack: &AttackRef,
+        colour: Option<ThreatColourIndex>,
+    ) -> Option<AttackIndex> {
+        self.entries[self.first(attack, colour)..]
             .iter()
-            .take_while(|e| e.key.cmp_attack(attack) == Ordering::Equal)
+            .take_while(|e| e.cmp_with(attack, colour) == Ordering::Equal)
             .find(|e| e.source == *attack)
             .map(|e| e.at)
     }
@@ -99,8 +117,9 @@ impl AttackKeys {
         emitters: &mut Vec<Vec<crate::attack::Emitter>>,
         presets: &AttackPresets,
         attack: &AttackRef,
+        colour: Option<ThreatColourIndex>,
     ) -> Result<AttackIndex, Issue> {
-        if let Some(at) = self.find(attack) {
+        if let Some(at) = self.find(attack, colour) {
             return Ok(at);
         }
         let at = u16::try_from(attacks.len()).map_err(|_| Issue {
@@ -131,17 +150,19 @@ impl AttackKeys {
             preset,
             programs,
             pool,
+            colour,
         });
         let at = AttackIndex(at);
-        let first = self.first(attack);
+        let first = self.first(attack, colour);
         let after = self.entries[first..]
             .iter()
-            .take_while(|e| e.key.cmp_attack(attack) == Ordering::Equal)
+            .take_while(|e| e.cmp_with(attack, colour) == Ordering::Equal)
             .count();
         self.entries.insert(
             first + after,
             Entry {
                 key: Key::of(attack),
+                colour,
                 source: attack.clone(),
                 at,
             },
@@ -153,20 +174,24 @@ impl AttackKeys {
 /// Compiles every attack `world`'s run can start: its agents' and bosses', the weapon's, the
 /// orbits', the stage skills' and the on-hit runes'.
 pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(), Issue> {
-    let mut refs: Vec<AttackRef> = Vec::new();
-    for agent in world.defs.agents() {
-        from_rules(&agent.rules, &mut refs);
+    // Each reference with the threat colour it is compiled for: the enemy's or the boss's own,
+    // `None` for everything else (the colour is part of an enemy's attack key).
+    let colours = content.threat_colours();
+    let mut enemy_refs: Vec<(AttackRef, Option<ThreatColourIndex>)> = Vec::new();
+    for def in world.defs.defs_iter() {
+        from_rules(&def.agent.rules, def.colour, colours, &mut enemy_refs);
     }
     for def in &world.bosses {
         for phase in &def.boss.phases {
-            from_rules(&phase.rules, &mut refs);
+            from_rules(&phase.rules, def.colour, colours, &mut enemy_refs);
             for step in &phase.timeline {
                 if let BossStep::Attack { attack, .. } = step {
-                    refs.push(attack.clone());
+                    enemy_refs.push((attack.clone(), def.colour));
                 }
             }
         }
     }
+    let mut refs: Vec<AttackRef> = Vec::new();
     if let Some(weapon) = world.weapon() {
         branches(&weapon.combo, &mut refs);
         branches(&weapon.dash, &mut refs);
@@ -187,12 +212,17 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
             }
         }
     }
+    for (attack, colour) in &enemy_refs {
+        world.compile_attack(attack, *colour)?;
+    }
     for attack in &refs {
-        world.compile_attack(attack)?;
+        world.compile_attack(attack, None)?;
     }
     for rune in Rune::ALL {
         let at = match content.runes().on_hit(rune) {
-            Some(entry) => Some(world.compile_attack(&AttackRef::Inline(entry.attack.clone()))?),
+            Some(entry) => {
+                Some(world.compile_attack(&AttackRef::Inline(entry.attack.clone()), None)?)
+            }
             None => None,
         };
         world.rune_attacks.push(at);
@@ -200,14 +230,25 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
     Ok(())
 }
 
-fn from_rules(list: &[Rule], out: &mut Vec<AttackRef>) {
+fn from_rules(
+    list: &[Rule],
+    colour: Option<ThreatColourIndex>,
+    colours: &ThreatColours,
+    out: &mut Vec<(AttackRef, Option<ThreatColourIndex>)>,
+) {
     for rule in list {
         match &rule.action {
-            Action::Attack { attack, .. } => out.push(attack.clone()),
+            Action::Attack { attack, .. } => out.push((attack.clone(), colour)),
             Action::Cast {
                 skill: Skill::Shot { pattern, .. },
-            } => out.push(pattern.clone()),
-            Action::Summon { agent, .. } => from_rules(&agent.rules, out),
+            } => out.push((pattern.clone(), colour)),
+            // A summoned agent has its own definition and colour.
+            Action::Summon { agent, .. } => from_rules(
+                &agent.rules,
+                super::world::colour_of(colours, agent.threat_colour.as_ref()),
+                colours,
+                out,
+            ),
             _ => {}
         }
     }

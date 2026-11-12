@@ -101,7 +101,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     .filter(|h| h.anchor() == Anchor::Target)
                     .and(r.spot)
             }),
-            threat_colour: None,
+            threat_colour: world.attacks[usize::from(r.attack.0)].colour,
         }
     };
     let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -380,7 +380,13 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     ticks,
                     friendly: z.friendly,
                     warn_only: z.warn_only,
-                    threat_colour: None,
+                    // A friendly zone has no threat colour; an enemy's, the colour of the
+                    // attack it was compiled with.
+                    threat_colour: if z.friendly {
+                        None
+                    } else {
+                        world.program_colour(z.program)
+                    },
                 }
             })
             .collect(),

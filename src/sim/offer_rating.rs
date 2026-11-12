@@ -80,7 +80,7 @@ impl Rate {
         let mut step = world.weapon()?.combo.get(false);
         while let Some(st) = step {
             let phases: &[AttackPhase] =
-                &world.attacks[usize::from(world.attack_index(&st.attack).0)].phases;
+                &world.attacks[usize::from(world.attack_index(&st.attack, None).0)].phases;
             for (i, phase) in phases.iter().enumerate() {
                 ticks += u128::from(attacks::phase_ticks(phases, speed, i));
                 if phase.kind != PhaseKind::Active {

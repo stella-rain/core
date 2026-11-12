@@ -1065,6 +1065,13 @@ impl Engine {
         self.run.kinds()
     }
 
+    /// The run's threat colour table: what every `ThreatColourIndex` in its snapshots names
+    /// (ADR-BRDG-4 point 9). Empty for a run of content without one, and then no snapshot
+    /// carries an index. Fixed for the run, so read it once.
+    pub fn threat_colours(&self) -> &crate::threat_colours::ThreatColours {
+        self.content.threat_colours()
+    }
+
     pub fn tick(&self) -> u32 {
         self.run.tick()
     }
