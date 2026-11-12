@@ -395,7 +395,8 @@ fn the_header_is_read_before_the_payload() {
 /// version 1 state under the format 2 header and the 60-byte stats record); `v1.sha256` stays as
 /// history, format 1 files being refused. Format 4 adds each player's equipment (`v4.sha256`);
 /// format 5 holds the longer stat totals, 11 instead of 6 (`v5.sha256`); format 7 drops the stale
-/// offer fields (`v7.sha256`); format 8 drops the star-offer fields; format 9 adds the combat fields; formats 1 to 8 are refused.
+/// offer fields (`v7.sha256`); format 8 drops the star-offer fields; format 9 adds the combat
+/// fields; formats 1 to 8 are refused.
 /// The golden test of the frozen `trial` run reproduces the newest pin; the byte pin of the live
 /// format is `sim::players_pin_tests` in `src/`.
 #[test]

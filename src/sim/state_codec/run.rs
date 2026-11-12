@@ -56,12 +56,9 @@ impl Decode for Repeat {
             return Err(DecodeError::Invalid("repeat owner past its bound"));
         }
         let due = Decode::decode(r)?;
-        let pct = |r: &mut Reader<'_>| -> Result<u16, DecodeError> {
-            let v = r.u16()?;
-            if u32::from(v) > crate::limits::MAX_PCT {
-                return Err(DecodeError::Invalid("repeat percent past its bound"));
-            }
-            Ok(v)
+        let max_pct = u16::try_from(crate::limits::MAX_PCT).unwrap_or(u16::MAX);
+        let pct = |r: &mut Reader<'_>| {
+            super::foes::within(r.u16()?, max_pct, "repeat percent past its bound")
         };
         let percent = pct(r)?;
         let proc_pct = pct(r)?;
