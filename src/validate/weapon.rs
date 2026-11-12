@@ -107,7 +107,7 @@ impl<'a> Ctx<'a> {
 
     /// A held step's hold: the ticks held and the movement are bounded, the
     /// loop's phases are all `active`, and both attacks are checked as any attack's are.
-    fn hold(&mut self, h: &Hold) {
+    pub(super) fn hold(&mut self, h: &Hold) {
         self.within(
             "max_ticks",
             i64::from(h.max_ticks),
@@ -147,7 +147,7 @@ impl<'a> Ctx<'a> {
     /// A charged step. Level 0 is the step's own attack; the levels here are 1 and
     /// up, after 0, rising strictly and all before `max_ticks`; a perfect window ends by the next
     /// level (or `max_ticks`).
-    fn charge(&mut self, c: &Charge) {
+    pub(super) fn charge(&mut self, c: &Charge) {
         self.within(
             "max_ticks",
             i64::from(c.max_ticks),

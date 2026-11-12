@@ -25,13 +25,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::event::Press;
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_STEP, StatEffect};
-use crate::validate::{Error, Issue};
+use crate::validate::limits::MAX_COMBO_DEPTH;
+use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
+use crate::weapon::{Charge, Hold};
 
 /// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
@@ -42,10 +45,15 @@ pub const TABLE_LEVELS: usize = 10;
 pub const MAX_LEVEL_POINTS: u32 = 1_000_000;
 /// The largest growth factor, in percent: four times the level before.
 pub const MAX_GROWTH_PCT: u16 = 400;
-/// The styles of each weapon: exactly three.
+/// The styles of each weapon: exactly three. The plain base is no style (ADR-SIM-9 point 2): it
+/// is the weapon's base tree, with no entry here.
 pub const STYLES: usize = 3;
-/// The most fixed choices a style offers at each of its two upgrades and its capstone.
-pub const MAX_STYLE_CHOICES: usize = 3;
+/// The fixed choices a style offers at each of its two upgrades and its capstone: exactly one
+/// (ADR-SIM-9 point 3).
+pub const MAX_STYLE_CHOICES: usize = 1;
+/// The most mechanic kinds one level names (a tuning placeholder): the style pick's, an
+/// upgrade's choice's or the capstone's.
+pub const MAX_LEVEL_KINDS: usize = 4;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
 pub use crate::limits::MAX_SET_STATS;
@@ -84,6 +92,9 @@ fn set_stat_most(effect: StatEffect) -> Option<u32> {
 )]
 #[serde(rename_all = "snake_case")]
 pub enum ExpertiseEffect {
+    /// No stat: a level that grants only mechanic `kinds`. Its `amount` is absent or 0 and its
+    /// `kinds` are not empty; a rule of `sim_version` 2.
+    None,
     MaxHp,
     AttackPct,
     AttackSpeedPct,
@@ -105,18 +116,47 @@ impl ExpertiseEffect {
             ExpertiseEffect::EvadePct => StatEffect::EvadePct,
             ExpertiseEffect::SpeedPct => StatEffect::SpeedPct,
             ExpertiseEffect::XpPct => StatEffect::XpPct,
-            ExpertiseEffect::RangePct => return None,
+            ExpertiseEffect::None | ExpertiseEffect::RangePct => return None,
         })
     }
 
     /// The largest amount of this kind.
     pub fn max_amount(self) -> u32 {
         match self {
+            ExpertiseEffect::None => 0,
             ExpertiseEffect::RangePct => MAX_RANGE_PCT,
             ExpertiseEffect::MaxHp => MAX_HP_AMOUNT,
             _ => MAX_AMOUNT,
         }
     }
+}
+
+/// A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum StepGrant {
+    /// The step charges while its button stays held as it starts.
+    Charge(Charge),
+    /// The step holds past its last active phase.
+    Hold(Hold),
+}
+
+/// A mechanic a style level grants: a closed list built into `core`, its numbers in JSON
+/// (ADR-SIM-9 point 3, ADR-CONT-1). Every kind is bounded and validated alone and against the
+/// weapon's base tree. Only the kinds that are listed exist.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StyleKind {
+    /// The step reached by `step` (the presses from the root of the combo tree, 1 to
+    /// `MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral) gets
+    /// `grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its
+    /// charge), so a step never ends with both; two grants on one step inside one style are
+    /// refused.
+    ReplaceStep { step: Vec<Press>, grant: StepGrant },
+}
+
+fn is_zero(v: &u32) -> bool {
+    *v == 0
 }
 
 /// One option: a candidate of a common offer, or a fixed choice of a style.
@@ -126,8 +166,14 @@ pub struct ExpertiseOption {
     /// The option's own ID, unique within its weapon.
     pub id: ContentId,
     pub effect: ExpertiseEffect,
-    /// What taking it adds to the effect's total, from 1 to the effect's most.
+    /// What taking it adds to the effect's total, from 1 to the effect's most; absent (0) for
+    /// the effect `none`.
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub amount: u32,
+    /// The mechanic kinds it grants, at most `MAX_LEVEL_KINDS`; absent or empty for none
+    /// (`sim_version` 2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<StyleKind>,
 }
 
 /// A style: a path chosen at the level table's style level, held for the run. Its
@@ -140,17 +186,23 @@ pub struct Style {
     /// The style's own ID, unique within its weapon.
     pub id: ContentId,
     pub effect: ExpertiseEffect,
-    /// What choosing it adds to the effect's total, from 1 to the effect's most.
+    /// What choosing it adds to the effect's total, from 1 to the effect's most; absent (0) for
+    /// the effect `none`.
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub amount: u32,
+    /// The mechanic kinds the style pick grants, at most `MAX_LEVEL_KINDS`; absent or empty for
+    /// none (`sim_version` 2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<StyleKind>,
     /// The set the style grants in the equipment build, replacing the weapon's base set when
     /// the style is picked: at most `MAX_SET_STATS` stats. Absent or empty: the empty set.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stats: Vec<SetStat>,
-    /// The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
+    /// The first upgrade's one choice.
     pub upgrade_1: Vec<ExpertiseOption>,
-    /// The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.
+    /// The second upgrade's one choice.
     pub upgrade_2: Vec<ExpertiseOption>,
-    /// The capstone's choices, 1 to `MAX_STYLE_CHOICES`.
+    /// The capstone's one choice.
     pub capstone: Vec<ExpertiseOption>,
 }
 
@@ -336,7 +388,14 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
         for (s, style) in weapon.styles.iter().enumerate() {
             let base = at(&format!("styles[{s}]"));
             check_id(&mut issue, &mut seen, &base, &style.id);
-            check_amount(&mut issue, &base, style.effect, style.amount);
+            check_level(
+                &mut issue,
+                &base,
+                style.effect,
+                style.amount,
+                &style.kinds,
+                sim_version,
+            );
             check_set(&mut issue, &format!("{base}.stats"), &style.stats);
             for (field, choices) in [
                 ("upgrade_1", &style.upgrade_1),
@@ -344,21 +403,22 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
                 ("capstone", &style.capstone),
             ] {
                 let path = format!("{base}.{field}");
-                if choices.is_empty() || choices.len() > MAX_STYLE_CHOICES {
+                if choices.len() != MAX_STYLE_CHOICES {
                     issue(
                         path.clone(),
-                        format!("1 to {MAX_STYLE_CHOICES} choices (found {})", choices.len()),
+                        format!("exactly 1 choice (found {})", choices.len()),
                     );
                 }
                 for (c, choice) in choices.iter().enumerate() {
                     let path = format!("{path}[{c}]");
-                    check_option(&mut issue, &mut seen, &path, choice);
+                    check_option(&mut issue, &mut seen, &path, choice, sim_version);
                 }
             }
+            check_step_once(&mut issue, &base, style);
         }
         for (c, option) in weapon.common.iter().enumerate() {
             let path = at(&format!("common[{c}]"));
-            check_option(&mut issue, &mut seen, &path, option);
+            check_option(&mut issue, &mut seen, &path, option, sim_version);
         }
     }
     if issues.is_empty() {
@@ -373,9 +433,117 @@ fn check_option<'a>(
     seen: &mut Vec<&'a ContentId>,
     path: &str,
     option: &'a ExpertiseOption,
+    sim_version: u32,
 ) {
     check_id(issue, seen, path, &option.id);
-    check_amount(issue, path, option.effect, option.amount);
+    check_level(
+        issue,
+        path,
+        option.effect,
+        option.amount,
+        &option.kinds,
+        sim_version,
+    );
+}
+
+/// A level's stat and kinds: a stat effect has an amount from 1 to its most; `none` has none
+/// and names at least one kind; the kinds, and `none`, are `sim_version` 2's, at most
+/// `MAX_LEVEL_KINDS`, each bounded alone.
+fn check_level(
+    issue: &mut impl FnMut(String, String),
+    path: &str,
+    effect: ExpertiseEffect,
+    amount: u32,
+    kinds: &[StyleKind],
+    sim_version: u32,
+) {
+    if effect == ExpertiseEffect::None {
+        if sim_version < 2 {
+            issue(
+                format!("{path}.effect"),
+                "the effect none needs sim_version 2".into(),
+            );
+        } else if kinds.is_empty() {
+            issue(
+                format!("{path}.effect"),
+                "the effect none needs at least one kind".into(),
+            );
+        }
+        if amount != 0 {
+            issue(
+                format!("{path}.amount"),
+                format!("none takes no amount (found {amount})"),
+            );
+        }
+    } else {
+        check_amount(issue, path, effect, amount);
+    }
+    if kinds.is_empty() {
+        return;
+    }
+    let at = format!("{path}.kinds");
+    if sim_version < 2 {
+        issue(at.clone(), "kinds need sim_version 2".into());
+    }
+    if kinds.len() > MAX_LEVEL_KINDS {
+        issue(
+            at.clone(),
+            format!("at most {MAX_LEVEL_KINDS} kinds (found {})", kinds.len()),
+        );
+    }
+    for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
+        let at = format!("{at}[{k}]");
+        let StyleKind::ReplaceStep { step, grant } = kind;
+        if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
+            issue(
+                format!("{at}.step"),
+                format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
+            );
+        }
+        if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
+            for f in found {
+                issue(
+                    format!("{at}.grant{}", f.path.trim_start_matches('$')),
+                    f.message,
+                );
+            }
+        }
+    }
+}
+
+/// The levels of a style's path in order, as the simulation takes them: the style pick's own
+/// kinds, then the one choice of each upgrade and the capstone.
+pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOption>); 3] {
+    [
+        ("upgrade_1", style.upgrade_1.first()),
+        ("upgrade_2", style.upgrade_2.first()),
+        ("capstone", style.capstone.first()),
+    ]
+}
+
+/// One grant on a step per style: a second grant on a step an earlier level of the same style
+/// granted is refused at the later one.
+fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
+    let mut seen: Vec<&Vec<Press>> = Vec::new();
+    let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
+    for (field, option) in style_levels(style) {
+        if let Some(o) = option {
+            levels.push((format!("{base}.{field}[0].kinds"), &o.kinds));
+        }
+    }
+    for (path, kinds) in levels {
+        for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
+            let StyleKind::ReplaceStep { step, .. } = kind;
+            if seen.contains(&step) {
+                issue(
+                    format!("{path}[{k}].step"),
+                    "the step is already granted by an earlier level of the style".into(),
+                );
+            } else {
+                seen.push(step);
+            }
+        }
+    }
 }
 
 fn check_id<'a>(

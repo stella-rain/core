@@ -3,6 +3,7 @@
 use super::limits::*;
 use super::{Ctx, Foe};
 use crate::attack::{AttackPhase, AttackRef};
+use crate::expertise::StepGrant;
 use crate::registry::{self, Entry};
 use crate::stage::{Levels, Stage, Stars, Wave};
 use crate::version::{self};
@@ -196,5 +197,33 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         Ok(())
     } else {
         Err(Error::Invalid(ctx.issues))
+    }
+}
+
+/// Checks a style's step grant as the weapon validator checks a charge or a hold, so every number
+/// is capped by the same bounds (ADR-SIM-9 point 3). Paths are from the grant:
+/// `$.charge.levels[0].at_ticks`, `$.hold.max_ticks`.
+pub fn validate_step_grant(grant: &StepGrant, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
+        loop_rounds: 0,
+    };
+    match grant {
+        StepGrant::Charge(c) => ctx.key("charge", |ctx| ctx.charge(c)),
+        StepGrant::Hold(h) => ctx.key("hold", |ctx| ctx.hold(h)),
+    }
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
     }
 }

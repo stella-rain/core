@@ -76,8 +76,17 @@ fn parse(v: &Value) -> Result<Expertise, Error> {
 
 fn with(pointer: &str, value: Value) -> Value {
     let mut v = file();
-    *v.pointer_mut(pointer)
-        .unwrap_or_else(|| panic!("{pointer} exists in the test file")) = value;
+    // The last key may be new (`kinds`): its parent has to exist.
+    let (parent, key) = pointer.rsplit_once('/').expect("a pointer");
+    match v.pointer_mut(pointer) {
+        Some(slot) => *slot = value,
+        None => {
+            v.pointer_mut(parent)
+                .and_then(Value::as_object_mut)
+                .unwrap_or_else(|| panic!("{parent} exists in the test file"))
+                .insert(key.to_string(), value);
+        }
+    }
     v
 }
 
@@ -440,7 +449,10 @@ fn a_level_names_its_kinds() {
     let v = with("/weapons/0/styles/0/kinds", kinds.clone());
     let parsed = parse(&v).expect("a style with a kind parses");
     let level = serde_json::to_value(&parsed.weapons()[0].styles[0]).unwrap();
-    assert_eq!(level["kinds"], kinds);
+    // A preset reference serialises with its (empty) arguments.
+    let mut want = kinds.clone();
+    want[0]["grant"]["charge"]["levels"][0]["attack"]["preset"]["args"] = json!([]);
+    assert_eq!(level["kinds"], want);
     for at in [
         "/weapons/0/styles/0/upgrade_1/0",
         "/weapons/0/styles/1/capstone/0",
@@ -545,7 +557,7 @@ fn the_kinds_of_a_level_are_bounded() {
     invalid_at(
         &grant(json!({ "charge": { "levels": [{ "at_ticks": 20,
             "attack": { "preset": { "id": "no_such_preset" } } }], "max_ticks": 60 } })),
-        &format!("{path}[0].grant.charge.levels[0].attack.preset"),
+        &format!("{path}[0].grant.charge.levels[0].attack.preset.id"),
     );
 }
 

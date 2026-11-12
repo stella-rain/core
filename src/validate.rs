@@ -24,7 +24,7 @@ mod weapon;
 
 pub use entry::{
     parse_and_validate, validate, validate_attack, validate_attack_ref, validate_levels_and_stars,
-    validate_waves, validate_weapon_preset, validate_with,
+    validate_step_grant, validate_waves, validate_weapon_preset, validate_with,
 };
 pub use error::{Error, Issue};
 pub(crate) use weapon::TREE_ID_PROBLEM;
