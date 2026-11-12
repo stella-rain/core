@@ -11,6 +11,7 @@ use crate::id::{ContentId, EntityId};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
+use crate::threat_colours::ThreatColourIndex;
 
 /// An attack in progress, for the frontend to draw its telegraph and its swing on the
 /// same tick that `core` judges them.
@@ -38,6 +39,12 @@ pub struct AttackView {
     /// on-hit rune's attack, at the point the combo step hit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<Point>,
+    /// The entry of the run's threat colour table (`Engine::threat_colours`) the enemy that
+    /// made it names; absent for every other area, and for an enemy that names none: the
+    /// frontend draws its own hostile colour. Never present on a friendly area. Absent is the
+    /// key missing from the JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threat_colour: Option<ThreatColourIndex>,
 }
 
 /// A zone (core Z1): where it is, which way an arc or a line points, and how long its current
@@ -61,6 +68,12 @@ pub struct ZoneView {
     /// A warning only: `phase` stays `wind_up` for its whole life and no hit follows.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub warn_only: bool,
+    /// The entry of the run's threat colour table (`Engine::threat_colours`) the enemy that
+    /// placed it names; absent for every other area, and for an enemy that names none: the
+    /// frontend draws its own hostile colour. Never present on a friendly area. Absent is the
+    /// key missing from the JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threat_colour: Option<ThreatColourIndex>,
 }
 
 /// A direction as a unit vector times `trig::SCALE`; `y` grows down the screen.

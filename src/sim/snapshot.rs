@@ -101,6 +101,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     .filter(|h| h.anchor() == Anchor::Target)
                     .and(r.spot)
             }),
+            threat_colour: None,
         }
     };
     let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -379,6 +380,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     ticks,
                     friendly: z.friendly,
                     warn_only: z.warn_only,
+                    threat_colour: None,
                 }
             })
             .collect(),
