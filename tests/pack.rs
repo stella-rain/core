@@ -1247,3 +1247,130 @@ fn the_layout_has_the_catalogue_after_stardust() {
     let at = |n: &str| names.iter().position(|x| *x == n).unwrap();
     assert_eq!(at("star_chart"), at("stardust") + 1);
 }
+
+/// A hold: an inline loop of one active phase and an inline release.
+fn inline_hold() -> Value {
+    let active = json!({ "kind": "active", "ticks": 4, "type": "strike",
+        "hit_box": { "type": "circle", "offset": { "forward": 0, "right": 0 }, "radius": 8192 } });
+    json!({ "hold": { "loop": { "inline": [active.clone()] },
+        "release": { "inline": [active] }, "max_ticks": 60 } })
+}
+
+fn inline_charge() -> Value {
+    let slash = json!({ "preset": { "id": "slash" } });
+    json!({ "charge": { "levels": [{ "at_ticks": 20, "attack": slash }], "max_ticks": 60 } })
+}
+
+fn grant_kind(step: Value, grant: Value) -> Value {
+    json!({ "type": "replace_step", "step": step, "grant": grant })
+}
+
+/// The pack with `kinds` on the Hammer's first style (the style level's own kinds).
+fn pack_with_hammer_kinds(kinds: Value) -> Value {
+    let mut v = value();
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .expect("the Hammer's expertise");
+    w["styles"][0]["kinds"] = kinds;
+    w["styles"][0]["upgrade_1"][0]["effect"] = json!("attack_pct");
+    v
+}
+
+fn refused_in_expertise(v: &Value) -> Vec<String> {
+    match load(v) {
+        Err(PackError::File {
+            file: "expertise",
+            error: Error::Invalid(issues),
+        }) => issues.into_iter().map(|i| i.path).collect(),
+        other => panic!("expected an expertise refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// T3: a style's grants are checked against the weapon's base tree, in the pack.
+#[test]
+fn a_style_grant_is_checked_against_the_base_tree() {
+    // A charge on AAA replaces the Hammer's hold there; a hold on the first A is the Hammer's
+    // inline attack, which ends in a spawn-free recovery.
+    let aaa = json!(["main", "main", "main"]);
+    assert!(
+        load(&pack_with_hammer_kinds(json!([grant_kind(
+            aaa,
+            inline_charge()
+        )])))
+        .is_ok()
+    );
+    let a = json!(["main"]);
+    assert!(
+        load(&pack_with_hammer_kinds(json!([grant_kind(
+            a,
+            inline_hold()
+        )])))
+        .is_ok()
+    );
+    // Not a step of the tree.
+    let far = json!(vec!["smash"; 7]);
+    let paths = refused_in_expertise(&pack_with_hammer_kinds(json!([grant_kind(
+        far,
+        inline_charge()
+    )])));
+    assert!(
+        paths
+            .iter()
+            .any(|p| p == "$.weapons[0].styles[0].kinds[0].step"),
+        "{paths:?}"
+    );
+    // A step that is none of the tree's: depth 3 of smash from neutral.
+    let none = json!(["smash", "main"]);
+    let paths = refused_in_expertise(&pack_with_hammer_kinds(json!([grant_kind(
+        none,
+        inline_charge()
+    )])));
+    assert!(
+        paths
+            .iter()
+            .any(|p| p == "$.weapons[0].styles[0].kinds[0].step"),
+        "{paths:?}"
+    );
+}
+
+/// T3: a hold on a step whose attack does not end in a spawn-free recovery is refused.
+#[test]
+fn a_granted_hold_needs_a_step_that_ends_in_a_spawn_free_recovery() {
+    let mut v = pack_with_hammer_kinds(json!([grant_kind(json!(["main"]), inline_hold())]));
+    assert_eq!(v["weapons"]["weapons"][0]["id"], "giant_hammer");
+    v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["attack"] = json!({
+        "inline": [
+            { "kind": "wind_up", "ticks": 6 },
+            { "kind": "active", "ticks": 4, "type": "strike",
+              "hit_box": { "type": "circle", "offset": { "forward": 0, "right": 0 }, "radius": 8192 } }
+        ]
+    });
+    let paths = refused_in_expertise(&v);
+    assert!(
+        paths
+            .iter()
+            .any(|p| p.starts_with("$.weapons[0].styles[0].kinds[0]")),
+        "{paths:?}"
+    );
+}
+
+/// T3: a charge whose level attack names an unregistered preset is refused; a weapon with no
+/// tree in the weapons file is skipped, not an error.
+#[test]
+fn a_grant_with_an_unknown_preset_is_refused() {
+    let bad = json!({ "charge": { "levels": [{ "at_ticks": 20,
+        "attack": { "preset": { "id": "no_such_preset" } } }], "max_ticks": 60 } });
+    let paths = refused_in_expertise(&pack_with_hammer_kinds(json!([grant_kind(
+        json!(["main", "main", "main"]),
+        bad
+    )])));
+    assert!(
+        paths
+            .iter()
+            .any(|p| p.starts_with("$.weapons[0].styles[0].kinds[0]")),
+        "{paths:?}"
+    );
+}

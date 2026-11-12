@@ -237,3 +237,27 @@ fn a_stage_that_names_an_unknown_tree_is_refused() {
         other => panic!("not refused: {:?}", other.map(|_| ())),
     }
 }
+
+/// T1: a setup written before the trees were cut to one still reads: it names `<weapon>_base`
+/// or no tree; any other name keeps the refusal.
+#[test]
+fn a_setup_naming_the_base_tree_or_none_still_loads() {
+    use stella_rain_core::validate;
+    let mut stage = validate::parse_and_validate(run_setup::mode_stage("trial").unwrap()).unwrap();
+    for (weapon, tree) in [
+        ("giant_sword", Some("giant_sword_base")),
+        ("giant_hammer", Some("giant_hammer_base")),
+        ("giant_sword", None),
+    ] {
+        stage.player.weapon = stella_rain_core::weapon::WeaponRef::Preset {
+            id: weapon.into(),
+            tree: tree.map(Into::into),
+        };
+        assert!(Engine::new(&stage).is_ok(), "{weapon} {tree:?}");
+    }
+    stage.player.weapon = stella_rain_core::weapon::WeaponRef::Preset {
+        id: "giant_sword".into(),
+        tree: Some("giant_sword_aab".into()),
+    };
+    assert!(Engine::new(&stage).is_err());
+}

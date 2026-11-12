@@ -22,6 +22,8 @@ use crate::time_limit::EliteTier;
 use crate::validate::Issue;
 use crate::weapon::{Weapon, WeaponRef};
 
+use super::state::PlayerIdx;
+
 use super::attack_table::{self, AttackKeys};
 
 /// An agent definition of the run, by its place in `AgentDefs`: what an agent keeps of its
@@ -445,7 +447,14 @@ pub(crate) struct World {
     /// The main character's weapon, resolved from the run's weapons file once (WP1): none for a
     /// weapon the file does not define.
     weapon: Option<Weapon>,
+    /// The base tree with a style's grants applied, one per `(style, places taken)` of a style
+    /// that grants something (ADR-SIM-9 point 3), at `style * 4 + taken`; empty for a run whose
+    /// weapon has no grant, which is every run of the bundled pack.
+    grant_weapons: Vec<Option<Weapon>>,
 }
+
+/// The places of a style's path (0 to 3 taken): the copies of one style.
+const PATH_PLACES: usize = 4;
 
 impl World {
     /// Compiles `stage` and, for a `time_limit` run, its `horde`.
@@ -519,6 +528,7 @@ impl World {
             }
         }
         let weapon = content.weapons().resolve(main).cloned();
+        let grant_weapons = grant_weapons(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -568,6 +578,7 @@ impl World {
             has_dash: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
+            grant_weapons,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -607,6 +618,28 @@ impl World {
     /// The main character's weapon: the file's definition, or the stage's inline one.
     pub fn weapon(&self) -> Option<&Weapon> {
         self.weapon.as_ref()
+    }
+
+    /// The weapon player `me` plays now: the base tree, or the copy with the grants of the style
+    /// chosen and the places of its path taken (ADR-SIM-9 point 3), read from the recorded style
+    /// and path, so no state or input is added. One branch for a run with no grant.
+    pub(crate) fn weapon_of(&self, s: &super::state::State, me: PlayerIdx) -> Option<&Weapon> {
+        if self.grant_weapons.is_empty() {
+            return self.weapon();
+        }
+        let granted = s.players.career(me).expertise.as_ref().and_then(|g| {
+            let style = usize::from(g.style?);
+            let taken = g.path.len().min(PATH_PLACES - 1);
+            self.grant_weapons
+                .get(style * PATH_PLACES + taken)?
+                .as_ref()
+        });
+        granted.or_else(|| self.weapon())
+    }
+
+    /// Every copy of the weapon with a style's grants, for the attack table.
+    pub(super) fn granted_weapons(&self) -> impl Iterator<Item = &Weapon> {
+        self.grant_weapons.iter().flatten()
     }
 
     /// Compiles `attack` unless the run has it already, and returns its index.
@@ -672,6 +705,40 @@ impl Deref for World {
     fn deref(&self) -> &Stage {
         &self.stage
     }
+}
+
+/// The copies of `base`, the run's weapon, for each style of the weapon's expertise that grants
+/// a kind: one per number of places of its path taken (0 to 3). Empty when the weapon is not a
+/// preset with expertise content or no style grants anything.
+fn grant_weapons(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<Weapon>> {
+    let (WeaponRef::Preset { id, .. }, Some(base)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let grants = |s: &crate::expertise::Style| {
+        !s.kinds.is_empty()
+            || crate::expertise::style_levels(s)
+                .into_iter()
+                .any(|(_, o)| o.is_some_and(|o| !o.kinds.is_empty()))
+    };
+    if !expertise.styles.iter().any(grants) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(
+                grants(style).then(|| crate::expertise::weapon_with_style(base, style, taken)),
+            );
+        }
+    }
+    out
 }
 
 #[cfg(test)]

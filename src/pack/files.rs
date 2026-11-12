@@ -8,7 +8,8 @@ use std::sync::OnceLock;
 use serde_json::value::RawValue;
 
 use super::{
-    BorrowedPack, Pack, PackError, PackFile, check_holds, file_bytes, introduced_at, location,
+    BorrowedPack, Pack, PackError, PackFile, check_holds, check_style_grants, file_bytes,
+    introduced_at, location,
 };
 
 use crate::attack_presets::AttackPresets;
@@ -260,6 +261,9 @@ impl ContentFiles {
         let weapons = Weapons::parse(get("weapons")?, Versions::CURRENT)
             .map_err(PackError::in_file("weapons"))?;
         check_holds(&weapons, &attack_presets)?;
+        let expertise = Expertise::parse(get("expertise")?, Versions::CURRENT)
+            .map_err(PackError::in_file("expertise"))?;
+        check_style_grants(&expertise, &weapons, &attack_presets)?;
         let rules =
             Rules::parse(get("rules")?, Versions::CURRENT).map_err(PackError::in_file("rules"))?;
         let starting_unlocks = optional("starting_unlocks")
@@ -301,8 +305,7 @@ impl ContentFiles {
         let content = RunContent::from_parts(
             run_stats,
             rewards,
-            Expertise::parse(get("expertise")?, Versions::CURRENT)
-                .map_err(PackError::in_file("expertise"))?,
+            expertise,
             MatchUps::parse(get("match_ups")?, Versions::CURRENT)
                 .map_err(PackError::in_file("match_ups"))?,
             runes,

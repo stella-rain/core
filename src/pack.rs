@@ -44,7 +44,7 @@ pub mod trust;
 
 use check::{
     check_budgets, check_default_difficulty, check_default_perk_set, check_difficulty_boss_times,
-    check_equipment_rules, check_holds, check_perk_categories,
+    check_equipment_rules, check_holds, check_perk_categories, check_style_grants,
 };
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
@@ -117,7 +117,7 @@ pub const MAX_STARDUST_MODES: usize = crate::stardust::MAX_MODES;
 pub const MAX_ATTACK_PRESETS: usize = 40;
 /// The most weapons the weapons file lists (1 today; held to the file's own cap).
 pub const MAX_WEAPONS: usize = crate::weapons::MAX_WEAPONS;
-/// The most trees one weapon has (1 today; held to the file's own cap).
+/// The trees one weapon has: exactly one, its base tree (held to the file's own cap).
 pub const MAX_TREES: usize = crate::weapons::MAX_TREES;
 /// The most sets of named stars (none today; held to the file's own cap).
 pub const MAX_CONSTELLATIONS: usize = crate::constellations::MAX_CONSTELLATIONS;
@@ -476,6 +476,7 @@ impl Pack {
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
             .map_err(PackError::in_file("weapons"))?;
         check_holds(&weapons, &attack_presets)?;
+        check_style_grants(&expertise, &weapons, &attack_presets)?;
         let rules = Rules::parse(&file_bytes(&pack.rules), versions)
             .map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack

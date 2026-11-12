@@ -3942,6 +3942,11 @@
           "type": "string"
         },
         {
+          "const": "none",
+          "description": "No stat: a level that grants only mechanic `kinds`. Its `amount` is absent or 0 and its\n`kinds` are not empty; a rule of `sim_version` 2.",
+          "type": "string"
+        },
+        {
           "const": "range_pct",
           "description": "Every combo step's hit box `amount` percent larger, as the range reward widens it,\nat most `MAX_RANGE_PCT`.",
           "type": "string"
@@ -4015,7 +4020,7 @@
       "description": "One option: a candidate of a common offer, or a fixed choice of a style.",
       "properties": {
         "amount": {
-          "description": "What taking it adds to the effect's total, from 1 to the effect's most.",
+          "description": "What taking it adds to the effect's total, from 1 to the effect's most; absent (0) for\nthe effect `none`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -4026,12 +4031,18 @@
         "id": {
           "$ref": "#/$defs/ContentId",
           "description": "The option's own ID, unique within its weapon."
+        },
+        "kinds": {
+          "description": "The mechanic kinds it grants, at most `MAX_LEVEL_KINDS`; absent or empty for none\n(`sim_version` 2).",
+          "items": {
+            "$ref": "#/$defs/StyleKind"
+          },
+          "type": "array"
         }
       },
       "required": [
         "id",
-        "effect",
-        "amount"
+        "effect"
       ],
       "type": "object"
     },
@@ -4869,6 +4880,33 @@
       "maximum": 65535,
       "minimum": 0,
       "type": "integer"
+    },
+    "LevelKindsView": {
+      "additionalProperties": false,
+      "description": "The kinds one level of a style's path grants.",
+      "properties": {
+        "kinds": {
+          "description": "What taking it grants; empty for a level that names none.",
+          "items": {
+            "$ref": "#/$defs/StyleKindView"
+          },
+          "type": "array"
+        },
+        "offer": {
+          "$ref": "#/$defs/ExpertiseOfferKind",
+          "description": "Style (the style pick itself), Upgrade or Capstone."
+        },
+        "option": {
+          "$ref": "#/$defs/ContentId",
+          "description": "The style's or the choice's ID at that level."
+        }
+      },
+      "required": [
+        "offer",
+        "option",
+        "kinds"
+      ],
+      "type": "object"
     },
     "LevelTable": {
       "additionalProperties": false,
@@ -9161,6 +9199,45 @@
         }
       ]
     },
+    "StepGrant": {
+      "description": "A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The step charges while its button stays held as it starts.",
+          "properties": {
+            "charge": {
+              "$ref": "#/$defs/Charge"
+            }
+          },
+          "required": [
+            "charge"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The step holds past its last active phase.",
+          "properties": {
+            "hold": {
+              "$ref": "#/$defs/Hold"
+            }
+          },
+          "required": [
+            "hold"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "StepGrantKind": {
+      "description": "Which a `replace_step` grant gives its step.",
+      "enum": [
+        "charge",
+        "hold"
+      ],
+      "type": "string"
+    },
     "StunRules": {
       "additionalProperties": false,
       "description": "The stun rules: run rules read with the stats, as they are content\ntoo. Both are tuning values; that each is bounded is the decision.",
@@ -9189,13 +9266,13 @@
       "description": "A style: a path chosen at the level table's style level, held for the run. Its\nown effect applies when it is chosen at `sim_version` 1 (a version 2 run applies the style's\n`stats` set instead: the set is everything); it then offers the fixed choices of `upgrade_1` at the\ntable's first upgrade level, `upgrade_2` at the second and `capstone` at the capstone's.",
       "properties": {
         "amount": {
-          "description": "What choosing it adds to the effect's total, from 1 to the effect's most.",
+          "description": "What choosing it adds to the effect's total, from 1 to the effect's most; absent (0) for\nthe effect `none`.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
         "capstone": {
-          "description": "The capstone's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "description": "The capstone's one choice.",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
           },
@@ -9208,6 +9285,13 @@
           "$ref": "#/$defs/ContentId",
           "description": "The style's own ID, unique within its weapon."
         },
+        "kinds": {
+          "description": "The mechanic kinds the style pick grants, at most `MAX_LEVEL_KINDS`; absent or empty for\nnone (`sim_version` 2).",
+          "items": {
+            "$ref": "#/$defs/StyleKind"
+          },
+          "type": "array"
+        },
         "stats": {
           "description": "The set the style grants in the equipment build, replacing the weapon's base set when\nthe style is picked: at most `MAX_SET_STATS` stats. Absent or empty: the empty set.",
           "items": {
@@ -9216,14 +9300,14 @@
           "type": "array"
         },
         "upgrade_1": {
-          "description": "The first upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "description": "The first upgrade's one choice.",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
           },
           "type": "array"
         },
         "upgrade_2": {
-          "description": "The second upgrade's choices, 1 to `MAX_STYLE_CHOICES`.",
+          "description": "The second upgrade's one choice.",
           "items": {
             "$ref": "#/$defs/ExpertiseOption"
           },
@@ -9233,12 +9317,71 @@
       "required": [
         "id",
         "effect",
-        "amount",
         "upgrade_1",
         "upgrade_2",
         "capstone"
       ],
       "type": "object"
+    },
+    "StyleKind": {
+      "description": "A mechanic a style level grants: a closed list built into `core`, its numbers in JSON\n(ADR-SIM-9 point 3, ADR-CONT-1). Every kind is bounded and validated alone and against the\nweapon's base tree. Only the kinds that are listed exist.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The step reached by `step` (the presses from the root of the combo tree, 1 to\n`MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral) gets\n`grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its\ncharge), so a step never ends with both; two grants on one step inside one style are\nrefused.",
+          "properties": {
+            "grant": {
+              "$ref": "#/$defs/StepGrant"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "replace_step",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "grant"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "StyleKindView": {
+      "description": "A mechanic kind a style level grants, in the compact form a snapshot carries (built every\nframe, so the grant's attacks are not inside).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The step the presses reach from the root of the combo tree gets a charge or a hold.",
+          "properties": {
+            "grant": {
+              "$ref": "#/$defs/StepGrantKind"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "replace_step",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "grant"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "Tier": {
       "additionalProperties": false,
@@ -9526,6 +9669,16 @@
           "$ref": "#/$defs/ExpertiseOfferKind",
           "description": "Style, Upgrade or Capstone: the next pick's kind."
         },
+        "kinds": {
+          "description": "The mechanic kinds each option grants, one entry per option in `options` order; absent\nwhile no option names a kind.",
+          "items": {
+            "items": {
+              "$ref": "#/$defs/StyleKindView"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
         "level": {
           "description": "The level table's level of this pick.",
           "format": "uint32",
@@ -9552,6 +9705,13 @@
       "additionalProperties": false,
       "description": "One tree's stat set.",
       "properties": {
+        "grants": {
+          "description": "What the style grants besides stats: its own level, then its three path levels; absent\nwhen no level names a kind.",
+          "items": {
+            "$ref": "#/$defs/LevelKindsView"
+          },
+          "type": "array"
+        },
         "stats": {
           "description": "The stats it gives at the weapon's level.",
           "items": {
@@ -9770,7 +9930,7 @@
           "description": "A registered weapon ID, unique within the file."
         },
         "trees": {
-          "description": "The trees in order, tree 1 first, 1 to `MAX_TREES`.",
+          "description": "The trees: exactly `MAX_TREES`, the base tree.",
           "items": {
             "$ref": "#/$defs/WeaponTree"
           },

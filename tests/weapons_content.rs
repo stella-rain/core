@@ -148,3 +148,31 @@ fn a_run_made_with_other_weapons_does_not_verify_against_this_pack() {
         run_replay::content_sha256_with("trial", &b)
     );
 }
+
+/// T1: a weapon has exactly one base tree (ADR-SIM-9 point 2).
+#[test]
+fn a_weapon_has_exactly_one_base_tree() {
+    assert_eq!(MAX_TREES, 1);
+    let mut v = bundled_file();
+    let mut second = v["weapons"][0]["trees"][0].clone();
+    second["id"] = json!("giant_hammer_other");
+    v["weapons"][0]["trees"] = json!([v["weapons"][0]["trees"][0].clone(), second]);
+    assert_eq!(refused(&v), ["$.weapons[0].trees"]);
+    let err = Weapons::parse(v.to_string().as_bytes(), Versions::CURRENT).unwrap_err();
+    assert!(
+        format!("{err:?}").contains("exactly one base tree (found 2)"),
+        "{err:?}"
+    );
+}
+
+/// T1: a pack with two trees on a weapon is refused by the budget, before its files are read.
+#[test]
+fn a_pack_with_two_trees_on_a_weapon_is_refused_before_its_files_are_read() {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let tree = v["weapons"]["weapons"][0]["trees"][0].clone();
+    v["weapons"]["weapons"][0]["trees"] = json!([tree.clone(), tree]);
+    match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+        Err(PackError::Budget { path, .. }) => assert_eq!(path, "$.weapons.weapons[0].trees"),
+        other => panic!("{:?}", other.map(|_| ())),
+    }
+}

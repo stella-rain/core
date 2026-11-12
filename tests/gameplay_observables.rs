@@ -125,9 +125,19 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
     out
 }
 
+/// `text` without the fields the style kinds added to two views, `TreeReadyView.kinds` and
+/// `TreeStatsView.grants`, while they are empty (every kind is dormant): the digests were
+/// recorded before the fields existed, and an empty one changes no gameplay. A view that names
+/// a kind keeps its field and so moves the digest.
+pub(crate) fn drop_empty_added_fields(text: &str) -> String {
+    text.replace(", kinds: [] }", " }")
+        .replace(", grants: [] }", " }")
+}
+
 /// Feeds `text` to `sha` with its entity IDs mapped.
 fn feed_mapped(sha: &mut Sha256, text: &str) {
-    sha.update(rewrite_ids(&restore_removed_fields(text)).as_bytes());
+    let text = drop_empty_added_fields(text);
+    sha.update(rewrite_ids(&restore_removed_fields(&text)).as_bytes());
     sha.update(b"\n");
 }
 

@@ -1,14 +1,14 @@
 //! The weapons file (WP1, DS20 item 2): each weapon's combo trees as content data, so that a
 //! weapon is balanced as content and not as code. A weapon is a registered weapon ID (ADR-CONT-2)
-//! with one to `MAX_TREES` trees, tree 1 first (ADR-REPL-5); a tree is a `Weapon`, the
-//! stage format's own type, under a tree ID of its own. A stage names one by ID and tree
+//! with exactly `MAX_TREES` (one) base tree (ADR-SIM-9 point 2, ADR-REPL-5); a tree is a
+//! `Weapon`, the stage format's own type, under a tree ID of its own. A stage names one by ID and tree
 //! (`WeaponRef::Preset`), or holds an inline weapon. The attack presets are content too
 //! (ADR-CONT-3, CS1b-1, `attack_presets.rs`).
 //!
 //! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most `MAX_WEAPONS`
-//! weapons with unique registered IDs, at most `MAX_TREES` trees each with unique well-formed
-//! IDs, and each tree checked as a stage's inline weapon is (`validate::validate_weapon_preset`).
+//! weapons with unique registered IDs, exactly `MAX_TREES` tree (one) each with a well-formed
+//! ID, and each tree checked as a stage's inline weapon is (`validate::validate_weapon_preset`).
 //! The SHA-256 of the file's bytes is part of a run's content hash through the pack, so a run
 //! replay verifies only with the weapons it was made with.
 //! The bundled file, `content/weapons.json`, is part of the bundled pack.
@@ -28,8 +28,9 @@ use crate::weapon::{Weapon, WeaponRef};
 pub const MAX_WEAPONS_BYTES: usize = 512 * 1024;
 /// The most weapons the file lists (1 today; a tuning value).
 pub const MAX_WEAPONS: usize = 16;
-/// The most trees one weapon has (1 today; a tuning value).
-pub const MAX_TREES: usize = 8;
+/// The trees one weapon has: exactly one, its base tree (ADR-SIM-9 point 2). The tree's ID and
+/// the setup's `weapon_tree` stay, so a setup naming `<weapon>_base` or none still loads.
+pub const MAX_TREES: usize = 1;
 
 /// One tree of a weapon.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -47,7 +48,7 @@ pub struct WeaponTree {
 pub struct WeaponEntry {
     /// A registered weapon ID, unique within the file.
     pub id: ContentId,
-    /// The trees in order, tree 1 first, 1 to `MAX_TREES`.
+    /// The trees: exactly `MAX_TREES`, the base tree.
     pub trees: Vec<WeaponTree>,
 }
 
@@ -165,10 +166,10 @@ pub fn validate(file: &WeaponsFile) -> Result<(), Error> {
                 "the same ID as an earlier weapon".into(),
             );
         }
-        if w.trees.is_empty() || w.trees.len() > MAX_TREES {
+        if w.trees.len() != MAX_TREES {
             issue(
                 format!("{at}.trees"),
-                format!("1 to {MAX_TREES} trees (found {})", w.trees.len()),
+                format!("exactly one base tree (found {})", w.trees.len()),
             );
         }
         for (t, tree) in w.trees.iter().enumerate().take(MAX_TREES) {

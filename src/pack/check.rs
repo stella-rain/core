@@ -13,6 +13,7 @@ use super::{
 };
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
+use crate::expertise::{Expertise, StyleKind, apply_grant, style_levels};
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
 use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
@@ -155,6 +156,69 @@ pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<
     } else {
         Err(PackError::File {
             file: "weapons",
+            error: validate::Error::Invalid(issues),
+        })
+    }
+}
+
+/// A style's grants against the weapon's base tree (ADR-SIM-9 points 2 and 3), for every weapon of
+/// the expertise file that has a base tree in the weapons file (an inline weapon has none, and a
+/// weapon with no tree is skipped). The grants are applied in path order, the style's own kinds
+/// and then each upgrade's and the capstone's one choice, to a copy of the tree: a step that is
+/// no step of the tree is refused at its `step`, and every issue the weapon validator or the
+/// preset hold check finds on the tree the grant made is refused at the grant.
+pub(super) fn check_style_grants(
+    expertise: &Expertise,
+    weapons: &Weapons,
+    presets: &AttackPresets,
+) -> Result<(), PackError> {
+    let mut issues = Vec::new();
+    for (w, we) in expertise.weapons().iter().enumerate() {
+        let Some(base) = weapons.tree(we.weapon.as_str(), None) else {
+            continue;
+        };
+        for (s, style) in we.styles.iter().enumerate() {
+            let at = format!("$.weapons[{w}].styles[{s}]");
+            let mut levels = vec![(format!("{at}.kinds"), style.kinds.as_slice())];
+            for (field, option) in style_levels(style) {
+                if let Some(o) = option {
+                    levels.push((format!("{at}.{field}[0].kinds"), o.kinds.as_slice()));
+                }
+            }
+            let mut tree = base.clone();
+            'style: for (path, kinds) in levels {
+                for (k, kind) in kinds.iter().enumerate() {
+                    let StyleKind::ReplaceStep { step, grant } = kind;
+                    let at = format!("{path}[{k}]");
+                    if !apply_grant(&mut tree, step, grant) {
+                        issues.push(validate::Issue {
+                            path: format!("{at}.step"),
+                            message: "no such step in the weapon's base tree".into(),
+                        });
+                        break 'style;
+                    }
+                    let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
+                        .err()
+                        .into_iter()
+                        .flatten()
+                        .chain(crate::presets::hold_problems(&tree, presets))
+                        .collect::<Vec<_>>();
+                    if !found.is_empty() {
+                        issues.extend(found.into_iter().map(|f| validate::Issue {
+                            path: format!("{at}.grant"),
+                            message: format!("{} (the tree at {})", f.message, f.path),
+                        }));
+                        break 'style;
+                    }
+                }
+            }
+        }
+    }
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "expertise",
             error: validate::Error::Invalid(issues),
         })
     }
