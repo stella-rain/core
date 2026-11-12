@@ -26,14 +26,16 @@
 
 use super::World;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, SetStat, Style, TABLE_LEVELS, WeaponExpertise,
+    Expertise, ExpertiseEffect, ExpertiseOption, SetStat, StepGrant, Style, StyleKind,
+    TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, StatValueView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, LevelKindsView, StatValueView, StepGrantKind, StyleKindView, TreeReadyView,
+    TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::WeaponRef;
@@ -162,6 +164,7 @@ pub(super) struct Choice<'a> {
     pub(super) id: &'a ContentId,
     pub(super) effect: ExpertiseEffect,
     pub(super) amount: u32,
+    pub(super) kinds: &'a [StyleKind],
 }
 
 impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
@@ -170,6 +173,7 @@ impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
             id: &o.id,
             effect: o.effect,
             amount: o.amount,
+            kinds: &o.kinds,
         }
     }
 }
@@ -202,6 +206,7 @@ fn fixed<'a>(
                 id: &st.id,
                 effect: st.effect,
                 amount: st.amount,
+                kinds: &st.kinds,
             })
             .collect(),
         Some(ExpertiseOfferKind::Upgrade) if level == table.upgrades[0] => path(|st| &st.upgrade_1),
@@ -445,6 +450,11 @@ pub(crate) fn tree_ready_view(
         level: next.level,
         held: next.held,
         options: next.choices.iter().map(|c| c.id.clone()).collect(),
+        kinds: if next.choices.iter().any(|c| !c.kinds.is_empty()) {
+            next.choices.iter().map(|c| kind_views(c.kinds)).collect()
+        } else {
+            Vec::new()
+        },
     })
 }
 
@@ -487,9 +497,54 @@ pub(crate) fn weapon_stats_view(
             .map(|i| TreeStatsView {
                 style: w.styles[usize::from(i)].id.clone(),
                 stats: list(Some(i)),
+                grants: grant_views(&w.styles[usize::from(i)]),
             })
             .collect(),
     })
+}
+
+/// The compact view of a level's kinds.
+fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
+    kinds
+        .iter()
+        .map(
+            |StyleKind::ReplaceStep { step, grant }| StyleKindView::ReplaceStep {
+                step: step.clone(),
+                grant: match grant {
+                    StepGrant::Charge(_) => StepGrantKind::Charge,
+                    StepGrant::Hold(_) => StepGrantKind::Hold,
+                },
+            },
+        )
+        .collect()
+}
+
+/// What a style grants, level by level: its own pick, then the one choice of each place of its
+/// path; empty when no level names a kind.
+fn grant_views(style: &Style) -> Vec<LevelKindsView> {
+    let mut levels = vec![LevelKindsView {
+        offer: ExpertiseOfferKind::Style,
+        option: style.id.clone(),
+        kinds: kind_views(&style.kinds),
+    }];
+    for (offer, option) in [
+        (ExpertiseOfferKind::Upgrade, style.upgrade_1.first()),
+        (ExpertiseOfferKind::Upgrade, style.upgrade_2.first()),
+        (ExpertiseOfferKind::Capstone, style.capstone.first()),
+    ] {
+        if let Some(o) = option {
+            levels.push(LevelKindsView {
+                offer,
+                option: o.id.clone(),
+                kinds: kind_views(&o.kinds),
+            });
+        }
+    }
+    if levels.iter().all(|l| l.kinds.is_empty()) {
+        Vec::new()
+    } else {
+        levels
+    }
 }
 
 /// Whether a loaded gauge could have been reached: the tree taken is within the points the level

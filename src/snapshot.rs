@@ -194,6 +194,42 @@ pub struct TreeReadyView {
     pub held: u8,
     /// The choices, in the order `TreePick.option` indexes.
     pub options: Vec<ContentId>,
+    /// The mechanic kinds each option grants, one entry per option in `options` order; absent
+    /// while no option names a kind.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<Vec<StyleKindView>>,
+}
+
+/// Which a `replace_step` grant gives its step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StepGrantKind {
+    Charge,
+    Hold,
+}
+
+/// A mechanic kind a style level grants, in the compact form a snapshot carries (built every
+/// frame, so the grant's attacks are not inside).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StyleKindView {
+    /// The step the presses reach from the root of the combo tree gets a charge or a hold.
+    ReplaceStep {
+        step: Vec<Press>,
+        grant: StepGrantKind,
+    },
+}
+
+/// The kinds one level of a style's path grants.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LevelKindsView {
+    /// Style (the style pick itself), Upgrade or Capstone.
+    pub offer: ExpertiseOfferKind,
+    /// The style's or the choice's ID at that level.
+    pub option: ContentId,
+    /// What taking it grants; empty for a level that names none.
+    pub kinds: Vec<StyleKindView>,
 }
 
 /// A weapon's stat sets as the weapon level `level` gives them (equipment mode), for the tree
@@ -220,6 +256,10 @@ pub struct TreeStatsView {
     pub style: ContentId,
     /// The stats it gives at the weapon's level.
     pub stats: Vec<StatValueView>,
+    /// What the style grants besides stats: its own level, then its three path levels; absent
+    /// when no level names a kind.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grants: Vec<LevelKindsView>,
 }
 
 /// One stat of a set. Percentages are in **tenths of a percent** (165 is 16.5 percent); the

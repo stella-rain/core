@@ -907,6 +907,7 @@ mod tree_runs {
             level: 3,
             held: 1,
             options: vec!["edge".into(), "tempo".into(), "reach".into()],
+            kinds: Vec::new(),
         };
         let snap = e.snapshot();
         assert_eq!(snap.players[0].tree_ready.as_ref(), Some(&want));
