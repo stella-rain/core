@@ -238,6 +238,13 @@ pub enum SmashEffectKind {
     Reap,
 }
 
+/// What a gauge kind spends its full gauge on, by name only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GaugeSpendKind {
+    FullSmash,
+}
+
 /// A mechanic kind a style level grants, in the compact form a snapshot carries (built every
 /// frame, so the grant's attacks are not inside).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -250,6 +257,8 @@ pub enum StyleKindView {
     },
     /// The weapon's smash effect is this one in place of the base's.
     SmashEffect { effect: SmashEffectKind },
+    /// The style has a weapon gauge `max` long, spent as `spend`.
+    Gauge { max: u32, spend: GaugeSpendKind },
 }
 
 /// The kinds one level of a style's path grants.
