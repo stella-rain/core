@@ -12,9 +12,12 @@ use super::{
     MAX_STARTING_UNLOCKS, MAX_TIME_LIMIT_WAVES, MAX_TREES, MAX_WEAPONS, PackError, PackFile,
 };
 use crate::attack_presets::AttackPresets;
+use crate::difficulties::Difficulties;
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
+use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
+use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::weapons::Weapons;
 
@@ -369,6 +372,96 @@ pub(super) fn check_budgets(pack: &PackFile) -> Result<(), PackError> {
         )?;
     }
     Ok(())
+}
+
+/// A run at `sim_version` 2 or later needs the rewards file's equipment rules; the run start
+/// refuses a pack without them, so the pack is refused at load (the same text and condition).
+pub(super) fn check_equipment_rules(sim_version: u32, rewards: &Rewards) -> Result<(), PackError> {
+    if sim_version >= 2 && rewards.equipment().is_none() {
+        return Err(PackError::File {
+            file: "rewards",
+            error: Error::Invalid(vec![Issue {
+                path: "$.equipment".into(),
+                message: "sim_version 2 needs the rewards file's equipment rules".into(),
+            }]),
+        });
+    }
+    Ok(())
+}
+
+/// A difficulty's own boss times are at most one more than the `time_limit` mode's pool has
+/// bosses (one mid-boss for each time but the last, each pool entry once): the run start
+/// refuses more when that difficulty is chosen, so the pack is refused at load. A difficulty
+/// without `boss_ticks` uses the mode's own list, which the mode file checks.
+pub(super) fn check_difficulty_boss_times(
+    difficulties: &Difficulties,
+    time_limit: &TimeLimit,
+) -> Result<(), PackError> {
+    let pool = time_limit.mid_boss_pool().len();
+    let issues: Vec<Issue> = difficulties
+        .list()
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| {
+            d.boss_ticks
+                .as_ref()
+                .is_some_and(|t| t.len().saturating_sub(1) > pool)
+        })
+        .map(|(i, _)| Issue {
+            path: format!("$.difficulties[{i}].boss_ticks"),
+            message: "more mid-boss times than the time_limit mode's pool has bosses".into(),
+        })
+        .collect();
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "difficulties",
+            error: Error::Invalid(issues),
+        })
+    }
+}
+
+/// The perk set a run names none of starts with is in the file: the run start refuses a pack
+/// without it.
+pub(super) fn check_default_perk_set(perk_sets: &PerkSets) -> Result<(), PackError> {
+    if perk_sets
+        .sets()
+        .iter()
+        .any(|s| s.id.as_str() == DEFAULT_PERK_SET)
+    {
+        return Ok(());
+    }
+    Err(PackError::File {
+        file: "perk_sets",
+        error: Error::Invalid(vec![Issue {
+            path: "$.perk_sets".into(),
+            message: format!(
+                "the default perk set ({DEFAULT_PERK_SET}) is missing: a run that names none starts with it"
+            ),
+        }]),
+    })
+}
+
+/// The difficulty a run names none of starts with is in the file: the run start refuses a pack
+/// without it.
+pub(super) fn check_default_difficulty(difficulties: &Difficulties) -> Result<(), PackError> {
+    if difficulties
+        .list()
+        .iter()
+        .any(|d| d.id.as_str() == DEFAULT_DIFFICULTY)
+    {
+        return Ok(());
+    }
+    Err(PackError::File {
+        file: "difficulties",
+        error: Error::Invalid(vec![Issue {
+            path: "$.difficulties".into(),
+            message: format!(
+                "the default difficulty ({DEFAULT_DIFFICULTY}) is missing: a run that names none starts with it"
+            ),
+        }]),
+    })
 }
 
 /// A perk's drop-weight category is a category of the rewards' equipment rules.
