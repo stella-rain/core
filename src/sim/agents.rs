@@ -101,21 +101,22 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Places and hit points do not change while the agents act: one copy for all. Aggro an
     // agent's own action raises counts from the next tick.
     let up = Up::of(&s.players);
+    let stagger_on = stage.has_stagger;
     super::attacks::grant_ranged(stage, s, &up);
     // One player up (nearly every run) is its own loop: no branch per agent (ADR-SIM-6).
     if up.n == 1 {
         for i in 0..s.companions.len() {
-            act_one::<true>(stage, s, &up, Who::Companion(i), events);
+            act_one::<true>(stage, s, &up, stagger_on, Who::Companion(i), events);
         }
         for i in 0..s.enemies.len() {
-            act_one::<true>(stage, s, &up, Who::Enemy(i), events);
+            act_one::<true>(stage, s, &up, stagger_on, Who::Enemy(i), events);
         }
     } else {
         for i in 0..s.companions.len() {
-            act_one::<false>(stage, s, &up, Who::Companion(i), events);
+            act_one::<false>(stage, s, &up, stagger_on, Who::Companion(i), events);
         }
         for i in 0..s.enemies.len() {
-            act_one::<false>(stage, s, &up, Who::Enemy(i), events);
+            act_one::<false>(stage, s, &up, stagger_on, Who::Enemy(i), events);
         }
     }
     // After the agents, so the guardians that appear start next tick, as summoned ones do.
@@ -264,6 +265,7 @@ fn act_one<const ONE: bool>(
     stage: &World,
     s: &mut State,
     up: &Up,
+    stagger_on: bool,
     me: Who,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -283,9 +285,12 @@ fn act_one<const ONE: bool>(
         reveal(s, up, me, def, events);
         return;
     }
-    // A stunned or flinching enemy does nothing while it lasts: no movement and no
+    // A stunned, flinching or staggered enemy does nothing while it lasts: no movement and no
     // rule. Its cooldowns counted above, so they run on through it.
-    if super::stun::stunned(&a.statuses) || a.control.flinch > 0 {
+    if super::stun::stunned(&a.statuses)
+        || a.control.flinch > 0
+        || (stagger_on && a.elite.as_ref().is_some_and(|e| e.stagger.staggered > 0))
+    {
         return;
     }
     move_agent::<ONE>(stage, s, up, me, def);

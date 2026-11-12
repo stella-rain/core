@@ -144,6 +144,11 @@ pub enum DomainEvent {
     FlinchEnded {
         target: EntityId,
     },
+    /// `target`'s stagger ran out: its gauge fills again from empty, each later bar at its own
+    /// refill rate.
+    StaggerEnded {
+        target: EntityId,
+    },
     /// The main character started an evade.
     Evaded,
     /// The main character used its stage skill, at `level`.

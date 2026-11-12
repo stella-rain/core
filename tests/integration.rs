@@ -158,6 +158,7 @@ mod smash_styles;
 mod stage_skill;
 mod stage_skill_file;
 mod stage_verify;
+mod stagger;
 mod star_chart;
 mod stardust;
 mod stardust_earners;

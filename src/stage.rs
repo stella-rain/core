@@ -599,6 +599,17 @@ pub struct Boss {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_TICKS))]
     pub arrives_at_tick: Option<u32>,
+    /// The boss's stagger gauge: a main character's smash, a control it resists and a hit on a
+    /// part fill it, and a full gauge staggers the boss. 1 to `limits::MAX_STAGGER` (10,000);
+    /// `sim_version` 2 only. Absent: no gauge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub stagger_max: Option<u32>,
+    /// Ticks the boss stays staggered: 1 to `limits::MAX_STAGGERED_TICKS` (600). Only with
+    /// `stagger_max`. Absent: the rules' `staggered_ticks`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGERED_TICKS))]
+    pub staggered_ticks: Option<u16>,
 }
 
 /// How a boss chases (`Boss.chase`). Both defaults are placeholders: the tuning table is the
