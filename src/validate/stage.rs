@@ -85,6 +85,9 @@ impl<'a> Ctx<'a> {
         if let Some(levels) = &s.levels {
             self.key("levels", |c| c.levels(levels));
         }
+        if s.try_styles && self.sim_version < 2 {
+            self.key("try_styles", |c| c.fail("needs sim_version 2"));
+        }
         if let Some(table) = s.level_table
             && let Some(problem) = table.problem()
         {
