@@ -179,6 +179,17 @@
           },
           "maxItems": 8,
           "type": "array"
+        },
+        "threat_colour": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Names an entry of the pack's threat colour table (ADR-CONT-1, ADR-BRDG-4): the colour of\nthis enemy's attack areas. Which entry exists is checked where the table is known (pack\nload, run build); the validator holds the shape. `sim_version` 2 only; an enemy's or the\nboss's, never a companion's."
         }
       },
       "required": [
@@ -555,6 +566,17 @@
           "minimum": 0,
           "type": "integer"
         },
+        "threat_colour": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreatColourIndex"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The entry of the run's threat colour table (`Engine::threat_colours`) the enemy that\nmade it names; absent for every other area, and for an enemy that names none: the\nfrontend draws its own hostile colour. Never present on a friendly area. Absent is the\nkey missing from the JSON."
+        },
         "tick": {
           "description": "Ticks done in the phase: 0 on its first tick.",
           "format": "uint32",
@@ -730,6 +752,17 @@
             "integer",
             "null"
           ]
+        },
+        "threat_colour": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Names an entry of the pack's threat colour table (ADR-CONT-1, ADR-BRDG-4): the colour of\nthis enemy's attack areas. Which entry exists is checked where the table is known (pack\nload, run build); the validator holds the shape. `sim_version` 2 only; an enemy's or the\nboss's, never a companion's."
         }
       },
       "required": [
@@ -5634,6 +5667,17 @@
           ],
           "description": "What a new save begins with (DS5 Q10). Optional: a pack released before it has none, and\nreports the starting unlocks as unknown."
         },
+        "threat_colours": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreatColoursFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The colours an enemy's attack areas may be drawn in (ADR-CONT-1, ADR-BRDG-4): an ID and\nan RGB value each, which an enemy or a boss may name. Optional: a pack released before it\nhas an empty table, and an enemy naming a colour is then refused."
+        },
         "weapons": {
           "$ref": "#/$defs/WeaponsFile",
           "description": "The weapons' combo trees (WP1)."
@@ -9458,6 +9502,65 @@
         }
       ]
     },
+    "ThreatColour": {
+      "additionalProperties": false,
+      "description": "One colour of the table: an ID and its RGB value, 0 to 255 each. Alpha and brightness are\nthe frontend's. The ID is lowercase snake_case, unique in the file, and never renamed or\nremoved once released (ADR-CONT-2): the frontend remaps by it.",
+      "properties": {
+        "b": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "g": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "$ref": "#/$defs/ContentId"
+        },
+        "r": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "r",
+        "g",
+        "b"
+      ],
+      "type": "object"
+    },
+    "ThreatColourIndex": {
+      "description": "The index of an entry in the run's threat colour table. It is only meaningful with that\nrun's table: key anything that outlives the run on the ID.",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ThreatColoursFile": {
+      "additionalProperties": false,
+      "description": "The threat colour file.",
+      "properties": {
+        "colours": {
+          "description": "At most `MAX_THREAT_COLOURS` entries; an empty list is valid.",
+          "items": {
+            "$ref": "#/$defs/ThreatColour"
+          },
+          "maxItems": 16,
+          "type": "array"
+        }
+      },
+      "required": [
+        "colours"
+      ],
+      "type": "object"
+    },
     "Tier": {
       "additionalProperties": false,
       "description": "One tier of the drop table.",
@@ -10306,6 +10409,17 @@
         },
         "shape": {
           "$ref": "#/$defs/ZoneShape"
+        },
+        "threat_colour": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreatColourIndex"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The entry of the run's threat colour table (`Engine::threat_colours`) the enemy that\nplaced it names; absent for every other area, and for an enemy that names none: the\nfrontend draws its own hostile colour. Never present on a friendly area. Absent is the\nkey missing from the JSON."
         },
         "ticks": {
           "description": "The length of that phase in ticks, at least `ticks_left`: what a wind-up's fill is drawn\nagainst.",
