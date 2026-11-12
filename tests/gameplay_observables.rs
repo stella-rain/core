@@ -138,9 +138,7 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
     text.replace(", kinds: [] }", " }")
         .replace(", grants: [] }", " }")
         .replace(", threat_colour: None }", " }")
-/// `threat_colour` of `AttackView` and `ZoneView` (the threat colours), and `repeat: false` of
-/// a `Hit` event (the step repeat). The digests were
-/// recorded before the fields existed, and an empty one changes no gameplay. A view that names
+        .replace(", repeat: false, player:", ", player:")
         .replace(", gauge: None, perfect_evade: None", "")
         .replace(", player: Some(First) }", " }")
         .replace(", player: Some(Second) }", " }")
