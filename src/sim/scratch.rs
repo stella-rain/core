@@ -145,7 +145,6 @@ impl Scratch {
         reserve_to(&mut self.offsets, enemies);
         reserve_to(&mut self.found, enemies);
         reserve_to(&mut self.shrine_ids, enemies);
-        reserve_to(&mut self.slowed, enemies + 1 + HIT_LIST_SPARE);
         reserve_to(&mut self.killers, enemies);
         reserve_to(&mut self.bases, enemies);
         reserve_to(&mut self.fallen, enemies);

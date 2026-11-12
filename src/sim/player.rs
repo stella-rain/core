@@ -295,6 +295,8 @@ fn slow_set(s: &mut State, t: crate::rules::PerfectEvade) {
         })
     };
     let mut set = std::mem::take(&mut s.scratch.slowed);
+    // Room is made on the first slow, not at load: a run that never slows allocates nothing.
+    super::scratch::reserve_to(&mut set, s.enemies.len() + 1 + 16);
     for e in &s.enemies {
         if e.hp > 0 {
             if let Some(hold) = near(s, e.at) {
