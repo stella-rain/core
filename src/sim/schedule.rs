@@ -5,7 +5,7 @@
 
 use super::{
     World, agents, attacks, boss, collide, count, dash, decide_outcome, entity, expertise, horde,
-    leash, loadout, move_orbs, orbit, player, push, runes, skill, spawn_waves, zones,
+    leash, loadout, move_orbs, orbit, player, push, runes, skill, spawn_waves, stun, zones,
 };
 use crate::engine::Load;
 use crate::event::DomainEvent;
@@ -119,6 +119,9 @@ pub(super) mod steps {
             entity::ControlTick::of(&c.world.tuning),
             c.events,
         );
+        if c.world.has_stagger {
+            stun::stagger_tick(c.world, c.s, c.events);
+        }
     }
 
     #[inline(never)]

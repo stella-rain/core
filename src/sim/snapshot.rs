@@ -124,10 +124,22 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 elite: false,
                 aura_radius: None,
                 damage_over_time: dot_views(&b.statuses),
-                statuses: status_views(&b.statuses, false, (0, 0)),
+                statuses: status_views(
+                    &b.statuses,
+                    false,
+                    (0, 0),
+                    (
+                        if world.has_stagger {
+                            b.stagger.staggered
+                        } else {
+                            0
+                        },
+                        boss.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
+                    ),
+                ),
                 fight: None,
-                stagger: None,
-                stagger_max: None,
+                stagger: boss.stagger_max.map(|_| b.stagger.gauge),
+                stagger_max: boss.stagger_max,
             });
         }
     }
@@ -165,6 +177,10 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     &a.statuses,
                     reached,
                     (a.control.flinch, world.tuning.flinch_ticks),
+                    (
+                        a.elite.as_ref().map_or(0, |e| e.stagger.staggered),
+                        def.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
+                    ),
                 ),
                 fight: match (&def.movement, a.shrine.as_deref()) {
                     (
@@ -178,8 +194,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     }),
                     _ => None,
                 },
-                stagger: None,
-                stagger_max: None,
+                stagger: def
+                    .stagger_max
+                    .and(a.elite.as_ref())
+                    .map(|e| e.stagger.gauge),
+                stagger_max: def.stagger_max.filter(|_| a.elite.is_some()),
             });
         }
     };
@@ -206,7 +225,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&part.statuses),
-                    statuses: status_views(&part.statuses, false, (0, 0)),
+                    statuses: status_views(&part.statuses, false, (0, 0), (0, 0)),
                     fight: None,
                     stagger: None,
                     stagger_max: None,
@@ -350,7 +369,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             runs.sort_by_key(|r| r.slot);
             runs.into_iter().map(view).collect()
         },
-        statuses: status_views(&s.players[me].statuses, false, (0, 0)),
+        statuses: status_views(&s.players[me].statuses, false, (0, 0), (0, 0)),
         down: if !s.players.is_solo() && s.players[me].is_downed() {
             Some(DownView {
                 ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
@@ -520,10 +539,19 @@ static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
 /// not a status in its list.
 pub(super) static FLINCH_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("flinch"));
 
+/// The ID of an elite's or the boss's stagger: a counter of its state, not a status in its list.
+pub(super) static STAGGERED_ID: LazyLock<ContentId> =
+    LazyLock::new(|| ContentId::from("staggered"));
+
 /// The statuses of `statuses` for the snapshot, sorted by ID: each with
 /// what is left of it and the ticks it was applied for. `aura` adds a pack leader's aura,
 /// which has no timer: it lasts while its entity is in reach.
-fn status_views(statuses: &[StatusState], aura: bool, flinch: (u16, u16)) -> Vec<StatusView> {
+fn status_views(
+    statuses: &[StatusState],
+    aura: bool,
+    flinch: (u16, u16),
+    staggered: (u16, u16),
+) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
         .map(|st| StatusView {
@@ -538,6 +566,13 @@ fn status_views(statuses: &[StatusState], aura: bool, flinch: (u16, u16)) -> Vec
             id: FLINCH_ID.clone(),
             remaining: u32::from(flinch.0),
             total: u32::from(flinch.1),
+        });
+    }
+    if staggered.0 > 0 {
+        views.push(StatusView {
+            id: STAGGERED_ID.clone(),
+            remaining: u32::from(staggered.0),
+            total: u32::from(staggered.1),
         });
     }
     if aura {

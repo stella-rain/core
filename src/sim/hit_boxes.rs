@@ -595,6 +595,8 @@ fn hit_enemy_side(
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
                 damage(stage, s, me, shot(w), Who::Boss, events);
+                stagger_by(stage, s, me, w, Who::Boss, events);
+                resisted_move_fills(stage, s, me, w, Who::Boss, events);
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -604,6 +606,8 @@ fn hit_enemy_side(
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
                     damage(stage, s, me, shot(w), Who::BossPart(i), events);
+                    stagger_by(stage, s, me, w, Who::BossPart(i), events);
+                    resisted_move_fills(stage, s, me, w, Who::BossPart(i), events);
                 }
             }
         }
@@ -641,6 +645,12 @@ fn hit_enemy_side(
                 Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, me, i, push),
                 _ => {}
             }
+            // C03, C04: a combo hit fills an elite's gauge, and a pull or a knockback it resists
+            // fills it more.
+            if stage.has_stagger {
+                stagger_by(stage, s, me, w, Who::Enemy(i), events);
+                resisted_move_fills(stage, s, me, w, Who::Enemy(i), events);
+            }
             // C02: a combo hit that deals the enemy's poise makes it flinch; a smash's own stun
             // (applied inside `damage`) has already won.
             if w.combo
@@ -650,6 +660,56 @@ fn hit_enemy_side(
                 flinch_by(stage, s, me, i, w, events);
             }
         }
+    }
+}
+
+/// C03: a combo hit of `me`'s adds the stagger its phase names, else the rules' for a smash step,
+/// to the gauge of `target` (the boss, one of its parts or an elite), when it is still alive.
+/// Rune hits, echoes, bursts, damage-over-time ticks, orbs and zones are no combo hit.
+fn stagger_by(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    w: &Swing,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
+    // A part that this hit broke still fills its boss's gauge: the fill tests the boss alive.
+    let alive = matches!(target, Who::BossPart(_)) || s.is_alive(target);
+    if !stage.has_stagger || !w.combo || !alive {
+        return;
+    }
+    let value = w
+        .stagger
+        .unwrap_or(if super::player::last_press_smash(&s.players[me].combo) {
+            stage.tuning.stagger_smash
+        } else {
+            0
+        });
+    super::stun::fill(stage, s, target, me, value, events);
+}
+
+/// C04: the pull or the knockback of a smash that hit `target`, an elite, the boss or a part,
+/// which resists it whole, fills its gauge by the rules' value of that kind.
+fn resisted_move_fills(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    w: &Swing,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
+    let value = match w.smash {
+        Some(Smash::Pull(_)) => stage.tuning.stagger_values[1],
+        Some(Smash::Knockback(_)) => stage.tuning.stagger_values[2],
+        _ => return,
+    };
+    let resists = match target {
+        Who::Enemy(i) => s.enemies[i].elite.is_some() && s.enemies[i].hp > 0,
+        _ => true,
+    };
+    if w.combo && resists {
+        super::stun::fill(stage, s, target, me, value, events);
     }
 }
 

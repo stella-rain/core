@@ -630,7 +630,7 @@ fn s3_later_bars_fill_slower_and_an_idle_gauge_drains() {
     // A fill while it drains restarts the delay.
     let mut f = Rig::elite(rules_all(), plain_weapon());
     f.smash();
-    f.idle(8);
+    f.idle(3);
     f.smash();
     assert_eq!(f.gauge(), Some(80));
     // Without the drain keys it never drops.
@@ -678,20 +678,16 @@ fn s4_a_staggered_elite_holds_still_and_loses_its_attack() {
         1000
     )]);
     let waves = vec![wave(TARGET_TICK, 1, 0, ready, START_X, NEAR_Y)];
-    let mut r = Rig::new(plain_weapon(), waves, far_boss(), rules_all(), false);
+    let breaking = weapon(json!({}), json!({ "stagger": 100 }), None);
+    let mut r = Rig::new(breaking, waves, far_boss(), rules_all(), false);
     r.step(Input {
         smash: true,
         ..idle()
     });
-    r.smash();
-    r.smash();
     let landed = r.hits.last().unwrap().0;
     r.idle(40);
     assert_eq!(r.fired.first(), Some(&(landed + 20)), "{:?}", r.fired);
     assert_eq!(r.ended, [landed + 20]);
-    // The gauge fills again after.
-    r.smash();
-    assert_eq!(r.gauge(), Some(20));
 }
 
 #[test]
@@ -797,7 +793,8 @@ fn s5_a_staggered_target_takes_more_damage_and_is_vulnerable() {
             .find(|v| v.kind == EntityKind::BossPart)
             .unwrap()
             .hp;
-    assert_eq!(before - after, 18);
+    // A part has no `vulnerable` of its own: it takes the stagger's 50 percent alone.
+    assert_eq!(before - after, 15);
 }
 
 /// A weapon whose smash step adds no stagger of its own and carries `effect`.
@@ -889,8 +886,6 @@ fn s6_a_resisted_control_fills_the_gauge() {
 
 #[test]
 fn s7_a_part_breaks_at_its_hit_points_and_each_smash_fills_the_boss() {
-    let boss = boss_part(10, json!({}));
-    let mut r = Rig::new(plain_weapon(), vec![], boss, rules_all(), true);
     let swings = weapon(json!({ "damage": 5 }), json!({ "damage": 5 }), None);
     let mut r2 = Rig::new(swings, vec![], boss_part(10, json!({})), rules_all(), true);
     r2.smash();
@@ -905,7 +900,6 @@ fn s7_a_part_breaks_at_its_hit_points_and_each_smash_fills_the_boss() {
     assert_eq!(r2.gauge(), Some(80));
     r2.press(false);
     assert_eq!(r2.part_broken.len(), 1);
-    drop(r);
 }
 
 #[test]

@@ -130,7 +130,9 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         for r in &mut b.rules {
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
-        if let Some(order) = b.order.filter(|_| !rooted) {
+        // A staggered boss does not move: neither its order nor its chase (C03).
+        if stage.has_stagger && b.stagger.staggered > 0 {
+        } else if let Some(order) = b.order.filter(|_| !rooted) {
             (b.at, b.order) = step_order(b.at, order);
         } else if let Some((chase, to)) = chase {
             // The same arithmetic as an agent's `Movement::Follow` arm (`agents::move_agent`),
@@ -158,6 +160,10 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         begin_phase(stage, def, s, 0, events);
     }
     maybe_end_phase(stage, s, events);
+    // A staggered boss holds its timeline and fires no rule; its phase still ends when it should.
+    if stage.has_stagger && s.boss.as_ref().is_some_and(|b| b.stagger.staggered > 0) {
+        return;
+    }
     timeline(stage, s, events);
     let phase = s.boss.as_ref().map_or(0, |b| b.phase as usize);
     if let Some(p) = def.phases.get(phase) {
