@@ -201,7 +201,13 @@ impl AgentDefs {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
             ranged_pools: Vec::new(),
-            colour: colour_of(colours, agent.threat_colour.as_ref()),
+            // A companion has none (the validator refuses the field), so the compile side and
+            // `colour_of_owner`, which gives a companion's attacks none, agree even for a stage
+            // that skipped validation.
+            colour: match source {
+                AgentSource::Companion => None,
+                _ => colour_of(colours, agent.threat_colour.as_ref()),
+            },
             leash: leash_eligible(agent, source, owner_is_elite),
         });
         Ok(DefIndex(at))
