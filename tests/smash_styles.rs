@@ -259,11 +259,12 @@ fn due(remaining: u32, next_in: u32, interval: u32) -> u32 {
 
 /// One smash press and the 80 ticks after it, tick by tick: the events of each tick and the
 /// bleed status of `id` (ticks left, ticks to the next tick, stacks) as it stood before it.
-type Ticks = Vec<(Vec<DomainEvent>, Option<(u32, u32, u16)>)>;
+type Ticks = Vec<(Vec<DomainEvent>, Option<(u32, u32, u16)>, u32)>;
 
 fn smash_ticks(e: &mut Engine, id: EntityId) -> Ticks {
     let mut out = Vec::new();
     for t in 0..81 {
+        let hp = entity(e, id).map_or(0, |en| en.hp);
         let before = entity(e, id).and_then(|en| {
             en.damage_over_time
                 .into_iter()
@@ -277,16 +278,16 @@ fn smash_ticks(e: &mut Engine, id: EntityId) -> Ticks {
                 ..idle()
             },
         );
-        out.push((e.events().to_vec(), before));
+        out.push((e.events().to_vec(), before, hp));
     }
     out
 }
 
 /// The bleed damage dealt on the tick the smash's own hit landed, and the status before it.
 fn burst(ticks: &Ticks, id: EntityId) -> (u32, Option<(u32, u32, u16)>) {
-    let (events, before) = ticks
+    let (events, before, _) = ticks
         .iter()
-        .find(|(ev, _)| !hit_on(ev, id, None).is_empty())
+        .find(|(ev, ..)| !hit_on(ev, id, None).is_empty())
         .expect("the smash hit");
     (hit_on(events, id, Some(Rune::Bleed)).iter().sum(), *before)
 }
@@ -421,4 +422,40 @@ fn the_views_name_the_smash_effect() {
     let snap = e.snapshot();
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert!(ready.get("kinds").is_none());
+}
+
+/// A burst that kills the target on the cashing hit: the target is gone, nothing more is put on
+/// it, and the run goes on. The hit points are worked out from a run with plenty: the cashing
+/// hit alone leaves exactly 1, so the burst is what kills.
+#[test]
+fn a_burst_that_kills_leaves_nothing_on_the_corpse() {
+    const BIG: u32 = 1_000_000;
+    let (mut e, t) = build(expertise(reap(2, 50), None, None), BIG, false);
+    pick(&mut e, 0);
+    smash(&mut e);
+    smash(&mut e);
+    let ticks = smash_ticks(&mut e, t);
+    let (burst, _) = burst(&ticks, t);
+    let (hit, hp_then) = ticks
+        .iter()
+        .find_map(|(ev, _, hp)| hit_on(ev, t, None).first().map(|h| (*h, *hp)))
+        .unwrap();
+    assert!(burst > 0);
+    // Bleed ticks in the wind-up lower it a little more before the hit lands.
+    let lost_by_hit = BIG - hp_then;
+    let (mut e, t) = build(
+        expertise(reap(2, 50), None, None),
+        lost_by_hit + hit + 1,
+        false,
+    );
+    pick(&mut e, 0);
+    smash(&mut e);
+    smash(&mut e);
+    let ticks = smash_ticks(&mut e, t);
+    assert!(entity(&e, t).is_none(), "the burst killed it");
+    assert_eq!(burst_of(&ticks, t), burst);
+}
+
+fn burst_of(ticks: &Ticks, id: EntityId) -> u32 {
+    burst(ticks, id).0
 }
