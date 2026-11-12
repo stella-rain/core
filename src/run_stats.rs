@@ -55,6 +55,7 @@ pub const MAX_ATTACK_SPEED_PCT: u32 = 800;
 pub const DEFAULT_ENEMY_ATTACK_DAMAGE: u32 = 100 * crate::validate::limits::DAMAGE_SCALE;
 
 /// The cap of a file that names none: the cap before it was content (app#298 kept it).
+/// The bundle names 300, below this default.
 pub const DEFAULT_MAX_ATTACK_SPEED_PCT: u32 = 500;
 
 /// The attack speed total `total` held to `cap`, and `cap` to `MAX_ATTACK_SPEED_PCT`, so that

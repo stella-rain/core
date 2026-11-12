@@ -72,8 +72,8 @@ pub const MAX_RANGE_PCT: u32 = 100;
 /// then being a ninth as long, and never less than a tick (ADR-SVC-1). The
 /// file's cap (300 in the bundle, app#298) is the number; this is the bound on it.
 pub const MAX_RUNE_HASTE_PCT: u32 = 1_000;
-/// The cap of a rewards file that names none: the cap before it was content (app#298 raised
-/// the bundle's to 500).
+/// The cap of a rewards file that names none: the cap before it was content (app#298). The
+/// bundle names 300 too.
 pub const DEFAULT_MAX_RUNE_HASTE_PCT: u32 = 300;
 /// The most the type bonuses add to one attack's damage, in percent: eleven times as much. It
 /// bounds the match-up file's `max_type_bonus_pct`, where the bonuses that apply to an
