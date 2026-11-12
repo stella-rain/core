@@ -171,6 +171,7 @@ fn every_style_listed_equals_absent() {
 #[test]
 fn a_run_with_a_list_records_and_verifies() {
     let setup = RunSetup {
+        weapon: "giant_hammer".into(),
         seed: 11,
         ..RunSetup::default()
     };

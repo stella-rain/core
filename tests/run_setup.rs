@@ -1109,7 +1109,7 @@ fn an_empty_list_is_kept_and_is_not_the_absent_field() {
 #[test]
 fn an_absent_field_writes_nothing_and_the_fixtures_still_read() {
     assert!(!styled_text(&equipment()).contains("unlocked_styles"));
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/run_setup");
+    let dir = crate::data_root::data_root().join("tests/fixtures/run_setup");
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         let text = std::fs::read(&path).unwrap();
