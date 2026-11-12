@@ -312,3 +312,118 @@ fn a_switch_while_charging_or_holding_clears_the_state_and_stays_deterministic()
         assert_eq!(run(from, to), run(from, to));
     }
 }
+
+// T5: a tutorial run under the field replays, and its savepoint loads.
+
+use crate::run_play::scripted_input;
+use stella_rain_core::run_replay::{self, RunRecorder, RunReplay, RunReplayError};
+
+fn tutorial_pack(try_styles: bool) -> Pack {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    if try_styles {
+        v["modes"]["tutorial"]["try_styles"] = true.into();
+    }
+    v["modes"]["tutorial"]["level_table"] =
+        json!({ "style": 1, "upgrades": [2, 3], "capstone": 4 });
+    Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
+}
+
+fn tutorial_setup() -> RunSetup {
+    RunSetup {
+        mode: "tutorial".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_010,
+        ..RunSetup::default()
+    }
+}
+
+/// Plays `ticks` ticks, taking `TreePick { option: held % 3 }` whenever the engine accepts it;
+/// returns how many picks were recorded.
+fn play(rec: &mut RunRecorder, from: u32, to: u32) -> u32 {
+    let mut picks = 0;
+    for t in from..to {
+        let held = rec.engine().snapshot().players[0]
+            .tree_ready
+            .as_ref()
+            .map_or(0, |r| u32::from(r.held));
+        let pick = EquipAction::TreePick { option: held % 3 };
+        if rec.engine().check_action(PlayerIdx::SOLO, pick).is_ok() {
+            rec.actions(&[Some(pick), None, None]).expect("recorded");
+            picks += 1;
+        }
+        let input = scripted_input(rec.engine(), 0, t);
+        rec.step(&[input, Default::default(), Default::default()])
+            .expect("a step");
+    }
+    picks
+}
+
+#[test]
+fn a_tutorial_run_with_re_picks_replays_on_its_pack_alone() {
+    let pack = tutorial_pack(true);
+    let mut rec = RunRecorder::start_with_pack(&tutorial_setup(), &pack).unwrap();
+    let picks = play(&mut rec, 0, 6_000);
+    assert!(picks >= 4, "four points are taken: {picks}");
+    let replay = rec.replay();
+    let bytes = replay.to_bytes();
+    let verified = run_replay::verify_run_with_pack(&bytes, &pack).expect("verifies");
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+    assert!(matches!(
+        run_replay::verify_run(&bytes),
+        Err(RunReplayError::ContentChanged)
+    ));
+}
+
+#[test]
+fn the_same_driver_on_the_pack_without_the_field_offers_upgrades_and_verifies() {
+    let pack = tutorial_pack(false);
+    let mut rec = RunRecorder::start_with_pack(&tutorial_setup(), &pack).unwrap();
+    let mut second = None;
+    for t in 0..6_000 {
+        let r = rec.engine().snapshot().players[0].tree_ready.clone();
+        if let Some(r) = &r
+            && r.level == 2
+        {
+            second = Some(format!("{:?}", r.kind));
+        }
+        let held = r.as_ref().map_or(0, |r| u32::from(r.held));
+        let pick = EquipAction::TreePick { option: held % 3 };
+        if rec.engine().check_action(PlayerIdx::SOLO, pick).is_ok() {
+            rec.actions(&[Some(pick), None, None]).unwrap();
+        }
+        let input = scripted_input(rec.engine(), 0, t);
+        rec.step(&[input, Default::default(), Default::default()])
+            .unwrap();
+    }
+    assert_eq!(second.as_deref(), Some("Upgrade"));
+    let bytes = rec.replay().to_bytes();
+    let verified = run_replay::verify_run_with_pack(&bytes, &pack).unwrap();
+    assert_eq!(verified.final_hash, rec.engine().state_hash());
+}
+
+#[test]
+fn a_savepoint_after_a_re_pick_loads() {
+    let pack = tutorial_pack(true);
+    let mut rec = RunRecorder::start_with_pack(&tutorial_setup(), &pack).unwrap();
+    let mut picks = 0;
+    let mut t = 0;
+    while picks < 2 {
+        picks += play(&mut rec, t, t + 1);
+        t += 1;
+        assert!(t < 6_000, "two picks are taken");
+    }
+    let save = rec.save();
+    let prefix = RunReplay::from_bytes(&rec.replay().to_bytes()).expect("the prefix");
+    let mut resumed = RunRecorder::resume_from_savepoint(&save, &prefix, &pack).expect("loads");
+    for _ in 0..600 {
+        let input = scripted_input(rec.engine(), 0, t);
+        rec.step(&[input, Default::default(), Default::default()])
+            .unwrap();
+        let input = scripted_input(resumed.engine(), 0, t);
+        resumed
+            .step(&[input, Default::default(), Default::default()])
+            .unwrap();
+        t += 1;
+    }
+    assert_eq!(resumed.engine().state_hash(), rec.engine().state_hash());
+}
