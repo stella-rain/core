@@ -42,7 +42,10 @@ mod files;
 mod introduced;
 pub mod trust;
 
-use check::{check_budgets, check_equipment_rules, check_holds, check_perk_categories};
+use check::{
+    check_budgets, check_difficulty_boss_times, check_equipment_rules, check_holds,
+    check_perk_categories,
+};
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
 pub use compare::{CompareError, compare_json_values, compare_numbers_only};
@@ -517,6 +520,7 @@ impl Pack {
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit), versions)
             .map_err(PackError::in_file("time_limit"))?;
+        check_difficulty_boss_times(&difficulties, &time_limit)?;
         let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
             .map_err(PackError::in_file("tutorial"))?;
         // Its bosses are checked against the trial stage they are placed in.

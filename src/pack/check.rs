@@ -12,9 +12,11 @@ use super::{
     MAX_STARTING_UNLOCKS, MAX_TIME_LIMIT_WAVES, MAX_TREES, MAX_WEAPONS, PackError, PackFile,
 };
 use crate::attack_presets::AttackPresets;
+use crate::difficulties::Difficulties;
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
 use crate::star_chart;
+use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
 use crate::weapons::Weapons;
 
@@ -384,6 +386,39 @@ pub(super) fn check_equipment_rules(sim_version: u32, rewards: &Rewards) -> Resu
         });
     }
     Ok(())
+}
+
+/// A difficulty's own boss times are at most one more than the `time_limit` mode's pool has
+/// bosses (one mid-boss for each time but the last, each pool entry once): the run start
+/// refuses more when that difficulty is chosen, so the pack is refused at load. A difficulty
+/// without `boss_ticks` uses the mode's own list, which the mode file checks.
+pub(super) fn check_difficulty_boss_times(
+    difficulties: &Difficulties,
+    time_limit: &TimeLimit,
+) -> Result<(), PackError> {
+    let pool = time_limit.mid_boss_pool().len();
+    let issues: Vec<Issue> = difficulties
+        .list()
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| {
+            d.boss_ticks
+                .as_ref()
+                .is_some_and(|t| t.len().saturating_sub(1) > pool)
+        })
+        .map(|(i, _)| Issue {
+            path: format!("$.difficulties[{i}].boss_ticks"),
+            message: "more mid-boss times than the time_limit mode's pool has bosses".into(),
+        })
+        .collect();
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "difficulties",
+            error: Error::Invalid(issues),
+        })
+    }
 }
 
 /// A perk's drop-weight category is a category of the rewards' equipment rules.
