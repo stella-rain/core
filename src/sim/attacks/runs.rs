@@ -91,13 +91,14 @@ pub(in crate::sim) fn advance_runs(world: &World, s: &mut State, events: &mut Ve
     }
 }
 
-/// Whether run `r` is in an `active` phase that no `active` phase follows.
+/// Whether run `r` is in an `active` phase that no later phase of its attack follows with another
+/// `active` one (a gap between two active phases does not end the step's last).
 fn last_active_ends(world: &World, r: &AttackRun) -> bool {
     let phases = compiled(world, r);
     phases[r.phase as usize].kind == PhaseKind::Active
-        && phases
-            .get(r.phase as usize + 1)
-            .is_none_or(|p| p.kind != PhaseKind::Active)
+        && phases[r.phase as usize + 1..]
+            .iter()
+            .all(|p| p.kind != PhaseKind::Active)
 }
 
 /// Keeps the runs `keep` accepts; the hit lists of the others are kept for later runs.

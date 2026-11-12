@@ -353,8 +353,7 @@ fn repeat_hit(
         buffed_by: None,
     };
     let at = s.at(target);
-    let dead = super::damage::land(stage, s, me, target, dealt, how, events).dead;
-    let _ = dead;
+    super::damage::land(stage, s, me, target, dealt, how, events);
     if !s.players[me].runes.is_empty() {
         super::runes::on_hit(stage, s, me, id, at, events, e.proc_pct);
     }
