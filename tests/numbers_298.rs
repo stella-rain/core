@@ -6,7 +6,12 @@
 use stella_rain_core::version::Versions;
 
 use serde_json::{Value, json};
+use stella_rain_core::engine::Engine;
+use stella_rain_core::input::Input;
 use stella_rain_core::rewards::{MAX_REWARDS, Rewards};
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_stats::RunStats;
+use stella_rain_core::validate::parse_and_validate;
 
 use crate::common;
 
@@ -364,4 +369,44 @@ fn the_economy_picks_are_applied() {
             m["id"]
         );
     }
+}
+
+/// The bundled content with both caps at 300, as the bundle will hold them.
+fn content_with_caps_of_300() -> RunContent {
+    let mut stats: Value = serde_json::from_slice(common::bundled_file("run_stats")).unwrap();
+    stats["max_attack_speed_pct"] = json!(300);
+    let mut rewards: Value = serde_json::from_slice(common::bundled_file("rewards")).unwrap();
+    rewards["max_rune_haste_pct"] = json!(300);
+    RunContent::new(
+        RunStats::parse(stats.to_string().as_bytes(), Versions::CURRENT).unwrap(),
+        Rewards::parse(rewards.to_string().as_bytes(), Versions::CURRENT).unwrap(),
+    )
+}
+
+/// The hashes of an engine at tick 0 and after 120 empty-input steps.
+fn hashes_of(stage_json: &[u8], content: &RunContent) -> [u64; 2] {
+    let stage = parse_and_validate(stage_json).unwrap();
+    let mut engine = Engine::new_with(&stage, content).unwrap();
+    let first = engine.state_hash();
+    for _ in 0..120 {
+        engine.step(&[Input::default(); 3]);
+    }
+    [first, engine.state_hash()]
+}
+
+#[test]
+fn a_v1_stage_hashes_the_same_whatever_the_bundled_caps() {
+    // The frozen rules keep the caps they were recorded with (ADR-REPL-2 point 6); the live
+    // rules hash the content's caps, so the same swap must move a sim_version 2 stage.
+    let capped = content_with_caps_of_300();
+    let v1 = &include_bytes!("corpus/v1/stages/clear/stage.json")[..];
+    assert_eq!(
+        hashes_of(v1, &RunContent::bundled()),
+        hashes_of(v1, &capped)
+    );
+    let live = &include_bytes!("corpus/current/stages/clear/stage.json")[..];
+    assert_ne!(
+        hashes_of(live, &RunContent::bundled()),
+        hashes_of(live, &capped)
+    );
 }
