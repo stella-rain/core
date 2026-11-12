@@ -84,6 +84,9 @@ pub struct Parts {
     /// Weapon expertise points seeded before the first tick (`Engine::script_expertise`); the
     /// level rises on the first tick. 0 seeds nothing.
     pub expertise_points: u32,
+    /// The setup's `unlocked_styles` (absent: every style), applied through the setup's JSON so
+    /// the file's shape is what is tested. The setup's weapon is the stage's preset weapon.
+    pub unlocked_styles: Option<Vec<ContentId>>,
 }
 
 /// The layout slot of rune slot `n` of the `equipment` object `rewards` brings (the bundled one
@@ -168,11 +171,18 @@ fn build(
     if let Some(expertise) = parts.expertise {
         content = content.with_expertise(expertise);
     }
-    let setup = RunSetup {
+    let mut setup = RunSetup {
         perk_set: "plain".into(),
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };
+    if let Some(styles) = &parts.unlocked_styles {
+        let weapon = serde_json::to_value(&stage.player.weapon).expect("the weapon serialises");
+        let mut v = serde_json::to_value(&setup).expect("the setup serialises");
+        v["weapon"] = weapon["preset"]["id"].clone();
+        v["unlocked_styles"] = serde_json::to_value(styles).expect("the styles serialise");
+        setup = serde_json::from_value(v).expect("a setup with unlocked styles reads");
+    }
     let mut stage = stage.clone();
     stage.sim_version = setup.sim_version;
     let mut engine = Engine::new_equipped(&stage, &content, &setup).expect("the run starts");
