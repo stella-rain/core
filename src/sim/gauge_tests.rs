@@ -191,6 +191,7 @@ fn a_run_with_no_gauge_never_moves_either_field() {
         panic!("the live rules");
     };
     assert_eq!(world.tuning.orb_clear_radius, 0);
+    assert!(!world.has_gauge);
     for t in 0..600 {
         let b = t % 90 == 60;
         let press = Input {
@@ -365,6 +366,11 @@ fn a_full_gauge_changes_the_smash() {
 #[test]
 fn a_player_off_the_style_has_no_gauge() {
     let mut r = rig(1, Some(STEP), None, 1);
+    let Run::V2 { world, state } = r.e.run() else {
+        panic!("the live rules");
+    };
+    assert!(world.has_gauge);
+    assert!(world.gauge_of(state, ME).is_some(), "on the style");
     if let Some(g) = st(&mut r.e).players.career_mut(ME).expertise.as_mut() {
         g.style = Some(1);
     }
