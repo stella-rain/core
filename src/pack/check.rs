@@ -188,15 +188,23 @@ pub(super) fn check_style_grants(
             let mut tree = base.clone();
             'style: for (path, kinds) in levels {
                 for (k, kind) in kinds.iter().enumerate() {
-                    let StyleKind::ReplaceStep { step, grant } = kind;
                     let at = format!("{path}[{k}]");
-                    if !apply_grant(&mut tree, step, grant) {
-                        issues.push(validate::Issue {
-                            path: format!("{at}.step"),
-                            message: "no such step in the weapon's base tree".into(),
-                        });
-                        break 'style;
-                    }
+                    let field = match kind {
+                        StyleKind::ReplaceStep { step, grant } => {
+                            if !apply_grant(&mut tree, step, grant) {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.step"),
+                                    message: "no such step in the weapon's base tree".into(),
+                                });
+                                break 'style;
+                            }
+                            "grant"
+                        }
+                        StyleKind::SmashEffect { effect } => {
+                            tree.smash = Some(*effect);
+                            "effect"
+                        }
+                    };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()
                         .into_iter()
@@ -205,7 +213,7 @@ pub(super) fn check_style_grants(
                         .collect::<Vec<_>>();
                     if !found.is_empty() {
                         issues.extend(found.into_iter().map(|f| validate::Issue {
-                            path: format!("{at}.grant"),
+                            path: format!("{at}.{field}"),
                             message: format!("{} (the tree at {})", f.message, f.path),
                         }));
                         break 'style;

@@ -34,7 +34,7 @@ use crate::run_stats::{MAX_STEP, StatEffect};
 use crate::validate::limits::MAX_COMBO_DEPTH;
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
-use crate::weapon::{Branches, Charge, Hold, Step, Weapon};
+use crate::weapon::{Branches, Charge, Hold, SmashEffect, Step, Weapon};
 
 /// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
@@ -153,6 +153,9 @@ pub enum StyleKind {
     /// charge), so a step never ends with both; two grants on one step inside one style are
     /// refused.
     ReplaceStep { step: Vec<Press>, grant: StepGrant },
+    /// The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the
+    /// base's (ADR-SIM-9 point 4). One per style path: a second is refused.
+    SmashEffect { effect: SmashEffect },
 }
 
 fn is_zero(v: &u32) -> bool {
@@ -500,19 +503,32 @@ fn check_level(
     }
     for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
         let at = format!("{at}[{k}]");
-        let StyleKind::ReplaceStep { step, grant } = kind;
-        if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
-            issue(
-                format!("{at}.step"),
-                format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
-            );
-        }
-        if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
-            for f in found {
-                issue(
-                    format!("{at}.grant{}", f.path.trim_start_matches('$')),
-                    f.message,
-                );
+        match kind {
+            StyleKind::ReplaceStep { step, grant } => {
+                if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
+                    issue(
+                        format!("{at}.step"),
+                        format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
+                    );
+                }
+                if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
+                    for f in found {
+                        issue(
+                            format!("{at}.grant{}", f.path.trim_start_matches('$')),
+                            f.message,
+                        );
+                    }
+                }
+            }
+            StyleKind::SmashEffect { effect } => {
+                if let Err(found) = validate::validate_smash_effect(effect, registry::ENTRIES) {
+                    for f in found {
+                        issue(
+                            format!("{at}.effect{}", f.path.trim_start_matches('$')),
+                            f.message,
+                        );
+                    }
+                }
             }
         }
     }
@@ -528,10 +544,11 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
     ]
 }
 
-/// One grant on a step per style: a second grant on a step an earlier level of the same style
-/// granted is refused at the later one.
+/// One grant on a step per style, and one smash effect: a second grant on a step an earlier level
+/// of the same style granted, or a second smash effect, is refused at the later one.
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
+    let mut smash_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -540,14 +557,26 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     }
     for (path, kinds) in levels {
         for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
-            let StyleKind::ReplaceStep { step, .. } = kind;
-            if seen.contains(&step) {
-                issue(
-                    format!("{path}[{k}].step"),
-                    "the step is already granted by an earlier level of the style".into(),
-                );
-            } else {
-                seen.push(step);
+            match kind {
+                StyleKind::ReplaceStep { step, .. } => {
+                    if seen.contains(&step) {
+                        issue(
+                            format!("{path}[{k}].step"),
+                            "the step is already granted by an earlier level of the style".into(),
+                        );
+                    } else {
+                        seen.push(step);
+                    }
+                }
+                StyleKind::SmashEffect { .. } => {
+                    if smash_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already sets the smash effect".into(),
+                        );
+                    }
+                    smash_set = true;
+                }
             }
         }
     }
@@ -673,8 +702,13 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
         .take(taken)
         .filter_map(|(_, option)| option.map(|o| o.kinds.as_slice()));
     for kinds in std::iter::once(style.kinds.as_slice()).chain(places) {
-        for StyleKind::ReplaceStep { step, grant } in kinds {
-            apply_grant(&mut weapon, step, grant);
+        for kind in kinds {
+            match kind {
+                StyleKind::ReplaceStep { step, grant } => {
+                    apply_grant(&mut weapon, step, grant);
+                }
+                StyleKind::SmashEffect { effect } => weapon.smash = Some(*effect),
+            }
         }
     }
     weapon

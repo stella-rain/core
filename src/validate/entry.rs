@@ -7,7 +7,7 @@ use crate::expertise::StepGrant;
 use crate::registry::{self, Entry};
 use crate::stage::{Levels, Stage, Stars, Wave};
 use crate::version::{self};
-use crate::weapon::Weapon;
+use crate::weapon::{SmashEffect, Weapon};
 
 use super::{Error, Issue};
 
@@ -197,6 +197,30 @@ pub fn validate_with(stage: &Stage, registry: &[Entry]) -> Result<(), Error> {
         Ok(())
     } else {
         Err(Error::Invalid(ctx.issues))
+    }
+}
+
+/// Checks a style's smash effect as the weapon validator checks a weapon's own, so every number is
+/// capped by the same bounds (ADR-SIM-9 point 4). Paths are from the effect: `$.stacks`.
+pub fn validate_smash_effect(effect: &SmashEffect, registry: &[Entry]) -> Result<(), Vec<Issue>> {
+    let mut ctx = Ctx {
+        registry,
+        sim_version: crate::version::SIM_VERSION,
+        map: crate::stage::Map::PORTRAIT,
+        parts: Vec::new(),
+        path: Vec::new(),
+        issues: Vec::new(),
+        left_out: false,
+        arity: 0,
+        foe: Foe::Other,
+        ranged_ok: false,
+        loop_rounds: 0,
+    };
+    ctx.smash(effect);
+    if ctx.issues.is_empty() {
+        Ok(())
+    } else {
+        Err(ctx.issues)
     }
 }
 

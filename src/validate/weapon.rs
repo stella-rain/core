@@ -125,7 +125,7 @@ impl<'a> Ctx<'a> {
         self.key("release", |c| c.attack_ref(&h.release));
     }
 
-    fn smash(&mut self, effect: &SmashEffect) {
+    pub(super) fn smash(&mut self, effect: &SmashEffect) {
         match *effect {
             SmashEffect::Pull { distance, ticks } | SmashEffect::Knockback { distance, ticks } => {
                 self.within(

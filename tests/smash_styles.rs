@@ -148,6 +148,25 @@ fn gap(e: &Engine, id: EntityId) -> i64 {
     dx * dx + dy * dy
 }
 
+/// The smallest and the largest gap to `id` over one smash press and the 80 ticks after it (the
+/// target walks back to its post, so the end gap says nothing).
+fn smash_gaps(e: &mut Engine, id: EntityId) -> (i64, i64) {
+    let (mut lo, mut hi) = (gap(e, id), gap(e, id));
+    step(
+        e,
+        Input {
+            smash: true,
+            ..idle()
+        },
+    );
+    for _ in 0..80 {
+        let g = gap(e, id);
+        (lo, hi) = (lo.min(g), hi.max(g));
+        step(e, idle());
+    }
+    (lo, hi)
+}
+
 /// One smash press from neutral, then the combo runs out; the events of every tick.
 fn smash(e: &mut Engine) -> Vec<DomainEvent> {
     let mut events = Vec::new();
@@ -194,15 +213,15 @@ fn a_style_sets_the_effect_of_the_next_smash() {
     let (mut e, t) = build(expertise(pull(), Some(knockback()), None), 1_000_000, false);
     pick(&mut e, 0);
     let before = gap(&e, t);
-    smash(&mut e);
-    assert!(gap(&e, t) < before, "pulled");
+    let (lo, _) = smash_gaps(&mut e, t);
+    assert!(lo < before, "pulled");
     assert_eq!(bleed_stacks(&e, t), 0);
     // Style 1: knockback, no bleed stack.
     let (mut e, t) = build(expertise(pull(), Some(knockback()), None), 1_000_000, false);
     pick(&mut e, 1);
     let before = gap(&e, t);
-    smash(&mut e);
-    assert!(gap(&e, t) > before, "pushed away");
+    let (_, hi) = smash_gaps(&mut e, t);
+    assert!(hi > before, "pushed away");
     assert_eq!(bleed_stacks(&e, t), 0);
     // Style 2 names no effect: the base's bleed stays.
     let (mut e, t) = build(expertise(pull(), Some(knockback()), None), 1_000_000, false);
@@ -220,8 +239,8 @@ fn an_upgrade_sets_its_effect_only_once_it_is_taken() {
     assert_eq!(bleed_stacks(&e, t), 1, "before the upgrade: the base's");
     pick(&mut e, 0);
     let before = gap(&e, t);
-    smash(&mut e);
-    assert!(gap(&e, t) > before, "after it: the upgrade's knockback");
+    let (_, hi) = smash_gaps(&mut e, t);
+    assert!(hi > before, "after it: the upgrade's knockback");
     assert_eq!(bleed_stacks(&e, t), 1, "no stack added by the knockback");
 }
 
