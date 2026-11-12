@@ -6,7 +6,8 @@
 use super::World;
 use crate::event::DomainEvent;
 use crate::id::EntityId;
-use crate::sim::state::{State, StatusKind, StatusState};
+use crate::sim::state::{AgentState, State, StatusKind, StatusState};
+use crate::sim::world::Tuning;
 use crate::validate::limits::MAX_STUN_TICKS;
 
 use super::attacks;
@@ -17,8 +18,31 @@ pub(super) fn stunned(statuses: &[StatusState]) -> bool {
     statuses.iter().any(|st| st.kind == StatusKind::Stun)
 }
 
+/// What the n-th hard control on one enemy does (C42), when the rules name a list: the ticks it
+/// keeps, or `None` when it is refused. Past the list the enemy turns immune for the rules'
+/// `control_immune_ticks` and its count starts over; a control scaled to 0 ticks does not land
+/// and does not count. A landing one counts and restarts the reset. Knockdown reuses it.
+pub(super) fn land_hard_control(e: &mut AgentState, tuning: &Tuning, ticks: u32) -> Option<u32> {
+    let n = usize::from(e.control.hard_controls);
+    if n >= usize::from(tuning.control_repeat_len) {
+        e.stun_immune = tuning.control_immune_ticks;
+        e.control.hard_controls = 0;
+        e.control.hard_control_reset = 0;
+        return None;
+    }
+    let ticks = ticks * u32::from(tuning.control_repeat_pcts[n]) / 100;
+    if ticks == 0 {
+        return None;
+    }
+    e.control.hard_controls += 1;
+    e.control.hard_control_reset = tuning.control_reset_ticks;
+    Some(ticks)
+}
+
 /// Stuns `target` for a smash's `ticks`: all of them on a regular enemy, the elite's share on an
-/// elite, nothing on any other target. A stun that lands ends a flinch.
+/// elite, nothing on any other target. With a hard-control list in the rules each further stun
+/// on one enemy is shorter and then refused (`land_hard_control`); a stun that lands ends a
+/// flinch and, when the rules say so, puts `vulnerable` on its target for its ticks.
 pub(super) fn apply(
     stage: &World,
     s: &mut State,
@@ -40,6 +64,11 @@ pub(super) fn apply(
     } else {
         ticks
     };
+    let ticks = if ticks > 0 && stage.tuning.control_repeat_len > 0 {
+        land_hard_control(&mut s.enemies[i], &stage.tuning, ticks).unwrap_or(0)
+    } else {
+        ticks
+    };
     if ticks > 0 {
         // The stun cancels what the enemy was doing: its running attack, in any phase. Orbs it
         // has spawned fly on.
@@ -47,6 +76,10 @@ pub(super) fn apply(
         s.add_stun(target, source, ticks, events);
         attacks::cancel_runs_of(stage, s, id);
         end_flinch(stage, s, i, events);
+        let pct = stage.tuning.vulnerable_stun_pct;
+        if pct > 0 {
+            s.add_status(target, StatusKind::Vulnerable, source, pct, ticks, events);
+        }
     }
 }
 

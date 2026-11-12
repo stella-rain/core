@@ -503,12 +503,15 @@ pub(super) fn scale_damage(
 pub(super) struct ControlTick {
     /// The ticks of immunity a flinch's end starts.
     pub flinch_immune_ticks: u16,
+    /// Whether a hard-control list is named: a stun's end then starts no immunity of its own.
+    pub own_immunity: bool,
 }
 
 impl ControlTick {
     pub(super) fn of(tuning: &super::world::Tuning) -> ControlTick {
         ControlTick {
             flinch_immune_ticks: tuning.flinch_immune_ticks,
+            own_immunity: tuning.control_repeat_len > 0,
         }
     }
 }
@@ -551,7 +554,8 @@ pub(super) fn tick_statuses_and_aggro(
         c.aggro = c.aggro.saturating_sub(aggro_decay);
     }
     // An enemy's immunity counts down, and a stun that runs out starts it.
-    let immune = Some(s.stun.immune_ticks);
+    // With a hard-control list named the immunity is the list's (`stun::apply`), not this one.
+    let immune = (!control.own_immunity).then_some(s.stun.immune_ticks);
     for e in &mut s.enemies {
         e.stun_immune = e.stun_immune.saturating_sub(1);
         let stunned = super::stun::stunned(&e.statuses);
@@ -562,7 +566,7 @@ pub(super) fn tick_statuses_and_aggro(
             }
             events.push(DomainEvent::StunEnded { target: e.id });
         }
-        // Flinch counters, all zero (and so skipped) until a rule writes them.
+        // Flinch and hard-control counters, all zero (and so skipped) until a rule writes them.
         let c = &mut e.control;
         if *c != FoeControl::default() {
             c.flinch_immune = c.flinch_immune.saturating_sub(1);
@@ -571,6 +575,12 @@ pub(super) fn tick_statuses_and_aggro(
                 if c.flinch == 0 {
                     c.flinch_immune = control.flinch_immune_ticks;
                     events.push(DomainEvent::FlinchEnded { target: e.id });
+                }
+            }
+            if c.hard_control_reset > 0 {
+                c.hard_control_reset -= 1;
+                if c.hard_control_reset == 0 {
+                    c.hard_controls = 0;
                 }
             }
         }

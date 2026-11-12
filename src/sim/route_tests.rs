@@ -522,6 +522,7 @@ fn every_present_player_fades_and_ages() {
         100,
         super::entity::ControlTick {
             flinch_immune_ticks: 0,
+            own_immunity: false,
         },
         &mut events,
     );
