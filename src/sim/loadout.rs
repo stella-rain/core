@@ -36,6 +36,9 @@ pub(crate) struct Loadout {
     lumine: Option<u16>,
     /// The player's own drop weights, by category ID (`RunSetup::drop_weights`).
     drop_weights: BTreeMap<ContentId, u32>,
+    /// The styles of the setup's weapon the player unlocked, as a mask of places in the weapon's
+    /// styles (`World::styles_offered`); `None`: every style.
+    pub(crate) styles_offered: Option<u8>,
 }
 
 impl Loadout {
@@ -85,6 +88,21 @@ impl Loadout {
                 .and_then(|id| content.rewards().index_of(id))
                 .map(|at| u16::try_from(at).unwrap_or(u16::MAX)),
             drop_weights: setup.drop_weights.clone(),
+            styles_offered: setup.unlocked_styles.as_ref().map(|list| {
+                let weapon = content.expertise().weapon(&setup.weapon);
+                weapon.map_or(0, |w| {
+                    w.styles
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, st)| list.contains(&st.id))
+                        .fold(0u8, |mask, (at, _)| {
+                            mask | u32::try_from(at)
+                                .ok()
+                                .and_then(|n| 1u8.checked_shl(n))
+                                .unwrap_or(0)
+                        })
+                })
+            }),
         }
     }
 }

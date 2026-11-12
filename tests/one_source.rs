@@ -376,6 +376,7 @@ fn every_versioned_file_refuses_another_game_the_same_way() {
                 content.perk_sets(),
                 content.stage_skills(),
                 content.weapons(),
+                content.expertise(),
                 content.starting_unlocks(),
             )
             .map(|_| ())
