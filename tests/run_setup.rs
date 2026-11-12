@@ -9,7 +9,7 @@ use stella_rain_core::run_setup::{
     self, MAX_EXTRA_REROLLS, MAX_SETUP_BYTES, MAX_STAR_POOL, RunSetup,
 };
 use stella_rain_core::validate::{self, Error, Issue};
-use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::version::{SCHEMA_VERSION, SIM_VERSION, Versions};
 use stella_rain_core::weapon::WeaponRef;
 
 fn setup() -> RunSetup {
@@ -1065,4 +1065,178 @@ fn the_lumine_star_needs_no_pool_and_only_the_level_and_kind_decide() {
         std::fs::read_to_string(crate::data_root::data_root().join("src/run_setup.rs")).unwrap();
     // The one left is the carried-star clause of `sim_version` 1; the Lumine clause is gone.
     assert_eq!(source.matches("not in the star pool").count(), 1);
+}
+
+// --- The unlocked styles of the run weapon (ADR-SIM-9 point 8, ADR-SAVE-7 point 10) --------------
+
+/// `base` with `unlocked_styles` set through JSON (`None` leaves the member out).
+fn styled_from(base: &RunSetup, styles: Option<serde_json::Value>) -> RunSetup {
+    let mut v = serde_json::to_value(base).unwrap();
+    if let Some(styles) = styles {
+        v["unlocked_styles"] = styles;
+    }
+    serde_json::from_value(v).expect("a setup with unlocked styles reads")
+}
+
+fn styled(styles: serde_json::Value) -> RunSetup {
+    styled_from(&equipment(), Some(styles))
+}
+
+fn styled_text(setup: &RunSetup) -> String {
+    String::from_utf8(bytes(setup)).unwrap()
+}
+
+#[test]
+fn unlocked_styles_are_written_in_order_and_read_back() {
+    let setup = styled(serde_json::json!(["edge", "tempo"]));
+    let text = styled_text(&setup);
+    assert!(
+        text.contains(r#""unlocked_styles":["edge","tempo"]"#),
+        "{text}"
+    );
+    assert_eq!(run_setup::parse_and_validate(text.as_bytes()), Ok(setup));
+}
+
+#[test]
+fn an_empty_list_is_kept_and_is_not_the_absent_field() {
+    let setup = styled(serde_json::json!([]));
+    assert!(styled_text(&setup).contains(r#""unlocked_styles":[]"#));
+    assert_ne!(setup, equipment());
+    let back: RunSetup = serde_json::from_slice(&bytes(&setup)).unwrap();
+    assert_eq!(back, setup);
+}
+
+#[test]
+fn an_absent_field_writes_nothing_and_the_fixtures_still_read() {
+    assert!(!styled_text(&equipment()).contains("unlocked_styles"));
+    let dir = crate::data_root::data_root().join("tests/fixtures/run_setup");
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let text = std::fs::read(&path).unwrap();
+        let setup: RunSetup = serde_json::from_slice(&text).unwrap();
+        assert!(!String::from_utf8(text).unwrap().contains("unlocked_styles"));
+        let written = bytes(&setup);
+        assert!(
+            !String::from_utf8(written.clone())
+                .unwrap()
+                .contains("unlocked_styles")
+        );
+        assert_eq!(
+            serde_json::from_slice::<RunSetup>(&written).unwrap(),
+            setup,
+            "{path:?}"
+        );
+    }
+}
+
+#[test]
+fn unlocked_styles_must_be_sorted_each_once_well_formed_and_at_most_three() {
+    let order = "not after the entry before it (sorted, each once)";
+    for list in [
+        serde_json::json!(["tempo", "edge"]),
+        serde_json::json!(["edge", "edge"]),
+    ] {
+        assert_eq!(found(&styled(list)), [issue("$.unlocked_styles[1]", order)]);
+    }
+    assert_eq!(
+        found(&styled(serde_json::json!(["a", "b", "c", "d"]))),
+        [issue("$.unlocked_styles", "at most 3 styles (found 4)")]
+    );
+    assert!(run_setup::validate(&styled(serde_json::json!(["a", "b", "c"]))).is_ok());
+    assert_eq!(
+        found(&styled(serde_json::json!(["Not A Style"]))),
+        [issue(
+            "$.unlocked_styles[0]",
+            "not a valid ID (lowercase snake_case, at most 32 characters)"
+        )]
+    );
+}
+
+#[test]
+fn three_longest_ids_fit_the_setup_size_bound() {
+    let id = |c: char| c.to_string().repeat(32);
+    let setup = styled(serde_json::json!([id('a'), id('b'), id('c')]));
+    let text = bytes(&setup);
+    assert!(text.len() < MAX_SETUP_BYTES, "{}", text.len());
+    assert_eq!(run_setup::parse_and_validate(&text), Ok(setup));
+}
+
+#[test]
+fn unlocked_styles_need_sim_version_2_even_when_empty() {
+    for list in [serde_json::json!(["edge"]), serde_json::json!([])] {
+        let at_one = styled_from(&setup(), Some(list));
+        assert_eq!(
+            found(&at_one),
+            [issue("$.unlocked_styles", "needs sim_version 2")]
+        );
+    }
+}
+
+#[test]
+fn a_style_must_be_one_of_the_run_weapons() {
+    let no_style = "no such style for the run's weapon in the run's expertise file";
+    assert_eq!(
+        found_in(&styled(serde_json::json!(["crush"]))),
+        [issue("$.unlocked_styles[0]", no_style)]
+    );
+    assert_eq!(
+        found_in(&styled(serde_json::json!(["edge", "zzz"]))),
+        [issue("$.unlocked_styles[1]", no_style)]
+    );
+    for list in [
+        serde_json::json!(["edge", "reach"]),
+        serde_json::json!(["edge", "reach", "tempo"]),
+        serde_json::json!([]),
+    ] {
+        assert_eq!(content_check(&styled(list)), Ok(()));
+    }
+}
+
+#[test]
+fn the_hammer_takes_its_own_styles_and_every_mode_is_checked() {
+    let hammer = |list| RunSetup {
+        weapon: "giant_hammer".into(),
+        ..styled(list)
+    };
+    assert!(Engine::start(&hammer(serde_json::json!(["bulwark", "crush"]))).is_ok());
+    assert!(Engine::start(&hammer(serde_json::json!([]))).is_ok());
+    assert!(Engine::start(&styled(serde_json::json!([]))).is_ok());
+    let timed = RunSetup {
+        mode: "time_limit".into(),
+        ..styled(serde_json::json!(["crush"]))
+    };
+    assert_eq!(
+        found_in(&timed),
+        [issue(
+            "$.unlocked_styles[0]",
+            "no such style for the run's weapon in the run's expertise file"
+        )]
+    );
+}
+
+#[test]
+fn a_pack_whose_expertise_lacks_the_style_refuses_it() {
+    use stella_rain_core::expertise::Expertise;
+    use stella_rain_core::pack::ContentFiles;
+    let mut file: serde_json::Value =
+        serde_json::from_slice(ContentFiles::bundled_file("expertise")).unwrap();
+    let sword = file["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_sword")
+        .unwrap();
+    sword["styles"][0]["id"] = "blade".into();
+    let expertise = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT)
+        .expect("the renamed expertise validates");
+    let content = RunContent::bundled().clone().with_expertise(expertise);
+    let found = |list| issues(run_setup::validate_in(&styled(list), &content).unwrap_err());
+    assert_eq!(
+        found(serde_json::json!(["edge"])),
+        [issue(
+            "$.unlocked_styles[0]",
+            "no such style for the run's weapon in the run's expertise file"
+        )]
+    );
+    assert!(run_setup::validate_in(&styled(serde_json::json!(["blade"])), &content).is_ok());
 }

@@ -26,6 +26,7 @@ fn parse_bytes(bytes: &[u8]) -> Result<StarChart, Error> {
         content.perk_sets(),
         content.stage_skills(),
         content.weapons(),
+        content.expertise(),
         content.starting_unlocks(),
     )
 }
@@ -376,4 +377,129 @@ fn the_lumine_levels_cover_the_rewards_lumine_costs() {
         );
     }
     assert_eq!(rewards.lumine_cost(Rarity::Supernova), MAX_LUMINE);
+}
+
+// P5: per-weapon style rows (ADR-SIM-9 point 8, ADR-SAVE-7 point 10): which styles a weapon sells
+// and for how much, empty in the bundled pack.
+
+fn hammer_row() -> Value {
+    json!({ "weapon": "giant_hammer", "styles": [
+        { "id": "crush", "price": 1000 }, { "id": "quake", "price": 2000 }
+    ] })
+}
+
+fn with_styles(rows: Value) -> Value {
+    edited(|v| v["styles"] = rows)
+}
+
+/// The issues (path, message) a pack with `chart` is refused with.
+fn refused(chart: Value) -> Vec<(String, String)> {
+    match pack_with(chart) {
+        Err(PackError::File {
+            file: "star_chart",
+            error: Error::Invalid(issues),
+        }) => issues.into_iter().map(|i| (i.path, i.message)).collect(),
+        other => panic!("not refused as invalid: {other:?}"),
+    }
+}
+
+#[test]
+fn the_bundled_file_has_no_style_rows() {
+    assert!(file().get("styles").is_none());
+}
+
+#[test]
+fn style_rows_are_accepted_and_the_pack_keeps_them() {
+    let rows = json!([hammer_row()]);
+    let pack = pack_with(with_styles(rows.clone())).expect("a Hammer row");
+    assert!(pack.star_chart().is_some());
+    let two = json!([
+        hammer_row(),
+        { "weapon": "giant_sword", "styles": [{ "id": "edge", "price": 500 }] }
+    ]);
+    assert!(pack_with(with_styles(two)).is_ok());
+    let unpriced =
+        json!([{ "weapon": "giant_hammer", "styles": [{ "id": "bulwark", "price": 7 }] }]);
+    assert!(pack_with(with_styles(unpriced)).is_ok());
+}
+
+#[test]
+fn bad_style_rows_are_refused_at_their_path() {
+    let one = |row: Value| refused(with_styles(json!([row])));
+    let row = |weapon: &str, id: &str, price: u32| json!({ "weapon": weapon, "styles": [{ "id": id, "price": price }] });
+    assert_eq!(
+        one(row("no_such_weapon", "crush", 1))[0],
+        (
+            "$.styles[0].weapon".into(),
+            "not an ID the game holds".into()
+        )
+    );
+    assert_eq!(
+        one(row("Not A Weapon", "crush", 1))[0].0,
+        "$.styles[0].weapon"
+    );
+    let twice = refused(with_styles(json!([hammer_row(), hammer_row()])));
+    assert_eq!(
+        twice,
+        [(
+            "$.styles[1].weapon".into(),
+            "the same ID as an earlier entry".into()
+        )]
+    );
+    assert_eq!(
+        one(row("giant_hammer", "edge", 1))[0],
+        (
+            "$.styles[0].styles[0].id".into(),
+            "not a style of the weapon".into()
+        )
+    );
+    let dup = json!({ "weapon": "giant_hammer", "styles": [
+        { "id": "crush", "price": 1 }, { "id": "crush", "price": 2 }
+    ] });
+    assert_eq!(one(dup)[0].0, "$.styles[0].styles[1].id");
+    assert_eq!(
+        one(row("giant_hammer", "crush", 0))[0].0,
+        "$.styles[0].styles[0].price"
+    );
+    assert_eq!(
+        one(row("giant_hammer", "crush", MAX_PRICE + 1))[0].0,
+        "$.styles[0].styles[0].price"
+    );
+}
+
+#[test]
+fn the_style_lists_have_count_budgets_before_the_file_is_read() {
+    let rows: Vec<Value> = (0..=MAX_ITEMS).map(|_| hammer_row()).collect();
+    match pack_with(with_styles(json!(rows))) {
+        Err(PackError::Budget { path, limit, found }) => {
+            assert_eq!(path, "$.star_chart.styles");
+            assert_eq!((limit, found), (MAX_ITEMS, MAX_ITEMS + 1));
+        }
+        other => panic!("{other:?}"),
+    }
+    let four = json!([{ "weapon": "giant_hammer", "styles": [
+        { "id": "a", "price": 1 }, { "id": "b", "price": 1 },
+        { "id": "c", "price": 1 }, { "id": "d", "price": 1 }
+    ] }]);
+    match pack_with(with_styles(four)) {
+        Err(PackError::Budget { path, limit, found }) => {
+            assert_eq!(path, "$.star_chart.styles[0].styles");
+            assert_eq!((limit, found), (3, 4));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn the_accessor_returns_the_rows_and_the_bundled_chart_has_none() {
+    let chart = parse(&with_styles(json!([hammer_row()]))).expect("a Hammer row");
+    assert_eq!(chart.styles().len(), 1);
+    assert_eq!(chart.styles()[0].weapon.as_str(), "giant_hammer");
+    let ids: Vec<&str> = chart.styles()[0]
+        .styles
+        .iter()
+        .map(|s| s.id.as_str())
+        .collect();
+    assert_eq!(ids, ["crush", "quake"]);
+    assert!(Pack::bundled().star_chart().unwrap().styles().is_empty());
 }
