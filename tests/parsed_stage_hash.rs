@@ -112,3 +112,24 @@ fn any_other_change_of_content_changes_the_hash() {
     assert_ne!(base, edited(|s| s["player"]["hp"] = json!(4)));
     assert_ne!(base, edited(|s| s["boss"]["spawn"]["x"] = json!(46081)));
 }
+
+/// `try_styles` is hashed last and skipped when false, so a stage without it hashes as it did
+/// (ADR-SVC-7, as `crowd_target`).
+#[test]
+fn try_styles_is_the_last_member_and_false_hashes_as_absent() {
+    let v2 = |edit: &dyn Fn(&mut Value)| {
+        let mut stage: Value = serde_json::from_slice(CLEAR).unwrap();
+        stage["sim_version"] = 2.into();
+        edit(&mut stage);
+        parse_and_validate(stage.to_string().as_bytes()).unwrap()
+    };
+    let plain = v2(&|_| {});
+    let on = v2(&|s| s["try_styles"] = true.into());
+    let off = v2(&|s| s["try_styles"] = false.into());
+    let input = |s| String::from_utf8(parsed_stage_hash_input(s)).unwrap();
+    assert!(!input(&plain).contains("try_styles"));
+    assert!(input(&on).ends_with(r#","try_styles":true}"#));
+    assert_eq!(input(&off), input(&plain));
+    assert_ne!(parsed_stage_hash(&on), parsed_stage_hash(&plain));
+    assert_eq!(parsed_stage_hash(&off), parsed_stage_hash(&plain));
+}

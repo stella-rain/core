@@ -176,6 +176,7 @@ mod time_limit;
 mod time_limit_end;
 mod time_limit_run;
 mod trig;
+mod try_styles;
 mod tuning;
 mod tutorial;
 mod tutorial_script;
