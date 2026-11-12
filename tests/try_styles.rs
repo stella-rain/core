@@ -112,8 +112,8 @@ fn the_tutorial_file_that_names_the_field_gives_the_tutorial_run_alone() {
 #[test]
 fn the_bundled_pack_names_the_field_nowhere_outside_the_tutorial() {
     let pack = Pack::bundled();
-    assert!(stage_of(&pack, "trial").get("try_styles").is_none());
-    assert!(stage_of(&pack, "time_limit").get("try_styles").is_none());
+    assert!(stage_of(pack, "trial").get("try_styles").is_none());
+    assert!(stage_of(pack, "time_limit").get("try_styles").is_none());
 }
 
 // T4: what the weapon plays follows the style at once, and a re-picked style starts its path over.
