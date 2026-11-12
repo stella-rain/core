@@ -67,10 +67,10 @@ fn the_bundled_pack_holds_the_equipment_rules() {
     let extract: Vec<u32> = rules.rarities.iter().map(|r| r.extract).collect();
     let craft: Vec<u32> = rules.rarities.iter().map(|r| r.craft_price).collect();
     assert_eq!(extract, [5, 10, 20, 40, 80, 160]);
-    assert_eq!(craft, [25, 50, 100, 200, 400, 800]);
-    assert_eq!(rules.rune_extract, 10);
-    assert_eq!(rules.boss_bonus, 50);
-    assert_eq!(rules.boss_drops, 1);
+    assert_eq!(craft, [15, 30, 60, 120, 240, 480]);
+    assert_eq!(rules.rune_extract, 20);
+    assert_eq!(rules.boss_bonus, 150);
+    assert_eq!(rules.boss_drops, 2);
     assert_eq!(rules.rune_share_permille, 100);
 }
 
