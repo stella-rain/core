@@ -415,7 +415,7 @@ fn one_issue(result: Result<Pack, PackError>, file: &str) -> validate::Issue {
 fn a_sim_version_2_pack_without_equipment_rules_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode, and a
     // run at sim_version 2 needs the rewards file's equipment rules.
-    let mut v = without_equipment_rules();
+    let v = without_equipment_rules();
     let issue = one_issue(load(&v), "rewards");
     assert_eq!(issue.path, "$.equipment");
     assert_eq!(issue.message, NO_EQUIPMENT_RULES);
