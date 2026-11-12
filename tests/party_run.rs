@@ -544,6 +544,10 @@ fn the_party_cases_are_what_the_table_says() {
     assert_eq!(party_cases().len(), TABLE.len());
 }
 
+/// The tick the tutorial golem comes onto the field (`arrives_at_tick` in `modes/tutorial.json`);
+/// no clear can come before it.
+pub(crate) const ARRIVAL: u32 = 4_000;
+
 /// The first tick after 1260 (the last bat spawn) at which no enemy is on the field in the run of
 /// `replay`; `None` when the run ends first.
 pub(crate) fn first_empty_field(
@@ -581,8 +585,6 @@ fn the_tutorial_party_clears_with_its_build_out_of_it() {
         // The bots walk to the boss while the field is empty, even before the first bat: when the
         // boss dies before the field is empty after the last spawn, the bound starts at that spawn.
         let empty = first_empty_field(&case, &replay).unwrap_or(1260);
-        // The golem comes onto the field at the arrival tick, so no clear can come before it.
-        const ARRIVAL: u32 = 4_000;
         assert!(
             verified.ticks <= empty.max(ARRIVAL) + 2000,
             "({world}, {bot}): cleared at {}, field empty at {empty}",
