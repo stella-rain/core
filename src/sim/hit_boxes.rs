@@ -212,6 +212,7 @@ fn land(
                     s,
                     w.owner,
                     u32::try_from(n).unwrap_or(u32::MAX),
+                    events,
                 );
             }
         } else {
@@ -282,6 +283,7 @@ fn break_orbs(
             events.push(DomainEvent::OrbBroken {
                 owner: b.owner,
                 at: b.at,
+                player: Some(me),
             });
         }
         !hit
@@ -325,6 +327,7 @@ fn clear_orbs(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
                 events.push(DomainEvent::OrbBroken {
                     owner: b.owner,
                     at: b.at,
+                    player: Some(me),
                 });
             }
             !cleared
@@ -376,7 +379,7 @@ fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<Doma
         if p.invulnerable > 0 {
             // The beam is stopped by the invulnerability: a near miss, or nothing at all.
             if p.combat.perfect_window > 0 {
-                super::player::near_miss(stage, s, me);
+                super::player::near_miss(stage, s, me, events);
             }
             return;
         }
@@ -751,7 +754,7 @@ fn hit_players_side(stage: &World, s: &mut State, w: &Swing, events: &mut Vec<Do
         let p = &s.players[me];
         if p.invulnerable > 0 {
             if p.combat.perfect_window > 0 && covers(w, p.at, stage.tuning.player_radius) {
-                super::player::near_miss(stage, s, me);
+                super::player::near_miss(stage, s, me, events);
             }
             continue;
         }
@@ -1092,6 +1095,48 @@ mod party_tests {
         let before = hp(&s);
         hit_solo(&w, &mut s, &mut Vec::new());
         assert!(hp(&s)[0] < before[0], "nothing left to stop it hits");
+    }
+
+    /// The `PerfectEvade` events of `ev`, as JSON.
+    fn perfect_events(ev: &[DomainEvent]) -> Vec<serde_json::Value> {
+        ev.iter()
+            .map(|e| serde_json::to_value(e).expect("an event"))
+            .filter(|e| e["type"] == "PerfectEvade")
+            .collect()
+    }
+
+    #[test]
+    fn a_perfect_near_miss_says_so_once_and_the_rest_say_nothing() {
+        for since in [0, 3, 9] {
+            let (w, mut s) = tuned();
+            pressed(&mut s, 0, since);
+            let mut ev = Vec::new();
+            hit_solo(&w, &mut s, &mut ev);
+            assert_eq!(
+                perfect_events(&ev),
+                vec![serde_json::json!({ "type": "PerfectEvade",
+                    "data": { "player": PlayerIdx::SOLO } })],
+                "since {since}"
+            );
+            // A second near miss during the cooldown: nothing.
+            pressed(&mut s, 0, since);
+            let mut again = Vec::new();
+            hit_solo(&w, &mut s, &mut again);
+            assert!(perfect_events(&again).is_empty(), "in the cooldown");
+        }
+        // Outside the window: no event.
+        let (w, mut s) = tuned();
+        s.players[slot(0)].invulnerable = 4;
+        let mut ev = Vec::new();
+        hit_solo(&w, &mut s, &mut ev);
+        assert!(perfect_events(&ev).is_empty());
+        // No rule: no event.
+        let (mut w, mut s) = tuned();
+        w.tuning.perfect_evade = None;
+        pressed(&mut s, 0, 0);
+        let mut ev = Vec::new();
+        hit_solo(&w, &mut s, &mut ev);
+        assert!(perfect_events(&ev).is_empty());
     }
 
     #[test]

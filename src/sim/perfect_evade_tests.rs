@@ -228,3 +228,49 @@ fn the_slowed_run_is_the_same_run_whether_it_is_cloned_mid_slow_or_not() {
         );
     }
 }
+
+fn view(e: &Engine, i: usize) -> serde_json::Value {
+    serde_json::to_value(&e.snapshot().players[i]).expect("a view")
+}
+
+/// P2: the view holds the two timers and the reach while either runs, and no key otherwise.
+#[test]
+fn the_player_view_shows_the_slow_and_the_cooldown() {
+    let mut e = rig(3, Some(RULE));
+    for i in 0..3 {
+        assert!(
+            view(&e, i).get("perfect_evade").is_none(),
+            "before a near miss"
+        );
+    }
+    let c = &mut st(&mut e).players[slot(0)].combat;
+    c.perfect_slow = 60;
+    c.perfect_cooldown = 300;
+    assert_eq!(
+        view(&e, 0)["perfect_evade"],
+        serde_json::json!({ "slow_left": 60, "cooldown_left": 300, "reach": 51200 })
+    );
+    assert!(
+        view(&e, 1).get("perfect_evade").is_none(),
+        "only the evader's"
+    );
+    idle(&mut e, 1);
+    assert_eq!(
+        view(&e, 0)["perfect_evade"],
+        serde_json::json!({ "slow_left": 59, "cooldown_left": 299, "reach": 51200 })
+    );
+    st(&mut e).players[slot(0)].combat.perfect_slow = 0;
+    assert_eq!(
+        view(&e, 0)["perfect_evade"]["slow_left"],
+        0,
+        "the cooldown holds it"
+    );
+    st(&mut e).players[slot(0)].combat.perfect_cooldown = 0;
+    assert!(view(&e, 0).get("perfect_evade").is_none(), "both ran out");
+
+    let mut none = rig(1, None);
+    let c = &mut st(&mut none).players[slot(0)].combat;
+    c.perfect_slow = 60;
+    c.perfect_cooldown = 300;
+    assert!(view(&none, 0).get("perfect_evade").is_none(), "no rule");
+}

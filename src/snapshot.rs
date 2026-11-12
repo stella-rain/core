@@ -510,6 +510,28 @@ pub struct MapView {
     pub height: Fx,
 }
 
+/// A player's weapon gauge (ADR-SIM-9).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GaugeView {
+    /// The gauge now, in gauge units.
+    pub value: u32,
+    /// The style's maximum: the bar is this long, and the gauge is full at `value == max`.
+    pub max: u32,
+}
+
+/// A player's perfect evade after the near miss (ADR-SIM-8).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PerfectEvadeView {
+    /// Ticks of the slow left; enemies within `reach` of the player's `at` are slowed.
+    pub slow_left: u32,
+    /// Ticks until another near miss can be perfect.
+    pub cooldown_left: u32,
+    /// The slow's reach around the player, in 1/256 px.
+    pub reach: Fx,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlayerView {
@@ -522,6 +544,13 @@ pub struct PlayerView {
     /// Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.
     pub invulnerable: u32,
     pub evade: EvadeView,
+    /// The weapon gauge of its style, while the style grants one (ADR-SIM-9); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gauge: Option<GaugeView>,
+    /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
+    /// perfect evade (ADR-SIM-8); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perfect_evade: Option<PerfectEvadeView>,
     /// Where it is in its Main weapon's combos.
     pub combo: ComboView,
     /// The current step charging, if it is.
@@ -844,7 +873,9 @@ pub struct EntityView {
     /// Its damage-over-time statuses, one of a kind at most.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
-    /// Its statuses and auras, sorted by ID.
+    /// Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,
+    /// `bleed`, `poison`, `burn`, `stun`, `flinch` and `aura`, each with `remaining` and `total`
+    /// ticks; `flinch` is the enemy's own control state, shown as a status.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
     /// A shrine's running fight: the ticks left before it leaves unkilled.
