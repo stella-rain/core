@@ -42,7 +42,10 @@ mod files;
 mod introduced;
 pub mod trust;
 
-use check::{check_budgets, check_holds, check_perk_categories};
+use check::{
+    check_budgets, check_default_difficulty, check_default_perk_set, check_difficulty_boss_times,
+    check_equipment_rules, check_holds, check_perk_categories,
+};
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
 pub use compare::{CompareError, compare_json_values, compare_numbers_only};
@@ -446,6 +449,7 @@ impl Pack {
             .map_err(PackError::in_file("stage_skills"))?;
         let rewards = Rewards::parse_with(&file_bytes(&pack.rewards), versions, &stage_skills)
             .map_err(PackError::in_file("rewards"))?;
+        check_equipment_rules(pack.sim_version, &rewards)?;
         let rewards = match pack.constellations.as_deref() {
             Some(raw) => {
                 let sets = Constellations::parse_with(&file_bytes(raw), versions, &rewards)
@@ -462,9 +466,11 @@ impl Pack {
             .map_err(PackError::in_file("runes"))?;
         let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets), versions)
             .map_err(PackError::in_file("perk_sets"))?;
+        check_default_perk_set(&perk_sets)?;
         check_perk_categories(&perk_sets, &rewards)?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties), versions)
             .map_err(PackError::in_file("difficulties"))?;
+        check_default_difficulty(&difficulties)?;
         let attack_presets = AttackPresets::parse(&file_bytes(&pack.attack_presets), versions)
             .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
@@ -516,6 +522,7 @@ impl Pack {
             .map_err(PackError::in_file("trial"))?;
         let time_limit = TimeLimit::parse(&file_bytes(&pack.modes.time_limit), versions)
             .map_err(PackError::in_file("time_limit"))?;
+        check_difficulty_boss_times(&difficulties, &time_limit)?;
         let tutorial = validate::parse_and_validate(&file_bytes(&pack.modes.tutorial))
             .map_err(PackError::in_file("tutorial"))?;
         // Its bosses are checked against the trial stage they are placed in.
