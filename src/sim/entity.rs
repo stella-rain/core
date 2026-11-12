@@ -159,7 +159,7 @@ impl State {
         }
     }
 
-    fn statuses_mut(&mut self, who: Who) -> &mut Statuses {
+    pub(super) fn statuses_mut(&mut self, who: Who) -> &mut Statuses {
         match who {
             Who::Player(i) => &mut self.players[i].statuses,
             Who::Boss => &mut self.boss.as_mut().expect("a boss").statuses,

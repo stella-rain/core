@@ -576,6 +576,9 @@ fn strike(
                 }),
                 SmashEffect::Bleed {} => Smash::Bleed,
                 SmashEffect::Stun { ticks } => Smash::Stun { ticks },
+                // Never reached: `reap` needs sim_version 2 (the weapon validator refuses it
+                // below), so no frozen run holds it. The arm keeps the closed list exhaustive.
+                SmashEffect::Reap { .. } => Smash::Bleed,
             })
     } else {
         None

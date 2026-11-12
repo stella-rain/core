@@ -260,7 +260,11 @@ impl Perturb for Smash {
                 distance: 1,
                 ticks: 1,
             }),
-            Smash::Stun { .. } => Smash::Knockback(Pull {
+            Smash::Stun { .. } => Smash::Reap {
+                stacks: 1,
+                boss_pct: 1,
+            },
+            Smash::Reap { .. } => Smash::Knockback(Pull {
                 distance: 1,
                 ticks: 1,
             }),

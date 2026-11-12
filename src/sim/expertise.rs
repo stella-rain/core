@@ -34,11 +34,11 @@ use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, LevelKindsView, StatValueView, StepGrantKind, StyleKindView, TreeReadyView,
-    TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, LevelKindsView, SmashEffectKind, StatValueView, StepGrantKind,
+    StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
-use crate::weapon::WeaponRef;
+use crate::weapon::{SmashEffect, WeaponRef};
 
 use super::entity::Who;
 use super::levels;
@@ -507,15 +507,24 @@ pub(crate) fn weapon_stats_view(
 fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
     kinds
         .iter()
-        .map(
-            |StyleKind::ReplaceStep { step, grant }| StyleKindView::ReplaceStep {
+        .map(|kind| match kind {
+            StyleKind::ReplaceStep { step, grant } => StyleKindView::ReplaceStep {
                 step: step.clone(),
                 grant: match grant {
                     StepGrant::Charge(_) => StepGrantKind::Charge,
                     StepGrant::Hold(_) => StepGrantKind::Hold,
                 },
             },
-        )
+            StyleKind::SmashEffect { effect } => StyleKindView::SmashEffect {
+                effect: match effect {
+                    SmashEffect::Pull { .. } => SmashEffectKind::Pull,
+                    SmashEffect::Knockback { .. } => SmashEffectKind::Knockback,
+                    SmashEffect::Bleed {} => SmashEffectKind::Bleed,
+                    SmashEffect::Stun { .. } => SmashEffectKind::Stun,
+                    SmashEffect::Reap { .. } => SmashEffectKind::Reap,
+                },
+            },
+        })
         .collect()
 }
 

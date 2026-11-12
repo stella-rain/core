@@ -255,6 +255,12 @@ pub(super) fn damage(
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, me, target, events);
         }
+        // A reap's burst may kill the target: what follows treats it as dead then.
+        let mut dead = dead;
+        if let Some(Smash::Reap { stacks, boss_pct }) = b.smash.filter(|_| !dead) {
+            runes::reap_smash(stage, s, me, target, stacks, boss_pct, events);
+            dead = !s.is_alive(target);
+        }
         if let Some(Smash::Stun { ticks }) = b.smash.filter(|_| !dead) {
             stun::apply(stage, s, target, b.owner, ticks, events);
         }

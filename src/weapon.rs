@@ -2,7 +2,8 @@
 //! weapon owns the combo tree, reached by presses of `main` (A) and `smash` (B), each step a
 //! phased attack that may charge. A weapon is a preset by ID or an inline definition,
 //! as an attack is, and a preset is the whole weapon: `player.weapon` names one. A smash (a step
-//! reached by B) may carry one smash effect. The run's setup takes one ID.
+//! reached by B) may carry one smash effect (pull, knockback, bleed, stun or reap); a style may set
+//! it in place of the base's (`expertise`, ADR-SIM-9). The run's setup takes one ID.
 //!
 //! Field names are placeholders until the freeze (ADR-REPL-1).
 
@@ -198,5 +199,15 @@ pub enum SmashEffect {
     Stun {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
         ticks: u32,
+    },
+    /// A smash hit adds a bleed stack, as `bleed` does; a smash that hits an enemy holding
+    /// `stacks` bleed stacks cashes them instead: the stacks go and the enemy takes the bleed's
+    /// remaining damage at once. A boss and its parts take `boss_pct` percent of it. Needs
+    /// `sim_version` 2 (ADR-SIM-9).
+    Reap {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_REAP_STACKS))]
+        stacks: u32,
+        #[schemars(range(min = 0, max = crate::validate::limits::MAX_REAP_BOSS_PCT))]
+        boss_pct: u32,
     },
 }
