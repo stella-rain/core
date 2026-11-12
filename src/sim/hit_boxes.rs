@@ -595,8 +595,10 @@ fn hit_enemy_side(
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
                 damage(stage, s, me, shot(w), Who::Boss, events);
-                stagger_by(stage, s, me, w, Who::Boss, events);
-                resisted_move_fills(stage, s, me, w, Who::Boss, events);
+                if stage.has_stagger {
+                    stagger_by(stage, s, me, w, Who::Boss, events);
+                    resisted_move_fills(stage, s, me, w, Who::Boss, events);
+                }
             }
             let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
             for i in 0..parts {
@@ -606,8 +608,10 @@ fn hit_enemy_side(
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
                     damage(stage, s, me, shot(w), Who::BossPart(i), events);
-                    stagger_by(stage, s, me, w, Who::BossPart(i), events);
-                    resisted_move_fills(stage, s, me, w, Who::BossPart(i), events);
+                    if stage.has_stagger {
+                        stagger_by(stage, s, me, w, Who::BossPart(i), events);
+                        resisted_move_fills(stage, s, me, w, Who::BossPart(i), events);
+                    }
                 }
             }
         }

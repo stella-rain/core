@@ -131,10 +131,10 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
             r.cooldown_left = r.cooldown_left.saturating_sub(1);
         }
         // A staggered boss does not move: neither its order nor its chase (C03).
-        if stage.has_stagger && b.stagger.staggered > 0 {
-        } else if let Some(order) = b.order.filter(|_| !rooted) {
+        let held = stage.has_stagger && b.stagger.staggered > 0;
+        if let Some(order) = b.order.filter(|_| !rooted && !held) {
             (b.at, b.order) = step_order(b.at, order);
-        } else if let Some((chase, to)) = chase {
+        } else if let Some((chase, to)) = chase.filter(|_| !held) {
             // The same arithmetic as an agent's `Movement::Follow` arm (`agents::move_agent`),
             // copied and not shared: that arm is the crowd's hot path (ADR-SIM-6).
             let keep = speed_pct(&b.statuses) * pct.unwrap_or(100) / 100;

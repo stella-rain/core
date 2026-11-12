@@ -66,7 +66,14 @@ pub(super) fn apply(
                 }
                 _ => 0,
             };
-            fill(stage, s, target, me, value * resisted / 100, events);
+            fill(
+                stage,
+                s,
+                target,
+                me,
+                value.saturating_mul(resisted) / 100,
+                events,
+            );
         }
     }
     let Who::Enemy(i) = target else {
