@@ -803,20 +803,25 @@ impl World {
         if self.grant_weapons.is_empty() {
             return self.weapon();
         }
-        let granted = s.players.career(me).expertise.as_ref().and_then(|g| {
-            let style = usize::from(g.style?);
-            // Under `try_styles` the path is the log of the picks, not upgrades taken: the style's
-            // own grants only (ADR-SIM-9 point 3).
-            let taken = if self.try_styles {
-                0
-            } else {
-                g.path.len().min(PATH_PLACES - 1)
-            };
-            self.grant_weapons
-                .get(style * PATH_PLACES + taken)?
-                .as_ref()
-        });
+        let granted = self
+            .grant_slot(s, me)
+            .and_then(|at| self.grant_weapons.get(at)?.as_ref());
         granted.or_else(|| self.weapon())
+    }
+
+    /// Where the style player `me` holds and the places of its path taken put it in the grant
+    /// lists (`style * PATH_PLACES + taken`), read from the recorded style and path, so no state
+    /// or input is added. Under `try_styles` the path is the log of the picks, not upgrades
+    /// taken: the style's own grants only (ADR-SIM-9 point 3).
+    fn grant_slot(&self, s: &super::state::State, me: PlayerIdx) -> Option<usize> {
+        let g = s.players.career(me).expertise.as_ref()?;
+        let style = usize::from(g.style?);
+        let taken = if self.try_styles {
+            0
+        } else {
+            g.path.len().min(PATH_PLACES - 1)
+        };
+        Some(style * PATH_PLACES + taken)
     }
 
     /// Every copy of the weapon with a style's grants, for the attack table.
