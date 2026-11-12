@@ -448,6 +448,40 @@ fn a_sim_version_1_pack_needs_no_equipment_rules() {
     assert!(loaded > 0);
 }
 
+/// The bundled pack with `normal` running `times` boss times, 3,000 ticks apart.
+fn normal_with_boss_times(times: usize) -> (Value, usize) {
+    let mut v = value();
+    let ticks: Vec<u64> = (1..=times as u64).map(|t| t * 3_000).collect();
+    let length = *ticks.last().unwrap();
+    let list = v["difficulties"]["difficulties"].as_array_mut().unwrap();
+    let at = list
+        .iter()
+        .position(|d| d["id"] == json!("normal"))
+        .unwrap();
+    list[at]["length_ticks"] = json!(length);
+    list[at]["boss_ticks"] = json!(ticks);
+    (v, at)
+}
+
+#[test]
+fn a_difficulty_with_more_boss_times_than_the_pool_has_bosses_is_refused_with_the_pack() {
+    // One mid-boss for each boss time but the last, each pool entry once: the run start refuses
+    // more, so the pack does at load.
+    let pool = value()["modes"]["time_limit"]["mid_boss_pool"]
+        .as_array()
+        .unwrap()
+        .len();
+    let (v, at) = normal_with_boss_times(pool + 2);
+    let issue = one_issue(load(&v), "difficulties");
+    assert_eq!(issue.path, format!("$.difficulties[{at}].boss_ticks"));
+    assert_eq!(
+        issue.message,
+        "more mid-boss times than the time_limit mode's pool has bosses"
+    );
+    let (v, _) = normal_with_boss_times(pool + 1);
+    load(&v).expect("one boss time more than the pool has mid-bosses is the last, not a mid-boss");
+}
+
 #[test]
 fn a_time_limit_boss_the_trial_stage_would_refuse_is_refused_with_the_pack() {
     // The fuzz target's invariant: a pack that loads starts a run of each mode. A boss
