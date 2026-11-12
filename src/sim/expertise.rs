@@ -29,7 +29,7 @@
 
 use super::World;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, SetStat, StepGrant, Style, StyleKind,
+    Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
     TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
@@ -37,8 +37,8 @@ use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, LevelKindsView, SmashEffectKind, StatValueView, StepGrantKind,
-    StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StatValueView,
+    StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::{SmashEffect, WeaponRef};
@@ -571,6 +571,12 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     SmashEffect::Bleed {} => SmashEffectKind::Bleed,
                     SmashEffect::Stun { .. } => SmashEffectKind::Stun,
                     SmashEffect::Reap { .. } => SmashEffectKind::Reap,
+                },
+            },
+            StyleKind::Gauge(g) => StyleKindView::Gauge {
+                max: g.max,
+                spend: match g.spend {
+                    GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
                 },
             },
         })
