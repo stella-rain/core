@@ -851,6 +851,8 @@ fn stage_on(
         }
     };
     let mut stage = base.clone();
+    // Only the tutorial mode takes `try_styles`; a pack that names it elsewhere is inert (ADR-SVC-1).
+    stage.try_styles &= setup.mode.as_str() == "tutorial";
     // The run's rules are its setup's (ADR-REPL-2); the mode file's own version is not the run's.
     stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
@@ -922,6 +924,8 @@ pub(crate) fn time_limit_run(
         }]));
     }
     let mut stage = trial.clone();
+    // Only the tutorial mode takes `try_styles`: a trial file that names it does not reach this run.
+    stage.try_styles = false;
     stage.sim_version = setup.sim_version;
     stage.player.weapon = WeaponRef::Preset {
         id: setup.weapon.clone(),
