@@ -45,7 +45,7 @@ pub(super) fn apply(
         // has spawned fly on.
         let id = s.id_of(target);
         s.add_stun(target, source, ticks, events);
-        attacks::end_runs_of(stage, s, id);
+        attacks::cancel_runs_of(stage, s, id);
     }
 }
 
@@ -144,6 +144,20 @@ mod tests {
         let until = s.tick + w.tuning.ranged_token_cooldown_ticks;
         stun_owner(&w, &mut s);
         assert!(s.runs.is_empty(), "the run is gone");
+        assert_eq!(s.ranged_cooling.as_slice(), [(until, pool)]);
+    }
+
+    #[test]
+    fn two_cancels_of_one_run_in_one_hit_pass_cool_its_token_once() {
+        let (w, mut s, pool) = ranged_run(channelled());
+        let until = s.tick + w.tuning.ranged_token_cooldown_ticks;
+        let owner = s.runs[0].owner;
+        s.scratch.ends_pinned = Some(s.runs.len());
+        // The two asks, as a stun and a second one in the same pass make them.
+        attacks::cancel_runs_of(&w, &mut s, owner);
+        attacks::cancel_runs_of(&w, &mut s, owner);
+        super::super::hit_boxes::apply_ends(&w, &mut s);
+        assert!(s.runs.is_empty());
         assert_eq!(s.ranged_cooling.as_slice(), [(until, pool)]);
     }
 

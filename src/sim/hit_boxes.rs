@@ -204,22 +204,30 @@ fn land(
 
 /// Ends the runs that ended during the pass, in the order they were asked for, among the runs
 /// that existed when it began: a run a hit started in the pass is not touched.
-fn apply_ends(stage: &World, s: &mut State) {
+pub(super) fn apply_ends(stage: &World, s: &mut State) {
     let pinned = s.scratch.ends_pinned.take().unwrap_or(s.runs.len());
     if s.scratch.ends_pending.is_empty() {
         return;
     }
     let ends = std::mem::take(&mut s.scratch.ends_pending);
-    let mut at = 0;
+    let (tick, mut at) = (s.tick, 0);
     s.runs.retain_mut(|r| {
         let place = at;
         at += 1;
         let ended = place < pinned
             && ends.iter().any(|e| match *e {
                 RunEnd::Slot(owner, slot) => r.owner == owner && r.slot == slot,
-                RunEnd::All(owner) => r.owner == owner,
+                RunEnd::All(owner) | RunEnd::Cancel(owner) => r.owner == owner,
             });
         if ended {
+            // A cancel cools a channelled run's token, once however many ends asked.
+            let cancelled = ends.iter().any(|e| *e == RunEnd::Cancel(r.owner));
+            if let Some(pool) = cancelled
+                .then(|| super::attacks::cancelled_token(stage, r))
+                .flatten()
+            {
+                super::attacks::cool_into(&mut s.ranged_cooling, tick, stage, pool);
+            }
             Scratch::recycle_hits(&mut s.scratch.hit_lists, std::mem::take(&mut r.hits));
         }
         !ended

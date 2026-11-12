@@ -30,6 +30,9 @@ pub(super) enum RunEnd {
     Slot(EntityId, u8),
     /// Every run of this owner.
     All(EntityId),
+    /// Every run of this owner, cancelled by a control: a channelled ranged run that holds a
+    /// token cools it (`attacks::cancel_runs_of`).
+    Cancel(EntityId),
 }
 
 /// The attack runs that can end in one tick, each leaving its hit list behind: held to
