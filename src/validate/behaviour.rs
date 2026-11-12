@@ -9,11 +9,26 @@ use crate::id::ContentId;
 use crate::registry::Kind;
 
 impl<'a> Ctx<'a> {
+    /// An enemy's or the boss's `threat_colour`: well formed, `sim_version` 2, not a companion's.
+    pub(super) fn threat_colour(&mut self, name: &Option<ContentId>) {
+        let Some(name) = name else { return };
+        self.key("threat_colour", |c| {
+            if c.foe == Foe::Other {
+                c.fail("an enemy's or the boss's only");
+            } else if c.sim_version < 2 {
+                c.fail("needs sim_version 2");
+            } else if !crate::registry::is_well_formed(name.as_str()) {
+                c.fail("not a valid ID (lowercase snake_case, at most 32 characters)");
+            }
+        });
+    }
+
     pub(super) fn agent(&mut self, a: &Agent, summon_ok: bool) {
         self.content_id("base", &a.base, Kind::Asset);
         if let Some(p) = &a.palette {
             self.content_id("palette", p, Kind::Palette);
         }
+        self.threat_colour(&a.threat_colour);
         self.within("hp", i64::from(a.hp), 1, i64::from(MAX_AGENT_HP));
         self.within("defence", i64::from(a.defence), 0, i64::from(MAX_DEFENCE));
         if let Some(p) = &a.profile {

@@ -33,6 +33,7 @@ impl<'a> Ctx<'a> {
         if let Some(p) = &b.palette {
             self.content_id("palette", p, Kind::Palette);
         }
+        self.threat_colour(&b.threat_colour);
         self.within("hp", i64::from(b.hp), 1, i64::from(MAX_BOSS_HP));
         if let Some(base) = b.stardust {
             self.within("stardust", i64::from(base), 0, i64::from(MAX_STARDUST_BASE));
