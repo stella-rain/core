@@ -267,7 +267,9 @@ fn break_orbs(
 fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     for i in 0..s.orbs.len() {
         let p = &s.players[me];
-        if p.hp == 0 {
+        // An invulnerable player is only looked at while a perfect-evade window is open: the tick
+        // cost of every other evade stays what it was.
+        if p.hp == 0 || (p.invulnerable > 0 && p.combat.perfect_window == 0) {
             return;
         }
         let Some(j) = super::beam_to(&s.orbs, i) else {

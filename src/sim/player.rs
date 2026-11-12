@@ -200,10 +200,11 @@ fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
     let Some(advance) = attacks::advance_of(stage, r) else {
         return;
     };
-    let ticks = i64::from(attacks::phase(stage, r, r.phase as usize).ticks);
-    if r.tick >= attacks::phase(stage, r, r.phase as usize).ticks || ticks == 0 {
+    let phase_ticks = attacks::phase(stage, r, r.phase as usize).ticks;
+    if r.tick >= phase_ticks {
         return;
     }
+    let ticks = i64::from(phase_ticks);
     let Some((at, radius)) = select::target_circle(stage, s, target) else {
         return;
     };
