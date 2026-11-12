@@ -103,13 +103,19 @@ fn the_star_rewards_have_the_decided_amounts() {
         amounts("type_bonus_slash", &three),
         [25, 50, 80].map(Value::from)
     );
-    assert_eq!(file["max_rune_haste_pct"], 500);
+    assert_eq!(file["max_rune_haste_pct"], 300);
 }
 
 #[test]
 fn the_run_stats_and_match_ups_hold_their_caps() {
     let stats = bundled(std::str::from_utf8(common::bundled_file("run_stats")).unwrap());
-    assert_eq!(stats["max_attack_speed_pct"], 500);
+    assert_eq!(stats["max_attack_speed_pct"], 300);
+    // The code defaults, for a file naming no cap, stay as they were.
+    assert_eq!(
+        stella_rain_core::run_stats::DEFAULT_MAX_ATTACK_SPEED_PCT,
+        500
+    );
+    assert_eq!(stella_rain_core::rewards::DEFAULT_MAX_RUNE_HASTE_PCT, 300);
     let ups = bundled(std::str::from_utf8(common::bundled_file("match_ups")).unwrap());
     assert_eq!(ups["max_type_bonus_pct"], 1000);
 }
