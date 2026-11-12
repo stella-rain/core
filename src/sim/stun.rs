@@ -472,4 +472,19 @@ mod tests {
             assert!(zone_attacks > 0);
         }
     }
+
+    #[test]
+    fn the_bench_worlds_name_no_gauge() {
+        // The worst case and the time-limit case are the shipped content: no elite or boss names a
+        // `stagger_max`, so the stagger rules never run there.
+        for engine in [
+            worst_case::warmed_up(),
+            crate::bench_fixtures::time_limit_case::warmed_up(),
+        ] {
+            let Run::V2 { world, .. } = engine.run() else {
+                panic!("the live rules");
+            };
+            assert!(!world.has_stagger);
+        }
+    }
 }
