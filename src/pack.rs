@@ -43,8 +43,8 @@ mod introduced;
 pub mod trust;
 
 use check::{
-    check_budgets, check_difficulty_boss_times, check_equipment_rules, check_holds,
-    check_perk_categories,
+    check_budgets, check_default_difficulty, check_default_perk_set, check_difficulty_boss_times,
+    check_equipment_rules, check_holds, check_perk_categories,
 };
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
@@ -466,9 +466,11 @@ impl Pack {
             .map_err(PackError::in_file("runes"))?;
         let perk_sets = PerkSets::parse(&file_bytes(&pack.perk_sets), versions)
             .map_err(PackError::in_file("perk_sets"))?;
+        check_default_perk_set(&perk_sets)?;
         check_perk_categories(&perk_sets, &rewards)?;
         let difficulties = Difficulties::parse(&file_bytes(&pack.difficulties), versions)
             .map_err(PackError::in_file("difficulties"))?;
+        check_default_difficulty(&difficulties)?;
         let attack_presets = AttackPresets::parse(&file_bytes(&pack.attack_presets), versions)
             .map_err(PackError::in_file("attack_presets"))?;
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)

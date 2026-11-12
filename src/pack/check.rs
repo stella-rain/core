@@ -15,6 +15,7 @@ use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
+use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
@@ -419,6 +420,48 @@ pub(super) fn check_difficulty_boss_times(
             error: Error::Invalid(issues),
         })
     }
+}
+
+/// The perk set a run names none of starts with is in the file: the run start refuses a pack
+/// without it.
+pub(super) fn check_default_perk_set(perk_sets: &PerkSets) -> Result<(), PackError> {
+    if perk_sets
+        .sets()
+        .iter()
+        .any(|s| s.id.as_str() == DEFAULT_PERK_SET)
+    {
+        return Ok(());
+    }
+    Err(PackError::File {
+        file: "perk_sets",
+        error: Error::Invalid(vec![Issue {
+            path: "$.perk_sets".into(),
+            message: format!(
+                "the default perk set ({DEFAULT_PERK_SET}) is missing: a run that names none starts with it"
+            ),
+        }]),
+    })
+}
+
+/// The difficulty a run names none of starts with is in the file: the run start refuses a pack
+/// without it.
+pub(super) fn check_default_difficulty(difficulties: &Difficulties) -> Result<(), PackError> {
+    if difficulties
+        .list()
+        .iter()
+        .any(|d| d.id.as_str() == DEFAULT_DIFFICULTY)
+    {
+        return Ok(());
+    }
+    Err(PackError::File {
+        file: "difficulties",
+        error: Error::Invalid(vec![Issue {
+            path: "$.difficulties".into(),
+            message: format!(
+                "the default difficulty ({DEFAULT_DIFFICULTY}) is missing: a run that names none starts with it"
+            ),
+        }]),
+    })
 }
 
 /// A perk's drop-weight category is a category of the rewards' equipment rules.
