@@ -416,6 +416,8 @@ pub(crate) struct Tuning {
     pub crit_damage_base_pct: u64,
     pub party_damage_pct: [u32; crate::id::MAX_PLAYERS as usize],
     /// The perfect evade (`sim_version` 2); `None`: the rule is off.
+    // Read by the rule (`player::near_miss`) when it lands; remove this allow there.
+    #[allow(dead_code)]
     pub perfect_evade: Option<crate::rules::PerfectEvade>,
 }
 
