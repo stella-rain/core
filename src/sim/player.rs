@@ -136,7 +136,7 @@ pub(super) fn update(
         p.facing = dir;
     }
     // The validator lets only defined presets through.
-    let main = stage.weapon();
+    let main = stage.weapon_of(s, me);
     s.players[me].target = match main {
         Some(m) if input.assist || input.auto => {
             select::assist_target(stage, s, me, m.assist_range.0)
@@ -749,7 +749,7 @@ fn in_perfect_window(charge: &Charge, held: u32) -> bool {
 /// The current step's charge, if it is charging.
 fn current_charge<'a>(stage: &'a World, s: &State, me: PlayerIdx) -> Option<&'a Charge> {
     s.players[me].combo.charge?;
-    let main = stage.weapon()?;
+    let main = stage.weapon_of(s, me)?;
     step_at(main, &s.players[me].combo)?.charge.as_ref()
 }
 
@@ -950,7 +950,7 @@ fn held_move_pct(stage: &World, s: &State, me: PlayerIdx) -> i64 {
 /// The current step's hold, if it is held.
 fn current_hold<'a>(stage: &'a World, s: &State, me: PlayerIdx) -> Option<&'a Hold> {
     s.players[me].combo.hold?;
-    let main = stage.weapon()?;
+    let main = stage.weapon_of(s, me)?;
     step_at(main, &s.players[me].combo)?.hold.as_ref()
 }
 

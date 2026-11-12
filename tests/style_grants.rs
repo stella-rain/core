@@ -237,6 +237,13 @@ fn an_upgrade_s_grant_applies_once_it_is_taken() {
         assert_eq!(charge_of(&e), None);
     }
     settle(&mut e);
+    // The second upgrade is a stat; the capstone is the grant.
+    pick(&mut e, 0);
+    for _ in 0..12 {
+        step(&mut e, smash_held());
+        assert_eq!(charge_of(&e), None);
+    }
+    settle(&mut e);
     pick(&mut e, 0);
     for _ in 0..12 {
         step(&mut e, smash_held());

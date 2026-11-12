@@ -655,3 +655,20 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
     }
     true
 }
+/// `base` with the grants a style gives when it is chosen and `taken` places of its path
+/// (0 to 3: the first upgrade, the second, the capstone) are taken, in path order: the style's
+/// own kinds, then each taken place's one choice. A grant that finds no step is skipped (the
+/// pack check refuses it before a run).
+pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> Weapon {
+    let mut weapon = base.clone();
+    let places = style_levels(style)
+        .into_iter()
+        .take(taken)
+        .filter_map(|(_, option)| option.map(|o| o.kinds.as_slice()));
+    for kinds in std::iter::once(style.kinds.as_slice()).chain(places) {
+        for StyleKind::ReplaceStep { step, grant } in kinds {
+            apply_grant(&mut weapon, step, grant);
+        }
+    }
+    weapon
+}

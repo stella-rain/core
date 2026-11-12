@@ -171,6 +171,10 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
         branches(&weapon.combo, &mut refs);
         branches(&weapon.dash, &mut refs);
     }
+    for weapon in world.granted_weapons() {
+        branches(&weapon.combo, &mut refs);
+        branches(&weapon.dash, &mut refs);
+    }
     for orbit in content.rewards().orbits() {
         refs.push(orbit.attack.clone());
     }
