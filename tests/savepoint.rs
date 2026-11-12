@@ -395,7 +395,7 @@ fn the_header_is_read_before_the_payload() {
 /// version 1 state under the format 2 header and the 60-byte stats record); `v1.sha256` stays as
 /// history, format 1 files being refused. Format 4 adds each player's equipment (`v4.sha256`);
 /// format 5 holds the longer stat totals, 11 instead of 6 (`v5.sha256`); format 7 drops the stale
-/// offer fields (`v7.sha256`); format 8 drops the star-offer fields; formats 1 to 7 are refused.
+/// offer fields (`v7.sha256`); format 8 drops the star-offer fields; format 9 adds the combat fields; formats 1 to 8 are refused.
 /// The golden test of the frozen `trial` run reproduces the newest pin; the byte pin of the live
 /// format is `sim::players_pin_tests` in `src/`.
 #[test]
@@ -528,13 +528,13 @@ fn record_of(stats: &stella_rain_core::ledger::PlayerStats) -> Vec<u8> {
 }
 
 #[test]
-fn format_eight_is_written_and_an_older_file_is_refused() {
+fn format_nine_is_written_and_an_older_file_is_refused() {
     let rec = run(300);
     let good = rec.replay();
     let bytes = rec.save();
-    assert_eq!(bytes[4..8], 8u32.to_le_bytes());
-    assert_eq!(SAVEPOINT_FORMAT, 8);
-    for older in [1, 2, 3, 4, 5, 6, 7] {
+    assert_eq!(bytes[4..8], 9u32.to_le_bytes());
+    assert_eq!(SAVEPOINT_FORMAT, 9);
+    for older in [1, 2, 3, 4, 5, 6, 7, 8] {
         let mut old = bytes.clone();
         put_u32(&mut old, 4, older);
         reseal(&mut old);

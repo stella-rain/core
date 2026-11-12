@@ -731,3 +731,29 @@ fn the_state_has_no_star_offer_fields() {
         assert_eq!(crate::savepoint::encode_state(&e).len(), base - removed);
     }
 }
+
+/// The live state holds the combat fields (format 9): the encoding is the Base length plus what
+/// they take. Per enemy and companion `FoeControl` 9, per elite and the boss `Stagger` 10, per
+/// present player `PlayerCombat` 28, and the queue's 4-byte length prefix.
+#[test]
+fn the_state_holds_the_combat_fields() {
+    use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
+    // (case, encoded length at the Base after the star-offer fields went)
+    let cases = [
+        (worst_case::warmed_up(), 144_100 - 22 - 2 * 2),
+        (hit_case::warmed_up(), 263_006),
+        (time_limit_case::warmed_up(), 30_425 - 22 - 2 * 141),
+    ];
+    for (e, base) in cases {
+        let st = match e.run() {
+            crate::engine::run::Run::V2 { state, .. } => state,
+            crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
+        };
+        let agents = (st.companions.len() + st.enemies.len()) as usize;
+        let elites = st.enemies.iter().filter(|a| a.elite.is_some()).count();
+        let boss = usize::from(st.boss.is_some());
+        let players = st.players.iter().count();
+        let added = 9 * agents + 10 * (elites + boss) + 28 * players + 4;
+        assert_eq!(crate::savepoint::encode_state(&e).len(), base + added);
+    }
+}

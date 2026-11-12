@@ -328,6 +328,51 @@ mod tests {
         );
     }
 
+    /// The combat state's caps (ADR-SIM-5 point 9): 23 rows, `MAX_WEAPON_GAUGE` bounding two
+    /// fields. Tuning values: a cap bounds a decode and fixes no behaviour.
+    #[test]
+    fn the_combat_caps_have_rows() {
+        let rows = [
+            ("MAX_FLINCH_TICKS", "60", "ticks"),
+            ("MAX_FLINCH_IMMUNE_TICKS", "120", "ticks"),
+            ("MAX_CONTROL_REPEATS", "8", "hard controls"),
+            ("MAX_CONTROL_RESET_TICKS", "600", "ticks"),
+            ("MAX_DOWN_TICKS", "180", "ticks"),
+            ("MAX_STAGGER", "10000", "stagger"),
+            ("MAX_STAGGER_BREAKS", "1000", "breaks"),
+            ("MAX_STAGGER_DRAIN_TICKS", "600", "ticks"),
+            ("MAX_STAGGERED_TICKS", "600", "ticks"),
+            ("MAX_PERFECT_WINDOW_TICKS", "30", "ticks"),
+            ("MAX_PERFECT_SLOW_TICKS", "300", "ticks"),
+            ("MAX_PERFECT_COOLDOWN_TICKS", "3600", "ticks"),
+            ("MAX_WEAPON_GAUGE", "10000", "gauge"),
+            (
+                "MAX_RALLY",
+                &crate::validate::limits::MAX_PLAYER_HP.to_string(),
+                "hit points",
+            ),
+            ("MAX_RALLY_TICKS", "600", "ticks"),
+            ("MAX_SPIRIT_LEVEL", "3", "level"),
+            ("MAX_SPIRIT_DECAY_TICKS", "3600", "ticks"),
+            ("MAX_COUNTER_WINDOW_TICKS", "60", "ticks"),
+            ("MAX_TEMPO_STACKS", "10", "stacks"),
+            ("MAX_TRIGGER_TICKS", "3600", "ticks"),
+            ("MAX_RANGED_GRACE_TICKS", "600", "ticks"),
+            ("MAX_REPEATS_QUEUED", "64", "entries"),
+            ("MAX_REPEAT_TARGETS", "16", "targets"),
+        ];
+        assert_eq!(rows.len(), 23);
+        for (name, value, unit) in rows {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
+    }
+
     #[test]
     fn the_view_rows_equal_their_constants() {
         let row = |name: &str| LIMITS.iter().find(|e| e.name == name).unwrap().value;
