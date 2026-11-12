@@ -547,6 +547,9 @@ pub(crate) struct World {
     /// Some style's copy of the tree gives a step a repeat: a run queues repeats only then
     /// (false for the bundled pack).
     pub has_repeat: bool,
+    /// Some style's copy of the tree gives a step a proc factor (false for the bundled pack): a
+    /// combo hit reads its step's factor only then.
+    pub has_proc: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -721,6 +724,7 @@ impl World {
             has_dash: false,
             has_advance: false,
             has_repeat: false,
+            has_proc: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -739,6 +743,11 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
+        // One walk of each style copy's tree, once (ADR-SIM-9 point 3).
+        for copy in world.grant_weapons.iter().flatten() {
+            world.has_repeat |= any_step(&copy.combo, &|s| !s.repeats.is_empty());
+            world.has_proc |= any_step(&copy.combo, &|s| s.proc_pct.is_some());
+        }
         Ok(world)
     }
 
@@ -967,6 +976,17 @@ fn grant_weapons(
         }
     }
     out
+}
+
+/// Whether `pred` holds for some step of the tree under `branches`.
+fn any_step(
+    branches: &crate::weapon::Branches,
+    pred: &dyn Fn(&crate::weapon::Step) -> bool,
+) -> bool {
+    [false, true]
+        .into_iter()
+        .filter_map(|smash| branches.get(smash))
+        .any(|step| pred(step) || any_step(&step.next, pred))
 }
 
 /// The gauge of each style and number of places of its path taken (the same index as

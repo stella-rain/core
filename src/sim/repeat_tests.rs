@@ -3,7 +3,8 @@
 //! owner is gone, the factor's draw on the attack stream and the queue's memory. The queue's
 //! own timing, over whole runs, is in `tests/repeat.rs`.
 
-use super::state::{AttackIndex, PlayerIdx, Repeat, RepeatAnchor, State};
+use super::AttackIndex;
+use super::state::{PlayerIdx, Repeat, RepeatAnchor, State};
 use super::{World, combat, runes};
 use crate::attack::{HitBox, PhaseKind};
 use crate::bench_fixtures::worst_case;
@@ -13,7 +14,6 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::inline::InlineVec;
 use crate::limits::MAX_REPEATS_QUEUED;
-use crate::rune::Rune;
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).expect("a slot")
