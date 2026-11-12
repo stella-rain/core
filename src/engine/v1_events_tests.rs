@@ -201,7 +201,8 @@ fn without_player_fields(event: &DomainEvent) -> String {
     ] {
         text = text.replace(field, "");
     }
-    text
+    // `OrbBroken`'s player is its last field.
+    text.replace(", player: None }", " }")
 }
 
 /// The frozen events with no live counterpart (ADR-SIM-7).

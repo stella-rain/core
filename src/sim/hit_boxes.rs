@@ -1094,6 +1094,48 @@ mod party_tests {
         assert!(hp(&s)[0] < before[0], "nothing left to stop it hits");
     }
 
+    /// The `PerfectEvade` events of `ev`, as JSON.
+    fn perfect_events(ev: &[DomainEvent]) -> Vec<serde_json::Value> {
+        ev.iter()
+            .map(|e| serde_json::to_value(e).expect("an event"))
+            .filter(|e| e["type"] == "PerfectEvade")
+            .collect()
+    }
+
+    #[test]
+    fn a_perfect_near_miss_says_so_once_and_the_rest_say_nothing() {
+        for since in [0, 3, 9] {
+            let (w, mut s) = tuned();
+            pressed(&mut s, 0, since);
+            let mut ev = Vec::new();
+            hit_solo(&w, &mut s, &mut ev);
+            assert_eq!(
+                perfect_events(&ev),
+                vec![serde_json::json!({ "type": "PerfectEvade",
+                    "data": { "player": PlayerIdx::SOLO } })],
+                "since {since}"
+            );
+            // A second near miss during the cooldown: nothing.
+            pressed(&mut s, 0, since);
+            let mut again = Vec::new();
+            hit_solo(&w, &mut s, &mut again);
+            assert!(perfect_events(&again).is_empty(), "in the cooldown");
+        }
+        // Outside the window: no event.
+        let (w, mut s) = tuned();
+        s.players[slot(0)].invulnerable = 4;
+        let mut ev = Vec::new();
+        hit_solo(&w, &mut s, &mut ev);
+        assert!(perfect_events(&ev).is_empty());
+        // No rule: no event.
+        let (mut w, mut s) = tuned();
+        w.tuning.perfect_evade = None;
+        pressed(&mut s, 0, 0);
+        let mut ev = Vec::new();
+        hit_solo(&w, &mut s, &mut ev);
+        assert!(perfect_events(&ev).is_empty());
+    }
+
     #[test]
     fn a_hit_residue_longer_than_the_evade_is_not_a_near_miss_and_a_tie_is() {
         // A hit 5 ticks before the press left 55 ticks; two ticks after the press the evade has 8.
