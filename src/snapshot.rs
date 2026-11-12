@@ -873,7 +873,9 @@ pub struct EntityView {
     /// Its damage-over-time statuses, one of a kind at most.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
-    /// Its statuses and auras, sorted by ID.
+    /// Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,
+    /// `bleed`, `poison`, `burn`, `stun`, `flinch` and `aura`, each with `remaining` and `total`
+    /// ticks; `flinch` is the enemy's own control state, shown as a status.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
     /// A shrine's running fight: the ticks left before it leaves unkilled.

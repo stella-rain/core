@@ -74,6 +74,10 @@
 //! and the orb clear (`hit_boxes::clear_orbs`) follows that attack. A run whose pack names no
 //! gauge keeps every one of those at zero, one bool test each.
 //!
+//! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
+//! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
+//! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
+//!
 //! The stage skill (`skill`) acts in `player_update` on a press, after the evade and
 //! before the combo; its black hole pulls in `skill_pull`, and its shield takes from the main
 //! character's damage in `collide`.
