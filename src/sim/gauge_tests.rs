@@ -78,7 +78,7 @@ fn slot(i: u8) -> PlayerIdx {
 }
 
 /// A run of `players` on the Sword that names `cfg` on style 0, every player on that style and
-/// hardy, with `foes` enemies of ids 9000.. kept stacked on the first player.
+/// hardy, with `foes` enemies from the run's counter kept stacked on the first player.
 struct Rig {
     e: Engine,
     foes: Vec<EntityId>,
@@ -108,12 +108,14 @@ fn rig(players: u8, cfg: Option<Cfg>, radius_px: Option<i32>, foes: u32) -> Rig 
     let mut ids = Vec::new();
     for i in 0..foes {
         let mut f = model.clone();
-        f.id = EntityId(9000 + i);
+        // Ids from the run's own counter, so later spawns keep the enemies in ID order.
+        f.id = EntityId(s.next_id + i);
         f.hp = BIG;
         f.max_hp = BIG;
         ids.push(f.id);
         s.enemies.push(f);
     }
+    s.next_id += foes;
     for i in 0..players {
         let p = &mut s.players[slot(i)];
         p.hp = 1_000;
