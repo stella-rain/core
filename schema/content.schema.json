@@ -4400,6 +4400,36 @@
       ],
       "type": "object"
     },
+    "GaugeSpend": {
+      "description": "What a full gauge is spent on: a closed list, one variant now.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A B press with the gauge full plays `attack` in place of the step's own and empties the\ngauge. It is checked as a player's attack and differs from every attack of the weapon's\nbase tree (the orb clear tells it by its compiled index).",
+          "properties": {
+            "attack": {
+              "$ref": "#/$defs/AttackRef"
+            },
+            "type": {
+              "const": "full_smash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "attack"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "GaugeSpendKind": {
+      "description": "What a gauge kind spends its full gauge on, by name only.",
+      "enum": [
+        "full_smash"
+      ],
+      "type": "string"
+    },
     "Guardians": {
       "additionalProperties": false,
       "description": "The guardians of a shrine, or the escort of a pack leader: `count` ordinary enemies placed on\na ring of `radius` around it, evenly spaced from the east, kept on the map. The enemy cap\nstill applies to them: one it refuses is not spawned.",
@@ -7098,6 +7128,14 @@
           "minimum": 0,
           "type": "integer"
         },
+        "orb_clear_radius": {
+          "description": "The radius of the orb clear (`sim_version` 2): when a full-gauge attack starts its first\nactive tick, every breakable orb whose centre is this near the player's is removed, in\n1/256 px, 1 px to `MAX_ORB_CLEAR_RADIUS` (420) px, the edge included. Absent: no clear.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "orb_radius": {
           "description": "A friendly orb's hit circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
           "format": "int32",
@@ -9527,6 +9565,59 @@
             "effect"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's weapon gauge: it fills from the player's normal (A) steps that hit and from the\nhit points lost, and a B press with it full plays the full-gauge attack and empties it\n(ADR-SIM-9 points 3 and 7). One per style path: a second is refused.",
+          "properties": {
+            "from_damage_pct": {
+              "description": "A hit taken adds `max * lost * pct / (max_hp * 100)` (floor), `lost` the hit points really\nlost; absent (0): no rule. At most `MAX_GAUGE_DAMAGE_PCT`.",
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "max": {
+              "description": "The gauge never passes it; full is `max` reached. 1 to `MAX_WEAPON_GAUGE`.",
+              "format": "uint32",
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "per_hit": {
+              "description": "Added for each enemy a normal step's hit box hits on a tick; absent (0): no rule. At most\n`max`.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "per_step": {
+              "description": "Added once to a normal step the first time one of its hit boxes hits an enemy; absent\n(0): no rule. At most `max`.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "spend": {
+              "$ref": "#/$defs/GaugeSpend",
+              "description": "What a full gauge buys."
+            },
+            "step_cap": {
+              "description": "The most one step's hits add (the bound on a horde, ADR-SIM-5): 1 to `max`. The damage\nfill is not held to it.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "gauge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "max",
+            "step_cap",
+            "spend"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -9573,6 +9664,30 @@
           "required": [
             "type",
             "effect"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a weapon gauge `max` long, spent as `spend`.",
+          "properties": {
+            "max": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "spend": {
+              "$ref": "#/$defs/GaugeSpendKind"
+            },
+            "type": {
+              "const": "gauge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "max",
+            "spend"
           ],
           "type": "object"
         }
