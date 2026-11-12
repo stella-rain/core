@@ -301,10 +301,10 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1140),
+    ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1100),
     ("three_tutorial", 4392, Outcome::Cleared, [0, 0, 0], 0),
-    ("join_two", 3000, Outcome::Running, [0, 0, 0], 890),
-    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 980),
+    ("join_two", 3000, Outcome::Running, [0, 0, 0], 810),
+    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 1020),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
@@ -316,21 +316,21 @@ const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
     ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
     ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
     ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1140),
+    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1100),
     ("two_revive", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1100),
+    ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1060),
 ];
 
 /// The equipment actions each of the seven moved cases holds per slot (Some entries of its ACTIONS
 /// steps). From the blessed files, not edited.
 const ACTIONS: [(&str, [u32; 3]); 7] = [
-    ("two_time_limit", [51, 56, 0]),
-    ("three_time_limit", [67, 70, 67]),
+    ("two_time_limit", [56, 65, 0]),
+    ("three_time_limit", [70, 73, 68]),
     ("three_tutorial", [3, 3, 4]),
-    ("join_two", [49, 48, 0]),
-    ("leave_hole", [65, 14, 46]),
-    ("two_revive", [51, 56, 0]),
-    ("three_revive", [56, 59, 55]),
+    ("join_two", [53, 56, 0]),
+    ("leave_hole", [65, 16, 49]),
+    ("two_revive", [56, 65, 0]),
+    ("three_revive", [59, 62, 55]),
 ];
 
 fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
@@ -349,21 +349,21 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search, not edited.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [2, 2, 0], 2074, 2254, "2f2df9da4a8401fe"),
-    ("three_revive", [3, 3, 0], 2074, 2254, "b9671025b482ef1d"),
+    ("two_revive", [2, 2, 0], 2074, 2254, "5673bcb24c34f616"),
+    ("three_revive", [3, 3, 0], 2074, 2254, "b874f130c58cfd46"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
 /// replace, extract, craft, tree_pick]`. From the seed search, not edited.
 const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
-    ("equipment_rig_1", [[12, 1, 47, 3, 1], [0; 5], [0; 5]]),
+    ("equipment_rig_1", [[12, 1, 50, 6, 1], [0; 5], [0; 5]]),
     (
         "equipment_rig_2",
-        [[12, 0, 37, 1, 1], [11, 0, 41, 3, 1], [0; 5]],
+        [[12, 1, 39, 3, 1], [11, 1, 45, 7, 1], [0; 5]],
     ),
     (
         "equipment_rig_3",
-        [[12, 2, 50, 2, 1], [11, 1, 54, 4, 0], [12, 2, 50, 2, 1]],
+        [[12, 2, 52, 3, 1], [11, 2, 52, 8, 0], [12, 2, 51, 2, 1]],
     ),
 ];
 

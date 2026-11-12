@@ -339,7 +339,12 @@ fn the_economy_picks_are_applied() {
     assert_eq!(equipment["boss_bonus"], 150);
     assert_eq!(equipment["boss_drops"], 2);
     assert_eq!(equipment["rune_share_permille"], 100);
-    let lumine_cost: Vec<u64> = rarities.iter().map(|r| num(&r["lumine_cost"])).collect();
+    let lumine_cost: Vec<u64> = rewards["rarities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| num(&r["lumine_cost"]))
+        .collect();
     assert_eq!(lumine_cost, [1, 2, 3, 4, 6, 10]);
 
     // The Stardust shares and the bank are kept for both modes.
