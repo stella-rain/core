@@ -440,6 +440,23 @@ mod tests {
         }
     }
 
+    /// The gauge's caps (ADR-SIM-5): a fill formula's percent and the orb clear's radius.
+    #[test]
+    fn the_gauge_caps_have_rows() {
+        for (name, value, unit) in [
+            ("MAX_GAUGE_DAMAGE_PCT", "1000", "percent"),
+            ("MAX_ORB_CLEAR_RADIUS", "420", "px"),
+        ] {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
+    }
+
     #[test]
     fn the_view_rows_equal_their_constants() {
         let row = |name: &str| LIMITS.iter().find(|e| e.name == name).unwrap().value;
