@@ -453,3 +453,88 @@ impl<'a> Ctx<'a> {
         });
     }
 }
+
+#[cfg(test)]
+mod advance_tests {
+    //! `AttackPhase.advance`, the slide of the main character's combo step (ADR-CONT-3, ADR-SVC-1).
+
+    use serde_json::{Value, json};
+
+    use crate::fixed::Fx;
+    use crate::stage::Stage;
+    /// `MAX_ADVANCE_DISTANCE` in px (step 2 adds the constant).
+    const MAX_ADVANCE_DISTANCE: i32 = 240;
+    use crate::validate::{Error, validate};
+
+    const STAGE: &str = include_str!("../../tests/fixtures/stage_v0.json");
+
+    fn phase(advance: Value) -> Value {
+        json!({ "kind": "active", "ticks": 6, "advance": advance })
+    }
+
+    /// The fixture at `sim_version`, its Main weapon's one combo step holding `phase`.
+    fn on_weapon(version: u32, phase: Value) -> Value {
+        let mut v: Value = serde_json::from_str(STAGE).unwrap();
+        v["sim_version"] = json!(version);
+        v["player"]["weapon"] = json!({ "inline": {
+            "combo": { "main": { "attack": { "inline": [phase] } } },
+            "window_ticks": 20, "assist_range": 0 } });
+        v
+    }
+
+    fn on_enemy(version: u32, phase: Value) -> Value {
+        let mut v: Value = serde_json::from_str(STAGE).unwrap();
+        v["sim_version"] = json!(version);
+        v["waves"][0]["enemy"]["rules"][0]["do"]["attack"] = json!({ "inline": [phase] });
+        v
+    }
+
+    fn on_boss(version: u32, phase: Value) -> Value {
+        let mut v: Value = serde_json::from_str(STAGE).unwrap();
+        v["sim_version"] = json!(version);
+        v["boss"]["phases"][0]["timeline"][1]["attack"] = json!({ "inline": [phase] });
+        v
+    }
+
+    fn paths(v: &Value) -> Vec<String> {
+        let stage: Stage = serde_json::from_value(v.clone()).expect("the stage parses");
+        match validate(&stage) {
+            Ok(()) => Vec::new(),
+            Err(Error::Invalid(issues)) => issues.into_iter().map(|i| i.path).collect(),
+            Err(other) => panic!("unexpected {other:?}"),
+        }
+    }
+
+    const AT: &str = "$.player.weapon.inline.combo.main.attack.inline[0].advance";
+
+    #[test]
+    fn an_advance_of_one_pixel_to_the_cap_loads_on_a_weapon_step() {
+        for stored in [Fx::px(1).0, Fx::px(MAX_ADVANCE_DISTANCE).0] {
+            assert!(paths(&on_weapon(2, phase(json!(stored)))).is_empty(), "{stored}");
+        }
+    }
+
+    #[test]
+    fn an_advance_outside_its_bounds_is_refused_at_its_path() {
+        for stored in [0, 255, Fx::px(MAX_ADVANCE_DISTANCE).0 + 1] {
+            assert_eq!(paths(&on_weapon(2, phase(json!(stored)))), [AT], "{stored}");
+        }
+    }
+
+    #[test]
+    fn an_enemy_or_boss_attack_never_advances() {
+        let enemy = paths(&on_enemy(2, phase(json!(Fx::px(10).0))));
+        assert_eq!(
+            enemy,
+            ["$.waves[0].enemy.rules[0].do.attack.inline[0].advance"]
+        );
+        let boss = paths(&on_boss(2, phase(json!(Fx::px(10).0))));
+        assert_eq!(boss.len(), 1, "{boss:?}");
+        assert!(boss[0].ends_with(".advance"), "{boss:?}");
+    }
+
+    #[test]
+    fn an_advance_needs_sim_version_2() {
+        assert_eq!(paths(&on_weapon(1, phase(json!(Fx::px(10).0)))), [AT]);
+    }
+}
