@@ -18,7 +18,7 @@ pub(super) fn stunned(statuses: &[StatusState]) -> bool {
 }
 
 /// Stuns `target` for a smash's `ticks`: all of them on a regular enemy, the elite's share on an
-/// elite, nothing on any other target.
+/// elite, nothing on any other target. A stun that lands ends a flinch.
 pub(super) fn apply(
     stage: &World,
     s: &mut State,
@@ -46,7 +46,59 @@ pub(super) fn apply(
         let id = s.id_of(target);
         s.add_stun(target, source, ticks, events);
         attacks::cancel_runs_of(stage, s, id);
+        end_flinch(stage, s, i, events);
     }
+}
+
+/// Ends enemy `i`'s flinch, if it has one: its immunity starts, as at every end.
+fn end_flinch(stage: &World, s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
+    let e = &mut s.enemies[i];
+    if e.control.flinch > 0 {
+        e.control.flinch = 0;
+        e.control.flinch_immune = stage.tuning.flinch_immune_ticks;
+        events.push(DomainEvent::FlinchEnded { target: e.id });
+    }
+}
+
+/// Makes enemy `i` flinch when a hit of `poise_damage` reaches its poise (C02): it must name
+/// one, the rules a `flinch_ticks`, and the enemy must be alive, in plain sight, not stunned,
+/// not on the ground, not flinching and not flinch-immune. The flinch cancels its running
+/// attack and is neither a hard control nor `vulnerable`.
+pub(super) fn flinch(
+    stage: &World,
+    s: &mut State,
+    i: usize,
+    poise_damage: u32,
+    source: EntityId,
+    events: &mut Vec<DomainEvent>,
+) {
+    let ticks = stage.tuning.flinch_ticks;
+    let e = &s.enemies[i];
+    if ticks == 0
+        || e.hp == 0
+        || e.shrine.is_some()
+        || e.hidden()
+        || e.control.flinch > 0
+        || e.control.flinch_immune > 0
+        || e.control.knocked_down > 0
+        || stunned(&e.statuses)
+    {
+        return;
+    }
+    match stage.defs.agent(e.def).poise {
+        Some(poise) if poise <= poise_damage => {}
+        _ => return,
+    }
+    let id = e.id;
+    s.enemies[i].control.flinch = ticks;
+    attacks::cancel_runs_of(stage, s, id);
+    events.push(DomainEvent::StatusApplied {
+        target: id,
+        status: super::snapshot::FLINCH_ID.clone(),
+        stacks: 1,
+        duration_ticks: u32::from(ticks),
+        source: s.players.of_id(source).map(|p| s.players.id(p)),
+    });
 }
 
 #[cfg(test)]

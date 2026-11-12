@@ -113,11 +113,12 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
     let area = super::Area::of_view(&world.map(), &s.players);
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
-        // A stunned enemy fires nothing (`act_one`), so it could not use a grant.
+        // A stunned or flinching enemy fires nothing (`act_one`), so it could not use a grant.
         if def.ranged_pools.is_empty()
             || e.hp == 0
             || !in_view(e.at, area)
             || super::stun::stunned(&e.statuses)
+            || e.control.flinch > 0
         {
             continue;
         }

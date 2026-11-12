@@ -474,7 +474,7 @@ fn p4_a_flinch_ends_on_its_tick_and_its_immunity_holds_a_second_one_off() {
 }
 
 /// A run of stuns of 30 ticks on a plain (poise-free) target at `presses` (all smashes).
-fn stuns(waves: Vec<Value>, patch: Value, presses: &[u32], ticks: u32) -> Played {
+fn stuns(waves: Vec<Value>, patch: Value, presses: &[u32]) -> Played {
     let stage = run_stage(flinch_weapon(Some(30), json!({}), json!({})), waves);
     let (mut e, id) = start(&stage, patch);
     let at = e.tick();
@@ -490,7 +490,7 @@ fn stun_total(p: &Played, hit: usize) -> Option<u32> {
 fn p5_each_further_hard_control_is_shorter_and_the_fourth_is_refused() {
     let plain = || vec![target(None, false)];
     // Presses 40 apart: 30, 15, 7 ticks, the fourth refused, and a fifth inside the immunity.
-    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120, 160], 0);
+    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120, 160]);
     let totals: Vec<_> = (0..5).map(|n| stun_total(&p, n)).collect();
     assert_eq!(
         totals,
@@ -498,17 +498,17 @@ fn p5_each_further_hard_control_is_shorter_and_the_fourth_is_refused() {
         "{totals:?}"
     );
     // 250 ticks after the fourth the immunity is over and the count starts again: 30.
-    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120, 370], 0);
+    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120, 370]);
     assert_eq!(stun_total(&p, 4), Some(30));
     // Two stuns 400 apart: the reset (300) elapsed, both are 30.
-    let p = stuns(plain(), all_rules(), &[0, 400], 0);
+    let p = stuns(plain(), all_rules(), &[0, 400]);
     assert_eq!((stun_total(&p, 0), stun_total(&p, 1)), (Some(30), Some(30)));
     // With the list named the run stats' 60-tick immunity no longer applies: a second smash 40
     // ticks after the first stun ended (it ended 30 on, the press is at 70) lands for 15.
-    let p = stuns(plain(), all_rules(), &[0, 70], 0);
+    let p = stuns(plain(), all_rules(), &[0, 70]);
     assert_eq!(stun_total(&p, 1), Some(15));
     // An elite (50 percent): 30 becomes 15, then 7 (50 percent of 15, floored).
-    let p = stuns(vec![target(None, true)], all_rules(), &[0, 40, 80], 0);
+    let p = stuns(vec![target(None, true)], all_rules(), &[0, 40, 80]);
     assert_eq!(
         (stun_total(&p, 0), stun_total(&p, 1), stun_total(&p, 2)),
         (Some(15), Some(7), Some(3)),
@@ -519,13 +519,13 @@ fn p5_each_further_hard_control_is_shorter_and_the_fourth_is_refused() {
 #[test]
 fn p6_a_stun_that_lands_puts_vulnerable_on_the_target_for_its_ticks() {
     let plain = || vec![target(None, false)];
-    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120], 0);
+    let p = stuns(plain(), all_rules(), &[0, 40, 80, 120]);
     let vulnerable = |n: usize| named(&p.hits[n].2, "vulnerable").first().map(|s| s.total);
     // The stun lands inside the hit, after its damage: the status shows from the same tick.
     assert_eq!(
         [vulnerable(0), vulnerable(1), vulnerable(2), vulnerable(3)],
-        [Some(30), Some(30), Some(30), None],
-        "stuns of 30, 15 and 7 refresh one status; the refused fourth adds none"
+        [Some(30), Some(15), Some(7), None],
+        "for the scaled ticks of each stun; the refused fourth adds none"
     );
     // The source is the hitting player.
     let by: Vec<_> = p
@@ -535,16 +535,16 @@ fn p6_a_stun_that_lands_puts_vulnerable_on_the_target_for_its_ticks() {
         .map(|(_, _, source)| *source)
         .collect();
     assert!(!by.is_empty() && by.iter().all(|s| s.is_some()), "{by:?}");
-    // The next hit deals the bonus: 10 raised by 20 percent is 12.
+    // A hit while it lasts deals the bonus: 10 raised by 20 percent is 12.
+    let p = stuns(plain(), all_rules(), &[0, 10]);
     let damages: Vec<u32> = p.hits.iter().map(|(_, d, _)| *d).collect();
-    assert_eq!(damages[0], 10, "the stunning hit is dealt before it");
-    assert_eq!(damages[1], 12, "{damages:?}");
+    assert_eq!(damages, [10, 12], "the stunning hit is dealt before it");
     // A flinch puts none, and neither does a run whose rules name no `vulnerable_pcts`.
     let flinched = flinches(Some(5), json!({}), json!({}), false);
     assert_eq!(flinched.len(), 1);
     let mut patch = all_rules();
     patch.as_object_mut().unwrap().remove("vulnerable_pcts");
-    let p = stuns(plain(), patch, &[0, 40], 0);
+    let p = stuns(plain(), patch, &[0, 40]);
     assert!(named(&p.hits[0].2, "vulnerable").is_empty());
 }
 

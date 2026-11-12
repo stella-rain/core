@@ -9,7 +9,7 @@ use crate::id::EntityId;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::rune::Rune;
 use crate::sim::state::PlayerIdx;
-use crate::sim::state::{DotState, State, StatusKind, StatusState, Statuses};
+use crate::sim::state::{DotState, FoeControl, State, StatusKind, StatusState, Statuses};
 
 use super::{MAX_AGGRO, Shot};
 
@@ -498,12 +498,28 @@ pub(super) fn scale_damage(
         .max(u32::from(base > 0))
 }
 
+/// What the per-tick status step reads of the rules for an enemy's flinch and hard controls.
+#[derive(Clone, Copy)]
+pub(super) struct ControlTick {
+    /// The ticks of immunity a flinch's end starts.
+    pub flinch_immune_ticks: u16,
+}
+
+impl ControlTick {
+    pub(super) fn of(tuning: &super::world::Tuning) -> ControlTick {
+        ControlTick {
+            flinch_immune_ticks: tuning.flinch_immune_ticks,
+        }
+    }
+}
+
 /// Statuses run out and aggro fades, once per tick. Damage-over-time statuses run out as they
 /// tick instead (`tick_dots`); whether there is one on anyone is returned, so a tick without
 /// one skips that pass.
 pub(super) fn tick_statuses_and_aggro(
     s: &mut State,
     aggro_decay: u32,
+    control: ControlTick,
     events: &mut Vec<DomainEvent>,
 ) -> bool {
     fn age(list: &mut Statuses) -> bool {
@@ -535,14 +551,28 @@ pub(super) fn tick_statuses_and_aggro(
         c.aggro = c.aggro.saturating_sub(aggro_decay);
     }
     // An enemy's immunity counts down, and a stun that runs out starts it.
-    let immune = s.stun.immune_ticks;
+    let immune = Some(s.stun.immune_ticks);
     for e in &mut s.enemies {
         e.stun_immune = e.stun_immune.saturating_sub(1);
         let stunned = super::stun::stunned(&e.statuses);
         dots |= age(&mut e.statuses);
         if stunned && !super::stun::stunned(&e.statuses) {
-            e.stun_immune = immune;
+            if let Some(ticks) = immune {
+                e.stun_immune = ticks;
+            }
             events.push(DomainEvent::StunEnded { target: e.id });
+        }
+        // Flinch counters, all zero (and so skipped) until a rule writes them.
+        let c = &mut e.control;
+        if *c != FoeControl::default() {
+            c.flinch_immune = c.flinch_immune.saturating_sub(1);
+            if c.flinch > 0 {
+                c.flinch -= 1;
+                if c.flinch == 0 {
+                    c.flinch_immune = control.flinch_immune_ticks;
+                    events.push(DomainEvent::FlinchEnded { target: e.id });
+                }
+            }
         }
     }
     dots

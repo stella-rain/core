@@ -517,7 +517,14 @@ fn every_present_player_fades_and_ages() {
         s.players[slot(i)].aggro = 500;
     }
     let mut events = Vec::new();
-    super::entity::tick_statuses_and_aggro(&mut s, 100, &mut events);
+    super::entity::tick_statuses_and_aggro(
+        &mut s,
+        100,
+        super::entity::ControlTick {
+            flinch_immune_ticks: 0,
+        },
+        &mut events,
+    );
     for i in 0..3 {
         assert_eq!(s.players[slot(i)].aggro, 400, "slot {i}");
     }

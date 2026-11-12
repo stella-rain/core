@@ -59,6 +59,8 @@ pub(super) struct Swing {
     breaks_charge: bool,
     smash: Option<Smash>,
     combo: bool,
+    /// The poise damage the hit phase names, if any (`AttackPhase::poise_damage`).
+    poise_damage: Option<u32>,
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
@@ -371,6 +373,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
             breaks_charge: p.breaks_charge,
             smash: r.smash,
             combo: super::attacks::is_combo(s, r),
+            poise_damage: p.poise_damage,
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
@@ -402,6 +405,7 @@ fn zone_swings(s: &State, swings: &mut Vec<Swing>) {
             breaks_charge: z.breaks_charge,
             smash: None,
             combo: false,
+            poise_damage: None,
             rune: None,
             once: false,
         });
@@ -624,8 +628,38 @@ fn hit_enemy_side(
                 Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, me, i, push),
                 _ => {}
             }
+            // C02: a combo hit that deals the enemy's poise makes it flinch; a smash's own stun
+            // (applied inside `damage`) has already won.
+            if w.combo && stage.defs.agent(s.enemies[i].def).poise.is_some() {
+                flinch_by(stage, s, me, i, w, events);
+            }
         }
     }
+}
+
+/// The poise damage of a combo hit of `me`'s: the phase's own, else the rules' for the press kind
+/// (an A step or a smash step, read from the combo the running step still names). A downed or
+/// out player's hit deals none.
+fn flinch_by(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    i: usize,
+    w: &Swing,
+    events: &mut Vec<DomainEvent>,
+) {
+    if !s.players[me].is_up() {
+        return;
+    }
+    let poise_damage =
+        w.poise_damage
+            .unwrap_or(if super::player::last_press_smash(&s.players[me].combo) {
+                stage.tuning.poise_damage_b
+            } else {
+                stage.tuning.poise_damage_a
+            });
+    let source = s.players.id(me);
+    super::stun::flinch(stage, s, i, poise_damage, source, events);
 }
 
 /// Every player in the party that the swing covers, in slot order, unless it is invulnerable:
@@ -723,6 +757,7 @@ mod party_tests {
             breaks_charge: false,
             smash: None,
             combo: false,
+            poise_damage: None,
             rune: None,
             once: false,
         }

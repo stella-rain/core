@@ -337,7 +337,7 @@ fn with_level(levels: u32, index: u8, level: u8) -> u32 {
 }
 
 /// Whether the press that reached the current step was `smash`.
-fn last_press_smash(c: &ComboState) -> bool {
+pub(super) fn last_press_smash(c: &ComboState) -> bool {
     c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
 }
 
