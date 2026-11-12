@@ -419,6 +419,13 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
         for (c, option) in weapon.common.iter().enumerate() {
             let path = at(&format!("common[{c}]"));
             check_option(&mut issue, &mut seen, &path, option, sim_version);
+            // A common option is a stat: the kinds are a style path's (ADR-SIM-9 point 3).
+            if !option.kinds.is_empty() {
+                issue(
+                    format!("{path}.kinds"),
+                    "a common option names no kind".into(),
+                );
+            }
         }
     }
     if issues.is_empty() {

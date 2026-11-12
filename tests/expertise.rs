@@ -626,3 +626,16 @@ fn the_bundled_file_names_no_kind() {
         }
     }
 }
+
+/// A common option is a stat: it names no kind and is never `none`.
+#[test]
+fn a_common_option_names_no_kind() {
+    let at = "/weapons/0/common/0";
+    let mut v = file();
+    v["weapons"][0]["common"][0] = kind_level("spirit_blade", json!([charge_kind(json!(AAA))]));
+    invalid_at(&v, "$.weapons[0].common[0].kinds");
+    let mut v = file();
+    v["weapons"][0]["common"][0]["kinds"] = json!([charge_kind(json!(AAA))]);
+    invalid_at(&v, "$.weapons[0].common[0].kinds");
+    valid(&with(at, option("plain", "attack_pct", 5)));
+}

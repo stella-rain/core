@@ -305,8 +305,7 @@ impl ContentFiles {
         let content = RunContent::from_parts(
             run_stats,
             rewards,
-            Expertise::parse(get("expertise")?, Versions::CURRENT)
-                .map_err(PackError::in_file("expertise"))?,
+            expertise,
             MatchUps::parse(get("match_ups")?, Versions::CURRENT)
                 .map_err(PackError::in_file("match_ups"))?,
             runes,

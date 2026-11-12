@@ -7,7 +7,7 @@
 //!
 //! The file is untrusted (ADR-SVC-1), as every content file is: a size limit before parsing,
 //! strict parsing, the current versions only, and every list bounded: at most `MAX_WEAPONS`
-//! weapons with unique registered IDs, exactly `MAX_TREES` tree each with a well-formed
+//! weapons with unique registered IDs, exactly `MAX_TREES` tree (one) each with a well-formed
 //! ID, and each tree checked as a stage's inline weapon is (`validate::validate_weapon_preset`).
 //! The SHA-256 of the file's bytes is part of a run's content hash through the pack, so a run
 //! replay verifies only with the weapons it was made with.
