@@ -233,6 +233,16 @@
       "additionalProperties": false,
       "description": "One phase of an attack.",
       "properties": {
+        "advance": {
+          "description": "A phase of the main character's combo step: the player slides toward the assist's target\nover the phase, this far in all (1/256 px, 1 px to `limits::MAX_ADVANCE_DISTANCE`). Absent:\nno slide. Read at `sim_version` 2, for a combo step only (ADR-CONT-3).",
+          "format": "int32",
+          "maximum": 61440,
+          "minimum": 256,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "breaks_charge": {
           "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
@@ -7112,6 +7122,51 @@
             "type": "integer"
           },
           "type": "array"
+        },
+        "perfect_evade_cooldown_ticks": {
+          "description": "Ticks before the evader's next perfect evade: from `perfect_evade_slow_ticks` to\n`MAX_PERFECT_COOLDOWN_TICKS` (3,600).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_reach": {
+          "description": "How near the evader an enemy's centre is slowed, in 1/256 px: 1 px to `MAX_PERFECT_REACH`\n(420) px.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_slow_every": {
+          "description": "A slowed enemy acts on the ticks where the slow's remaining ticks are a multiple of this:\n2 to `MAX_PERFECT_SLOW_EVERY` (8).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_slow_ticks": {
+          "description": "Ticks the enemies in the evader's reach are slowed: 1 to `MAX_PERFECT_SLOW_TICKS` (300).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "perfect_evade_window_ticks": {
+          "description": "The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the\nrule is off). Ticks after an effective evade press in which a hit the evade alone stops is\na near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "player_radius": {
           "description": "The main character's hurt circle, in 1/256 px: 1 to `limits::MAX_RADIUS`.",
