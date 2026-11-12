@@ -34,7 +34,7 @@ use crate::run_stats::{MAX_STEP, StatEffect};
 use crate::validate::limits::MAX_COMBO_DEPTH;
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
-use crate::weapon::{Charge, Hold};
+use crate::weapon::{Branches, Charge, Hold, Step, Weapon};
 
 /// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
@@ -622,4 +622,36 @@ fn check_set(issue: &mut impl FnMut(String, String), path: &str, set: &[SetStat]
             }
         }
     }
+}
+
+/// Applies one `replace_step` grant to the step of `weapon` that `presses` reach from the root
+/// of the combo tree: the grant sets the step's charge (clearing its hold) or its hold
+/// (clearing its charge). `false`, nothing changed, when no step is there.
+pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGrant) -> bool {
+    fn at<'a>(branches: &'a mut Branches, presses: &[Press]) -> Option<&'a mut Step> {
+        let (first, rest) = presses.split_first()?;
+        let step = match first {
+            Press::Main => branches.main.as_deref_mut(),
+            Press::Smash => branches.smash.as_deref_mut(),
+        }?;
+        if rest.is_empty() {
+            Some(step)
+        } else {
+            at(&mut step.next, rest)
+        }
+    }
+    let Some(step) = at(&mut weapon.combo, presses) else {
+        return false;
+    };
+    match grant {
+        StepGrant::Charge(c) => {
+            step.charge = Some(c.clone());
+            step.hold = None;
+        }
+        StepGrant::Hold(h) => {
+            step.hold = Some(h.clone());
+            step.charge = None;
+        }
+    }
+    true
 }

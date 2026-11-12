@@ -42,7 +42,7 @@ mod files;
 mod introduced;
 pub mod trust;
 
-use check::{check_budgets, check_holds, check_perk_categories};
+use check::{check_budgets, check_holds, check_perk_categories, check_style_grants};
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
 pub use compare::{CompareError, compare_json_values, compare_numbers_only};
@@ -470,6 +470,7 @@ impl Pack {
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
             .map_err(PackError::in_file("weapons"))?;
         check_holds(&weapons, &attack_presets)?;
+        check_style_grants(&expertise, &weapons, &attack_presets)?;
         let rules = Rules::parse(&file_bytes(&pack.rules), versions)
             .map_err(PackError::in_file("rules"))?;
         let starting_unlocks = pack
