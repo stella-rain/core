@@ -15,8 +15,8 @@
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
 //! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
-//! on a full-gauge attack (ADR-SIM-9). A repeat and a factor are runtime-only fields of the step
-//! on the style's copy of the tree.
+//! on a full-gauge attack (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
