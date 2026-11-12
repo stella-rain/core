@@ -431,7 +431,7 @@ mod tests {
             ("MAX_ADVANCE_DISTANCE", "240", "px"),
             ("MAX_ADVANCE_PER_TICK", "12", "px"),
         ];
-        assert_eq!(rows.len(), 27);
+        assert_eq!(rows.len(), 28);
         assert_eq!(MAX_RALLY, crate::validate::limits::MAX_PLAYER_HP);
         for (name, value, unit) in rows {
             let row = LIMITS
