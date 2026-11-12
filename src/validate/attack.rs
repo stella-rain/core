@@ -97,6 +97,9 @@ impl<'a> Ctx<'a> {
         if let Some(d) = &p.dash {
             self.key("dash", |c| c.dash(p, d));
         }
+        if let Some(a) = p.advance {
+            self.key("advance", |c| c.advance(a));
+        }
         if let Some(r) = p.rehit_ticks {
             if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 self.key("rehit_ticks", |c| {
@@ -105,6 +108,27 @@ impl<'a> Ctx<'a> {
             } else {
                 self.within("rehit_ticks", i64::from(r), 1, i64::from(MAX_PHASE_TICKS));
             }
+        }
+    }
+
+    /// An advance is the main character's: not an enemy's or the boss's attack, `sim_version` 2
+    /// only, 1 pixel to `MAX_ADVANCE_DISTANCE`.
+    fn advance(&mut self, a: crate::fixed::Fx) {
+        if self.foe != Foe::Other {
+            self.fail("an advance is the main character's combo step, not an enemy's or the boss's attack");
+        }
+        if self.sim_version < 2 {
+            self.fail("needs sim_version 2");
+        }
+        let (least, most) = (
+            i64::from(crate::fixed::Fx::px(1).0),
+            i64::from(crate::fixed::Fx::px(crate::limits::MAX_ADVANCE_DISTANCE).0),
+        );
+        if !(least..=most).contains(&i64::from(a.0)) {
+            self.fail(format!(
+                "must be between {least} and {most} (found {})",
+                a.0
+            ));
         }
     }
 
@@ -461,8 +485,8 @@ mod advance_tests {
     use serde_json::{Value, json};
 
     use crate::fixed::Fx;
-    use crate::stage::Stage;
     use crate::limits::MAX_ADVANCE_DISTANCE;
+    use crate::stage::Stage;
     use crate::validate::{Error, validate};
 
     const STAGE: &str = include_str!("../../tests/fixtures/stage_v0.json");
@@ -509,7 +533,10 @@ mod advance_tests {
     #[test]
     fn an_advance_of_one_pixel_to_the_cap_loads_on_a_weapon_step() {
         for stored in [Fx::px(1).0, Fx::px(MAX_ADVANCE_DISTANCE).0] {
-            assert!(paths(&on_weapon(2, phase(json!(stored)))).is_empty(), "{stored}");
+            assert!(
+                paths(&on_weapon(2, phase(json!(stored)))).is_empty(),
+                "{stored}"
+            );
         }
     }
 
