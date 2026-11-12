@@ -573,6 +573,23 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     SmashEffect::Reap { .. } => SmashEffectKind::Reap,
                 },
             },
+            StyleKind::Repeat {
+                step,
+                after_ticks,
+                repeat_pct,
+                anchor,
+                proc_pct,
+            } => StyleKindView::Repeat {
+                step: step.clone(),
+                after_ticks: *after_ticks,
+                repeat_pct: *repeat_pct,
+                anchor: *anchor,
+                proc_pct: *proc_pct,
+            },
+            StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
+                step: step.clone(),
+                proc_pct: *proc_pct,
+            },
         })
         .collect()
 }

@@ -246,7 +246,7 @@ fn the_pack_checks_the_kinds_against_the_base_tree() {
     assert!(
         paths
             .iter()
-            .any(|(p, _)| p == &format!("{}", "$.weapons[0].styles[0].kinds[1].step")),
+            .any(|(p, _)| p == "$.weapons[0].styles[0].kinds[1].step"),
         "{paths:?}"
     );
     assert!(

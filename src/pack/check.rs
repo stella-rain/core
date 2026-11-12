@@ -13,7 +13,9 @@ use super::{
 };
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
-use crate::expertise::{Expertise, StyleKind, apply_grant, style_levels};
+use crate::expertise::{
+    Expertise, MAX_STEP_REPEATS, StyleKind, apply_grant, step_mut, style_levels,
+};
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
 use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
@@ -200,6 +202,8 @@ pub(super) fn check_style_grants(
                 }
             }
             let mut tree = base.clone();
+            // Each repeat kind's path and step, for the checks that need the whole path applied.
+            let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
             'style: for (path, kinds) in levels {
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
@@ -218,6 +222,29 @@ pub(super) fn check_style_grants(
                             tree.smash = Some(*effect);
                             "effect"
                         }
+                        StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
+                            if step_mut(&mut tree.combo, step).is_none() {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.step"),
+                                    message: "no such step in the weapon's base tree".into(),
+                                });
+                                break 'style;
+                            }
+                            if matches!(kind, StyleKind::Repeat { .. }) {
+                                let same = repeats.iter().filter(|(_, s)| *s == step).count();
+                                if same >= MAX_STEP_REPEATS {
+                                    issues.push(validate::Issue {
+                                        path: at.clone(),
+                                        message: format!(
+                                            "at most {MAX_STEP_REPEATS} repeats on one step"
+                                        ),
+                                    });
+                                } else {
+                                    repeats.push((at.clone(), step));
+                                }
+                            }
+                            continue;
+                        }
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()
@@ -232,6 +259,16 @@ pub(super) fn check_style_grants(
                         }));
                         break 'style;
                     }
+                }
+            }
+            // A held step does not repeat: the grants may come after the repeat, so the check
+            // reads the tree the whole path made.
+            for (at, step) in repeats {
+                if step_mut(&mut tree.combo, step).is_some_and(|s| s.hold.is_some()) {
+                    issues.push(validate::Issue {
+                        path: at,
+                        message: "a held step does not repeat".into(),
+                    });
                 }
             }
         }

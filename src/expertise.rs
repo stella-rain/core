@@ -13,7 +13,9 @@
 //! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
-//! step's charge or hold, or the weapon's smash effect, `reap` among them (ADR-SIM-9).
+//! step's charge or hold, a delayed repeat or a proc factor of a step's hits, or the weapon's smash
+//! effect, `reap` among them (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
 //! parsing, the current versions only, and every field bounded. The thresholds rise strictly,
@@ -35,7 +37,9 @@ use crate::run_stats::{MAX_STEP, StatEffect};
 use crate::validate::limits::MAX_COMBO_DEPTH;
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
-use crate::weapon::{Branches, Charge, Hold, SmashEffect, Step, Weapon};
+use crate::weapon::{
+    Branches, Charge, Hold, RepeatAnchorKind, SmashEffect, Step, StepRepeat, Weapon,
+};
 
 /// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
 pub const MAX_EXPERTISE_BYTES: usize = 64 * 1024;
@@ -55,6 +59,13 @@ pub const MAX_STYLE_CHOICES: usize = 1;
 /// The most mechanic kinds one level names (a tuning placeholder): the style pick's, an
 /// upgrade's choice's or the capstone's.
 pub const MAX_LEVEL_KINDS: usize = 4;
+/// The longest delay of a `repeat` kind, in ticks (a tuning placeholder: 2 seconds).
+pub const MAX_REPEAT_AFTER_TICKS: u32 = 120;
+/// The largest `proc_pct` of a `repeat` or `proc_factor` kind: a factor is a chance (a
+/// placeholder).
+pub const MAX_PROC_PCT: u32 = 100;
+/// The most repeats on one step, summed over one style's path (a tuning placeholder).
+pub const MAX_STEP_REPEATS: usize = 4;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
 pub use crate::limits::MAX_SET_STATS;
@@ -157,6 +168,21 @@ pub enum StyleKind {
     /// The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the
     /// base's (ADR-SIM-9 point 4). One per style path: a second is refused.
     SmashEffect { effect: SmashEffect },
+    /// The step reached by `step` repeats: `after_ticks` after its last `active` phase ends,
+    /// `repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at
+    /// `proc_pct` (absent: every ready rune, no draw). Not on a held step; at most
+    /// `MAX_STEP_REPEATS` per step over one style's path.
+    Repeat {
+        step: Vec<Press>,
+        after_ticks: u32,
+        repeat_pct: u32,
+        anchor: RepeatAnchorKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        proc_pct: Option<u32>,
+    },
+    /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
+    /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
+    ProcFactor { step: Vec<Press>, proc_pct: u32 },
 }
 
 fn is_zero(v: &u32) -> bool {
@@ -531,7 +557,51 @@ fn check_level(
                     }
                 }
             }
+            StyleKind::Repeat {
+                step,
+                after_ticks,
+                repeat_pct,
+                proc_pct,
+                ..
+            } => {
+                check_step_len(issue, &at, step);
+                if !(1..=MAX_REPEAT_AFTER_TICKS).contains(after_ticks) {
+                    issue(
+                        format!("{at}.after_ticks"),
+                        format!("1 to {MAX_REPEAT_AFTER_TICKS} (found {after_ticks})"),
+                    );
+                }
+                if !(1..=crate::limits::MAX_PCT).contains(repeat_pct) {
+                    issue(
+                        format!("{at}.repeat_pct"),
+                        format!("1 to {} (found {repeat_pct})", crate::limits::MAX_PCT),
+                    );
+                }
+                check_proc_pct(issue, &at, *proc_pct);
+            }
+            StyleKind::ProcFactor { step, proc_pct } => {
+                check_step_len(issue, &at, step);
+                check_proc_pct(issue, &at, Some(*proc_pct));
+            }
         }
+    }
+}
+
+fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &[Press]) {
+    if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
+        issue(
+            format!("{at}.step"),
+            format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
+        );
+    }
+}
+
+fn check_proc_pct(issue: &mut impl FnMut(String, String), at: &str, proc_pct: Option<u32>) {
+    if let Some(p) = proc_pct.filter(|&p| p > MAX_PROC_PCT) {
+        issue(
+            format!("{at}.proc_pct"),
+            format!("0 to {MAX_PROC_PCT} (found {p})"),
+        );
     }
 }
 
@@ -549,6 +619,7 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
 /// of the same style granted, or a second smash effect, is refused at the later one.
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
+    let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
@@ -577,6 +648,18 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     smash_set = true;
+                }
+                StyleKind::Repeat { .. } => {}
+                StyleKind::ProcFactor { step, .. } => {
+                    if factored.contains(&step) {
+                        issue(
+                            format!("{path}[{k}].step"),
+                            "the step already has a proc factor from an earlier level of the style"
+                                .into(),
+                        );
+                    } else {
+                        factored.push(step);
+                    }
                 }
             }
         }
@@ -661,23 +744,25 @@ fn check_set(issue: &mut impl FnMut(String, String), path: &str, set: &[SetStat]
     }
 }
 
+/// The step the `presses` reach from the root of a combo tree.
+pub(crate) fn step_mut<'a>(branches: &'a mut Branches, presses: &[Press]) -> Option<&'a mut Step> {
+    let (first, rest) = presses.split_first()?;
+    let step = match first {
+        Press::Main => branches.main.as_deref_mut(),
+        Press::Smash => branches.smash.as_deref_mut(),
+    }?;
+    if rest.is_empty() {
+        Some(step)
+    } else {
+        step_mut(&mut step.next, rest)
+    }
+}
+
 /// Applies one `replace_step` grant to the step of `weapon` that `presses` reach from the root
 /// of the combo tree: the grant sets the step's charge (clearing its hold) or its hold
 /// (clearing its charge). `false`, nothing changed, when no step is there.
 pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGrant) -> bool {
-    fn at<'a>(branches: &'a mut Branches, presses: &[Press]) -> Option<&'a mut Step> {
-        let (first, rest) = presses.split_first()?;
-        let step = match first {
-            Press::Main => branches.main.as_deref_mut(),
-            Press::Smash => branches.smash.as_deref_mut(),
-        }?;
-        if rest.is_empty() {
-            Some(step)
-        } else {
-            at(&mut step.next, rest)
-        }
-    }
-    let Some(step) = at(&mut weapon.combo, presses) else {
+    let Some(step) = step_mut(&mut weapon.combo, presses) else {
         return false;
     };
     match grant {
@@ -709,6 +794,27 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     apply_grant(&mut weapon, step, grant);
                 }
                 StyleKind::SmashEffect { effect } => weapon.smash = Some(*effect),
+                StyleKind::Repeat {
+                    step,
+                    after_ticks,
+                    repeat_pct,
+                    anchor,
+                    proc_pct,
+                } => {
+                    if let Some(s) = step_mut(&mut weapon.combo, step) {
+                        s.repeats.push(StepRepeat {
+                            after_ticks: *after_ticks,
+                            repeat_pct: u16::try_from(*repeat_pct).unwrap_or(u16::MAX),
+                            anchor: *anchor,
+                            proc_pct: proc_pct.map(|p| u16::try_from(p).unwrap_or(u16::MAX)),
+                        });
+                    }
+                }
+                StyleKind::ProcFactor { step, proc_pct } => {
+                    if let Some(s) = step_mut(&mut weapon.combo, step) {
+                        s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
+                    }
+                }
             }
         }
     }
