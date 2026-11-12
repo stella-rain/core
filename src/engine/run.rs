@@ -222,6 +222,7 @@ impl Run {
         world.drop_weight_pct = loadout
             .as_ref()
             .map_or_else(Vec::new, |l| l.drop_weight_pct(&world.equipment_rules));
+        world.styles_offered = loadout.as_ref().and_then(|l| l.styles_offered);
         let difficulty = b
             .difficulty
             .map_or(sim::RunDifficulty::NONE, |d| sim::RunDifficulty {

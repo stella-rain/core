@@ -161,21 +161,35 @@ fn content<'a>(stage: &World, expertise: &'a Expertise) -> Option<&'a WeaponExpe
 
 /// One choice of the tree: a style, or a choice of a style's path.
 pub(super) struct Choice<'a> {
+    /// Where the choice sits: a style's place in the weapon's styles (the offer may skip locked
+    /// ones, so it is not the offered index), else the index in its list.
+    pub(super) place: u8,
     pub(super) id: &'a ContentId,
     pub(super) effect: ExpertiseEffect,
     pub(super) amount: u32,
     pub(super) kinds: &'a [StyleKind],
 }
 
-impl<'a> From<&'a ExpertiseOption> for Choice<'a> {
-    fn from(o: &'a ExpertiseOption) -> Self {
+impl<'a> Choice<'a> {
+    fn option(place: usize, o: &'a ExpertiseOption) -> Self {
         Choice {
+            place: u8::try_from(place).unwrap_or(u8::MAX),
             id: &o.id,
             effect: o.effect,
             amount: o.amount,
             kinds: &o.kinds,
         }
     }
+}
+
+// The offered-styles mask (`World::styles_offered`) is one bit for each style.
+const _: () = assert!(crate::expertise::STYLES <= 8);
+
+/// Whether the style at place `at` is offered under the setup's mask (`World::styles_offered`).
+fn style_offered(mask: Option<u8>, at: usize) -> bool {
+    mask.is_none_or(|m| {
+        u32::try_from(at).is_ok_and(|n| m.checked_shr(n).is_some_and(|b| b & 1 == 1))
+    })
 }
 
 /// The fixed choices of level `level`'s style, upgrade or capstone point, in the content's
@@ -195,14 +209,21 @@ fn fixed<'a>(
         g.style
             .and_then(|i| w.styles.get(usize::from(i)))
             .map_or_else(Vec::new, |style| {
-                pick(style).iter().map(Choice::from).collect()
+                pick(style)
+                    .iter()
+                    .enumerate()
+                    .map(|(at, o)| Choice::option(at, o))
+                    .collect()
             })
     };
     match slot(&table, level) {
         Some(ExpertiseOfferKind::Style) => w
             .styles
             .iter()
-            .map(|st| Choice {
+            .enumerate()
+            .filter(|(at, _)| style_offered(stage.styles_offered, *at))
+            .map(|(at, st)| Choice {
+                place: u8::try_from(at).unwrap_or(u8::MAX),
                 id: &st.id,
                 effect: st.effect,
                 amount: st.amount,
@@ -361,11 +382,16 @@ pub(super) fn tree_next<'a>(
         3 => (ExpertiseOfferKind::Capstone, table.capstone),
         _ => return None,
     };
+    let choices = fixed(stage, expertise, g, level);
+    // No option, no waiting point: a run with no style unlocked plays the plain base.
+    if choices.is_empty() {
+        return None;
+    }
     Some(TreeNext {
         kind,
         level,
         held,
-        choices: fixed(stage, expertise, g, level),
+        choices,
     })
 }
 
@@ -417,20 +443,20 @@ pub(super) fn tree_pick(
     let Some(c) = next.choices.get(usize::from(place)) else {
         return Err(TreeError::NoTreePoint);
     };
-    let (effect, amount, kind) = (c.effect, c.amount, next.kind);
+    let (effect, amount, kind, at) = (c.effect, c.amount, next.kind, c.place);
     // A style adds nothing of its own: the tree's stat set is everything it gives.
     if kind != ExpertiseOfferKind::Style {
         apply(&mut g.range_pct, progress, player, effect, amount);
     }
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
-        g.style = Some(place);
+        g.style = Some(at);
         if let Some(p) = progress.as_mut() {
             // The tree's set replaces the base set at the weapon's level.
             write_set(stage, expertise, p, player, Some(was), (g.style, g.level));
         }
     } else {
-        g.path.push(place);
+        g.path.push(at);
     }
     Ok(())
 }

@@ -21,10 +21,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::expertise::Expertise;
 use crate::id::ContentId;
 use crate::perk_sets::PerkSets;
 use crate::registry;
-use crate::run_setup::MAX_LUMINE;
+use crate::run_setup::{MAX_LUMINE, MAX_UNLOCKED_STYLES};
 use crate::run_stats::RunStats;
 use crate::stage_skill::StageSkills;
 use crate::starting_unlocks::StartingUnlocks;
@@ -49,7 +50,8 @@ pub const MAX_PRICE: u32 = 10_000_000;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PricedId {
-    /// A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock.
+    /// A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock;
+    /// in a weapon's style row, one of that weapon's styles.
     pub id: ContentId,
     /// The price in tenths of Stardust, from 1 to `MAX_PRICE`.
     pub price: u32,
@@ -67,6 +69,18 @@ pub struct StatPrices {
     pub prices: Vec<u32>,
 }
 
+/// The styles of one weapon the chart sells (ADR-SIM-9 point 8, ADR-SAVE-7 point 10).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WeaponStylePrices {
+    /// A weapon of the pack, once in the list.
+    pub weapon: ContentId,
+    /// Styles of that weapon in the pack's expertise file, at most `MAX_UNLOCKED_STYLES`, each
+    /// once, with its price in tenths of Stardust. A style left out has no price and is not for
+    /// sale.
+    pub styles: Vec<PricedId>,
+}
+
 /// The star chart file: what the chart sells and at what price.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -82,6 +96,9 @@ pub struct StarChartFile {
     pub starting_rune: u32,
     /// Run stats for sale, at most `MAX_ITEMS`.
     pub stats: Vec<StatPrices>,
+    /// The styles each weapon sells, at most `MAX_ITEMS` weapons. Absent when none is priced.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub styles: Vec<WeaponStylePrices>,
     /// The number of levels the expertise multiplier has, from 1 to `MAX_LEVELS`.
     #[schemars(range(min = 1, max = MAX_LEVELS))]
     pub expertise_levels: u8,
@@ -103,6 +120,7 @@ impl StarChart {
     /// Checks the size and the versions given (the pack's), parses strictly and validates against
     /// the files the IDs name: the one call for a file's bytes. `starting_unlocks` is the pack's
     /// own, if it holds one: what it gives away is not for sale.
+    #[allow(clippy::too_many_arguments)]
     pub fn parse_with(
         bytes: &[u8],
         versions: Versions,
@@ -110,6 +128,7 @@ impl StarChart {
         perk_sets: &PerkSets,
         stage_skills: &StageSkills,
         weapons: &Weapons,
+        expertise: &Expertise,
         starting_unlocks: Option<&StartingUnlocks>,
     ) -> Result<StarChart, Error> {
         let file: StarChartFile = version::read_member(bytes, MAX_STAR_CHART_BYTES, versions)?;
@@ -119,6 +138,7 @@ impl StarChart {
             perk_sets,
             stage_skills,
             weapons,
+            expertise,
             starting_unlocks,
         )?;
         Ok(StarChart {
@@ -150,6 +170,11 @@ impl StarChart {
     /// The run stats for sale and the price of each level.
     pub fn stats(&self) -> &[StatPrices] {
         &self.file.stats
+    }
+
+    /// The styles each weapon sells and their prices.
+    pub fn styles(&self) -> &[WeaponStylePrices] {
+        &self.file.styles
     }
 
     /// The number of levels the expertise multiplier has.
@@ -225,6 +250,78 @@ fn check_levels(
     }
 }
 
+/// The weapons' style rows: well formed, once, a weapon the game holds, and styles the pack's
+/// expertise file gives that weapon.
+fn check_styles(
+    issues: &mut Vec<Issue>,
+    file: &StarChartFile,
+    weapon_known: &dyn Fn(&ContentId) -> bool,
+    expertise: &Expertise,
+) {
+    let ill_formed = "not a valid ID (lowercase snake_case, at most 32 characters)";
+    if file.styles.len() > MAX_ITEMS {
+        issues.push(Issue {
+            path: "$.styles".into(),
+            message: format!("at most {MAX_ITEMS} entries (found {})", file.styles.len()),
+        });
+        return;
+    }
+    for (i, row) in file.styles.iter().enumerate() {
+        let path = format!("$.styles[{i}].weapon");
+        if !registry::is_well_formed(row.weapon.as_str()) {
+            issues.push(Issue {
+                path,
+                message: ill_formed.into(),
+            });
+        } else if file.styles[..i].iter().any(|r| r.weapon == row.weapon) {
+            issues.push(Issue {
+                path,
+                message: "the same ID as an earlier entry".into(),
+            });
+        } else if !weapon_known(&row.weapon) {
+            issues.push(Issue {
+                path,
+                message: "not an ID the game holds".into(),
+            });
+        }
+        if row.styles.len() > MAX_UNLOCKED_STYLES {
+            issues.push(Issue {
+                path: format!("$.styles[{i}].styles"),
+                message: format!(
+                    "at most {MAX_UNLOCKED_STYLES} entries (found {})",
+                    row.styles.len()
+                ),
+            });
+            continue;
+        }
+        let own = expertise.weapon(&row.weapon);
+        for (j, entry) in row.styles.iter().enumerate() {
+            let path = format!("$.styles[{i}].styles[{j}].id");
+            if !registry::is_well_formed(entry.id.as_str()) {
+                issues.push(Issue {
+                    path,
+                    message: ill_formed.into(),
+                });
+            } else if row.styles[..j].iter().any(|e| e.id == entry.id) {
+                issues.push(Issue {
+                    path,
+                    message: "the same ID as an earlier entry".into(),
+                });
+            } else if !own.is_some_and(|w| w.styles.iter().any(|s| s.id == entry.id)) {
+                issues.push(Issue {
+                    path,
+                    message: "not a style of the weapon".into(),
+                });
+            }
+            check_price(
+                issues,
+                format!("$.styles[{i}].styles[{j}].price"),
+                entry.price,
+            );
+        }
+    }
+}
+
 /// Validates a parsed file: one issue per problem, with its path, never text from the file.
 pub fn validate(
     file: &StarChartFile,
@@ -232,6 +329,7 @@ pub fn validate(
     perk_sets: &PerkSets,
     stage_skills: &StageSkills,
     weapons: &Weapons,
+    expertise: &Expertise,
     starting_unlocks: Option<&StartingUnlocks>,
 ) -> Result<(), Error> {
     let mut issues = Vec::new();
@@ -305,6 +403,7 @@ pub fn validate(
     }
 
     check_price(&mut issues, "$.starting_rune".into(), file.starting_rune);
+    check_styles(&mut issues, file, &weapon_known, expertise);
 
     if file.stats.len() > MAX_ITEMS {
         issues.push(Issue {

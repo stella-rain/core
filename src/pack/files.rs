@@ -298,6 +298,7 @@ impl ContentFiles {
                     &perk_sets,
                     &stage_skills,
                     &weapons,
+                    &expertise,
                     starting_unlocks.as_ref(),
                 )
             })

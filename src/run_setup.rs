@@ -42,6 +42,8 @@ pub const DEFAULT_PERK_SET: &str = "duelist";
 pub use crate::difficulties::DEFAULT_DIFFICULTY;
 /// The most runes a rune pool names: every rune once.
 pub const MAX_RUNE_POOL: usize = Rune::ALL.len();
+/// The most styles a setup unlocks: one for each of a weapon's styles (ADR-SIM-9 point 7).
+pub const MAX_UNLOCKED_STYLES: usize = crate::expertise::STYLES;
 /// The most stars a run starts holding.
 pub const MAX_CARRIED_STARS: usize = 5;
 /// The largest Lumine budget, the level of the Lumine upgrade at its most.
@@ -67,9 +69,10 @@ pub struct RunSetup {
     pub mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries.
     pub weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo
-    /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
-    /// tree, so a setup written before trees existed reads as it always did.
+    /// Which of the weapon's base trees the run uses (ADR-REPL-5), by the tree's ID: it sets the
+    /// combo tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's
+    /// first tree, so a setup written before trees existed reads as it always did. The weapon's
+    /// styles are not trees: `unlocked_styles` names the ones the run may pick.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
@@ -136,6 +139,13 @@ pub struct RunSetup {
     /// are stable.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub drop_weights: BTreeMap<ContentId, u32>,
+    /// The styles of `weapon` the player has unlocked (ADR-SIM-9 point 8, ADR-SAVE-7 point 10),
+    /// by the style's ID in the run's expertise file: sorted, each once, at most
+    /// `MAX_UNLOCKED_STYLES`, only at `sim_version` 2. Absent: every style is offered. Present:
+    /// only the listed styles are offered, in the expertise file's order; an empty list offers
+    /// no style pick and the run plays the plain base.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlocked_styles: Option<Vec<ContentId>>,
 }
 
 /// The plainest setup: the trial mode with the giant sword, seed 0, the default perk set and
@@ -162,6 +172,7 @@ impl Default for RunSetup {
             stat_priority: Vec::new(),
             lumine_star: None,
             drop_weights: BTreeMap::new(),
+            unlocked_styles: None,
         }
     }
 }
@@ -179,9 +190,10 @@ struct RunSetupFile {
     mode: ContentId,
     /// A weapon preset: the one weapon the run's main character carries.
     weapon: ContentId,
-    /// Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo
-    /// tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first
-    /// tree, so a setup written before trees existed reads as it always did.
+    /// Which of the weapon's base trees the run uses (ADR-REPL-5), by the tree's ID: it sets the
+    /// combo tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's
+    /// first tree, so a setup written before trees existed reads as it always did. The weapon's
+    /// styles are not trees: `unlocked_styles` names the ones the run may pick.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     weapon_tree: Option<ContentId>,
     /// Seeds the run's SplitMix64 (ADR-SIM-2), all 64 bits.
@@ -240,6 +252,9 @@ struct RunSetupFile {
     /// The player's drop weights per perk category.
     #[serde(default)]
     drop_weights: BTreeMap<ContentId, u32>,
+    /// The unlocked styles of the weapon (`RunSetup::unlocked_styles`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unlocked_styles: Option<Vec<ContentId>>,
     #[serde(default)]
     auto_combo: bool,
 }
@@ -281,6 +296,7 @@ impl TryFrom<RunSetupFile> for RunSetup {
             stat_priority: f.stat_priority,
             lumine_star: f.lumine_star,
             drop_weights: f.drop_weights,
+            unlocked_styles: f.unlocked_styles,
         })
     }
 }
@@ -537,6 +553,30 @@ fn validate_loadout(setup: &RunSetup, issues: &mut Vec<Issue>) {
             }
         }
     }
+    if let Some(styles) = &setup.unlocked_styles {
+        if setup.sim_version == 1 {
+            issue("$.unlocked_styles".into(), "needs sim_version 2".into());
+        }
+        if styles.len() > MAX_UNLOCKED_STYLES {
+            issue(
+                "$.unlocked_styles".into(),
+                format!(
+                    "at most {MAX_UNLOCKED_STYLES} styles (found {})",
+                    styles.len()
+                ),
+            );
+        }
+        for (i, style) in styles.iter().enumerate().take(MAX_UNLOCKED_STYLES) {
+            let message = if !registry::is_well_formed(style.as_str()) {
+                ill_formed
+            } else if i > 0 && styles[i - 1].as_str() >= style.as_str() {
+                "not after the entry before it (sorted, each once)"
+            } else {
+                continue;
+            };
+            issue(format!("$.unlocked_styles[{i}]"), message.into());
+        }
+    }
     if let Some(star) = &setup.lumine_star {
         if !registry::is_well_formed(star.as_str()) {
             issue("$.lumine_star".into(), ill_formed.into());
@@ -628,6 +668,22 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
                 message: format!("at most {} (found {pct})", c.drop_weight_max),
             }),
             Some(_) => {}
+        }
+    }
+    // Version 1 and a malformed list are refused by `validate_loadout` already.
+    let styles = content.expertise().weapon(&setup.weapon);
+    for (i, style) in setup
+        .unlocked_styles
+        .iter()
+        .flatten()
+        .enumerate()
+        .take(MAX_UNLOCKED_STYLES)
+    {
+        if !styles.is_some_and(|w| w.styles.iter().any(|s| s.id == *style)) {
+            issues.push(Issue {
+                path: format!("$.unlocked_styles[{i}]"),
+                message: "no such style for the run's weapon in the run's expertise file".into(),
+            });
         }
     }
     let mut cost: u32 = 0;

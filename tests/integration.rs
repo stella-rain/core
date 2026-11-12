@@ -182,6 +182,7 @@ mod tutorial;
 mod tutorial_script;
 mod type_bonuses;
 mod types;
+mod unlocked_styles;
 mod validate;
 mod version_flag;
 mod version_two;

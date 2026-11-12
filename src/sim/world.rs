@@ -484,6 +484,10 @@ pub(crate) struct World {
     /// holds one setup per player, ADR-REPL-5; per-member weights are not built yet). Not hashed:
     /// the setup, which the replay stores, fixes it.
     pub drop_weight_pct: Vec<u32>,
+    /// The styles of the run's weapon the setup unlocked (`RunSetup::unlocked_styles`): bit `n` is
+    /// set when the style at place `n` of the weapon's styles is offered. `None`: every style. Not
+    /// hashed: the setup, which the replay stores, fixes it.
+    pub styles_offered: Option<u8>,
     /// Every attack the run can start, compiled once; found by `attack_index`.
     pub attacks: Vec<AttackDef>,
     attack_keys: AttackKeys,
@@ -634,6 +638,7 @@ impl World {
             drops: DropTable::default(),
             equipment_rules: EquipmentRules::default(),
             drop_weight_pct: Vec::new(),
+            styles_offered: None,
             stage,
             defs,
             bosses,

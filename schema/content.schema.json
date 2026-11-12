@@ -6339,7 +6339,7 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId",
-          "description": "A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock."
+          "description": "A weapon, perk set or stage skill of the pack, once in its list and not a starting unlock;\nin a weapon's style row, one of that weapon's styles."
         },
         "price": {
           "description": "The price in tenths of Stardust, from 1 to `MAX_PRICE`.",
@@ -7407,6 +7407,16 @@
           },
           "type": "array"
         },
+        "unlocked_styles": {
+          "description": "The styles of `weapon` the player has unlocked (ADR-SIM-9 point 8, ADR-SAVE-7 point 10),\nby the style's ID in the run's expertise file: sorted, each once, at most\n`MAX_UNLOCKED_STYLES`, only at `sim_version` 2. Absent: every style is offered. Present:\nonly the listed styles are offered, in the expertise file's order; an empty list offers\nno style pick and the run plays the plain base.",
+          "items": {
+            "$ref": "#/$defs/ContentId"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "upgrades": {
           "description": "The permanent upgrades the player holds (ADR-REPL-5): registered upgrade IDs, sorted, each\nonce, at most `registry::MAX_UPGRADES`. They open no combo step any more (every smash is\nopen, ADR-REPL-5): an old setup that names `giant_sword_aab` and the others still reads, and\nthey are ignored.",
           "items": {
@@ -7427,7 +7437,7 @@
               "type": "null"
             }
           ],
-          "description": "Which of the weapon's trees the run uses (ADR-REPL-5), by the tree's ID: it sets the combo\ntree's steps and the smash effect, and is fixed for the run. Absent: the weapon's first\ntree, so a setup written before trees existed reads as it always did."
+          "description": "Which of the weapon's base trees the run uses (ADR-REPL-5), by the tree's ID: it sets the\ncombo tree's steps and the smash effect, and is fixed for the run. Absent: the weapon's\nfirst tree, so a setup written before trees existed reads as it always did. The weapon's\nstyles are not trees: `unlocked_styles` names the ones the run may pick."
         }
       },
       "required": [
@@ -8687,6 +8697,13 @@
           "description": "Run stats for sale, at most `MAX_ITEMS`.",
           "items": {
             "$ref": "#/$defs/StatPrices"
+          },
+          "type": "array"
+        },
+        "styles": {
+          "description": "The styles each weapon sells, at most `MAX_ITEMS` weapons. Absent when none is priced.",
+          "items": {
+            "$ref": "#/$defs/WeaponStylePrices"
           },
           "type": "array"
         },
@@ -10267,6 +10284,28 @@
         "level",
         "base",
         "trees"
+      ],
+      "type": "object"
+    },
+    "WeaponStylePrices": {
+      "additionalProperties": false,
+      "description": "The styles of one weapon the chart sells (ADR-SIM-9 point 8, ADR-SAVE-7 point 10).",
+      "properties": {
+        "styles": {
+          "description": "Styles of that weapon in the pack's expertise file, at most `MAX_UNLOCKED_STYLES`, each\nonce, with its price in tenths of Stardust. A style left out has no price and is not for\nsale.",
+          "items": {
+            "$ref": "#/$defs/PricedId"
+          },
+          "type": "array"
+        },
+        "weapon": {
+          "$ref": "#/$defs/ContentId",
+          "description": "A weapon of the pack, once in the list."
+        }
+      },
+      "required": [
+        "weapon",
+        "styles"
       ],
       "type": "object"
     },
