@@ -670,6 +670,22 @@ pub fn validate_in(setup: &RunSetup, content: &RunContent) -> Result<(), Error> 
             Some(_) => {}
         }
     }
+    // Version 1 and a malformed list are refused by `validate_loadout` already.
+    let styles = content.expertise().weapon(&setup.weapon);
+    for (i, style) in setup
+        .unlocked_styles
+        .iter()
+        .flatten()
+        .enumerate()
+        .take(MAX_UNLOCKED_STYLES)
+    {
+        if !styles.is_some_and(|w| w.styles.iter().any(|s| s.id == *style)) {
+            issues.push(Issue {
+                path: format!("$.unlocked_styles[{i}]"),
+                message: "no such style for the run's weapon in the run's expertise file".into(),
+            });
+        }
+    }
     let mut cost: u32 = 0;
     for (i, star) in setup.carried.iter().enumerate() {
         let path = format!("$.carried[{i}].reward");
