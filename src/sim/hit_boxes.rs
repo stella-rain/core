@@ -630,7 +630,10 @@ fn hit_enemy_side(
             }
             // C02: a combo hit that deals the enemy's poise makes it flinch; a smash's own stun
             // (applied inside `damage`) has already won.
-            if w.combo && stage.defs.agent(s.enemies[i].def).poise.is_some() {
+            if w.combo
+                && stage.tuning.flinch_ticks > 0
+                && stage.defs.agent(s.enemies[i].def).poise.is_some()
+            {
                 flinch_by(stage, s, me, i, w, events);
             }
         }
