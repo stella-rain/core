@@ -160,6 +160,8 @@ mod damage_tests;
 mod drops_tests;
 #[cfg(test)]
 mod equip_support;
+#[cfg(test)]
+mod magnet_tests;
 mod orbit;
 #[cfg(test)]
 mod party_act_tests;

@@ -33,6 +33,7 @@ use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
+use crate::limits::{MAX_ADVANCE_DISTANCE, MAX_ADVANCE_PER_TICK};
 use crate::rewards::Rewards;
 use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
@@ -160,11 +161,64 @@ pub(super) fn update(
     if let Some(main) = main {
         combo(stage, s, me, main, input, pressed, events);
     }
+    if stage.has_advance {
+        magnetism(stage, s, me);
+    }
     if s.players[me].dash.is_some() {
         dash(stage, &mut s.players[me]);
     } else {
         move_player(stage, s, me, x, y);
     }
+}
+
+/// Attack magnetism (sim_version >= 2): while the combo step's phase names an `advance`, the
+/// player slides along the facing the step took toward its target, by the dash's share of the
+/// distance each tick (`dash.rs`), at most `MAX_ADVANCE_PER_TICK` and at most the gap that leaves
+/// the two circles touching. No slide without a current target, with the target behind the
+/// facing or gone. The evade cancels the run, so it ends the slide.
+fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
+    let Some(target) = s.players[me].target else {
+        return;
+    };
+    let id = s.players.id(me);
+    let Some(r) = s
+        .runs
+        .iter()
+        .find(|r| r.owner == id && r.slot == COMBO_SLOT)
+    else {
+        return;
+    };
+    let Some(advance) = attacks::advance_of(stage, r) else {
+        return;
+    };
+    let ticks = i64::from(attacks::phase(stage, r, r.phase as usize).ticks);
+    if r.tick >= attacks::phase(stage, r, r.phase as usize).ticks || ticks == 0 {
+        return;
+    }
+    let Some((at, radius)) = select::target_circle(stage, s, target) else {
+        return;
+    };
+    let distance = i64::from(advance.0).clamp(0, i64::from(Fx::px(MAX_ADVANCE_DISTANCE).0));
+    let (k, facing) = (i64::from(r.tick) + 1, r.facing);
+    let share = distance * k / ticks - distance * (k - 1) / ticks;
+    let p = &s.players[me];
+    let dx = i64::from(at.x.0) - i64::from(p.at.x.0);
+    let dy = i64::from(at.y.0) - i64::from(p.at.y.0);
+    if i64::from(facing.x) * dx + i64::from(facing.y) * dy <= 0 {
+        return;
+    }
+    let reach = i64::try_from((dx * dx + dy * dy).unsigned_abs().isqrt()).unwrap_or(i64::MAX);
+    let gap = (reach - i64::from(stage.tuning.player_radius) - i64::from(radius)).max(0);
+    let step = share
+        .min(i64::from(Fx::px(MAX_ADVANCE_PER_TICK).0))
+        .min(gap);
+    let scale = i64::from(SCALE);
+    move_by(
+        stage,
+        &mut s.players[me],
+        i64::from(facing.x) * step / scale,
+        i64::from(facing.y) * step / scale,
+    );
 }
 
 /// A near miss: the evade's own invulnerability stopped a hit on player `me` (the caller has
