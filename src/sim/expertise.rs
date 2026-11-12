@@ -29,7 +29,7 @@
 
 use super::World;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, SetStat, StepGrant, Style, StyleKind,
+    Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
     TABLE_LEVELS, WeaponExpertise,
 };
 use crate::id::ContentId;
@@ -37,8 +37,8 @@ use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, LevelKindsView, SmashEffectKind, StatValueView, StepGrantKind,
-    StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StatValueView,
+    StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::{SmashEffect, WeaponRef};
@@ -469,6 +469,11 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
+        if stage.has_gauge && was.0 != Some(at) {
+            // The new style's bar starts empty; a style with no gauge reads empty.
+            player.combat.weapon_gauge = 0;
+            player.combat.gauge_step_fill = 0;
+        }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
         if stage.try_styles && spent > 0 {
@@ -589,6 +594,12 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
                 step: step.clone(),
                 proc_pct: *proc_pct,
+            },
+            StyleKind::Gauge(g) => StyleKindView::Gauge {
+                max: g.max,
+                spend: match g.spend {
+                    GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
+                },
             },
         })
         .collect()

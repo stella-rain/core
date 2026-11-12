@@ -57,6 +57,9 @@ pub(super) fn hurt_player(
         // A dash, charge, hold or combo step does not wait for the revive.
         player::stand_down(stage, s, me, events);
     }
+    if stage.has_gauge {
+        player::gauge_from_damage(stage, s, me, before_hp - s.players[me].hp);
+    }
     // A powerful attack breaks a charge (core#83).
     if b.breaks_charge {
         player::break_charge(stage, s, me, events);

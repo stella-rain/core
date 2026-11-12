@@ -10,6 +10,12 @@
 //! Attack magnetism: a combo step's phase that names an `advance` slides the player along the
 //! facing the step took, toward its current target, no further than touching it (`magnetism`).
 //!
+//! The weapon gauge (when the style names the `gauge` kind): a normal (A) step whose swing hits
+//! adds `per_step` once and `per_hit` for each enemy, to the step's cap and the gauge's `max`
+//! (`gauge_from_hits`); a hit taken adds a share of the hit points lost (`gauge_from_damage`); a
+//! B step at a full gauge plays the style's full-gauge attack in place of the step's own, empties
+//! the gauge and lets no hold begin after it (`spend_gauge`). A new step resets the step's fill.
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the
@@ -814,6 +820,13 @@ fn take_step(
     let Some(step) = step_at(main, c) else {
         return;
     };
+    if stage.has_gauge {
+        // A new step starts its fill again (the step cap, ADR-SIM-5).
+        s.players[me].combat.gauge_step_fill = 0;
+    }
+    if smash && stage.has_gauge && spend_gauge(stage, s, me, input.assist || !by_hand, events) {
+        return;
+    }
     let held = by_hand && if smash { input.smash } else { input.main };
     // Auto mode charges a step to the level recorded for it, with no button.
     let auto_level = step.charge.as_ref().filter(|_| !by_hand).map_or(0, |_| {
@@ -833,6 +846,92 @@ fn take_step(
             events,
         );
     }
+}
+
+/// A friendly swing of player `owner`'s combo hit `n` enemies this tick: a normal (A) step fills
+/// the weapon gauge its style grants by `per_step` once and `per_hit` for each, to the step's cap
+/// and the gauge's `max`. A smash, a downed player and a style without a gauge fill nothing.
+pub(super) fn gauge_from_hits(stage: &World, s: &mut State, owner: EntityId, n: u32) {
+    let Some(me) = s.players.of_id(owner) else {
+        return;
+    };
+    let p = &s.players[me];
+    if n == 0 || !p.is_up() || last_press_smash(&p.combo) {
+        return;
+    }
+    let Some(g) = stage.gauge_of(s, me) else {
+        return;
+    };
+    let (fill, have) = (p.combat.gauge_step_fill, p.combat.weapon_gauge);
+    let room = g
+        .step_cap
+        .saturating_sub(fill)
+        .min(g.max.saturating_sub(have));
+    if room == 0 {
+        return;
+    }
+    let first = if fill == 0 { g.per_step } else { 0 };
+    let want = u64::from(first) + u64::from(n) * u64::from(g.per_hit);
+    let added = u32::try_from(want.min(u64::from(room))).unwrap_or(room);
+    let c = &mut s.players[me].combat;
+    c.weapon_gauge += added;
+    c.gauge_step_fill += added;
+}
+
+/// Player `me` lost `lost` hit points to a hit: the gauge gains `max * lost * pct / (max_hp *
+/// 100)`, to `max` at most, when the player is still up. The step cap does not hold it.
+pub(super) fn gauge_from_damage(stage: &World, s: &mut State, me: PlayerIdx, lost: u32) {
+    let p = &s.players[me];
+    if lost == 0 || !p.is_up() {
+        return;
+    }
+    let Some(g) = stage.gauge_of(s, me) else {
+        return;
+    };
+    if g.from_damage_pct == 0 {
+        return;
+    }
+    let share = u64::from(g.max) * u64::from(lost) * u64::from(g.from_damage_pct)
+        / (u64::from(p.max_hp.max(1)) * 100);
+    let room = g.max.saturating_sub(p.combat.weapon_gauge);
+    let added = u32::try_from(share.min(u64::from(room))).unwrap_or(room);
+    s.players[me].combat.weapon_gauge += added;
+}
+
+/// Whether player `me`'s weapon gauge is full. The kinds that read the gauge go through it.
+pub(super) fn gauge_full(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage
+        .gauge_of(s, me)
+        .is_some_and(|g| s.players[me].combat.weapon_gauge >= g.max)
+}
+
+/// A B step taken at a full gauge: spends it and plays the style's full-gauge attack in place of
+/// the step's own, which starts no charge and no hold. True when it played. The one place a kind
+/// that reacts to a spent gauge adds its line.
+fn spend_gauge(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    aim: bool,
+    events: &mut Vec<DomainEvent>,
+) -> bool {
+    if !gauge_full(stage, s, me) {
+        return false;
+    }
+    let Some(crate::expertise::Gauge {
+        spend: crate::expertise::GaugeSpend::FullSmash { attack },
+        ..
+    }) = stage.gauge_of(s, me)
+    else {
+        return false;
+    };
+    let c = &mut s.players[me];
+    c.combat.weapon_gauge = 0;
+    c.combat.gauge_step_fill = 0;
+    // No hold begins after it (`begins_hold`).
+    c.combo.released = true;
+    strike(stage, s, me, attack, 0, aim, events);
+    true
 }
 
 /// The current step's attack starts in the combo slot along the facing, at the
