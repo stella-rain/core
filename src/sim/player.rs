@@ -684,7 +684,7 @@ fn strike(
     }
     let smash = if last_press_smash(&s.players[me].combo) {
         stage
-            .weapon()
+            .weapon_of(s, me)
             .and_then(|w| w.smash)
             .map(|effect| match effect {
                 SmashEffect::Pull { distance, ticks } => Smash::Pull(Pull {
@@ -697,6 +697,7 @@ fn strike(
                 }),
                 SmashEffect::Bleed {} => Smash::Bleed,
                 SmashEffect::Stun { ticks } => Smash::Stun { ticks },
+                SmashEffect::Reap { stacks, boss_pct } => Smash::Reap { stacks, boss_pct },
             })
     } else {
         None

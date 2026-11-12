@@ -199,4 +199,14 @@ pub enum SmashEffect {
         #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
         ticks: u32,
     },
+    /// A smash hit adds a bleed stack, as `bleed` does; a smash that hits an enemy holding
+    /// `stacks` bleed stacks cashes them instead: the stacks go and the enemy takes the bleed's
+    /// remaining damage at once. A boss and its parts take `boss_pct` percent of it. Needs
+    /// `sim_version` 2 (ADR-SIM-9).
+    Reap {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_REAP_STACKS))]
+        stacks: u32,
+        #[schemars(range(min = 0, max = crate::validate::limits::MAX_REAP_BOSS_PCT))]
+        boss_pct: u32,
+    },
 }

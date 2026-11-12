@@ -141,6 +141,18 @@ impl<'a> Ctx<'a> {
             SmashEffect::Stun { ticks } => {
                 self.within("ticks", i64::from(ticks), 1, i64::from(MAX_STUN_TICKS));
             }
+            SmashEffect::Reap { stacks, boss_pct } => {
+                if self.sim_version < 2 {
+                    self.fail("reap needs sim_version 2");
+                }
+                self.within("stacks", i64::from(stacks), 1, i64::from(MAX_REAP_STACKS));
+                self.within(
+                    "boss_pct",
+                    i64::from(boss_pct),
+                    0,
+                    i64::from(MAX_REAP_BOSS_PCT),
+                );
+            }
         }
     }
 

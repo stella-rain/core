@@ -328,3 +328,27 @@ fn an_untaken_smash_effect_changes_no_hash() {
         run(bare)
     );
 }
+
+/// A weapon naming `reap` in its `smash` is `sim_version` 2's, and bounded by its caps.
+#[test]
+fn a_weapon_naming_reap_needs_sim_version_2() {
+    let weapon = |effect: Value| {
+        json!({ "inline": {
+            "combo": { "smash": { "attack": { "preset": { "id": "slash" } } } },
+            "window_ticks": 30, "assist_range": 0, "smash": effect,
+        } })
+    };
+    let check = |version: u32, effect: Value| {
+        let mut stage = armed(
+            stage_full(600, Some(far_boss()), vec![], vec![]),
+            weapon(effect),
+        );
+        stage.sim_version = version;
+        stella_rain_core::validate::validate(&stage)
+    };
+    assert!(check(1, reap(3, 50)).is_err());
+    assert!(check(2, reap(3, 50)).is_ok());
+    assert!(check(2, reap(0, 50)).is_err());
+    assert!(check(2, reap(11, 50)).is_err());
+    assert!(check(2, reap(3, 101)).is_err());
+}

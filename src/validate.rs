@@ -79,6 +79,10 @@ pub mod limits {
     pub const MAX_PULL_TICKS: u32 = 60;
     /// A stun lasts at most 2 seconds (a placeholder bound).
     pub const MAX_STUN_TICKS: u32 = 120;
+    /// A reap smash cashes at most at the bleed's stack maximum, and a boss takes at most all of
+    /// the burst (placeholder bounds).
+    pub const MAX_REAP_STACKS: u32 = crate::runes::MAX_DOT_STACKS;
+    pub const MAX_REAP_BOSS_PCT: u32 = 100;
     /// Twenty seconds: an orb at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
