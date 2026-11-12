@@ -104,6 +104,11 @@ impl StableHash for Smash {
                 hash_enum!(h, 3);
                 ticks.stable_hash(h);
             }
+            Smash::Reap { stacks, boss_pct } => {
+                hash_enum!(h, 4);
+                stacks.stable_hash(h);
+                boss_pct.stable_hash(h);
+            }
         }
     }
 }

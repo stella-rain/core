@@ -37,6 +37,11 @@ impl Encode for Smash {
                 w.u8(3);
                 ticks.encode(w);
             }
+            Smash::Reap { stacks, boss_pct } => {
+                w.u8(4);
+                stacks.encode(w);
+                boss_pct.encode(w);
+            }
         }
     }
 }
@@ -49,6 +54,10 @@ impl Decode for Smash {
             2 => Ok(Smash::Bleed),
             3 => Ok(Smash::Stun {
                 ticks: Decode::decode(r)?,
+            }),
+            4 => Ok(Smash::Reap {
+                stacks: Decode::decode(r)?,
+                boss_pct: Decode::decode(r)?,
             }),
             _ => Err(DecodeError::Invalid("smash tag")),
         }

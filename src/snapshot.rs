@@ -208,6 +208,17 @@ pub enum StepGrantKind {
     Hold,
 }
 
+/// Which smash effect a `smash_effect` kind sets, by name only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SmashEffectKind {
+    Pull,
+    Knockback,
+    Bleed,
+    Stun,
+    Reap,
+}
+
 /// A mechanic kind a style level grants, in the compact form a snapshot carries (built every
 /// frame, so the grant's attacks are not inside).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -218,6 +229,8 @@ pub enum StyleKindView {
         step: Vec<Press>,
         grant: StepGrantKind,
     },
+    /// The weapon's smash effect is this one in place of the base's.
+    SmashEffect { effect: SmashEffectKind },
 }
 
 /// The kinds one level of a style's path grants.

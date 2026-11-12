@@ -387,6 +387,12 @@ pub(crate) enum Smash {
     Stun {
         ticks: u32,
     },
+    /// The `reap` smash: a hit adds a bleed stack, and a hit on an enemy at `stacks` cashes them;
+    /// a boss takes `boss_pct` percent of the burst (ADR-SIM-9).
+    Reap {
+        stacks: u32,
+        boss_pct: u32,
+    },
 }
 
 /// The stage skill held: its place in the stage skills file, its level from 1, and

@@ -8208,8 +8208,47 @@
             "ticks"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A smash hit adds a bleed stack, as `bleed` does; a smash that hits an enemy holding\n`stacks` bleed stacks cashes them instead: the stacks go and the enemy takes the bleed's\nremaining damage at once. A boss and its parts take `boss_pct` percent of it. Needs\n`sim_version` 2 (ADR-SIM-9).",
+          "properties": {
+            "boss_pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stacks": {
+              "format": "uint32",
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "reap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks",
+            "boss_pct"
+          ],
+          "type": "object"
         }
       ]
+    },
+    "SmashEffectKind": {
+      "description": "Which smash effect a `smash_effect` kind sets, by name only.",
+      "enum": [
+        "pull",
+        "knockback",
+        "bleed",
+        "stun",
+        "reap"
+      ],
+      "type": "string"
     },
     "Snapshot": {
       "additionalProperties": false,
@@ -9350,6 +9389,24 @@
             "grant"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the\nbase's (ADR-SIM-9 point 4). One per style path: a second is refused.",
+          "properties": {
+            "effect": {
+              "$ref": "#/$defs/SmashEffect"
+            },
+            "type": {
+              "const": "smash_effect",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "effect"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -9378,6 +9435,24 @@
             "type",
             "step",
             "grant"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The weapon's smash effect is this one in place of the base's.",
+          "properties": {
+            "effect": {
+              "$ref": "#/$defs/SmashEffectKind"
+            },
+            "type": {
+              "const": "smash_effect",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "effect"
           ],
           "type": "object"
         }

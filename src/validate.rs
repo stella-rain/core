@@ -24,7 +24,8 @@ mod weapon;
 
 pub use entry::{
     parse_and_validate, validate, validate_attack, validate_attack_ref, validate_levels_and_stars,
-    validate_step_grant, validate_waves, validate_weapon_preset, validate_with,
+    validate_smash_effect, validate_step_grant, validate_waves, validate_weapon_preset,
+    validate_with,
 };
 pub use error::{Error, Issue};
 pub(crate) use weapon::TREE_ID_PROBLEM;
@@ -79,6 +80,10 @@ pub mod limits {
     pub const MAX_PULL_TICKS: u32 = 60;
     /// A stun lasts at most 2 seconds (a placeholder bound).
     pub const MAX_STUN_TICKS: u32 = 120;
+    /// A reap smash cashes at most at the bleed's stack maximum (`MAX_DOT_STACKS`, kept equal by a test), and a boss takes at most all of
+    /// the burst (placeholder bounds).
+    pub const MAX_REAP_STACKS: u32 = 10;
+    pub const MAX_REAP_BOSS_PCT: u32 = 100;
     /// Twenty seconds: an orb at 2 pixels a tick crosses a 4,096-pixel map in 2,048 ticks,
     /// so a lifetime is a shorter one than the margin's (core#147).
     /// A zone warns, and then hurts, for at most 10 seconds each (core Z1, a placeholder bound).
