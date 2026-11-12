@@ -59,6 +59,12 @@ pub struct AttackPhase {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 0, max = crate::validate::limits::MAX_POISE_DAMAGE))]
     pub poise_damage: Option<u32>,
+    /// The same kind of phase only: the stagger its combo hits add to the gauge of an elite or the
+    /// boss, 0 to `limits::MAX_STAGGER` (10,000); `sim_version` 2 only. Absent: the rules'
+    /// `stagger_smash` for a smash step, 0 for any other.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 0, max = crate::limits::MAX_STAGGER))]
+    pub stagger: Option<u32>,
     /// An active phase only: a target already hit may be hit again after this many ticks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]

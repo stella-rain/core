@@ -434,11 +434,33 @@ pub(crate) struct Tuning {
     pub vulnerable_stun_pct: u16,
     /// The perfect evade (`sim_version` 2); `None`: the rule is off.
     pub perfect_evade: Option<crate::rules::PerfectEvade>,
+    /// The stagger gauge (`sim_version` 2; each 0 when its key is absent): what a smash step adds
+    /// when its phase names none, what a resisted `[stun, pull, knockback]` adds, the percent of a
+    /// fill kept by bars broken (`stagger_refill_len` entries, 0: all in full), the ticks before
+    /// an idle gauge drains and what it loses a tick, the damage percent a staggered target takes
+    /// more, the ticks of a stagger an agent names none of, and the `vulnerable` percent it puts.
+    pub stagger_smash: u32,
+    pub stagger_values: [u32; 3],
+    pub stagger_refill_pcts: [u8; crate::limits::MAX_STAGGER_REFILLS as usize],
+    pub stagger_refill_len: u8,
+    pub stagger_drain_delay: u16,
+    pub stagger_drain_per_tick: u32,
+    pub stagger_damage_pct: u32,
+    pub staggered_ticks: u16,
+    pub vulnerable_stagger_pct: u16,
 }
 
 impl Tuning {
     fn of(rules: &Rules) -> Tuning {
         let margin = rules.spawn_margin();
+        let mut stagger_refill_pcts = [0u8; crate::limits::MAX_STAGGER_REFILLS as usize];
+        for (to, from) in stagger_refill_pcts
+            .iter_mut()
+            .zip(rules.stagger_refill_pcts())
+        {
+            // Validated 1 to 100.
+            *to = u8::try_from(*from).unwrap_or(100);
+        }
         let mut control_repeat_pcts = [0u8; crate::limits::MAX_CONTROL_REPEATS as usize];
         for (to, from) in control_repeat_pcts
             .iter_mut()
@@ -481,6 +503,16 @@ impl Tuning {
             control_immune_ticks: rules.control_immune_ticks(),
             vulnerable_stun_pct: u16::try_from(rules.vulnerable_stun_pct()).unwrap_or(u16::MAX),
             perfect_evade: rules.perfect_evade(),
+            stagger_smash: rules.stagger_smash(),
+            stagger_values: rules.stagger_values(),
+            stagger_refill_pcts,
+            stagger_refill_len: u8::try_from(rules.stagger_refill_pcts().len()).unwrap_or(0),
+            stagger_drain_delay: rules.stagger_drain().0,
+            stagger_drain_per_tick: rules.stagger_drain().1,
+            stagger_damage_pct: rules.stagger_damage_pct(),
+            staggered_ticks: rules.staggered_ticks(),
+            vulnerable_stagger_pct: u16::try_from(rules.vulnerable_stagger_pct())
+                .unwrap_or(u16::MAX),
         }
     }
 }
@@ -539,6 +571,8 @@ pub(crate) struct World {
     /// Some compiled phase names an `advance` (attack magnetism): the player's tick looks for a
     /// slide only then.
     pub has_advance: bool,
+    /// Some elite or boss of the run names a `stagger_max`: the stagger rules run only then.
+    pub has_stagger: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -587,6 +621,25 @@ impl World {
                     return Err(Issue {
                         path,
                         message: "needs flinch_ticks in the run's rules".into(),
+                    });
+                }
+            }
+            // A gauge needs the ticks of its stagger, from the rules or its own definition.
+            if content.rules().staggered_ticks() == 0 {
+                let mut found = None;
+                crate::kinds::visit_foes(&stage, &horde_bosses, &mut |foe, path| {
+                    let (max, ticks) = match foe {
+                        crate::kinds::Foe::Agent(a) => (a.stagger_max, a.staggered_ticks),
+                        crate::kinds::Foe::Boss(b) => (b.stagger_max, b.staggered_ticks),
+                    };
+                    if found.is_none() && max.is_some() && ticks.is_none() {
+                        found = Some(format!("{path}.stagger_max"));
+                    }
+                });
+                if let Some(path) = found {
+                    return Err(Issue {
+                        path,
+                        message: "needs staggered_ticks, in the run's rules or its own".into(),
                     });
                 }
             }
@@ -706,6 +759,7 @@ impl World {
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
             has_advance: false,
+            has_stagger: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -722,6 +776,11 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
+        world.has_stagger = world
+            .defs
+            .defs_iter()
+            .any(|d| d.agent.stagger_max.is_some())
+            || world.bosses.iter().any(|b| b.boss.stagger_max.is_some());
         Ok(world)
     }
 

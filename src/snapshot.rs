@@ -842,6 +842,12 @@ pub struct EntityView {
     /// Absent for every other entity, and for a shrine nobody has touched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fight: Option<Countdown>,
+    /// The stagger gauge of an elite or the boss whose definition names a `stagger_max`: what it
+    /// holds now (0 while it is staggered) and its maximum. Absent for every other entity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_max: Option<u32>,
 }
 
 /// A count-down in the snapshot: the ticks left and the ticks it started with.
@@ -859,7 +865,7 @@ pub struct Countdown {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StatusView {
-    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `bleed`, `poison`, `burn`, or
+    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `staggered`, `bleed`, `poison`, `burn`, or
     /// `aura` for a pack leader's aura, which has no content ID of its own.
     pub id: ContentId,
     /// Ticks left. An aura has none: it lasts while its entity is in reach, so both this and

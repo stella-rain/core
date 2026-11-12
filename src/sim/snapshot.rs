@@ -126,6 +126,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 damage_over_time: dot_views(&b.statuses),
                 statuses: status_views(&b.statuses, false, (0, 0)),
                 fight: None,
+                stagger: None,
+                stagger_max: None,
             });
         }
     }
@@ -176,6 +178,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     }),
                     _ => None,
                 },
+                stagger: None,
+                stagger_max: None,
             });
         }
     };
@@ -204,6 +208,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     damage_over_time: dot_views(&part.statuses),
                     statuses: status_views(&part.statuses, false, (0, 0)),
                     fight: None,
+                    stagger: None,
+                    stagger_max: None,
                 });
             }
         }

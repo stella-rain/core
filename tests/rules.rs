@@ -866,6 +866,14 @@ fn r1_the_bundled_file_names_none_of_the_stagger_keys() {
     for key in stagger_keys().as_object().unwrap().keys() {
         assert!(v.get(key).is_none(), "{key}");
     }
+    let rules = Rules::bundled();
+    assert_eq!(rules.staggered_ticks(), 0);
+    assert_eq!(rules.stagger_smash(), 0);
+    assert_eq!(rules.stagger_values(), [0, 0, 0]);
+    assert!(rules.stagger_refill_pcts().is_empty());
+    assert_eq!(rules.stagger_drain(), (0, 0));
+    assert_eq!(rules.stagger_damage_pct(), 0);
+    assert_eq!(rules.vulnerable_stagger_pct(), 0);
 }
 
 /// The bundled file with `key` set to `value` after every stagger key is named.

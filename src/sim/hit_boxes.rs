@@ -61,6 +61,8 @@ pub(super) struct Swing {
     combo: bool,
     /// The poise damage the hit phase names, if any (`AttackPhase::poise_damage`).
     poise_damage: Option<u32>,
+    /// The stagger the hit phase names, if any (`AttackPhase::stagger`).
+    stagger: Option<u32>,
     rune: Option<Rune>,
     /// A homing missile's: one hit, then nothing.
     once: bool,
@@ -383,6 +385,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
             smash: r.smash,
             combo: super::attacks::is_combo(s, r),
             poise_damage: p.poise_damage,
+            stagger: p.stagger,
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
@@ -415,6 +418,7 @@ fn zone_swings(s: &State, swings: &mut Vec<Swing>) {
             smash: None,
             combo: false,
             poise_damage: None,
+            stagger: None,
             rune: None,
             once: false,
         });
@@ -772,6 +776,7 @@ mod party_tests {
             smash: None,
             combo: false,
             poise_damage: None,
+            stagger: None,
             rune: None,
             once: false,
         }

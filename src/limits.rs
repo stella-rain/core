@@ -110,6 +110,8 @@ pub const MAX_CONTROL_RESET_TICKS: u16 = 600;
 pub const MAX_DOWN_TICKS: u16 = 180;
 pub const MAX_STAGGER: u32 = 10_000;
 pub const MAX_STAGGER_BREAKS: u16 = 1_000;
+/// The most entries of the rules' `stagger_refill_pcts`: how many bars fill at their own rate.
+pub const MAX_STAGGER_REFILLS: u8 = 8;
 pub const MAX_STAGGER_DRAIN_TICKS: u16 = 600;
 pub const MAX_STAGGERED_TICKS: u16 = 600;
 pub const MAX_PERFECT_WINDOW_TICKS: u16 = 30;
@@ -236,6 +238,7 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_DOWN_TICKS", "180", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_STAGGER", "10000", "stagger", "ADR-SIM-5"),
     LimitEntry::new("MAX_STAGGER_BREAKS", "1000", "breaks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STAGGER_REFILLS", "8", "bars", "ADR-SIM-5"),
     LimitEntry::new("MAX_STAGGER_DRAIN_TICKS", "600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_STAGGERED_TICKS", "600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_PERFECT_WINDOW_TICKS", "30", "ticks", "ADR-SIM-5"),
@@ -402,6 +405,7 @@ mod tests {
             ("MAX_DOWN_TICKS", "180", "ticks"),
             ("MAX_STAGGER", "10000", "stagger"),
             ("MAX_STAGGER_BREAKS", "1000", "breaks"),
+            ("MAX_STAGGER_REFILLS", "8", "bars"),
             ("MAX_STAGGER_DRAIN_TICKS", "600", "ticks"),
             ("MAX_STAGGERED_TICKS", "600", "ticks"),
             ("MAX_PERFECT_WINDOW_TICKS", "30", "ticks"),
