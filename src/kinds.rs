@@ -153,10 +153,10 @@ pub(crate) fn visit_foes<'a>(
         visit_boss(boss, &mut path, visit);
         path.truncate(at);
     }
-    for (i, boss) in bosses.iter().enumerate() {
+    for (i, boss) in bosses.iter().copied().enumerate() {
         let at = path.len();
         let _ = write!(path, ".bosses[{i}]");
-        visit_boss(*boss, &mut path, visit);
+        visit_boss(boss, &mut path, visit);
         path.truncate(at);
     }
 }

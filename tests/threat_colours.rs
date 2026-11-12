@@ -185,7 +185,16 @@ fn waves_of(enemies: Vec<Value>) -> Vec<Value> {
     enemies
         .into_iter()
         .enumerate()
-        .map(|(i, e)| wave(1, 1, 0, e, START_X + 10 * PX * i as i32, START_Y - 100 * PX))
+        .map(|(i, e)| {
+            wave(
+                1,
+                1,
+                0,
+                e,
+                START_X + 10 * PX * i32::try_from(i).unwrap(),
+                START_Y - 100 * PX,
+            )
+        })
         .collect()
 }
 
