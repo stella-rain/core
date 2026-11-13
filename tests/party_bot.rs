@@ -13,7 +13,9 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::RunReplay;
 use stella_rain_core::run_setup::RunSetup;
-use stella_rain_core::snapshot::{EntityKind, HeldView, SlotKindView, SwapItem, SwapRating};
+use stella_rain_core::snapshot::{
+    EntityKind, ExpertiseOfferKind, HeldView, SlotKindView, SwapItem, SwapRating,
+};
 
 use crate::common::run::trial_setup;
 use crate::run_play::{Change, PartyCase};
@@ -62,6 +64,8 @@ pub struct Sight {
     pub star: Option<Point>,
     /// The nearest enemy; with none on the field, the nearest boss (a boss part stays out).
     pub enemy: Option<Point>,
+    /// The slot's weapon gauge is full (`GaugeView.value` at `max`, ADR-SIM-9).
+    pub gauge_full: bool,
 }
 
 /// The squared distance (1/256 pixel) between two points.
@@ -117,6 +121,10 @@ pub fn sight(engine: &Engine, slot: u8) -> Sight {
             .map(|st| st.at)
             .min_by_key(|at| d2(*at, me)),
         enemy: nearest(EntityKind::Enemy).or_else(|| nearest(EntityKind::Boss)),
+        gauge_full: mine
+            .gauge
+            .as_ref()
+            .is_some_and(|g| g.max > 0 && g.value >= g.max),
     }
 }
 
@@ -155,6 +163,9 @@ impl PartyBot {
         let t = u64::from(tick);
         let mut input = Input {
             main: (t + self.phase(slot)) % 40 < 5,
+            // A full-gauge smash needs a press of B with the gauge full: 2 ticks in 8 leave the
+            // release tick the engine needs for a new press (ADR-SIM-9).
+            smash: self.builds && s.gauge_full && (t + self.phase(slot)) % 8 < 2,
             skill: (t + self.skill_phase(slot)) % 90 < 30,
             ..Input::default()
         };
@@ -221,8 +232,15 @@ impl PartyBot {
             return None;
         }
         let accepted = |a: EquipAction| engine.check_action(player, a).is_ok();
-        if accepted(EquipAction::TreePick { option: 0 }) {
-            return Some(EquipAction::TreePick { option: 0 });
+        // A style is picked by the seed; an upgrade or a capstone has one option, so option 0.
+        let option = match &view.tree_ready {
+            Some(r) if r.kind == ExpertiseOfferKind::Style && !r.options.is_empty() => {
+                u32::try_from(mix(self.seed, slot, 5) % r.options.len() as u64).ok()?
+            }
+            _ => 0,
+        };
+        if accepted(EquipAction::TreePick { option }) {
+            return Some(EquipAction::TreePick { option });
         }
         // A candidate: (dps_bp, an equip, reversed item, reversed slot) -> action.
         type Key = (i32, bool, std::cmp::Reverse<u32>, std::cmp::Reverse<u32>);
@@ -1211,7 +1229,17 @@ mod builds {
             drive(1, world, &b, 3000, |e, s, t, a| {
                 let ready = e.snapshot().players[usize::from(s)].tree_ready.is_some();
                 if ready && (u64::from(t) + b.action_phase(s)) % 30 == 0 {
-                    assert_eq!(a, Some(EquipAction::TreePick { option: 0 }));
+                    // A style is the seed's pick; an upgrade or a capstone takes option 0.
+                    let r = e.snapshot().players[usize::from(s)]
+                        .tree_ready
+                        .clone()
+                        .unwrap();
+                    let option = if r.kind == ExpertiseOfferKind::Style {
+                        u32::try_from(mix(b.seed, s, 5) % r.options.len() as u64).unwrap()
+                    } else {
+                        0
+                    };
+                    assert_eq!(a, Some(EquipAction::TreePick { option }));
                     seen += 1;
                 }
             });
@@ -1492,7 +1520,11 @@ mod gauge {
         for slot in 0..3u8 {
             for t in 0..80u32 {
                 let want = (u64::from(t) + bot.phase(slot)) % 8 < 2;
-                assert_eq!(bot.decide(&full(), slot, t).smash, want, "slot {slot} t {t}");
+                assert_eq!(
+                    bot.decide(&full(), slot, t).smash,
+                    want,
+                    "slot {slot} t {t}"
+                );
             }
         }
     }
@@ -1541,7 +1573,7 @@ mod gauge {
                         .check_action(PlayerIdx::new(0).unwrap(), a.unwrap())
                         .is_ok()
                 );
-                return (usize::from(option), ready.options.len());
+                return (usize::try_from(option).unwrap(), ready.options.len());
             }
             if let Some(a) = a {
                 engine.act(PlayerIdx::new(0).unwrap(), a).unwrap();
@@ -1585,7 +1617,7 @@ mod gauge {
 
     #[test]
     fn sight_reads_the_gauge_full() {
-        let bot = building(1);
+        let bot = building(2);
         let mut e = engine_of("giant_sword", 2);
         let mut seen_full = false;
         for t in 0..3000u32 {
