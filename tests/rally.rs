@@ -91,10 +91,9 @@ fn the_bundled_file_names_no_rally_key_and_the_schema_lists_them_as_optional() {
     for key in KEYS {
         assert!(v.get(key).is_none(), "{key}");
     }
-    let bundle = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/content.schema.json"),
-    )
-    .expect("the schema bundle");
+    let bundle =
+        std::fs::read_to_string(crate::data_root::data_root().join("schema/content.schema.json"))
+            .expect("the schema bundle");
     let bundle: Value = serde_json::from_str(&bundle).unwrap();
     let rules = &bundle["$defs"]["RulesFile"];
     for key in KEYS {
