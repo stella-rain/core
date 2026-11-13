@@ -1296,12 +1296,27 @@ fn the_perfect_evade_keys_need_sim_version_2() {
 }
 
 #[test]
-fn the_bundled_file_names_no_perfect_evade_key() {
+fn the_bundled_file_names_the_perfect_evade() {
     let v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    let got: Vec<u64> = EVADE_KEYS
+        .into_iter()
+        .map(|key| {
+            v.get(key)
+                .and_then(Value::as_u64)
+                .unwrap_or_else(|| panic!("the bundled file names {key}"))
+        })
+        .collect();
+    assert_eq!(got, [6, 90, 300, 51_200, 2]);
+    assert!(Rules::bundled().perfect_evade().is_some());
+}
+
+#[test]
+fn the_dormant_bundled_file_names_no_perfect_evade_key() {
+    let v = dormant_bundled();
     for key in EVADE_KEYS {
         assert!(v.get(key).is_none(), "{key}");
     }
-    assert!(Rules::bundled().perfect_evade().is_none());
+    assert!(dormant_rules().perfect_evade().is_none());
 }
 
 #[test]
@@ -1365,10 +1380,17 @@ fn orb_clear_radius_needs_sim_version_2() {
 }
 
 #[test]
-fn the_bundled_file_names_no_orb_clear_radius() {
+fn the_bundled_file_names_an_orb_clear_radius_of_100_px() {
     let v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    assert_eq!(v["orb_clear_radius"], 25_600);
+    assert_eq!(Rules::bundled().orb_clear_radius(), Some(Fx::px(100)));
+}
+
+#[test]
+fn the_dormant_bundled_file_names_no_orb_clear_radius() {
+    let v = dormant_bundled();
     assert!(v.get("orb_clear_radius").is_none());
-    assert_eq!(Rules::bundled().orb_clear_radius(), None);
+    assert_eq!(dormant_rules().orb_clear_radius(), None);
 }
 
 #[test]
