@@ -183,6 +183,8 @@ pub(crate) use world::{
     AttackIndex, BossIndex, DefIndex, HordeSpec, ProgramIndex, RangedPool, World,
 };
 #[cfg(test)]
+pub(crate) mod before;
+#[cfg(test)]
 mod codec_fields_tests;
 mod combat;
 #[cfg(test)]

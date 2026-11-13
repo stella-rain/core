@@ -1,0 +1,148 @@
+[
+  {
+    "weapon": "giant_hammer",
+    "ids": [
+      {
+        "id": "crush",
+        "sim_version": 2
+      },
+      {
+        "id": "crush_6",
+        "sim_version": 2
+      },
+      {
+        "id": "crush_9",
+        "sim_version": 2
+      },
+      {
+        "id": "crush_10",
+        "sim_version": 2
+      },
+      {
+        "id": "quake",
+        "sim_version": 2
+      },
+      {
+        "id": "quake_6",
+        "sim_version": 2
+      },
+      {
+        "id": "quake_9",
+        "sim_version": 2
+      },
+      {
+        "id": "quake_10",
+        "sim_version": 2
+      },
+      {
+        "id": "bulwark",
+        "sim_version": 2
+      },
+      {
+        "id": "bulwark_6",
+        "sim_version": 2
+      },
+      {
+        "id": "bulwark_9",
+        "sim_version": 2
+      },
+      {
+        "id": "bulwark_10",
+        "sim_version": 2
+      },
+      {
+        "id": "damage",
+        "sim_version": 2
+      },
+      {
+        "id": "attack_speed",
+        "sim_version": 2
+      },
+      {
+        "id": "hit_box",
+        "sim_version": 2
+      },
+      {
+        "id": "vitality",
+        "sim_version": 2
+      },
+      {
+        "id": "swiftness",
+        "sim_version": 2
+      }
+    ]
+  },
+  {
+    "weapon": "giant_sword",
+    "ids": [
+      {
+        "id": "edge",
+        "sim_version": 2
+      },
+      {
+        "id": "edge_6",
+        "sim_version": 2
+      },
+      {
+        "id": "edge_9",
+        "sim_version": 2
+      },
+      {
+        "id": "edge_10",
+        "sim_version": 2
+      },
+      {
+        "id": "tempo",
+        "sim_version": 2
+      },
+      {
+        "id": "tempo_6",
+        "sim_version": 2
+      },
+      {
+        "id": "tempo_9",
+        "sim_version": 2
+      },
+      {
+        "id": "tempo_10",
+        "sim_version": 2
+      },
+      {
+        "id": "reach",
+        "sim_version": 2
+      },
+      {
+        "id": "reach_6",
+        "sim_version": 2
+      },
+      {
+        "id": "reach_9",
+        "sim_version": 2
+      },
+      {
+        "id": "reach_10",
+        "sim_version": 2
+      },
+      {
+        "id": "damage",
+        "sim_version": 2
+      },
+      {
+        "id": "attack_speed",
+        "sim_version": 2
+      },
+      {
+        "id": "hit_box",
+        "sim_version": 2
+      },
+      {
+        "id": "vitality",
+        "sim_version": 2
+      },
+      {
+        "id": "swiftness",
+        "sim_version": 2
+      }
+    ]
+  }
+]
