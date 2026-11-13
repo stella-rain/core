@@ -19,113 +19,113 @@
     "description": "공격이 10% 빨라져요",
     "title": "공격 속도"
   },
-  "expertise/bulwark": {
-    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
-    "title": "방벽"
+  "expertise/breaker": {
+    "description": "강타를 모아 치고 밀어내며, 강타가 경직과 균형을 더 빨리 무너뜨려요",
+    "title": "파괴자"
   },
-  "expertise/bulwark_10": {
-    "description": "회피 재사용 대기시간이 30% 짧아져요",
-    "title": "요새"
+  "expertise/breaker_cap": {
+    "description": "경직 시 더 넓게 폭발해 주변 적을 쓰러뜨려요",
+    "title": "파괴자 정점"
   },
-  "expertise/bulwark_6": {
-    "description": "회피 재사용 대기시간이 15% 짧아져요",
-    "title": "버티기"
+  "expertise/breaker_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "파괴자 1"
   },
-  "expertise/bulwark_9": {
-    "description": "최대 체력이 300 늘고, 그만큼 회복해요",
-    "title": "돌 피부"
-  },
-  "expertise/crush": {
-    "description": "피해가 15% 늘어요",
-    "title": "분쇄"
-  },
-  "expertise/crush_10": {
-    "description": "피해가 40% 늘어요",
-    "title": "파쇄"
-  },
-  "expertise/crush_6": {
-    "description": "피해가 20% 늘어요",
-    "title": "무거운 머리"
-  },
-  "expertise/crush_9": {
-    "description": "최대 체력이 200 늘고, 그만큼 회복해요",
-    "title": "강철 손아귀"
+  "expertise/breaker_up_2": {
+    "description": "강타가 보스 부위를 더 빨리 부수고, 경직 시 폭발해 주변 적을 기절시켜요",
+    "title": "파괴자 2"
   },
   "expertise/damage": {
     "description": "피해가 10% 늘어요",
     "title": "피해"
   },
-  "expertise/edge": {
-    "description": "피해가 10% 늘어요",
-    "title": "칼날"
+  "expertise/foresight_counter": {
+    "description": "강타를 모아 치고, 적을 밀어내며 완벽한 회피 직후 반격해요",
+    "title": "예지의 반격"
   },
-  "expertise/edge_10": {
-    "description": "피해가 30% 늘어요",
-    "title": "달인의 칼날"
+  "expertise/foresight_counter_cap": {
+    "description": "공격력이 20% 늘어요",
+    "title": "예지의 반격 정점"
   },
-  "expertise/edge_6": {
-    "description": "피해가 15% 늘어요",
-    "title": "예리한 칼날"
+  "expertise/foresight_counter_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "예지의 반격 1"
   },
-  "expertise/edge_9": {
-    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
-    "title": "긴 칼날"
+  "expertise/foresight_counter_up_2": {
+    "description": "공격 속도가 10% 늘어요",
+    "title": "예지의 반격 2"
   },
   "expertise/hit_box": {
     "description": "모든 콤보 단계의 타격 범위가 10% 커져요",
     "title": "타격 범위"
   },
-  "expertise/quake": {
-    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
-    "title": "지진"
+  "expertise/judgement_cut": {
+    "description": "강타가 출혈을 터뜨리고, 베기가 닫히며 한 번 더 때려요",
+    "title": "심판의 일섬"
   },
-  "expertise/quake_10": {
-    "description": "모든 콤보 단계의 타격 범위가 40% 커져요",
-    "title": "대지 흔들기"
+  "expertise/judgement_cut_cap": {
+    "description": "마지막 베기가 두 번 닫히며 각각 50% 피해를 줘요",
+    "title": "심판의 일섬 정점"
   },
-  "expertise/quake_6": {
-    "description": "모든 콤보 단계의 타격 범위가 20% 커져요",
-    "title": "떨림"
+  "expertise/judgement_cut_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "심판의 일섬 1"
   },
-  "expertise/quake_9": {
-    "description": "피해가 15% 늘어요",
-    "title": "여진"
+  "expertise/judgement_cut_up_2": {
+    "description": "공격 속도가 10% 늘어요",
+    "title": "심판의 일섬 2"
   },
-  "expertise/reach": {
-    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
-    "title": "도달 범위"
+  "expertise/momentum": {
+    "description": "세 번째 회전을 누르고 있을 수 있고, 연속 타격마다 다음 공격이 빨라져요",
+    "title": "기세"
   },
-  "expertise/reach_10": {
-    "description": "모든 콤보 단계의 타격 범위가 30% 커져요",
-    "title": "먼 도달"
+  "expertise/momentum_cap": {
+    "description": "공격력이 20% 늘어요",
+    "title": "기세 정점"
   },
-  "expertise/reach_6": {
-    "description": "모든 콤보 단계의 타격 범위가 15% 커져요",
-    "title": "넓은 호"
+  "expertise/momentum_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "기세 1"
   },
-  "expertise/reach_9": {
-    "description": "피해가 15% 늘어요",
-    "title": "확실한 일격"
+  "expertise/momentum_up_2": {
+    "description": "공격 속도가 10% 늘어요",
+    "title": "기세 2"
+  },
+  "expertise/spirit_blade": {
+    "description": "세 번째 공격을 모아 치고, 검을 채워 꽉 찬 일격으로 정령 단계를 올려요",
+    "title": "정령검"
+  },
+  "expertise/spirit_blade_cap": {
+    "description": "마지막 강타가 60% 피해로 한 번 더 때려요",
+    "title": "정령검 정점"
+  },
+  "expertise/spirit_blade_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "정령검 1"
+  },
+  "expertise/spirit_blade_up_2": {
+    "description": "공격 속도가 10% 늘어요",
+    "title": "정령검 2"
   },
   "expertise/swiftness": {
     "description": "이동 속도가 5% 빨라져요",
     "title": "민첩"
   },
-  "expertise/tempo": {
-    "description": "공격이 8% 빨라져요",
-    "title": "템포"
+  "expertise/titan_trigger": {
+    "description": "강타가 적을 끌어당기고, 게이지가 차면 잠시 망치가 거대해져요",
+    "title": "거인의 방아쇠"
   },
-  "expertise/tempo_10": {
-    "description": "회피 재사용 대기시간이 25% 짧아져요",
-    "title": "흐름"
+  "expertise/titan_trigger_cap": {
+    "description": "공격력이 20% 늘어요",
+    "title": "거인의 방아쇠 정점"
   },
-  "expertise/tempo_6": {
-    "description": "이동 속도가 10% 늘어요",
-    "title": "가벼운 발걸음"
+  "expertise/titan_trigger_up_1": {
+    "description": "공격력이 10% 늘어요",
+    "title": "거인의 방아쇠 1"
   },
-  "expertise/tempo_9": {
-    "description": "공격이 10% 빨라져요",
-    "title": "빠른 손"
+  "expertise/titan_trigger_up_2": {
+    "description": "공격 속도가 10% 늘어요",
+    "title": "거인의 방아쇠 2"
   },
   "expertise/vitality": {
     "description": "최대 체력이 100 늘고, 그만큼 회복해요",
