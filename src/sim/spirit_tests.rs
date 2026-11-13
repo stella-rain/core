@@ -665,10 +665,9 @@ fn the_bundled_run_keeps_the_spirit_at_zero() {
             ..Input::default()
         };
         e.step(&[press, Input::default(), Input::default()]);
-        for i in 0..3 {
-            let c = &st(&mut e).players[slot(i)].combat;
-            assert_eq!((c.spirit_level, c.spirit_decay), (0, 0), "tick {t}");
-        }
+        // The bundled run is solo: only slot 0 is present (an absent slot is not indexed).
+        let c = &st(&mut e).players[ME].combat;
+        assert_eq!((c.spirit_level, c.spirit_decay), (0, 0), "tick {t}");
         assert!(e.snapshot().players[0].spirit.is_none());
     }
 }
