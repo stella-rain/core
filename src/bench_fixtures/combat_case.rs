@@ -3,8 +3,8 @@
 //! step repeats of Judgement Cut (`MAX_REPEATS_QUEUED` entries of `MAX_REPEAT_TARGETS` ids, all
 //! due on the measured tick), every elite's stagger gauge one short of full with its breaks past
 //! the rules' refill list, and every enemy at its hard-control count with the reset running. Shared by
-//! `benches/worst_tick_combat.rs`, which counts its instructions, and the tests below and in
-//! `tests/worst_tick_combat.rs`, which check that it reaches every cap it names.
+//! `benches/worst_tick_combat.rs`, which counts its instructions, and the tests below, which
+//! check that it reaches every cap it names.
 //!
 //! The weapon is the bundled `giant_sword` with the style `judgement_cut` taken, so the world
 //! holds the style's repeat kinds (`World::has_repeat`) and the run reserves the queue. A press
@@ -138,8 +138,8 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// living enemies, due on that tick, spread round the crowd; each deals 1 damage, so the crowd
 /// outlives the scan. Stagger: every elite's gauge is one short of full and its breaks are past
 /// the rules' refill list, and it is not staggered: a staggered elite takes no rule and the case
-/// counts 193,448 fewer instructions on x86_64 (4,770,408 against 4,963,856), so the costlier
-/// variant is kept (Tests-first 8). Control: every enemy holds `hard_controls` at the
+/// counts about 193,000 fewer instructions on x86_64 (4,770,408 against 4,963,856 when written),
+/// so the costlier variant is kept. Control: every enemy holds `hard_controls` at the
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
 pub fn prepare(engine: &mut Engine) {
@@ -154,27 +154,29 @@ pub fn prepare(engine: &mut Engine) {
         .filter(|e| e.hp > 0)
         .map(|e| e.id)
         .collect();
+    assert!(
+        !ids.is_empty(),
+        "no enemy is on the map: `CAPS_FROM` is before the crowd"
+    );
     state.repeats.clear();
-    if !ids.is_empty() {
-        for n in 0..MAX_REPEATS_QUEUED {
-            let list: InlineVec<EntityId, MAX_REPEAT_TARGETS> = (0..MAX_REPEAT_TARGETS)
-                .map(|k| ids[(n * MAX_REPEAT_TARGETS + k) % ids.len()])
-                .collect();
-            state.repeats.push(Repeat {
-                owner: 0,
-                due,
-                percent: 50,
-                proc_pct: None,
-                anchor: RepeatAnchor::HitList(list),
-                attack,
-                phase,
-                damage: 1,
-                width_pct: 0,
-            });
-        }
+    for n in 0..MAX_REPEATS_QUEUED {
+        let list: InlineVec<EntityId, MAX_REPEAT_TARGETS> = (0..MAX_REPEAT_TARGETS)
+            .map(|k| ids[(n * MAX_REPEAT_TARGETS + k) % ids.len()])
+            .collect();
+        state.repeats.push(Repeat {
+            owner: 0,
+            due,
+            percent: 50,
+            proc_pct: None,
+            anchor: RepeatAnchor::HitList(list),
+            attack,
+            phase,
+            damage: 1,
+            width_pct: 0,
+        });
     }
     let t = world.tuning;
-    let breaks = u16::from(t.stagger_refill_len).min(MAX_STAGGER_BREAKS) + 1;
+    let breaks = (u16::from(t.stagger_refill_len) + 1).min(MAX_STAGGER_BREAKS);
     for e in &mut state.enemies {
         e.hp = ENEMY_HP;
         e.control.hard_controls = t.control_repeat_len;
@@ -228,7 +230,7 @@ mod tests {
         }
     }
 
-    /// Tests-first 7: on the measured tick the queues and gauges stand at their caps.
+    /// On the measured tick the queues and gauges stand at their caps.
     #[test]
     fn the_measured_tick_holds_the_combat_caps() {
         let engine = warmed_up();
@@ -290,7 +292,7 @@ mod tests {
         .sum()
     }
 
-    /// Tests-first 9: no tick of the 60 after the warm-up outweighs the measured one, and the
+    /// No tick of the 60 after the warm-up outweighs the measured one, and the
     /// caps hold on each (a gap names `CAPS_FROM`). `Load` does not see the repeats, so a tie is
     /// settled by counting instructions (the bench).
     #[test]
