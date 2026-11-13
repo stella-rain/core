@@ -1,8 +1,8 @@
 //! The worst combat tick (ADR-SIM-5, ADR-SIM-6): the crowd, zones, orbs and elites of
 //! `worst_case`, with the three bounded queues of the combat rules at their caps on top: the
 //! step repeats of Judgement Cut (`MAX_REPEATS_QUEUED` entries of `MAX_REPEAT_TARGETS` ids, all
-//! due on the measured tick), every elite staggered with its breaks past the rules' refill list,
-//! and every enemy at its hard-control count with the reset running. Shared by
+//! due on the measured tick), every elite's stagger gauge one short of full with its breaks past
+//! the rules' refill list, and every enemy at its hard-control count with the reset running. Shared by
 //! `benches/worst_tick_combat.rs`, which counts its instructions, and the tests below and in
 //! `tests/worst_tick_combat.rs`, which check that it reaches every cap it names.
 //!
@@ -11,15 +11,15 @@
 //! of a step cannot reach 64 queued repeats (only a smash step of that style queues one), nor
 //! can play stagger every elite or hold every enemy at its control cap on one tick, so the
 //! fixture writes the three states into the run before each tick from `CAPS_FROM`
-//! (`prepare`, through the crate-internal `Engine::run_mut`). The sword's steps stay out of the
+//! (`prepare`, through the crate-internal `Engine::bench_run_mut`). The sword's steps stay out of the
 //! crowd's reach, as the main character stands where the enemies' attacks cannot reach it.
 
 use super::{common, worst_case};
 use crate::attack::{HitBox, PhaseKind};
 use crate::engine::{Engine, Run};
 use crate::id::{EntityId, PlayerIdx};
-use crate::input::{EquipAction, Input};
 use crate::inline::InlineVec;
+use crate::input::{EquipAction, Input};
 use crate::limits::{MAX_REPEAT_TARGETS, MAX_REPEATS_QUEUED, MAX_STAGGER_BREAKS};
 use crate::run_content::RunContent;
 use crate::run_setup::RunSetup;
@@ -28,9 +28,10 @@ use crate::sim::state::{Repeat, RepeatAnchor, Stagger};
 use crate::stage::Stage;
 use serde_json::json;
 
-/// Ticks to run before the tick that is measured (a placeholder, as `worst_case::WARMUP_TICKS`:
-/// every enemy has arrived and the statuses stand at their cap long before it).
-pub const WARMUP_TICKS: u32 = 420;
+/// Ticks to run before the tick that is measured: found by scan, the first tick of the 30-tick
+/// attack cycle at the top `Load` weight over the 60 ticks after it (tick 421 is one unit lighter
+/// than tick 451: `the_measured_tick_is_not_outweighed_and_the_caps_hold_tick_after_tick`).
+pub const WARMUP_TICKS: u32 = 450;
 
 /// The first tick `prepare` runs before: the crowd and its elites are on the map from about
 /// tick 210 (`worst_case::WAVES_AT`).
@@ -39,6 +40,11 @@ pub const CAPS_FROM: u32 = 300;
 /// The weapon and its style: Judgement Cut names three `repeat` kinds (`content/expertise.json`).
 const WEAPON: &str = "giant_sword";
 const STYLE: &str = "judgement_cut";
+
+/// The hit points every enemy has again before each tick: the repeats fire every ready rune
+/// and the statuses stack at the cap, which would thin the crowd below its cap within 200 ticks
+/// (the stage's own, 100,000).
+const ENEMY_HP: u32 = 100_000;
 
 /// The elites' `stagger_max` (the bundled elites' own, 400).
 const ELITE_STAGGER_MAX: u32 = 400;
@@ -49,10 +55,15 @@ const EXPERTISE_POINTS: u32 = u32::MAX / 2;
 
 /// `worst_case::stage` with the elites naming a stagger gauge and the bundled `giant_sword`.
 pub fn stage() -> Stage {
-    common::armed(
+    let mut stage = common::armed(
         worst_case::stage_with(Some(ELITE_STAGGER_MAX)),
         json!({ "preset": { "id": WEAPON } }),
-    )
+    );
+    // A run has the expertise gauge only when some wave gives points: the line shooter's wave does
+    // (a placeholder: 1 a hit and a kill; nothing of the case defeats it or is hit by the sword).
+    stage.waves[0].expertise =
+        Some(serde_json::from_value(json!({ "hit": 1, "kill": 1 })).expect("the points parse"));
+    stage
 }
 
 /// The run's content: that of `worst_case` and the bundled weapons and expertise.
@@ -80,13 +91,24 @@ pub fn start() -> Engine {
     engine
 }
 
+/// The ticks the main character walks on, left, after `worst_case`'s walk ends (tick 280): a
+/// staggered elite takes no rule, so the push-apart carries it off the stack towards the main
+/// character, and at the worst-case distance (about 139 pixels from the stack, 128 pixels of arc)
+/// it soon hits it. The walk ends before `CAPS_FROM`; the map's edge stops it.
+const EXTRA_WALK: std::ops::RangeInclusive<u32> = 281..=300;
+
 /// The input of tick `tick` (from 1): that of `worst_case`, without aim assist and auto mode
-/// (the sword has no assist range to widen and the main character stays where it stands).
+/// (the sword has no assist range to widen), and with `EXTRA_WALK` to the left.
 pub fn input(tick: u32) -> Input {
+    let walk = if EXTRA_WALK.contains(&tick) {
+        common::moving(-127, 0)
+    } else {
+        worst_case::input(tick)
+    };
     Input {
         assist: false,
         auto: false,
-        ..worst_case::input(tick)
+        ..walk
     }
 }
 
@@ -108,16 +130,18 @@ pub fn step(engine: &mut Engine, tick: u32) {
 ///
 /// Repeats: the queue holds `MAX_REPEATS_QUEUED` entries, each a hit list of `MAX_REPEAT_TARGETS`
 /// living enemies, due on that tick, spread round the crowd; each deals 1 damage, so the crowd
-/// outlives the scan. Stagger: every elite is staggered, its gauge part full and its breaks
-/// at the cap of the rules' refill list. Control: every enemy holds `hard_controls` at the
+/// outlives the scan. Stagger: every elite's gauge is one short of full and its breaks are past
+/// the rules' refill list, and it is not staggered: a staggered elite takes no rule and the case
+/// counts 193,448 fewer instructions on x86_64 (4,770,408 against 4,963,856), so the costlier
+/// variant is kept (Tests-first 8). Control: every enemy holds `hard_controls` at the
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
 pub(crate) fn prepare(engine: &mut Engine) {
     let due = engine.tick() + 1;
-    let Run::V2 { world, state, .. } = engine.run_mut() else {
+    let Run::V2 { world, state, .. } = engine.bench_run_mut() else {
         panic!("the live rules");
     };
-    let (attack, phase) = repeat_phase(world);
+    let (attack, phase) = repeat_phase(&*world);
     let ids: Vec<EntityId> = state
         .enemies
         .iter()
@@ -146,14 +170,15 @@ pub(crate) fn prepare(engine: &mut Engine) {
     let t = world.tuning;
     let breaks = u16::from(t.stagger_refill_len).min(MAX_STAGGER_BREAKS) + 1;
     for e in &mut state.enemies {
+        e.hp = ENEMY_HP;
         e.control.hard_controls = t.control_repeat_len;
         e.control.hard_control_reset = t.control_reset_ticks;
         if let Some(elite) = e.elite.as_mut() {
             elite.stagger = Stagger {
-                gauge: 0,
+                gauge: ELITE_STAGGER_MAX - 1,
                 breaks,
-                drain: 0,
-                staggered: t.staggered_ticks,
+                drain: t.stagger_drain_delay,
+                staggered: 0,
             };
         }
     }
@@ -216,7 +241,9 @@ mod tests {
         assert_eq!(elites.len(), usize::from(MAX_ELITES_ALIVE));
         for e in &elites {
             let st = e.elite.as_ref().unwrap().stagger;
-            assert!(st.staggered > 0 && st.breaks > u16::from(world.tuning.stagger_refill_len));
+            assert_eq!(st.staggered, 0, "a staggered elite takes no rule: cheaper");
+            assert_eq!(st.gauge, ELITE_STAGGER_MAX - 1);
+            assert!(st.breaks > u16::from(world.tuning.stagger_refill_len));
             assert!(world.defs.agent(e.def).stagger_max.is_some());
         }
         assert_eq!(world.tuning.control_repeat_len, 3);
@@ -233,7 +260,11 @@ mod tests {
     #[test]
     fn the_measured_tick_deals_the_queue() {
         let mut engine = warmed_up();
-        engine.step(&[input(WARMUP_TICKS + 1), Default::default(), Default::default()]);
+        engine.step(&[
+            input(WARMUP_TICKS + 1),
+            Default::default(),
+            Default::default(),
+        ]);
         assert_eq!(engine.outcome(), Outcome::Running);
         let (_, s) = state_of(&engine);
         assert!(s.repeats.is_empty(), "every entry was due on the tick");
@@ -241,10 +272,16 @@ mod tests {
 
     /// The weight `Load` sees of a tick.
     fn weight(load: Load) -> u64 {
-        [load.enemies, load.tasks, load.zones, load.orbs, load.emitter_steps]
-            .iter()
-            .map(|&n| u64::from(n))
-            .sum()
+        [
+            load.enemies,
+            load.tasks,
+            load.zones,
+            load.orbs,
+            load.emitter_steps,
+        ]
+        .iter()
+        .map(|&n| u64::from(n))
+        .sum()
     }
 
     /// Tests-first 9: no tick of the 60 after the warm-up outweighs the measured one, and the
@@ -262,14 +299,19 @@ mod tests {
             let load = engine.load();
             assert_eq!(load.zones, 128, "tick {tick}");
             assert_eq!(load.orbs, 32, "tick {tick}");
-            assert_eq!(load.enemies, u32::from(super::super::enemy_cap()), "tick {tick}");
+            assert_eq!(
+                load.enemies,
+                u32::from(super::super::enemy_cap()),
+                "tick {tick}"
+            );
             weights.push((tick, weight(load)));
             prepare(&mut engine);
         }
         let top = weights.iter().map(|&(_, w)| w).max().unwrap();
         let measured = weights[0].1;
         assert_eq!(
-            measured, top,
+            measured,
+            top,
             "the measured tick {} is outweighed (raise or move WARMUP_TICKS): {weights:?}",
             WARMUP_TICKS + 1
         );
