@@ -60,8 +60,14 @@ fn pack(cfg: Option<Cfg>, radius_px: Option<i32>) -> Pack {
             "spend": { "type": "full_smash", "attack": full_attack() }
         }]);
     }
-    if let Some(px) = radius_px {
-        v["rules"]["orb_clear_radius"] = json!(px * 256);
+    match radius_px {
+        Some(px) => v["rules"]["orb_clear_radius"] = json!(px * 256),
+        None => {
+            v["rules"]
+                .as_object_mut()
+                .expect("the rules")
+                .remove("orb_clear_radius");
+        }
     }
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
 }
