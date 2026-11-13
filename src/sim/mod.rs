@@ -74,6 +74,14 @@
 //! and the orb clear (`hit_boxes::clear_orbs`) follows that attack. A run whose pack names no
 //! gauge keeps every one of those at zero, one bool test each.
 //!
+//! The spirit level a style grants (`World::spirit_of`, the `spirit` style kind) is dormant the same
+//! way: it reads and writes only `PlayerCombat::spirit_level` and `spirit_decay`, is raised by the
+//! full-gauge smash (`player::spend_gauge`), counted down in `player::update`, emptied by a pick
+//! that changes the style (`expertise::tree_pick`), and adds its level's damage, range and bleed
+//! stacks to a combo step (`player::strike`, `collide::damage`). `PlayerView.spirit` and the events
+//! `SpiritRaised` and `SpiritFell` show it; none of them is state. A run whose pack names no
+//! spirit keeps both fields at zero, one bool test each.
+//!
 //! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
 //! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
 //! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
@@ -166,6 +174,8 @@ mod offer_rating;
 #[cfg(test)]
 mod repeat_tests;
 mod slots;
+#[cfg(test)]
+mod spirit_tests;
 #[cfg(test)]
 mod try_styles_tests;
 pub(crate) use expertise::TreeError;

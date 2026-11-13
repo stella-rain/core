@@ -476,3 +476,88 @@ fn the_views_carry_the_gauge_kind() {
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
 }
+
+fn spirit_kind(effects: Value) -> Value {
+    json!({ "type": "spirit", "decay_ticks": 100, "levels": [effects] })
+}
+
+fn smash_kind(effect: Value) -> Value {
+    json!({ "type": "smash_effect", "effect": effect })
+}
+
+fn spirit_refused(kinds: Vec<Value>, at: &str) {
+    let v = hammer_pack(kinds);
+    match Pack::from_bytes(&serde_json::to_vec(&v).unwrap()) {
+        Err(PackError::File {
+            file: "expertise",
+            error,
+        }) => {
+            let issues = format!("{error:?}");
+            assert!(issues.contains(at), "{at}: {issues}");
+        }
+        other => panic!("{at}: expected a refusal, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// S2: a style naming `spirit` needs a full-smash gauge on its path, refused at the kind
+/// ("nothing raises the level"); a gauge at a later upgrade is enough.
+#[test]
+fn a_spirit_needs_a_full_smash_gauge_on_its_path() {
+    let spirit = spirit_kind(json!([{ "type": "damage_pct", "pct": 8 }]));
+    spirit_refused(vec![spirit.clone()], "$.weapons[0].styles[0].kinds[0]");
+    let gauge = gauge_kind(json!({ "preset": { "id": "slash" } }));
+    let both = hammer_pack(vec![spirit.clone(), gauge.clone()]);
+    assert!(Pack::from_bytes(&serde_json::to_vec(&both).unwrap()).is_ok());
+    let mut later = hammer_pack(vec![spirit]);
+    later["expertise"]["weapons"][0]["styles"][0]["upgrade_2"][0]["kinds"] = json!([gauge]);
+    let loaded = Pack::from_bytes(&serde_json::to_vec(&later).unwrap());
+    assert!(loaded.is_ok(), "{:?}", loaded.err());
+}
+
+/// S2: `smash_bleed_stacks` needs the path's smash effect to be bleed: refused at that effect
+/// for a knockback smash, loaded for a bleed one.
+#[test]
+fn bleed_stacks_need_a_bleed_smash() {
+    let stacks = spirit_kind(json!([{ "type": "smash_bleed_stacks", "stacks": 2 }]));
+    let gauge = gauge_kind(json!({ "preset": { "id": "slash" } }));
+    let knock = smash_kind(json!({ "type": "knockback", "distance": 4_096, "ticks": 10 }));
+    spirit_refused(
+        vec![gauge.clone(), stacks.clone(), knock],
+        "$.weapons[0].styles[0].kinds[1].levels[0][0]",
+    );
+    let bleed = smash_kind(json!({ "type": "bleed" }));
+    let ok = hammer_pack(vec![gauge, stacks, bleed]);
+    let loaded = Pack::from_bytes(&serde_json::to_vec(&ok).unwrap());
+    assert!(loaded.is_ok(), "{:?}", loaded.err());
+}
+
+/// S4: the views carry a spirit kind compactly and the bundled pack names none.
+#[test]
+fn the_views_carry_the_spirit_kind() {
+    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    let w = file["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    w["base"] = json!([]);
+    for s in w["styles"].as_array_mut().unwrap() {
+        s["stats"] = json!([]);
+    }
+    w["styles"][0]["kinds"] = json!([{
+        "type": "spirit", "decay_ticks": 1200,
+        "levels": [[{ "type": "damage_pct", "pct": 8 }], [], []]
+    }]);
+    let expertise =
+        Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the expertise");
+    let snap = build(expertise).snapshot();
+    let want = json!({ "type": "spirit", "max_level": 3, "decay_ticks": 1200 });
+    let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
+    assert_eq!(ready["kinds"][0], json!([want]));
+    let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
+    assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
+    let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
+    assert!(!bundled.contains("spirit"));
+}

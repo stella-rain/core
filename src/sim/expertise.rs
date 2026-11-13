@@ -469,10 +469,13 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
-        if stage.has_gauge && was.0 != Some(at) {
-            // The new style's bar starts empty; a style with no gauge reads empty.
+        if (stage.has_gauge || stage.has_spirit) && was.0 != Some(at) {
+            // The new style's bar starts empty; a style with no gauge reads empty, and its
+            // spirit level starts at 0 (a style with no spirit reads 0).
             player.combat.weapon_gauge = 0;
             player.combat.gauge_step_fill = 0;
+            player.combat.spirit_level = 0;
+            player.combat.spirit_decay = 0;
         }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
@@ -600,6 +603,10 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 spend: match g.spend {
                     GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
                 },
+            },
+            StyleKind::Spirit(s) => StyleKindView::Spirit {
+                max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),
+                decay_ticks: s.decay_ticks,
             },
         })
         .collect()

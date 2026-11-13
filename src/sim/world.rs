@@ -10,11 +10,13 @@ use super::drops::DropTable;
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement};
-use crate::expertise::{Gauge, StyleKind};
+use crate::expertise::{Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
-use crate::limits::{MAX_GAUGE_DAMAGE_PCT, MAX_WEAPON_GAUGE};
+use crate::limits::{
+    MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+};
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
 use crate::run_content::RunContent;
@@ -615,6 +617,39 @@ pub(crate) struct World {
     grant_gauges: Vec<Option<Gauge>>,
     /// Some style names a gauge: the tick looks for one only then.
     pub has_gauge: bool,
+    /// The spirit each of those copies has (the first `spirit` kind of the style's own level and
+    /// the path levels taken), at the same index; empty when no style names one.
+    grant_spirits: Vec<Option<SpiritGrant>>,
+    /// Some style names a spirit: the tick looks for one only then.
+    pub has_spirit: bool,
+}
+
+/// A style's spirit resolved once: the countdown and, for each level, the effects folded into
+/// one flat entry, every number clamped to its cap again (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SpiritGrant {
+    /// Ticks a level lasts without a smash.
+    pub decay_ticks: u16,
+    /// Entry `i` is level `i + 1`'s own effects.
+    pub levels: Vec<SpiritFx>,
+}
+
+/// One spirit level's effects, 0 where it has none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SpiritFx {
+    /// Added to the attack-up percent of a combo step.
+    pub damage_pct: u32,
+    /// Added to the range percent of a combo step.
+    pub range_pct: u32,
+    /// Bleed stacks a smash hit adds on top of its own.
+    pub bleed_stacks: u32,
+}
+
+impl SpiritGrant {
+    /// The effects of `level` (1 to the top), none for level 0.
+    pub fn fx(&self, level: u8) -> Option<&SpiritFx> {
+        self.levels.get(usize::from(level.checked_sub(1)?))
+    }
 }
 
 /// The places of a style's path (0 to 3 taken): the copies of one style.
@@ -740,6 +775,7 @@ impl World {
         let weapon = content.weapons().resolve(main).cloned();
         let grant_weapons = grant_weapons(main, weapon.as_ref(), content);
         let grant_gauges = grant_gauges(main, weapon.as_ref(), content);
+        let grant_spirits = grant_spirits(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -799,6 +835,8 @@ impl World {
             grant_weapons,
             has_gauge: grant_gauges.iter().any(Option::is_some),
             grant_gauges,
+            has_spirit: grant_spirits.iter().any(Option::is_some),
+            grant_spirits,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -929,6 +967,15 @@ impl World {
             return None;
         }
         self.grant_gauges.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The spirit player `me`'s style gives, read from the same slot as `weapon_of`; none after
+    /// one bool test for a run that names no spirit.
+    pub(crate) fn spirit_of(&self, s: &super::state::State, me: PlayerIdx) -> Option<&SpiritGrant> {
+        if !self.has_spirit {
+            return None;
+        }
+        self.grant_spirits.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1101,6 +1148,74 @@ fn grant_gauges(
         out.clear();
     }
     out
+}
+
+/// The spirit of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_spirits(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<SpiritGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let spirit_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::Spirit(sp) => Some(folded(sp)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(spirit_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `sp` as a flat table, every number inside its cap.
+fn folded(sp: &crate::expertise::Spirit) -> SpiritGrant {
+    let levels = sp
+        .levels
+        .iter()
+        .take(usize::from(MAX_SPIRIT_LEVEL))
+        .map(|effects| {
+            let mut fx = SpiritFx::default();
+            for e in effects {
+                match e {
+                    SpiritEffect::DamagePct { pct } => fx.damage_pct = (*pct).min(MAX_PCT),
+                    SpiritEffect::RangePct { pct } => {
+                        fx.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
+                    }
+                    SpiritEffect::SmashBleedStacks { stacks } => {
+                        fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
+                    }
+                }
+            }
+            fx
+        })
+        .collect();
+    SpiritGrant {
+        decay_ticks: u16::try_from(sp.decay_ticks)
+            .unwrap_or(MAX_SPIRIT_DECAY_TICKS)
+            .clamp(1, MAX_SPIRIT_DECAY_TICKS),
+        levels,
+    }
 }
 
 /// `g` with every number inside its cap.

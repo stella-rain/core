@@ -16,6 +16,13 @@
 //! B step at a full gauge plays the style's full-gauge attack in place of the step's own, empties
 //! the gauge and lets no hold begin after it (`spend_gauge`). A new step resets the step's fill.
 //!
+//! The spirit level (when the style names the `spirit` kind): the full-gauge smash raises
+//! `spirit_level` by one at the press (`spirit_raise`, so its own hits carry it), every smash step
+//! restarts `spirit_decay` (`spirit_restart`), and `spirit_tick` in `update` counts it down before
+//! the press, dropping the level at 0, for a downed player too. A combo step starts with the
+//! level's damage and range percents (`strike`), a smash hit that leaves its target standing adds
+//! the level's bleed stacks (`spirit_bleed_stacks`, read in `collide::damage`).
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the
@@ -124,6 +131,10 @@ pub(super) fn update(
     p.evade_recovering.retain(|&t| t > 0);
     p.combo.dash_strike_left = p.combo.dash_strike_left.saturating_sub(1);
     skill::tick(s, me);
+    // The spirit's countdown runs for a downed player too, and is read before this tick's press.
+    if stage.has_spirit {
+        spirit_tick(stage, s, me, events);
+    }
     if !s.players[me].is_up() {
         return;
     }
@@ -840,6 +851,10 @@ fn take_step(
         // A new step starts its fill again (the step cap, ADR-SIM-5).
         s.players[me].combat.gauge_step_fill = 0;
     }
+    if smash && stage.has_spirit {
+        // Every smash step restarts a raised level's countdown (the raise below sets it too).
+        spirit_restart(stage, s, me);
+    }
     if smash && stage.has_gauge && spend_gauge(stage, s, me, input.assist || !by_hand, events) {
         return;
     }
@@ -966,6 +981,92 @@ pub(super) fn gauge_full(stage: &World, s: &State, me: PlayerIdx) -> bool {
         .is_some_and(|g| s.players[me].combat.weapon_gauge >= g.max)
 }
 
+/// The spirit level of `me` rose to `level`. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn spirit_raised(events: &mut Vec<DomainEvent>, me: PlayerIdx, level: u8) {
+    events.push(DomainEvent::SpiritRaised { player: me, level });
+}
+
+/// The spirit level of `me` fell to `level`. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn spirit_fell(events: &mut Vec<DomainEvent>, me: PlayerIdx, level: u8) {
+    events.push(DomainEvent::SpiritFell { player: me, level });
+}
+
+/// The full-gauge smash of `me` raises its spirit level by one, to its style's top, and restarts
+/// the countdown; the event says it only when the level changed (ADR-SIM-9).
+fn spirit_raise(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let Some(g) = stage.spirit_of(s, me) else {
+        return;
+    };
+    let (top, decay) = (
+        u8::try_from(g.levels.len()).unwrap_or(u8::MAX),
+        g.decay_ticks,
+    );
+    let c = &mut s.players[me].combat;
+    let level = c.spirit_level.saturating_add(1).min(top);
+    let changed = level != c.spirit_level;
+    c.spirit_level = level;
+    c.spirit_decay = decay;
+    if changed {
+        spirit_raised(events, me, level);
+    }
+}
+
+/// A smash step restarts the countdown of a player holding a level.
+fn spirit_restart(stage: &World, s: &mut State, me: PlayerIdx) {
+    if s.players[me].combat.spirit_level == 0 {
+        return;
+    }
+    if let Some(g) = stage.spirit_of(s, me) {
+        s.players[me].combat.spirit_decay = g.decay_ticks;
+    }
+}
+
+/// One tick of the countdown: at 0 the level drops by one and, while above 0, counts again.
+fn spirit_tick(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if s.players[me].combat.spirit_decay == 0 {
+        return;
+    }
+    let again = stage.spirit_of(s, me).map_or(0, |g| g.decay_ticks);
+    let c = &mut s.players[me].combat;
+    c.spirit_decay -= 1;
+    if c.spirit_decay > 0 {
+        return;
+    }
+    c.spirit_level = c.spirit_level.saturating_sub(1);
+    let level = c.spirit_level;
+    if level > 0 {
+        c.spirit_decay = again;
+    }
+    spirit_fell(events, me, level);
+}
+
+/// The spirit level of `me`, 0 when its style has none: the kinds that read the level go
+/// through it.
+#[allow(dead_code)] // read by the kinds that build on the level, not yet built
+pub(super) fn spirit_level_of(stage: &World, s: &State, me: PlayerIdx) -> u8 {
+    if stage.spirit_of(s, me).is_some() {
+        s.players[me].combat.spirit_level
+    } else {
+        0
+    }
+}
+
+/// The extra bleed stacks a smash hit of `me` adds at its level.
+pub(super) fn spirit_bleed_stacks(stage: &World, s: &State, me: PlayerIdx) -> u32 {
+    if !stage.has_spirit {
+        return 0;
+    }
+    let level = s.players[me].combat.spirit_level;
+    stage
+        .spirit_of(s, me)
+        .and_then(|g| g.fx(level))
+        .map_or(0, |fx| fx.bleed_stacks)
+}
+
 /// A B step taken at a full gauge: spends it and plays the style's full-gauge attack in place of
 /// the step's own, which starts no charge and no hold. True when it played. The one place a kind
 /// that reacts to a spent gauge adds its line.
@@ -993,6 +1094,10 @@ fn spend_gauge(
     gauge_spent(events, me, spent);
     // No hold begins after it (`begins_hold`).
     c.combo.released = true;
+    if stage.has_spirit {
+        // The raise is at the press, so the smash's own hits carry the new level.
+        spirit_raise(stage, s, me, events);
+    }
     strike(stage, s, me, attack, 0, aim, events);
     true
 }
@@ -1036,10 +1141,18 @@ fn strike(
     } else {
         None
     };
+    let (mut bonus_pct, mut range_pct) = (bonus_pct, levels::range_pct(s, me));
+    if stage.has_spirit {
+        let level = s.players[me].combat.spirit_level;
+        if let Some(fx) = stage.spirit_of(s, me).and_then(|g| g.fx(level)) {
+            bonus_pct = bonus_pct.saturating_add(fx.damage_pct);
+            range_pct = range_pct.saturating_add(fx.range_pct);
+        }
+    }
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s, me),
-        range_pct: levels::range_pct(s, me),
+        range_pct,
         smash,
     };
     let facing = s.players[me].facing;
