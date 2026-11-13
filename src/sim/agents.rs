@@ -641,9 +641,13 @@ mod tests {
         stage: &World,
         s: &mut State,
         up: &Up,
+        pause_on: bool,
         me: Who,
         events: &mut Vec<DomainEvent>,
     ) {
+        if super::super::player::slowed(s, s.id_of(me)) == Some(true) {
+            return;
+        }
         let def = stage.defs.agent(agent(s, me).def);
         {
             let a = agent_mut(s, me);
@@ -656,8 +660,23 @@ mod tests {
             reveal(s, up, me, def, events);
             return;
         }
-        if super::super::stun::stunned(&agent(s, me).statuses) {
+        if super::super::stun::stunned(&agent(s, me).statuses) || agent(s, me).control.flinch > 0 {
             return;
+        }
+        {
+            let a = agent_mut(s, me);
+            if pause_on
+                && (a.control.knocked_down > 0
+                    || a.elite.as_ref().is_some_and(|e| e.stagger.staggered > 0))
+            {
+                if a.control.knocked_down > 0 {
+                    if let Some(order) = a.order {
+                        (a.at, a.order) = step_order(a.at, order);
+                        a.at = stage.map().clamp(a.at);
+                    }
+                }
+                return;
+            }
         }
         move_agent::<ONE>(stage, s, up, me, def);
         if waits(s, up, me, def) {
@@ -669,20 +688,35 @@ mod tests {
     /// `act` calling the fixed `act_one`.
     fn act_before_push_perf(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
         let up = Up::of(&s.players);
+        let pause_on = stage.has_stagger || stage.has_down;
         super::super::attacks::grant_ranged(stage, s, &up);
         if up.n == 1 {
             for i in 0..s.companions.len() {
-                act_one_before_push_perf::<true>(stage, s, &up, Who::Companion(i), events);
+                act_one_before_push_perf::<true>(
+                    stage,
+                    s,
+                    &up,
+                    pause_on,
+                    Who::Companion(i),
+                    events,
+                );
             }
             for i in 0..s.enemies.len() {
-                act_one_before_push_perf::<true>(stage, s, &up, Who::Enemy(i), events);
+                act_one_before_push_perf::<true>(stage, s, &up, pause_on, Who::Enemy(i), events);
             }
         } else {
             for i in 0..s.companions.len() {
-                act_one_before_push_perf::<false>(stage, s, &up, Who::Companion(i), events);
+                act_one_before_push_perf::<false>(
+                    stage,
+                    s,
+                    &up,
+                    pause_on,
+                    Who::Companion(i),
+                    events,
+                );
             }
             for i in 0..s.enemies.len() {
-                act_one_before_push_perf::<false>(stage, s, &up, Who::Enemy(i), events);
+                act_one_before_push_perf::<false>(stage, s, &up, pause_on, Who::Enemy(i), events);
             }
         }
         shrines(stage, s, events);
