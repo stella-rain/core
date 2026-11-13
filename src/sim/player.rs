@@ -598,6 +598,12 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     c.released = false;
 }
 
+/// Back to the root through `reset`, for every caller that has the whole world: the one place the
+/// combo's end is seen from outside the combo (ADR-SIM-9).
+fn combo_reset(_stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    reset(&mut s.players[me].combo, events);
+}
+
 /// One tick of the combo: see the module's description.
 fn combo(
     stage: &World,
@@ -637,7 +643,7 @@ fn combo(
     // The window counts the ticks after the step on which a press continues the combo; once
     // they are used up, the combo is back at the root before this tick's press.
     if !busy && s.players[me].combo.depth > 0 && s.players[me].combo.window_left == 0 {
-        reset(&mut s.players[me].combo, events);
+        combo_reset(stage, s, me, events);
     }
     let c = s.players[me].combo;
     let (smash, by_hand) = match (
@@ -647,7 +653,7 @@ fn combo(
         (Some(smash), _) => (smash, true),
         (None, Some(Auto::Next(smash))) => (smash, false),
         (None, Some(Auto::Again)) if !busy => {
-            reset(&mut s.players[me].combo, events);
+            combo_reset(stage, s, me, events);
             (c.auto_path & 1 == 1, false)
         }
         _ => {
@@ -848,17 +854,18 @@ fn take_step(
     input: Input,
     events: &mut Vec<DomainEvent>,
 ) {
-    let c = &mut s.players[me].combo;
-    c.buffered = None;
-    c.released = false;
-    let onward = step_at(main, c).is_some_and(|st| st.next.get(smash).is_some());
+    s.players[me].combo.buffered = None;
+    s.players[me].combo.released = false;
+    let onward = step_at(main, &s.players[me].combo).is_some_and(|st| st.next.get(smash).is_some());
     if !onward {
-        reset(c, events);
+        combo_reset(stage, s, me, events);
+        let c = &mut s.players[me].combo;
         c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get(smash).is_some();
         if !c.dash && main.combo.get(smash).is_none() {
             return;
         }
     }
+    let c = &mut s.players[me].combo;
     c.hand |= by_hand;
     c.path |= u32::from(smash) << c.depth;
     // A step auto mode plays carries the level the auto combo records for it; a
@@ -1462,7 +1469,7 @@ fn cancel(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
     }
     c.buffered = None;
     c.running = false;
-    reset(c, events);
+    combo_reset(stage, s, me, events);
 }
 
 /// A hit from a phase that breaks charges ends a charge or a hold in progress without an
@@ -1486,9 +1493,8 @@ pub(super) fn break_charge(
     if charging {
         events.push(DomainEvent::ChargeBroken);
     }
-    let c = &mut s.players[me].combo;
-    c.buffered = None;
-    reset(c, events);
+    s.players[me].combo.buffered = None;
+    combo_reset(stage, s, me, events);
 }
 
 /// The movement speed, in percent, a charge or a hold leaves the main character: its
