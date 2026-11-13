@@ -527,11 +527,11 @@ fn horn_charger_phase_two_throws_two_orbs_with_its_ring() {
 }
 
 /// A copy of bundled content without the `sim_version` 2 combat keys (`poise`, `stagger_max`,
-/// `staggered_ticks`), at every depth: this fixture stage runs the frozen rules.
+/// `staggered_ticks`, `counterable`), at every depth: this fixture stage runs the frozen rules.
 fn without_combat_keys(v: &mut Value) {
     match v {
         Value::Object(map) => {
-            for key in ["poise", "stagger_max", "staggered_ticks"] {
+            for key in ["poise", "stagger_max", "staggered_ticks", "counterable"] {
                 map.remove(key);
             }
             map.values_mut().for_each(without_combat_keys);
