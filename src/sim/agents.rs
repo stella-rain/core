@@ -101,22 +101,23 @@ pub(super) fn act(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     // Places and hit points do not change while the agents act: one copy for all. Aggro an
     // agent's own action raises counts from the next tick.
     let up = Up::of(&s.players);
-    let stagger_on = stage.has_stagger;
+    // One bool for both pauses: a gauge's stagger and a knockdown (`stun.rs`).
+    let pause_on = stage.has_stagger || stage.has_down;
     super::attacks::grant_ranged(stage, s, &up);
     // One player up (nearly every run) is its own loop: no branch per agent (ADR-SIM-6).
     if up.n == 1 {
         for i in 0..s.companions.len() {
-            act_one::<true>(stage, s, &up, stagger_on, Who::Companion(i), events);
+            act_one::<true>(stage, s, &up, pause_on, Who::Companion(i), events);
         }
         for i in 0..s.enemies.len() {
-            act_one::<true>(stage, s, &up, stagger_on, Who::Enemy(i), events);
+            act_one::<true>(stage, s, &up, pause_on, Who::Enemy(i), events);
         }
     } else {
         for i in 0..s.companions.len() {
-            act_one::<false>(stage, s, &up, stagger_on, Who::Companion(i), events);
+            act_one::<false>(stage, s, &up, pause_on, Who::Companion(i), events);
         }
         for i in 0..s.enemies.len() {
-            act_one::<false>(stage, s, &up, stagger_on, Who::Enemy(i), events);
+            act_one::<false>(stage, s, &up, pause_on, Who::Enemy(i), events);
         }
     }
     // After the agents, so the guardians that appear start next tick, as summoned ones do.
@@ -265,7 +266,7 @@ fn act_one<const ONE: bool>(
     stage: &World,
     s: &mut State,
     up: &Up,
-    stagger_on: bool,
+    pause_on: bool,
     me: Who,
     events: &mut Vec<DomainEvent>,
 ) {
@@ -285,12 +286,21 @@ fn act_one<const ONE: bool>(
         reveal(s, up, me, def, events);
         return;
     }
-    // A stunned, flinching or staggered enemy does nothing while it lasts: no movement and no
-    // rule. Its cooldowns counted above, so they run on through it.
-    if super::stun::stunned(&a.statuses)
-        || a.control.flinch > 0
-        || (stagger_on && a.elite.as_ref().is_some_and(|e| e.stagger.staggered > 0))
+    // A stunned, flinching, staggered or downed enemy does nothing while it lasts: no movement and
+    // no rule. Its cooldowns counted above, so they run on through it.
+    if super::stun::stunned(&a.statuses) || a.control.flinch > 0 {
+        return;
+    }
+    if pause_on
+        && (a.control.knocked_down > 0 || a.elite.as_ref().is_some_and(|e| e.stagger.staggered > 0))
     {
+        // A downed enemy's push plays out, as `move_agent` would step it; nothing else moves it.
+        if a.control.knocked_down > 0 {
+            if let Some(order) = a.order {
+                (a.at, a.order) = step_order(a.at, order);
+                a.at = stage.map().clamp(a.at);
+            }
+        }
         return;
     }
     move_agent::<ONE>(stage, s, up, me, def);

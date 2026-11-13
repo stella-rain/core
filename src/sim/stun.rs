@@ -336,18 +336,102 @@ pub(super) fn stagger_tick(stage: &World, s: &mut State, events: &mut Vec<Domain
     }
 }
 
-/// Knocks enemy `i` down (C09), as the knockback of `me`'s smash landed on it.
+/// Knocks enemy `i` down when the knockback of `me`'s smash lands on it (C09): it must be a living
+/// regular enemy (no elite) and `me` must be up. A fresh knockdown keeps the rules' `down_ticks`
+/// (through the hard-control list when one is named, as a stun does, and is refused past it or
+/// while the enemy is stun-immune), cancels its running attack, ends a flinch and reports the
+/// status, with `vulnerable` when the rules say so. It is a hard control and no stun. A knockdown
+/// on a downed enemy counts nothing and only lengthens it, never past `down_ticks`.
 pub(super) fn knock_down(
-    _stage: &World,
-    _s: &mut State,
-    _me: PlayerIdx,
-    _i: usize,
-    _events: &mut Vec<DomainEvent>,
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    i: usize,
+    events: &mut Vec<DomainEvent>,
 ) {
+    if !s.players[me].is_up() {
+        return;
+    }
+    let t = &stage.tuning;
+    let source = s.players.id(me);
+    let e = &mut s.enemies[i];
+    if e.hp == 0 || e.elite.is_some() {
+        return;
+    }
+    let id = e.id;
+    let fresh = e.control.knocked_down == 0;
+    let ticks = if fresh {
+        if e.stun_immune > 0 {
+            return;
+        }
+        let ticks = u32::from(t.down_ticks);
+        if t.control_repeat_len > 0 {
+            let Some(ticks) = land_hard_control(e, t, ticks) else {
+                return;
+            };
+            ticks
+        } else {
+            ticks
+        }
+    } else {
+        // Counts nothing: the entry of the count the first knockdown made.
+        let pct = if t.control_repeat_len > 0 {
+            let last = usize::from(t.control_repeat_len) - 1;
+            let n = usize::from(e.control.hard_controls.saturating_sub(1)).min(last);
+            u32::from(t.control_repeat_pcts[n])
+        } else {
+            100
+        };
+        let ticks = u32::from(t.down_ticks) * pct / 100;
+        if ticks <= u32::from(e.control.knocked_down) {
+            return;
+        }
+        ticks
+    };
+    e.control.knocked_down = u16::try_from(ticks)
+        .unwrap_or(t.down_ticks)
+        .min(t.down_ticks);
+    if fresh {
+        end_flinch(stage, s, i, events);
+        attacks::cancel_runs_of(stage, s, id);
+    }
+    events.push(DomainEvent::StatusApplied {
+        target: id,
+        status: super::snapshot::KNOCKED_DOWN_ID.clone(),
+        stacks: 1,
+        duration_ticks: ticks,
+        source: Some(source),
+    });
+    let pct = t.vulnerable_down_pct;
+    if pct > 0 {
+        s.add_status(
+            Who::Enemy(i),
+            StatusKind::Vulnerable,
+            source,
+            pct,
+            ticks,
+            events,
+        );
+    }
 }
 
-/// One tick of every knockdown: it counts down and reports its end.
-pub(super) fn down_tick(_stage: &World, _s: &mut State, _events: &mut Vec<DomainEvent>) {}
+/// One tick of every knockdown: it counts down and, the tick it reaches 0, reports its end. With
+/// no hard-control list named the run stats' stun immunity starts then (with a list its own
+/// governs). A separate pass, so a run whose rules name no knockdown never pays per enemy.
+pub(super) fn down_tick(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    let immune = (stage.tuning.control_repeat_len == 0).then_some(s.stun.immune_ticks);
+    for e in &mut s.enemies {
+        if e.control.knocked_down > 0 {
+            e.control.knocked_down -= 1;
+            if e.control.knocked_down == 0 {
+                if let Some(ticks) = immune {
+                    e.stun_immune = ticks;
+                }
+                events.push(DomainEvent::KnockdownEnded { target: e.id });
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

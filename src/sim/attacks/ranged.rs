@@ -111,14 +111,16 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
     let mut best = [[(i64::MAX, EntityId(0)); MOST]; 2];
     let mut len = [0usize; 2];
     let area = super::Area::of_view(&world.map(), &s.players);
+    let down_on = world.has_down;
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
-        // A stunned or flinching enemy fires nothing (`act_one`), so it could not use a grant.
+        // A stunned, flinching or downed enemy fires nothing (`act_one`), so it could not use a grant.
         if def.ranged_pools.is_empty()
             || e.hp == 0
             || !in_view(e.at, area)
             || super::stun::stunned(&e.statuses)
             || e.control.flinch > 0
+            || (down_on && e.control.knocked_down > 0)
         {
             continue;
         }
