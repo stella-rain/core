@@ -14,11 +14,11 @@ use crate::rewards::MAX_BURST_DEPTH;
 use crate::rewards::{EquipmentRules, Rarity};
 use crate::run_content::RunContent;
 use crate::snapshot::{
-    AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
-    EntityView, EvadeView, ExpertiseView, Facing, GaugeView, HealPickupView, HeldView, HoldView,
-    MapView, OrbView, OrbitView, PerfectEvadeView, PlayerView, ProgressView, PullView, RuneView,
-    ShieldView, SkillView, SlotKindView, SlotView, Snapshot, SpiritView, StarView, StarlightPrice,
-    StarlightView, StatusView, TypeBonusView, ZoneView,
+    AttackView, ChargeView, ComboView, Countdown, CounterView, DamageOverTimeView, DownView,
+    EntityKind, EntityView, EvadeView, ExpertiseView, Facing, GaugeView, HealPickupView, HeldView,
+    HoldView, MapView, OrbView, OrbitView, PerfectEvadeView, PlayerView, ProgressView, PullView,
+    RuneView, ShieldView, SkillView, SlotKindView, SlotView, Snapshot, SpiritView, StarView,
+    StarlightPrice, StarlightView, StatusView, TypeBonusView, ZoneView,
 };
 
 use super::equipment::{Held, SlotKind};
@@ -265,7 +265,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             decay_left: u32::from(s.players[me].combat.spirit_decay),
             decay_ticks: u32::from(g.decay_ticks),
         }),
-        counter: None,
+        counter: world.counter_of(s, me).map(|g| CounterView {
+            window_left: u32::from(s.players[me].combat.counter_window),
+            window_ticks: u32::from(g.window),
+            taken: s.players[me].combat.counter_bonus_step == 1,
+        }),
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {
