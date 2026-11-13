@@ -1493,9 +1493,15 @@ fn counter_r4_a_file_naming_every_stagger_knockdown_and_counter_key_parses_withi
 // --- The ranged grace (`ranged_grace_ticks`, `sim_version` 2) ------------------------------------
 
 #[test]
-fn grace_r1_the_bundled_file_names_no_grace() {
-    assert!(bundled_value().get("ranged_grace_ticks").is_none());
-    assert_eq!(Rules::bundled().ranged_grace_ticks(), 0);
+fn grace_r1_the_bundled_file_names_a_grace_of_60() {
+    assert_eq!(bundled_value().get("ranged_grace_ticks"), Some(&Value::from(60)));
+    assert_eq!(Rules::bundled().ranged_grace_ticks(), 60);
+}
+
+#[test]
+fn grace_r1_the_dormant_bundled_file_names_no_grace() {
+    assert!(dormant_bundled().get("ranged_grace_ticks").is_none());
+    assert_eq!(dormant_rules().ranged_grace_ticks(), 0);
 }
 
 #[test]
