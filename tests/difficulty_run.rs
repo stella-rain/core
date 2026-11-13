@@ -176,7 +176,15 @@ fn easy_runs_ten_minutes_with_its_boss_times_and_the_short_level_table() {
     }
     let easy = run_setup::stage(&setup("easy")).unwrap();
     assert_eq!(easy.length_ticks, 10 * 60 * 60 + mode.overtime_ticks());
-    assert_eq!(easy.level_table(), LevelTable::SHORT);
+    // Easy's table: the style at level 1, upgrades at 4 and 6, capstone at 8.
+    assert_eq!(
+        easy.level_table(),
+        LevelTable {
+            style: 1,
+            upgrades: [4, 6],
+            capstone: 8
+        }
+    );
     // A replay of an easy run may hold its own length, not the normal one's.
     assert_eq!(
         run_setup::max_replay_ticks(&setup("easy"), &easy, mode),
