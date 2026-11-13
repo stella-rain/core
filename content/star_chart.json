@@ -19,6 +19,18 @@
     { "id": "evade", "prices": [600, 1200, 1800, 2400, 3000] },
     { "id": "speed", "prices": [600, 1200, 1800, 2400, 3000] }
   ],
+  "styles": [
+    { "weapon": "giant_hammer", "styles": [
+      { "id": "titan_trigger", "price": 25000 },
+      { "id": "momentum", "price": 25000 },
+      { "id": "breaker", "price": 25000 }
+    ] },
+    { "weapon": "giant_sword", "styles": [
+      { "id": "spirit_blade", "price": 25000 },
+      { "id": "foresight_counter", "price": 25000 },
+      { "id": "judgement_cut", "price": 25000 }
+    ] }
+  ],
   "expertise_levels": 5,
   "expertise_multiplier": [3000, 6000, 9000, 12000, 15000],
   "lumine_levels": [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]

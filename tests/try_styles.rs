@@ -59,13 +59,24 @@ fn the_field_parses_and_is_written_back() {
 
 #[test]
 fn a_false_or_absent_field_writes_no_key() {
+    // The bundled tutorial names the field, so the claim is made on a copy without it.
     for mode in ["trial", "tutorial"] {
-        let v: Value = serde_json::from_slice(run_setup::mode_file(mode).unwrap()).unwrap();
+        let mut v: Value = serde_json::from_slice(run_setup::mode_file(mode).unwrap()).unwrap();
+        v.as_object_mut().unwrap().remove("try_styles");
         assert!(written(&parse(&v).unwrap()).get("try_styles").is_none());
     }
     let mut v = tutorial_file();
     v["try_styles"] = false.into();
     assert!(written(&parse(&v).unwrap()).get("try_styles").is_none());
+}
+
+#[test]
+fn only_the_bundled_tutorial_names_the_field() {
+    for mode in ["tutorial", "trial"] {
+        let v: Value = serde_json::from_slice(run_setup::mode_file(mode).unwrap()).unwrap();
+        let named = written(&parse(&v).unwrap()).get("try_styles") == Some(&Value::Bool(true));
+        assert_eq!(named, mode == "tutorial", "{mode}");
+    }
 }
 
 #[test]

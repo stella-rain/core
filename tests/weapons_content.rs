@@ -14,12 +14,27 @@ use stella_rain_core::weapons::{MAX_TREES, MAX_WEAPONS, Weapons};
 /// (`{weapon: {tree: definition}}`).
 const BEFORE: &str = include_str!("fixtures/weapons_before.json");
 
+/// The AAA step of a weapon's base tree in the `BEFORE` shape.
+fn aaa<'a>(v: &'a mut Value, weapon: &str) -> &'a mut serde_json::Map<String, Value> {
+    v[weapon][format!("{weapon}_base")]["combo"]["main"]["next"]["main"]["next"]["main"]
+        .as_object_mut()
+        .unwrap()
+}
+
 #[test]
 fn the_bundled_weapons_file_holds_the_hammer_and_sword_trees_as_before() {
     let bytes = std::fs::read(crate::data_root::data_root().join("content/weapons.json"))
         .expect("content/weapons.json");
     let file: Value = serde_json::from_slice(&bytes).unwrap();
-    let before: Value = serde_json::from_str(BEFORE).unwrap();
+    let mut before: Value = serde_json::from_str(BEFORE).unwrap();
+    // The plain base trees: the Sword's AAA charge and the Hammer's AAA hold moved into the
+    // styles `spirit_blade` and `momentum`, which grant the same values (checked below).
+    let moved_charge = aaa(&mut before, "giant_sword")
+        .remove("charge")
+        .expect("a charge");
+    let moved_hold = aaa(&mut before, "giant_hammer")
+        .remove("hold")
+        .expect("a hold");
     let mut now = serde_json::Map::new();
     for weapon in file["weapons"].as_array().expect("a weapons list") {
         let mut trees = serde_json::Map::new();
@@ -33,6 +48,38 @@ fn the_bundled_weapons_file_holds_the_hammer_and_sword_trees_as_before() {
     }
     stella_rain_core::pack::compare_json_values(&before, &Value::Object(now.clone()), "$")
         .expect("structural match");
+
+    // The removed values are what the styles grant (the fixture compares by structure, its tick
+    // numbers being older than the content's).
+    let expertise: Value = serde_json::from_slice(
+        &std::fs::read(crate::data_root::data_root().join("content/expertise.json"))
+            .expect("content/expertise.json"),
+    )
+    .unwrap();
+    let grant = |style: &str, key: &str| -> Value {
+        let found = expertise["weapons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|w| w["styles"].as_array().unwrap())
+            .find(|s| s["id"] == style)
+            .unwrap_or_else(|| panic!("style {style}"));
+        found["kinds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|k| k["type"] == "replace_step" && k["step"] == json!(["main", "main", "main"]))
+            .unwrap_or_else(|| panic!("{style} replaces AAA"))["grant"][key]
+            .clone()
+    };
+    stella_rain_core::pack::compare_json_values(
+        &moved_charge,
+        &grant("spirit_blade", "charge"),
+        "$",
+    )
+    .expect("spirit_blade grants the Sword's charge");
+    stella_rain_core::pack::compare_json_values(&moved_hold, &grant("momentum", "hold"), "$")
+        .expect("momentum grants the Hammer's hold");
 
     // Mutating a number still matches structurally
     let mut numeric_mutated = Value::Object(now.clone());

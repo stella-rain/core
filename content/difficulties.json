@@ -9,7 +9,7 @@
       "rune_shards": 10,
       "length_ticks": 36000,
       "boss_ticks": [18000, 36000],
-      "level_table": { "style": 2, "upgrades": [4, 6], "capstone": 8 }
+      "level_table": { "style": 1, "upgrades": [4, 6], "capstone": 8 }
     },
     {
       "id": "normal",

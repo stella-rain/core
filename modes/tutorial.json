@@ -370,11 +370,12 @@
   },
   "elite_cap": 4,
   "level_table": {
-    "style": 3,
+    "style": 1,
     "upgrades": [
-      6,
-      9
+      2,
+      3
     ],
-    "capstone": 10
-  }
+    "capstone": 4
+  },
+  "try_styles": true
 }

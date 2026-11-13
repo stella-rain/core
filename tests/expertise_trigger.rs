@@ -260,16 +260,16 @@ fn a_trigger_needs_a_full_smash_gauge_on_its_path() {
     assert!(Pack::from_bytes(Pack::BUNDLED).is_ok());
 }
 
-/// S3: the bundled pack names no trigger kind, and the kind's JSON serializes back to itself.
+/// S3: the bundled pack names the trigger kind, and the kind's JSON serializes back to itself.
 #[test]
-fn the_kind_round_trips_and_the_bundled_file_names_none() {
+fn the_kind_round_trips_and_the_bundled_file_names_it() {
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
-    assert!(!bundled.contains("giant_trigger"));
+    assert!(bundled.contains("giant_trigger"));
     let kind: StyleKind = serde_json::from_value(trigger()).expect("the kind parses");
     assert_eq!(serde_json::to_value(&kind).unwrap(), trigger());
 }
 
-/// S4: the views carry the kind compactly and the bundled pack names none.
+/// S4: the views carry the kind compactly and the bundled pack's views carry it.
 #[test]
 fn the_views_carry_the_trigger_kind() {
     let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
@@ -298,7 +298,7 @@ fn the_views_carry_the_trigger_kind() {
     assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
     let bundled = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let ready = serde_json::to_string(bundled.players[0].tree_ready.as_ref().unwrap()).unwrap();
-    assert!(!ready.contains("giant_trigger"));
+    assert!(ready.contains("giant_trigger"));
 }
 /// S6: a `PlayerView` with `trigger: None, rally: None` serializes without either key, and the
 /// five events use the event enum's tag form (`type` and `data`, the player by name).

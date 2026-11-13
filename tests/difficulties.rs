@@ -82,7 +82,14 @@ fn only_easy_overrides_the_mode() {
     let easy = bundled("easy");
     assert_eq!(easy.length_ticks, Some(10 * 60 * 60));
     assert_eq!(easy.boss_ticks.as_deref(), Some(&[18_000, 36_000][..]));
-    assert_eq!(easy.level_table, Some(LevelTable::SHORT));
+    // Easy takes the style path: style level 1, upgrades 4 and 6, capstone 8; `SHORT`, the Rust default, is unchanged.
+    let easy_table = LevelTable {
+        style: 1,
+        upgrades: [4, 6],
+        capstone: 8,
+    };
+    assert_eq!(easy.level_table, Some(easy_table));
+    assert_ne!(easy_table, LevelTable::SHORT);
     for id in ["normal", "hard", "rainy"] {
         let d = bundled(id);
         assert_eq!(

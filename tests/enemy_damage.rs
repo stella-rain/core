@@ -113,5 +113,7 @@ fn every_expertise_hit_point_amount_is_on_the_scaled_scale() {
         }
     }
     walk(&json, &mut found);
-    assert_eq!(found, 5);
+    // The bundled file holds two: the plain `common` and `base` entries; the new styles name
+    // none.
+    assert_eq!(found, 2);
 }

@@ -490,7 +490,7 @@ fn the_style_lists_have_count_budgets_before_the_file_is_read() {
 }
 
 #[test]
-fn the_accessor_returns_the_rows_and_the_bundled_chart_has_none() {
+fn the_accessor_returns_the_rows_and_the_bundled_chart_has_six() {
     let chart = parse(&with_styles(json!([hammer_row()]))).expect("a Hammer row");
     assert_eq!(chart.styles().len(), 1);
     assert_eq!(chart.styles()[0].weapon.as_str(), "giant_hammer");
@@ -500,5 +500,35 @@ fn the_accessor_returns_the_rows_and_the_bundled_chart_has_none() {
         .map(|s| s.id.as_str())
         .collect();
     assert_eq!(ids, ["crush", "quake"]);
-    assert!(Pack::bundled().star_chart().unwrap().styles().is_empty());
+    // The bundled chart sells three styles for each of the two weapons at 25,000 each.
+    let bundled = Pack::bundled().star_chart().unwrap();
+    let rows: Vec<(&str, Vec<(&str, u32)>)> = bundled
+        .styles()
+        .iter()
+        .map(|r| {
+            let styles = r.styles.iter().map(|s| (s.id.as_str(), s.price)).collect();
+            (r.weapon.as_str(), styles)
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                "giant_hammer",
+                vec![
+                    ("titan_trigger", 25_000),
+                    ("momentum", 25_000),
+                    ("breaker", 25_000)
+                ]
+            ),
+            (
+                "giant_sword",
+                vec![
+                    ("spirit_blade", 25_000),
+                    ("foresight_counter", 25_000),
+                    ("judgement_cut", 25_000)
+                ]
+            ),
+        ]
+    );
 }

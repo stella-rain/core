@@ -197,11 +197,11 @@ fn the_spirit_kind_needs_sim_version_2() {
     }
 }
 
-/// S3: the bundled pack names no spirit kind, and the kind's JSON serializes back to itself.
+/// S3: the bundled pack names the spirit kind, and the kind's JSON serializes back to itself.
 #[test]
-fn the_kind_round_trips_and_the_bundled_file_names_none() {
+fn the_kind_round_trips_and_the_bundled_file_names_it() {
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
-    assert!(!bundled.contains("\"spirit\""));
+    assert!(bundled.contains("\"spirit\""));
     let kind: StyleKind = serde_json::from_value(spirit()).expect("the kind parses");
     assert_eq!(serde_json::to_value(&kind).unwrap(), spirit());
 }

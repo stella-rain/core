@@ -421,7 +421,22 @@ fn the_views_name_the_smash_effect() {
     let (e, _) = build(bundled, 1_000_000, false);
     let snap = e.snapshot();
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
-    assert!(ready.get("kinds").is_none());
+    // The bundled Sword styles: Spirit Blade names no smash effect, Foresight Counter `knockback`
+    // and Judgement Cut `reap`.
+    let effect = |style: usize| {
+        ready["kinds"][style]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|k| k["type"] == "smash_effect")
+            .map(|k| k["effect"].clone())
+    };
+    assert_eq!(effect(0), None);
+    assert_eq!(effect(1), Some(json!("knockback")));
+    assert_eq!(effect(2), Some(json!("reap")));
+    // `pull` is Titan Trigger's, on the Hammer.
+    let file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    assert!(file.to_string().contains("\"type\":\"pull\""));
 }
 
 /// A burst that kills the target on the cashing hit: the target is gone, nothing more is put on

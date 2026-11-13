@@ -19,113 +19,113 @@
     "description": "Attacks 10 percent faster",
     "title": "Attack Speed"
   },
-  "expertise/bulwark": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Bulwark"
+  "expertise/breaker": {
+    "description": "Charge the smash and knock back; smashes break stagger and poise faster",
+    "title": "Breaker"
   },
-  "expertise/bulwark_10": {
-    "description": "30 percent shorter evade cooldown",
-    "title": "Fortress"
+  "expertise/breaker_cap": {
+    "description": "A stagger bursts wider and knocks nearby enemies down",
+    "title": "Breaker Capstone"
   },
-  "expertise/bulwark_6": {
-    "description": "15 percent shorter evade cooldown",
-    "title": "Brace"
+  "expertise/breaker_up_1": {
+    "description": "+10% attack",
+    "title": "Breaker I"
   },
-  "expertise/bulwark_9": {
-    "description": "300 more hit points at most, and as many healed",
-    "title": "Stone Skin"
-  },
-  "expertise/crush": {
-    "description": "15 percent more damage",
-    "title": "Crush"
-  },
-  "expertise/crush_10": {
-    "description": "40 percent more damage",
-    "title": "Shatter"
-  },
-  "expertise/crush_6": {
-    "description": "20 percent more damage",
-    "title": "Heavy Head"
-  },
-  "expertise/crush_9": {
-    "description": "200 more hit points at most, and as many healed",
-    "title": "Iron Grip"
+  "expertise/breaker_up_2": {
+    "description": "Smashes break boss parts faster; a stagger bursts and stuns nearby enemies",
+    "title": "Breaker II"
   },
   "expertise/damage": {
     "description": "10 percent more damage",
     "title": "Damage"
   },
-  "expertise/edge": {
-    "description": "10 percent more damage",
-    "title": "Edge"
+  "expertise/foresight_counter": {
+    "description": "Charge the smash, knock enemies back and counter right after a perfect evade",
+    "title": "Foresight Counter"
   },
-  "expertise/edge_10": {
-    "description": "30 percent more damage",
-    "title": "Master Edge"
+  "expertise/foresight_counter_cap": {
+    "description": "+20% attack",
+    "title": "Foresight Counter Capstone"
   },
-  "expertise/edge_6": {
-    "description": "15 percent more damage",
-    "title": "Keen Edge"
+  "expertise/foresight_counter_up_1": {
+    "description": "+10% attack",
+    "title": "Foresight Counter I"
   },
-  "expertise/edge_9": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Long Edge"
+  "expertise/foresight_counter_up_2": {
+    "description": "+10% attack speed",
+    "title": "Foresight Counter II"
   },
   "expertise/hit_box": {
     "description": "Every combo step's hit box 10 percent larger",
     "title": "Hit Box"
   },
-  "expertise/quake": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Quake"
+  "expertise/judgement_cut": {
+    "description": "Smashes cash in bleed stacks and strike a second time as the cuts close",
+    "title": "Judgement Cut"
   },
-  "expertise/quake_10": {
-    "description": "Every combo step's hit box 40 percent larger",
-    "title": "Earthshaker"
+  "expertise/judgement_cut_cap": {
+    "description": "The finishing cut closes twice, 50% damage each",
+    "title": "Judgement Cut Capstone"
   },
-  "expertise/quake_6": {
-    "description": "Every combo step's hit box 20 percent larger",
-    "title": "Tremor"
+  "expertise/judgement_cut_up_1": {
+    "description": "+10% attack",
+    "title": "Judgement Cut I"
   },
-  "expertise/quake_9": {
-    "description": "15 percent more damage",
-    "title": "Aftershock"
+  "expertise/judgement_cut_up_2": {
+    "description": "+10% attack speed",
+    "title": "Judgement Cut II"
   },
-  "expertise/reach": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Reach"
+  "expertise/momentum": {
+    "description": "Hold the third spin; every hit in a combo speeds up the next step",
+    "title": "Momentum"
   },
-  "expertise/reach_10": {
-    "description": "Every combo step's hit box 30 percent larger",
-    "title": "Far Reach"
+  "expertise/momentum_cap": {
+    "description": "+20% attack",
+    "title": "Momentum Capstone"
   },
-  "expertise/reach_6": {
-    "description": "Every combo step's hit box 15 percent larger",
-    "title": "Wide Arc"
+  "expertise/momentum_up_1": {
+    "description": "+10% attack",
+    "title": "Momentum I"
   },
-  "expertise/reach_9": {
-    "description": "15 percent more damage",
-    "title": "Sure Strike"
+  "expertise/momentum_up_2": {
+    "description": "+10% attack speed",
+    "title": "Momentum II"
+  },
+  "expertise/spirit_blade": {
+    "description": "Charge the third strike, fill the blade and raise spirit levels with the full-gauge smash",
+    "title": "Spirit Blade"
+  },
+  "expertise/spirit_blade_cap": {
+    "description": "The finishing smash strikes again at 60% damage",
+    "title": "Spirit Blade Capstone"
+  },
+  "expertise/spirit_blade_up_1": {
+    "description": "+10% attack",
+    "title": "Spirit Blade I"
+  },
+  "expertise/spirit_blade_up_2": {
+    "description": "+10% attack speed",
+    "title": "Spirit Blade II"
   },
   "expertise/swiftness": {
     "description": "5 percent faster movement",
     "title": "Swiftness"
   },
-  "expertise/tempo": {
-    "description": "Attacks 8 percent faster",
-    "title": "Tempo"
+  "expertise/titan_trigger": {
+    "description": "Smashes pull enemies in; a full gauge makes the hammer giant for a while",
+    "title": "Titan Trigger"
   },
-  "expertise/tempo_10": {
-    "description": "25 percent shorter evade cooldown",
-    "title": "Flow"
+  "expertise/titan_trigger_cap": {
+    "description": "+20% attack",
+    "title": "Titan Trigger Capstone"
   },
-  "expertise/tempo_6": {
-    "description": "10 percent more speed",
-    "title": "Light Step"
+  "expertise/titan_trigger_up_1": {
+    "description": "+10% attack",
+    "title": "Titan Trigger I"
   },
-  "expertise/tempo_9": {
-    "description": "Attacks 10 percent faster",
-    "title": "Quick Hands"
+  "expertise/titan_trigger_up_2": {
+    "description": "+10% attack speed",
+    "title": "Titan Trigger II"
   },
   "expertise/vitality": {
     "description": "100 more hit points at most, and as many healed",

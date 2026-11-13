@@ -609,22 +609,33 @@ fn kinds_need_sim_version_2() {
     }
 }
 
-/// T2: the bundled file names no kind: every level is a stat (dormant).
+/// T2: the bundled styles name kinds, and a level that is not built stays a stat: every style
+/// names a kind, a level whose `effect` is not `none` names none, and one whose `effect` is
+/// `none` names at least one.
 #[test]
-fn the_bundled_file_names_no_kind() {
+fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
     let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
+    let mut built = 0;
     for w in weapons.as_array().unwrap() {
         for s in w["styles"].as_array().unwrap() {
+            assert!(s["kinds"].as_array().is_some_and(|k| !k.is_empty()), "{s}");
+            assert_eq!(s["effect"], "none", "{s}");
             let levels = ["upgrade_1", "upgrade_2", "capstone"]
                 .iter()
                 .flat_map(|f| s[f].as_array().unwrap().iter())
                 .chain(std::iter::once(s));
             for l in levels {
-                assert!(l.get("kinds").is_none(), "{l}");
-                assert_ne!(l["effect"], "none", "{l}");
+                if l["effect"] == "none" {
+                    assert!(l["kinds"].as_array().is_some_and(|k| !k.is_empty()), "{l}");
+                    built += 1;
+                } else {
+                    assert!(l.get("kinds").is_none(), "{l}");
+                }
             }
         }
     }
+    // 6 style levels and the 4 built upgrade and capstone levels.
+    assert_eq!(built, 10);
 }
 
 /// A common option is a stat: it names no kind and is never `none`.

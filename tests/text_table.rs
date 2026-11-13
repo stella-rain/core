@@ -69,7 +69,7 @@ fn bundled_text_table_loads_all_ids() {
         "stage_skills/black_hole",
         "stage_skills/aegis",
         "perk_sets/vanguard",
-        "expertise/crush",
+        "expertise/spirit_blade",
         "expertise/damage",
     ];
 

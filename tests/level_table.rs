@@ -32,16 +32,24 @@ fn stage_with(table: Value) -> Result<(), Error> {
 }
 
 #[test]
-fn the_bundled_modes_name_the_normal_table() {
+fn the_bundled_modes_take_the_style_path_at_level_1() {
+    // The style path: style at 1, upgrades at 6 and 9, capstone at 10.
+    let path = LevelTable {
+        style: 1,
+        upgrades: [6, 9],
+        capstone: 10,
+    };
+    assert_eq!(*TimeLimit::bundled().level_table(), path);
+    let trial = stella_rain_core::run_content::RunContent::bundled().trial();
+    assert_eq!(trial.level_table(), path);
+    // The Rust default of a stage file that names no table is unchanged: style 3.
     let normal = LevelTable {
         style: 3,
         upgrades: [6, 9],
         capstone: 10,
     };
     assert_eq!(LevelTable::NORMAL, normal);
-    assert_eq!(*TimeLimit::bundled().level_table(), normal);
-    let trial = stella_rain_core::run_content::RunContent::bundled().trial();
-    assert_eq!(trial.level_table(), normal);
+    assert_ne!(path, LevelTable::NORMAL);
 }
 
 #[test]

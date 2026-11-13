@@ -950,6 +950,15 @@ fn a_new_reward_is_listed_at_the_pack_version() {
     );
 }
 
+const STYLES: [&str; 6] = [
+    "titan_trigger",
+    "momentum",
+    "breaker",
+    "spirit_blade",
+    "foresight_counter",
+    "judgement_cut",
+];
+
 #[test]
 fn the_bundled_pack_introduces_every_id_in_version_1() {
     let file: pack::PackFile = serde_json::from_slice(Pack::BUNDLED).unwrap();
@@ -972,12 +981,26 @@ fn the_bundled_pack_introduces_every_id_in_version_1() {
     ] {
         assert!(!list.is_empty(), "{name}");
         for e in list {
-            // The six equipment-only Rune Haste stars are the pack's own sim_version 2.
-            let want = if e.id.as_str().starts_with("rune_haste_star_") {
+            // The six equipment-only Rune Haste stars and the 24 IDs of the six styles (a style
+            // and its upgrade 1, upgrade 2 and capstone) are the pack's own sim_version 2; the
+            // old placeholder style IDs are gone from the table.
+            let style = STYLES.iter().any(|s| {
+                let id = e.id.as_str();
+                id == *s
+                    || id
+                        .strip_prefix(s)
+                        .is_some_and(|r| ["_up_1", "_up_2", "_cap"].contains(&r))
+            });
+            let want = if e.id.as_str().starts_with("rune_haste_star_") || style {
                 2
             } else {
                 1
             };
+            if name == "expertise" {
+                for old in ["crush", "quake", "bulwark", "edge", "tempo", "reach"] {
+                    assert!(!e.id.as_str().starts_with(old), "{}", e.id);
+                }
+            }
             assert_eq!(e.sim_version, want, "{name} {}", e.id);
         }
     }
