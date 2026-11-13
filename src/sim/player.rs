@@ -643,6 +643,16 @@ pub(super) fn tempo_lose(
     }
 }
 
+/// Whether `me`'s stacks are full in a held hold and its tempo names the armour: the combo tempo's
+/// condition of `super_armour`, and the one armour that shelters the stacks from a hit.
+pub(super) fn tempo_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage.has_tempo
+        && s.players[me].combo.hold.is_some()
+        && stage
+            .tempo_of(s, me)
+            .is_some_and(|g| g.hold_armour && s.players[me].combat.combo_tempo == g.max_stacks)
+}
+
 /// The attack speed the stacks of `me` give, in percent, before the run's cap: 0 after one bool
 /// test for a run that names no combo tempo. The one place a later kind that reads the stacks
 /// adds its line.
@@ -1854,9 +1864,10 @@ pub(crate) fn hold_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u32,
 /// Whether `me` has super armour: a `breaks_charge` hit does not break its charge or hold. Derived,
 /// never state: its charge is at level 2 or more (by hand, or the level auto mode recorded), or its
 /// running combo step is a smash step in an active phase (a hold's loop). The one place a later
-/// condition is added: the giant trigger's (`trigger_armoured`) is one.
+/// condition is added: the giant trigger's (`trigger_armoured`) and the combo tempo's
+/// (`tempo_armoured`) are two.
 pub(super) fn super_armour(stage: &World, s: &State, me: PlayerIdx) -> bool {
-    if trigger_armoured(stage, s, me) {
+    if trigger_armoured(stage, s, me) || tempo_armoured(stage, s, me) {
         return true;
     }
     let c = &s.players[me].combo;

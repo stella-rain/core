@@ -553,3 +553,59 @@ fn the_state_is_deterministic() {
     };
     assert_eq!(run(), run());
 }
+
+/// A tempo kind of 5 stacks of 4%, with the armour at full stacks when `armour`.
+fn tempo_kind(armour: bool) -> Value {
+    let mut effects = vec![json!({ "type": "speed_pct", "pct": 4 })];
+    if armour {
+        effects.push(json!({ "type": "super_armour_at_full" }));
+    }
+    json!({ "type": "combo_tempo_pct", "max_stacks": 5, "effects": effects })
+}
+
+fn set_stacks(r: &mut Rig, stacks: u8, held: bool) {
+    let p = &mut st(&mut r.e).players[ME];
+    p.combat.combo_tempo = stacks;
+    p.combo.hold = held.then_some(3);
+}
+
+/// B15: full stacks in a held hold are super armour, and only that armour shelters the stacks.
+#[test]
+fn full_stacks_in_a_hold_are_armour() {
+    let mut r = rig(1, vec![tempo_kind(true)], 0);
+    set_stacks(&mut r, 5, true);
+    assert!(r.armoured(0));
+    set_stacks(&mut r, 4, true);
+    assert!(!r.armoured(0), "4 of 5 stacks");
+    set_stacks(&mut r, 5, false);
+    assert!(!r.armoured(0), "off the hold");
+    let mut plain = rig(1, vec![tempo_kind(false)], 0);
+    set_stacks(&mut plain, 5, true);
+    assert!(!plain.armoured(0), "without the effect");
+
+    // A hit under it keeps the hold and the stacks.
+    set_stacks(&mut r, 5, true);
+    let ev = r.hurt(0, 10, true);
+    assert_eq!((count(&ev, "PlayerHit"), count(&ev, "TempoLost")), (1, 0));
+    assert_eq!(st(&mut r.e).players[ME].combat.combo_tempo, 5);
+    assert!(
+        st(&mut r.e).players[ME].combo.hold.is_some(),
+        "the hold is unbroken"
+    );
+    // At 4 stacks the same hit ends both.
+    set_stacks(&mut r, 4, true);
+    let ev = r.hurt(0, 10, true);
+    assert_eq!(count(&ev, "TempoLost"), 1);
+    assert!(st(&mut r.e).players[ME].combo.hold.is_none());
+}
+
+/// B15: any other armour (the trigger's) still does not shelter the stacks.
+#[test]
+fn other_armour_does_not_shelter_the_stacks() {
+    let mut r = rig(1, vec![tempo_kind(true), trigger_kind(full_effects())], 0);
+    set_stacks(&mut r, 5, false);
+    r.set_trigger(0, 100);
+    assert!(r.armoured(0));
+    let ev = r.hurt(0, 10, true);
+    assert_eq!(count(&ev, "TempoLost"), 1);
+}

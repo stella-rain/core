@@ -691,6 +691,8 @@ pub(crate) struct TempoGrant {
     pub max_stacks: u8,
     pub speed_pct: u32,
     pub keep_on_smash: bool,
+    /// Full stacks in a held hold are super armour, and only that armour shelters the stacks.
+    pub hold_armour: bool,
 }
 
 /// A style's counter bonus resolved once: the window and each effect folded into its field, 0
@@ -1503,12 +1505,13 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
             .clamp(1, MAX_TEMPO_STACKS),
         speed_pct: 0,
         keep_on_smash: false,
+        hold_armour: false,
     };
     for e in t.effects.iter().take(3) {
         match e {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
             TempoEffect::KeepOnSmash {} => g.keep_on_smash = true,
-            TempoEffect::SuperArmourAtFull {} => {}
+            TempoEffect::SuperArmourAtFull {} => g.hold_armour = true,
         }
     }
     g
