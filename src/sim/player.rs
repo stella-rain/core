@@ -155,6 +155,10 @@ pub(super) fn update(
     if stage.has_spirit {
         spirit_tick(stage, s, me, events);
     }
+    // So is the giant trigger's.
+    if stage.has_trigger {
+        trigger_tick(s, me, events);
+    }
     // The rally's countdown too (ADR-SIM-9).
     if stage.tuning.rally.is_some() {
         rally_tick(s, me, events);
@@ -1249,6 +1253,62 @@ fn spirit_restart(stage: &World, s: &mut State, me: PlayerIdx) {
     }
 }
 
+/// `me`'s full-gauge smash started its giant trigger: it runs the grant's ticks from now (a second
+/// one while it runs starts the count again) (ADR-SIM-9).
+fn trigger_start(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let Some(g) = stage.trigger_of(s, me) else {
+        return;
+    };
+    s.players[me].combat.giant_trigger = g.ticks;
+    trigger_started(events, me, g.ticks);
+}
+
+/// One tick of the giant trigger: it ends on the tick it reaches 0.
+fn trigger_tick(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.players[me].combat;
+    if c.giant_trigger == 0 {
+        return;
+    }
+    c.giant_trigger -= 1;
+    if c.giant_trigger == 0 {
+        trigger_ended(events, me);
+    }
+}
+
+/// A down ends the giant trigger at once.
+fn trigger_end(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.players[me].combat;
+    if c.giant_trigger > 0 {
+        c.giant_trigger = 0;
+        trigger_ended(events, me);
+    }
+}
+
+/// Whether `me`'s giant trigger runs and names super armour: the one more condition of
+/// `super_armour`.
+fn trigger_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage.has_trigger
+        && s.players[me].combat.giant_trigger > 0
+        && stage.trigger_of(s, me).is_some_and(|g| g.super_armour)
+}
+
+/// `me`'s giant trigger started, running `ticks`. Cold: a run with no trigger never calls it.
+#[cold]
+#[inline(never)]
+fn trigger_started(events: &mut Vec<DomainEvent>, me: PlayerIdx, ticks: u16) {
+    events.push(DomainEvent::TriggerStarted {
+        player: me,
+        ticks: u32::from(ticks),
+    });
+}
+
+/// `me`'s giant trigger ended. Cold, as `trigger_started`.
+#[cold]
+#[inline(never)]
+fn trigger_ended(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::TriggerEnded { player: me });
+}
+
 /// A hit took `lost` hit points from `me` (after the absorb and the defence): `pct` percent of them
 /// stay as rally, times the giant trigger's factor while it runs, up to the hit points `me` is
 /// missing, and the rally's ticks start again (ADR-SIM-9). Nothing for a hit that took none or a
@@ -1451,6 +1511,10 @@ fn spend_gauge(
         spirit_raise(stage, s, me, events);
     }
     strike(stage, s, me, attack, 0, aim, events);
+    if stage.has_trigger {
+        // After the slam's own attack began: it carries none of the state's range or damage.
+        trigger_start(stage, s, me, events);
+    }
     true
 }
 
@@ -1503,6 +1567,15 @@ fn strike(
     }
     if let Some(fx) = counter_taken(stage, s, me) {
         bonus_pct = bonus_pct.saturating_add(fx.damage_pct);
+    }
+    if stage.has_trigger && s.players[me].combat.giant_trigger > 0 {
+        // Fixed when the attack starts, as the spirit's and the counter's are.
+        if let Some(g) = stage.trigger_of(s, me) {
+            range_pct = range_pct.saturating_add(g.range_pct);
+            if last_press_smash(&s.players[me].combo) {
+                bonus_pct = bonus_pct.saturating_add(g.smash_pct);
+            }
+        }
     }
     let strike = attacks::Strike {
         bonus_pct,
@@ -1710,7 +1783,8 @@ pub(super) fn stand_down(
     s.players[me].combat.counter_bonus_step = 0;
     // A downed player holds no stacks, and a revive does not resume them.
     tempo_lose(stage, s, me, events);
-    // Nor a rally.
+    // Nor a giant trigger, nor a rally.
+    trigger_end(s, me, events);
     rally_lapse(s, me, events);
 }
 
@@ -1780,8 +1854,11 @@ pub(crate) fn hold_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u32,
 /// Whether `me` has super armour: a `breaks_charge` hit does not break its charge or hold. Derived,
 /// never state: its charge is at level 2 or more (by hand, or the level auto mode recorded), or its
 /// running combo step is a smash step in an active phase (a hold's loop). The one place a later
-/// condition is added.
+/// condition is added: the giant trigger's (`trigger_armoured`) is one.
 pub(super) fn super_armour(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    if trigger_armoured(stage, s, me) {
+        return true;
+    }
     let c = &s.players[me].combo;
     if let (Some(held), Some(charge)) = (c.charge, current_charge(stage, s, me)) {
         if level_at(charge, held) >= 2 {

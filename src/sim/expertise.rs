@@ -469,7 +469,11 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
-        if (stage.has_gauge || stage.has_spirit || stage.has_counter_bonus || stage.has_tempo)
+        if (stage.has_gauge
+            || stage.has_spirit
+            || stage.has_counter_bonus
+            || stage.has_tempo
+            || stage.has_trigger)
             && was.0 != Some(at)
         {
             // The new style's bar starts empty; a style with no gauge reads empty, its spirit
@@ -483,6 +487,8 @@ pub(super) fn tree_pick(
             player.combat.spirit_decay = 0;
             // And the old style's combo tempo stacks.
             player.combat.combo_tempo = 0;
+            // And its giant trigger's ticks, with no event.
+            player.combat.giant_trigger = 0;
         }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
