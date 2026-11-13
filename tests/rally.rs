@@ -91,17 +91,19 @@ fn the_bundled_file_names_no_rally_key_and_the_schema_lists_them_as_optional() {
     for key in KEYS {
         assert!(v.get(key).is_none(), "{key}");
     }
-    let schema = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/rules.schema.json"),
+    let bundle = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/content.schema.json"),
     )
-    .expect("the rules schema");
-    let schema: Value = serde_json::from_str(&schema).unwrap();
+    .expect("the schema bundle");
+    let bundle: Value = serde_json::from_str(&bundle).unwrap();
+    let rules = &bundle["$defs"]["RulesFile"];
     for key in KEYS {
-        assert!(schema["properties"].get(key).is_some(), "{key} not listed");
-        let required = schema["required"].as_array().map_or(&[][..], Vec::as_slice);
+        assert!(rules["properties"].get(key).is_some(), "{key} not listed");
+        let required = rules["required"].as_array().map_or(&[][..], Vec::as_slice);
         assert!(!required.iter().any(|r| r == key), "{key} is required");
     }
 }
+
 /// R3: `Rules::rally()` reads the three numbers back.
 #[test]
 fn a_loaded_rally_reads_back_its_numbers() {
