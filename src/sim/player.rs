@@ -55,7 +55,7 @@ use crate::event::{DomainEvent, Press};
 use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::input::{self, Input};
-use crate::limits::{MAX_ADVANCE_DISTANCE, MAX_ADVANCE_PER_TICK};
+use crate::limits::{MAX_ADVANCE_DISTANCE, MAX_ADVANCE_PER_TICK, MAX_COUNTER_WINDOW_TICKS};
 use crate::rewards::Rewards;
 use crate::sim::state::{ComboState, DashState, Dir, PlayerState, Pull, Smash, State};
 use crate::sim::state::{MAX_PLAYERS, PlayerIdx};
@@ -68,6 +68,7 @@ use super::entity::{Who, speed_pct};
 use super::levels;
 use super::select;
 use super::skill;
+use super::world::CounterGrant;
 
 /// The stick's full deflection on each axis; −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -190,6 +191,9 @@ pub(super) fn update(
     if stage.has_advance {
         magnetism(stage, s, me);
     }
+    if stage.has_counter_bonus {
+        counter_tick(s, me);
+    }
     if s.players[me].dash.is_some() {
         dash(stage, &mut s.players[me]);
     } else {
@@ -214,7 +218,15 @@ fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
     else {
         return;
     };
-    let Some(advance) = attacks::advance_of(stage, r) else {
+    // A phase's own `advance` wins; else a taken counter bonus slides over the first phase.
+    let Some(advance) = attacks::advance_of(stage, r).or_else(|| {
+        if r.phase != 0 {
+            return None;
+        }
+        counter_taken(stage, s, me)
+            .map(|g| g.advance)
+            .filter(|a| a.0 > 0)
+    }) else {
         return;
     };
     let phase_ticks = attacks::phase(stage, r, r.phase as usize).ticks;
@@ -253,7 +265,7 @@ fn magnetism(stage: &World, s: &mut State, me: PlayerIdx) {
 /// evade's (`invulnerable` is what the evade has left, a tie goes to the evade; more is a hit's or
 /// a revive's residue), the window closes and, with no cooldown running, the evade is perfect: the
 /// slow and its own cooldown start (ADR-SIM-8: only this player's reach is slowed). No damage, no
-/// record of the hit. The one place the counter window will add its line.
+/// record of the hit. The counter window opens beside it, cooldown or not.
 pub(super) fn near_miss(
     stage: &World,
     s: &mut State,
@@ -273,6 +285,14 @@ pub(super) fn near_miss(
         return;
     }
     p.combat.perfect_window = 0;
+    // The counter window opens on every near miss of the evade, the cooldown or not.
+    if stage.has_counter_bonus {
+        if let Some(g) = stage.counter_of(s, me) {
+            s.players[me].combat.counter_window = g.window;
+            counter_window_opened(events, me);
+        }
+    }
+    let p = &mut s.players[me];
     if p.combat.perfect_cooldown == 0 {
         p.combat.perfect_slow = t.slow_ticks;
         p.combat.perfect_cooldown = t.cooldown_ticks;
@@ -844,9 +864,13 @@ fn take_step(
         press: press_of(smash),
         depth: c.depth,
     });
+    let first_dash = !onward && c.dash;
     let Some(step) = step_at(main, c) else {
         return;
     };
+    if stage.has_counter_bonus {
+        counter_take(stage, s, me, first_dash, events);
+    }
     if stage.has_gauge {
         // A new step starts its fill again (the step cap, ADR-SIM-5).
         s.players[me].combat.gauge_step_fill = 0;
@@ -929,6 +953,70 @@ fn gauge_filled(events: &mut Vec<DomainEvent>, me: PlayerIdx, added: u32, value:
         value,
         full: value >= max,
     });
+}
+
+/// The counter window of `me` opened. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn counter_window_opened(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::CounterWindowOpened { player: me });
+}
+
+/// The step `me` started took the counter bonus. Cold, as `gauge_filled`.
+#[cold]
+#[inline(never)]
+fn counter_bonus_taken(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::CounterBonusTaken { player: me });
+}
+
+/// The counter bonus the step `me` is running took, read from the mark `counter_bonus_step`:
+/// none after one bool test for a run that names no counter bonus. The one place a later kind
+/// that reads the counter adds its line.
+pub(super) fn counter_taken<'a>(
+    stage: &'a World,
+    s: &State,
+    me: PlayerIdx,
+) -> Option<&'a CounterGrant> {
+    if !stage.has_counter_bonus || s.players[me].combat.counter_bonus_step != 1 {
+        return None;
+    }
+    stage.counter_of(s, me)
+}
+
+/// A step of `me` starts: the mark of the step before is gone, and the first step of the dash
+/// branch pressed inside an open window takes the bonus and closes the window. A step of the
+/// ordinary combo, a later step of the dash branch and an auto step take nothing and leave an
+/// open window running.
+fn counter_take(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    first_dash: bool,
+    events: &mut Vec<DomainEvent>,
+) {
+    let c = &mut s.players[me].combat;
+    c.counter_bonus_step = 0;
+    if first_dash
+        && (1..=MAX_COUNTER_WINDOW_TICKS).contains(&c.counter_window)
+        && stage.counter_of(s, me).is_some()
+    {
+        let c = &mut s.players[me].combat;
+        c.counter_window = 0;
+        c.counter_bonus_step = 1;
+        counter_bonus_taken(events, me);
+    }
+}
+
+/// The counter window counts down one a tick, and the mark ends with the step: when none of the
+/// player's steps is in progress (a run, a charge or a hold), at the step's end, at an evade and
+/// at a break.
+fn counter_tick(s: &mut State, me: PlayerIdx) {
+    let p = &mut s.players[me];
+    p.combat.counter_window = p.combat.counter_window.saturating_sub(1);
+    let c = &p.combo;
+    if !(c.running || c.charge.is_some() || c.hold.is_some()) {
+        p.combat.counter_bonus_step = 0;
+    }
 }
 
 /// The full-gauge smash of `me` spent `amount`. Cold, as `gauge_filled`.
@@ -1149,6 +1237,9 @@ fn strike(
             range_pct = range_pct.saturating_add(fx.range_pct);
         }
     }
+    if let Some(fx) = counter_taken(stage, s, me) {
+        bonus_pct = bonus_pct.saturating_add(fx.damage_pct);
+    }
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: levels::attack_speed(s, me),
@@ -1342,6 +1433,9 @@ pub(super) fn stand_down(
 ) {
     s.players[me].dash = None;
     cancel(stage, s, me, events);
+    // A downed player cannot press, and a revive does not resume an old window.
+    s.players[me].combat.counter_window = 0;
+    s.players[me].combat.counter_bonus_step = 0;
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer.
