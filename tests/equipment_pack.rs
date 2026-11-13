@@ -408,6 +408,8 @@ fn rows(set: &[SetStat]) -> Rows {
 }
 
 #[test]
+/// The first style of each weapon is the new `spirit_blade` and `titan_trigger`; their set values
+/// are the placeholder values the old styles held, carried over.
 fn the_bundled_sets_are_the_placeholder_values() {
     use StatEffect::*;
     let ex = Expertise::bundled();
@@ -419,7 +421,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
     let trees: [(&str, &str, Rows); 6] = [
         (
             "giant_sword",
-            "edge",
+            "spirit_blade",
             vec![
                 stat(AttackPct, 500),
                 stat(AttackSpeedPct, 300),
@@ -429,7 +431,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         ),
         (
             "giant_sword",
-            "tempo",
+            "foresight_counter",
             vec![
                 stat(AttackPct, 330),
                 stat(AttackSpeedPct, 1000),
@@ -439,7 +441,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         ),
         (
             "giant_sword",
-            "reach",
+            "judgement_cut",
             vec![
                 stat(AttackPct, 300),
                 stat(AttackSpeedPct, 300),
@@ -449,7 +451,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         ),
         (
             "giant_hammer",
-            "crush",
+            "titan_trigger",
             vec![
                 stat(AttackPct, 600),
                 stat(AttackSpeedPct, 200),
@@ -459,7 +461,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         ),
         (
             "giant_hammer",
-            "quake",
+            "momentum",
             vec![
                 stat(AttackPct, 300),
                 stat(AttackSpeedPct, 200),
@@ -469,7 +471,7 @@ fn the_bundled_sets_are_the_placeholder_values() {
         ),
         (
             "giant_hammer",
-            "bulwark",
+            "breaker",
             vec![
                 stat(AttackPct, 200),
                 stat(SkillCooldownPct, 200),
@@ -487,8 +489,9 @@ fn the_bundled_sets_are_the_placeholder_values() {
         let s = w.styles.iter().find(|s| s.id.as_str() == style).unwrap();
         assert_eq!(rows(&s.stats), want, "{weapon}/{style}");
     }
-    let tempo = &ex.weapon(&"giant_sword".into()).unwrap().styles[1];
-    let at5: Vec<u32> = tempo.stats.iter().map(|s| s.by_level[4]).collect();
+    let counter = &ex.weapon(&"giant_sword".into()).unwrap().styles[1];
+    assert_eq!(counter.id.as_str(), "foresight_counter");
+    let at5: Vec<u32> = counter.stats.iter().map(|s| s.by_level[4]).collect();
     assert_eq!(at5, [165, 500, 100, 250]);
 }
 
