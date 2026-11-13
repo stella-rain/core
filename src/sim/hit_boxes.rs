@@ -439,6 +439,7 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
 
 /// The point run `r`'s hit box `h` is centred from: the target's `spot` for a target-anchored
 /// box that has one, else the run's own `at`, else `owner`'s position.
+#[inline(always)]
 pub(super) fn origin_of(s: &State, r: &super::state::AttackRun, h: &HitBox, owner: Who) -> Point {
     match (h.anchor(), r.spot) {
         (Anchor::Target, Some(spot)) => spot,
@@ -447,6 +448,7 @@ pub(super) fn origin_of(s: &State, r: &super::state::AttackRun, h: &HitBox, owne
 }
 
 /// The area of hit box `h` centred from `from` and facing `facing`.
+#[inline(always)]
 pub(super) fn area_of(h: &HitBox, from: Point, facing: Dir) -> Area {
     let at_offset = |offset: &Offset| centre(from, facing, offset.forward.0, offset.right.0);
     match h {
