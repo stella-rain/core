@@ -574,6 +574,8 @@
       "id": "elite_low",
       "enemy": {
         "base": "bat",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 24000,
         "radius": 3072,
         "profile": {
@@ -599,6 +601,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 50,
+                    "counterable": true,
                     "damage": 3000,
                     "spawn": [
                       {
@@ -643,6 +646,8 @@
       "id": "elite_mid",
       "enemy": {
         "base": "fairy_a",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 48000,
         "radius": 3072,
         "profile": {
@@ -668,6 +673,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 55,
+                    "counterable": true,
                     "damage": 4000,
                     "spawn": [
                       {
@@ -717,6 +723,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 50,
+                    "counterable": true,
                     "damage": 6000,
                     "move_pct": 0,
                     "spawn": [
@@ -779,6 +786,8 @@
       "id": "elite_high",
       "enemy": {
         "base": "horns_2",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 96000,
         "radius": 3072,
         "profile": {
@@ -804,6 +813,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 90,
+                    "counterable": true,
                     "move_pct": 50,
                     "damage": 4000,
                     "spawn": [
@@ -873,6 +883,8 @@
       "id": "elite_goblin",
       "enemy": {
         "base": "fairy_a",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 12000,
         "radius": 3072,
         "movement": {
@@ -905,6 +917,7 @@
           "guardians": {
             "enemy": {
               "base": "bat",
+              "poise": 0,
               "hp": 6000,
               "radius": 2048,
               "movement": {
@@ -983,6 +996,8 @@
       "id": "elite_leader",
       "enemy": {
         "base": "horns_2",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 48000,
         "radius": 3072,
         "profile": {
@@ -1008,6 +1023,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 50,
+                    "counterable": true,
                     "damage": 4000,
                     "spawn": [
                       {
@@ -1048,6 +1064,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 70,
+                    "counterable": true,
                     "damage": 4000,
                     "spawn": [
                       {
@@ -1095,6 +1112,7 @@
           "escort": {
             "enemy": {
               "base": "bat",
+              "poise": 0,
               "hp": 6000,
               "radius": 2048,
               "movement": {
@@ -1136,6 +1154,8 @@
       "id": "elite_mimic",
       "enemy": {
         "base": "fairy_a",
+        "poise": 100,
+        "stagger_max": 400,
         "hp": 48000,
         "radius": 3072,
         "profile": {
@@ -1161,6 +1181,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 40,
+                    "counterable": true,
                     "damage": 5000,
                     "spawn": [
                       {
@@ -1213,6 +1234,7 @@
                   {
                     "kind": "wind_up",
                     "ticks": 55,
+                    "counterable": true,
                     "damage": 4000,
                     "spawn": [
                       {
