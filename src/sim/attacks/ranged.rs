@@ -274,6 +274,8 @@ mod tests {
     #[test]
     fn g2_with_every_target_in_grace_nobody_is_granted_and_a_zero_grace_changes_nothing() {
         let (mut w, mut s, _) = party();
+        // The row absent: the bundled rules may name a grace, so this world has none.
+        w.tuning.ranged_grace_ticks = 0;
         let base = grants(&w, &mut s);
         assert!(!base.is_empty());
         for i in 0..2 {
