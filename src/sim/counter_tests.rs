@@ -483,7 +483,7 @@ fn the_taken_step_scales_the_fills_it_credits() {
         stagger: Stagger::default(),
     });
     let gauge = |s: &State| s.enemies[0].elite.as_ref().unwrap().stagger.gauge;
-    let mut fill = |state: &mut State, me: u8| {
+    let fill = |state: &mut State, me: u8| {
         state.enemies[0].elite.as_mut().unwrap().stagger.gauge = 0;
         super::stun::fill(
             world,
