@@ -1146,7 +1146,7 @@ fn assist() -> Definition {
     ];
     let stage = armed(
         stage_full(600, Some(boss_at(1_000_000, 40_000)), waves, vec![]),
-        json!({ "preset": { "id": "giant_sword" } }),
+        json!({ "inline": baseline_sword() }),
     );
     let inputs = (0..360)
         .map(|t| match t {
