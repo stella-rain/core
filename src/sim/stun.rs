@@ -9,7 +9,7 @@ use crate::id::EntityId;
 use crate::limits::MAX_STAGGER_BREAKS;
 use crate::sim::PlayerIdx;
 use crate::sim::state::{AgentState, Stagger, State, StatusKind, StatusState};
-use crate::sim::world::Tuning;
+use crate::sim::world::{AttackIndex, Tuning};
 use crate::validate::limits::MAX_STUN_TICKS;
 
 use super::attacks;
@@ -105,6 +105,45 @@ pub(super) fn apply(
         if pct > 0 {
             s.add_status(target, StatusKind::Vulnerable, source, pct, ticks, events);
         }
+    }
+}
+
+/// The counter (C05): a smash step of `me`'s hit `target`, an enemy, an elite, the boss or a part,
+/// during a `counterable` wind-up of `attack` (found before the hit by `attacks::counterable_run`).
+/// The attack is cancelled (the one cancel every control uses), `Countered` is reported, a regular
+/// enemy or an elite is stunned for the rules' `counter_stun_ticks` through `apply` (the elite's
+/// share, the control list and `vulnerable` all apply), and an elite or the boss gains
+/// `stagger_values.counter`. A target the hit killed is not countered.
+#[inline(never)]
+pub(super) fn counter(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    target: Who,
+    attack: AttackIndex,
+    events: &mut Vec<DomainEvent>,
+) {
+    let target = match target {
+        Who::BossPart(_) => Who::Boss,
+        other => other,
+    };
+    if !s.is_alive(target) {
+        return;
+    }
+    let owner = s.id_of(target);
+    let source = s.players.id(me);
+    attacks::cancel_runs_of(stage, s, owner);
+    events.push(DomainEvent::Countered {
+        attacker: owner,
+        player: me,
+        attack: stage.attacks[usize::from(attack.0)].preset_id.clone(),
+    });
+    let t = &stage.tuning;
+    if matches!(target, Who::Enemy(_)) && t.counter_stun_ticks > 0 {
+        apply(stage, s, target, source, t.counter_stun_ticks, events);
+    }
+    if t.stagger_counter > 0 {
+        fill(stage, s, target, me, t.stagger_counter, events);
     }
 }
 

@@ -13,7 +13,7 @@ use crate::match_ups::MatchUps;
 use crate::rewards::MAX_TYPE_BONUS_PCT;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AttackRun, AttackTask, Frame, Frames, Origin, Path, State};
-use crate::sim::world::RangedPool;
+use crate::sim::world::{AttackIndex, RangedPool};
 
 /// Every run goes on by a tick: to its next phase once the current one has lasted its ticks,
 /// or away after its last phase or when its attacker is gone. Called at the start of a tick,
@@ -185,6 +185,32 @@ pub(in crate::sim) fn cancel_runs_of(world: &World, s: &mut State, owner: Entity
     }
     retain_runs(s, |r| r.owner != owner);
     s.move_index.rebuild(world, &s.runs);
+}
+
+/// The attack `owner` is in a `counterable` wind-up of, when a smash that hits it now counters it:
+/// a hostile run of `owner` whose current phase is a counterable wind-up, and no cancel of
+/// `owner` is pending in this hit pass (a run an earlier swing already cancelled is countered
+/// once, by the first swing in the collision order).
+#[inline(never)]
+pub(in crate::sim) fn counterable_run(
+    world: &World,
+    s: &State,
+    owner: EntityId,
+) -> Option<AttackIndex> {
+    if s.scratch
+        .ends_pending
+        .iter()
+        .any(|e| matches!(e, RunEnd::Cancel(o) | RunEnd::All(o) if *o == owner))
+    {
+        return None;
+    }
+    s.runs
+        .iter()
+        .find(|r| {
+            let p = &compiled(world, r)[r.phase as usize];
+            r.owner == owner && !r.friendly && p.kind == PhaseKind::WindUp && p.counterable
+        })
+        .map(|r| r.attack)
 }
 
 /// The damage of run `r`'s current phase, for its hit box and the orbs it spawns: the
