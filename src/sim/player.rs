@@ -1361,8 +1361,11 @@ pub(super) fn rally_from_hit(
         p.combat.rally_ticks = rules.ticks;
     }
     if rally != was {
+        // A heal can leave more rally than the missing points a later hit allows: it is held.
         p.combat.rally = rally;
-        rally_gained(events, me, rally - was.min(rally), rally);
+        if rally > was {
+            rally_gained(events, me, rally - was, rally);
+        }
     }
 }
 
@@ -1531,7 +1534,8 @@ fn spend_gauge(
     }
     strike(stage, s, me, attack, 0, aim, events);
     if stage.has_trigger {
-        // After the slam's own attack began: it carries none of the state's range or damage.
+        // After the slam's own attack began: the first slam carries none of the state's range or
+        // damage (a restart's, made while it runs, does: `strike` reads the field).
         trigger_start(stage, s, me, events);
     }
     true

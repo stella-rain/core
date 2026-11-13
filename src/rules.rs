@@ -806,7 +806,7 @@ impl Rules {
 }
 
 impl RulesFile {
-    /// Which of the five perfect-evade keys the file names.
+    /// Which of the three rally keys the file names.
     fn rally_present(&self) -> [bool; 3] {
         [
             self.rally_pct.is_some(),
@@ -815,6 +815,7 @@ impl RulesFile {
         ]
     }
 
+    /// Which of the five perfect-evade keys the file names.
     fn perfect_evade_present(&self) -> [bool; 5] {
         [
             self.perfect_evade_window_ticks.is_some(),
