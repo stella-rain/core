@@ -123,7 +123,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     /// The first 16 hex of the SHA-256 over the old worst stage's JSON.
-    const WORST_STAGE_DIGEST: &str = "73facdda466281e0";
+    const WORST_STAGE_DIGEST: &str = "fe001eada0c1a953";
 
     #[test]
     fn the_old_worst_stage_keeps_its_digest() {

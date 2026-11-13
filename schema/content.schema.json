@@ -8001,6 +8001,16 @@
             "null"
           ]
         },
+        "ranged_grace_ticks": {
+          "description": "The ranged grace (`sim_version` 2): the ticks after a player is hit in which a regular\nenemy whose ranged rule targets that player may not be granted a ranged token (the token\ngoes to the next candidate): 1 to `MAX_RANGED_GRACE_TICKS` (600). Absent: no grace.",
+          "format": "uint16",
+          "maximum": 600,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "ranged_line_tokens": {
           "description": "Tokens of the line attacks' pool: at least 1; the two pools sum to at most 4.",
           "format": "uint32",

@@ -136,6 +136,7 @@ pub(super) fn update(
     // The timers run for a downed or out player too.
     let p = &mut s.players[me];
     p.invulnerable = p.invulnerable.saturating_sub(1);
+    p.combat.ranged_grace = p.combat.ranged_grace.saturating_sub(1);
     for t in &mut p.evade_recovering {
         *t -= 1;
     }

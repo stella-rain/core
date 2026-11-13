@@ -11,6 +11,19 @@ use super::boss;
 use super::entity::Who;
 use super::spawn_enemy;
 
+/// Whether rule `rule_index` of `me` is held to the view (an elite's or a companion's that lays
+/// something or casts a `Shot`, `AgentDef::view_barred`) and `me` stands outside it. The crowd's
+/// rules pay one `get` on an empty list.
+fn barred_off_view(stage: &World, s: &State, me: Who, rule_index: usize) -> bool {
+    let (def, at) = match me {
+        Who::Enemy(i) => (s.enemies[i].def, s.enemies[i].at),
+        Who::Companion(i) => (s.companions[i].def, s.companions[i].at),
+        _ => return false,
+    };
+    stage.defs.get(def).view_barred.get(rule_index) == Some(&true)
+        && attacks::outside_view(stage, s, at)
+}
+
 /// Does the action for rule `rule_index` of `me`, aimed at `target`. False if this version
 /// cannot do it, in which case the rule does not fire and the next one gets its turn.
 pub(super) fn perform(
@@ -39,6 +52,10 @@ pub(super) fn perform(
                     .flatten(),
                 _ => None,
             };
+            // The view bar: an elite's or a companion's start that lays something waits off view.
+            if barred_off_view(stage, s, me, rule_index) {
+                return false;
+            }
             let ranged = pool.is_some();
             if let Some(pool) = pool
                 && !attacks::ranged_may_start(stage, s, s.id_of(me), pool)
@@ -63,7 +80,9 @@ pub(super) fn perform(
             started
         }
         Action::Cast { skill } => {
-            if matches!(skill, Skill::Shot { .. }) && attacks::busy(s, s.id_of(me), 0) {
+            if matches!(skill, Skill::Shot { .. })
+                && (attacks::busy(s, s.id_of(me), 0) || barred_off_view(stage, s, me, rule_index))
+            {
                 return false;
             }
             cast(stage, s, me, target, skill, events);
