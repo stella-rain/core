@@ -582,6 +582,7 @@ impl RigRun {
                         // 30% of max hit points, at once.
                         t.revived_have_hp &= e.snapshot().players[player.get()].hp > 0;
                     }
+                    DomainEvent::GaugeSpent { .. } => t.gauge_spent += 1,
                     DomainEvent::PlayerOut { .. } => {
                         t.out += 1;
                         t.first_out.get_or_insert(tick);
@@ -597,7 +598,7 @@ impl RigRun {
 /// Which predicate of a building rig case `replay` (a party of `n`) misses, if any: a run still
 /// `Running` of 3000 ticks and under 64 KiB that verifies to its final hash, every slot with an
 /// `Equip` and an `Extract`; the party of 1 also a `Craft` and a `TreePick`, the party of 3 also
-/// a `Replace` by some slot.
+/// a `Replace` by some slot, and some slot spends its gauge (`GaugeSpent`).
 pub fn rig_builds_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
     use stella_rain_core::engine::Outcome;
     let bytes = replay.to_bytes();
@@ -620,6 +621,9 @@ pub fn rig_builds_miss(replay: &RunReplay, n: u8) -> Option<&'static str> {
     }
     if n == 3 && per.iter().all(|c| c.replace == 0) {
         return Some("a replace");
+    }
+    if RigRun::of(replay).tally(replay).gauge_spent == 0 {
+        return Some("some slot spends its gauge");
     }
     None
 }
@@ -679,6 +683,8 @@ pub struct RigTally {
     pub revived_were_down: bool,
     /// Every revived player has hit points on the snapshot right after.
     pub revived_have_hp: bool,
+    /// The `GaugeSpent` events of the run: full-gauge smashes (ADR-SIM-9).
+    pub gauge_spent: u32,
 }
 
 impl Default for RigTally {
@@ -693,6 +699,7 @@ impl Default for RigTally {
             revivers: Vec::new(),
             revived_were_down: true,
             revived_have_hp: true,
+            gauge_spent: 0,
         }
     }
 }
@@ -1458,6 +1465,158 @@ mod rig {
             .find(|c| c.changes.iter().any(|(_, c)| matches!(c, Change::Join(_))))
             .unwrap();
         let _ = RigRun::of(&case.play().replay());
+    }
+}
+
+#[cfg(test)]
+mod gauge {
+    //! The building bot spends a full gauge and picks its style by seed (ADR-SIM-9).
+    use super::*;
+    use stella_rain_core::engine::Outcome;
+
+    fn building(seed: u64) -> PartyBot {
+        PartyBot::building(seed)
+    }
+
+    fn full() -> Sight {
+        Sight {
+            up: true,
+            gauge_full: true,
+            ..Sight::default()
+        }
+    }
+
+    #[test]
+    fn a_full_gauge_smashes_two_ticks_in_eight() {
+        let bot = building(7);
+        for slot in 0..3u8 {
+            for t in 0..80u32 {
+                let want = (u64::from(t) + bot.phase(slot)) % 8 < 2;
+                assert_eq!(bot.decide(&full(), slot, t).smash, want, "slot {slot} t {t}");
+            }
+        }
+    }
+
+    #[test]
+    fn without_a_full_gauge_nothing_else_changes_and_it_never_smashes() {
+        let bot = building(7);
+        let up = Sight {
+            up: true,
+            ..Sight::default()
+        };
+        for t in 0..3000u32 {
+            let i = bot.decide(&up, 0, t);
+            assert!(!i.smash, "t {t}");
+            assert_eq!(i.main, (u64::from(t) + bot.phase(0)) % 40 < 5);
+            assert_eq!(i.skill, (u64::from(t) + bot.skill_phase(0)) % 90 < 30);
+        }
+    }
+
+    #[test]
+    fn a_bot_that_does_not_build_never_smashes() {
+        let bot = PartyBot {
+            seed: 7,
+            builds: false,
+        };
+        for t in 0..80u32 {
+            assert!(!bot.decide(&full(), 0, t).smash, "t {t}");
+        }
+    }
+
+    fn engine_of(weapon: &str, world: u64) -> Engine {
+        let mut setup = RigParty::new(1).equipment().seed(world).case("x").setup;
+        setup.weapon = weapon.into();
+        Engine::start_party_with(&setup, Pack::bundled().content(), 1).unwrap()
+    }
+
+    /// Plays slot 0 with `bot` until its first tree point is taken: the style offered, the
+    /// option taken and what `check_action` said.
+    fn first_style_pick(engine: &mut Engine, bot: &PartyBot) -> (usize, usize) {
+        for t in 0..3000u32 {
+            let view = engine.snapshot().players[0].tree_ready.clone();
+            let a = bot.action(engine, 0, t);
+            if let (Some(EquipAction::TreePick { option }), Some(ready)) = (a, view) {
+                assert!(
+                    engine
+                        .check_action(PlayerIdx::new(0).unwrap(), a.unwrap())
+                        .is_ok()
+                );
+                return (usize::from(option), ready.options.len());
+            }
+            if let Some(a) = a {
+                engine.act(PlayerIdx::new(0).unwrap(), a).unwrap();
+            }
+            let input = bot.input(engine, 0, t);
+            engine.step(&[input, Input::default(), Input::default()]);
+        }
+        panic!("no tree pick in 3000 ticks");
+    }
+
+    #[test]
+    fn the_style_is_picked_by_the_seed_and_every_style_occurs() {
+        for weapon in ["giant_sword", "giant_hammer"] {
+            let mut seen = std::collections::BTreeSet::new();
+            for seed in 1..=20u64 {
+                let bot = building(seed);
+                let mut e = engine_of(weapon, 1);
+                let (option, len) = first_style_pick(&mut e, &bot);
+                assert!(len >= 2, "{weapon}: a style has options");
+                assert_eq!(
+                    option,
+                    usize::try_from(mix(seed, 0, 5) % len as u64).unwrap(),
+                    "{weapon} seed {seed}"
+                );
+                seen.insert(option);
+            }
+            assert_eq!(seen.len(), 3, "{weapon}: all three styles over 20 seeds");
+        }
+    }
+
+    #[test]
+    fn a_run_that_may_pick_one_style_takes_option_zero() {
+        let mut setup = RigParty::new(1).equipment().seed(1).case("x").setup;
+        setup.unlocked_styles = Some(vec!["foresight_counter".into()]);
+        for seed in 1..=20u64 {
+            let mut e = Engine::start_party_with(&setup, Pack::bundled().content(), 1).unwrap();
+            let (option, _) = first_style_pick(&mut e, &building(seed));
+            assert_eq!(option, 0, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn sight_reads_the_gauge_full() {
+        let bot = building(1);
+        let mut e = engine_of("giant_sword", 2);
+        let mut seen_full = false;
+        for t in 0..3000u32 {
+            let g = e.snapshot().players[0].gauge.clone();
+            assert_eq!(
+                sight(&e, 0).gauge_full,
+                g.is_some_and(|g| g.max > 0 && g.value >= g.max),
+                "t {t}"
+            );
+            seen_full |= sight(&e, 0).gauge_full;
+            if let Some(a) = bot.action(&e, 0, t) {
+                e.act(PlayerIdx::new(0).unwrap(), a).unwrap();
+            }
+            let input = bot.input(&e, 0, t);
+            e.step(&[input, Input::default(), Input::default()]);
+        }
+        assert!(seen_full, "the gauge fills in 3000 ticks");
+    }
+
+    #[test]
+    fn the_rig_spends_its_gauge_and_replays_to_its_hashes() {
+        let replay = crate::run_play::equipment_rig(1).play().replay();
+        let tally = RigRun::of(&replay).tally(&replay);
+        assert!(tally.gauge_spent >= 1, "spent {}", tally.gauge_spent);
+        assert_eq!(rig_builds_miss(&replay, 1), None);
+        assert_eq!(
+            stella_rain_core::run_replay::verify_run(&replay.to_bytes())
+                .unwrap()
+                .outcome,
+            Outcome::Running
+        );
     }
 }
 
