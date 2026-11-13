@@ -452,6 +452,13 @@ pub(crate) struct Tuning {
     pub vulnerable_stagger_pct: u16,
     /// The orb clear's radius in 1/256 px, clamped to the cap; 0: no clear (`sim_version` 2).
     pub orb_clear_radius: i32,
+    /// The knockdown: the ticks a smash's knockback keeps a regular enemy down (0: no knockdown),
+    /// the percent a smash hit on it deals more, the `vulnerable` percent it puts, and what a
+    /// resisted knockback adds to a stagger gauge for it.
+    pub down_ticks: u16,
+    pub down_bonus_pct: u32,
+    pub vulnerable_down_pct: u16,
+    pub stagger_down: u32,
 }
 
 impl Tuning {
@@ -518,6 +525,11 @@ impl Tuning {
             vulnerable_stagger_pct: u16::try_from(rules.vulnerable_stagger_pct())
                 .unwrap_or(u16::MAX),
             orb_clear_radius: rules.orb_clear_radius().map_or(0, |r| r.0),
+            down_ticks: rules.down_ticks(),
+            down_bonus_pct: rules.down_bonus_pct(),
+            vulnerable_down_pct: u16::try_from(rules.vulnerable_knockdown_pct())
+                .unwrap_or(u16::MAX),
+            stagger_down: rules.knockdown_stagger_value(),
         }
     }
 }
@@ -578,6 +590,8 @@ pub(crate) struct World {
     pub has_advance: bool,
     /// Some elite or boss of the run names a `stagger_max`: the stagger rules run only then.
     pub has_stagger: bool,
+    /// The rules name `down_ticks`: the knockdown rules run only then.
+    pub has_down: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -771,6 +785,7 @@ impl World {
             has_dash: false,
             has_advance: false,
             has_stagger: false,
+            has_down: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -794,6 +809,7 @@ impl World {
             .defs_iter()
             .any(|d| d.agent.stagger_max.is_some())
             || world.bosses.iter().any(|b| b.boss.stagger_max.is_some());
+        world.has_down = world.tuning.down_ticks > 0;
         Ok(world)
     }
 

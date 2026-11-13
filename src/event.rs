@@ -146,6 +146,10 @@ pub enum DomainEvent {
     StaggerEnded {
         target: EntityId,
     },
+    /// `target`'s knockdown ran out: the enemy acts again unless a stun still holds it.
+    KnockdownEnded {
+        target: EntityId,
+    },
     /// The main character started an evade.
     Evaded,
     /// The main character used its stage skill, at `level`.

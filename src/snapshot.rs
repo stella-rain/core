@@ -874,8 +874,8 @@ pub struct EntityView {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub damage_over_time: Vec<DamageOverTimeView>,
     /// Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,
-    /// `bleed`, `poison`, `burn`, `stun`, `flinch` and `aura`, each with `remaining` and `total`
-    /// ticks; `flinch` is the enemy's own control state, shown as a status.
+    /// `bleed`, `poison`, `burn`, `stun`, `flinch`, `knocked_down` and `aura`, each with `remaining` and
+    /// `total` ticks; `flinch` and `knocked_down` are the enemy's own control state, shown as statuses.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub statuses: Vec<StatusView>,
     /// A shrine's running fight: the ticks left before it leaves unkilled.
@@ -905,7 +905,7 @@ pub struct Countdown {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StatusView {
-    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `staggered`, `bleed`, `poison`, `burn`, or
+    /// The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `knocked_down`, `staggered`, `bleed`, `poison`, `burn`, or
     /// `aura` for a pack leader's aura, which has no content ID of its own.
     pub id: ContentId,
     /// Ticks left. An aura has none: it lasts while its entity is in reach, so both this and

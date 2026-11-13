@@ -39,8 +39,8 @@ use sha2::{Digest, Sha256};
 
 use crate::fixed::Fx;
 use crate::limits::{
-    MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_FLINCH_IMMUNE_TICKS, MAX_FLINCH_TICKS,
-    MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
+    MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_DOWN_TICKS, MAX_FLINCH_IMMUNE_TICKS,
+    MAX_FLINCH_TICKS, MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
     MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, MAX_STAGGER,
     MAX_STAGGER_DRAIN_TICKS, MAX_STAGGER_REFILLS, MAX_STAGGERED_TICKS, VIEW_HALF_HEIGHT,
     VIEW_HALF_WIDTH,
@@ -103,6 +103,11 @@ pub struct VulnerablePcts {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
     pub stagger: Option<u32>,
+    /// A knockdown puts `vulnerable` of this many percent on the downed enemy for the knockdown's
+    /// own ticks: 1 to `limits::MAX_PCT` (1,000). Only with `down_ticks`. Absent: none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub knockdown: Option<u32>,
 }
 
 /// What a resisted control adds to a stagger gauge, by kind of control (each 1 to
@@ -122,6 +127,11 @@ pub struct StaggerValues {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
     pub knockback: Option<u32>,
+    /// What a knockback adds on top of its own value when an elite, the boss or a part resists it
+    /// (a knockback that would have knocked a regular enemy down). Only with `down_ticks`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub knockdown: Option<u32>,
 }
 
 /// The rules file.
@@ -263,6 +273,16 @@ pub struct RulesFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
     pub stagger_damage_pct: Option<u32>,
+    /// The ticks a regular enemy lies knocked down when a smash's knockback lands on it: 1 to
+    /// `limits::MAX_DOWN_TICKS` (180). `sim_version` 2 only. Absent: a knockback is a push only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_DOWN_TICKS))]
+    pub down_ticks: Option<u16>,
+    /// The percent a smash hit on a knocked-down enemy deals more: 1 to `limits::MAX_PCT`
+    /// (1,000). Only with `down_ticks`. Absent: none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub down_bonus_pct: Option<u32>,
     /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
     /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
     /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
@@ -486,6 +506,35 @@ impl Rules {
             .vulnerable_pcts
             .as_ref()
             .and_then(|v| v.stagger)
+            .unwrap_or(0)
+    }
+
+    /// The ticks a knockdown lasts; 0 when absent (no knockdown).
+    pub fn down_ticks(&self) -> u16 {
+        self.file.down_ticks.unwrap_or(0)
+    }
+
+    /// The percent a smash hit on a knocked-down enemy deals more; 0 when absent.
+    pub fn down_bonus_pct(&self) -> u32 {
+        self.file.down_bonus_pct.unwrap_or(0)
+    }
+
+    /// The `vulnerable` percent a knockdown puts on its target; 0 when absent.
+    pub fn vulnerable_knockdown_pct(&self) -> u32 {
+        self.file
+            .vulnerable_pcts
+            .as_ref()
+            .and_then(|v| v.knockdown)
+            .unwrap_or(0)
+    }
+
+    /// What a resisted knockback adds to a stagger gauge for the knockdown it would have been;
+    /// 0 when absent.
+    pub fn knockdown_stagger_value(&self) -> u32 {
+        self.file
+            .stagger_values
+            .as_ref()
+            .and_then(|v| v.knockdown)
             .unwrap_or(0)
     }
 
@@ -731,6 +780,8 @@ fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
             file.stagger_drain_per_tick.is_some(),
         ),
         ("$.stagger_damage_pct", file.stagger_damage_pct.is_some()),
+        ("$.down_ticks", file.down_ticks.is_some()),
+        ("$.down_bonus_pct", file.down_bonus_pct.is_some()),
     ];
     named
         .into_iter()
@@ -1062,6 +1113,44 @@ fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
         );
     }
     validate_stagger_keys(file, issues);
+    validate_knockdown_keys(file, issues);
+}
+
+/// The checks of the knockdown keys: each bound, and the three partner keys need `down_ticks`.
+fn validate_knockdown_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
+    if let Some(n) = file.down_ticks {
+        within(
+            issues,
+            "down_ticks",
+            i64::from(n),
+            1,
+            i64::from(MAX_DOWN_TICKS),
+        );
+    }
+    let partners = [
+        ("down_bonus_pct", file.down_bonus_pct, MAX_PCT),
+        (
+            "vulnerable_pcts.knockdown",
+            file.vulnerable_pcts.as_ref().and_then(|v| v.knockdown),
+            MAX_PCT,
+        ),
+        (
+            "stagger_values.knockdown",
+            file.stagger_values.as_ref().and_then(|v| v.knockdown),
+            MAX_STAGGER,
+        ),
+    ];
+    for (field, value, most) in partners {
+        let Some(n) = value else { continue };
+        if file.down_ticks.is_none() {
+            issues.push(Issue {
+                path: format!("$.{field}"),
+                message: "needs down_ticks".into(),
+            });
+        } else {
+            within(issues, field, i64::from(n), 1, i64::from(most));
+        }
+    }
 }
 
 /// The checks of the stagger keys: each bound, and the drain pair together.
