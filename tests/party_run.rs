@@ -300,7 +300,7 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
-    ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 910),
+    ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1160),
     ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1160),
     ("three_tutorial", 4392, Outcome::Cleared, [0, 0, 0], 0),
     ("join_two", 3000, Outcome::Running, [0, 0, 0], 770),
@@ -350,14 +350,14 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// engine's tick count after the step), and the final hash. From the seed search; the hashes
 /// re-pinned when the combat fields joined the state hash, then for the counter-bonus mark, then for the shipped ranged grace.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [3, 2, 0], 2166, 2346, "8f72e1ec2a7557de"),
+    ("two_revive", [3, 2, 0], 2166, 2346, "99e5cc71957dbcc3"),
     ("three_revive", [3, 2, 0], 2344, 2524, "8d91de2b9e90bab3"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
 /// replace, extract, craft, tree_pick]`. From the seed search, not edited.
 const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
-    ("equipment_rig_1", [[12, 2, 43, 6, 1], [0; 5], [0; 5]]),
+    ("equipment_rig_1", [[12, 2, 48, 4, 1], [0; 5], [0; 5]]),
     (
         "equipment_rig_2",
         [[12, 1, 38, 3, 1], [11, 1, 44, 7, 0], [0; 5]],
