@@ -274,3 +274,22 @@ fn the_player_view_shows_the_slow_and_the_cooldown() {
     c.perfect_cooldown = 300;
     assert!(view(&none, 0).get("perfect_evade").is_none(), "no rule");
 }
+
+#[test]
+fn the_shipped_rules_arm_the_perfect_evade_and_the_orb_clear() {
+    let mut e = worst_case::warmed_up();
+    let Run::V2 { world, .. } = e.run_mut() else {
+        panic!("the live rules");
+    };
+    assert_eq!(
+        world.tuning.perfect_evade,
+        Some(PerfectEvade {
+            window_ticks: 6,
+            slow_ticks: 90,
+            cooldown_ticks: 300,
+            reach: 51_200,
+            slow_every: 2,
+        })
+    );
+    assert_eq!(world.tuning.orb_clear_radius, 25_600);
+}
