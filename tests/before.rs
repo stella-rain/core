@@ -31,7 +31,6 @@ fn json_of(bytes: &[u8]) -> Value {
 }
 
 /// The bundled pack as JSON with the old content patched in.
-#[allow(dead_code)]
 pub fn pack_value() -> Value {
     let mut v: Value = json_of(Pack::BUNDLED);
     v["expertise"] = json_of(EXPERTISE);
@@ -68,39 +67,33 @@ pub fn pack_value() -> Value {
 }
 
 /// `pack_value` as the bytes of a pack.
-#[allow(dead_code)]
 pub fn pack_bytes() -> &'static [u8] {
     static BYTES: OnceLock<Vec<u8>> = OnceLock::new();
     BYTES.get_or_init(|| serde_json::to_vec(&pack_value()).expect("the pack serialises"))
 }
 
 /// `pack_value` as a loaded pack.
-#[allow(dead_code)]
 pub fn pack() -> &'static Pack {
     static PACK: OnceLock<Pack> = OnceLock::new();
     PACK.get_or_init(|| Pack::from_bytes(pack_bytes()).expect("the old-content pack loads"))
 }
 
 /// The pack's run content.
-#[allow(dead_code)]
 pub fn content() -> &'static RunContent {
     pack().content()
 }
 
 /// The old styles, parsed.
-#[allow(dead_code)]
 pub fn expertise() -> &'static Expertise {
     content().expertise()
 }
 
 /// `Engine::start` on the old content.
-#[allow(dead_code)]
 pub fn start(setup: &RunSetup) -> Result<Engine, Error> {
     Engine::start_with(setup, content())
 }
 
 /// A stage's weapon holding the old base tree of `id` inline, as the weapons file stores it.
-#[allow(dead_code)]
 pub fn inline_weapon(id: &str) -> Value {
     let v = pack_value();
     let weapon = v["weapons"]["weapons"]
