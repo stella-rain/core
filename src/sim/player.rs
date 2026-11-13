@@ -39,7 +39,16 @@
 //! the run's cap (`tempo_speed_pct`), so a step, each loop of a hold and a release take the
 //! stacks held at their start. `tempo_lose` empties them: a combo reset away from the middle of
 //! a combo (`combo_reset`), a smash press after the smash itself started (`tempo_on_smash`;
-//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`), a down and another style.
+//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`; not under `tempo_armoured`,
+//! full stacks in a held hold with `super_armour_at_full`), a down and another style.
+//!
+//! The giant trigger (when the style names the `giant_trigger` kind): `spend_gauge` starts it
+//! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
+//! in `update`, `strike` adds its range percent to every step and its smash percent to a smash
+//! step when they start, `super_armour` reads `trigger_armoured`, and `stand_down` ends it.
+//! The rally (when the rules name it): `rally_from_hit` from `hurt_player`, `rally_win_back` from
+//! `collide::damage`, `rally_tick` in `update`, `rally_lapse` on a down, `rally_clamp` where the
+//! most hit points fall.
 //!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
@@ -154,6 +163,14 @@ pub(super) fn update(
     // The spirit's countdown runs for a downed player too, and is read before this tick's press.
     if stage.has_spirit {
         spirit_tick(stage, s, me, events);
+    }
+    // So is the giant trigger's.
+    if stage.has_trigger {
+        trigger_tick(s, me, events);
+    }
+    // The rally's countdown too (ADR-SIM-9).
+    if stage.tuning.rally.is_some() {
+        rally_tick(s, me, events);
     }
     if !s.players[me].is_up() {
         return;
@@ -633,6 +650,16 @@ pub(super) fn tempo_lose(
         c.combo_tempo = 0;
         tempo_lost(events, me);
     }
+}
+
+/// Whether `me`'s stacks are full in a held hold and its tempo names the armour: the combo tempo's
+/// condition of `super_armour`, and the one armour that shelters the stacks from a hit.
+pub(super) fn tempo_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage.has_tempo
+        && s.players[me].combo.hold.is_some()
+        && stage
+            .tempo_of(s, me)
+            .is_some_and(|g| g.hold_armour && s.players[me].combat.combo_tempo == g.max_stacks)
 }
 
 /// The attack speed the stacks of `me` give, in percent, before the run's cap: 0 after one bool
@@ -1245,6 +1272,193 @@ fn spirit_restart(stage: &World, s: &mut State, me: PlayerIdx) {
     }
 }
 
+/// `me`'s full-gauge smash started its giant trigger: it runs the grant's ticks from now (a second
+/// one while it runs starts the count again) (ADR-SIM-9).
+fn trigger_start(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let Some(g) = stage.trigger_of(s, me) else {
+        return;
+    };
+    s.players[me].combat.giant_trigger = g.ticks;
+    trigger_started(events, me, g.ticks);
+}
+
+/// One tick of the giant trigger: it ends on the tick it reaches 0.
+fn trigger_tick(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.players[me].combat;
+    if c.giant_trigger == 0 {
+        return;
+    }
+    c.giant_trigger -= 1;
+    if c.giant_trigger == 0 {
+        trigger_ended(events, me);
+    }
+}
+
+/// A down ends the giant trigger at once.
+fn trigger_end(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.players[me].combat;
+    if c.giant_trigger > 0 {
+        c.giant_trigger = 0;
+        trigger_ended(events, me);
+    }
+}
+
+/// Whether `me`'s giant trigger runs and names super armour: the one more condition of
+/// `super_armour`.
+fn trigger_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage.has_trigger
+        && s.players[me].combat.giant_trigger > 0
+        && stage.trigger_of(s, me).is_some_and(|g| g.super_armour)
+}
+
+/// `me`'s giant trigger started, running `ticks`. Cold: a run with no trigger never calls it.
+#[cold]
+#[inline(never)]
+fn trigger_started(events: &mut Vec<DomainEvent>, me: PlayerIdx, ticks: u16) {
+    events.push(DomainEvent::TriggerStarted {
+        player: me,
+        ticks: u32::from(ticks),
+    });
+}
+
+/// `me`'s giant trigger ended. Cold, as `trigger_started`.
+#[cold]
+#[inline(never)]
+fn trigger_ended(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::TriggerEnded { player: me });
+}
+
+/// A hit took `lost` hit points from `me` (after the absorb and the defence): `pct` percent of them
+/// stay as rally, times the giant trigger's factor while it runs, up to the hit points `me` is
+/// missing, and the rally's ticks start again (ADR-SIM-9). Nothing for a hit that took none or a
+/// player at 0 hit points.
+pub(super) fn rally_from_hit(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    lost: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    let Some(rules) = stage.tuning.rally else {
+        return;
+    };
+    if lost == 0 || s.players[me].hp == 0 {
+        return;
+    }
+    let factor = if s.players[me].combat.giant_trigger > 0 {
+        stage.trigger_of(s, me).map_or(100, |g| g.rally_pct)
+    } else {
+        100
+    };
+    let added = u64::from(lost) * u64::from(rules.pct) * u64::from(factor) / 10_000;
+    let p = &mut s.players[me];
+    let was = p.combat.rally;
+    let missing = p.max_hp.saturating_sub(p.hp);
+    let rally = was
+        .saturating_add(u32::try_from(added).unwrap_or(u32::MAX))
+        .min(missing);
+    if rally > 0 {
+        p.combat.rally_ticks = rules.ticks;
+    }
+    if rally != was {
+        // A heal can leave more rally than the missing points a later hit allows: it is held.
+        p.combat.rally = rally;
+        if rally > was {
+            rally_gained(events, me, rally - was, rally);
+        }
+    }
+}
+
+/// A combo hit of `me` dealt `dealt` damage to a foe: `regain_pct` percent of it is won back from
+/// the rally as hit points, never more than the rally or the hit points missing (ADR-SIM-9).
+pub(super) fn rally_win_back(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    dealt: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    let Some(rules) = stage.tuning.rally else {
+        return;
+    };
+    let p = &mut s.players[me];
+    if dealt == 0 || p.combat.rally == 0 || !p.is_up() {
+        return;
+    }
+    let back = u64::from(dealt) * u64::from(rules.regain_pct) / 100;
+    let won = u32::try_from(back)
+        .unwrap_or(u32::MAX)
+        .min(p.combat.rally)
+        .min(p.max_hp.saturating_sub(p.hp));
+    if won == 0 {
+        return;
+    }
+    p.hp += won;
+    p.combat.rally -= won;
+    if p.combat.rally == 0 {
+        p.combat.rally_ticks = 0;
+    }
+    rally_won(events, me, won, p.combat.rally);
+}
+
+/// One tick of the rally's countdown: when it reaches 0 the rest is lost.
+fn rally_tick(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if s.players[me].combat.rally_ticks == 0 {
+        return;
+    }
+    s.players[me].combat.rally_ticks -= 1;
+    if s.players[me].combat.rally_ticks == 0 {
+        rally_lapse(s, me, events);
+    }
+}
+
+/// The rest of `me`'s rally is lost (its ticks ran out or it went down).
+fn rally_lapse(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    let c = &mut s.players[me].combat;
+    c.rally_ticks = 0;
+    if c.rally > 0 {
+        c.rally = 0;
+        rally_lapsed(events, me);
+    }
+}
+
+/// Keeps `p`'s rally within its most hit points, the invariant the savepoint's decode checks. A
+/// player with no rally is untouched.
+pub(super) fn rally_clamp(p: &mut PlayerState) {
+    if p.combat.rally > p.max_hp {
+        p.combat.rally = p.max_hp;
+    }
+}
+
+/// `me`'s hit left `amount` more rally, `rally` in all. Cold: a run with no rally never calls it.
+#[cold]
+#[inline(never)]
+fn rally_gained(events: &mut Vec<DomainEvent>, me: PlayerIdx, amount: u32, rally: u32) {
+    events.push(DomainEvent::RallyGained {
+        player: me,
+        amount,
+        rally,
+    });
+}
+
+/// `me`'s combo hit won `amount` hit points back, `rally` left. Cold, as `rally_gained`.
+#[cold]
+#[inline(never)]
+fn rally_won(events: &mut Vec<DomainEvent>, me: PlayerIdx, amount: u32, rally: u32) {
+    events.push(DomainEvent::RallyWon {
+        player: me,
+        amount,
+        rally,
+    });
+}
+
+/// The rest of `me`'s rally was lost. Cold, as `rally_gained`.
+#[cold]
+#[inline(never)]
+fn rally_lapsed(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::RallyLapsed { player: me });
+}
+
 /// One tick of the countdown: at 0 the level drops by one and, while above 0, counts again.
 fn spirit_tick(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     if s.players[me].combat.spirit_decay == 0 {
@@ -1319,6 +1533,11 @@ fn spend_gauge(
         spirit_raise(stage, s, me, events);
     }
     strike(stage, s, me, attack, 0, aim, events);
+    if stage.has_trigger {
+        // After the slam's own attack began: the first slam carries none of the state's range or
+        // damage (a restart's, made while it runs, does: `strike` reads the field).
+        trigger_start(stage, s, me, events);
+    }
     true
 }
 
@@ -1371,6 +1590,15 @@ fn strike(
     }
     if let Some(fx) = counter_taken(stage, s, me) {
         bonus_pct = bonus_pct.saturating_add(fx.damage_pct);
+    }
+    if stage.has_trigger && s.players[me].combat.giant_trigger > 0 {
+        // Fixed when the attack starts, as the spirit's and the counter's are.
+        if let Some(g) = stage.trigger_of(s, me) {
+            range_pct = range_pct.saturating_add(g.range_pct);
+            if last_press_smash(&s.players[me].combo) {
+                bonus_pct = bonus_pct.saturating_add(g.smash_pct);
+            }
+        }
     }
     let strike = attacks::Strike {
         bonus_pct,
@@ -1578,6 +1806,9 @@ pub(super) fn stand_down(
     s.players[me].combat.counter_bonus_step = 0;
     // A downed player holds no stacks, and a revive does not resume them.
     tempo_lose(stage, s, me, events);
+    // Nor a giant trigger, nor a rally.
+    trigger_end(s, me, events);
+    rally_lapse(s, me, events);
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer.
@@ -1646,8 +1877,12 @@ pub(crate) fn hold_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u32,
 /// Whether `me` has super armour: a `breaks_charge` hit does not break its charge or hold. Derived,
 /// never state: its charge is at level 2 or more (by hand, or the level auto mode recorded), or its
 /// running combo step is a smash step in an active phase (a hold's loop). The one place a later
-/// condition is added.
+/// condition is added: the giant trigger's (`trigger_armoured`) and the combo tempo's
+/// (`tempo_armoured`) are two.
 pub(super) fn super_armour(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    if trigger_armoured(stage, s, me) || tempo_armoured(stage, s, me) {
+        return true;
+    }
     let c = &s.players[me].combo;
     if let (Some(held), Some(charge)) = (c.charge, current_charge(stage, s, me)) {
         if level_at(charge, held) >= 2 {

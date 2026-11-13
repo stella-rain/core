@@ -128,7 +128,7 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
 /// `text` without the fields added to views, while they are empty (every added feature is
 /// dormant): `TreeReadyView.kinds`, `TreeStatsView.grants` (the style kinds) and
 /// `threat_colour` of `AttackView` and `ZoneView` (the threat colours), `gauge`,
-/// `spirit`, `counter`, `tempo` and `perfect_evade` of `PlayerView` (the weapon gauge, the spirit level, the counter window, the combo tempo and the perfect evade), `stagger` and
+/// `spirit`, `counter`, `tempo`, `trigger`, `rally` and `perfect_evade` of `PlayerView` (the weapon gauge, the spirit level, the counter window, the combo tempo, the giant trigger, the rally and the perfect evade), `stagger` and
 /// `stagger_max` of `EntityView` (the stagger gauge), and `repeat: false` of a `Hit` event (the
 /// step repeat), `counterable: false` of an `AttackView` and `super_armour` of a `PlayerView`
 /// (the counter and super armour; the armour flag is derived from the charge and the running
@@ -148,7 +148,7 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
         .replace(
-            ", gauge: None, spirit: None, counter: None, tempo: None, perfect_evade: None",
+            ", gauge: None, spirit: None, counter: None, tempo: None, trigger: None, rally: None, perfect_evade: None",
             "",
         )
         .replace(", player: Some(First) }", " }")

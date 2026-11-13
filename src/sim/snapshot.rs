@@ -275,6 +275,18 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             max_stacks: u32::from(g.max_stacks),
             speed_pct: u32::from(s.players[me].combat.combo_tempo) * g.speed_pct,
         }),
+        trigger: world
+            .trigger_of(s, me)
+            .map(|g| crate::snapshot::TriggerView {
+                ticks_left: u32::from(s.players[me].combat.giant_trigger),
+                ticks: u32::from(g.ticks),
+            }),
+        rally: (world.tuning.rally.is_some() && s.players[me].combat.rally > 0).then(|| {
+            crate::snapshot::RallyView {
+                hp: s.players[me].combat.rally,
+                ticks_left: u32::from(s.players[me].combat.rally_ticks),
+            }
+        }),
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {

@@ -30,7 +30,7 @@
 use super::World;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
-    TABLE_LEVELS, TempoEffect, WeaponExpertise,
+    TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
@@ -469,7 +469,11 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
-        if (stage.has_gauge || stage.has_spirit || stage.has_counter_bonus || stage.has_tempo)
+        if (stage.has_gauge
+            || stage.has_spirit
+            || stage.has_counter_bonus
+            || stage.has_tempo
+            || stage.has_trigger)
             && was.0 != Some(at)
         {
             // The new style's bar starts empty; a style with no gauge reads empty, its spirit
@@ -483,6 +487,8 @@ pub(super) fn tree_pick(
             player.combat.spirit_decay = 0;
             // And the old style's combo tempo stacks.
             player.combat.combo_tempo = 0;
+            // And its giant trigger's ticks, with no event.
+            player.combat.giant_trigger = 0;
         }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
@@ -625,10 +631,41 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     .iter()
                     .find_map(|e| match e {
                         TempoEffect::SpeedPct { pct } => Some(*pct),
-                        TempoEffect::KeepOnSmash {} => None,
+                        _ => None,
                     })
                     .unwrap_or(0),
+                armour_at_full: t
+                    .effects
+                    .iter()
+                    .any(|e| matches!(e, TempoEffect::SuperArmourAtFull {})),
             },
+            StyleKind::GiantTrigger(t) => {
+                let mut view = StyleKindView::GiantTrigger {
+                    ticks: t.ticks,
+                    range_pct: 0,
+                    smash_pct: 0,
+                    rally_pct: 0,
+                    super_armour: false,
+                };
+                if let StyleKindView::GiantTrigger {
+                    range_pct,
+                    smash_pct,
+                    rally_pct,
+                    super_armour,
+                    ..
+                } = &mut view
+                {
+                    for effect in &t.effects {
+                        match effect {
+                            TriggerEffect::RangePct { pct } => *range_pct = *pct,
+                            TriggerEffect::SmashPct { pct } => *smash_pct = *pct,
+                            TriggerEffect::RallyPct { pct } => *rally_pct = *pct,
+                            TriggerEffect::SuperArmour {} => *super_armour = true,
+                        }
+                    }
+                }
+                view
+            }
         })
         .collect()
 }

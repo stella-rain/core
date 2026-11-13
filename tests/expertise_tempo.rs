@@ -96,12 +96,13 @@ fn the_tempo_kind_is_bounded() {
     // The product of the stacks and the percent is past the attack speed ceiling.
     refused_at(json!([speed(10, 81)]), &format!("{PATH}.effects"));
     refused_at(json!([effects(json!([]))]), &format!("{PATH}.effects"));
-    let three = json!([
+    let four = json!([
         { "type": "speed_pct", "pct": 4 },
         { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
         { "type": "keep_on_smash" }
     ]);
-    refused_at(json!([effects(three)]), &format!("{PATH}.effects"));
+    refused_at(json!([effects(four)]), &format!("{PATH}.effects"));
     refused_at(
         json!([effects(json!([{ "type": "keep_on_smash" }]))]),
         &format!("{PATH}.effects"),
@@ -216,7 +217,7 @@ fn the_views_carry_the_tempo_kind() {
     let expertise =
         Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the expertise");
     let snap = crate::style_grants::build(expertise).snapshot();
-    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4 });
+    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4, "armour_at_full": false });
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert_eq!(ready["kinds"][0], json!([want]));
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();

@@ -207,6 +207,7 @@ pub(super) fn check_style_grants(
             let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             let mut spirits: Vec<(String, &Spirit)> = Vec::new();
+            let mut triggers: Vec<String> = Vec::new();
             'style: for (path, kinds) in levels {
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
@@ -263,6 +264,12 @@ pub(super) fn check_style_grants(
                         StyleKind::CounterBonus(_) => continue,
                         // The combo tempo changes no step: nothing to check.
                         StyleKind::ComboTempoPct(_) => continue,
+                        // The giant trigger changes no step either; the gauge that starts it is
+                        // read once the whole path is known.
+                        StyleKind::GiantTrigger(_) => {
+                            triggers.push(at.clone());
+                            continue;
+                        }
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()
@@ -310,6 +317,15 @@ pub(super) fn check_style_grants(
                             });
                         }
                     }
+                }
+            }
+            // The trigger is started by the full-gauge smash: it needs a gauge on its path.
+            if gauges.is_empty() {
+                for at in triggers {
+                    issues.push(validate::Issue {
+                        path: at,
+                        message: "nothing starts it: the style names no full-smash gauge".into(),
+                    });
                 }
             }
             // A full-gauge attack equal to an attack the style's tree can play would clear orbs

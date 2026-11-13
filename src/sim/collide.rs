@@ -269,6 +269,10 @@ pub(super) fn damage(
     }
     if b.combo {
         expertise::credit(stage, s, me, target, dead);
+        // The rally: a combo hit on a foe wins back part of the damage it dealt (ADR-SIM-9).
+        if stage.tuning.rally.is_some() && !State::is_ally(target) {
+            super::player::rally_win_back(stage, s, me, dealt, events);
+        }
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, me, target, events);
             // The spirit level's extra stacks, on top of the smash's own.
