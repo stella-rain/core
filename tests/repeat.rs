@@ -54,12 +54,25 @@ fn valid(kinds: Value) {
 
 const AT: &str = "$.weapons[0].styles[0].kinds[0]";
 
-/// C1: the bundled pack names neither kind; the two examples round-trip.
+/// C1: the bundled pack names `repeat` on Spirit Blade and Judgement Cut and no `proc_factor`;
+/// the two examples round-trip.
 #[test]
-fn the_bundled_pack_names_neither_kind_and_the_examples_round_trip() {
+fn the_bundled_pack_names_repeat_and_the_examples_round_trip() {
     let file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
     let text = file.to_string();
-    assert!(!text.contains("\"repeat\"") && !text.contains("\"proc_factor\""));
+    assert!(!text.contains("\"proc_factor\""));
+    let has_repeat = |style: &str| {
+        let s = file["weapons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|w| w["styles"].as_array().unwrap())
+            .find(|s| s["id"] == style)
+            .unwrap_or_else(|| panic!("style {style}"));
+        s.to_string().contains("\"type\":\"repeat\"")
+    };
+    assert!(has_repeat("spirit_blade") && has_repeat("judgement_cut"));
+    assert!(!has_repeat("foresight_counter") && !has_repeat("breaker"));
     for kind in [repeat_kind(&A), factor_kind(&["main", "main"])] {
         let parsed: StyleKind = serde_json::from_value(kind.clone()).expect("the kind parses");
         assert_eq!(serde_json::to_value(&parsed).unwrap(), kind);
@@ -306,11 +319,12 @@ fn the_views_carry_the_kinds() {
         stats["trees"][0]["grants"][0]["kinds"],
         json!([repeat, factor])
     );
-    // The bundled pack names none.
+    // The bundled Hammer styles carry kinds but no repeat (the Sword's two styles do).
     let e = style_grants::build(Expertise::bundled().clone());
     let snap = e.snapshot();
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
-    assert!(ready.get("kinds").is_none());
+    assert!(ready["kinds"].as_array().is_some_and(|k| !k.is_empty()));
+    assert!(!ready.to_string().contains("\"repeat\""));
 }
 
 /// R12 (the event): a `Hit` that is no repeat serializes without the key; a repeat's carries it.
