@@ -18,18 +18,37 @@ const ELITE: (i32, i32) = (START_X, START_Y - 25_600);
 /// The wind-up the big slam must have at least, in ticks (a placeholder, 1.5 seconds).
 const SLAM_WIND_UP: u32 = 90;
 
+/// A copy of bundled content without the `sim_version` 2 combat keys (`poise`, `stagger_max`,
+/// `staggered_ticks`), at every depth: this fixture stage runs the frozen rules.
+fn without_combat_keys(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            for key in ["poise", "stagger_max", "staggered_ticks"] {
+                map.remove(key);
+            }
+            map.values_mut().for_each(without_combat_keys);
+        }
+        Value::Array(items) => items.iter_mut().for_each(without_combat_keys),
+        _ => {}
+    }
+}
+
 /// The enemy of the bundled elite type `id`, as the time-limit file has it.
 fn elite_type(id: &str) -> Value {
     let file: Value = serde_json::from_slice(common::bundled_file("time_limit")).expect("json");
     let types = file["elite_types"].as_array().expect("a list");
     let found = types.iter().find(|t| t["id"] == id);
-    found.unwrap_or_else(|| panic!("no elite {id}"))["enemy"].clone()
+    let mut enemy = found.unwrap_or_else(|| panic!("no elite {id}"))["enemy"].clone();
+    without_combat_keys(&mut enemy);
+    enemy
 }
 
 /// The bat of the first time-limit wave: the base the low elite is tougher than.
 fn base_bat() -> Value {
     let file: Value = serde_json::from_slice(common::bundled_file("time_limit")).expect("json");
-    file["waves"][0]["enemy"].clone()
+    let mut enemy = file["waves"][0]["enemy"].clone();
+    without_combat_keys(&mut enemy);
+    enemy
 }
 
 /// What each of an enemy's rules attacks with.
