@@ -2,6 +2,11 @@
 //! (`entity.rs`). Only an enemy takes a stun: a boss and its parts resist it, and the main
 //! character's and the companions' hits never stun anything. An elite takes its share of the
 //! ticks, and a stun of no ticks does nothing.
+//!
+//! Every stagger fill goes through `fill`: the counter bonus's factor and then the breaker's
+//! scale the value, the refill percent of the bars already broken applies, and a full gauge
+//! staggers the target. The breaker's burst (`player::stagger_burst`) goes off right after it,
+//! with the damage of the hit that filled, so one stagger bursts once.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -53,6 +58,19 @@ pub(super) fn apply(
     ticks: u32,
     events: &mut Vec<DomainEvent>,
 ) {
+    apply_hit(stage, s, target, source, (ticks, 0), events);
+}
+
+/// `apply` for a stun that comes from a hit of `hit` damage (`(ticks, hit)`): a fill the resisted
+/// share credits can stagger the target, and the stagger burst takes a percent of `hit`.
+fn apply_hit(
+    stage: &World,
+    s: &mut State,
+    target: Who,
+    source: EntityId,
+    (ticks, hit): (u32, u32),
+    events: &mut Vec<DomainEvent>,
+) {
     // C04: a stun an elite or the boss resists fills its gauge, before the immunity test (an
     // immune elite resisted it too). The boss and a part resist it whole, an elite the share
     // its stun does not land.
@@ -72,6 +90,7 @@ pub(super) fn apply(
                 target,
                 me,
                 value.saturating_mul(resisted) / 100,
+                hit,
                 events,
             );
         }
@@ -121,7 +140,7 @@ pub(super) fn counter(
     me: PlayerIdx,
     target: Who,
     attack: AttackIndex,
-    stun_ticks: u32,
+    (stun_ticks, hit): (u32, u32),
     events: &mut Vec<DomainEvent>,
 ) {
     let target = match target {
@@ -141,10 +160,10 @@ pub(super) fn counter(
     });
     let t = &stage.tuning;
     if matches!(target, Who::Enemy(_)) && stun_ticks > 0 {
-        apply(stage, s, target, source, stun_ticks, events);
+        apply_hit(stage, s, target, source, (stun_ticks, hit), events);
     }
     if t.stagger_counter > 0 {
-        fill(stage, s, target, me, t.stagger_counter, events);
+        fill(stage, s, target, me, t.stagger_counter, hit, events);
     }
 }
 
@@ -160,6 +179,7 @@ pub(super) fn counter_bonus_stun(
     me: PlayerIdx,
     (target, combo): (Who, bool),
     countered: Option<AttackIndex>,
+    hit: u32,
     events: &mut Vec<DomainEvent>,
 ) {
     let own = stage.tuning.counter_stun_ticks;
@@ -169,7 +189,7 @@ pub(super) fn counter_bonus_stun(
         0
     };
     if let Some(a) = countered {
-        counter(stage, s, me, target, a, own.max(bonus), events);
+        counter(stage, s, me, target, a, (own.max(bonus), hit), events);
     }
     let target = match target {
         Who::BossPart(_) => Who::Boss,
@@ -179,7 +199,7 @@ pub(super) fn counter_bonus_stun(
     let applied = countered.is_some() && matches!(target, Who::Enemy(_));
     if bonus > 0 && !applied && s.is_alive(target) {
         let source = s.players.id(me);
-        apply(stage, s, target, source, bonus, events);
+        apply_hit(stage, s, target, source, (bonus, hit), events);
     }
 }
 
@@ -304,13 +324,15 @@ pub(super) fn down_raised(stage: &World, s: &State, target: Who, vulnerable: u32
 /// Adds `value` (scaled by the refill list for the bars already broken) to the gauge of `target`,
 /// and staggers it when the gauge is full. It does nothing without a gauge, for a dead, staggered
 /// or invulnerable (a boss in transition) target, for a value that scales to nothing, or for a
-/// player who is not up. A part's hit fills the boss's gauge (C12).
+/// player who is not up. A part's hit fills the boss's gauge (C12). `hit` is the damage of the hit
+/// being resolved: the breaker's burst, when this fill staggers the target, takes a percent of it.
 pub(super) fn fill(
     stage: &World,
     s: &mut State,
     target: Who,
     me: PlayerIdx,
     value: u32,
+    hit: u32,
     events: &mut Vec<DomainEvent>,
 ) {
     if !stage.has_stagger || value == 0 || !s.players[me].is_up() {
@@ -340,6 +362,8 @@ pub(super) fn fill(
         Some(fx) if fx.stagger_pct > 100 => value.saturating_mul(fx.stagger_pct) / 100,
         _ => value,
     };
+    // The breaker's factor composes with it, the counter's first, each truncated.
+    let value = super::player::breaker_fill(stage, s, me, value);
     let t = &stage.tuning;
     let Some(g) = gauge_of(s, target) else {
         return;
@@ -361,6 +385,10 @@ pub(super) fn fill(
     g.drain = t.stagger_drain_delay;
     if g.gauge >= max {
         stagger(stage, s, target, s.players.id(me), ticks, events);
+        // The breaker's burst goes off in the call that staggers the target, once.
+        if let Some(burst) = stage.breaker_of(s, me).and_then(|g| g.burst) {
+            super::player::stagger_burst(stage, s, me, (target, hit), burst, events);
+        }
     }
 }
 
@@ -679,7 +707,7 @@ mod tests {
         s.enemies[0].stun_immune = 0;
         s.scratch.ends_pinned = Some(s.runs.len());
         let own = w.tuning.counter_stun_ticks;
-        counter(w, s, me, Who::Enemy(0), attack, own, &mut Vec::new());
+        counter(w, s, me, Who::Enemy(0), attack, (own, 0), &mut Vec::new());
         super::super::hit_boxes::apply_ends(w, s);
         s.scratch.ends_pinned = None;
     }
@@ -757,7 +785,15 @@ mod tests {
         let attack = attacks::counterable_run(&w, &s, owner).expect("counterable");
         events.clear();
         let own = w.tuning.counter_stun_ticks;
-        counter(&w, &mut s, second, Who::Enemy(0), attack, own, &mut events);
+        counter(
+            &w,
+            &mut s,
+            second,
+            Who::Enemy(0),
+            attack,
+            (own, 0),
+            &mut events,
+        );
         assert!(attacks::counterable_run(&w, &s, owner).is_none());
         let countered: Vec<_> = events
             .iter()

@@ -502,6 +502,7 @@ fn the_taken_step_scales_the_fills_it_credits() {
             super::entity::Who::Enemy(0),
             slot(me),
             20,
+            0,
             &mut Vec::new(),
         );
         gauge(state)

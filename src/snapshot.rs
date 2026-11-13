@@ -296,6 +296,27 @@ pub enum StyleKindView {
         rally_pct: u32,
         super_armour: bool,
     },
+    /// The style has a breaker: a factor, in percent, on the stagger fills, the poise damage
+    /// and a smash's damage on a boss part (0 where the kind names none) and, when it names one,
+    /// a burst round a target the player staggers.
+    Breaker {
+        stagger_pct: u32,
+        poise_pct: u32,
+        part_break_pct: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        burst: Option<StaggerBurstView>,
+    },
+}
+
+/// A stagger burst as a style grants it: its radius and what it does to the enemies in it
+/// (0 and false where it names no such effect).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StaggerBurstView {
+    pub radius_px: u32,
+    pub damage_pct: u32,
+    pub stun_ticks: u32,
+    pub knock_down: bool,
 }
 
 /// The kinds one level of a style's path grants.

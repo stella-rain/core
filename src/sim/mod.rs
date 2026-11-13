@@ -111,6 +111,14 @@
 //! down lose the rest. `PlayerView.trigger`, `.rally` and the five events are not state. A run
 //! that names neither keeps the three fields at zero, one bool test each.
 //!
+//! The breaker a style grants (`World::breaker_of`, the `breaker` style kind, named at the style's
+//! own level and at later levels, the effects stacking in path order) reads and writes no state:
+//! its factors scale a stagger fill (`stun::fill`), a combo hit's poise damage (`flinch_by`) and a
+//! smash step's damage on a boss part, and its burst hurts and controls the enemies round a
+//! target the player's fill staggers, in the call that staggers it (`player::stagger_burst`). The
+//! style views and the `StaggerBurst` event are not state; a run whose styles name no breaker pays
+//! one bool test at each place.
+//!
 //! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
 //! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
 //! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
@@ -163,6 +171,8 @@ mod agents;
 mod attack_table;
 mod attacks;
 mod boss;
+#[cfg(test)]
+mod breaker_tests;
 mod build;
 #[cfg(test)]
 mod build_pin_tests;

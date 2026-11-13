@@ -681,7 +681,15 @@ fn hit_enemy_side(
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
                 let c = counterable(stage, s, me, w, id);
                 damage(stage, s, me, shot(w), Who::Boss, events);
-                super::stun::counter_bonus_stun(stage, s, me, (Who::Boss, w.combo), c, events);
+                super::stun::counter_bonus_stun(
+                    stage,
+                    s,
+                    me,
+                    (Who::Boss, w.combo),
+                    c,
+                    w.damage,
+                    events,
+                );
                 if stage.has_stagger {
                     stagger_by(stage, s, me, w, Who::Boss, events);
                     resisted_move_fills(stage, s, me, w, Who::Boss, events);
@@ -696,13 +704,18 @@ fn hit_enemy_side(
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
                     let owner = s.boss_state().id;
                     let c = counterable(stage, s, me, w, owner);
-                    damage(stage, s, me, shot(w), Who::BossPart(i), events);
+                    // The breaker's factor on a smash step's hit on a part.
+                    let mut part_shot = shot(w);
+                    part_shot.damage =
+                        super::player::breaker_part(stage, s, me, w.combo, part_shot.damage);
+                    damage(stage, s, me, part_shot, Who::BossPart(i), events);
                     super::stun::counter_bonus_stun(
                         stage,
                         s,
                         me,
                         (Who::BossPart(i), w.combo),
                         c,
+                        w.damage,
                         events,
                     );
                     if stage.has_stagger {
@@ -755,7 +768,15 @@ fn hit_enemy_side(
             }
             // C05: the smash that hit it in a counterable wind-up counters the attack, after the
             // smash's own stun, pull and knockback have landed.
-            super::stun::counter_bonus_stun(stage, s, me, (Who::Enemy(i), w.combo), c, events);
+            super::stun::counter_bonus_stun(
+                stage,
+                s,
+                me,
+                (Who::Enemy(i), w.combo),
+                c,
+                w.damage,
+                events,
+            );
             // C03, C04: a combo hit fills an elite's gauge, and a pull or a knockback it resists
             // fills it more.
             if stage.has_stagger {
@@ -834,7 +855,7 @@ fn stagger_by(
         } else {
             0
         });
-    super::stun::fill(stage, s, target, me, value, events);
+    super::stun::fill(stage, s, target, me, value, w.damage, events);
 }
 
 /// C04: the pull or the knockback of a smash that hit `target`, an elite, the boss or a part,
@@ -865,7 +886,7 @@ fn resisted_move_fills(
         _ => true,
     };
     if w.combo && resists {
-        super::stun::fill(stage, s, target, me, value, events);
+        super::stun::fill(stage, s, target, me, value, w.damage, events);
     }
 }
 
@@ -890,6 +911,7 @@ fn flinch_by(
             } else {
                 stage.tuning.poise_damage_a
             });
+    let poise_damage = super::player::breaker_poise(stage, s, me, poise_damage);
     let source = s.players.id(me);
     super::stun::flinch(stage, s, i, poise_damage, source, events);
 }

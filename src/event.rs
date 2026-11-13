@@ -392,4 +392,12 @@ pub enum DomainEvent {
     RallyLapsed {
         player: PlayerIdx,
     },
+    /// A fill of `player` staggered the elite or boss `target` and the style's burst went off
+    /// where it stands: it hurt the enemies within `radius` (1/256 pixel) of `at` (ADR-SIM-9).
+    StaggerBurst {
+        player: PlayerIdx,
+        target: EntityId,
+        at: Point,
+        radius: i32,
+    },
 }
