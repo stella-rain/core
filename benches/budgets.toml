@@ -45,12 +45,12 @@ x86_64 = 6_500_000
 
 # worst_tick_combat: the worst_tick crowd with 64 queued step repeats of 16 targets, every elite's
 # stagger gauge one short of full and every enemy at its hard-control count (ADR-SIM-5, ADR-SIM-6;
-# `bench_fixtures/combat_case.rs`). x86_64 count 4,963,856 (local, valgrind), budget by the margin
+# `bench_fixtures/combat_case.rs`). x86_64 count 4,888,731 (local, valgrind), budget by the margin
 # rule ceil(count * 1.1 / 100_000) * 100_000. arm64 is provisional: the x86_64 count times 0.88
 # (the ratio of worst_tick, 4,582,168 / 5,209,747) with the same rule, until CI counts it.
 [worst_tick_combat]
-arm64 = 4_900_000
-x86_64 = 5_500_000
+arm64 = 4_800_000
+x86_64 = 5_400_000
 
 [rollback]
 arm64 = 4_500_000

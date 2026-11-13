@@ -138,7 +138,8 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// living enemies, due on that tick, spread round the crowd; each deals 1 damage, so the crowd
 /// outlives the scan. Stagger: every elite's gauge is one short of full and its breaks are past
 /// the rules' refill list, and it is not staggered: a staggered elite takes no rule and the case
-/// counts about 193,000 fewer instructions on x86_64 (4,770,408 against 4,963,856 when written),
+/// counts about 193,000 fewer instructions on x86_64 (4,770,408 against 4,963,856, measured with the
+/// measured tick at 421),
 /// so the costlier variant is kept. Control: every enemy holds `hard_controls` at the
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
