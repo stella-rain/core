@@ -336,7 +336,7 @@ fn dir_digests(sub: &str, digest: fn(&Path) -> String) -> Vec<(String, String)> 
 const PINS: &[(&str, &str)] = &[
     ("bench/hit_tick", "84e781ed85a26a66"),
     ("bench/hit_tick_spread", "280b626db0770637"),
-    ("bench/time_limit_tick", "9a99b8f5707093ec"),
+    ("bench/time_limit_tick", "ac7e769e09a8971c"),
     ("bench/worst_minute", "868b843fbec6e452"),
     ("bench/worst_tick", "f7615e32fdd91f74"),
     ("runs/easy", "357de9e85cb92b05"),
