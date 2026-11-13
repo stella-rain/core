@@ -576,7 +576,10 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
 
     // An elite type is an elite.
     let mut t = low();
-    t["enemy"].as_object_mut().unwrap().remove("elite");
+    // (`stagger_max` is an elite's too, so it goes with the `elite` it belongs to.)
+    let enemy = t["enemy"].as_object_mut().unwrap();
+    enemy.remove("elite");
+    enemy.remove("stagger_max");
     assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.elite"]);
 }
 
