@@ -233,8 +233,8 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(346, 14, 8)),
-    ("rollback_equip", pin(460, 25, 119)),
+    ("rollback", pin(345, 14, 8)),
+    ("rollback_equip", pin(459, 23, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
@@ -455,7 +455,7 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
 
 /// The first flinch of a process allocates nothing: the shared `flinch` ID is built when the
 /// engine is (not on the first flinch, in the middle of a steady tick). The `time_limit` bench
-/// case's first flinch is on tick 55. Run it alone (`-- --exact`) to see it: another test that
+/// case's first flinch is on tick 54. Run it alone (`-- --exact`) to see it: another test that
 /// flinches first in the same process hides it.
 #[test]
 fn the_first_flinch_of_a_fresh_process_allocates_nothing() {
@@ -471,7 +471,7 @@ fn the_first_flinch_of_a_fresh_process_allocates_nothing() {
         let flinched = e.events().iter().any(|ev| {
             matches!(ev, DomainEvent::StatusApplied { status, .. } if status.as_str() == "flinch")
         });
-        if flinched && tick >= 55 {
+        if flinched && tick >= 54 {
             assert_eq!(counts, pin(0, 0, 0), "tick {tick}, the first flinch");
             return;
         }
