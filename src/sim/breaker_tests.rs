@@ -398,3 +398,137 @@ fn another_style_stops_the_effects() {
     }
     assert_eq!(filled(&mut r, 0, 40), 40);
 }
+
+/// A one-player run on the bundled pack whose Hammer style 0 names `style`, its first upgrade 1
+/// `upgrade_1`, its upgrade 2 `upgrade_2` and its capstone `capstone` (kinds, each a list).
+fn levelled(
+    style: Vec<Value>,
+    upgrade_1: Vec<Value>,
+    upgrade_2: Vec<Value>,
+    capstone: Vec<Value>,
+) -> crate::engine::Engine {
+    use crate::pack::Pack;
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .expect("the Hammer's expertise");
+    w["styles"][0]["kinds"] = json!(style);
+    w["styles"][0]["upgrade_1"][0]["kinds"] = json!(upgrade_1);
+    w["styles"][0]["upgrade_2"][0]["kinds"] = json!(upgrade_2);
+    w["styles"][0]["capstone"][0]["kinds"] = json!(capstone);
+    let pack = Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack");
+    let setup = crate::run_setup::RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_116,
+        ..crate::run_setup::RunSetup::default()
+    };
+    let mut e = crate::engine::Engine::start_party_with(&setup, pack.content(), 3).expect("a run");
+    let s = st(&mut e);
+    for i in 0..3 {
+        if let Some(g) = s.players.career_mut(slot(i)).expertise.as_mut() {
+            g.style = Some(0);
+        }
+    }
+    e
+}
+
+/// The grant player `i` has now: its three factors and its burst's radius, damage, stun and fall.
+fn grant(
+    e: &mut crate::engine::Engine,
+    i: u8,
+) -> Option<(u32, u32, u32, Option<(i32, u32, u32, bool)>)> {
+    let Run::V2 { world, state } = e.run_mut() else {
+        panic!("the live rules");
+    };
+    world.breaker_of(state, slot(i)).map(|g| {
+        (
+            g.stagger_pct,
+            g.poise_pct,
+            g.part_break_pct,
+            g.burst
+                .map(|b| (b.radius, b.damage_pct, b.stun_ticks, b.knock_down)),
+        )
+    })
+}
+
+fn take(e: &mut crate::engine::Engine, i: u8, places: usize) {
+    let path = &mut st(e)
+        .players
+        .career_mut(slot(i))
+        .expertise
+        .as_mut()
+        .expect("a gauge")
+        .path;
+    path.clear();
+    path.extend(std::iter::repeat_n(0, places));
+}
+
+/// B5: each player reads the grant of its own style and path; a style that names none gives none;
+/// a grant a hand-built kind pushed out of range is clamped when the world is built.
+#[test]
+fn each_player_reads_its_own_grant() {
+    let kind = breaker(vec![stagger_pct(200), poise_pct(150), full_burst()]);
+    let mut e = levelled(vec![kind], vec![], vec![], vec![]);
+    assert_eq!(
+        grant(&mut e, 0),
+        Some((200, 150, 100, Some((128 * 256, 50, 45, true))))
+    );
+    if let Some(g) = st(&mut e).players.career_mut(slot(1)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    assert_eq!(grant(&mut e, 1), None, "a style naming none");
+    assert!(grant(&mut e, 2).is_some(), "another player's own");
+    // Under try_styles only the style's own grants count, whatever the path says.
+    take(&mut e, 0, 3);
+    assert_eq!(grant(&mut e, 0).map(|g| g.0), Some(200));
+    let plain = levelled(vec![], vec![], vec![], vec![]);
+    let Run::V2 { world, .. } = plain.run() else {
+        panic!("the live rules");
+    };
+    assert!(!world.has_breaker, "the bundled pack names none");
+}
+
+/// B13: a path names the breaker at several levels: the effects stack as each level is taken, in
+/// path order, and a later level's same effect replaces the earlier one.
+#[test]
+fn the_levels_of_a_path_stack_their_effects() {
+    let mut e = levelled(
+        vec![breaker(vec![stagger_pct(200)])],
+        vec![breaker(vec![stagger_pct(300), poise_pct(200)])],
+        vec![breaker(vec![
+            json!({ "type": "part_break_pct", "pct": 200 }),
+        ])],
+        vec![breaker(vec![full_burst()])],
+    );
+    let bare = |burst| (200, 100, 100, burst);
+    assert_eq!(grant(&mut e, 0), Some(bare(None)), "the style alone");
+    take(&mut e, 0, 1);
+    assert_eq!(
+        grant(&mut e, 0),
+        Some((300, 200, 100, None)),
+        "the later level replaces"
+    );
+    take(&mut e, 0, 2);
+    assert_eq!(grant(&mut e, 0), Some((300, 200, 200, None)));
+    take(&mut e, 0, 3);
+    assert_eq!(
+        grant(&mut e, 0),
+        Some((300, 200, 200, Some((128 * 256, 50, 45, true))))
+    );
+    // A burst named at two levels reads the later one.
+    let mut e = levelled(
+        vec![breaker(vec![burst_of(vec![
+            json!({ "type": "damage_pct", "pct": 10 }),
+        ])])],
+        vec![],
+        vec![],
+        vec![breaker(vec![full_burst()])],
+    );
+    assert_eq!(grant(&mut e, 0).unwrap().3, Some((128 * 256, 10, 0, false)));
+    take(&mut e, 0, 3);
+    assert_eq!(grant(&mut e, 0).unwrap().3, Some((128 * 256, 50, 45, true)));
+}
