@@ -262,6 +262,10 @@ pub(super) fn damage(
         expertise::credit(stage, s, me, target, dead);
         if !dead && b.smash == Some(Smash::Bleed) {
             runes::apply_smash_bleed(s, me, target, events);
+            // The spirit level's extra stacks, on top of the smash's own.
+            for _ in 0..super::player::spirit_bleed_stacks(stage, s, me) {
+                runes::apply_smash_bleed(s, me, target, events);
+            }
         }
         // A reap's burst may kill the target: what follows treats it as dead then.
         let mut dead = dead;

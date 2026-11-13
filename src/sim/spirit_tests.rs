@@ -484,34 +484,46 @@ fn each_player_has_its_own_level() {
     assert_eq!(r.spirit(1), (1, DECAY - 1), "the others do not move");
 }
 
-/// What every hit of `press` deals at spirit level `level` (the countdown full): the full-gauge
-/// attack's with `full`, else an A step's.
-fn dealt(level: u8, full: bool) -> Vec<u64> {
-    let mut r = rig(1, true, 1);
-    r.set_spirit(0, level, DECAY);
+/// The damage of the first hit of a press at spirit level `level` (the countdown full): the
+/// full-gauge attack's with `full`, else an A step's. `spirit` off is the level-0 baseline.
+fn dealt(spirit: bool, level: u8, full: bool) -> u64 {
+    let mut r = rig(1, spirit, 1);
+    if spirit {
+        // The full-gauge press raises the level itself: start one level below.
+        let before = if full { level.saturating_sub(1) } else { level };
+        r.set_spirit(0, before, DECAY);
+    }
     if full {
-        // The raise is the press's own: start one level below.
-        r.set_spirit(0, level.saturating_sub(1), DECAY);
         r.set_gauge(0, 100);
     }
-    damages(&r.press(!full, 40))
+    damages(&r.press(full, 40))[0]
 }
 
-/// B7: each level's damage percent is that level's own and every combo step carries it.
+/// B7: each level's damage percent is that level's own and every combo step carries it. The
+/// Sword's own hit is the baseline of the A step, the spirit-less full-gauge attack's of the
+/// smash; the pipeline floors in steps, so a hit is within 1 of the percent.
 #[test]
 fn the_level_adds_its_damage_percent() {
-    let base = dealt(0, false);
-    assert!(!base.is_empty());
+    let base = dealt(false, 0, false);
+    assert!(base > 100, "the baseline: {base}");
     for (level, pct) in [(1u8, 8u64), (2, 16), (3, 25)] {
-        let want: Vec<u64> = base.iter().map(|d| d * (100 + pct) / 100).collect();
-        assert_eq!(dealt(level, false), want, "an A step at level {level}");
+        let want = base * (100 + pct) / 100;
+        let got = dealt(true, level, false);
+        assert!(
+            got.abs_diff(want) <= 1,
+            "an A step at level {level}: {got} for {want}"
+        );
+        assert!(got > base);
     }
-    assert_eq!(
-        dealt(1, true).first(),
-        Some(&108),
-        "the full-gauge attack at level 1"
-    );
-    assert_eq!(dealt(3, true).first(), Some(&125));
+    let full = dealt(false, 0, true);
+    for (level, pct) in [(1u8, 8u64), (2, 16), (3, 25)] {
+        let want = full * (100 + pct) / 100;
+        let got = dealt(true, level, true);
+        assert!(
+            got.abs_diff(want) <= 1,
+            "the full-gauge attack at level {level}: {got} for {want}"
+        );
+    }
 }
 
 /// B8: the level's reach widens the step: the radius 40 px circle reaches 46 px at level 2.
