@@ -400,7 +400,7 @@ mod tests {
         );
     }
 
-    /// The combat state's caps (ADR-SIM-5 point 9) and the evade and advance caps: 27 rows, `MAX_WEAPON_GAUGE` bounding two
+    /// The combat state's caps (ADR-SIM-5 point 9) and the evade and advance caps: 29 rows, `MAX_WEAPON_GAUGE` bounding two
     /// fields. Tuning values: a cap bounds a decode and fixes no behaviour.
     #[test]
     fn the_combat_caps_have_rows() {
@@ -431,6 +431,7 @@ mod tests {
             ("MAX_TEMPO_STACKS", "10", "stacks"),
             ("MAX_TRIGGER_TICKS", "3600", "ticks"),
             ("MAX_RANGED_GRACE_TICKS", "600", "ticks"),
+            ("MAX_COUNTER_BONUS_STEP", "1", "flag"),
             ("MAX_REPEATS_QUEUED", "64", "entries"),
             ("MAX_REPEAT_TARGETS", "16", "targets"),
             ("MAX_PERFECT_REACH", "420", "px"),
@@ -438,7 +439,7 @@ mod tests {
             ("MAX_ADVANCE_DISTANCE", "240", "px"),
             ("MAX_ADVANCE_PER_TICK", "12", "px"),
         ];
-        assert_eq!(rows.len(), 28);
+        assert_eq!(rows.len(), 29);
         assert_eq!(MAX_RALLY, crate::validate::limits::MAX_PLAYER_HP);
         for (name, value, unit) in rows {
             let row = LIMITS
