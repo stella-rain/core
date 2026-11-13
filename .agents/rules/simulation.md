@@ -32,7 +32,7 @@ outcome changes follow the `schema-change` skill.
   `schedule.rs` holds `TICK`, the one tick order (`tick_doc_lists_the_schedule` keeps the `sim`
   module doc's table equal to it): a step is added or moved there. `sim/` holds agents and the
   enemies' push-apart, attacks and hit boxes, skills, the main character's movement, facing and
-  evade, the weapon's combos (ADR-SIM-4), combat (stun, flinch, stagger, knockdown and the counter in `stun.rs`; the perfect evade, weapon gauge, spirit, counter bonus, combo tempo, giant trigger and rally in `player.rs`; queued repeats in `attacks/`; the ranged grace in `attacks/ranged.rs`: `combat.md`; the threat colour table, `threat_colours.rs`, decides nothing), aim assist, boss phases and parts (a boss may opt in to `chase` and
+  evade, the weapon's combos (ADR-SIM-4), combat (stun, flinch, stagger, knockdown and the counter in `stun.rs`; the perfect evade, weapon gauge, spirit, counter bonus, combo tempo, giant trigger and rally in `player.rs`; queued repeats in `attacks/`; the ranged grace in `attacks/ranged.rs`: `combat.md`; the threat colour table, `src/threat_colours.rs`, decides nothing), aim assist, boss phases and parts (a boss may opt in to `chase` and
   `arrives_at_tick`: `boss.rs`, `boss::arrive`; `content.md`), experience and levels, the runes (`runes.rs`), the
   falling stars (`stars.rs`: the live rules open no offer, ADR-REPL-5) and the weapon's expertise (`expertise.rs`: no
   level opens an offer). `offer_rating.rs` holds `swap_ratings`: `Engine::swap_ratings` rates a star against each
