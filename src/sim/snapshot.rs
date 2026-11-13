@@ -270,8 +270,11 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             window_ticks: u32::from(g.window),
             taken: s.players[me].combat.counter_bonus_step == 1,
         }),
-        // Built for real once the rules write the stacks.
-        tempo: None,
+        tempo: world.tempo_of(s, me).map(|g| crate::snapshot::TempoView {
+            stacks: u32::from(s.players[me].combat.combo_tempo),
+            max_stacks: u32::from(g.max_stacks),
+            speed_pct: u32::from(s.players[me].combat.combo_tempo) * g.speed_pct,
+        }),
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {

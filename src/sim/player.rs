@@ -600,8 +600,105 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
 
 /// Back to the root through `reset`, for every caller that has the whole world: the one place the
 /// combo's end is seen from outside the combo (ADR-SIM-9).
-fn combo_reset(_stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+fn combo_reset(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    // A reset at the root changes nothing: only a combo that was somewhere else ends the stacks.
+    let mid_combo = s.players[me].combo.depth > 0;
     reset(&mut s.players[me].combo, events);
+    if mid_combo {
+        tempo_lose(stage, s, me, events);
+    }
+}
+
+/// The combo tempo of `me` ends: the stacks go to 0 and `TempoLost` says so, once. None after one
+/// bool test for a run that names no combo tempo (ADR-SIM-9).
+pub(super) fn tempo_lose(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    if !stage.has_tempo {
+        return;
+    }
+    let c = &mut s.players[me].combat;
+    if c.combo_tempo > 0 {
+        c.combo_tempo = 0;
+        tempo_lost(events, me);
+    }
+}
+
+/// The attack speed the stacks of `me` give, in percent, before the run's cap: 0 after one bool
+/// test for a run that names no combo tempo. The one place a later kind that reads the stacks
+/// adds its line.
+#[inline]
+pub(super) fn tempo_speed_pct(stage: &World, s: &State, me: PlayerIdx) -> u32 {
+    if !stage.has_tempo {
+        return 0;
+    }
+    stage.tempo_of(s, me).map_or(0, |g| {
+        u32::from(s.players[me].combat.combo_tempo) * g.speed_pct
+    })
+}
+
+/// A smash step is pressed: the stacks end, unless the style keeps them and they are full.
+/// Called after the smash's own attack started, so that attack took the speed of the stacks
+/// held at the press.
+fn tempo_on_smash(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if !stage.has_tempo {
+        return;
+    }
+    let Some(g) = stage.tempo_of(s, me) else {
+        return;
+    };
+    if g.keep_on_smash && s.players[me].combat.combo_tempo == g.max_stacks {
+        return;
+    }
+    tempo_lose(stage, s, me, events);
+}
+
+/// A friendly swing of player `owner`'s combo hit `n` enemies this tick: a step that hit adds one
+/// stack to the combo tempo its style grants, up to `max_stacks`, however many it hit. A smash,
+/// a downed player and a style without a tempo add none.
+pub(super) fn tempo_from_hits(
+    stage: &World,
+    s: &mut State,
+    owner: EntityId,
+    n: u32,
+    events: &mut Vec<DomainEvent>,
+) {
+    let Some(me) = s.players.of_id(owner) else {
+        return;
+    };
+    let p = &s.players[me];
+    if n == 0 || !p.is_up() || last_press_smash(&p.combo) {
+        return;
+    }
+    let Some(g) = stage.tempo_of(s, me) else {
+        return;
+    };
+    let max = g.max_stacks;
+    let c = &mut s.players[me].combat;
+    if c.combo_tempo < max {
+        c.combo_tempo += 1;
+        tempo_raised(events, me, c.combo_tempo);
+    }
+}
+
+/// `me`'s stacks rose to `stacks`. Cold: the benched packs name no combo tempo.
+#[cold]
+#[inline(never)]
+fn tempo_raised(events: &mut Vec<DomainEvent>, me: PlayerIdx, stacks: u8) {
+    events.push(DomainEvent::TempoRaised {
+        player: me,
+        stacks: u32::from(stacks),
+    });
+}
+
+/// `me`'s stacks ended. Cold, as `tempo_raised` is.
+#[cold]
+#[inline(never)]
+fn tempo_lost(events: &mut Vec<DomainEvent>, me: PlayerIdx) {
+    events.push(DomainEvent::TempoLost { player: me });
 }
 
 /// One tick of the combo: see the module's description.
@@ -898,6 +995,9 @@ fn take_step(
         spirit_restart(stage, s, me);
     }
     if smash && stage.has_gauge && spend_gauge(stage, s, me, input.assist || !by_hand, events) {
+        if smash {
+            tempo_on_smash(stage, s, me, events);
+        }
         return;
     }
     let held = by_hand && if smash { input.smash } else { input.main };
@@ -908,6 +1008,9 @@ fn take_step(
     if step.charge.is_some() && (held || auto_level > 0) {
         s.players[me].combo.charge = Some(0);
         s.players[me].combo.charge_auto = !held;
+        if smash {
+            tempo_on_smash(stage, s, me, events);
+        }
     } else {
         strike(
             stage,
@@ -918,6 +1021,9 @@ fn take_step(
             input.assist || !by_hand,
             events,
         );
+        if smash {
+            tempo_on_smash(stage, s, me, events);
+        }
     }
 }
 
@@ -1260,7 +1366,15 @@ fn strike(
     }
     let strike = attacks::Strike {
         bonus_pct,
-        speed_pct: levels::attack_speed(s, me),
+        speed_pct: if stage.has_tempo {
+            // The stacks held when the attack starts, under the run's cap (ADR-SIM-9).
+            crate::run_stats::capped_attack_speed_pct(
+                levels::attack_speed(s, me).saturating_add(tempo_speed_pct(stage, s, me)),
+                s.max_attack_speed_pct,
+            )
+        } else {
+            levels::attack_speed(s, me)
+        },
         range_pct,
         smash,
     };
@@ -1454,6 +1568,8 @@ pub(super) fn stand_down(
     // A downed player cannot press, and a revive does not resume an old window.
     s.players[me].combat.counter_window = 0;
     s.players[me].combat.counter_bonus_step = 0;
+    // A downed player holds no stacks, and a revive does not resume them.
+    tempo_lose(stage, s, me, events);
 }
 
 /// An evade cancels the running step, breaks a charge and clears the buffer.

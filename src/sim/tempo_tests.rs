@@ -13,6 +13,7 @@ use crate::id::EntityId;
 use crate::input::Input;
 use crate::pack::Pack;
 use crate::run_setup::RunSetup;
+use crate::run_stats::StatEffect;
 use serde_json::{Value, json};
 
 const ME: PlayerIdx = PlayerIdx::SOLO;
@@ -102,6 +103,11 @@ fn rig(players: u8, kinds: Vec<Value>, foes: u32) -> Rig {
         p.invulnerable = 0;
         if let Some(g) = s.players.career_mut(slot(i)).expertise.as_mut() {
             g.style = Some(0);
+        }
+        // No attack speed of its own: the tempo's is the only one.
+        if let Some(p) = s.players.career_mut(slot(i)).progress.as_mut() {
+            p.totals[StatEffect::AttackSpeedPct as usize] = 0;
+            p.set_tenths[StatEffect::AttackSpeedPct as usize] = 0;
         }
     }
     Rig {
@@ -328,6 +334,7 @@ fn the_stacks_speed_the_next_step() {
 #[test]
 fn the_runs_attack_speed_cap_holds_the_stacks() {
     let mut plain = rig(1, vec![], 1);
+    st(&mut plain.e).max_attack_speed_pct = 0;
     plain.run_step(false);
     let (p2, _) = plain.run_step(false);
     let mut r = rig(1, vec![tempo_kind(5, 4, false)], 1);
@@ -459,12 +466,13 @@ fn zero_stacks_equal_the_plain_run() {
 fn the_stacks_are_deterministic() {
     let run = || {
         let mut r = rig(1, vec![tempo_kind(5, 4, true)], 2);
-        let mut hashes = Vec::new();
+        let (mut hashes, mut most) = (Vec::new(), 0);
         for k in 0..6 {
             r.run_step(k % 3 == 2);
             hashes.push(r.e.state_hash());
+            most = most.max(r.tempo(0));
         }
-        (hashes, r.tempo(0))
+        (hashes, most)
     };
     assert_eq!(run(), run());
     assert!(run().1 > 0);
