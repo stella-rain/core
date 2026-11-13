@@ -692,7 +692,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
     each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace]);
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -820,6 +820,7 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         combo_tempo: MAX_TEMPO_STACKS,
         giant_trigger: MAX_TRIGGER_TICKS,
         ranged_grace: MAX_RANGED_GRACE_TICKS,
+        counter_bonus_step: MAX_COUNTER_BONUS_STEP,
     };
     round_trip(&at_cap);
     let refused = |f: &dyn Fn(&mut PlayerCombat)| {
@@ -843,6 +844,8 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.combo_tempo += 1);
     refused(&|c| c.giant_trigger += 1);
     refused(&|c| c.ranged_grace += 1);
+    refused(&|c| c.counter_bonus_step += 1);
+    refused(&|c| c.counter_bonus_step = 255);
 
     let mut p = solo(&base()).clone();
     p.combat.rally = p.max_hp;
@@ -857,6 +860,12 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     assert_eq!(
         fresh.run.live().players[PlayerIdx::SOLO].combat,
         PlayerCombat::default()
+    );
+    assert_eq!(
+        fresh.run.live().players[PlayerIdx::SOLO]
+            .combat
+            .counter_bonus_step,
+        0
     );
 }
 

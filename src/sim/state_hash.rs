@@ -565,6 +565,7 @@ impl StableHash for PlayerCombat {
             combo_tempo,
             giant_trigger,
             ranged_grace,
+            counter_bonus_step,
         } = self;
         perfect_window.stable_hash(h);
         perfect_slow.stable_hash(h);
@@ -579,6 +580,7 @@ impl StableHash for PlayerCombat {
         combo_tempo.stable_hash(h);
         giant_trigger.stable_hash(h);
         ranged_grace.stable_hash(h);
+        counter_bonus_step.stable_hash(h);
     }
 }
 
