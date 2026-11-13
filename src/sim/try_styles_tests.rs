@@ -10,7 +10,6 @@ use super::levels_tests::{
 };
 use super::state::PlayerIdx;
 use crate::engine::Engine;
-use crate::expertise::Expertise;
 use crate::id::ContentId;
 use crate::pack::Pack;
 use crate::run_setup::RunSetup;
@@ -23,7 +22,7 @@ const STYLES: [&str; 3] = ["crush", "quake", "bulwark"];
 /// A `tutorial`-mode run on the Hammer, from a pack whose tutorial names `try_styles` and a
 /// stand-in table of points at levels 1 to 4, with level 10 reached so four points are held.
 fn try_hammer(unlocked: Option<Vec<ContentId>>) -> Engine {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     v["modes"]["tutorial"]["try_styles"] = true.into();
     v["modes"]["tutorial"]["level_table"] =
         json!({ "style": 1, "upgrades": [2, 3], "capstone": 4 });
@@ -67,7 +66,7 @@ fn an_option_past_the_styles_is_refused() {
     let mut e = try_hammer(None);
     let (world, state) = world_state(&mut e);
     assert_eq!(
-        super::check_tree_pick(world, Expertise::bundled(), state, PlayerIdx::SOLO, 3),
+        super::check_tree_pick(world, super::before::expertise(), state, PlayerIdx::SOLO, 3),
         Err(TreeError::NoTreeOption {
             option: 3,
             options: 3
@@ -114,7 +113,7 @@ fn the_set_is_rewritten_at_the_weapon_level_not_stacked() {
             .as_ref()
             .unwrap();
         let (style, level) = (g.style, g.level);
-        let want = expertise::set_for(world, Expertise::bundled(), style, level);
+        let want = expertise::set_for(world, super::before::expertise(), style, level);
         let p = state
             .players
             .career(PlayerIdx::SOLO)
@@ -128,7 +127,7 @@ fn the_set_is_rewritten_at_the_weapon_level_not_stacked() {
         let cur = state.players[PlayerIdx::SOLO].max_hp;
         let max_hp = |style: Option<u8>| {
             i64::from(
-                expertise::set_for(world, Expertise::bundled(), style, level)
+                expertise::set_for(world, super::before::expertise(), style, level)
                     [StatEffect::MaxHp as usize],
             )
         };
@@ -204,7 +203,7 @@ fn check_tree_holds_the_log_to_the_styles() {
             .clone()
             .unwrap();
         (g.style, g.level, g.path) = (style, level, path.to_vec());
-        expertise::check_tree(world, Expertise::bundled(), &g)
+        expertise::check_tree(world, super::before::expertise(), &g)
     };
     assert_eq!(set(&mut e, Some(1), 10, &[2, 0]), Ok(()));
     assert_eq!(
@@ -235,7 +234,7 @@ fn the_view_reports_no_path_under_the_field() {
         .as_ref()
         .unwrap();
     assert_eq!(
-        super::expertise_styles_view(world, Expertise::bundled(), g),
+        super::expertise_styles_view(world, super::before::expertise(), g),
         (Some("bulwark".into()), Vec::new())
     );
     let mut plain = hammer();
@@ -251,7 +250,7 @@ fn the_view_reports_no_path_under_the_field() {
         .as_ref()
         .unwrap();
     assert!(
-        !super::expertise_styles_view(world, Expertise::bundled(), g)
+        !super::expertise_styles_view(world, super::before::expertise(), g)
             .1
             .is_empty()
     );
