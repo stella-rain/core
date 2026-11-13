@@ -86,6 +86,7 @@ mod hit_marks;
 mod hit_type_kind;
 mod hold;
 mod homing_missiles;
+mod knockdown;
 mod leash;
 mod ledger;
 mod level_table;

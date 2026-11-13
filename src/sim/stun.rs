@@ -336,6 +336,19 @@ pub(super) fn stagger_tick(stage: &World, s: &mut State, events: &mut Vec<Domain
     }
 }
 
+/// Knocks enemy `i` down (C09), as the knockback of `me`'s smash landed on it.
+pub(super) fn knock_down(
+    _stage: &World,
+    _s: &mut State,
+    _me: PlayerIdx,
+    _i: usize,
+    _events: &mut Vec<DomainEvent>,
+) {
+}
+
+/// One tick of every knockdown: it counts down and reports its end.
+pub(super) fn down_tick(_stage: &World, _s: &mut State, _events: &mut Vec<DomainEvent>) {}
+
 #[cfg(test)]
 mod tests {
     //! The ranged token of a run a stun cancels (a zone-leaving run frees its token at once; a
@@ -492,6 +505,230 @@ mod tests {
                 panic!("the live rules");
             };
             assert!(!world.has_stagger);
+        }
+    }
+
+    // --- The knockdown ------------------------------------------------------------------------
+
+    fn me() -> PlayerIdx {
+        PlayerIdx::new(0).unwrap()
+    }
+
+    /// The world naming a knockdown of 30 ticks and a state whose enemy 0 can be knocked down.
+    fn downable() -> (World, State) {
+        let (mut w, mut s) = bare();
+        w.tuning.down_ticks = 30;
+        w.has_down = true;
+        let e = &mut s.enemies[0];
+        assert!(e.elite.is_none() && e.hp > 0, "a regular enemy");
+        e.stun_immune = 0;
+        e.control = Default::default();
+        (w, s)
+    }
+
+    fn applied(events: &[DomainEvent]) -> Vec<u32> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                DomainEvent::StatusApplied {
+                    status,
+                    duration_ticks,
+                    ..
+                } if status.as_str() == "knocked_down" => Some(*duration_ticks),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn list(w: &mut World) {
+        w.tuning.control_repeat_len = 2;
+        w.tuning.control_repeat_pcts[0] = 100;
+        w.tuning.control_repeat_pcts[1] = 50;
+        w.tuning.control_reset_ticks = 600;
+        w.tuning.control_immune_ticks = 100;
+    }
+
+    #[test]
+    fn a_knockdown_holds_the_enemy_for_the_rules_ticks_and_reports_it() {
+        let (w, mut s) = downable();
+        let mut events = Vec::new();
+        knock_down(&w, &mut s, me(), 0, &mut events);
+        assert_eq!(s.enemies[0].control.knocked_down, 30);
+        assert_eq!(applied(&events), [30]);
+        // A downed player's hit knocks nothing down.
+        let (w, mut s) = downable();
+        s.players[me()].hp = 0;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert_eq!(s.enemies[0].control.knocked_down, 0);
+        // A stun-immune enemy is refused.
+        let (w, mut s) = downable();
+        s.enemies[0].stun_immune = 5;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert_eq!(s.enemies[0].control.knocked_down, 0);
+    }
+
+    #[test]
+    fn a_knockdown_counts_down_and_its_end_starts_the_stun_immunity_when_no_list_is_named() {
+        let (w, mut s) = downable();
+        s.stun.immune_ticks = 100;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        let mut events = Vec::new();
+        for _ in 0..29 {
+            down_tick(&w, &mut s, &mut events);
+        }
+        assert_eq!(s.enemies[0].control.knocked_down, 1);
+        assert!(events.is_empty());
+        down_tick(&w, &mut s, &mut events);
+        assert_eq!(s.enemies[0].control.knocked_down, 0);
+        let id = s.enemies[0].id;
+        assert_eq!(events, [DomainEvent::KnockdownEnded { target: id }]);
+        assert_eq!(s.enemies[0].stun_immune, 100);
+        // With a list the list's immunity governs: the end starts none.
+        let (mut w, mut s) = downable();
+        list(&mut w);
+        s.stun.immune_ticks = 100;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        for _ in 0..30 {
+            down_tick(&w, &mut s, &mut Vec::new());
+        }
+        assert_eq!(s.enemies[0].stun_immune, 0);
+    }
+
+    #[test]
+    fn a_second_knockdown_counts_nothing_and_keeps_the_longer_remainder() {
+        let (mut w, mut s) = downable();
+        list(&mut w);
+        s.enemies[0].control.knocked_down = 5;
+        s.enemies[0].control.hard_controls = 1;
+        let mut events = Vec::new();
+        knock_down(&w, &mut s, me(), 0, &mut events);
+        assert_eq!(s.enemies[0].control.hard_controls, 1, "counts nothing");
+        assert_eq!(s.enemies[0].control.knocked_down, 30);
+        assert_eq!(applied(&events), [30], "reported again");
+        // A shorter one keeps the remainder and reports nothing: 30 * 50 / 100 = 15 < 25.
+        let (mut w, mut s) = downable();
+        list(&mut w);
+        s.enemies[0].control.knocked_down = 25;
+        s.enemies[0].control.hard_controls = 2;
+        let mut events = Vec::new();
+        knock_down(&w, &mut s, me(), 0, &mut events);
+        assert_eq!(s.enemies[0].control.knocked_down, 25);
+        assert!(applied(&events).is_empty());
+    }
+
+    #[test]
+    fn a_knockdown_ends_a_flinch_and_shares_the_stun_s_list_and_count() {
+        let (mut w, mut s) = downable();
+        w.tuning.flinch_immune_ticks = 40;
+        s.enemies[0].control.flinch = 7;
+        let mut events = Vec::new();
+        knock_down(&w, &mut s, me(), 0, &mut events);
+        let id = s.enemies[0].id;
+        assert_eq!(s.enemies[0].control.flinch, 0);
+        assert_eq!(s.enemies[0].control.flinch_immune, 40);
+        assert!(events.contains(&DomainEvent::FlinchEnded { target: id }));
+        // A stun and a knockdown share the count: stun first, the knockdown keeps 15.
+        let (mut w, mut s) = downable();
+        list(&mut w);
+        stun_owner_for(&w, &mut s);
+        assert_eq!(s.enemies[0].control.hard_controls, 1);
+        s.enemies[0].stun_immune = 0;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert_eq!(s.enemies[0].control.knocked_down, 15);
+        // Past the list a knockdown is refused and the immunity starts.
+        s.enemies[0].control.knocked_down = 0;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert_eq!(s.enemies[0].control.knocked_down, 0);
+        assert_eq!(s.enemies[0].stun_immune, 100);
+        // A stun and a knockdown on one enemy: each ends on its own.
+        let (w, mut s) = downable();
+        let source = s.players.id(me());
+        s.enemies[0].stun_immune = 0;
+        apply(&w, &mut s, Who::Enemy(0), source, 10, &mut Vec::new());
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert!(stunned(&s.enemies[0].statuses));
+        assert_eq!(s.enemies[0].control.knocked_down, 30);
+    }
+
+    fn stun_owner_for(w: &World, s: &mut State) {
+        let source = s.players.id(me());
+        apply(w, s, Who::Enemy(0), source, 30, &mut Vec::new());
+    }
+
+    #[test]
+    fn a_knockdown_frees_a_zone_leaving_runs_token_and_cools_a_channelled_one() {
+        let (mut w, mut s, _) = ranged_run(zone_leaving());
+        w.tuning.down_ticks = 30;
+        w.has_down = true;
+        s.enemies[0].stun_immune = 0;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert!(s.runs.is_empty(), "the run is gone");
+        assert!(s.ranged_cooling.is_empty(), "{:?}", s.ranged_cooling);
+
+        let (mut w, mut s, pool) = ranged_run(channelled());
+        w.tuning.down_ticks = 30;
+        w.has_down = true;
+        s.enemies[0].stun_immune = 0;
+        let until = s.tick + w.tuning.ranged_token_cooldown_ticks;
+        knock_down(&w, &mut s, me(), 0, &mut Vec::new());
+        assert!(s.runs.is_empty(), "the run is gone");
+        assert_eq!(s.ranged_cooling.as_slice(), [(until, pool)]);
+    }
+
+    #[test]
+    fn a_downed_enemy_is_given_no_ranged_token() {
+        let (w, mut s) = downable();
+        let up = super::super::select::Up::of(&s.players);
+        let granted = |w: &World, s: &mut State| {
+            super::attacks::grant_ranged(w, s, &up);
+            s.scratch
+                .ranged_grants
+                .iter()
+                .flatten()
+                .copied()
+                .collect::<Vec<_>>()
+        };
+        let standing = granted(&w, &mut s);
+        let id = *standing
+            .first()
+            .expect("a ready ranged enemy in the fixture");
+        let i = s.enemies.iter().position(|e| e.id == id).unwrap();
+        s.enemies[i].control.knocked_down = 5;
+        assert!(!granted(&w, &mut s).contains(&id));
+    }
+
+    #[test]
+    fn knockdowns_never_pass_the_decode_caps() {
+        use crate::limits::{MAX_CONTROL_REPEATS, MAX_DOWN_TICKS};
+        let (mut w, mut s) = downable();
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for round in 0..2000u32 {
+            let r = next();
+            w.tuning.down_ticks = u16::try_from(1 + r % u64::from(MAX_DOWN_TICKS)).unwrap();
+            if round % 3 == 0 {
+                list(&mut w);
+            } else {
+                w.tuning.control_repeat_len = 0;
+            }
+            s.enemies[0].stun_immune = 0;
+            match next() % 3 {
+                0 => knock_down(&w, &mut s, me(), 0, &mut Vec::new()),
+                1 => down_tick(&w, &mut s, &mut Vec::new()),
+                _ => {
+                    for _ in 0..(next() % 40) {
+                        down_tick(&w, &mut s, &mut Vec::new());
+                    }
+                }
+            }
+            let c = &s.enemies[0].control;
+            assert!(c.knocked_down <= MAX_DOWN_TICKS, "round {round}");
+            assert!(c.hard_controls <= MAX_CONTROL_REPEATS, "round {round}");
         }
     }
 }

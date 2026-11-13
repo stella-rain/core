@@ -929,3 +929,11 @@ fn the_repeat_queue_is_bounded_at_decode() {
 fn bytes_of(s: &State) -> Vec<u8> {
     bytes(s)
 }
+
+/// A downed enemy round-trips through the savepoint codec and hashes as it did.
+#[test]
+fn a_knocked_down_enemy_round_trips_with_an_equal_hash() {
+    let mut s = base();
+    s.enemies[0].control.knocked_down = 17;
+    round_trip_hashed(&s.enemies[0]);
+}
