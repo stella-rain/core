@@ -122,6 +122,9 @@ pub(super) mod steps {
         if c.world.has_stagger {
             stun::stagger_tick(c.world, c.s, c.events);
         }
+        if c.world.has_down {
+            stun::down_tick(c.world, c.s, c.events);
+        }
     }
 
     #[inline(never)]
