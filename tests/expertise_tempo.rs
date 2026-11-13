@@ -189,16 +189,16 @@ fn the_kind_needs_nothing_else_on_the_path() {
     valid(json!([tempo()]));
 }
 
-/// S3: the bundled pack names no tempo kind, and the kind's JSON serializes back to itself.
+/// S3: the bundled pack names the tempo kind, and the kind's JSON serializes back to itself.
 #[test]
-fn the_kind_round_trips_and_the_bundled_file_names_none() {
+fn the_kind_round_trips_and_the_bundled_file_names_it() {
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
-    assert!(!bundled.contains("combo_tempo_pct"));
+    assert!(bundled.contains("combo_tempo_pct"));
     let kind: StyleKind = serde_json::from_value(tempo()).expect("the kind parses");
     assert_eq!(serde_json::to_value(&kind).unwrap(), tempo());
 }
 
-/// S4: the views carry the kind compactly and the bundled pack names none.
+/// S4: the views carry the kind compactly and the bundled pack's views carry it.
 #[test]
 fn the_views_carry_the_tempo_kind() {
     let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
