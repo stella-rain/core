@@ -23,7 +23,7 @@ use crate::run_setup::RunSetup;
 
 /// The ticks played before the heaviest tick of the three-player dense minute (`window` finds
 /// it; `tests/bench_fixture_pins.rs` pins it).
-pub const PEAK_TICK_3P: u32 = 10_800;
+pub const PEAK_TICK_3P: u32 = 9_834;
 
 /// The ticks of a rollback: the window of ADR-SIM-7's rollback, replayed after the restore.
 pub const ROLLBACK_TICKS: u32 = 8;
