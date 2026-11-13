@@ -25,7 +25,7 @@ use crate::version::Versions;
 /// then the most zones (118). Found by `window`, which reads the engine's `Load`, not an
 /// instruction count; `tests/time_limit_case.rs` pins that the constant is where the scan puts it.
 /// In offers mode the same scan gave tick 1,027 (3 attacks, 124 zones): the run differs.
-pub const WARMUP_TICKS: u32 = 294;
+pub const WARMUP_TICKS: u32 = 445;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.
 const STAGE_LENGTH_TICKS: u32 = 18_000;

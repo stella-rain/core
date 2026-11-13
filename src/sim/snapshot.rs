@@ -584,6 +584,11 @@ static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
 /// not a status in its list.
 pub(super) static FLINCH_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("flinch"));
 
+/// Builds `FLINCH_ID` now: its first use would allocate in the middle of a tick (T1b).
+pub(super) fn warm_flinch_id() {
+    LazyLock::force(&FLINCH_ID);
+}
+
 /// The ID of an enemy's knockdown: a counter of its state, like the flinch, not a status in its list.
 pub(super) static KNOCKED_DOWN_ID: LazyLock<ContentId> =
     LazyLock::new(|| ContentId::from("knocked_down"));

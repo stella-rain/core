@@ -831,18 +831,20 @@ mod tests {
     }
 
     #[test]
-    fn the_bench_worlds_name_no_gauge() {
-        // The worst case and the time-limit case are the shipped content: no elite or boss names a
-        // `stagger_max`, so the stagger rules never run there.
-        for engine in [
-            worst_case::warmed_up(),
-            crate::bench_fixtures::time_limit_case::warmed_up(),
-        ] {
+    fn the_time_limit_bench_world_names_a_gauge_and_the_worst_case_none() {
+        // The time-limit case is the shipped content: its elites and bosses name a `stagger_max`,
+        // so the stagger rules run there. The worst case is a hand-built stage whose enemies name
+        // none, so they never do (a statement about the content, not a guard).
+        let has_stagger = |engine: crate::engine::Engine| {
             let Run::V2 { world, .. } = engine.run() else {
                 panic!("the live rules");
             };
-            assert!(!world.has_stagger);
-        }
+            world.has_stagger
+        };
+        assert!(has_stagger(
+            crate::bench_fixtures::time_limit_case::warmed_up()
+        ));
+        assert!(!has_stagger(worst_case::warmed_up()));
     }
 
     // --- The knockdown ------------------------------------------------------------------------

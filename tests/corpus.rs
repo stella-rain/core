@@ -1769,7 +1769,7 @@ pub(crate) fn short_time_limit(overtime: u32) -> (String, RunContent) {
     v["waves"] = json!([]);
     v["elite_table"] =
         json!([{ "start_tick": 0, "weights": [{ "elite": "elite_low", "weight": 1 }] }]);
-    let json = serde_json::to_string_pretty(&v).unwrap() + "\n";
+    let json = serde_json::to_string(&v).unwrap() + "\n";
     let content = RunContent::bundled()
         .clone()
         .with_time_limit(TimeLimit::parse(json.as_bytes(), Versions::CURRENT).unwrap());

@@ -21,7 +21,7 @@ use crate::snapshot::{SlotKindView, SlotView};
 
 /// The ticks played before the window: the heaviest tick of the minute at which every slot's
 /// inventory holds at least two items (`window` finds it; `tests/bench_fixture_pins.rs` pins it).
-pub const EQUIP_PEAK_TICK: u32 = 9_834;
+pub const EQUIP_PEAK_TICK: u32 = 10_156;
 
 /// The recorded actions of the window, each with the window tick it comes before: every slot's
 /// `Equip`, then every slot's `Extract`. Found for `EQUIP_PEAK_TICK` and checked by the tests.

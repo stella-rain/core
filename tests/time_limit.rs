@@ -576,7 +576,10 @@ fn an_elite_type_is_a_well_formed_unique_id_with_a_valid_elite_enemy() {
 
     // An elite type is an elite.
     let mut t = low();
-    t["enemy"].as_object_mut().unwrap().remove("elite");
+    // (`stagger_max` is an elite's too, so it goes with the `elite` it belongs to.)
+    let enemy = t["enemy"].as_object_mut().unwrap();
+    enemy.remove("elite");
+    enemy.remove("stagger_max");
     assert_eq!(paths(&only(vec![t])), ["$.elite_types[0].enemy.elite"]);
 }
 
@@ -734,4 +737,126 @@ fn the_crowd_target_override_is_one_to_the_most_any_target_can_be() {
     for bad in [0, 401] {
         assert_eq!(paths(&with("crowd_target", json!(bad))), ["$.crowd_target"]);
     }
+}
+
+// --- The combat numbers of the shipped schedule (poise, stagger, counterable wind-ups) ------------
+
+/// Every `wind_up` phase under `v`, as `(path, ticks, counterable)`, in file order.
+fn wind_ups(v: &Value, path: &str, out: &mut Vec<(String, u64, bool)>) {
+    match v {
+        Value::Object(map) => {
+            if map.get("kind") == Some(&json!("wind_up")) {
+                out.push((
+                    path.to_string(),
+                    map["ticks"].as_u64().expect("ticks"),
+                    map.get("counterable") == Some(&json!(true)),
+                ));
+            }
+            for (k, x) in map {
+                wind_ups(x, &format!("{path}.{k}"), out);
+            }
+        }
+        Value::Array(items) => {
+            for (i, x) in items.iter().enumerate() {
+                wind_ups(x, &format!("{path}[{i}]"), out);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn the_regular_waves_name_a_poise_by_role() {
+    let file = good();
+    let waves = file["waves"].as_array().unwrap();
+    assert_eq!(waves.len(), 9);
+    let poise = |w: &Value| w["enemy"]["poise"].as_u64();
+    let by_id = |id: &str| poise(waves.iter().find(|w| w["id"] == id).expect(id));
+    for (id, want) in [
+        ("swarmer", 0),
+        ("chaser", 0),
+        ("ranged_shooter", 10),
+        ("tank", 50),
+        ("exploder", 0),
+        ("splitter", 10),
+        ("line_caster", 10),
+    ] {
+        assert_eq!(by_id(id), Some(want), "the poise of {id}");
+    }
+    // The two bats with no role id.
+    for w in waves.iter().filter(|w| w.get("id").is_none()) {
+        assert_eq!(poise(w), Some(0), "an id-less bat");
+    }
+    // The splitter's summoned fairy.
+    let splitter = waves.iter().find(|w| w["id"] == "splitter").unwrap();
+    assert_eq!(
+        splitter["enemy"]["rules"][0]["do"]["agent"]["poise"].as_u64(),
+        Some(10),
+        "the splitter's summoned agent"
+    );
+}
+
+#[test]
+fn every_elite_type_but_the_shrine_has_poise_and_a_stagger_gauge() {
+    let file = good();
+    for t in file["elite_types"].as_array().unwrap() {
+        let e = &t["enemy"];
+        if t["id"] == "elite_shrine" {
+            assert!(e["poise"].is_null() && e["stagger_max"].is_null(), "shrine");
+            assert!(
+                e["movement"]["guardians"]["enemy"]["stagger_max"].is_null(),
+                "the guardians have no gauge"
+            );
+            assert_eq!(e["movement"]["guardians"]["enemy"]["poise"], json!(0));
+        } else {
+            assert_eq!(e["poise"], json!(100), "poise of {}", t["id"]);
+            assert_eq!(e["stagger_max"], json!(400), "stagger_max of {}", t["id"]);
+        }
+    }
+    let leader = file["elite_types"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "elite_leader")
+        .unwrap();
+    assert_eq!(
+        leader["enemy"]["elite"]["escort"]["enemy"]["poise"],
+        json!(0)
+    );
+}
+
+#[test]
+fn every_boss_has_a_stagger_gauge_and_a_staggered_time() {
+    let file = good();
+    let bosses = file["bosses"].as_array().unwrap();
+    assert_eq!(bosses.len(), 5);
+    for b in bosses {
+        assert_eq!(b["stagger_max"], json!(1000), "stagger_max of {}", b["id"]);
+        assert_eq!(
+            b["staggered_ticks"],
+            json!(120),
+            "staggered_ticks of {}",
+            b["id"]
+        );
+    }
+}
+
+#[test]
+fn the_long_wind_ups_of_elites_and_bosses_are_counterable_and_no_others() {
+    let file = good();
+    let mut counter = Vec::new();
+    wind_ups(&file["elite_types"], "elite_types", &mut counter);
+    wind_ups(&file["bosses"], "bosses", &mut counter);
+    let long: Vec<_> = counter.iter().filter(|(_, t, _)| *t >= 40).collect();
+    // elite_low 50; elite_mid 55, 50; elite_high 90; elite_leader 50, 70; elite_mimic 40, 55;
+    // horn_charger 60, 40, 40, 40.
+    assert_eq!(long.len(), 12, "{long:?}");
+    for (path, ticks, counterable) in &counter {
+        assert_eq!(*counterable, *ticks >= 40, "{path} ({ticks} ticks)");
+    }
+    // A regular enemy's wind-up is never counterable.
+    let mut waves = Vec::new();
+    wind_ups(&file["waves"], "waves", &mut waves);
+    assert!(!waves.is_empty());
+    assert!(waves.iter().all(|(_, _, c)| !c), "{waves:?}");
 }
