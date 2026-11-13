@@ -163,6 +163,8 @@ mod agents;
 mod attack_table;
 mod attacks;
 mod boss;
+#[cfg(test)]
+mod breaker_tests;
 mod build;
 #[cfg(test)]
 mod build_pin_tests;
