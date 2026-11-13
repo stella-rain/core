@@ -32,7 +32,7 @@ outcome changes follow the `schema-change` skill.
   `schedule.rs` holds `TICK`, the one tick order (`tick_doc_lists_the_schedule` keeps the `sim`
   module doc's table equal to it): a step is added or moved there. `sim/` holds agents and the
   enemies' push-apart, attacks and hit boxes, skills, the main character's movement, facing and
-  evade, the weapon's combos (ADR-SIM-4), aim assist, boss phases and parts (a boss may opt in to `chase` and
+  evade, the weapon's combos (ADR-SIM-4), combat (stun, flinch, stagger, knockdown and the counter in `stun.rs`; the perfect evade, weapon gauge, spirit, counter bonus, combo tempo, giant trigger and rally in `player.rs`; queued repeats in `attacks/`; the ranged grace in `attacks/ranged.rs`: `combat.md`; the threat colour table, `src/threat_colours.rs`, decides nothing), aim assist, boss phases and parts (a boss may opt in to `chase` and
   `arrives_at_tick`: `boss.rs`, `boss::arrive`; `content.md`), experience and levels, the runes (`runes.rs`), the
   falling stars (`stars.rs`: the live rules open no offer, ADR-REPL-5) and the weapon's expertise (`expertise.rs`: no
   level opens an offer). `offer_rating.rs` holds `swap_ratings`: `Engine::swap_ratings` rates a star against each
@@ -51,11 +51,11 @@ outcome changes follow the `schema-change` skill.
   src/sim_v1`): `SIM_V1_SOURCE` (`src/sim/frozen_tests.rs`) moves once, with the reason in the
   same commit, and `tests/corpus/v1/` is the guard. Its hash keeps the single-player layout,
   no presence byte (`src/sim_v1/hash_layout_tests.rs`).
-- Events: `sim_v1/event.rs` holds the 43-variant `DomainEvent`, `HitKind` and `HitSource` as version 1 emitted them;
-  the live enum (`event.rs`) has 42: the 39 they share and three player events. The one adapter is `engine/v1_events.rs`:
-  `adapt(v1::DomainEvent) -> Option<DomainEvent>`, an exhaustive `match` with no `_` arm, `None` for the four level-offer
-  events the live rules lack, player fields `None`; `Run::V1` (`engine/run.rs`) drains frozen events through it. A live
-  event change edits the adapter, never `sim_v1` (`sim_v1_imports_nothing_from_the_live_event`).
+- Events: `sim_v1/event.rs` holds the frozen `DomainEvent`, `HitKind` and `HitSource` as version 1 emitted them;
+  the live enum (`event.rs`) adds the player events and the combat events (`GaugeFilled` to `StaggerBurst`). The one adapter
+  is `engine/v1_events.rs`: `adapt(v1::DomainEvent) -> Option<DomainEvent>`, an exhaustive `match` with no `_` arm, `None`
+  for the offer events the live rules lack (level and star offers), player fields `None`; `Run::V1` (`engine/run.rs`) drains
+  frozen events through it. A live event change edits the adapter, never `sim_v1` (`sim_v1_imports_nothing_from_the_live_event`).
 - `trig.rs`: the sine table. `presets.rs`: takes an attack preset (`content/attack_presets.json`,
   ADR-CONT-3 point 6) apart into attack phases. `inline.rs`: `InlineVec<T, N>`, a bounded list, no heap.
   `hash.rs`: the FNV-1a 64 hasher.
