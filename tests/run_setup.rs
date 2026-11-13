@@ -609,13 +609,13 @@ fn star_setup(lumine: u8, star: &str) -> RunSetup {
     }
 }
 
-/// `validate_in` on the bundled content: the content-dependent checks of a setup.
+/// `validate_in` on the pre-change content (`before`): the content-dependent checks of a setup.
 fn content_check(setup: &RunSetup) -> Result<(), Error> {
-    run_setup::validate_in(setup, RunContent::bundled())
+    run_setup::validate_in(setup, crate::before::content())
 }
 
 fn found_in(setup: &RunSetup) -> Vec<Issue> {
-    issues(run_setup::validate_in(setup, RunContent::bundled()).unwrap_err())
+    issues(run_setup::validate_in(setup, crate::before::content()).unwrap_err())
 }
 
 #[test]
@@ -1198,9 +1198,9 @@ fn the_hammer_takes_its_own_styles_and_every_mode_is_checked() {
         weapon: "giant_hammer".into(),
         ..styled(list)
     };
-    assert!(Engine::start(&hammer(serde_json::json!(["bulwark", "crush"]))).is_ok());
-    assert!(Engine::start(&hammer(serde_json::json!([]))).is_ok());
-    assert!(Engine::start(&styled(serde_json::json!([]))).is_ok());
+    assert!(crate::before::start(&hammer(serde_json::json!(["bulwark", "crush"]))).is_ok());
+    assert!(crate::before::start(&hammer(serde_json::json!([]))).is_ok());
+    assert!(crate::before::start(&styled(serde_json::json!([]))).is_ok());
     let timed = RunSetup {
         mode: "time_limit".into(),
         ..styled(serde_json::json!(["crush"]))
