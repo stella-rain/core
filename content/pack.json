@@ -4672,14 +4672,16 @@
     "stun": 50,
     "pull": 30,
     "knockback": 50,
-    "knockdown": 50
+    "knockdown": 50,
+    "counter": 250
   },
   "stagger_refill_pcts": [100, 75, 50],
   "stagger_drain_delay_ticks": 180,
   "stagger_drain_per_tick": 2,
   "stagger_damage_pct": 30,
   "down_ticks": 40,
-  "down_bonus_pct": 25
+  "down_bonus_pct": 25,
+  "counter_stun_ticks": 60
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
