@@ -729,7 +729,13 @@ fn hit_enemy_side(
             damage(stage, s, me, shot(w), Who::Enemy(i), events);
             match w.smash {
                 Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, me, i, pull),
-                Some(Smash::Knockback(push)) => super::knock_enemy(stage, s, me, i, push),
+                Some(Smash::Knockback(push)) => {
+                    super::knock_enemy(stage, s, me, i, push);
+                    // C09: the knockback also knocks a regular enemy down, when the rules name it.
+                    if stage.has_down {
+                        super::stun::knock_down(stage, s, me, i, events);
+                    }
+                }
                 _ => {}
             }
             // C03, C04: a combo hit fills an elite's gauge, and a pull or a knockback it resists
@@ -788,7 +794,15 @@ fn resisted_move_fills(
 ) {
     let value = match w.smash {
         Some(Smash::Pull(_)) => stage.tuning.stagger_values[1],
-        Some(Smash::Knockback(_)) => stage.tuning.stagger_values[2],
+        // A knockback that would have knocked a regular enemy down adds the knockdown's value.
+        Some(Smash::Knockback(_)) => {
+            stage.tuning.stagger_values[2]
+                + if stage.has_down {
+                    stage.tuning.stagger_down
+                } else {
+                    0
+                }
+        }
         _ => return,
     };
     let resists = match target {

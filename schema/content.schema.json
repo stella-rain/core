@@ -2260,6 +2260,33 @@
         },
         {
           "additionalProperties": false,
+          "description": "`target`'s knockdown ran out: the enemy acts again unless a stun still holds it.",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "target": {
+                  "$ref": "#/$defs/EntityId"
+                }
+              },
+              "required": [
+                "target"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "KnockdownEnded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "The main character started an evade.",
           "properties": {
             "type": {
@@ -3867,7 +3894,7 @@
           ]
         },
         "statuses": {
-          "description": "Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,\n`bleed`, `poison`, `burn`, `stun`, `flinch` and `aura`, each with `remaining` and `total`\nticks; `flinch` is the enemy's own control state, shown as a status.",
+          "description": "Its statuses and auras, sorted by ID. An enemy can show `atk_up`, `vulnerable`, `slow`,\n`bleed`, `poison`, `burn`, `stun`, `flinch`, `knocked_down` and `aura`, each with `remaining` and\n`total` ticks; `flinch` and `knocked_down` are the enemy's own control state, shown as statuses.",
           "items": {
             "$ref": "#/$defs/StatusView"
           },
@@ -7466,6 +7493,26 @@
           "minimum": 0,
           "type": "integer"
         },
+        "down_bonus_pct": {
+          "description": "The percent a smash hit on a knocked-down enemy deals more: 1 to `limits::MAX_PCT`\n(1,000). Only with `down_ticks`. Absent: none.",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "down_ticks": {
+          "description": "The ticks a regular enemy lies knocked down when a smash's knockback lands on it: 1 to\n`limits::MAX_DOWN_TICKS` (180). `sim_version` 2 only. Absent: a knockback is a push only.",
+          "format": "uint16",
+          "maximum": 180,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "flinch_immune_ticks": {
           "description": "Ticks after a flinch ends in which the enemy cannot flinch again: 0 to\n`limits::MAX_FLINCH_IMMUNE_TICKS` (120). Only with `flinch_ticks`. Absent: 0.",
           "format": "uint16",
@@ -9256,6 +9303,16 @@
             "null"
           ]
         },
+        "knockdown": {
+          "description": "What a knockback adds on top of its own value when an elite, the boss or a part resists it\n(a knockback that would have knocked a regular enemy down). Only with `down_ticks`.",
+          "format": "uint32",
+          "maximum": 10000,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "pull": {
           "description": "A smash's pull.",
           "format": "uint32",
@@ -9773,7 +9830,7 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId",
-          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `staggered`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
+          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `knocked_down`, `staggered`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
         },
         "remaining": {
           "description": "Ticks left. An aura has none: it lasts while its entity is in reach, so both this and\n`total` are 0 for it.",
@@ -10828,6 +10885,16 @@
       "additionalProperties": false,
       "description": "What a control adds to the target's damage taken as `vulnerable`, in percent, by the kind of\ncontrol that landed. Only the stun for now; the other controls add their own key later.",
       "properties": {
+        "knockdown": {
+          "description": "A knockdown puts `vulnerable` of this many percent on the downed enemy for the knockdown's\nown ticks: 1 to `limits::MAX_PCT` (1,000). Only with `down_ticks`. Absent: none.",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "stagger": {
           "description": "A stagger puts `vulnerable` of this many percent on the staggered elite or boss for the\nstagger's own ticks: 1 to `limits::MAX_PCT` (1,000). Absent: a stagger puts none.",
           "format": "uint32",

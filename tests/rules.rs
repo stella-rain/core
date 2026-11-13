@@ -1030,6 +1030,171 @@ fn r5_a_file_naming_every_stagger_key_is_within_the_size_limit_and_parses() {
     Rules::parse(&bytes, Versions::CURRENT).expect("parses");
 }
 
+// --- The knockdown's four keys (dormant until content names them) --------------------------------
+
+/// The four keys the knockdown adds, each named by one value in range.
+fn knockdown_keys() -> Value {
+    json!({
+        "down_ticks": 30,
+        "down_bonus_pct": 50,
+        "vulnerable_pcts": { "knockdown": 20 },
+        "stagger_values": { "knockdown": 5 },
+    })
+}
+
+/// The bundled file with `patch` merged over the four keys.
+fn knockdown_with(patch: Value) -> Vec<u8> {
+    let mut all = knockdown_keys();
+    for (k, v) in patch.as_object().unwrap() {
+        all[k] = v.clone();
+    }
+    patched(&all)
+}
+
+#[test]
+fn knockdown_r1_the_bundled_file_names_none_of_the_knockdown_keys() {
+    let v = bundled_value();
+    assert!(v.get("down_ticks").is_none());
+    assert!(v.get("down_bonus_pct").is_none());
+    assert!(
+        v.get("vulnerable_pcts")
+            .is_none_or(|o| o.get("knockdown").is_none())
+    );
+    assert!(
+        v.get("stagger_values")
+            .is_none_or(|o| o.get("knockdown").is_none())
+    );
+    let rules = Rules::bundled();
+    assert_eq!(rules.down_ticks(), 0);
+    assert_eq!(rules.down_bonus_pct(), 0);
+    assert_eq!(rules.vulnerable_knockdown_pct(), 0);
+    assert_eq!(rules.knockdown_stagger_value(), 0);
+}
+
+#[test]
+fn knockdown_r2_every_bound_is_checked_at_its_key() {
+    // (patch in range, patches out of range, the path of the issue)
+    let cases: Vec<(Value, Vec<Value>, &str)> = vec![
+        (
+            json!({ "down_ticks": 180 }),
+            vec![json!({ "down_ticks": 0 }), json!({ "down_ticks": 181 })],
+            "$.down_ticks",
+        ),
+        (
+            json!({ "down_bonus_pct": 1000 }),
+            vec![
+                json!({ "down_bonus_pct": 0 }),
+                json!({ "down_bonus_pct": 1001 }),
+            ],
+            "$.down_bonus_pct",
+        ),
+        (
+            json!({ "vulnerable_pcts": { "knockdown": 1000 } }),
+            vec![
+                json!({ "vulnerable_pcts": { "knockdown": 0 } }),
+                json!({ "vulnerable_pcts": { "knockdown": 1001 } }),
+            ],
+            "$.vulnerable_pcts.knockdown",
+        ),
+        (
+            json!({ "stagger_values": { "knockdown": 10_000 } }),
+            vec![
+                json!({ "stagger_values": { "knockdown": 0 } }),
+                json!({ "stagger_values": { "knockdown": 10_001 } }),
+            ],
+            "$.stagger_values.knockdown",
+        ),
+    ];
+    for (ok, bad, path) in cases {
+        assert!(
+            Rules::parse(&knockdown_with(ok.clone()), Versions::CURRENT).is_ok(),
+            "{ok}"
+        );
+        for b in bad {
+            assert_eq!(
+                paths(Rules::parse(&knockdown_with(b.clone()), Versions::CURRENT)),
+                [path],
+                "{b}"
+            );
+        }
+    }
+}
+
+#[test]
+fn knockdown_r3_the_three_partner_keys_need_down_ticks() {
+    let cur = Versions::CURRENT;
+    for (patch, path) in [
+        (json!({ "down_bonus_pct": 50 }), "$.down_bonus_pct"),
+        (
+            json!({ "vulnerable_pcts": { "knockdown": 20 } }),
+            "$.vulnerable_pcts.knockdown",
+        ),
+        (
+            json!({ "stagger_values": { "knockdown": 5 } }),
+            "$.stagger_values.knockdown",
+        ),
+    ] {
+        let alone = patched(&patch);
+        let Err(Error::Invalid(issues)) = Rules::parse(&alone, cur) else {
+            panic!("{path} alone was not refused");
+        };
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.path == path && i.message.contains("needs down_ticks")),
+            "{path}: {issues:?}"
+        );
+        let mut with_ticks = patch.clone();
+        with_ticks["down_ticks"] = json!(30);
+        assert!(Rules::parse(&patched(&with_ticks), cur).is_ok(), "{path}");
+    }
+}
+
+#[test]
+fn knockdown_r4_a_pack_at_sim_version_1_refuses_every_knockdown_key() {
+    for (patch, path) in [
+        (json!({ "down_ticks": 30 }), "$.down_ticks"),
+        (json!({ "down_bonus_pct": 50 }), "$.down_bonus_pct"),
+        (
+            json!({ "vulnerable_pcts": { "knockdown": 20 } }),
+            "$.vulnerable_pcts",
+        ),
+        (
+            json!({ "stagger_values": { "knockdown": 5 } }),
+            "$.stagger_values",
+        ),
+    ] {
+        let Err(Error::Invalid(issues)) = Rules::parse(&patched(&patch), V1) else {
+            panic!("{path} not refused at sim_version 1");
+        };
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.path == path && i.message.contains("needs sim_version 2")),
+            "{path}: {issues:?}"
+        );
+    }
+}
+
+#[test]
+fn knockdown_r5_a_file_naming_every_stagger_and_knockdown_key_parses_within_the_size_limit() {
+    let mut all = poise_keys();
+    for (k, v) in stagger_keys().as_object().unwrap() {
+        if k == "vulnerable_pcts" {
+            all["vulnerable_pcts"]["stagger"] = v["stagger"].clone();
+        } else {
+            all[k] = v.clone();
+        }
+    }
+    all["down_ticks"] = json!(30);
+    all["down_bonus_pct"] = json!(50);
+    all["vulnerable_pcts"]["knockdown"] = json!(20);
+    all["stagger_values"]["knockdown"] = json!(5);
+    let bytes = patched(&all);
+    assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
+    Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}
+
 // --- The perfect evade's five keys (ADR-CONT-3, ADR-SVC-1) ---------------------------------------
 
 const EVADE_KEYS: [&str; 5] = [

@@ -136,6 +136,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                         },
                         boss.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
                     ),
+                    (0, 0),
                 ),
                 fight: None,
                 stagger: boss.stagger_max.map(|_| b.stagger.gauge),
@@ -181,6 +182,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                         a.elite.as_ref().map_or(0, |e| e.stagger.staggered),
                         def.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
                     ),
+                    (a.control.knocked_down, world.tuning.down_ticks),
                 ),
                 fight: match (&def.movement, a.shrine.as_deref()) {
                     (
@@ -225,7 +227,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     elite: false,
                     aura_radius: None,
                     damage_over_time: dot_views(&part.statuses),
-                    statuses: status_views(&part.statuses, false, (0, 0), (0, 0)),
+                    statuses: status_views(&part.statuses, false, (0, 0), (0, 0), (0, 0)),
                     fight: None,
                     stagger: None,
                     stagger_max: None,
@@ -381,7 +383,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             runs.sort_by_key(|r| r.slot);
             runs.into_iter().map(view).collect()
         },
-        statuses: status_views(&s.players[me].statuses, false, (0, 0), (0, 0)),
+        statuses: status_views(&s.players[me].statuses, false, (0, 0), (0, 0), (0, 0)),
         down: if !s.players.is_solo() && s.players[me].is_downed() {
             Some(DownView {
                 ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
@@ -551,6 +553,10 @@ static AURA_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("aura"));
 /// not a status in its list.
 pub(super) static FLINCH_ID: LazyLock<ContentId> = LazyLock::new(|| ContentId::from("flinch"));
 
+/// The ID of an enemy's knockdown: a counter of its state, like the flinch, not a status in its list.
+pub(super) static KNOCKED_DOWN_ID: LazyLock<ContentId> =
+    LazyLock::new(|| ContentId::from("knocked_down"));
+
 /// The ID of an elite's or the boss's stagger: a counter of its state, not a status in its list.
 pub(super) static STAGGERED_ID: LazyLock<ContentId> =
     LazyLock::new(|| ContentId::from("staggered"));
@@ -563,6 +569,7 @@ fn status_views(
     aura: bool,
     flinch: (u16, u16),
     staggered: (u16, u16),
+    down: (u16, u16),
 ) -> Vec<StatusView> {
     let mut views: Vec<StatusView> = statuses
         .iter()
@@ -585,6 +592,14 @@ fn status_views(
             id: STAGGERED_ID.clone(),
             remaining: u32::from(staggered.0),
             total: u32::from(staggered.1),
+        });
+    }
+    // An enemy's knockdown, with what is left of it and the ticks the rules give one.
+    if down.0 > 0 {
+        views.push(StatusView {
+            id: KNOCKED_DOWN_ID.clone(),
+            remaining: u32::from(down.0),
+            total: u32::from(down.1),
         });
     }
     if aura {
