@@ -60,8 +60,9 @@ use super::{decode_state, encode_state};
 /// `Progress` and `ExpertiseGauge`; format 8 drops the star-offer fields of `Offers` (`due`,
 /// `offer`, `rerolls_left`, `banishes_left`, `extra_candidates`, `taken`, `banished`); format 9
 /// adds the combat fields: per agent `FoeControl`, per elite and boss `Stagger`, per player
-/// `PlayerCombat`, and the run's `repeats`; formats 1 to 8 are refused.
-pub const SAVEPOINT_FORMAT: u32 = 9;
+/// `PlayerCombat`, and the run's `repeats`; format 10 adds `PlayerCombat::counter_bonus_step`; formats 1 to 9 are
+/// refused.
+pub const SAVEPOINT_FORMAT: u32 = 10;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.
@@ -414,7 +415,7 @@ mod tests {
         let bytes = sample().to_bytes();
         assert_eq!(bytes.len(), HEADER_LEN + 3);
         assert_eq!(&bytes[0..4], b"SRSV");
-        assert_eq!(&bytes[4..8], &9u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &10u32.to_le_bytes());
         assert_eq!(&bytes[8..12], &SIM_VERSION.to_le_bytes());
         assert_eq!(&bytes[12..16], &SCHEMA_VERSION.to_le_bytes());
         assert_eq!(&bytes[16..48], &[0xA1; 32]);

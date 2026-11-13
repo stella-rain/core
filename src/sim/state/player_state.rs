@@ -123,6 +123,9 @@ pub(crate) struct PlayerCombat {
     pub giant_trigger: u16,
     /// Ticks left in which a ranged start is refused against this player as its target.
     pub ranged_grace: u16,
+    /// 1 while the running combo step took the counter bonus, 0 otherwise. No rule reads or
+    /// writes it yet.
+    pub counter_bonus_step: u8,
 }
 
 impl Clone for PlayerState {

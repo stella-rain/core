@@ -216,6 +216,7 @@ impl Encode for PlayerCombat {
             combo_tempo,
             giant_trigger,
             ranged_grace,
+            counter_bonus_step,
         } = self;
         perfect_window.encode(w);
         perfect_slow.encode(w);
@@ -230,6 +231,7 @@ impl Encode for PlayerCombat {
         combo_tempo.encode(w);
         giant_trigger.encode(w);
         ranged_grace.encode(w);
+        counter_bonus_step.encode(w);
     }
 }
 
@@ -274,6 +276,11 @@ impl Decode for PlayerCombat {
                 r.u16()?,
                 MAX_RANGED_GRACE_TICKS,
                 "ranged_grace past its bound",
+            )?,
+            counter_bonus_step: within(
+                r.u8()?,
+                MAX_COUNTER_BONUS_STEP,
+                "counter_bonus_step past its bound",
             )?,
         })
     }

@@ -41,10 +41,10 @@ fn solo_state_hash_and_savepoint_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            11_961_872_321_961_219_403,
-            15_344_033_844_911_649_515,
-            13_946_516_322_468_101_681,
+            16_988_816_508_526_638_320,
+            13_856_148_155_711_942_191,
+            12_265_853_905_003_284_947,
         ],
-        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none), then for the six new rewards that lengthen `taken` and `banished`, then for the three cases starting in equipment mode, then for the removal of the level-offer fields (worst_case and time_limit_case move; hit_case has no levels and no gauge and does not); then for the bundled time_limit mode's chasing bosses (time_limit_case moves); then for the removal of the star-offer fields (worst_case and time_limit_case have a `stars` section and move; hit_case has none and does not); then for the combat fields (every case has agents and players, so all three move, hit_case included)"
+        "worst_case, hit_case, time_limit_case; re-pinned for down/out player state fields, then for the equipment's 17 bytes, then for the 5 longer stat totals, then for the 13 totals and the 13 weapon-set tenths (worst_case and time_limit_case have levels, hit_case has none), then for the six new rewards that lengthen `taken` and `banished`, then for the three cases starting in equipment mode, then for the removal of the level-offer fields (worst_case and time_limit_case move; hit_case has no levels and no gauge and does not); then for the bundled time_limit mode's chasing bosses (time_limit_case moves); then for the removal of the star-offer fields (worst_case and time_limit_case have a `stars` section and move; hit_case has none and does not); then for the combat fields (every case has agents and players, so all three move, hit_case included); then for the counter-bonus mark (every case has a player, so all three move)"
     );
 }

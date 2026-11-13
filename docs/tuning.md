@@ -82,6 +82,7 @@
 | `MAX_TEMPO_STACKS` | 10 | stacks | ADR-SIM-5 |
 | `MAX_TRIGGER_TICKS` | 3600 | ticks | ADR-SIM-5 |
 | `MAX_RANGED_GRACE_TICKS` | 600 | ticks | ADR-SIM-5 |
+| `MAX_COUNTER_BONUS_STEP` | 1 | flag | ADR-SIM-5 |
 | `MAX_REPEATS_QUEUED` | 64 | entries | ADR-SIM-5 |
 | `MAX_REPEAT_TARGETS` | 16 | targets | ADR-SIM-5 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-1 |
