@@ -645,10 +645,27 @@ fn the_giant_sword_takes_the_vindictus_shape() {
     assert_eq!(types("AAAAAB"), [Some(DamageType::Pierce)]);
     assert_eq!(types("B"), [Some(DamageType::Slash)]);
     assert_eq!(types("AB"), [Some(DamageType::Pierce)]);
-    // AAA charges: a wide slash at level 1, a spin at level 2, each with the +50% perfect bonus.
-    let charge = step_at(&w.combo, "AAA").unwrap().charge.as_ref().unwrap();
-    assert_eq!(charge.levels.len(), 2);
-    assert!(charge.levels.iter().all(|l| l.perfect_pct == 50));
+    // The base AAA is plain; the style `spirit_blade` grants the charge: a wide slash at level 1,
+    // a spin at level 2, each with the +50% perfect bonus, the one the base tree held before.
+    let aaa = step_at(&w.combo, "AAA").unwrap();
+    assert!(aaa.charge.is_none() && aaa.hold.is_none());
+    let expertise: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let style = expertise["weapons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|w| w["styles"].as_array().unwrap())
+        .find(|s| s["id"] == "spirit_blade")
+        .expect("spirit_blade");
+    let grant = style["kinds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["type"] == "replace_step" && k["step"] == json!(["main", "main", "main"]))
+        .expect("spirit_blade replaces AAA");
+    let levels = grant["grant"]["charge"]["levels"].as_array().unwrap();
+    assert_eq!(levels.len(), 2);
+    assert!(levels.iter().all(|l| l["perfect_pct"] == 50));
     // The dash branch: a lunge thrust, then a dash smash.
     let dash = |smash: bool| w.dash.get(smash).expect("a dash step");
     assert_eq!(
@@ -671,7 +688,11 @@ fn the_giant_hammer_spins_wider_with_each_normal_attack() {
     let radius = |presses: &str| active_radius(&step_at(&w.combo, presses).unwrap().attack);
     let widths: Vec<_> = ["A", "AA", "AAA", "AAAA", "AAAAA"].map(radius).into();
     assert!(widths.windows(2).all(|w| w[0] < w[1]), "{widths:?}");
-    assert!(step_at(&w.combo, "AAA").unwrap().charge.is_none());
+    let aaa = step_at(&w.combo, "AAA").unwrap();
+    assert!(
+        aaa.charge.is_none() && aaa.hold.is_none(),
+        "a plain base AAA"
+    );
     // AAAAA, the last normal attack, has only its smash AAAAAB after it.
     let next = &step_at(&w.combo, "AAAAA").unwrap().next;
     assert!(next.main.is_none() && next.smash.is_some());
