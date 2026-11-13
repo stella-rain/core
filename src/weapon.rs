@@ -94,6 +94,35 @@ pub struct Step {
     pub hold: Option<Hold>,
     #[serde(default, skip_serializing_if = "Branches::is_empty")]
     pub next: Branches,
+    /// The delayed repeats a style gave the step (`repeat` kinds, in the order granted). Runtime
+    /// only: a style's copy of the tree carries it, no JSON can put one on a tree.
+    #[serde(skip)]
+    pub repeats: Vec<StepRepeat>,
+    /// The chance, in percent, that a hit of the step fires a ready on-hit rune (a `proc_factor`
+    /// kind); none: every hit fires every ready rune. Runtime only, as `repeats`.
+    #[serde(skip)]
+    pub proc_pct: Option<u16>,
+}
+
+/// Where a repeat lands: on what the step's last `active` phase hit, or on the place it hit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatAnchorKind {
+    /// The enemies that phase hit, still standing when the repeat is due.
+    HitList,
+    /// The place the hit box was centred on, with the range the step had.
+    Place,
+}
+
+/// One delayed repeat of a step (a `repeat` kind, at run time): `repeat_pct` percent of the
+/// step's damage, `after_ticks` after its last `active` phase ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepRepeat {
+    pub after_ticks: u32,
+    pub repeat_pct: u16,
+    pub anchor: RepeatAnchorKind,
+    /// The repeat's own factor for on-hit runes; none: every ready rune fires.
+    pub proc_pct: Option<u16>,
 }
 
 /// A held step: an attack that goes on while the button stays held, then a

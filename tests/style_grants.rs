@@ -90,7 +90,7 @@ fn expertise_for(weapon: &str, kinds: bool) -> Expertise {
     Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the test expertise")
 }
 
-fn build(expertise: Expertise) -> Engine {
+pub(crate) fn build(expertise: Expertise) -> Engine {
     build_with("giant_hammer", expertise)
 }
 

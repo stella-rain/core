@@ -41,6 +41,7 @@ fn hit(target: u32, kind: u16, ty: Option<DamageType>) -> DomainEvent {
         rune: None,
         crit: false,
         echo: false,
+        repeat: false,
         player: None,
         buffed_by: None,
     }
@@ -85,6 +86,7 @@ fn a_rune_hit_sets_its_type_bit() {
         rune: Some(Rune::Explosion),
         crit: false,
         echo: false,
+        repeat: false,
         player: None,
         buffed_by: None,
     };

@@ -385,7 +385,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, DotState, |s| s.players[PlayerIdx::SOLO].statuses[0].dot.as_mut().unwrap(),
         fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
     each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
-        fields: [owner, due, percent, proc_pct, anchor]);
+        fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -874,11 +874,15 @@ fn the_repeat_queue_is_bounded_at_decode() {
         owner: MAX_PLAYERS - 1,
         due: 9,
         percent: pct,
-        proc_pct: pct,
+        proc_pct: Some(u16::try_from(crate::expertise::MAX_PROC_PCT).unwrap()),
         anchor: RepeatAnchor::Place {
             at: crate::fixed::Point::default(),
             facing: crate::sim::state::Dir::UP,
         },
+        attack: crate::sim::AttackIndex(3),
+        phase: 2,
+        damage: u32::MAX,
+        width_pct: crate::rewards::MAX_RANGE_PCT,
     };
     round_trip_hashed(&place);
     let full = Repeat {
@@ -901,12 +905,21 @@ fn the_repeat_queue_is_bounded_at_decode() {
         ..place
     });
     refused(&Repeat {
-        proc_pct: pct + 1,
+        proc_pct: Some(u16::try_from(crate::expertise::MAX_PROC_PCT).unwrap() + 1),
+        ..place
+    });
+    refused(&Repeat {
+        width_pct: crate::rewards::MAX_RANGE_PCT + 1,
+        ..place
+    });
+    // No factor round-trips too.
+    round_trip_hashed(&Repeat {
+        proc_pct: None,
         ..place
     });
     // A hit list of one past the cap: the bytes are written by hand (the type holds no more).
     let mut bytes = to_bytes(&full);
-    let at = 1 + 4 + 2 + 2 + 1;
+    let at = 1 + 4 + 2 + (1 + 2) + 1;
     bytes[at..at + 4].copy_from_slice(&(targets + 1).to_le_bytes());
     bytes.splice(at + 4..at + 4, 0u32.to_le_bytes());
     assert!(matches!(

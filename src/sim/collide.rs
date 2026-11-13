@@ -106,6 +106,7 @@ pub(super) fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec
     let mut grid: Option<Grid> = None;
     let boss_alive = s.boss.as_ref().is_some_and(|b| b.hp > 0);
     combat::deal_echoes(stage, s, events);
+    combat::deal_repeats(stage, s, events);
     hit_boxes::resolve(stage, s, &mut grid, events);
     let mut consumed = std::mem::take(&mut s.scratch.consumed);
     consumed.clear();
@@ -259,6 +260,7 @@ pub(super) fn damage(
         rune: b.rune,
         crit,
         echo: false,
+        repeat: false,
         buffed_by,
     };
     let dead = damage::land(stage, s, me, target, dealt, how, events).dead;
@@ -284,7 +286,8 @@ pub(super) fn damage(
                 runes::apply_dots(s, me, target, events);
             }
             let at = s.at(target);
-            runes::on_hit(stage, s, me, id, at, events);
+            let proc = super::player::combo_proc(stage, s, me);
+            runes::on_hit(stage, s, me, id, at, events, proc);
         }
     }
 }

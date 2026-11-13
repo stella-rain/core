@@ -76,6 +76,9 @@ pub enum DomainEvent {
         /// The hit is an echo of an earlier one, a tick later; left out when not.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         echo: bool,
+        /// The hit is a step's delayed repeat (a style's `repeat` kind); left out when not.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        repeat: bool,
         /// The player credited with the hit, by its entity number (0 to 2, as `Healed::target`
         /// names one): the owner of the shot, or slot 0 for a companion's. Left out for a hit
         /// on an ally and for the frozen rules of `sim_version` 1 (ADR-SIM-7).

@@ -301,7 +301,12 @@ fn unreserved_state(
         damage_pct: pool.difficulty.damage_pct,
         crit_seed: seed,
         echoes: Vec::new(),
-        repeats: Vec::new(),
+        // A run whose styles name no repeat never queues one: no memory is held for it.
+        repeats: if stage.has_repeat {
+            Vec::with_capacity(crate::limits::MAX_REPEATS_QUEUED)
+        } else {
+            Vec::new()
+        },
         kinds: std::sync::Arc::new(kinds),
     }
 }

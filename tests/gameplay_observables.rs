@@ -128,8 +128,9 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
 /// `text` without the fields added to views, while they are empty (every added feature is
 /// dormant): `TreeReadyView.kinds`, `TreeStatsView.grants` (the style kinds) and
 /// `threat_colour` of `AttackView` and `ZoneView` (the threat colours), `gauge` and
-/// `perfect_evade` of `PlayerView` (the weapon gauge and the perfect evade), and `stagger` and
-/// `stagger_max` of `EntityView` (the stagger gauge). The digests were
+/// `perfect_evade` of `PlayerView` (the weapon gauge and the perfect evade), `stagger` and
+/// `stagger_max` of `EntityView` (the stagger gauge), and `repeat: false` of a `Hit` event (the
+/// step repeat). The digests were
 /// recorded before the fields existed, and an empty one changes no gameplay. `OrbBroken`'s
 /// `player`, the last field of the one event that has one, is dropped too: it names who broke
 /// the orb, and the event's other fields and the tick it comes on are still digested. A view that names
@@ -138,6 +139,7 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
     text.replace(", kinds: [] }", " }")
         .replace(", grants: [] }", " }")
         .replace(", threat_colour: None }", " }")
+        .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
         .replace(", gauge: None, perfect_evade: None", "")
         .replace(", player: Some(First) }", " }")

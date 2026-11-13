@@ -991,6 +991,7 @@ mod player_stats_tests {
             rune: None,
             crit: false,
             echo: false,
+            repeat: false,
             player: player.map(EntityId),
             buffed_by: buffed_by.map(EntityId),
         }
