@@ -211,6 +211,21 @@ pub(super) fn raised(stage: &World, s: &State, target: Who, vulnerable: u32) -> 
     u32::try_from(both).unwrap_or(u32::MAX)
 }
 
+/// The percent `vulnerable` and the down bonus make together, in place of `vulnerable` alone, for
+/// a smash step's hit on a downed enemy: kinds multiply, `(100 + v) * (100 + d) / 100 - 100` (C09).
+/// Any other target, or an enemy standing, keeps `vulnerable`.
+pub(super) fn down_raised(stage: &World, s: &State, target: Who, vulnerable: u32) -> u32 {
+    let pct = stage.tuning.down_bonus_pct;
+    let Who::Enemy(i) = target else {
+        return vulnerable;
+    };
+    if pct == 0 || s.enemies[i].control.knocked_down == 0 {
+        return vulnerable;
+    }
+    let both = (100 + u64::from(vulnerable)) * (100 + u64::from(pct)) / 100 - 100;
+    u32::try_from(both).unwrap_or(u32::MAX)
+}
+
 /// Adds `value` (scaled by the refill list for the bars already broken) to the gauge of `target`,
 /// and staggers it when the gauge is full. It does nothing without a gauge, for a dead, staggered
 /// or invulnerable (a boss in transition) target, for a value that scales to nothing, or for a
@@ -403,15 +418,29 @@ pub(super) fn knock_down(
         source: Some(source),
     });
     let pct = t.vulnerable_down_pct;
-    if pct > 0 {
-        s.add_status(
+    if pct == 0 {
+        return;
+    }
+    // A lengthened knockdown lengthens the `vulnerable` it put and does not stack it.
+    let held = s.enemies[i]
+        .statuses
+        .iter_mut()
+        .find(|st| st.kind == StatusKind::Vulnerable);
+    match held {
+        Some(st) if !fresh => {
+            if ticks > st.remaining {
+                st.total = ticks;
+            }
+            st.remaining = st.remaining.max(ticks);
+        }
+        _ => s.add_status(
             Who::Enemy(i),
             StatusKind::Vulnerable,
             source,
             pct,
             ticks,
             events,
-        );
+        ),
     }
 }
 

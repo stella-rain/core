@@ -212,6 +212,15 @@ pub(super) fn damage(
     } else {
         vulnerable
     };
+    // C09: a smash step's hit on a downed enemy takes the down bonus on top of it.
+    let vulnerable = if stage.has_down
+        && b.combo
+        && crate::sim::player::last_press_smash(&s.players[me].combo)
+    {
+        stun::down_raised(stage, s, target, vulnerable)
+    } else {
+        vulnerable
+    };
     let match_up = profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(b.damage_type));
     let id = s.id_of(target);
     // The common case, with no combat reward held, pays for one comparison (ADR-SIM-5).
