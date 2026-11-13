@@ -22,5 +22,9 @@
   "default_xp": 1,
   "defence_k": 10000,
   "crit_damage_base_pct": 200,
-  "party_damage_pct": [100, 100, 100]
+  "party_damage_pct": [100, 100, 100],
+  "poise_damage_a": 10,
+  "poise_damage_b": 100,
+  "flinch_ticks": 12,
+  "flinch_immune_ticks": 30
 }
