@@ -353,3 +353,15 @@ fn v7_the_hit_lands_whole_and_the_invulnerability_is_the_only_cap() {
         .collect();
     assert_eq!(&left[..2], [39_900, 0]);
 }
+
+#[test]
+fn v8_a_swing_whose_spawn_only_waits_lays_nothing_and_is_never_barred() {
+    // The bench crowd's swing: a hit box and a `wait` node that holds an attack task.
+    let swing = json!({ "inline": [
+        { "kind": "active", "ticks": 5, "hit_box": { "type": "circle", "radius": 1_024 },
+          "spawn": [{ "type": "wait", "ticks": 4 }] },
+    ] });
+    let (x, y) = at_y(OFF_Y);
+    let r = elite_run(hold(x, y), json!([rule_of("player", swing)]), OFF_Y, 100);
+    assert!(!rules_fired(&r).is_empty(), "it swings off view");
+}
