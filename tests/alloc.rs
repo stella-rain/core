@@ -453,6 +453,32 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
     assert_eq!(most, e.caps().enemies, "the crowd climbed to the cap");
 }
 
+/// The first flinch of a process allocates nothing: the shared `flinch` ID is built when the
+/// engine is (not on the first flinch, in the middle of a steady tick). The `time_limit` bench
+/// case's first flinch is on tick 55. Run it alone (`-- --exact`) to see it: another test that
+/// flinches first in the same process hides it.
+#[test]
+fn the_first_flinch_of_a_fresh_process_allocates_nothing() {
+    let mut e = time_limit_case::start();
+    for tick in 1..=60 {
+        let counts = counted3(|| {
+            e.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ])
+        });
+        let flinched = e.events().iter().any(|ev| {
+            matches!(ev, DomainEvent::StatusApplied { status, .. } if status.as_str() == "flinch")
+        });
+        if flinched && tick >= 55 {
+            assert_eq!(counts, pin(0, 0, 0), "tick {tick}, the first flinch");
+            return;
+        }
+    }
+    panic!("no flinch by tick 60");
+}
+
 /// The `time_limit` bench case from load to a second past its warm-up: the horde climbs to its
 /// cap and holds it, with every kind of enemy, the boss and the Main weapon, and no tick calls
 /// the allocator (DIR1).
