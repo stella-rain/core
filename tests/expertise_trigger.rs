@@ -300,3 +300,69 @@ fn the_views_carry_the_trigger_kind() {
     let ready = serde_json::to_string(bundled.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert!(!ready.contains("giant_trigger"));
 }
+/// S6: a `PlayerView` with `trigger: None, rally: None` serializes without either key, and the
+/// five events use the event enum's tag form (`type` and `data`, the player by name).
+#[test]
+fn the_views_and_the_events_serialize() {
+    use stella_rain_core::event::DomainEvent;
+    use stella_rain_core::id::PlayerIdx;
+    use stella_rain_core::snapshot::{RallyView, TriggerView};
+
+    let view = TriggerView {
+        ticks_left: 200,
+        ticks: 480,
+    };
+    assert_eq!(
+        serde_json::to_value(view).unwrap(),
+        json!({ "ticks_left": 200, "ticks": 480 })
+    );
+    let rally = RallyView {
+        hp: 50,
+        ticks_left: 90,
+    };
+    assert_eq!(
+        serde_json::to_value(rally).unwrap(),
+        json!({ "hp": 50, "ticks_left": 90 })
+    );
+    let p = PlayerIdx::SOLO;
+    let cases = [
+        (
+            DomainEvent::TriggerStarted {
+                player: p,
+                ticks: 480,
+            },
+            json!({ "type": "TriggerStarted", "data": { "player": "first", "ticks": 480 } }),
+        ),
+        (
+            DomainEvent::TriggerEnded { player: p },
+            json!({ "type": "TriggerEnded", "data": { "player": "first" } }),
+        ),
+        (
+            DomainEvent::RallyGained {
+                player: p,
+                amount: 50,
+                rally: 50,
+            },
+            json!({ "type": "RallyGained", "data": { "player": "first", "amount": 50, "rally": 50 } }),
+        ),
+        (
+            DomainEvent::RallyWon {
+                player: p,
+                amount: 20,
+                rally: 30,
+            },
+            json!({ "type": "RallyWon", "data": { "player": "first", "amount": 20, "rally": 30 } }),
+        ),
+        (
+            DomainEvent::RallyLapsed { player: p },
+            json!({ "type": "RallyLapsed", "data": { "player": "first" } }),
+        ),
+    ];
+    for (event, want) in cases {
+        assert_eq!(serde_json::to_value(event).unwrap(), want);
+    }
+    let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
+    let player = serde_json::to_value(&snap.players[0]).unwrap();
+    assert!(player.get("trigger").is_none(), "{player}");
+    assert!(player.get("rally").is_none(), "{player}");
+}
