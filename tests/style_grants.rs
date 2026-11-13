@@ -60,7 +60,7 @@ fn test_expertise(kinds: bool) -> Expertise {
 }
 
 fn expertise_for(weapon: &str, kinds: bool) -> Expertise {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
         if w["weapon"] != weapon {
@@ -397,7 +397,7 @@ fn tree_attacks(v: &Value, out: &mut Vec<Value>) {
 }
 
 fn hammer_pack(kinds: Vec<Value>) -> Value {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
@@ -413,7 +413,7 @@ fn hammer_pack(kinds: Vec<Value>) -> Value {
 /// `spend.attack` (the clear could not tell it from an ordinary step); a different one loads.
 #[test]
 fn a_gauge_attack_differs_from_every_attack_of_the_base_tree() {
-    let bundled: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let bundled: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     let hammer = bundled["weapons"]["weapons"]
         .as_array()
         .unwrap()
@@ -453,7 +453,7 @@ fn a_gauge_attack_differs_from_every_attack_of_the_base_tree() {
 /// G5: the views carry a gauge kind compactly (no attack inside) and the bundled pack names none.
 #[test]
 fn the_views_carry_the_gauge_kind() {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     let w = file["weapons"]
         .as_array_mut()
@@ -534,7 +534,7 @@ fn bleed_stacks_need_a_bleed_smash() {
 /// S4: the views carry a spirit kind compactly and the bundled pack names none.
 #[test]
 fn the_views_carry_the_spirit_kind() {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     let w = file["weapons"]
         .as_array_mut()
