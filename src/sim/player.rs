@@ -498,7 +498,7 @@ fn press_of(smash: bool) -> Press {
 }
 
 /// The step the combo is at: `None` at the root.
-fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
+pub(super) fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
     let mut branches = if c.dash { &main.dash } else { &main.combo };
     let mut step = None;
     for i in 0..c.depth {
@@ -507,6 +507,16 @@ fn step_at<'a>(main: &'a Weapon, c: &ComboState) -> Option<&'a Step> {
         step = Some(next);
     }
     step
+}
+
+/// The factor of the combo step `me` is playing for its hits' on-hit runes: none at once when
+/// no style names one (`World::has_proc`), and none for a step that has none.
+pub(super) fn combo_proc(stage: &World, s: &State, me: PlayerIdx) -> Option<u16> {
+    if !stage.has_proc {
+        return None;
+    }
+    let weapon = stage.weapon_of(s, me)?;
+    step_at(weapon, &s.players[me].combo)?.proc_pct
 }
 
 /// The charge level recorded for the combo's step at `index` in `levels` (4 bits a step).

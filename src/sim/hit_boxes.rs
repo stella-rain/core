@@ -72,7 +72,7 @@ pub(super) struct Swing {
 }
 
 /// The ground a hit box covers: a circle at `centre`, narrowed to a sector when `arc` is set.
-struct Area {
+pub(super) struct Area {
     centre: Point,
     facing: Dir,
     /// The circle's radius; a line's reach from its start: its length and half its width, which
@@ -415,35 +415,8 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
         let Some(owner) = s.find(r.owner) else {
             continue;
         };
-        let from = match (h.anchor(), r.spot) {
-            (Anchor::Target, Some(spot)) => spot,
-            _ => r.at.unwrap_or_else(|| s.at(owner)),
-        };
-        let at_offset = |offset: &Offset| centre(from, r.facing, offset.forward.0, offset.right.0);
-        let area = match h {
-            HitBox::Circle { offset, radius, .. } => {
-                circle(at_offset(offset), r.facing, radius.0, None)
-            }
-            HitBox::Arc {
-                offset,
-                radius,
-                half_angle,
-                ..
-            } => circle(
-                at_offset(offset),
-                r.facing,
-                radius.0,
-                Sector::new(r.facing, *half_angle),
-            ),
-            HitBox::Line {
-                offset,
-                angle,
-                length,
-                width,
-                ..
-            } => Line::new(super::attacks::rotate(r.facing, *angle), *length, *width)
-                .area(at_offset(offset)),
-        };
+        let from = origin_of(s, r, h, owner);
+        let area = area_of(h, from, r.facing);
         swings.push(Swing {
             source: Source::Run(i),
             owner: r.owner,
@@ -461,6 +434,44 @@ fn active_swings(stage: &World, s: &State, swings: &mut Vec<Swing>) {
             rune: super::runes::of_run(r),
             once: r.homing.is_some(),
         });
+    }
+}
+
+/// The point run `r`'s hit box `h` is centred from: the target's `spot` for a target-anchored
+/// box that has one, else the run's own `at`, else `owner`'s position.
+#[inline(always)]
+pub(super) fn origin_of(s: &State, r: &super::state::AttackRun, h: &HitBox, owner: Who) -> Point {
+    match (h.anchor(), r.spot) {
+        (Anchor::Target, Some(spot)) => spot,
+        _ => r.at.unwrap_or_else(|| s.at(owner)),
+    }
+}
+
+/// The area of hit box `h` centred from `from` and facing `facing`.
+#[inline(always)]
+pub(super) fn area_of(h: &HitBox, from: Point, facing: Dir) -> Area {
+    let at_offset = |offset: &Offset| centre(from, facing, offset.forward.0, offset.right.0);
+    match h {
+        HitBox::Circle { offset, radius, .. } => circle(at_offset(offset), facing, radius.0, None),
+        HitBox::Arc {
+            offset,
+            radius,
+            half_angle,
+            ..
+        } => circle(
+            at_offset(offset),
+            facing,
+            radius.0,
+            Sector::new(facing, *half_angle),
+        ),
+        HitBox::Line {
+            offset,
+            angle,
+            length,
+            width,
+            ..
+        } => Line::new(super::attacks::rotate(facing, *angle), *length, *width)
+            .area(at_offset(offset)),
     }
 }
 
@@ -527,7 +538,7 @@ fn covers(w: &Swing, at: Point, radius: i32) -> bool {
 }
 
 impl Area {
-    fn covers(&self, at: Point, radius: i32) -> bool {
+    pub(super) fn covers(&self, at: Point, radius: i32) -> bool {
         if !overlaps(self.centre, self.radius, at, radius) {
             return false;
         }

@@ -40,12 +40,20 @@ impl Encode for Repeat {
             percent,
             proc_pct,
             anchor,
+            attack,
+            phase,
+            damage,
+            width_pct,
         } = self;
         owner.encode(w);
         due.encode(w);
         percent.encode(w);
         proc_pct.encode(w);
         anchor.encode(w);
+        attack.encode(w);
+        phase.encode(w);
+        damage.encode(w);
+        width_pct.encode(w);
     }
 }
 
@@ -61,13 +69,34 @@ impl Decode for Repeat {
             super::foes::within(r.u16()?, max_pct, "repeat percent past its bound")
         };
         let percent = pct(r)?;
-        let proc_pct = pct(r)?;
+        let max_proc = u16::try_from(crate::expertise::MAX_PROC_PCT).unwrap_or(u16::MAX);
+        let proc_pct = match r.u8()? {
+            0 => None,
+            1 => Some(super::foes::within(
+                r.u16()?,
+                max_proc,
+                "repeat proc factor past its bound",
+            )?),
+            _ => return Err(DecodeError::Invalid("repeat proc factor tag")),
+        };
+        let anchor = Decode::decode(r)?;
+        let attack = Decode::decode(r)?;
+        let phase = Decode::decode(r)?;
+        let damage = Decode::decode(r)?;
+        let width_pct: u32 = Decode::decode(r)?;
+        if width_pct > crate::rewards::MAX_RANGE_PCT {
+            return Err(DecodeError::Invalid("repeat range past its bound"));
+        }
         Ok(Repeat {
             owner,
             due,
             percent,
             proc_pct,
-            anchor: Decode::decode(r)?,
+            anchor,
+            attack,
+            phase,
+            damage,
+            width_pct,
         })
     }
 }

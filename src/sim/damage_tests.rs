@@ -351,6 +351,7 @@ fn the_factor_truncates_once_and_a_hit_applies_at_least_one() {
         rune: None,
         crit: false,
         echo: false,
+        repeat: false,
         buffed_by: None,
     };
     super::damage::land(&w, &mut s, slot(0), Who::Enemy(0), 0, how, &mut ev);
@@ -407,6 +408,7 @@ fn an_ally_is_never_scaled() {
         rune: None,
         crit: false,
         echo: false,
+        repeat: false,
         buffed_by: None,
     };
     super::damage::land(&w, &mut s, slot(0), Who::Companion(0), 100, how, &mut ev);

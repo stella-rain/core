@@ -113,6 +113,7 @@ fn an_unmarked_hit_leaves_the_field_out_of_the_event() {
         rune: None,
         crit: false,
         echo: false,
+        repeat: false,
         player: None,
         buffed_by: None,
     };

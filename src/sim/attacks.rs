@@ -76,7 +76,7 @@ pub(super) use start::{Strike, start, start_aged, start_player, start_rune};
 mod phases;
 use phases::compiled;
 pub(crate) use phases::phase;
-pub(super) use phases::{advance_of, dash_of, move_pct, phase_count, phase_ticks};
+pub(super) use phases::{advance_of, dash_of, move_pct, phase_count, phase_ticks, widened_box};
 
 mod ranged;
 pub(in crate::sim) use ranged::cool_into;

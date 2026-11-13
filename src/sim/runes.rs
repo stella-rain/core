@@ -96,7 +96,9 @@ pub(super) fn tick(s: &mut State, me: PlayerIdx) {
 }
 
 /// A combo step hit `hit` at `at`: each on-hit rune held and ready fires its attack there, at
-/// its base damage, and waits out its cooldown.
+/// its base damage, and waits out its cooldown. With a `proc` factor, a rune that would fire
+/// takes one draw from the attack stream and fires only if it falls under `proc` percent; one
+/// that does not stays ready and the next is tried. No factor: no draw (ADR-SIM-9 point 3).
 pub(super) fn on_hit(
     stage: &World,
     s: &mut State,
@@ -104,6 +106,7 @@ pub(super) fn on_hit(
     hit: EntityId,
     at: Point,
     events: &mut Vec<DomainEvent>,
+    proc: Option<u16>,
 ) {
     for i in 0..s.players[me].runes.len() {
         let HeldRune {
@@ -126,6 +129,11 @@ pub(super) fn on_hit(
         let Some(attack) = stage.rune_attacks[usize::from(rune.index())] else {
             continue;
         };
+        if let Some(p) = proc {
+            if s.rng.attack.below(100) >= u32::from(p) {
+                continue;
+            }
+        }
         let slot = FIRST_SLOT.saturating_add(rune.index());
         let facing = s.players[me].facing;
         if rune == Rune::HomingMissiles {

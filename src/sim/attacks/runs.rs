@@ -51,6 +51,12 @@ pub(in crate::sim) fn advance_runs(world: &World, s: &mut State, events: &mut Ve
         r.tick = r.tick.saturating_add(1);
         if r.tick >= phase(world, r, r.phase as usize).ticks {
             let held = holds_token(world, r);
+            // The step's last `active` phase ends here: its repeats are queued while the run
+            // still stands in that phase (one `bool` at a phase change, nothing per tick).
+            if world.has_repeat && last_active_ends(world, r) {
+                crate::sim::combat::queue_repeats(world, s, kept);
+            }
+            let r = &mut s.runs[kept];
             r.phase += 1;
             r.tick = 0;
             changed = true;
@@ -83,6 +89,16 @@ pub(in crate::sim) fn advance_runs(world: &World, s: &mut State, events: &mut Ve
     if changed {
         s.move_index.rebuild(world, &s.runs);
     }
+}
+
+/// Whether run `r` is in an `active` phase that no later phase of its attack follows with another
+/// `active` one (a gap between two active phases does not end the step's last).
+fn last_active_ends(world: &World, r: &AttackRun) -> bool {
+    let phases = compiled(world, r);
+    phases[r.phase as usize].kind == PhaseKind::Active
+        && phases[r.phase as usize + 1..]
+            .iter()
+            .all(|p| p.kind != PhaseKind::Active)
 }
 
 /// Keeps the runs `keep` accepts; the hit lists of the others are kept for later runs.

@@ -257,6 +257,17 @@ pub enum StyleKindView {
     },
     /// The weapon's smash effect is this one in place of the base's.
     SmashEffect { effect: SmashEffectKind },
+    /// The step repeats after `after_ticks`, `repeat_pct` percent of its damage, on `anchor`.
+    Repeat {
+        step: Vec<Press>,
+        after_ticks: u32,
+        repeat_pct: u32,
+        anchor: crate::weapon::RepeatAnchorKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        proc_pct: Option<u32>,
+    },
+    /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
+    ProcFactor { step: Vec<Press>, proc_pct: u32 },
     /// The style has a weapon gauge `max` long, spent as `spend`.
     Gauge { max: u32, spend: GaugeSpendKind },
 }

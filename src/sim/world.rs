@@ -576,6 +576,12 @@ pub(crate) struct World {
     /// Some compiled phase names an `advance` (attack magnetism): the player's tick looks for a
     /// slide only then.
     pub has_advance: bool,
+    /// Some style's copy of the tree gives a step a repeat: a run queues repeats only then
+    /// (false for the bundled pack).
+    pub has_repeat: bool,
+    /// Some style's copy of the tree gives a step a proc factor (false for the bundled pack): a
+    /// combo hit reads its step's factor only then.
+    pub has_proc: bool,
     /// Some elite or boss of the run names a `stagger_max`: the stagger rules run only then.
     pub has_stagger: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
@@ -770,6 +776,8 @@ impl World {
             attack_presets: Arc::new(content.attack_presets().clone()),
             has_dash: false,
             has_advance: false,
+            has_repeat: false,
+            has_proc: false,
             has_stagger: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
@@ -789,6 +797,11 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
+        // One walk of each style copy's tree, once (ADR-SIM-9 point 3).
+        for copy in world.grant_weapons.iter().flatten() {
+            world.has_repeat |= any_step(&copy.combo, &|s| !s.repeats.is_empty());
+            world.has_proc |= any_step(&copy.combo, &|s| s.proc_pct.is_some());
+        }
         world.has_stagger = world
             .defs
             .defs_iter()
@@ -1022,6 +1035,17 @@ fn grant_weapons(
         }
     }
     out
+}
+
+/// Whether `pred` holds for some step of the tree under `branches`.
+fn any_step(
+    branches: &crate::weapon::Branches,
+    pred: &dyn Fn(&crate::weapon::Step) -> bool,
+) -> bool {
+    [false, true]
+        .into_iter()
+        .filter_map(|smash| branches.get(smash))
+        .any(|step| pred(step) || any_step(&step.next, pred))
 }
 
 /// The gauge of each style and number of places of its path taken (the same index as

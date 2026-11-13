@@ -516,12 +516,20 @@ impl StableHash for Repeat {
             percent,
             proc_pct,
             anchor,
+            attack,
+            phase,
+            damage,
+            width_pct,
         } = self;
         owner.stable_hash(h);
         due.stable_hash(h);
         percent.stable_hash(h);
         proc_pct.stable_hash(h);
         anchor.stable_hash(h);
+        attack.0.stable_hash(h);
+        phase.stable_hash(h);
+        damage.stable_hash(h);
+        width_pct.stable_hash(h);
     }
 }
 

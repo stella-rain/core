@@ -138,6 +138,26 @@ fn faster_ticks(phases: &[AttackPhase], pct: u32, i: usize) -> u32 {
     }
 }
 
+/// Phase `i` of `attack`'s hit box `pct` percent wider (a delayed repeat's place); none when the
+/// phase has no hit box.
+pub(in crate::sim) fn widened_box(
+    world: &World,
+    attack: crate::sim::AttackIndex,
+    i: usize,
+    pct: u32,
+) -> Option<HitBox> {
+    let h = world.attacks[usize::from(attack.0)]
+        .phases
+        .get(i)?
+        .hit_box
+        .as_ref()?;
+    Some(if pct == 0 {
+        h.clone()
+    } else {
+        wider_box(h, pct)
+    })
+}
+
 /// `hit_box` `pct` percent larger, at most `MAX_RANGE_PCT`: its radius and its offset, each
 /// rounded toward zero and held within `i32`; an arc's angle stays.
 fn wider_box(hit_box: &HitBox, pct: u32) -> HitBox {

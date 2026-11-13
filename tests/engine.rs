@@ -151,6 +151,7 @@ fn a_main_shot_hurts_and_then_kills_an_enemy() {
                 rune: None,
                 crit: false,
                 echo: false,
+                repeat: false,
                 player: None,
                 buffed_by: None,
             }
@@ -236,6 +237,7 @@ fn beating_the_boss_clears_the_stage() {
                 rune: None,
                 crit: false,
                 echo: false,
+                repeat: false,
                 player: None,
                 buffed_by: None,
             },

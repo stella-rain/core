@@ -12,13 +12,16 @@ use crate::attack::MatchUp;
 use crate::event::DomainEvent;
 use crate::fixed::Fx;
 use crate::id::EntityId;
+use crate::limits::{MAX_REPEAT_TARGETS, MAX_REPEATS_QUEUED};
+use crate::rewards::MAX_RANGE_PCT;
 use crate::rewards::{
     MAX_BURST_DEPTH, MAX_BURST_PCT, MAX_BURST_RADIUS_PX, MAX_BURSTS_PER_TICK,
     MAX_CRIT_CHANCE_TOTAL_PCT, MAX_CRIT_DAMAGE_TOTAL_PCT, MAX_ECHO_HIT_PCT, MAX_ECHOES_PER_TICK,
 };
 use crate::rng::SplitMix64;
-use crate::sim::state::Echo;
 use crate::sim::state::PlayerIdx;
+use crate::sim::state::{Echo, Repeat, RepeatAnchor};
+use crate::weapon::RepeatAnchorKind;
 
 use super::{Shot, State, overlaps};
 
@@ -120,9 +123,239 @@ pub(super) fn deal_echoes(stage: &World, s: &mut State, events: &mut Vec<DomainE
             rune: None,
             crit: false,
             echo: true,
+            repeat: false,
             buffed_by: None,
         };
         super::damage::land(stage, s, me, target, echo.damage, how, events);
+    }
+}
+
+/// Queues the repeats of the combo step run `i` has just finished (its last `active` phase ends
+/// this tick): one entry per repeat the owner's style gave the step, in the order granted, each
+/// due `after_ticks` from now. A `hit_list` entry stores what that last phase hit (the record is
+/// emptied when an `active` phase begins), the lowest `MAX_REPEAT_TARGETS` IDs, and is not queued
+/// when the phase hit nothing; a `place` entry stores where the hit box was centred and is always
+/// queued. A held step, a step with no hit box or no damage, and an owner who is not up queue
+/// nothing; a full queue drops the entry and those behind it. The caller has checked
+/// `World::has_repeat`.
+pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
+    let r = &s.runs[i];
+    if !super::attacks::is_combo(s, r) {
+        return;
+    }
+    let me = super::hitter(s, r.owner);
+    if !s.players[me].is_up() {
+        return;
+    }
+    let Some(step) = world
+        .weapon_of(s, me)
+        .and_then(|w| super::player::step_at(w, &s.players[me].combo))
+    else {
+        return;
+    };
+    if step.repeats.is_empty() || step.hold.is_some() {
+        return;
+    }
+    let phase = super::attacks::phase(world, r, r.phase as usize);
+    let Some(h) = phase.hit_box() else {
+        return;
+    };
+    let damage = super::attacks::phase_damage(world, r);
+    let Some(owner) = s.find(r.owner) else {
+        return;
+    };
+    if damage == 0 {
+        return;
+    }
+    let from = super::hit_boxes::origin_of(s, r, h, owner);
+    let (Ok(slot), Ok(phase_at)) = (u8::try_from(me.get()), u8::try_from(r.phase)) else {
+        return;
+    };
+    for repeat in &step.repeats {
+        if s.repeats.len() >= MAX_REPEATS_QUEUED {
+            return;
+        }
+        let anchor = match repeat.anchor {
+            RepeatAnchorKind::HitList => {
+                if r.hits.is_empty() {
+                    continue;
+                }
+                RepeatAnchor::HitList(
+                    r.hits
+                        .iter()
+                        .take(MAX_REPEAT_TARGETS)
+                        .map(|(id, _)| *id)
+                        .collect(),
+                )
+            }
+            RepeatAnchorKind::Place => RepeatAnchor::Place {
+                at: from,
+                facing: r.facing,
+            },
+        };
+        s.repeats.push(Repeat {
+            owner: slot,
+            due: s.tick.saturating_add(repeat.after_ticks),
+            percent: repeat.repeat_pct,
+            proc_pct: repeat.proc_pct,
+            anchor,
+            attack: r.attack,
+            phase: phase_at,
+            damage,
+            width_pct: r.width_pct.min(MAX_RANGE_PCT),
+        });
+    }
+}
+
+/// Deals the repeats that are due, in the order they were queued, after the echoes and before the
+/// tick's hit boxes land. An entry whose owner is not present or is out is dropped; one whose
+/// owner is only downed still deals (it was queued while the owner was up). Each target takes
+/// `max(1, damage * percent / 100)` (0 stays 0) through the vulnerability, the match-up of the
+/// phase's damage type and the defence, then `damage::land`, so the party damage percent, the
+/// kill credit and the aggro are any hit's. A repeat carries nothing else: no smash effect, no
+/// expertise, no crit, echo, repeat or flinch; its only side effect is the on-hit runes, at its
+/// own factor. The boss and its parts are skipped while the boss is invulnerable.
+pub(super) fn deal_repeats(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
+    if s.repeats.is_empty() {
+        return;
+    }
+    let mut queue = std::mem::take(&mut s.repeats);
+    queue.retain(|e| {
+        let owner = PlayerIdx::new(e.owner).filter(|me| s.players.is_present(*me));
+        let Some(me) = owner.filter(|me| !s.players[*me].is_out()) else {
+            return false;
+        };
+        if e.due > s.tick {
+            return true;
+        }
+        deal_repeat(stage, s, me, e, events);
+        false
+    });
+    // What the deals queued nothing of is back in place; the vector keeps its memory.
+    queue.append(&mut s.repeats);
+    s.repeats = queue;
+}
+
+fn deal_repeat(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    e: &Repeat,
+    events: &mut Vec<DomainEvent>,
+) {
+    let base = u32::try_from(u64::from(e.damage) * u64::from(e.percent) / 100).unwrap_or(u32::MAX);
+    let base = if e.damage > 0 { base.max(1) } else { 0 };
+    match e.anchor {
+        RepeatAnchor::HitList(ids) => {
+            for id in ids.iter() {
+                if let Some(target) = s.find(*id) {
+                    repeat_hit(stage, s, me, e, base, target, events);
+                }
+            }
+        }
+        RepeatAnchor::Place { at, facing } => {
+            let Some(h) =
+                super::attacks::widened_box(stage, e.attack, usize::from(e.phase), e.width_pct)
+            else {
+                return;
+            };
+            let area = super::hit_boxes::area_of(&h, at, facing);
+            if s.boss.is_some() {
+                repeat_hit_boss_side(stage, s, me, e, base, &area, events);
+            }
+            for i in 0..s.enemies.len() {
+                let en = &s.enemies[i];
+                let (hp, at, hidden, shrine, def) =
+                    (en.hp, en.at, en.hidden(), en.shrine.is_some(), en.def);
+                if hp > 0 && !hidden && !shrine && area.covers(at, stage.defs.agent(def).radius.0) {
+                    repeat_hit(stage, s, me, e, base, Who::Enemy(i), events);
+                }
+            }
+        }
+    }
+}
+
+/// The boss, then its parts, when the area covers them and the boss is not invulnerable.
+fn repeat_hit_boss_side(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    e: &Repeat,
+    base: u32,
+    area: &super::hit_boxes::Area,
+    events: &mut Vec<DomainEvent>,
+) {
+    let Some((def, boss)) = s.boss_pair(stage) else {
+        return;
+    };
+    if boss.invulnerable != 0 {
+        return;
+    }
+    let (hp, at, radius) = (boss.hp, boss.at, def.radius.0);
+    if hp > 0 && area.covers(at, radius) {
+        repeat_hit(stage, s, me, e, base, Who::Boss, events);
+    }
+    let parts = s.boss.as_ref().map_or(0, |b| b.parts.len());
+    for i in 0..parts {
+        let Some(part) = s.boss.as_ref().map(|b| &b.parts[i]) else {
+            break;
+        };
+        let (hp, radius) = (part.hp, part.radius);
+        if hp > 0 && area.covers(s.at(Who::BossPart(i)), radius) {
+            repeat_hit(stage, s, me, e, base, Who::BossPart(i), events);
+        }
+    }
+}
+
+/// One repeat's hit on `target`: nothing when it is no foe, is down, or is an object; the damage
+/// pipeline of a hit, then the on-hit runes at the entry's factor.
+fn repeat_hit(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    e: &Repeat,
+    base: u32,
+    target: Who,
+    events: &mut Vec<DomainEvent>,
+) {
+    if State::is_ally(target) || s.hp(target) == 0 || !super::damageable(s, target) {
+        return;
+    }
+    let damage_type = stage.attacks[usize::from(e.attack.0)]
+        .phases
+        .get(usize::from(e.phase))
+        .and_then(|p| p.damage_type);
+    let vulnerable = super::entity::status_pct(
+        s.statuses(target),
+        crate::sim::state::StatusKind::Vulnerable,
+    );
+    let match_up =
+        super::profile(stage, s, target).map_or(MatchUp::None, |p| p.match_up(damage_type));
+    let id = s.id_of(target);
+    let dealt = super::entity::scale_damage(
+        base,
+        0,
+        0,
+        vulnerable,
+        s.match_ups.pct(match_up),
+        s.defence(target),
+        stage.tuning.defence_k,
+    );
+    let how = super::damage::Landing {
+        id,
+        source: s.players.id(me),
+        damage_type,
+        match_up,
+        rune: None,
+        crit: false,
+        echo: false,
+        repeat: true,
+        buffed_by: None,
+    };
+    let at = s.at(target);
+    super::damage::land(stage, s, me, target, dealt, how, events);
+    if !s.players[me].runes.is_empty() {
+        super::runes::on_hit(stage, s, me, id, at, events, e.proc_pct);
     }
 }
 

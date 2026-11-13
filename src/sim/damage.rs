@@ -22,6 +22,8 @@ pub(super) struct Landing {
     pub rune: Option<Rune>,
     pub crit: bool,
     pub echo: bool,
+    /// The hit is a step's delayed repeat (`combat::deal_repeats`).
+    pub repeat: bool,
     pub buffed_by: Option<EntityId>,
 }
 
@@ -79,6 +81,7 @@ pub(super) fn land(
         rune: how.rune,
         crit: how.crit,
         echo: how.echo,
+        repeat: how.repeat,
         player: foe.then(|| s.players.id(me)),
         buffed_by: how.buffed_by,
     });

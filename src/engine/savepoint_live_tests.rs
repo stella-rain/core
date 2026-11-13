@@ -281,6 +281,40 @@ fn a_run_phase_past_its_attack_is_refused_before_the_move_index_is_built() {
     assert!(decode_edited(|s| s.runs[0].phase = phases as u32 - 1).is_ok());
 }
 
+/// A queued repeat names the attack and the phase it deals from: an attack at the table's length
+/// or a phase at its attack's phase count is refused; the last of each loads. The queue is empty
+/// in every shipped run, so no pinned byte holds one.
+#[test]
+fn a_repeat_past_its_attack_or_phase_is_refused() {
+    use crate::sim::AttackIndex;
+    use crate::sim::state::{Repeat, RepeatAnchor};
+    let fresh = saved();
+    let attacks = fresh.run.live_world().attacks.len();
+    let phases = |attack: usize| fresh.run.live_world().attacks[attack].phases.len();
+    let repeat = |attack: usize, phase: usize| Repeat {
+        owner: 0,
+        due: 9,
+        percent: 50,
+        proc_pct: None,
+        anchor: RepeatAnchor::HitList(Default::default()),
+        attack: AttackIndex(attack as u16),
+        phase: phase as u8,
+        damage: 10,
+        width_pct: 0,
+    };
+    let last = attacks - 1;
+    let edit = |r: Repeat| decode_edited(move |s| s.repeats = vec![r]).map(drop);
+    assert!(edit(repeat(last, phases(last) - 1)).is_ok());
+    assert_eq!(
+        edit(repeat(attacks, 0)),
+        invalid("repeat attack out of range")
+    );
+    assert_eq!(
+        edit(repeat(last, phases(last))),
+        invalid("repeat phase out of range")
+    );
+}
+
 /// The first byte at which two encodings differ.
 fn first_diff(a: &[u8], b: &[u8]) -> usize {
     a.iter()
