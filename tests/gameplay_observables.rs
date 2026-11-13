@@ -147,7 +147,10 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
-        .replace(", gauge: None, spirit: None, perfect_evade: None", "")
+        .replace(
+            ", gauge: None, spirit: None, counter: None, perfect_evade: None",
+            "",
+        )
         .replace(", player: Some(First) }", " }")
         .replace(", player: Some(Second) }", " }")
         .replace(", player: Some(Third) }", " }")
