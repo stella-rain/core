@@ -54,6 +54,9 @@ pub(super) fn hurt_player(
             .and_then(|a| stage.attacks[usize::from(a.0)].preset_id.clone()),
         },
     });
+    // A hit taken ends the combo tempo's stacks, super armour or not (ADR-SIM-9).
+    player::tempo_lose(stage, s, me, events);
+    let p = &mut s.players[me];
     if before_hp > 0 && p.hp == 0 && !p.out && party_len > 1 {
         p.down_ticks = 0;
         p.revive_hold = 0;

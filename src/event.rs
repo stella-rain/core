@@ -356,4 +356,13 @@ pub enum DomainEvent {
     CounterBonusTaken {
         player: PlayerIdx,
     },
+    /// A swing of `player`'s combo that hit raised its combo tempo to `stacks` stacks (ADR-SIM-9).
+    TempoRaised {
+        player: PlayerIdx,
+        stacks: u32,
+    },
+    /// `player`'s combo tempo stacks ended (ADR-SIM-9).
+    TempoLost {
+        player: PlayerIdx,
+    },
 }

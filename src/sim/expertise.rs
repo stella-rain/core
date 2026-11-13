@@ -30,7 +30,7 @@
 use super::World;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
-    TABLE_LEVELS, WeaponExpertise,
+    TABLE_LEVELS, TempoEffect, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
@@ -469,7 +469,9 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
-        if (stage.has_gauge || stage.has_spirit || stage.has_counter_bonus) && was.0 != Some(at) {
+        if (stage.has_gauge || stage.has_spirit || stage.has_counter_bonus || stage.has_tempo)
+            && was.0 != Some(at)
+        {
             // The new style's bar starts empty; a style with no gauge reads empty, its spirit
             // level starts at 0 (a style with no spirit reads 0), and an old style's counter
             // window and mark do not carry over.
@@ -479,6 +481,8 @@ pub(super) fn tree_pick(
             player.combat.gauge_step_fill = 0;
             player.combat.spirit_level = 0;
             player.combat.spirit_decay = 0;
+            // And the old style's combo tempo stacks.
+            player.combat.combo_tempo = 0;
         }
         // Under `try_styles` the gauge's path is the log of the picks after the first, so the
         // points held stay derived; the new style's upgrade path starts over (`weapon_of`).
@@ -613,6 +617,17 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             },
             StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
                 window_ticks: c.window_ticks,
+            },
+            StyleKind::ComboTempoPct(t) => StyleKindView::ComboTempoPct {
+                max_stacks: t.max_stacks,
+                pct_per_stack: t
+                    .effects
+                    .iter()
+                    .find_map(|e| match e {
+                        TempoEffect::SpeedPct { pct } => Some(*pct),
+                        TempoEffect::KeepOnSmash {} => None,
+                    })
+                    .unwrap_or(0),
             },
         })
         .collect()

@@ -10,17 +10,20 @@ use super::drops::DropTable;
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement, Skill};
-use crate::expertise::{CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind};
+use crate::expertise::{
+    CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind, TempoEffect,
+};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::limits::{
     MAX_ADVANCE_DISTANCE, MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT,
-    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_WEAPON_GAUGE,
 };
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
 use crate::run_content::RunContent;
+use crate::run_stats::MAX_ATTACK_SPEED_PCT;
 use crate::sim::state::{AgentKey, AgentSource};
 use crate::stage::{Boss, Stage};
 use crate::threat_colours::{ThreatColourIndex, ThreatColours};
@@ -653,6 +656,20 @@ pub(crate) struct World {
     grant_counters: Vec<Option<CounterGrant>>,
     /// Some style names a counter bonus: the tick looks for one only then.
     pub has_counter_bonus: bool,
+    /// The combo tempo each of those copies has (the first `combo_tempo_pct` kind of the style's
+    /// own level and the path levels taken), at the same index; empty when no style names one.
+    grant_tempos: Vec<Option<TempoGrant>>,
+    /// Some style names a combo tempo: the tick looks for one only then.
+    pub has_tempo: bool,
+}
+
+/// A style's combo tempo resolved once: the most stacks, each stack's attack speed and whether a
+/// full-stack smash keeps them, every number inside its cap (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TempoGrant {
+    pub max_stacks: u8,
+    pub speed_pct: u32,
+    pub keep_on_smash: bool,
 }
 
 /// A style's counter bonus resolved once: the window and each effect folded into its field, 0
@@ -819,6 +836,7 @@ impl World {
         let grant_gauges = grant_gauges(main, weapon.as_ref(), content);
         let grant_spirits = grant_spirits(main, weapon.as_ref(), content);
         let grant_counters = grant_counters(main, weapon.as_ref(), content);
+        let grant_tempos = grant_tempos(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -883,6 +901,8 @@ impl World {
             grant_spirits,
             has_counter_bonus: grant_counters.iter().any(Option::is_some),
             grant_counters,
+            has_tempo: grant_tempos.iter().any(Option::is_some),
+            grant_tempos,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -1079,6 +1099,15 @@ impl World {
             return None;
         }
         self.grant_counters.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The combo tempo player `me`'s style gives, read from the same slot as `weapon_of`; none
+    /// after one bool test for a run that names no combo tempo.
+    pub(crate) fn tempo_of(&self, s: &super::state::State, me: PlayerIdx) -> Option<&TempoGrant> {
+        if !self.has_tempo {
+            return None;
+        }
+        self.grant_tempos.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1327,6 +1356,62 @@ fn grant_counters(
         out.clear();
     }
     out
+}
+
+/// The combo tempo of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_tempos(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<TempoGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let tempo_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::ComboTempoPct(t) => Some(tempo_folded(t)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(tempo_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `t` as a flat grant, every number inside its cap.
+fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
+    let mut g = TempoGrant {
+        max_stacks: u8::try_from(t.max_stacks)
+            .unwrap_or(MAX_TEMPO_STACKS)
+            .clamp(1, MAX_TEMPO_STACKS),
+        speed_pct: 0,
+        keep_on_smash: false,
+    };
+    for e in t.effects.iter().take(2) {
+        match e {
+            TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
+            TempoEffect::KeepOnSmash {} => g.keep_on_smash = true,
+        }
+    }
+    g
 }
 
 /// `c` as a flat grant, every number inside its cap.
