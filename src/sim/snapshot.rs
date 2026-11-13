@@ -248,7 +248,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             y: s.players[me].facing.y,
         },
         invulnerable: s.players[me].invulnerable,
-        super_armour: false,
+        super_armour: super::player::super_armour(world, s, me),
         evade: EvadeView {
             charges: s.players[me].evade_charges,
             ready: s.players[me].evade_ready(),

@@ -67,7 +67,7 @@ use runs::begin_phase;
 pub(super) use runs::{
     advance_runs, cancel_runs_of, cancelled_token, capped_type_bonus, counterable_run, end_run,
     end_runs_of, fire_hooks, hold_ready, in_end_recovery, is_combo, phase_damage, retain_runs, run,
-    swing_damage,
+    run_phase_kind, swing_damage,
 };
 
 mod start;

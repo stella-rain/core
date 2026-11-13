@@ -61,7 +61,7 @@ pub(super) fn hurt_player(
         player::gauge_from_damage(stage, s, me, before_hp - s.players[me].hp, events);
     }
     // A powerful attack breaks a charge (core#83).
-    if b.breaks_charge {
+    if b.breaks_charge && !player::super_armour(stage, s, me) {
         player::break_charge(stage, s, me, events);
     }
 }

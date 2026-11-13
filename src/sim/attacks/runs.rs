@@ -213,6 +213,20 @@ pub(in crate::sim) fn counterable_run(
         .map(|r| r.attack)
 }
 
+/// The kind of the current phase of `owner`'s run in `slot`, if it has one: read from the compiled
+/// phase, so a caller that only asks pays no `PhaseView`.
+pub(in crate::sim) fn run_phase_kind(
+    world: &World,
+    s: &State,
+    owner: EntityId,
+    slot: u8,
+) -> Option<PhaseKind> {
+    s.runs
+        .iter()
+        .find(|r| r.owner == owner && r.slot == slot)
+        .map(|r| compiled(world, r)[r.phase as usize].kind)
+}
+
 /// The damage of run `r`'s current phase, for its hit box and the orbs it spawns: the
 /// phase's own, or else the starter's, raised by the atk-up and by the type bonus of the
 /// phase's damage type (none for a neutral phase), both fixed at the attack's start.
