@@ -4653,8 +4653,7 @@
   "default_xp": 1,
   "defence_k": 10000,
   "crit_damage_base_pct": 200,
-  "party_damage_pct": [100, 100, 100],
-  "ranged_grace_ticks": 60
+  "party_damage_pct": [100, 100, 100]
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
