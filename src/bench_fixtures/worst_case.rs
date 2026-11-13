@@ -233,7 +233,7 @@ pub fn stage() -> Stage {
     ] }]);
     let guard = common::companion(
         50,
-        common::hold(x + 20_000, y),
+        common::hold(x + 20_000, y + 5_376),
         json!([common::rule(
             common::always(),
             json!("nearest_enemy"),
