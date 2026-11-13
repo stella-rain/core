@@ -10,12 +10,13 @@ use super::drops::DropTable;
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement};
-use crate::expertise::{Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind};
+use crate::expertise::{CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind};
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::limits::{
-    MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+    MAX_ADVANCE_DISTANCE, MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
 };
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
@@ -630,6 +631,22 @@ pub(crate) struct World {
     grant_spirits: Vec<Option<SpiritGrant>>,
     /// Some style names a spirit: the tick looks for one only then.
     pub has_spirit: bool,
+    /// The counter bonus each of those copies has (the first `counter_bonus` kind of the style's
+    /// own level and the path levels taken), at the same index; empty when no style names one.
+    grant_counters: Vec<Option<CounterGrant>>,
+    /// Some style names a counter bonus: the tick looks for one only then.
+    pub has_counter_bonus: bool,
+}
+
+/// A style's counter bonus resolved once: the window and each effect folded into its field, 0
+/// where it has none (100 for the stagger factor), every number inside its cap.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CounterGrant {
+    pub window: u16,
+    pub damage_pct: u32,
+    pub stagger_pct: u32,
+    pub stun_ticks: u32,
+    pub advance: Fx,
 }
 
 /// A style's spirit resolved once: the countdown and, for each level, the effects folded into
@@ -784,6 +801,7 @@ impl World {
         let grant_weapons = grant_weapons(main, weapon.as_ref(), content);
         let grant_gauges = grant_gauges(main, weapon.as_ref(), content);
         let grant_spirits = grant_spirits(main, weapon.as_ref(), content);
+        let grant_counters = grant_counters(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -846,6 +864,8 @@ impl World {
             grant_gauges,
             has_spirit: grant_spirits.iter().any(Option::is_some),
             grant_spirits,
+            has_counter_bonus: grant_counters.iter().any(Option::is_some),
+            grant_counters,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -855,10 +875,16 @@ impl World {
             .attacks
             .iter()
             .any(|a| a.phases.iter().any(|p| p.dash.is_some()));
+        // A counter bonus's slide also needs magnetism to run.
         world.has_advance = world
             .attacks
             .iter()
-            .any(|a| a.phases.iter().any(|p| p.advance.is_some()));
+            .any(|a| a.phases.iter().any(|p| p.advance.is_some()))
+            || world
+                .grant_counters
+                .iter()
+                .flatten()
+                .any(|c| c.advance.0 > 0);
         // One walk of each style copy's tree, once (ADR-SIM-9 point 3).
         for copy in world.grant_weapons.iter().flatten() {
             world.has_repeat |= any_step(&copy.combo, &|s| !s.repeats.is_empty());
@@ -989,6 +1015,19 @@ impl World {
             return None;
         }
         self.grant_spirits.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The counter bonus player `me`'s style gives, read from the same slot as `weapon_of`; none
+    /// after one bool test for a run that names no counter bonus.
+    pub(crate) fn counter_of(
+        &self,
+        s: &super::state::State,
+        me: PlayerIdx,
+    ) -> Option<&CounterGrant> {
+        if !self.has_counter_bonus {
+            return None;
+        }
+        self.grant_counters.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1199,6 +1238,70 @@ fn grant_spirits(
         out.clear();
     }
     out
+}
+
+/// The counter bonus of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_counters(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<CounterGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let counter_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::CounterBonus(c) => Some(counter_folded(c)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(counter_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `c` as a flat grant, every number inside its cap.
+fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
+    let mut g = CounterGrant {
+        window: u16::try_from(c.window_ticks)
+            .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
+            .clamp(1, MAX_COUNTER_WINDOW_TICKS),
+        damage_pct: 0,
+        stagger_pct: 100,
+        stun_ticks: 0,
+        advance: Fx(0),
+    };
+    for e in c.effects.iter().take(4) {
+        match e {
+            CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
+            CounterEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
+            CounterEffect::StunTicks { ticks } => {
+                g.stun_ticks = (*ticks).min(crate::validate::limits::MAX_STUN_TICKS);
+            }
+            CounterEffect::Advance { distance } => {
+                g.advance = Fx(distance.0.clamp(0, Fx::px(MAX_ADVANCE_DISTANCE).0));
+            }
+        }
+    }
+    g
 }
 
 /// `sp` as a flat table, every number inside its cap.
