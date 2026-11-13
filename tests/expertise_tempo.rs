@@ -222,3 +222,40 @@ fn the_views_carry_the_tempo_kind() {
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
 }
+
+/// S6: a `PlayerView` with `tempo: None` serializes without the key, and the two events use the
+/// event enum's tag form (`type` and `data`, the player by name).
+#[test]
+fn the_view_and_the_events_serialize() {
+    use stella_rain_core::event::DomainEvent;
+    use stella_rain_core::id::PlayerIdx;
+    use stella_rain_core::snapshot::TempoView;
+
+    let view = TempoView {
+        stacks: 3,
+        max_stacks: 5,
+        speed_pct: 12,
+    };
+    assert_eq!(
+        serde_json::to_value(view).unwrap(),
+        json!({ "stacks": 3, "max_stacks": 5, "speed_pct": 12 })
+    );
+    let raised = DomainEvent::TempoRaised {
+        player: PlayerIdx::SOLO,
+        stacks: 3,
+    };
+    assert_eq!(
+        serde_json::to_value(raised).unwrap(),
+        json!({ "type": "TempoRaised", "data": { "player": "first", "stacks": 3 } })
+    );
+    let lost = DomainEvent::TempoLost {
+        player: PlayerIdx::SOLO,
+    };
+    assert_eq!(
+        serde_json::to_value(lost).unwrap(),
+        json!({ "type": "TempoLost", "data": { "player": "first" } })
+    );
+    let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
+    let player = serde_json::to_value(&snap.players[0]).unwrap();
+    assert!(player.get("tempo").is_none(), "{player}");
+}
