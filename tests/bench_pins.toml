@@ -16,9 +16,9 @@
 
 [worst_tick]
 bench = "worst_tick"
-before = "d13319613b60d61e"
-after = "4496f78b5de1bde2"
-stage = "24626947caa37a6f"
+before = "0de260874ab89ba8"
+after = "b6a1a37790f8683c"
+stage = "efc9d3111ebe91fb"
 input = "cf9a77022954c996"
 
 [hit_tick]
@@ -45,62 +45,62 @@ input = "c8f0ff41826bb896"
 [worst_minute]
 bench = "worst_minute"
 before = "5a5321e3d537600b"
-after = "590a30783f77610b"
+after = "3c9628333db485ba"
 stage = "5c15665e2e94db92"
 input = "17fcaa911e675ec7"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
-before = "9ec59eaa647b222d"
-after = "2b6664d087daf627"
+before = "398b5e584c170e82"
+after = "22d88835e10b128b"
 stage = "5c15665e2e94db92"
-input = "def61785f5993616"
+input = "62dbcfd860fe7685"
 
 [worst_tick_3p]
 bench = "worst_tick_3p"
-before = "935946dd68bd37bb"
-after = "bcb4d64cf527832e"
-stage = "24626947caa37a6f"
+before = "b231fb914eb7cf89"
+after = "da38ed58ab660fad"
+stage = "efc9d3111ebe91fb"
 input = "ce2422ff60f961b0"
 
 [rollback]
 bench = "rollback"
-before = "884c8e42eed6ed55"
-after = "d75f14ffc42e58a1"
+before = "db7afafa2d89a474"
+after = "a5a0c7828776185e"
 stage = "5c15665e2e94db92"
 input = "22e23fc640006991"
 
 [rollback_equip]
 bench = "rollback_equip"
-before = "32920580f2c9fa55"
-after = "4ae667eb97cc27a7"
+before = "4b747e2562b6a75c"
+after = "c202d6a5ba3f73a6"
 stage = "5c15665e2e94db92"
 input = "42725cbb18ad956d"
 
 [rollback_session_w4]
 bench = "rollback_session"
-before = "592a0871deb5e6ad"
-after = "87d7d3550de9fb93"
+before = "f831f8fe9f70fa20"
+after = "52de37988f647bcd"
 stage = "5c15665e2e94db92"
 input = "a4037a748a2245f2"
 
 [rollback_session_w16]
 bench = "rollback_session"
-before = "751b2e1db42759b9"
-after = "ef915dadefa8b3ba"
+before = "956d7d0aa02575b3"
+after = "9325c1d32ab90183"
 stage = "5c15665e2e94db92"
 input = "1b21bd1854ce783f"
 
 [clone_ring_save]
 bench = "rollback_session"
-before = "32920580f2c9fa55"
-after = "32920580f2c9fa55"
+before = "4b747e2562b6a75c"
+after = "4b747e2562b6a75c"
 stage = "5c15665e2e94db92"
 input = "3f5be22dc234d8d3"
 
 [clone_ring_resave]
 bench = "rollback_session"
-before = "32920580f2c9fa55"
-after = "32920580f2c9fa55"
+before = "4b747e2562b6a75c"
+after = "4b747e2562b6a75c"
 stage = "5c15665e2e94db92"
 input = "5cd36d0a5b90f1c9"
