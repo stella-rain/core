@@ -617,3 +617,49 @@ fn a3_what_stays_the_evade_and_the_damage() {
     let without = armour_run(&shot_at(combo, 69, true), 75, pressed(false, false));
     assert_eq!(with.hit, without.hit);
 }
+
+// --- C6 ---------------------------------------------------------------------------------------
+
+/// A weapon whose smash knocks back by nothing: the enemy stays in the swing, and the knockback
+/// (with the rules' `down_ticks`) knocks it down.
+fn knockback_weapon() -> Value {
+    let mut w = weapon();
+    w["inline"]["smash"] = json!({ "type": "knockback", "distance": 0, "ticks": 1 });
+    w
+}
+
+#[test]
+fn c6_a_counter_lands_after_the_smash_s_own_knockdown_on_the_control_list() {
+    let mut rules = rules_counter();
+    rules["down_ticks"] = json!(30);
+    rules["control_repeat_pcts"] = json!([100, 50]);
+    rules["control_reset_ticks"] = json!(300);
+    rules["control_immune_ticks"] = json!(120);
+    let mut r = Rig::enemy(knockback_weapon(), attack(true, 30), rules);
+    r.until_wind_up();
+    r.hit(true);
+    // The knockdown is the first control (all of 30 ticks), the counter's stun the second (half
+    // of 40): the counter lands after the smash's own arm.
+    let down: Vec<_> = r.named("knocked_down");
+    assert_eq!(down.len(), 1, "{:?}", r.applied);
+    assert_eq!(down[0].2, 30);
+    let stun = r.named("stun");
+    assert_eq!(stun.len(), 1, "{:?}", r.applied);
+    assert_eq!(stun[0].2, 20);
+    assert_eq!(r.countered.len(), 1);
+    assert!(!r.attack_running());
+
+    // With one entry in the list the knockdown uses it up: the counter's stun is refused, but the
+    // cancel and the report still happen.
+    let mut rules = rules_counter();
+    rules["down_ticks"] = json!(30);
+    rules["control_repeat_pcts"] = json!([100]);
+    rules["control_reset_ticks"] = json!(300);
+    rules["control_immune_ticks"] = json!(120);
+    let mut r = Rig::enemy(knockback_weapon(), attack(true, 30), rules);
+    r.until_wind_up();
+    r.hit(true);
+    assert!(r.named("stun").is_empty(), "{:?}", r.applied);
+    assert_eq!(r.countered.len(), 1);
+    assert!(!r.attack_running());
+}

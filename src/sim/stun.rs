@@ -622,6 +622,112 @@ mod tests {
         assert!(s.ranged_cooling.is_empty(), "{:?}", s.ranged_cooling);
     }
 
+    /// `phases` with its wind-up flagged counterable, run as a ranged attack of enemy 0.
+    fn counterable_run(phases: serde_json::Value) -> (World, State, RangedPool) {
+        let mut phases = phases;
+        phases[0]["counterable"] = json!(true);
+        let (mut w, s, pool) = ranged_run(phases);
+        w.tuning.counter_stun_ticks = 40;
+        (w, s, pool)
+    }
+
+    /// The counter of enemy 0 by player 0, as the hit pass makes it: deferred, then applied.
+    fn counter_owner(w: &World, s: &mut State) {
+        let me = PlayerIdx::new(0).unwrap();
+        let attack = attacks::counterable_run(w, s, s.enemies[0].id).expect("a counterable run");
+        s.enemies[0].stun_immune = 0;
+        s.scratch.ends_pinned = Some(s.runs.len());
+        counter(w, s, me, Who::Enemy(0), attack, &mut Vec::new());
+        super::super::hit_boxes::apply_ends(w, s);
+        s.scratch.ends_pinned = None;
+    }
+
+    #[test]
+    fn a_counter_frees_a_zone_leaving_runs_token_at_once_with_no_cooling() {
+        let (w, mut s, _) = counterable_run(zone_leaving());
+        counter_owner(&w, &mut s);
+        assert!(s.runs.is_empty(), "the run is gone");
+        assert!(
+            s.ranged_cooling.is_empty(),
+            "no cooling: {:?}",
+            s.ranged_cooling
+        );
+        assert!(stunned(&s.enemies[0].statuses), "and it is stunned");
+    }
+
+    #[test]
+    fn a_counter_cools_a_channelled_runs_token_once() {
+        let (w, mut s, pool) = counterable_run(channelled());
+        let until = s.tick + w.tuning.ranged_token_cooldown_ticks;
+        counter_owner(&w, &mut s);
+        assert!(s.runs.is_empty(), "the run is gone");
+        assert_eq!(s.ranged_cooling.as_slice(), [(until, pool)]);
+    }
+
+    #[test]
+    fn a_run_a_cancel_already_ended_in_the_pass_is_not_countered_again() {
+        let (w, mut s, _) = counterable_run(channelled());
+        let owner = s.enemies[0].id;
+        assert!(attacks::counterable_run(&w, &s, owner).is_some());
+        s.scratch.ends_pinned = Some(s.runs.len());
+        attacks::cancel_runs_of(&w, &mut s, owner);
+        assert!(attacks::counterable_run(&w, &s, owner).is_none());
+        // A run that is not in a counterable wind-up is not countered either.
+        s.scratch.ends_pending.clear();
+        s.runs[0].phase = 1;
+        assert!(attacks::counterable_run(&w, &s, owner).is_none());
+    }
+
+    #[test]
+    fn any_player_s_smash_counters_and_two_on_one_tick_counter_once() {
+        let e: Engine = worst_case::warmed_up().into_party(2);
+        let (w, st) = match e.run() {
+            Run::V2 { world, state, .. } => (world, state),
+            Run::V1 { .. } => panic!("the live rules"),
+        };
+        let mut w = World::clone(w);
+        let mut s = st.clone();
+        s.runs.clear();
+        s.ranged_cooling.clear();
+        let mut phases = channelled();
+        phases[0]["counterable"] = json!(true);
+        let attack: AttackRef = serde_json::from_value(json!({ "inline": phases })).unwrap();
+        w.compile_attack(&attack, None).expect("compiles");
+        w.tuning.counter_stun_ticks = 40;
+        let mut events = Vec::new();
+        let target = Who::Player(PlayerIdx::new(0).unwrap());
+        assert!(attacks::start(
+            &w,
+            &mut s,
+            Who::Enemy(0),
+            0,
+            target,
+            &attack,
+            100,
+            &mut events
+        ));
+        let owner = s.enemies[0].id;
+        s.enemies[0].stun_immune = 0;
+        s.scratch.ends_pinned = Some(s.runs.len());
+        // Player 1's smash counters it, credited to player 1; player 0's, later in the same pass,
+        // finds the cancel pending and counters nothing.
+        let second = PlayerIdx::new(1).unwrap();
+        let attack = attacks::counterable_run(&w, &s, owner).expect("counterable");
+        events.clear();
+        counter(&w, &mut s, second, Who::Enemy(0), attack, &mut events);
+        assert!(attacks::counterable_run(&w, &s, owner).is_none());
+        let countered: Vec<_> = events
+            .iter()
+            .filter_map(|ev| match ev {
+                DomainEvent::Countered { player, .. } => Some(*player),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(countered, [second]);
+        super::super::hit_boxes::apply_ends(&w, &mut s);
+        assert!(s.runs.is_empty());
+    }
+
     #[test]
     fn the_shipped_zone_attacks_are_not_channelled() {
         // The ranged attacks of the trial and of the time-limit mode are a wind-up that spawns
