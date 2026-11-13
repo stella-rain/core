@@ -696,7 +696,11 @@ fn hit_enemy_side(
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
                     let owner = s.boss_state().id;
                     let c = counterable(stage, s, me, w, owner);
-                    damage(stage, s, me, shot(w), Who::BossPart(i), events);
+                    // The breaker's factor on a smash step's hit on a part.
+                    let mut part_shot = shot(w);
+                    part_shot.damage =
+                        super::player::breaker_part(stage, s, me, w.combo, part_shot.damage);
+                    damage(stage, s, me, part_shot, Who::BossPart(i), events);
                     super::stun::counter_bonus_stun(
                         stage,
                         s,
@@ -890,6 +894,7 @@ fn flinch_by(
             } else {
                 stage.tuning.poise_damage_a
             });
+    let poise_damage = super::player::breaker_poise(stage, s, me, poise_damage);
     let source = s.players.id(me);
     super::stun::flinch(stage, s, i, poise_damage, source, events);
 }

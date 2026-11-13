@@ -10,6 +10,8 @@ use super::state::{EliteState, Stagger, State};
 use super::trigger_tests::{Rig, count, named, rig, slot, st};
 use crate::engine::Run;
 use crate::fixed::{Fx, Point};
+use crate::id::EntityId;
+use crate::input::Input;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -231,33 +233,42 @@ fn a_breaker_without_the_stagger_factor_fills_plain() {
     assert_eq!(filled(&mut r, 0, 40), 40);
 }
 
-/// B3: the poise factor scales the poise damage of the player's combo hits: a smash step's 40 on
-/// a poise-60 enemy flinches it with 200% (80) and not plain; an A step's 10 does not flinch it
-/// either way (20 is under 60).
+/// B3: the poise factor scales the poise damage of the player's combo hits: an A step's 10 on a
+/// poise-15 enemy does not flinch it plain and flinches it with 200% (20); with 150% (15) it
+/// does too, with the other effects only it does not, and on a poise-60 enemy 20 is not enough.
+/// (A smash's own stun wins over a flinch, so the A step carries the test.)
 #[test]
 fn the_poise_factor_scales_a_combo_hits_poise_damage() {
-    let flinches = |kinds: Vec<Value>, smash: bool| {
+    let flinches = |kinds: Vec<Value>, poise: u32| {
         let mut r = rig(1, kinds, 1);
         prep(&mut r, &[]);
-        let events = r.run_step(smash);
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        let def = state.enemies[0].def;
+        Arc::make_mut(world).defs.agent_mut(def).poise = Some(poise);
+        let events = r.run_step(false);
         named(&events, "StatusApplied")
             .iter()
             .filter(|e| e["status"] == "flinch")
             .count()
     };
-    assert_eq!(flinches(vec![], true), 0, "plain smash");
+    assert_eq!(flinches(vec![], 15), 0, "plain");
     assert!(
-        flinches(vec![breaker(vec![poise_pct(200)])], true) > 0,
-        "doubled smash"
+        flinches(vec![breaker(vec![poise_pct(200)])], 15) > 0,
+        "doubled"
     );
-    assert_eq!(flinches(vec![], false), 0, "plain A");
+    assert!(
+        flinches(vec![breaker(vec![poise_pct(150)])], 15) > 0,
+        "one and a half"
+    );
     assert_eq!(
-        flinches(vec![breaker(vec![poise_pct(200)])], false),
+        flinches(vec![breaker(vec![poise_pct(200)])], 60),
         0,
-        "doubled A is 20, under 60"
+        "20 is under 60"
     );
     assert_eq!(
-        flinches(vec![breaker(vec![stagger_pct(200)])], true),
+        flinches(vec![breaker(vec![stagger_pct(200)])], 15),
         0,
         "another effect only"
     );
@@ -436,11 +447,11 @@ fn levelled(
     e
 }
 
+/// A grant as a tuple: the three factors and the burst's radius, damage, stun and fall.
+type Seen = (u32, u32, u32, Option<(i32, u32, u32, bool)>);
+
 /// The grant player `i` has now: its three factors and its burst's radius, damage, stun and fall.
-fn grant(
-    e: &mut crate::engine::Engine,
-    i: u8,
-) -> Option<(u32, u32, u32, Option<(i32, u32, u32, bool)>)> {
+fn grant(e: &mut crate::engine::Engine, i: u8) -> Option<Seen> {
     let Run::V2 { world, state } = e.run_mut() else {
         panic!("the live rules");
     };
@@ -531,4 +542,76 @@ fn the_levels_of_a_path_stack_their_effects() {
     assert_eq!(grant(&mut e, 0).unwrap().3, Some((128 * 256, 10, 0, false)));
     take(&mut e, 0, 3);
     assert_eq!(grant(&mut e, 0).unwrap().3, Some((128 * 256, 50, 45, true)));
+}
+
+/// The damage a press of `smash` (else A) does to a boss part of the first boss, over the whole
+/// step: the part is rebuilt with `BIG` hit points before each tick and the boss body is kept in
+/// front of the player, so the part's loss is what the step dealt.
+fn part_loss(kinds: Vec<Value>, smash: bool) -> u32 {
+    use super::state::PartState;
+    let mut r = rig(1, kinds, 0);
+    let mut n = 0;
+    while st(&mut r.e).boss.is_none() && n < 40_000 {
+        r.step([Input::default(); 3]);
+        n += 1;
+    }
+    let s = st(&mut r.e);
+    let b = s.boss.as_mut().expect("a boss");
+    b.invulnerable = 0;
+    let kind = b.kind;
+    let id = EntityId(s.next_id);
+    s.next_id += 1;
+    s.boss.as_mut().unwrap().parts = vec![PartState {
+        id,
+        name: crate::id::ContentId::from("horn"),
+        kind,
+        hp: BIG,
+        max_hp: BIG,
+        defence: 0,
+        offset: Point::default(),
+        radius: Fx::px(20).0,
+        statuses: Default::default(),
+    }];
+    let mut lost = 0;
+    for tick in 0..60 {
+        let s = st(&mut r.e);
+        let (at, facing) = (s.players[slot(0)].at, s.players[slot(0)].facing);
+        let scale = i64::from(crate::trig::SCALE);
+        let along = i64::from(Fx::px(24).0);
+        let b = s.boss.as_mut().unwrap();
+        b.invulnerable = 0;
+        b.at = Point {
+            x: Fx(at.x.0 + i32::try_from(i64::from(facing.x) * along / scale).unwrap_or(0)),
+            y: Fx(at.y.0 + i32::try_from(i64::from(facing.y) * along / scale).unwrap_or(0)),
+        };
+        b.parts[0].hp = BIG;
+        let input = Input {
+            main: tick == 0 && !smash,
+            smash: tick == 0 && smash,
+            ..Input::default()
+        };
+        r.step([input, Input::default(), Input::default()]);
+        lost += BIG - st(&mut r.e).boss.as_ref().unwrap().parts[0].hp;
+    }
+    lost
+}
+
+/// B4: a smash step's hit on a boss part takes 200% of the plain damage; an A step's hit on the
+/// same part, and a run without the effect, take the plain damage.
+#[test]
+fn the_part_break_factor_scales_a_smashs_hit_on_a_part() {
+    let part_break = breaker(vec![json!({ "type": "part_break_pct", "pct": 200 })]);
+    let plain = part_loss(vec![], true);
+    assert!(plain > 0, "the smash reaches the part");
+    assert_eq!(
+        part_loss(vec![part_break.clone()], true),
+        plain * 2,
+        "doubled"
+    );
+    assert_eq!(
+        part_loss(vec![breaker(vec![stagger_pct(200)])], true),
+        plain
+    );
+    let a = part_loss(vec![], false);
+    assert_eq!(part_loss(vec![part_break], false), a, "an A step is plain");
 }

@@ -11,7 +11,6 @@ use stella_rain_core::version::Versions;
 
 use crate::common;
 
-const AT: &str = "/weapons/0/styles/0/kinds";
 const PATH: &str = "$.weapons[0].styles[0].kinds[0]";
 
 /// The Hammer's whole breaker (test values).

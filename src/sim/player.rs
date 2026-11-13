@@ -1142,6 +1142,46 @@ pub(super) fn counter_taken<'a>(
     stage.counter_of(s, me)
 }
 
+/// `value` scaled by `pct` percent, one truncation, saturating to `u32`.
+pub(super) fn scaled(value: u32, pct: u32) -> u32 {
+    u32::try_from(u64::from(value) * u64::from(pct) / 100).unwrap_or(u32::MAX)
+}
+
+/// The breaker's factor on a stagger fill credited to `me`: `value` unchanged without a breaker
+/// naming `stagger_pct`, after one bool test for a run that names no breaker.
+pub(super) fn breaker_fill(stage: &World, s: &State, me: PlayerIdx, value: u32) -> u32 {
+    match stage.breaker_of(s, me) {
+        Some(g) if g.stagger_pct > 100 => scaled(value, g.stagger_pct),
+        _ => value,
+    }
+}
+
+/// The breaker's factor on the poise damage of a combo hit of `me`.
+pub(super) fn breaker_poise(stage: &World, s: &State, me: PlayerIdx, damage: u32) -> u32 {
+    match stage.breaker_of(s, me) {
+        Some(g) if g.poise_pct > 100 => scaled(damage, g.poise_pct),
+        _ => damage,
+    }
+}
+
+/// The breaker's factor on the damage of a smash step's combo hit of `me` on a boss part: `damage`
+/// unchanged for any other hit.
+pub(super) fn breaker_part(
+    stage: &World,
+    s: &State,
+    me: PlayerIdx,
+    combo: bool,
+    damage: u32,
+) -> u32 {
+    if !stage.has_breaker || !combo || !last_press_smash(&s.players[me].combo) {
+        return damage;
+    }
+    match stage.breaker_of(s, me) {
+        Some(g) if g.part_break_pct > 100 => scaled(damage, g.part_break_pct),
+        _ => damage,
+    }
+}
+
 /// A step of `me` starts: the mark of the step before is gone, and the first step of the dash
 /// branch pressed inside an open window takes the bonus and closes the window. A step of the
 /// ordinary combo, a later step of the dash branch and an auto step take nothing and leave an

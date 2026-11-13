@@ -340,6 +340,8 @@ pub(super) fn fill(
         Some(fx) if fx.stagger_pct > 100 => value.saturating_mul(fx.stagger_pct) / 100,
         _ => value,
     };
+    // The breaker's factor composes with it, the counter's first, each truncated.
+    let value = super::player::breaker_fill(stage, s, me, value);
     let t = &stage.tuning;
     let Some(g) = gauge_of(s, target) else {
         return;
