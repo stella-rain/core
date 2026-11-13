@@ -20,7 +20,7 @@ fn rows_of(set: &[crate::expertise::SetStat]) -> Vec<(StatEffect, [u32; 10])> {
 
 /// The bundled pack's expertise of the weapon preset `weapon`.
 fn weapon_of(weapon: &str) -> &'static crate::expertise::WeaponExpertise {
-    Expertise::bundled()
+    super::before::expertise()
         .weapon(&weapon.into())
         .expect("a bundled weapon")
 }
@@ -42,7 +42,11 @@ fn base_rows(weapon: &str) -> Vec<(StatEffect, [u32; 10])> {
 
 /// `expertise::tree_stats` on the bundled pack's weapon (none for an unlisted weapon).
 fn tree_stats(weapon: &str, style: Option<&str>, level: u32) -> [u32; StatEffect::ALL.len()] {
-    expertise::tree_stats(Expertise::bundled().weapon(&weapon.into()), style, level)
+    expertise::tree_stats(
+        super::before::expertise().weapon(&weapon.into()),
+        style,
+        level,
+    )
 }
 
 fn set_progress(e: &mut Engine, f: impl FnOnce(&mut super::state::Progress)) {
@@ -162,7 +166,7 @@ const RG: usize = StatEffect::RangePct as usize;
 
 /// A time-limit equipment engine with the sword, whose trees are `edge`, `tempo` and `reach`.
 fn sword() -> Engine {
-    Engine::start(&RunSetup {
+    super::before::start(&RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
         ..RunSetup::default()
@@ -189,7 +193,7 @@ fn level_to(e: &mut Engine, level: u32) {
             .as_mut()
             .expect("a gauge");
         g.points = g.next;
-        expertise::level_up(world, Expertise::bundled(), state, PlayerIdx::SOLO);
+        expertise::level_up(world, super::before::expertise(), state, PlayerIdx::SOLO);
     }
 }
 
@@ -252,12 +256,13 @@ fn the_base_set_applies_from_tick_0() {
     level_to(&mut e, 7);
     assert_eq!((tenths(&e)[AP], tenths(&e)[AS]), (70, 70));
 
-    let party = Engine::start_party(
+    let party = Engine::start_party_with(
         &RunSetup {
             mode: "time_limit".into(),
             weapon: "giant_sword".into(),
             ..RunSetup::default()
         },
+        super::before::content(),
         3,
     )
     .expect("a party");
@@ -345,7 +350,7 @@ fn max_hp_in_a_set_moves_max_hp_and_never_below_one() {
     let p = career.progress.as_mut().expect("levels");
     expertise::write_set(
         world,
-        Expertise::bundled(),
+        super::before::expertise(),
         p,
         player,
         Some((Some(2), 10)),
@@ -418,7 +423,7 @@ fn assert_set_invariant(e: &Engine) {
         crate::engine::Run::V2 { world, state } => (world, state),
         crate::engine::Run::V1 { .. } => panic!("the live rules"),
     };
-    let want = expertise::set_for(world, Expertise::bundled(), style, level);
+    let want = expertise::set_for(world, super::before::expertise(), style, level);
     for f in StatEffect::ALL {
         if f != StatEffect::MaxHp {
             assert_eq!(tenths(e)[f as usize], want[f as usize], "{f:?}");
@@ -561,7 +566,7 @@ fn the_set_values_are_pinned() {
             (AttackSpeedPct, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
         );
     }
-    let sets = Expertise::bundled().weapons().iter().flat_map(|w| {
+    let sets = super::before::expertise().weapons().iter().flat_map(|w| {
         w.styles
             .iter()
             .map(|st| rows_of(&st.stats))
@@ -746,12 +751,13 @@ fn no_view_without_equipment_or_content() {
         .expertise = None;
     assert_eq!(e.snapshot().players[0].weapon_stats, None);
 
-    let mut party = Engine::start_party(
+    let mut party = Engine::start_party_with(
         &RunSetup {
             mode: "time_limit".into(),
             weapon: "giant_sword".into(),
             ..RunSetup::default()
         },
+        super::before::content(),
         2,
     )
     .expect("a party");
@@ -784,8 +790,7 @@ fn the_style_pick_options_match_the_view() {
 /// with no `base` writes nothing.
 #[test]
 fn the_set_is_what_the_pack_says() {
-    let mut v: serde_json::Value =
-        serde_json::from_slice(crate::pack::ContentFiles::bundled_file("expertise")).unwrap();
+    let mut v: serde_json::Value = serde_json::from_slice(super::before::EXPERTISE).unwrap();
     let series: Vec<u32> = (1..=10).collect();
     for w in v["weapons"].as_array_mut().unwrap() {
         w["base"] = serde_json::json!([{ "effect": "range_pct", "by_level": [7, 7, 7, 7, 7, 7, 7, 7, 7, 7] }]);
