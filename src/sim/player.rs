@@ -95,7 +95,7 @@ use super::entity::{Who, speed_pct};
 use super::levels;
 use super::select;
 use super::skill;
-use super::world::CounterGrant;
+use super::world::{BurstGrant, CounterGrant};
 
 /// The stick's full deflection on each axis; −128 counts as −127.
 const STICK_MAX: i8 = 127;
@@ -1179,6 +1179,77 @@ pub(super) fn breaker_part(
     match stage.breaker_of(s, me) {
         Some(g) if g.part_break_pct > 100 => scaled(damage, g.part_break_pct),
         _ => damage,
+    }
+}
+
+/// The breaker's burst: a fill of `me` has just staggered `target` (an elite or the boss) with a
+/// hit of `hit` damage. It reports `StaggerBurst` and, for each other living enemy within the
+/// radius of the target's centre that can be hurt (no shrine, no disguised mimic): `damage_pct` of
+/// `hit` (at least 1) as a hit credited to `me` that is no combo hit (no rally, no expertise, no
+/// fill, no flinch), then the stun and the knockdown on each regular enemy that is still alive.
+/// The boss, its parts and the staggered target are never hurt, an elite takes the damage and
+/// nothing else, so a burst never fills a gauge and never staggers a second target: no chain. It
+/// holds no state; the staggered target's own stagger already began (ADR-SIM-9).
+#[inline(never)]
+pub(super) fn stagger_burst(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    (target, hit): (Who, u32),
+    burst: BurstGrant,
+    events: &mut Vec<DomainEvent>,
+) {
+    let (at, id) = (s.at(target), s.id_of(target));
+    events.push(DomainEvent::StaggerBurst {
+        player: me,
+        target: id,
+        at,
+        radius: burst.radius,
+    });
+    let staggered = match target {
+        Who::Enemy(i) => Some(i),
+        _ => None,
+    };
+    let owner = s.players.id(me);
+    let reached = |s: &State, j: usize| {
+        let e = &s.enemies[j];
+        Some(j) != staggered
+            && e.hp > 0
+            && super::kills::damageable(s, Who::Enemy(j))
+            && super::collide::overlaps(at, burst.radius, e.at, stage.defs.agent(e.def).radius.0)
+    };
+    if burst.damage_pct > 0 {
+        let shot = super::Shot {
+            at,
+            owner,
+            friendly: true,
+            damage: scaled(hit, burst.damage_pct).max(1),
+            damage_type: None,
+            breaks_charge: false,
+            smash: None,
+            combo: false,
+            rune: None,
+            chain: true,
+        };
+        for j in 0..s.enemies.len() {
+            if reached(s, j) {
+                super::damage(stage, s, me, shot, Who::Enemy(j), events);
+            }
+        }
+    }
+    if burst.stun_ticks == 0 && !burst.knock_down {
+        return;
+    }
+    for j in 0..s.enemies.len() {
+        if !reached(s, j) || s.enemies[j].elite.is_some() {
+            continue;
+        }
+        if burst.stun_ticks > 0 {
+            super::stun::apply(stage, s, Who::Enemy(j), owner, burst.stun_ticks, events);
+        }
+        if burst.knock_down {
+            super::stun::knock_down(stage, s, me, j, events);
+        }
     }
 }
 

@@ -109,8 +109,15 @@ fn fill(r: &mut Rig, i: usize, me: u8, value: u32, hit: u32) -> Vec<Value> {
         panic!("the live rules");
     };
     let mut events = Vec::new();
-    let _ = hit;
-    super::stun::fill(world, state, Who::Enemy(i), slot(me), value, &mut events);
+    super::stun::fill(
+        world,
+        state,
+        Who::Enemy(i),
+        slot(me),
+        value,
+        hit,
+        &mut events,
+    );
     super::trigger_tests::as_json(&events)
 }
 
@@ -614,4 +621,171 @@ fn the_part_break_factor_scales_a_smashs_hit_on_a_part() {
     );
     let a = part_loss(vec![], false);
     assert_eq!(part_loss(vec![part_break], false), a, "an A step is plain");
+}
+
+/// B8: a resisted stun's fill that staggers bursts too (with no hit to measure, the burst still
+/// deals its at-least-1 damage).
+#[test]
+fn a_resisted_stuns_fill_bursts() {
+    let mut r = scene(vec![breaker(vec![burst_of(vec![
+        json!({ "type": "damage_pct", "pct": 50 }),
+    ])])]);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    Arc::make_mut(world).tuning.stagger_values[0] = 100;
+    let source = state.players.id(slot(0));
+    state.stun.elite_pct = 0;
+    let mut events = Vec::new();
+    super::stun::apply(world, state, Who::Enemy(0), source, 30, &mut events);
+    let events = super::trigger_tests::as_json(&events);
+    assert_eq!(count(&events, "StaggerBurst"), 1);
+    assert!(staggered(st(&mut r.e), 0) > 0);
+    assert_eq!(hp_lost(&mut r, 1), 1);
+}
+
+/// B8: the smash that staggers an elite bursts once, from that elite.
+#[test]
+fn a_smash_that_staggers_an_elite_bursts_with_its_damage() {
+    let mut r = rig(
+        1,
+        vec![breaker(vec![burst_of(vec![
+            json!({ "type": "damage_pct", "pct": 50 }),
+        ])])],
+        2,
+    );
+    prep(&mut r, &[0]);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let def = state.enemies[0].def;
+    Arc::make_mut(world).defs.agent_mut(def).stagger_max = Some(40);
+    let events = r.run_step(true);
+    assert_eq!(count(&events, "StaggerBurst"), 1, "{events:?}");
+    let burst_hit = named(&events, "StaggerBurst")[0]["target"].as_u64();
+    assert_eq!(burst_hit, Some(u64::from(st(&mut r.e).enemies[0].id.0)));
+}
+
+/// B8: a part's hit that staggers the boss bursts from the boss's centre.
+#[test]
+fn a_part_hit_that_staggers_the_boss_bursts_from_its_centre() {
+    use super::state::PartState;
+    let mut r = rig(
+        1,
+        vec![breaker(vec![burst_of(vec![
+            json!({ "type": "damage_pct", "pct": 50 }),
+        ])])],
+        0,
+    );
+    let mut n = 0;
+    while st(&mut r.e).boss.is_none() && n < 40_000 {
+        r.step([Input::default(); 3]);
+        n += 1;
+    }
+    {
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        let w = Arc::make_mut(world);
+        w.tuning.stagger_smash = 40;
+        w.tuning.staggered_ticks = 120;
+        w.tuning.stagger_refill_len = 0;
+        w.has_stagger = true;
+        for b in &mut w.bosses {
+            b.boss.stagger_max = Some(40);
+        }
+        let b = state.boss.as_mut().expect("a boss");
+        b.invulnerable = 0;
+        let (kind, id) = (b.kind, EntityId(state.next_id));
+        state.next_id += 1;
+        b.parts = vec![PartState {
+            id,
+            name: crate::id::ContentId::from("horn"),
+            kind,
+            hp: BIG,
+            max_hp: BIG,
+            defence: 0,
+            offset: Point::default(),
+            radius: Fx::px(20).0,
+            statuses: Default::default(),
+        }];
+    }
+    let mut seen = Vec::new();
+    for tick in 0..60 {
+        let s = st(&mut r.e);
+        let (at, facing) = (s.players[slot(0)].at, s.players[slot(0)].facing);
+        let scale = i64::from(crate::trig::SCALE);
+        let along = i64::from(Fx::px(24).0);
+        let b = s.boss.as_mut().unwrap();
+        b.invulnerable = 0;
+        b.at = Point {
+            x: Fx(at.x.0 + i32::try_from(i64::from(facing.x) * along / scale).unwrap_or(0)),
+            y: Fx(at.y.0 + i32::try_from(i64::from(facing.y) * along / scale).unwrap_or(0)),
+        };
+        let input = Input {
+            smash: tick == 0,
+            ..Input::default()
+        };
+        seen.extend(r.step([input, Input::default(), Input::default()]));
+    }
+    let bursts = named(&seen, "StaggerBurst");
+    assert_eq!(bursts.len(), 1, "{bursts:?}");
+    let boss = st(&mut r.e).boss.as_ref().unwrap().id.0;
+    assert_eq!(bursts[0]["target"].as_u64(), Some(u64::from(boss)));
+}
+
+/// B11: the burst's events and credit name the player whose fill staggered the target.
+#[test]
+fn the_burst_names_the_player_whose_fill_staggered() {
+    let mut r = rig(
+        3,
+        vec![breaker(vec![burst_of(vec![
+            json!({ "type": "damage_pct", "pct": 50 }),
+        ])])],
+        2,
+    );
+    prep(&mut r, &[0]);
+    place(st(&mut r.e), 1, 10, 0);
+    for i in [0u8, 2] {
+        if let Some(g) = st(&mut r.e).players.career_mut(slot(i)).expertise.as_mut() {
+            g.style = Some(1);
+        }
+    }
+    assert_eq!(count(&fill(&mut r, 0, 0, 100, 100), "StaggerBurst"), 0);
+    // Player 0 staggered it without a breaker: reset and let player 1 do it.
+    st(&mut r.e).enemies[0].elite.as_mut().unwrap().stagger = Stagger::default();
+    let events = fill(&mut r, 0, 1, 100, 100);
+    let bursts = named(&events, "StaggerBurst");
+    assert_eq!(bursts.len(), 1);
+    assert_eq!(bursts[0]["player"], serde_json::to_value(slot(1)).unwrap());
+    assert_eq!(hp_lost(&mut r, 1), 50);
+}
+
+/// B14: the same scenario twice gives the same state hash every tick, and a savepoint taken
+/// mid-stagger replays the same hashes for the next 240 ticks.
+#[test]
+fn a_burst_is_deterministic_and_leaves_no_state_behind() {
+    let go = |r: &mut Rig| {
+        fill(r, 0, 0, 100, 200);
+        r.idle(10);
+    };
+    let make = || {
+        let mut r = scene(vec![breaker(vec![full_burst()])]);
+        // Idle ticks must not move the scene: nothing else acts.
+        if let Run::V2 { world, .. } = r.e.run_mut() {
+            Arc::make_mut(world).tuning.stagger_refill_len = 0;
+        }
+        r
+    };
+    let (mut a, mut b) = (make(), make());
+    go(&mut a);
+    go(&mut b);
+    let bytes = crate::savepoint::encode_state(&a.e);
+    assert!(!bytes.is_empty());
+    assert_eq!(a.e.state_hash(), b.e.state_hash());
+    for _ in 0..240 {
+        a.step([Input::default(); 3]);
+        b.step([Input::default(); 3]);
+        assert_eq!(a.e.state_hash(), b.e.state_hash());
+    }
 }

@@ -681,7 +681,15 @@ fn hit_enemy_side(
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
                 let c = counterable(stage, s, me, w, id);
                 damage(stage, s, me, shot(w), Who::Boss, events);
-                super::stun::counter_bonus_stun(stage, s, me, (Who::Boss, w.combo), c, events);
+                super::stun::counter_bonus_stun(
+                    stage,
+                    s,
+                    me,
+                    (Who::Boss, w.combo),
+                    c,
+                    w.damage,
+                    events,
+                );
                 if stage.has_stagger {
                     stagger_by(stage, s, me, w, Who::Boss, events);
                     resisted_move_fills(stage, s, me, w, Who::Boss, events);
@@ -707,6 +715,7 @@ fn hit_enemy_side(
                         me,
                         (Who::BossPart(i), w.combo),
                         c,
+                        w.damage,
                         events,
                     );
                     if stage.has_stagger {
@@ -759,7 +768,15 @@ fn hit_enemy_side(
             }
             // C05: the smash that hit it in a counterable wind-up counters the attack, after the
             // smash's own stun, pull and knockback have landed.
-            super::stun::counter_bonus_stun(stage, s, me, (Who::Enemy(i), w.combo), c, events);
+            super::stun::counter_bonus_stun(
+                stage,
+                s,
+                me,
+                (Who::Enemy(i), w.combo),
+                c,
+                w.damage,
+                events,
+            );
             // C03, C04: a combo hit fills an elite's gauge, and a pull or a knockback it resists
             // fills it more.
             if stage.has_stagger {
@@ -838,7 +855,7 @@ fn stagger_by(
         } else {
             0
         });
-    super::stun::fill(stage, s, target, me, value, events);
+    super::stun::fill(stage, s, target, me, value, w.damage, events);
 }
 
 /// C04: the pull or the knockback of a smash that hit `target`, an elite, the boss or a part,
@@ -869,7 +886,7 @@ fn resisted_move_fills(
         _ => true,
     };
     if w.combo && resists {
-        super::stun::fill(stage, s, target, me, value, events);
+        super::stun::fill(stage, s, target, me, value, w.damage, events);
     }
 }
 
