@@ -20,6 +20,13 @@
 //! not below the slow, so a slow cannot restart inside itself. Only enemies in the evader's reach
 //! are slowed (`sim::player`), never other players (ADR-SIM-8).
 //!
+//! The rally is three optional keys, all or none (`rally_pct`, `rally_ticks`, `rally_regain_pct`):
+//! none, and the rule is off; some, and the file is refused at each missing key; any of them at
+//! `sim_version` 1 is refused. Every hit a player takes leaves `rally_pct` percent of the hit
+//! points it cost as hit points the player's own combo hits win back, `rally_regain_pct` percent
+//! of the damage each deals, until `rally_ticks` run out (ADR-SIM-9). Each is bounded and clamped
+//! again into `Tuning.rally` (ADR-SVC-1).
+//!
 //! The orb clear is one optional key, `orb_clear_radius` (1 px to `MAX_ORB_CLEAR_RADIUS`, clamped
 //! again into `Tuning.orb_clear_radius`; `sim_version` 2): absent, a full-gauge smash clears
 //! nothing beyond what its hit box covers.
@@ -41,9 +48,9 @@ use crate::fixed::Fx;
 use crate::limits::{
     MAX_CONTROL_REPEATS, MAX_CONTROL_RESET_TICKS, MAX_DOWN_TICKS, MAX_FLINCH_IMMUNE_TICKS,
     MAX_FLINCH_TICKS, MAX_ORB_CLEAR_RADIUS, MAX_PCT, MAX_PERFECT_COOLDOWN_TICKS, MAX_PERFECT_REACH,
-    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, MAX_STAGGER,
-    MAX_STAGGER_DRAIN_TICKS, MAX_STAGGER_REFILLS, MAX_STAGGERED_TICKS, VIEW_HALF_HEIGHT,
-    VIEW_HALF_WIDTH,
+    MAX_PERFECT_SLOW_EVERY, MAX_PERFECT_SLOW_TICKS, MAX_PERFECT_WINDOW_TICKS, MAX_RALLY_TICKS,
+    MAX_STAGGER, MAX_STAGGER_DRAIN_TICKS, MAX_STAGGER_REFILLS, MAX_STAGGERED_TICKS,
+    VIEW_HALF_HEIGHT, VIEW_HALF_WIDTH,
 };
 use crate::pack::Pack;
 use crate::rewards::MAX_OFFER_CANDIDATES;
@@ -320,6 +327,20 @@ pub struct RulesFile {
     /// 2 to `MAX_PERFECT_SLOW_EVERY` (8).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub perfect_evade_slow_every: Option<u8>,
+    /// The rally (`sim_version` 2; all three `rally_*` keys or none; absent: the rule is off).
+    /// The percent of the hit points a hit took that stays as rally: 1 to 100.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = 100))]
+    pub rally_pct: Option<u32>,
+    /// Ticks the rally lasts, restarted by a hit that leaves rally: 1 to `MAX_RALLY_TICKS` (600).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_RALLY_TICKS))]
+    pub rally_ticks: Option<u32>,
+    /// The percent of the damage a combo hit deals that is won back from the rally as hit
+    /// points: 1 to `limits::MAX_PCT` (1,000).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub rally_regain_pct: Option<u32>,
     /// The radius of the orb clear (`sim_version` 2): when a full-gauge attack starts its first
     /// active tick, every breakable orb whose centre is this near the player's is removed, in
     /// 1/256 px, 1 px to `MAX_ORB_CLEAR_RADIUS` (420) px, the edge included. Absent: no clear.
@@ -338,6 +359,21 @@ pub struct PerfectEvade {
     pub reach: i32,
     pub slow_every: u8,
 }
+
+/// The rally's numbers (ADR-SIM-9), read once into `Tuning` and clamped to the caps
+/// (ADR-SVC-1). Present only when the pack names all three keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rally {
+    /// The share of the hit points a hit took that stays as rally, 1 to 100.
+    pub pct: u8,
+    /// How long the rally lasts, in ticks.
+    pub ticks: u16,
+    /// The share of a combo hit's damage won back, in percent.
+    pub regain_pct: u32,
+}
+
+/// The three keys of the rally, in the order the file documents them.
+const RALLY_KEYS: [&str; 3] = ["rally_pct", "rally_ticks", "rally_regain_pct"];
 
 /// The five keys of the perfect evade, in the order the file documents them.
 const PERFECT_EVADE_KEYS: [&str; 5] = [
@@ -405,6 +441,16 @@ impl Rules {
         // sim_version >= 2: the perfect evade is a rule of the open version.
         if versions.sim_version < 2 {
             for (key, present) in PERFECT_EVADE_KEYS.iter().zip(file.perfect_evade_present()) {
+                let path = format!("$.{key}");
+                if present && !issues.iter().any(|i| i.path == path) {
+                    issues.push(Issue {
+                        path,
+                        message: "needs sim_version 2".into(),
+                    });
+                }
+            }
+            // sim_version >= 2: the rally is a rule of the open version too.
+            for (key, present) in RALLY_KEYS.iter().zip(file.rally_present()) {
                 let path = format!("$.{key}");
                 if present && !issues.iter().any(|i| i.path == path) {
                     issues.push(Issue {
@@ -712,6 +758,17 @@ impl Rules {
         })
     }
 
+    /// The rally's numbers, clamped to the caps; `None` when the pack names none (ADR-SVC-1).
+    pub fn rally(&self) -> Option<Rally> {
+        let f = &self.file;
+        Some(Rally {
+            pct: u8::try_from(f.rally_pct?.min(100)).unwrap_or(100),
+            ticks: u16::try_from(f.rally_ticks?)
+                .map_or(MAX_RALLY_TICKS, |v| v.min(MAX_RALLY_TICKS)),
+            regain_pct: f.rally_regain_pct?.min(MAX_PCT),
+        })
+    }
+
     /// The orb clear's radius, clamped to the cap; `None` when the pack names none (ADR-SVC-1).
     pub fn orb_clear_radius(&self) -> Option<Fx> {
         self.file
@@ -750,6 +807,14 @@ impl Rules {
 
 impl RulesFile {
     /// Which of the five perfect-evade keys the file names.
+    fn rally_present(&self) -> [bool; 3] {
+        [
+            self.rally_pct.is_some(),
+            self.rally_ticks.is_some(),
+            self.rally_regain_pct.is_some(),
+        ]
+    }
+
     fn perfect_evade_present(&self) -> [bool; 5] {
         [
             self.perfect_evade_window_ticks.is_some(),
@@ -1047,6 +1112,7 @@ fn validate_rules(file: &RulesFile, issues: &mut Vec<Issue>) {
     }
     validate_combat_keys(file, issues);
     validate_perfect_evade(file, issues);
+    validate_rally(file, issues);
     if let Some(radius) = file.orb_clear_radius {
         within(
             issues,
@@ -1312,6 +1378,45 @@ fn validate_stagger_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
             i64::from(MAX_PCT),
         );
     }
+}
+
+/// The rally's keys: all three or none, each bounded.
+fn validate_rally(file: &RulesFile, issues: &mut Vec<Issue>) {
+    let present = file.rally_present();
+    if present.iter().all(|p| !p) {
+        return;
+    }
+    if present.iter().any(|p| !p) {
+        for (key, here) in RALLY_KEYS.iter().zip(present) {
+            if !here {
+                issues.push(Issue {
+                    path: format!("$.{key}"),
+                    message: "all three rally keys or none".into(),
+                });
+            }
+        }
+        return;
+    }
+    let (Some(pct), Some(ticks), Some(regain)) =
+        (file.rally_pct, file.rally_ticks, file.rally_regain_pct)
+    else {
+        return;
+    };
+    within(issues, "rally_pct", i64::from(pct), 1, 100);
+    within(
+        issues,
+        "rally_ticks",
+        i64::from(ticks),
+        1,
+        i64::from(MAX_RALLY_TICKS),
+    );
+    within(
+        issues,
+        "rally_regain_pct",
+        i64::from(regain),
+        1,
+        i64::from(MAX_PCT),
+    );
 }
 
 /// The perfect evade's keys: all five or none, each bounded; the cooldown is not below the slow,

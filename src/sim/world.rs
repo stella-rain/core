@@ -455,6 +455,8 @@ pub(crate) struct Tuning {
     pub vulnerable_stun_pct: u16,
     /// The perfect evade (`sim_version` 2); `None`: the rule is off.
     pub perfect_evade: Option<crate::rules::PerfectEvade>,
+    /// The rally (`sim_version` 2); `None`: the rule is off.
+    pub rally: Option<crate::rules::Rally>,
     /// The stagger gauge (`sim_version` 2; each 0 when its key is absent): what a smash step adds
     /// when its phase names none, what a resisted `[stun, pull, knockback]` adds, the percent of a
     /// fill kept by bars broken (`stagger_refill_len` entries, 0: all in full), the ticks before
@@ -540,6 +542,7 @@ impl Tuning {
             control_immune_ticks: rules.control_immune_ticks(),
             vulnerable_stun_pct: u16::try_from(rules.vulnerable_stun_pct()).unwrap_or(u16::MAX),
             perfect_evade: rules.perfect_evade(),
+            rally: rules.rally(),
             stagger_smash: rules.stagger_smash(),
             stagger_values: rules.stagger_values(),
             stagger_refill_pcts,

@@ -102,3 +102,19 @@ fn the_bundled_file_names_no_rally_key_and_the_schema_lists_them_as_optional() {
         assert!(!required.iter().any(|r| r == key), "{key} is required");
     }
 }
+/// R3: `Rules::rally()` reads the three numbers back.
+#[test]
+fn a_loaded_rally_reads_back_its_numbers() {
+    let rules = Rules::parse(&with(OK), Versions::CURRENT).unwrap();
+    let got = rules.rally().expect("all three keys");
+    assert_eq!((got.pct, got.ticks, got.regain_pct), (50, 180, 100));
+    let top = Rules::parse(&with([100, 600, 1_000]), Versions::CURRENT).unwrap();
+    let got = top.rally().expect("all three keys");
+    assert_eq!((got.pct, got.ticks, got.regain_pct), (100, 600, 1_000));
+}
+
+/// R3: a bundled file gives no rally.
+#[test]
+fn the_bundled_file_gives_no_rally() {
+    assert!(Rules::bundled().rally().is_none());
+}
