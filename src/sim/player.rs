@@ -23,6 +23,16 @@
 //! level's damage and range percents (`strike`), a smash hit that leaves its target standing adds
 //! the level's bleed stacks (`spirit_bleed_stacks`, read in `collide::damage`).
 //!
+//! The counter bonus (when the style names the `counter_bonus` kind): every near miss of the
+//! evade, in the perfect evade's cooldown too, sets `counter_window` to the kind's window
+//! (`near_miss`); `counter_tick` counts it down one a tick; the first step of the dash branch a
+//! player starts by hand inside it closes the window and sets `counter_bonus_step` to 1
+//! (`counter_take`, at the press, before `strike`), until no step of the player is in progress.
+//! `counter_taken` reads the mark: its damage joins the attack-up percent in `strike`, its
+//! stagger factor scales every fill in `stun::fill`, its stun lands on each target hit
+//! (`stun::counter_bonus_stun`, merged with a counter's) and its advance slides the first phase
+//! in `magnetism`. A down empties both fields.
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the

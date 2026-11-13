@@ -82,6 +82,14 @@
 //! `SpiritRaised` and `SpiritFell` show it; none of them is state. A run whose pack names no
 //! spirit keeps both fields at zero, one bool test each.
 //!
+//! The counter bonus a style grants (`World::counter_of`, the `counter_bonus` style kind) is
+//! dormant the same way: it reads and writes only `PlayerCombat::counter_window` and
+//! `counter_bonus_step`, opens on a near miss of the evade and is taken by the first dash-branch
+//! step started inside it (`player::near_miss`, `counter_take`; damage, stagger factor, stun and
+//! slide in `strike`, `stun::fill`, `stun::counter_bonus_stun` and `magnetism`).
+//! `PlayerView.counter` and the two counter events are not state. A run whose styles name no
+//! counter bonus keeps both fields at zero, one bool test each.
+//!
 //! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
 //! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
 //! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
