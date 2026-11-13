@@ -6965,6 +6965,7 @@
       "at_tick": 120,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 3000,
         "radius": 2048,
         "profile": {
@@ -7010,6 +7011,7 @@
       "at_tick": 600,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 3000,
         "radius": 2048,
         "profile": {
@@ -7055,6 +7057,7 @@
       "at_tick": 1200,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 6000,
         "radius": 2560,
         "profile": {
@@ -7094,6 +7097,8 @@
   ],
   "boss": {
     "base": "golem",
+    "stagger_max": 1000,
+    "staggered_ticks": 120,
     "hp": 20000,
     "radius": 8192,
     "profile": {
