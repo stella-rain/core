@@ -39,7 +39,16 @@
 //! the run's cap (`tempo_speed_pct`), so a step, each loop of a hold and a release take the
 //! stacks held at their start. `tempo_lose` empties them: a combo reset away from the middle of
 //! a combo (`combo_reset`), a smash press after the smash itself started (`tempo_on_smash`;
-//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`), a down and another style.
+//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`; not under `tempo_armoured`,
+//! full stacks in a held hold with `super_armour_at_full`), a down and another style.
+//!
+//! The giant trigger (when the style names the `giant_trigger` kind): `spend_gauge` starts it
+//! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
+//! in `update`, `strike` adds its range percent to every step and its smash percent to a smash
+//! step when they start, `super_armour` reads `trigger_armoured`, and `stand_down` ends it.
+//! The rally (when the rules name it): `rally_from_hit` from `hurt_player`, `rally_win_back` from
+//! `collide::damage`, `rally_tick` in `update`, `rally_lapse` on a down, `rally_clamp` where the
+//! most hit points fall.
 //!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from

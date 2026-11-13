@@ -119,7 +119,7 @@ pub(crate) struct PlayerCombat {
     pub counter_window: u16,
     /// The combo tempo stacks held.
     pub combo_tempo: u8,
-    /// Ticks left before the giant trigger can fire again.
+    /// Ticks the giant trigger's timed state has left, 0 when it is off.
     pub giant_trigger: u16,
     /// Ticks left in which a ranged start is refused against this player as its target.
     pub ranged_grace: u16,

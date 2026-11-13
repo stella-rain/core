@@ -97,7 +97,19 @@
 //! (`player::tempo_speed_pct`), and the stacks end on a combo reset, a smash press, a hit taken,
 //! a down or another style (`player::tempo_lose`, `combo_reset`). `PlayerView.tempo` and the two
 //! tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
-//! one bool test each.
+//! one bool test each. With `super_armour_at_full`, full stacks in a held hold are super armour
+//! (`player::tempo_armoured`), the one armour that shelters the stacks from a hit.
+//!
+//! The giant trigger a style grants (`World::trigger_of`, the `giant_trigger` style kind) reads
+//! and writes only `PlayerCombat::giant_trigger`, the ticks the timed state has left. A full-gauge
+//! smash starts it after its own attack began (`player::spend_gauge`, `trigger_start`), `update`
+//! counts it down, `strike` adds its range and smash percents when an attack starts, and
+//! `super_armour` gains its condition; a down or another style ends it. The run rules' rally
+//! (`Tuning.rally`) reads and writes `PlayerCombat::rally` and `rally_ticks`: a hit taken leaves
+//! part of its hit points as rally (`player::rally_from_hit`), a player's own combo hit on a foe
+//! wins part of its damage back (`rally_win_back`, from `collide::damage`), and the ticks or a
+//! down lose the rest. `PlayerView.trigger`, `.rally` and the five events are not state. A run
+//! that names neither keeps the three fields at zero, one bool test each.
 //!
 //! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
 //! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
