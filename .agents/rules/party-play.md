@@ -74,7 +74,7 @@ tick order: the `sim` module doc.
   view. `tests/party_tether.rs`: a walker held within 856 px over 600 ticks, a three-player party deterministic.
 - `tests/party_bot.rs`: `PartyBot` (a pure function of seed, engine, slot and tick), `RigParty` (the builder over
   `run_play::PartyCase`), `RigRun` (replays a recorded run onto an engine). With `builds`, in an equipment run a bot
-  acts one tick in `ACTION_EVERY` (30) per slot: the tree point; best rated equip or replace (never lowers a slot);
+  acts one tick in `ACTION_EVERY` (30) per slot: the tree point (a style by the seed, option 0 for an upgrade or capstone; presses the smash while `Sight.gauge_full`, so the corpus plays the style kinds); best rated equip or replace (never lowers a slot);
   extract the rest; with an empty inventory, craft the best rated star; each action passed `Engine::check_action`.
 - Cases `equipment_rig_1` to `_3` (3000 ticks, 1 to 3 players; each must pass `rig_builds_miss`); `tests/sync_rig.rs`
   rolls the rig cases back 1 to 8 ticks at every boundary and compares hashes.
