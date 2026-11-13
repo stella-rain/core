@@ -2,6 +2,11 @@
 //! (`entity.rs`). Only an enemy takes a stun: a boss and its parts resist it, and the main
 //! character's and the companions' hits never stun anything. An elite takes its share of the
 //! ticks, and a stun of no ticks does nothing.
+//!
+//! Every stagger fill goes through `fill`: the counter bonus's factor and then the breaker's
+//! scale the value, the refill percent of the bars already broken applies, and a full gauge
+//! staggers the target. The breaker's burst (`player::stagger_burst`) goes off right after it,
+//! with the damage of the hit that filled, so one stagger bursts once.
 
 use super::World;
 use crate::event::DomainEvent;

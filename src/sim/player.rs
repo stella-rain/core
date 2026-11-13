@@ -46,6 +46,13 @@
 //! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
 //! in `update`, `strike` adds its range percent to every step and its smash percent to a smash
 //! step when they start, `super_armour` reads `trigger_armoured`, and `stand_down` ends it.
+//!
+//! The breaker (when the style names the `breaker` kind): it holds no state, so nothing starts,
+//! counts down or ends. Its three factors are read where the number is computed: `breaker_fill`
+//! in `stun::fill` (every stagger fill, after the counter bonus's factor), `breaker_poise` in
+//! `hit_boxes::flinch_by` (a combo hit's poise damage) and `breaker_part` in the part loop of
+//! `hit_boxes::hit_enemy_side` (a smash step's hit on a boss part). Its burst is
+//! `stagger_burst`, called by `stun::fill` right after `stagger` in the same call.
 //! The rally (when the rules name it): `rally_from_hit` from `hurt_player`, `rally_win_back` from
 //! `collide::damage`, `rally_tick` in `update`, `rally_lapse` on a down, `rally_clamp` where the
 //! most hit points fall.
