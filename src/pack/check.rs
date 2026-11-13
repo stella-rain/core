@@ -14,8 +14,8 @@ use super::{
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::expertise::{
-    Expertise, GaugeSpend, MAX_STEP_REPEATS, StyleKind, apply_grant, step_mut, style_levels,
-    weapon_attacks,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, apply_grant,
+    step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -206,6 +206,7 @@ pub(super) fn check_style_grants(
             // Each repeat kind's path and step, for the checks that need the whole path applied.
             let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
+            let mut spirits: Vec<(String, &Spirit)> = Vec::new();
             'style: for (path, kinds) in levels {
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
@@ -252,6 +253,10 @@ pub(super) fn check_style_grants(
                             gauges.push((format!("{at}.spend.attack"), attack));
                             continue;
                         }
+                        StyleKind::Spirit(s) => {
+                            spirits.push((at.clone(), s));
+                            continue;
+                        }
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()
@@ -276,6 +281,29 @@ pub(super) fn check_style_grants(
                         path: at,
                         message: "a held step does not repeat".into(),
                     });
+                }
+            }
+            // The spirit is raised by the full-gauge smash and its extra bleed stacks ride a bleed
+            // smash: both read the tree and the gauges the whole path made.
+            for (at, spirit) in spirits {
+                if gauges.is_empty() {
+                    issues.push(validate::Issue {
+                        path: at.clone(),
+                        message: "nothing raises the level: the style names no full-smash gauge"
+                            .into(),
+                    });
+                }
+                for (l, level) in spirit.levels.iter().enumerate() {
+                    for (e, effect) in level.iter().enumerate() {
+                        if matches!(effect, SpiritEffect::SmashBleedStacks { .. })
+                            && tree.smash != Some(crate::weapon::SmashEffect::Bleed {})
+                        {
+                            issues.push(validate::Issue {
+                                path: format!("{at}.levels[{l}][{e}]"),
+                                message: "needs a bleed smash".into(),
+                            });
+                        }
+                    }
                 }
             }
             // A full-gauge attack equal to an attack the style's tree can play would clear orbs

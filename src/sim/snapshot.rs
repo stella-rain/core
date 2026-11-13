@@ -17,7 +17,7 @@ use crate::snapshot::{
     AttackView, ChargeView, ComboView, Countdown, DamageOverTimeView, DownView, EntityKind,
     EntityView, EvadeView, ExpertiseView, Facing, GaugeView, HealPickupView, HeldView, HoldView,
     MapView, OrbView, OrbitView, PerfectEvadeView, PlayerView, ProgressView, PullView, RuneView,
-    ShieldView, SkillView, SlotKindView, SlotView, Snapshot, StarView, StarlightPrice,
+    ShieldView, SkillView, SlotKindView, SlotView, Snapshot, SpiritView, StarView, StarlightPrice,
     StarlightView, StatusView, TypeBonusView, ZoneView,
 };
 
@@ -258,6 +258,12 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         gauge: world.gauge_of(s, me).map(|g| GaugeView {
             value: s.players[me].combat.weapon_gauge,
             max: g.max,
+        }),
+        spirit: world.spirit_of(s, me).map(|g| SpiritView {
+            level: s.players[me].combat.spirit_level,
+            max_level: u8::try_from(g.levels.len()).unwrap_or(u8::MAX),
+            decay_left: u32::from(s.players[me].combat.spirit_decay),
+            decay_ticks: u32::from(g.decay_ticks),
         }),
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;

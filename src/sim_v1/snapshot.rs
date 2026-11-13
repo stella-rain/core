@@ -227,6 +227,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 dash_left: s.player.dash.map_or(0, |d| d.left),
             },
             gauge: None,
+            spirit: None,
             perfect_evade: None,
             combo: {
                 let (presses, dash, buffered, window_left, auto) = combo_view(s);

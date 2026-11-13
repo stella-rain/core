@@ -277,10 +277,6 @@
           "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
         },
-        "counterable": {
-          "description": "A `wind_up` phase of an enemy's or the boss's attack only: a smash step of the main\ncharacter's whose hit box hits the attacker while the phase runs counters it (cancels the\nattack, stuns a regular enemy or an elite, staggers an elite or the boss). `sim_version` 2\nonly; absent or false: the phase cannot be countered.",
-          "type": "boolean"
-        },
         "damage": {
           "description": "Base damage of the phase's hits and of the zones it spawns. Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values) for an enemy or the boss.",
           "format": "uint32",
@@ -587,10 +583,6 @@
             }
           ],
           "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit."
-        },
-        "counterable": {
-          "description": "The run's current phase is a `counterable` wind-up: the frontend marks the attack as one a\nsmash counters. Derived each tick, not state; absent is the key missing from the JSON.",
-          "type": "boolean"
         },
         "facing": {
           "$ref": "#/$defs/Facing",
@@ -2295,43 +2287,6 @@
         },
         {
           "additionalProperties": false,
-          "description": "A smash step of `player`'s hit `attacker` during a `counterable` wind-up and countered\nit: the attack is cancelled. `attack` is the attack's preset, absent for an inline one.",
-          "properties": {
-            "data": {
-              "additionalProperties": false,
-              "properties": {
-                "attack": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "attacker": {
-                  "$ref": "#/$defs/EntityId"
-                },
-                "player": {
-                  "$ref": "#/$defs/PlayerIdx"
-                }
-              },
-              "required": [
-                "attacker",
-                "player"
-              ],
-              "type": "object"
-            },
-            "type": {
-              "const": "Countered",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "data"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "description": "The main character started an evade.",
           "properties": {
             "type": {
@@ -3258,6 +3213,74 @@
             },
             "type": {
               "const": "GaugeSpent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The spirit level of `player` rose to `level` (1 to the style's top), by a full-gauge\nsmash that was not already at the top (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "level": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player",
+                "level"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "SpiritRaised",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The spirit level of `player` fell to `level` (0 to the style's top less one) because\nno smash came within the countdown (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "level": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player",
+                "level"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "SpiritFell",
               "type": "string"
             }
           },
@@ -6684,6 +6707,17 @@
           },
           "type": "array"
         },
+        "spirit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpiritView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The spirit level of its style, while the style grants one, at level 0 too (ADR-SIM-9);\nabsent otherwise."
+        },
         "starlight": {
           "description": "Its Starlight balance (equipment mode; absent reads as 0).",
           "format": "uint32",
@@ -6696,10 +6730,6 @@
             "$ref": "#/$defs/StatusView"
           },
           "type": "array"
-        },
-        "super_armour": {
-          "description": "The player has super armour: a hit that breaks a charge or a hold does not break it. Derived\neach tick from its charge and its running step, not a timer; absent is the key missing.",
-          "type": "boolean"
         },
         "target": {
           "anyOf": [
@@ -7512,16 +7542,6 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "counter_stun_ticks": {
-          "description": "The ticks a counter stuns a regular enemy or an elite (an elite for its share): 1 to\n`validate::limits::MAX_STUN_TICKS` (120). `sim_version` 2 only. Absent: a counter stuns\nnothing (it still cancels the attack and fills the gauge).",
-          "format": "uint32",
-          "maximum": 120,
-          "minimum": 1,
           "type": [
             "integer",
             "null"
@@ -9123,6 +9143,113 @@
       ],
       "type": "object"
     },
+    "SpiritEffect": {
+      "description": "What a spirit level does: a closed list built into `core`, one variant per effect, each\nbounded alone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Added to the attack-up percent fixed when a combo step starts. 1 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "damage_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Added to the step's range percent, the total held to `MAX_RANGE_PCT`. 1 to\n`MAX_RANGE_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "range_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Bleed stacks added to a smash hit on top of the one the smash's own effect adds; needs a\nbleed smash. 1 to `MAX_SPIRIT_BLEED_STACKS`.",
+          "properties": {
+            "stacks": {
+              "format": "uint32",
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "smash_bleed_stacks",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SpiritView": {
+      "additionalProperties": false,
+      "description": "A player's spirit level (ADR-SIM-9): not state, built each frame from the level, the countdown\nand the style's numbers.",
+      "properties": {
+        "decay_left": {
+          "description": "Ticks until the level drops; 0 at level 0, where nothing counts.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "decay_ticks": {
+          "description": "The countdown a smash restarts.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "level": {
+          "description": "The level now, 0 to `max_level`.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_level": {
+          "description": "The style's top level.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "level",
+        "max_level",
+        "decay_left",
+        "decay_ticks"
+      ],
+      "type": "object"
+    },
     "Stage": {
       "additionalProperties": false,
       "properties": {
@@ -9352,16 +9479,6 @@
       "additionalProperties": false,
       "description": "What a resisted control adds to a stagger gauge, by kind of control (each 1 to\n`limits::MAX_STAGGER`); a kind left out adds nothing. The other controls add their own key later.",
       "properties": {
-        "counter": {
-          "description": "What a counter adds to the gauge of an elite or the boss it countered. Read at\n`sim_version` 2; absent: a counter adds nothing.",
-          "format": "uint32",
-          "maximum": 10000,
-          "minimum": 1,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "knockback": {
           "description": "A smash's knockback.",
           "format": "uint32",
@@ -10354,6 +10471,39 @@
             "spend"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every\nsmash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;\neach level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge\nwhose spend is `full_smash`. One per style path: a second is refused.",
+          "properties": {
+            "decay_ticks": {
+              "description": "Ticks a level lasts without a smash. 1 to `MAX_SPIRIT_DECAY_TICKS`.",
+              "format": "uint32",
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "levels": {
+              "description": "Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the\nstyle's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and\na level names each effect at most once.",
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/SpiritEffect"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "spirit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "decay_ticks",
+            "levels"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -10496,6 +10646,33 @@
             "type",
             "max",
             "spend"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.",
+          "properties": {
+            "decay_ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "max_level": {
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "spirit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "max_level",
+            "decay_ticks"
           ],
           "type": "object"
         }
