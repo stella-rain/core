@@ -112,13 +112,19 @@ pub fn input(tick: u32) -> Input {
     }
 }
 
+/// Plays tick `tick` (the engine's next) with the input of `input`, and nothing else: what the
+/// bench counts (`support::tick`) and `tests/alloc.rs` counts after the measured one.
+pub fn play(engine: &mut Engine, tick: u32) {
+    engine.step(&[input(tick), Default::default(), Default::default()]);
+}
+
 /// Plays tick `tick` (the engine's next): the caps written first, from `CAPS_FROM`; after the
 /// first step the weapon level has risen, and the style point is taken.
 pub fn step(engine: &mut Engine, tick: u32) {
     if tick >= CAPS_FROM {
         prepare(engine);
     }
-    engine.step(&[input(tick), Default::default(), Default::default()]);
+    play(engine, tick);
     if tick == 1 {
         engine
             .act(PlayerIdx::SOLO, EquipAction::TreePick { option: 0 })
@@ -136,7 +142,7 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// variant is kept (Tests-first 8). Control: every enemy holds `hard_controls` at the
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
-pub(crate) fn prepare(engine: &mut Engine) {
+pub fn prepare(engine: &mut Engine) {
     let due = engine.tick() + 1;
     let Run::V2 { world, state, .. } = engine.bench_run_mut() else {
         panic!("the live rules");
