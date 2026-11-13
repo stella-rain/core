@@ -5580,6 +5580,7 @@
       "at_tick": 60,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 3000,
         "radius": 2048,
         "profile": {
@@ -5628,6 +5629,7 @@
       "at_tick": 90,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 6000,
         "radius": 3072,
         "profile": {
@@ -5676,6 +5678,7 @@
       "at_tick": 0,
       "enemy": {
         "base": "fairy_a",
+        "poise": 0,
         "hp": 1500,
         "radius": 2048,
         "profile": {
@@ -5708,6 +5711,7 @@
       "at_tick": 0,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 4000,
         "radius": 2048,
         "profile": {
@@ -5739,6 +5743,7 @@
       "at_tick": 10800,
       "enemy": {
         "base": "fairy_a",
+        "poise": 10,
         "hp": 6000,
         "radius": 2048,
         "profile": {
@@ -5811,6 +5816,7 @@
       "at_tick": 21600,
       "enemy": {
         "base": "horns_2",
+        "poise": 50,
         "hp": 30000,
         "radius": 4096,
         "profile": {
@@ -5860,6 +5866,7 @@
       "at_tick": 32400,
       "enemy": {
         "base": "bat",
+        "poise": 0,
         "hp": 800,
         "radius": 2048,
         "profile": {
@@ -5924,6 +5931,7 @@
       "at_tick": 43200,
       "enemy": {
         "base": "golem",
+        "poise": 10,
         "hp": 6000,
         "radius": 3072,
         "profile": {
@@ -5949,6 +5957,7 @@
               "count": 2,
               "agent": {
                 "base": "fairy_a",
+                "poise": 10,
                 "hp": 600,
                 "radius": 2048,
                 "profile": {
@@ -5985,6 +5994,7 @@
       "at_tick": 25200,
       "enemy": {
         "base": "fairy_a",
+        "poise": 10,
         "hp": 6000,
         "radius": 2048,
         "profile": {
