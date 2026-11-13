@@ -783,7 +783,15 @@ fn resisted_move_fills(
 ) {
     let value = match w.smash {
         Some(Smash::Pull(_)) => stage.tuning.stagger_values[1],
-        Some(Smash::Knockback(_)) => stage.tuning.stagger_values[2],
+        // A knockback that would have knocked a regular enemy down adds the knockdown's value.
+        Some(Smash::Knockback(_)) => {
+            stage.tuning.stagger_values[2]
+                + if stage.has_down {
+                    stage.tuning.stagger_down
+                } else {
+                    0
+                }
+        }
         _ => return,
     };
     let resists = match target {
