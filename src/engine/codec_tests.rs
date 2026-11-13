@@ -725,7 +725,7 @@ fn the_state_has_no_star_offer_fields() {
         (worst_case::warmed_up(), 144_100, 22 + 2 * 2),
         // its stage has no `stars` section: no offers to drop
         (hit_case::warmed_up(), 263_006, 0),
-        (time_limit_case::warmed_up(), 30_425, 22 + 2 * 141),
+        (time_limit_case::warmed_up(), 28_172, 22 + 2 * 141),
     ];
     for (e, base, removed) in cases {
         let len = crate::savepoint::encode_state(&e).len();
@@ -758,7 +758,7 @@ fn the_state_holds_the_combat_fields() {
     let cases = [
         (worst_case::warmed_up(), 144_100 - 22 - 2 * 2),
         (hit_case::warmed_up(), 263_006),
-        (time_limit_case::warmed_up(), 30_425 - 22 - 2 * 141),
+        (time_limit_case::warmed_up(), 28_172 - 22 - 2 * 141),
     ];
     for (e, base) in cases {
         let added = combat_bytes(&e);

@@ -300,3 +300,59 @@ fn the_golem_walks_toward_a_standing_player_and_stops_96_px_away() {
     assert_eq!(last.1, before.1, "the golem stands at its stop distance");
     assert!(reached, "the golem reaches 96 px within 700 ticks");
 }
+
+// --- The combat numbers of the shipped modes (poise, stagger gauge, counterable slam) -----------
+
+fn assert_bats_and_golem(file: &Value, plain: usize, elite_bats: &[usize]) {
+    let waves = file["waves"].as_array().unwrap();
+    assert_eq!(waves.len(), plain + elite_bats.len());
+    for (i, w) in waves.iter().enumerate() {
+        let e = &w["enemy"];
+        if elite_bats.contains(&i) {
+            assert_eq!(e["poise"], serde_json::json!(100), "wave {i}");
+            assert_eq!(e["stagger_max"], serde_json::json!(400), "wave {i}");
+        } else {
+            assert_eq!(e["poise"], serde_json::json!(0), "wave {i}");
+            assert!(e["stagger_max"].is_null(), "wave {i}");
+        }
+    }
+    assert_eq!(file["boss"]["stagger_max"], serde_json::json!(1000));
+    assert_eq!(file["boss"]["staggered_ticks"], serde_json::json!(120));
+}
+
+#[test]
+fn the_tutorial_bats_have_no_poise_and_its_golem_a_gauge() {
+    assert_bats_and_golem(&mode_json(), 3, &[]);
+}
+
+#[test]
+fn the_trial_elites_have_poise_and_a_gauge_and_its_golem_too() {
+    let file: Value = serde_json::from_slice(common::bundled_file("trial")).unwrap();
+    assert_bats_and_golem(&file, 3, &[3, 4]);
+}
+
+#[test]
+fn the_elite_slam_preset_winds_up_counterable_and_the_shared_slam_does_not() {
+    let presets: Value = serde_json::from_slice(common::bundled_file("attack_presets")).unwrap();
+    let wind_up = |id: &str| {
+        let p = presets["presets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == id)
+            .unwrap_or_else(|| panic!("no preset {id}"))
+            .clone();
+        p["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|ph| ph["kind"] == "wind_up")
+            .unwrap_or_else(|| panic!("no wind_up in {id}"))
+            .clone()
+    };
+    assert_eq!(
+        wind_up("elite_slam")["counterable"],
+        serde_json::json!(true)
+    );
+    assert!(wind_up("slam")["counterable"].is_null());
+}

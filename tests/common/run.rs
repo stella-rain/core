@@ -18,10 +18,10 @@ pub const KEPT_BOT_SEED: u64 = 1;
 /// The world seed of the `stage_skill` run case, found by `search_corpus_run_seeds`: the first
 /// world seed in 1..=20 (with `STAGE_SKILL_BOT_SEED`) whose equipment run uses the black hole and
 /// nothing else, and ends Failed.
-pub const STAGE_SKILL_SEED: u64 = 4;
+pub const STAGE_SKILL_SEED: u64 = 3;
 /// The building bot's seed of the `stage_skill` run case (the first pair of the search, with the
 /// golem chasing and the star pack, that uses the black hole and ends Failed).
-pub const STAGE_SKILL_BOT_SEED: u64 = 14;
+pub const STAGE_SKILL_BOT_SEED: u64 = 1;
 
 /// The world seed of the `time_limit_kill` run case, found by `search_corpus_run_seeds`: the first
 /// world seed in 1..=20 where the hand-played fight against the final boss ends in its kill.
@@ -54,9 +54,9 @@ pub const TRIAL_KINDS_BOT_SEED: u64 = 1;
 /// The world seed of the `time_limit` run case: the longest equipment run of the search, which
 /// ends in the top fifth of the time limit (the offers-era healing that kept the run alive to the limit
 /// is gone), found by `search_corpus_run_seeds`.
-pub const TIME_LIMIT_SEED: u64 = 2;
+pub const TIME_LIMIT_SEED: u64 = 1;
 /// The building bot's seed of the `time_limit` run case.
-pub const TIME_LIMIT_BOT_SEED: u64 = 1;
+pub const TIME_LIMIT_BOT_SEED: u64 = 11;
 
 /// The seed of the runes reroll test: the first seed under R1's streams where the first offer
 /// after the reroll holds the three other rewards.

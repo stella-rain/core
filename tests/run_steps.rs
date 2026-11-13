@@ -65,7 +65,7 @@ fn an_equipment_run_replays_to_its_recorded_hashes() {
         .iter()
         .map(|c| c.equip + c.replace + c.extract + c.craft + c.tree_pick)
         .sum();
-    assert_eq!(total, 12 + 1 + 50 + 6 + 1, "the pin of equipment_rig_1");
+    assert_eq!(total, 12 + 2 + 43 + 6 + 1, "the pin of equipment_rig_1");
     assert!(steps.has_actions());
     assert_eq!(
         count(&steps, |s| matches!(s, Step::Tick(_))),
@@ -177,7 +177,7 @@ fn commands_are_the_inverse_of_record_run() {
         .iter()
         .filter(|c| matches!(c, Command::Step(i) if i.action.is_some()))
         .count();
-    assert_eq!(actions, 12 + 1 + 50 + 6 + 1);
+    assert_eq!(actions, 12 + 2 + 43 + 6 + 1);
 }
 
 #[test]

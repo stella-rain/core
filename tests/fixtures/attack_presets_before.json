@@ -64,6 +64,7 @@
   ],
   "elite_slam": [
     {
+      "counterable": true,
       "kind": "wind_up",
       "move_pct": 50,
       "ticks": 90

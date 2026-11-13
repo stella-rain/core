@@ -931,6 +931,8 @@ impl World {
             grant_triggers,
             weapon,
         };
+        // The shared flinch ID is built here, not on the first flinch of a steady tick.
+        super::snapshot::warm_flinch_id();
         attack_table::compile_run(&mut world, content)?;
         world.resolve_ranged_pools();
         world.resolve_view_bars();

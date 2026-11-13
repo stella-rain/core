@@ -300,37 +300,37 @@ fn the_recorder_rewrites_every_solo_run_case_as_it_was() {
 /// What each case holds, from the recorder in memory (not from the files): ticks, outcome, picks
 /// per slot, Stardust.
 const TABLE: [(&str, u32, Outcome, [u32; 3], u32); 19] = [
-    ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1100),
+    ("two_time_limit", 3000, Outcome::Running, [0, 0, 0], 910),
+    ("three_time_limit", 3000, Outcome::Running, [0, 0, 0], 1160),
     ("three_tutorial", 4392, Outcome::Cleared, [0, 0, 0], 0),
-    ("join_two", 3000, Outcome::Running, [0, 0, 0], 810),
-    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 1020),
+    ("join_two", 3000, Outcome::Running, [0, 0, 0], 770),
+    ("leave_hole", 3000, Outcome::Running, [0, 0, 0], 960),
     ("equipment_solo", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_two", 3000, Outcome::Running, [0, 0, 0], 0),
     ("equipment_equip", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 890),
+    ("equipment_levels", 3000, Outcome::Running, [0, 0, 0], 1080),
     ("equipment_craft", 3000, Outcome::Running, [0, 0, 0], 0),
-    ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 890),
-    ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 720),
-    ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 770),
-    ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 740),
-    ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 1020),
-    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1100),
-    ("two_revive", 3000, Outcome::Running, [0, 0, 0], 1040),
-    ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1060),
+    ("equipment_lumine", 3000, Outcome::Running, [0, 0, 0], 810),
+    ("equipment_party_1", 3000, Outcome::Running, [0, 0, 0], 650),
+    ("equipment_party_2", 3000, Outcome::Running, [0, 0, 0], 750),
+    ("equipment_party_3", 3000, Outcome::Running, [0, 0, 0], 830),
+    ("equipment_rig_1", 3000, Outcome::Running, [0, 0, 0], 920),
+    ("equipment_rig_2", 3000, Outcome::Running, [0, 0, 0], 910),
+    ("equipment_rig_3", 3000, Outcome::Running, [0, 0, 0], 1160),
+    ("two_revive", 3000, Outcome::Running, [0, 0, 0], 910),
+    ("three_revive", 3000, Outcome::Running, [0, 0, 0], 1030),
 ];
 
 /// The equipment actions each of the seven moved cases holds per slot (Some entries of its ACTIONS
 /// steps). From the blessed files, not edited.
 const ACTIONS: [(&str, [u32; 3]); 7] = [
-    ("two_time_limit", [56, 65, 0]),
-    ("three_time_limit", [70, 73, 68]),
+    ("two_time_limit", [55, 63, 0]),
+    ("three_time_limit", [70, 79, 68]),
     ("three_tutorial", [3, 3, 4]),
-    ("join_two", [53, 56, 0]),
-    ("leave_hole", [65, 16, 49]),
-    ("two_revive", [56, 65, 0]),
-    ("three_revive", [59, 62, 55]),
+    ("join_two", [51, 54, 0]),
+    ("leave_hole", [56, 16, 36]),
+    ("two_revive", [55, 63, 0]),
+    ("three_revive", [59, 63, 58]),
 ];
 
 fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
@@ -350,21 +350,21 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// engine's tick count after the step), and the final hash. From the seed search; the hashes
 /// re-pinned when the combat fields joined the state hash, then for the counter-bonus mark.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [2, 2, 0], 2074, 2254, "a46f09be3bcd43b4"),
-    ("three_revive", [3, 3, 0], 2074, 2254, "64826b5ca9a30aa4"),
+    ("two_revive", [3, 2, 0], 2166, 2346, "342cd51a3cb689ea"),
+    ("three_revive", [3, 2, 0], 2344, 2524, "a70daad8f79784ed"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,
 /// replace, extract, craft, tree_pick]`. From the seed search, not edited.
 const RIG_BUILDS: [(&str, [[u32; 5]; 3]); 3] = [
-    ("equipment_rig_1", [[12, 1, 50, 6, 1], [0; 5], [0; 5]]),
+    ("equipment_rig_1", [[12, 2, 43, 6, 1], [0; 5], [0; 5]]),
     (
         "equipment_rig_2",
-        [[12, 1, 39, 3, 1], [11, 1, 45, 7, 1], [0; 5]],
+        [[12, 1, 38, 3, 1], [11, 1, 44, 7, 0], [0; 5]],
     ),
     (
         "equipment_rig_3",
-        [[12, 2, 52, 3, 1], [11, 2, 52, 8, 0], [12, 2, 51, 2, 1]],
+        [[12, 1, 54, 2, 1], [11, 1, 60, 7, 0], [12, 1, 53, 1, 1]],
     ),
 ];
 

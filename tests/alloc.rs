@@ -233,8 +233,8 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(346, 14, 8)),
-    ("rollback_equip", pin(460, 25, 119)),
+    ("rollback", pin(346, 17, 8)),
+    ("rollback_equip", pin(465, 29, 124)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
@@ -354,6 +354,13 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
 }
 
+/// The ticks the test below samples from the start of the dense minute (`MINUTE_START`). The
+/// shipped enemies with a poise of 0 flinch on every combo hit, which puts a `StatusApplied` on
+/// their tick, and such a tick is not plain; so fewer defeat ticks are plain in the first
+/// `MINUTE_TICKS` (36, not the 175 with a defeat), and 5,400 ticks is the first window of a
+/// multiple of 600 that holds more than 50 of them (52; 6,000 holds 59, 7,200 holds 76).
+const DENSE_WINDOW_TICKS: u32 = 5_400;
+
 /// The dense minute's plain ticks allocate nothing (T1b): attacks launched with a type bonus
 /// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
 /// and rule firings. A tick that spawns or loses an elite or does anything else
@@ -363,10 +370,9 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 /// hooked-orb tick; the orb's own counts are the worst tick's (`worst_tick`, 1, 0, 1).
 #[test]
 fn the_dense_minutes_plain_ticks_allocate_nothing() {
-    use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
     let mut run = bench_fixtures::worst_minute();
     let (mut launched, mut defeated) = (0, 0);
-    for tick in 0..MINUTE_TICKS {
+    for tick in 0..DENSE_WINDOW_TICKS {
         let counts = counted3(|| run.play(1));
         let events = run.engine.events();
         let plain = events.iter().all(|ev| {
@@ -445,6 +451,32 @@ fn a_run_climbing_to_the_cap_allocates_nothing_after_load() {
         "ticks that called the allocator, (tick, counts): {grew:?}"
     );
     assert_eq!(most, e.caps().enemies, "the crowd climbed to the cap");
+}
+
+/// The first flinch of a process allocates nothing: the shared `flinch` ID is built when the
+/// engine is (not on the first flinch, in the middle of a steady tick). The `time_limit` bench
+/// case's first flinch is on tick 55. Run it alone (`-- --exact`) to see it: another test that
+/// flinches first in the same process hides it.
+#[test]
+fn the_first_flinch_of_a_fresh_process_allocates_nothing() {
+    let mut e = time_limit_case::start();
+    for tick in 1..=60 {
+        let counts = counted3(|| {
+            e.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ])
+        });
+        let flinched = e.events().iter().any(|ev| {
+            matches!(ev, DomainEvent::StatusApplied { status, .. } if status.as_str() == "flinch")
+        });
+        if flinched && tick >= 55 {
+            assert_eq!(counts, pin(0, 0, 0), "tick {tick}, the first flinch");
+            return;
+        }
+    }
+    panic!("no flinch by tick 60");
 }
 
 /// The `time_limit` bench case from load to a second past its warm-up: the horde climbs to its

@@ -22,16 +22,16 @@ use crate::corpus_pins::{case_dirs, case_pack, run_case_pack};
 type Keep = (&'static str, u32, &'static str, &'static str, u32);
 
 const KEEPS: &[Keep] = &[
-    ("runs/easy", 6000, "Running", "|", 12660),
+    ("runs/easy", 6000, "Running", "|", 12750),
     ("runs/elites", 48700, "Failed", "|", 880),
-    ("runs/rainy", 4454, "Failed", "|", 23640),
+    ("runs/rainy", 4724, "Failed", "|", 23940),
     ("runs/stage_skill", 5400, "Failed", "|", 0),
-    ("runs/time_limit", 14586, "Failed", "|", 27260),
-    ("runs/time_limit_kill", 1810, "Cleared", "|", 0),
+    ("runs/time_limit", 17510, "Failed", "|", 28790),
+    ("runs/time_limit_kill", 1733, "Cleared", "|", 2000),
     ("runs/time_limit_overtime", 600, "Failed", "|", 0),
-    ("runs/trial", 2706, "Failed", "|", 0),
-    ("runs/trial_kinds", 3774, "Cleared", "|", 0),
-    ("runs/tutorial", 4130, "Cleared", "|", 0),
+    ("runs/trial", 2888, "Failed", "|", 0),
+    ("runs/trial_kinds", 4032, "Cleared", "|", 0),
+    ("runs/tutorial", 4146, "Cleared", "|", 0),
     ("runs/tutorial_opening", 240, "Running", "|", 0),
     ("stages/agents", 80, "Running", "|", 0),
     ("stages/assist", 360, "Running", "|", 0),
