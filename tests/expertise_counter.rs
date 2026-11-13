@@ -109,7 +109,14 @@ fn the_counter_kind_is_bounded() {
         refused_at(with(over), &at);
     };
     bound(json!({ "type": "damage_pct" }), "pct", 1, 1_000, 0, 1_001);
-    bound(json!({ "type": "stagger_pct" }), "pct", 101, 1_000, 100, 1_001);
+    bound(
+        json!({ "type": "stagger_pct" }),
+        "pct",
+        101,
+        1_000,
+        100,
+        1_001,
+    );
     bound(json!({ "type": "stun_ticks" }), "ticks", 1, 120, 0, 121);
     bound(
         json!({ "type": "advance" }),
