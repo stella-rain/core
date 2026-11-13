@@ -541,7 +541,7 @@ pub fn equipment_party(n: u8) -> PartyCase {
 
 /// The (world seed, bot seed) of `equipment_rig_1`, `_2` and `_3` (`search_equipment_rig_seeds`
 /// in `party_bot.rs`).
-pub const EQUIP_RIG_SEEDS: [(u64, u64); 3] = [(2, 2), (1, 1), (1, 2)];
+pub const EQUIP_RIG_SEEDS: [(u64, u64); 3] = [(2, 2), (1, 3), (1, 1)];
 
 /// The building rig case of `n` (1 to 3) players: every slot a `PartyBot` that builds.
 pub fn equipment_rig(n: u8) -> PartyCase {
@@ -559,13 +559,13 @@ pub fn equipment_rig(n: u8) -> PartyCase {
 /// `search_corpus_party_seeds` (world 1..=20 x bot 1..=20) that delivers the case's promise
 /// (`party_promise_miss`).
 pub const PARTY_SEEDS: [(&str, u64, u64); 7] = [
-    ("two_time_limit", 1, 1),
+    ("two_time_limit", 1, 3),
     ("three_time_limit", 1, 1),
     ("three_tutorial", 1, 1),
-    ("join_two", 1, 3),
+    ("join_two", 1, 1),
     ("leave_hole", 1, 1),
     ("two_revive", 1, 3),
-    ("three_revive", 1, 4),
+    ("three_revive", 1, 13),
 ];
 
 /// The equipment party case `name` of `PARTY_SEEDS`.
