@@ -22,12 +22,12 @@ const DECAY: u16 = 100;
 /// changes no step, the rules read it beside the weapon.
 #[test]
 fn the_spirit_kind_changes_no_step() {
-    let content = Pack::bundled().content();
+    let content = super::before::pack().content();
     let base = content
         .weapons()
         .tree("giant_sword", None)
         .expect("the Sword's base tree");
-    let bundled: serde_json::Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let bundled: serde_json::Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let mut file = bundled["expertise"].clone();
     let w = file["weapons"]
         .as_array_mut()
@@ -80,7 +80,7 @@ fn full_attack(radius_px: i32) -> Value {
 /// The bundled pack with the gauge (one A hit fills it) and, when `spirit`, the spirit on the
 /// Sword's first style.
 fn pack(spirit: bool, radius_px: i32, bleed_max: Option<u32>) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()

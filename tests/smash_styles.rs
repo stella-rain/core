@@ -49,7 +49,7 @@ fn level(id: &str, effect: Value) -> Value {
 /// Style 0 sets `s0`, style 1 sets `s1` (when named), style 2 names no effect and its first
 /// upgrade sets `up`.
 fn expertise_json(s0: Value, s1: Option<Value>, up: Option<Value>) -> Value {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
         if w["weapon"] != "giant_sword" {

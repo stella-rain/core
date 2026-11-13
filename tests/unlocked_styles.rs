@@ -8,7 +8,7 @@ use stella_rain_core::engine::{ActionError, Engine};
 use stella_rain_core::expertise::Expertise;
 use stella_rain_core::id::{ContentId, PlayerIdx};
 use stella_rain_core::input::{EquipAction, Input};
-use stella_rain_core::run_replay::{Command, record_run, verify_run};
+use stella_rain_core::run_replay::{Command, record_run_with_pack, verify_run_with_pack};
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::version::Versions;
 
@@ -21,7 +21,7 @@ const HAMMER: [&str; 3] = ["crush", "quake", "bulwark"];
 
 /// The bundled expertise with thresholds small enough that the seeded points hold every level.
 fn expertise() -> Expertise {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the test expertise")
 }
@@ -187,10 +187,16 @@ fn a_run_with_a_list_records_and_verifies() {
             })
         })
         .collect();
-    let replay = record_run(&setup, &steps).unwrap();
+    let replay = record_run_with_pack(&setup, crate::before::pack(), &steps).unwrap();
     let stored = serde_json::to_value(&replay.setup).unwrap();
     assert_eq!(stored["unlocked_styles"], json!(["bulwark", "crush"]));
-    let verified = verify_run(&replay.to_bytes()).unwrap();
-    let again = verify_run(&record_run(&setup, &steps).unwrap().to_bytes()).unwrap();
+    let verified = verify_run_with_pack(&replay.to_bytes(), crate::before::pack()).unwrap();
+    let again = verify_run_with_pack(
+        &record_run_with_pack(&setup, crate::before::pack(), &steps)
+            .unwrap()
+            .to_bytes(),
+        crate::before::pack(),
+    )
+    .unwrap();
     assert_eq!(verified.final_hash, again.final_hash);
 }

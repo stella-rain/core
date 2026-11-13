@@ -1,0 +1,704 @@
+{
+  "thresholds": [
+    30,
+    45,
+    65,
+    90,
+    120,
+    155,
+    195,
+    240,
+    290,
+    345
+  ],
+  "growth_pct": 115,
+  "max_points": 50000,
+  "weapons": [
+    {
+      "weapon": "giant_hammer",
+      "styles": [
+        {
+          "id": "crush",
+          "effect": "attack_pct",
+          "amount": 15,
+          "upgrade_1": [
+            {
+              "id": "crush_6",
+              "effect": "attack_pct",
+              "amount": 20
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "crush_9",
+              "effect": "max_hp",
+              "amount": 20000
+            }
+          ],
+          "capstone": [
+            {
+              "id": "crush_10",
+              "effect": "attack_pct",
+              "amount": 40
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                60,
+                120,
+                180,
+                240,
+                300,
+                360,
+                420,
+                480,
+                540,
+                600
+              ]
+            },
+            {
+              "effect": "attack_speed_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                100
+              ]
+            },
+            {
+              "effect": "range_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            }
+          ]
+        },
+        {
+          "id": "quake",
+          "effect": "range_pct",
+          "amount": 20,
+          "upgrade_1": [
+            {
+              "id": "quake_6",
+              "effect": "range_pct",
+              "amount": 20
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "quake_9",
+              "effect": "attack_pct",
+              "amount": 15
+            }
+          ],
+          "capstone": [
+            {
+              "id": "quake_10",
+              "effect": "range_pct",
+              "amount": 40
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                30,
+                60,
+                90,
+                120,
+                150,
+                180,
+                210,
+                240,
+                270,
+                300
+              ]
+            },
+            {
+              "effect": "attack_speed_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "range_pct",
+              "by_level": [
+                80,
+                160,
+                240,
+                320,
+                400,
+                480,
+                560,
+                640,
+                720,
+                800
+              ]
+            }
+          ]
+        },
+        {
+          "id": "bulwark",
+          "effect": "max_hp",
+          "amount": 20000,
+          "upgrade_1": [
+            {
+              "id": "bulwark_6",
+              "effect": "evade_pct",
+              "amount": 15
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "bulwark_9",
+              "effect": "max_hp",
+              "amount": 30000
+            }
+          ],
+          "capstone": [
+            {
+              "id": "bulwark_10",
+              "effect": "evade_pct",
+              "amount": 30
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "max_hp",
+              "by_level": [
+                4000,
+                8000,
+                12000,
+                16000,
+                20000,
+                24000,
+                28000,
+                32000,
+                36000,
+                40000
+              ]
+            },
+            {
+              "effect": "evade_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10
+        },
+        {
+          "id": "vitality",
+          "effect": "max_hp",
+          "amount": 10000
+        },
+        {
+          "id": "swiftness",
+          "effect": "speed_pct",
+          "amount": 5
+        }
+      ],
+      "base": [
+        {
+          "effect": "attack_pct",
+          "by_level": [
+            10,
+            20,
+            30,
+            40,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100
+          ]
+        },
+        {
+          "effect": "attack_speed_pct",
+          "by_level": [
+            10,
+            20,
+            30,
+            40,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100
+          ]
+        },
+        {
+          "effect": "max_hp",
+          "by_level": [
+            10000,
+            20000,
+            30000,
+            40000,
+            50000,
+            60000,
+            70000,
+            80000,
+            90000,
+            100000
+          ]
+        }
+      ]
+    },
+    {
+      "weapon": "giant_sword",
+      "styles": [
+        {
+          "id": "edge",
+          "effect": "attack_pct",
+          "amount": 10,
+          "upgrade_1": [
+            {
+              "id": "edge_6",
+              "effect": "attack_pct",
+              "amount": 15
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "edge_9",
+              "effect": "range_pct",
+              "amount": 15
+            }
+          ],
+          "capstone": [
+            {
+              "id": "edge_10",
+              "effect": "attack_pct",
+              "amount": 30
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                50,
+                100,
+                150,
+                200,
+                250,
+                300,
+                350,
+                400,
+                450,
+                500
+              ]
+            },
+            {
+              "effect": "attack_speed_pct",
+              "by_level": [
+                30,
+                60,
+                90,
+                120,
+                150,
+                180,
+                210,
+                240,
+                270,
+                300
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                100
+              ]
+            },
+            {
+              "effect": "range_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tempo",
+          "effect": "attack_speed_pct",
+          "amount": 8,
+          "upgrade_1": [
+            {
+              "id": "tempo_6",
+              "effect": "speed_pct",
+              "amount": 10
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "tempo_9",
+              "effect": "attack_speed_pct",
+              "amount": 10
+            }
+          ],
+          "capstone": [
+            {
+              "id": "tempo_10",
+              "effect": "evade_pct",
+              "amount": 25
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                33,
+                66,
+                99,
+                132,
+                165,
+                198,
+                231,
+                264,
+                297,
+                330
+              ]
+            },
+            {
+              "effect": "attack_speed_pct",
+              "by_level": [
+                100,
+                200,
+                300,
+                400,
+                500,
+                600,
+                700,
+                800,
+                900,
+                1000
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+              ]
+            },
+            {
+              "effect": "range_pct",
+              "by_level": [
+                50,
+                100,
+                150,
+                200,
+                250,
+                300,
+                350,
+                400,
+                450,
+                500
+              ]
+            }
+          ]
+        },
+        {
+          "id": "reach",
+          "effect": "range_pct",
+          "amount": 15,
+          "upgrade_1": [
+            {
+              "id": "reach_6",
+              "effect": "range_pct",
+              "amount": 15
+            }
+          ],
+          "upgrade_2": [
+            {
+              "id": "reach_9",
+              "effect": "attack_pct",
+              "amount": 15
+            }
+          ],
+          "capstone": [
+            {
+              "id": "reach_10",
+              "effect": "range_pct",
+              "amount": 30
+            }
+          ],
+          "stats": [
+            {
+              "effect": "attack_pct",
+              "by_level": [
+                30,
+                60,
+                90,
+                120,
+                150,
+                180,
+                210,
+                240,
+                270,
+                300
+              ]
+            },
+            {
+              "effect": "attack_speed_pct",
+              "by_level": [
+                30,
+                60,
+                90,
+                120,
+                150,
+                180,
+                210,
+                240,
+                270,
+                300
+              ]
+            },
+            {
+              "effect": "skill_cooldown_pct",
+              "by_level": [
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                100
+              ]
+            },
+            {
+              "effect": "range_pct",
+              "by_level": [
+                80,
+                160,
+                240,
+                320,
+                400,
+                480,
+                560,
+                640,
+                720,
+                800
+              ]
+            }
+          ]
+        }
+      ],
+      "common": [
+        {
+          "id": "damage",
+          "effect": "attack_pct",
+          "amount": 10
+        },
+        {
+          "id": "attack_speed",
+          "effect": "attack_speed_pct",
+          "amount": 10
+        },
+        {
+          "id": "hit_box",
+          "effect": "range_pct",
+          "amount": 10
+        },
+        {
+          "id": "vitality",
+          "effect": "max_hp",
+          "amount": 10000
+        },
+        {
+          "id": "swiftness",
+          "effect": "speed_pct",
+          "amount": 5
+        }
+      ],
+      "base": [
+        {
+          "effect": "attack_pct",
+          "by_level": [
+            10,
+            20,
+            30,
+            40,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100
+          ]
+        },
+        {
+          "effect": "attack_speed_pct",
+          "by_level": [
+            10,
+            20,
+            30,
+            40,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100
+          ]
+        },
+        {
+          "effect": "max_hp",
+          "by_level": [
+            10000,
+            20000,
+            30000,
+            40000,
+            50000,
+            60000,
+            70000,
+            80000,
+            90000,
+            100000
+          ]
+        }
+      ]
+    }
+  ]
+}

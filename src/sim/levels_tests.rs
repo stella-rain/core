@@ -8,7 +8,6 @@ use super::levels;
 use super::state::{PlayerIdx, State};
 use crate::engine::{Engine, Run};
 use crate::event::DomainEvent;
-use crate::expertise::Expertise;
 use crate::run_setup::RunSetup;
 use crate::run_stats::StatEffect;
 use crate::snapshot::ExpertiseOfferKind;
@@ -23,7 +22,7 @@ pub(super) fn state_of(e: &Engine) -> &State {
 
 /// An engine whose run has levels and the expertise gauge.
 pub(super) fn engine() -> Engine {
-    Engine::start(&RunSetup {
+    super::before::start(&RunSetup {
         mode: "time_limit".into(),
         ..RunSetup::default()
     })
@@ -119,7 +118,7 @@ fn an_equipment_level_with_every_stat_at_its_limit_gives_nothing() {
 
 /// A time-limit equipment engine with the hammer, whose trees are `crush`, `quake` and `bulwark`.
 pub(super) fn hammer() -> Engine {
-    Engine::start(&RunSetup {
+    super::before::start(&RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_hammer".into(),
         ..RunSetup::default()
@@ -281,19 +280,31 @@ pub(super) fn world_state(e: &mut Engine) -> (&super::World, &mut State) {
 /// The player 0's `TreePick` through the sim's entry point.
 pub(super) fn tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
     let (world, state) = world_state(e);
-    super::tree_pick_action(world, Expertise::bundled(), state, PlayerIdx::SOLO, option)
+    super::tree_pick_action(
+        world,
+        super::before::expertise(),
+        state,
+        PlayerIdx::SOLO,
+        option,
+    )
 }
 
 fn check_tree_pick(e: &mut Engine, option: u32) -> Result<(), TreeError> {
     let (world, state) = world_state(e);
-    super::check_tree_pick(world, Expertise::bundled(), state, PlayerIdx::SOLO, option)
+    super::check_tree_pick(
+        world,
+        super::before::expertise(),
+        state,
+        PlayerIdx::SOLO,
+        option,
+    )
 }
 
 /// What the next tree pick is: its kind, its level, the points held and its choices' IDs.
 pub(super) fn next(e: &mut Engine) -> Option<(ExpertiseOfferKind, u32, u8, Vec<String>)> {
     let (world, state) = world_state(e);
     let g = state.players.career(PlayerIdx::SOLO).expertise.as_ref()?;
-    let t = expertise::tree_next(world, Expertise::bundled(), g)?;
+    let t = expertise::tree_next(world, super::before::expertise(), g)?;
     Some((
         t.kind,
         t.level,

@@ -699,12 +699,13 @@ mod players_tests {
         use crate::run_setup::RunSetup;
         use crate::savepoint::DecodeError;
 
-        let e = Engine::start_party(
+        let e = Engine::start_party_with(
             &RunSetup {
                 mode: "time_limit".into(),
                 weapon: "giant_hammer".into(),
                 ..RunSetup::default()
             },
+            crate::sim::before::content(),
             2,
         )
         .unwrap();

@@ -5,7 +5,6 @@
 use serde_json::{Value, json};
 use stella_rain_core::pack::{ContentFiles, Pack, PackError};
 use stella_rain_core::rewards::Rarity;
-use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_setup::MAX_LUMINE;
 use stella_rain_core::star_chart::{
     MAX_ITEMS, MAX_LEVELS, MAX_PRICE, MAX_STAR_CHART_BYTES, StarChart,
@@ -14,11 +13,11 @@ use stella_rain_core::validate::Error;
 use stella_rain_core::version::Versions;
 
 fn file() -> Value {
-    serde_json::from_slice(ContentFiles::bundled_file("star_chart")).expect("the bundled file")
+    crate::before::pack_value()["star_chart"].clone()
 }
 
 fn parse_bytes(bytes: &[u8]) -> Result<StarChart, Error> {
-    let content = RunContent::bundled();
+    let content = crate::before::content();
     StarChart::parse_with(
         bytes,
         Versions::CURRENT,
@@ -50,7 +49,7 @@ fn edited(edit: impl FnOnce(&mut Value)) -> Value {
 }
 
 fn pack_with(star_chart: Value) -> Result<Pack, PackError> {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     v["star_chart"] = star_chart;
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
 }
@@ -214,7 +213,7 @@ fn an_unknown_key_and_an_oversized_file_are_refused() {
 
 #[test]
 fn a_pack_without_the_member_loads_and_has_no_catalogue() {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     v.as_object_mut().unwrap().remove("star_chart");
     let pack = Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).unwrap();
     assert!(pack.star_chart().is_none());
@@ -255,7 +254,7 @@ fn a_stat_price_list_is_as_long_as_the_stats_limit() {
 }
 
 fn pack_with_attack_limit(limit: u64, attack_prices: usize) -> Result<Pack, PackError> {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     v["run_stats"]["stats"][1]["limit"] = json!(limit);
     let mut chart = file();
     chart["stats"][1]["prices"] = json!(vec![100; attack_prices]);

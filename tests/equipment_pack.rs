@@ -24,7 +24,7 @@ fn rewards_json() -> Value {
 }
 
 fn expertise_json() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn parse_rewards(v: &Value) -> Result<Rewards, Error> {

@@ -34,7 +34,7 @@ fn written(stage: &Stage) -> Value {
 }
 
 fn pack_with(mode: &str) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     v["modes"][mode]["try_styles"] = true.into();
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the pack loads")
 }
@@ -319,7 +319,7 @@ use crate::run_play::scripted_input;
 use stella_rain_core::run_replay::{self, RunRecorder, RunReplay, RunReplayError};
 
 fn tutorial_pack(try_styles: bool) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     if try_styles {
         v["modes"]["tutorial"]["try_styles"] = true.into();
     }

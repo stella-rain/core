@@ -803,7 +803,7 @@ mod tree_runs {
     /// T16: `check_action` for a tree pick: each refusal in its order, and reads only.
     #[test]
     fn check_action_tree_pick() {
-        let mut e = Engine::start(&equipment()).unwrap();
+        let mut e = crate::sim::before::start(&equipment()).unwrap();
         let hash = e.state_hash();
         assert_eq!(
             e.check_action(slot(1), pick(0)),
@@ -836,7 +836,7 @@ mod tree_runs {
     /// T17: `act` makes the pick; a refused one changes nothing.
     #[test]
     fn act_makes_the_tree_pick() {
-        let mut e = Engine::start(&equipment()).unwrap();
+        let mut e = crate::sim::before::start(&equipment()).unwrap();
         reach(&mut e, 0, 3);
         let hash = e.state_hash();
         assert_eq!(
@@ -882,7 +882,8 @@ mod tree_runs {
     /// T20: a point waiting in one slot does not stop a party.
     #[test]
     fn a_waiting_point_does_not_stop_a_party() {
-        let mut e = Engine::start_party(&equipment(), 2).unwrap();
+        let mut e =
+            Engine::start_party_with(&equipment(), crate::sim::before::content(), 2).unwrap();
         reach(&mut e, 0, 3);
         let tick = e.tick();
         e.step(&[Input::default(); 3]);
@@ -899,7 +900,8 @@ mod tree_runs {
     #[test]
     fn the_snapshot_shows_tree_ready() {
         use crate::snapshot::{ExpertiseOfferKind, TreeReadyView};
-        let mut e = Engine::start_party(&equipment(), 2).unwrap();
+        let mut e =
+            Engine::start_party_with(&equipment(), crate::sim::before::content(), 2).unwrap();
         assert_eq!(e.snapshot().players[0].tree_ready, None);
         reach(&mut e, 0, 3);
         let want = TreeReadyView {
