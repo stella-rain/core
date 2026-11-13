@@ -1437,7 +1437,10 @@ fn counter_r2_every_bound_is_checked_at_its_key() {
 fn counter_r3_a_pack_at_sim_version_1_refuses_both_keys() {
     for (patch, path) in [
         (json!({ "counter_stun_ticks": 40 }), "$.counter_stun_ticks"),
-        (json!({ "stagger_values": { "counter": 60 } }), "$.stagger_values"),
+        (
+            json!({ "stagger_values": { "counter": 60 } }),
+            "$.stagger_values",
+        ),
     ] {
         let Err(Error::Invalid(issues)) = Rules::parse(&patched(&patch), V1) else {
             panic!("{path} not refused at sim_version 1");

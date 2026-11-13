@@ -80,6 +80,7 @@ fn phase_of(kind: PhaseKind, ticks: u32, hit_box: Option<HitBox>) -> AttackPhase
         spawn: Vec::new(),
         move_pct: 100,
         breaks_charge: false,
+        counterable: false,
         dash: None,
         poise_damage: None,
         stagger: None,

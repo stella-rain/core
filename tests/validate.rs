@@ -1699,7 +1699,9 @@ fn counter_v2_only_a_wind_up_is_counterable() {
         let issue = first_issue(&v);
         assert!(issue.path.ends_with("[0].counterable"), "{issue:?}");
         assert!(
-            issue.message.contains("only a wind_up phase is counterable"),
+            issue
+                .message
+                .contains("only a wind_up phase is counterable"),
             "{issue:?}"
         );
     }
@@ -1717,7 +1719,8 @@ fn counter_v3_only_an_enemy_s_or_the_boss_s_attack_is_counterable() {
     );
     let mut ally = base();
     ally["sim_version"] = json!(2);
-    ally["companions"][0]["rules"][0]["do"] = json!({ "type": "attack", "attack": { "inline": phases } });
+    ally["companions"][0]["rules"][0]["do"] =
+        json!({ "type": "attack", "attack": { "inline": phases } });
     ally["companions"][0]["rules"][0]["target"] = json!("nearest_enemy");
     for v in [main, ally] {
         let issue = first_issue(&v);

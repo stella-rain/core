@@ -459,6 +459,10 @@ pub(crate) struct Tuning {
     pub down_bonus_pct: u32,
     pub vulnerable_down_pct: u16,
     pub stagger_down: u32,
+    /// The ticks a counter stuns a regular enemy or an elite, and what it adds to the gauge of an
+    /// elite or the boss; each 0 when the rules do not name it.
+    pub counter_stun_ticks: u32,
+    pub stagger_counter: u32,
 }
 
 impl Tuning {
@@ -530,6 +534,8 @@ impl Tuning {
             vulnerable_down_pct: u16::try_from(rules.vulnerable_knockdown_pct())
                 .unwrap_or(u16::MAX),
             stagger_down: rules.knockdown_stagger_value(),
+            counter_stun_ticks: rules.counter_stun_ticks(),
+            stagger_counter: rules.counter_stagger_value(),
         }
     }
 }
@@ -598,6 +604,8 @@ pub(crate) struct World {
     pub has_stagger: bool,
     /// The rules name `down_ticks`: the knockdown rules run only then.
     pub has_down: bool,
+    /// Some compiled attack has a `counterable` phase: the counter rules run only then.
+    pub has_counter: bool,
     /// The nodes of every phase's `spawn`, by `ProgramIndex`.
     pub emitters: Vec<Vec<Emitter>>,
     /// The attack of each on-hit rune, by `Rune::index`; none for a rune the run's file does
@@ -794,6 +802,7 @@ impl World {
             has_proc: false,
             has_stagger: false,
             has_down: false,
+            has_counter: false,
             emitters: Vec::new(),
             rune_attacks: Vec::new(),
             grant_weapons,
@@ -823,6 +832,10 @@ impl World {
             .any(|d| d.agent.stagger_max.is_some())
             || world.bosses.iter().any(|b| b.boss.stagger_max.is_some());
         world.has_down = world.tuning.down_ticks > 0;
+        world.has_counter = world
+            .attacks
+            .iter()
+            .any(|a| a.phases.iter().any(|p| p.counterable));
         Ok(world)
     }
 

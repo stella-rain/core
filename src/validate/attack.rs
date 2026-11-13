@@ -97,6 +97,20 @@ impl<'a> Ctx<'a> {
         if let Some(d) = &p.dash {
             self.key("dash", |c| c.dash(p, d));
         }
+        if p.counterable {
+            let refusal = if p.kind != PhaseKind::WindUp {
+                Some("only a wind_up phase is counterable")
+            } else if self.foe == Foe::Other {
+                Some("an enemy's or the boss's attack only")
+            } else if self.sim_version < 2 {
+                Some("needs sim_version 2")
+            } else {
+                None
+            };
+            if let Some(why) = refusal {
+                self.key("counterable", |c| c.fail(why));
+            }
+        }
         if let Some(d) = p.poise_damage {
             let refusal = if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 Some("only an active phase with a hit box deals poise damage")

@@ -93,6 +93,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     .and(r.spot)
             }),
             threat_colour: None,
+            counterable: false,
         }
     };
     let attack_of = |id: EntityId| s.runs.iter().find(|r| r.owner == id).map(view);
@@ -218,6 +219,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 y: s.player.facing.y,
             },
             invulnerable: s.player.invulnerable,
+            super_armour: false,
             evade: EvadeView {
                 charges: s.player.evade_charges,
                 ready: s.player.evade_ready(),
