@@ -4660,7 +4660,11 @@
   "flinch_immune_ticks": 30,
   "control_repeat_pcts": [100, 50, 25],
   "control_reset_ticks": 180,
-  "control_immune_ticks": 120
+  "control_immune_ticks": 120,
+  "vulnerable_pcts": {
+    "stun": 20,
+    "stagger": 20
+  }
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
