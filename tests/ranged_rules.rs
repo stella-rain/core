@@ -51,12 +51,16 @@ impl Run {
 
     fn to(&mut self, tick: u32) {
         while self.e.tick() < tick {
+            let before = self.e.tick();
             self.e
                 .step(&[idle(), Default::default(), Default::default()]);
             let now = self.e.tick();
             self.events
                 .extend(self.e.events().iter().map(|ev| (now, ev.clone())));
             self.hashes.push(self.e.state_hash());
+            if self.e.tick() == before {
+                break; // the run is over
+            }
         }
     }
 
@@ -154,4 +158,216 @@ fn g7_the_row_alone_changes_nothing_until_a_hit() {
     let hit_absent = grace_run(waves.clone(), json!({ "ranged_grace_ticks": null }));
     let hit_named = grace_run(waves, json!({ "ranged_grace_ticks": 30 }));
     assert!(hit_absent.hashes != hit_named.hashes, "the timer is hashed");
+}
+
+// --- The view bar ----------------------------------------------------------------------------
+//
+// The field is 360 by 640 px; the start is 180, 576. The view is centred on the main character
+// but held inside the map, so it covers y from 280 to 640 (x is covered whole): a point at
+// y = 40 is off view, one at y = 500 is in view.
+
+const OFF_Y: i32 = 40;
+const IN_Y: i32 = 500;
+
+fn at_y(y_px: i32) -> (i32, i32) {
+    (START_X, y_px * 256)
+}
+
+/// A zone attack: a wind-up of 50 ticks laying a warning zone, then a tick of recovery.
+fn zone_attack() -> Value {
+    json!({ "inline": [
+        { "kind": "wind_up", "ticks": 50, "spawn": [
+            { "type": "zone", "shape": { "type": "circle", "radius": 4096 }, "anchor": "target",
+              "wind_up_ticks": 10, "warn_only": true }] },
+        { "kind": "recovery", "ticks": 1 },
+    ] })
+}
+
+/// A melee swing: no `spawn`.
+fn slash() -> Value {
+    json!({ "inline": [
+        { "kind": "active", "ticks": 1, "damage": 1,
+          "hit_box": { "type": "circle", "radius": 1_024 } },
+        { "kind": "recovery", "ticks": 1 },
+    ] })
+}
+
+fn rule_of(target: &str, attack: Value) -> Value {
+    json!({ "when": always(), "target": target, "cooldown_ticks": 60,
+            "do": { "type": "attack", "attack": attack } })
+}
+
+fn elite(movement: Value, rules: Value) -> Value {
+    let mut e = enemy(900_000, movement, rules);
+    e["elite"] = json!({ "range": 262_144 });
+    e
+}
+
+fn elite_run(movement: Value, rules: Value, spawn_y: i32, ticks: u32) -> Run {
+    let (x, y) = at_y(spawn_y);
+    let waves = vec![wave(1, 1, 0, elite(movement, rules), x, y)];
+    let mut r = Run::new(
+        &stage_of(waves, far_boss(), vec![]),
+        json!({ "ranged_grace_ticks": null }),
+    );
+    r.to(ticks);
+    r
+}
+
+fn rules_fired(r: &Run) -> Vec<(u32, u8)> {
+    r.events
+        .iter()
+        .filter_map(|(t, e)| match e {
+            DomainEvent::RuleFired { rule, .. } => Some((*t, *rule)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn v1_an_elite_off_view_lays_nothing_and_one_in_view_starts_at_once() {
+    let rules = json!([rule_of("player", zone_attack())]);
+    let (x, y) = at_y(OFF_Y);
+    let off = elite_run(hold(x, y), rules.clone(), OFF_Y, 100);
+    assert_eq!(telegraph_ticks(&off), Vec::<u32>::new());
+    assert_eq!(rules_fired(&off), []);
+    let (x, y) = at_y(IN_Y);
+    let inside = elite_run(hold(x, y), rules, IN_Y, 100);
+    assert!(telegraph_ticks(&inside).first().is_some_and(|t| *t <= 3));
+}
+
+/// Where the first enemy stands after each tick, in 1/256 px.
+fn enemy_y_by_tick(r: &mut Run, ticks: u32) -> Vec<i32> {
+    let mut ys = vec![];
+    while r.e.tick() < ticks {
+        let before = r.events.len();
+        let t = r.e.tick() + 1;
+        r.to(t);
+        let _ = before;
+        let y =
+            r.e.snapshot()
+                .entities
+                .iter()
+                .find(|en| en.hp == 900_000)
+                .map(|en| en.at.y.0);
+        ys.push(y.unwrap_or(i32::MAX));
+    }
+    ys
+}
+
+#[test]
+fn v2_a_refused_start_retries_and_keeps_its_cooldown() {
+    let rules = json!([rule_of("player", zone_attack())]);
+    let (x, y) = at_y(OFF_Y);
+    let (px, py) = at_y(500);
+    let _ = (px, py);
+    let waves = vec![wave(
+        1,
+        1,
+        0,
+        elite(json!({ "type": "follow", "distance": 12_288 }), rules),
+        x,
+        y,
+    )];
+    let mut r = Run::new(
+        &stage_of(waves, far_boss(), vec![]),
+        json!({ "ranged_grace_ticks": null }),
+    );
+    let ys = enemy_y_by_tick(&mut r, 400);
+    let first = rules_fired(&r).first().map(|(t, _)| *t).expect("it starts");
+    let edge = 280 * 256;
+    let at = |t: u32| ys[(t - 1) as usize];
+    assert!(at(first) >= edge, "in view when it starts: {}", at(first));
+    assert!(
+        at(first - 1) < edge,
+        "out of view the tick before: {}",
+        at(first - 1)
+    );
+}
+
+#[test]
+fn v3_a_refused_rule_leaves_the_next_rule_its_turn() {
+    let rules = json!([rule_of("player", zone_attack()), rule_of("player", slash())]);
+    let (x, y) = at_y(OFF_Y);
+    let r = elite_run(hold(x, y), rules, OFF_Y, 100);
+    let fired = rules_fired(&r);
+    assert!(!fired.is_empty(), "the swing fires");
+    assert!(fired.iter().all(|(_, rule)| *rule == 1), "{fired:?}");
+    assert_eq!(telegraph_ticks(&r), Vec::<u32>::new());
+}
+
+fn companion_run(y_px: i32) -> Run {
+    let (x, y) = at_y(y_px);
+    let target = wave(
+        1,
+        1,
+        0,
+        enemy(1_000_000, hold(x, at_y(IN_Y).1), json!([])),
+        x,
+        at_y(IN_Y).1,
+    );
+    let c = companion(
+        50,
+        hold(x, y),
+        json!([rule_of("nearest_enemy", zone_attack())]),
+    );
+    let mut r = Run::new(
+        &stage_of(vec![target], far_boss(), vec![c]),
+        json!({ "ranged_grace_ticks": null }),
+    );
+    r.to(100);
+    r
+}
+
+#[test]
+fn v5_a_companion_off_view_lays_nothing_and_one_in_view_starts() {
+    assert_eq!(telegraph_ticks(&companion_run(OFF_Y)), Vec::<u32>::new());
+    assert!(!telegraph_ticks(&companion_run(IN_Y)).is_empty());
+}
+
+#[test]
+fn v6_the_boss_and_a_melee_swing_start_off_view() {
+    let (x, y) = at_y(OFF_Y);
+    let boss = json!({ "base": "golem", "hp": 1_000_000, "radius": 8_192,
+        "spawn": { "x": x, "y": y },
+        "phases": [{ "timeline": [{ "type": "wait", "ticks": 5 },
+                                  { "type": "attack", "attack": zone_attack() }] }] });
+    let mut r = Run::new(
+        &stage_of(vec![], boss, vec![]),
+        json!({ "ranged_grace_ticks": null }),
+    );
+    r.to(60);
+    assert!(
+        !telegraph_ticks(&r).is_empty(),
+        "the boss starts its zone attack off view"
+    );
+    let rules = json!([rule_of("player", slash())]);
+    let swing = elite_run(hold(x, y), rules, OFF_Y, 100);
+    assert!(!rules_fired(&swing).is_empty(), "a swing is never barred");
+}
+
+#[test]
+fn v7_the_hit_lands_whole_and_the_invulnerability_is_the_only_cap() {
+    let (x, y) = (START_X, START_Y - 8_192);
+    let striker = enemy(
+        778,
+        hold(x, y),
+        json!([{ "when": always(), "target": "player", "cooldown_ticks": 61,
+                 "do": { "type": "attack", "attack": { "inline": [
+                     { "kind": "active", "ticks": 1, "damage": 60_000,
+                       "hit_box": { "type": "circle", "radius": 8_192 } }] } } }]),
+    );
+    let mut stage = stage_of(vec![wave(1, 1, 0, striker, x, y)], far_boss(), vec![]);
+    stage.player.hp = 99_900;
+    let mut r = Run::new(&stage, json!({ "ranged_grace_ticks": null }));
+    r.to(200);
+    let left: Vec<u32> = r
+        .events
+        .iter()
+        .filter_map(|(_, e)| match e {
+            DomainEvent::PlayerHit { hp_left, .. } => Some(*hp_left),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(&left[..2], [39_900, 0]);
 }
