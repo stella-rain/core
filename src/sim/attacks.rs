@@ -83,4 +83,4 @@ pub(in crate::sim) use ranged::cool_into;
 #[cfg(test)]
 pub(super) use ranged::in_view;
 use ranged::{cool_token, holds_token};
-pub(super) use ranged::{grant_ranged, mark_ranged, ranged_may_start};
+pub(super) use ranged::{grant_ranged, mark_ranged, outside_view, ranged_may_start};

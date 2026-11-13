@@ -174,6 +174,13 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
     }
 }
 
+/// Whether `at` is outside the view of the players the world reads (the party's box in a party):
+/// what the view bar tests, reached only for a barred rule.
+#[inline(never)]
+pub(in crate::sim) fn outside_view(world: &World, s: &State, at: Point) -> bool {
+    !in_view(at, super::Area::of_view(&world.map(), &s.players))
+}
+
 /// Whether `target` is a player a hit has put in grace: a ranged start against it waits. A
 /// companion or no player is never in grace.
 #[inline(never)]
@@ -344,5 +351,24 @@ mod tests {
             );
             assert_eq!(s.players[me].combat.ranged_grace, 0);
         }
+    }
+
+    #[test]
+    fn v4_the_view_is_the_partys_box() {
+        let (w, mut s, _) = party();
+        let spot = s.players[p(0)].at;
+        s.players[p(1)].at = spot;
+        let centre = super::super::Area::of_view(&w.map(), &s.players).centre;
+        let off = Point {
+            x: centre.x,
+            y: crate::fixed::Fx(centre.y.0 + VIEW_HALF_HEIGHT.0 + 10 * 256),
+        };
+        assert!(outside_view(&w, &s, off), "off both views");
+        // Player 1 walks to the point: the box grows over it.
+        s.players[p(1)].at = off;
+        assert!(
+            !outside_view(&w, &s, off),
+            "inside the box of the two views"
+        );
     }
 }

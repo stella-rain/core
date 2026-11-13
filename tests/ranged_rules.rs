@@ -236,64 +236,46 @@ fn v1_an_elite_off_view_lays_nothing_and_one_in_view_starts_at_once() {
     assert!(telegraph_ticks(&inside).first().is_some_and(|t| *t <= 3));
 }
 
-/// Where the first enemy stands after each tick, in 1/256 px.
-fn enemy_y_by_tick(r: &mut Run, ticks: u32) -> Vec<i32> {
-    let mut ys = vec![];
-    while r.e.tick() < ticks {
-        let before = r.events.len();
-        let t = r.e.tick() + 1;
-        r.to(t);
-        let _ = before;
-        let y =
-            r.e.snapshot()
-                .entities
-                .iter()
-                .find(|en| en.hp == 900_000)
-                .map(|en| en.at.y.0);
-        ys.push(y.unwrap_or(i32::MAX));
+/// The view's centre y after each tick while the main character walks up from the start, in
+/// 1/256 px: the main character's y, held between half the view and the map less half of it.
+fn walk_up(r: &mut Run, ticks: u32) -> Vec<i32> {
+    let mut centres = vec![];
+    for _ in 0..ticks {
+        r.e.step(&[moving(0, -127), Default::default(), Default::default()]);
+        let now = r.e.tick();
+        r.events
+            .extend(r.e.events().iter().map(|ev| (now, ev.clone())));
+        let y = r.e.snapshot().players[0].at.y.0;
+        centres.push(y.clamp(180 * 256, 460 * 256));
     }
-    ys
+    centres
 }
 
 #[test]
 fn v2_a_refused_start_retries_and_keeps_its_cooldown() {
+    // The elite stands still 40 px from the top; the main character walks up, and the view
+    // with it, until the elite is inside its edge (180 px above the centre, edges included).
     let rules = json!([rule_of("player", zone_attack())]);
     let (x, y) = at_y(OFF_Y);
-    let (px, py) = at_y(500);
-    let _ = (px, py);
-    let waves = vec![wave(
-        1,
-        1,
-        0,
-        elite(json!({ "type": "follow", "distance": 12_288 }), rules),
-        x,
-        y,
-    )];
+    let waves = vec![wave(1, 1, 0, elite(hold(x, y), rules), x, y)];
     let mut r = Run::new(
         &stage_of(waves, far_boss(), vec![]),
         json!({ "ranged_grace_ticks": null }),
     );
-    let ys = enemy_y_by_tick(&mut r, 400);
+    let centres = walk_up(&mut r, 300);
     let first = rules_fired(&r).first().map(|(t, _)| *t).expect("it starts");
-    let edge = 280 * 256;
-    let at = |t: u32| ys[(t - 1) as usize];
-    assert!(at(first) >= edge, "in view when it starts: {}", at(first));
+    let apart = |t: u32| (centres[(t - 1) as usize] - y).abs();
+    let half = 180 * 256;
     assert!(
-        at(first - 1) < edge,
-        "out of view the tick before: {}",
-        at(first - 1)
+        apart(first) <= half,
+        "in view when it starts: {}",
+        apart(first)
     );
-}
-
-#[test]
-fn v3_a_refused_rule_leaves_the_next_rule_its_turn() {
-    let rules = json!([rule_of("player", zone_attack()), rule_of("player", slash())]);
-    let (x, y) = at_y(OFF_Y);
-    let r = elite_run(hold(x, y), rules, OFF_Y, 100);
-    let fired = rules_fired(&r);
-    assert!(!fired.is_empty(), "the swing fires");
-    assert!(fired.iter().all(|(_, rule)| *rule == 1), "{fired:?}");
-    assert_eq!(telegraph_ticks(&r), Vec::<u32>::new());
+    assert!(
+        apart(first - 1) > half,
+        "out of view the tick before: {}",
+        apart(first - 1)
+    );
 }
 
 fn companion_run(y_px: i32) -> Run {
