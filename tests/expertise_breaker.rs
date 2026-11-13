@@ -324,3 +324,28 @@ fn the_views_carry_the_breaker_kind() {
     let ready = serde_json::to_string(bundled.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert!(!ready.contains("breaker"));
 }
+
+/// S6: the stagger burst uses the event enum's tag form (`type` and `data`, the player by name).
+#[test]
+fn the_stagger_burst_event_serializes() {
+    use stella_rain_core::event::DomainEvent;
+    use stella_rain_core::fixed::{Fx, Point};
+    use stella_rain_core::id::{EntityId, PlayerIdx};
+
+    let event = DomainEvent::StaggerBurst {
+        player: PlayerIdx::SOLO,
+        target: EntityId(7),
+        at: Point {
+            x: Fx::px(3),
+            y: Fx::px(4),
+        },
+        radius: 32_768,
+    };
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        json!({ "type": "StaggerBurst", "data": {
+            "player": "first", "target": 7,
+            "at": { "x": 768, "y": 1024 }, "radius": 32768
+        } })
+    );
+}
