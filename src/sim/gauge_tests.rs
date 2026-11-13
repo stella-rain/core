@@ -46,7 +46,7 @@ fn full_attack() -> Value {
 }
 
 fn pack(cfg: Option<Cfg>, radius_px: Option<i32>) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     if let Some(cfg) = cfg {
         let w = v["expertise"]["weapons"]
             .as_array_mut()
