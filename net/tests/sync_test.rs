@@ -87,7 +87,7 @@ fn an_action_that_arrives_three_ticks_late_rolls_back_three_and_is_not_lost() {
 fn a_mutated_input_delivered_late_makes_the_sync_test_fail() {
     let s = script(2, STOP, DELAY, None);
     let oracle = straight(&s, 2);
-    let flips = 300u32..320;
+    let flips = 280u32..300;
     let mut mesh = Mesh::new(&s, 2, DELAY, WINDOW, STOP, Box::new(|_, _, _| DELAY + 2));
     mesh.tamper = Some(Box::new(move |from, _to, frame| {
         if from == 1 {
