@@ -328,14 +328,43 @@ fn the_views_carry_the_kinds() {
         hold["kinds"],
         json!([{ "type": "replace_step", "step": ["main", "main"], "grant": "hold" }])
     );
-    // The bundled expertise names none: no key in either view.
+    // The bundled expertise names the kinds of the Hammer's three styles: both views carry them.
     let e = build(Expertise::bundled().clone());
     let snap = e.snapshot();
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
-    assert!(ready.get("kinds").is_none());
+    let types = |v: &Value| -> Vec<String> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k["type"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(
+        ready["options"],
+        json!(["titan_trigger", "momentum", "breaker"])
+    );
+    assert_eq!(
+        types(&ready["kinds"][0]),
+        ["smash_effect", "gauge", "giant_trigger"]
+    );
+    assert_eq!(
+        types(&ready["kinds"][1]),
+        ["replace_step", "combo_tempo_pct"]
+    );
+    assert_eq!(ready["kinds"][1][0]["grant"], "hold");
+    assert_eq!(
+        types(&ready["kinds"][2]),
+        ["replace_step", "smash_effect", "breaker"]
+    );
+    assert_eq!(ready["kinds"][2][0]["grant"], "charge");
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
-    for t in stats["trees"].as_array().unwrap() {
-        assert!(t.get("grants").is_none());
+    let trees = stats["trees"].as_array().unwrap();
+    assert_eq!(trees.len(), 3);
+    for t in trees {
+        // The style's own grant carries its kinds; a stat level has an empty one.
+        assert_eq!(t["grants"].as_array().unwrap().len(), 4);
+        assert!(!t["grants"][0]["kinds"].as_array().unwrap().is_empty());
+        assert!(t["grants"][1]["kinds"].as_array().unwrap().is_empty());
     }
 }
 
@@ -559,5 +588,5 @@ fn the_views_carry_the_spirit_kind() {
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     assert_eq!(stats["trees"][0]["grants"][0]["kinds"], json!([want]));
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
-    assert!(!bundled.contains("spirit"));
+    assert!(bundled.contains("\"spirit\""));
 }
