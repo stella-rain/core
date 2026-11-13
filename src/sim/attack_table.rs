@@ -148,6 +148,7 @@ impl AttackKeys {
             .iter()
             .skip(1)
             .any(|p| p.hit_box.is_some() || !p.spawn.is_empty());
+        let lays = phases.iter().any(|p| !p.spawn.is_empty());
         attacks.push(AttackDef {
             phases,
             preset_id: preset.as_ref().map(|p| Arc::from(p.as_str())),
@@ -156,6 +157,7 @@ impl AttackKeys {
             pool,
             colour,
             channelled,
+            lays,
         });
         let at = AttackIndex(at);
         let first = self.first(attack, colour);

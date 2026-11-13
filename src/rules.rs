@@ -294,6 +294,12 @@ pub struct RulesFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
     pub counter_stun_ticks: Option<u32>,
+    /// The ranged grace (`sim_version` 2): the ticks after a player is hit in which a regular
+    /// enemy whose ranged rule targets that player may not be granted a ranged token (the token
+    /// goes to the next candidate): 1 to `MAX_RANGED_GRACE_TICKS` (600). Absent: no grace.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_RANGED_GRACE_TICKS))]
+    pub ranged_grace_ticks: Option<u16>,
     /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
     /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
     /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
@@ -554,6 +560,11 @@ impl Rules {
         self.file.counter_stun_ticks.unwrap_or(0)
     }
 
+    /// The ticks a hit on a player keeps ranged starts off it; 0 (no grace) when absent.
+    pub fn ranged_grace_ticks(&self) -> u16 {
+        self.file.ranged_grace_ticks.unwrap_or(0)
+    }
+
     /// What a counter adds to an elite's or the boss's stagger gauge; 0 when absent.
     pub fn counter_stagger_value(&self) -> u32 {
         self.file
@@ -808,6 +819,7 @@ fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
         ("$.down_ticks", file.down_ticks.is_some()),
         ("$.down_bonus_pct", file.down_bonus_pct.is_some()),
         ("$.counter_stun_ticks", file.counter_stun_ticks.is_some()),
+        ("$.ranged_grace_ticks", file.ranged_grace_ticks.is_some()),
     ];
     named
         .into_iter()
@@ -1147,6 +1159,15 @@ fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
             i64::from(n),
             1,
             i64::from(MAX_STUN_TICKS),
+        );
+    }
+    if let Some(n) = file.ranged_grace_ticks {
+        within(
+            issues,
+            "ranged_grace_ticks",
+            i64::from(n),
+            1,
+            i64::from(crate::limits::MAX_RANGED_GRACE_TICKS),
         );
     }
     if let Some(n) = file.stagger_values.as_ref().and_then(|v| v.counter) {
