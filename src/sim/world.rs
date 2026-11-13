@@ -74,8 +74,8 @@ pub(crate) struct AttackDef {
     /// Whether a phase after the first has a hit box or a `spawn`: a channelled attack, whose
     /// ranged token a cancel cools (`attacks::cancel_runs_of`). A zone-leaving attack is not.
     pub channelled: bool,
-    /// Whether any phase has a `spawn` (a zone, a line or an orb): what the view bar holds back
-    /// off view for an elite or a companion.
+    /// Whether any phase's `spawn` lays a zone, a line or an orb (a bare `wait` does not): what
+    /// the view bar holds back off view for an elite or a companion.
     pub lays: bool,
 }
 
