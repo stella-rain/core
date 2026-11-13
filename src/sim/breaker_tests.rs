@@ -139,12 +139,12 @@ fn the_breaker_kind_changes_no_step() {
     use crate::expertise::{Expertise, weapon_with_style};
     use crate::pack::Pack;
     use crate::version::Versions;
-    let base = Pack::bundled()
+    let base = super::before::pack()
         .content()
         .weapons()
         .tree("giant_hammer", None)
         .expect("the Hammer's base tree");
-    let bundled: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let bundled: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let mut file = bundled["expertise"].clone();
     let w = file["weapons"]
         .as_array_mut()
@@ -426,7 +426,7 @@ fn levelled(
     capstone: Vec<Value>,
 ) -> crate::engine::Engine {
     use crate::pack::Pack;
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
