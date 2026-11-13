@@ -337,7 +337,7 @@ fn the_giant_hammer_s_aaa_holds_while_a_stays_held() {
     // holds from there on.
     let stage = armed(
         stage_with(18_000, Some(far_boss()), vec![]),
-        json!({ "preset": { "id": "giant_hammer" } }),
+        crate::before::inline_weapon("giant_hammer"),
     );
     let inputs = (1..=40).map(|t| Input {
         main: t == 1 || (t >= 3 && t != 12),
