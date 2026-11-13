@@ -249,6 +249,6 @@ fn the_spread_ticks_hash_as_they_did_with_every_enemy_tested() {
 }
 
 /// Re-pinned when the case moved to equipment mode (the equipment section is in the hash), and
-/// again when the combat fields joined the hash (every agent and player holds them).
-const PINNED_CLUSTERED: [u64; 3] = [0x1beb92431aff0d76, 0x37d5b67564e79d8b, 0x8682f85f4bd4047d];
-const PINNED_SPREAD: [u64; 3] = [0xb79a77d410526da8, 0xdfc47be9d8c85b00, 0x3442ec1416172848];
+/// again when the combat fields joined the hash (every agent and player holds them), then for the counter-bonus mark (every player holds it).
+const PINNED_CLUSTERED: [u64; 3] = [0x770ac7f1aa469982, 0x24c978cfc5c0d7a9, 0xf0269c56cff7422f];
+const PINNED_SPREAD: [u64; 3] = [0x9368a1de71ba9100, 0xbf50a0cf5864fcc8, 0xeff03da83d411ce0];
