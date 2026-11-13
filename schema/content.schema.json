@@ -968,6 +968,163 @@
       },
       "type": "object"
     },
+    "BreakerEffect": {
+      "description": "What a breaker does: a closed list built into `core`, one variant per effect, each bounded\nalone. A factor is in percent, 100 meaning none (200 doubles it).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A factor on every stagger fill credited to the player. 101 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "stagger_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A factor on the poise damage of the player's combo hits. 101 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "poise_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A factor on the damage of the player's smash step on a boss part. 101 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "part_break_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A burst round an elite or boss the player's fill staggers: the other enemies within\n`radius_px` take the burst's effects. `radius_px` 1 to `MAX_BURST_RADIUS_PX`; 1 to 3\neffects, each variant at most once.",
+          "properties": {
+            "effects": {
+              "items": {
+                "$ref": "#/$defs/BurstEffect"
+              },
+              "type": "array"
+            },
+            "radius_px": {
+              "format": "uint32",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "on_stagger_burst",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "radius_px",
+            "effects"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "BurstEffect": {
+      "description": "What a stagger burst does to the enemies in its radius: a closed list, each bounded alone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The damage each enemy takes, a percent of the damage of the hit that staggered the\ntarget. 1 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "damage_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A stun on each regular enemy in the radius. 1 to `MAX_STUN_TICKS`.",
+          "properties": {
+            "ticks": {
+              "format": "uint32",
+              "maximum": 120,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "stun_ticks",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "ticks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A knockdown on each regular enemy in the radius (the rules' `down_ticks`).",
+          "properties": {
+            "type": {
+              "const": "knock_down",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "CallElites": {
       "additionalProperties": false,
       "description": "The boss calls its elites at whichever comes first: `after_ticks` ticks after its first\ntick (0 calls on it), or its hit points falling below `below_pct` percent of its maximum.\nAt least one of the two is given.",
@@ -3750,6 +3907,46 @@
             },
             "type": {
               "const": "RallyLapsed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A fill of `player` staggered the elite or boss `target` and the style's burst went off\nwhere it stands: it hurt the enemies within `radius` (1/256 pixel) of `at` (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "$ref": "#/$defs/Point"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "radius": {
+                  "format": "int32",
+                  "type": "integer"
+                },
+                "target": {
+                  "$ref": "#/$defs/EntityId"
+                }
+              },
+              "required": [
+                "player",
+                "target",
+                "at",
+                "radius"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "StaggerBurst",
               "type": "string"
             }
           },
@@ -10038,6 +10235,37 @@
       ],
       "type": "object"
     },
+    "StaggerBurstView": {
+      "additionalProperties": false,
+      "description": "A stagger burst as a style grants it: its radius and what it does to the enemies in it\n(0 and false where it names no such effect).",
+      "properties": {
+        "damage_pct": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "knock_down": {
+          "type": "boolean"
+        },
+        "radius_px": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stun_ticks": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "radius_px",
+        "damage_pct",
+        "stun_ticks",
+        "knock_down"
+      ],
+      "type": "object"
+    },
     "StaggerValues": {
       "additionalProperties": false,
       "description": "What a resisted control adds to a stagger gauge, by kind of control (each 1 to\n`limits::MAX_STAGGER`); a kind left out adds nothing. The other controls add their own key later.",
@@ -11167,6 +11395,28 @@
             "effects"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's breaker: a closed list of effects on the stagger fills, the poise damage and\nthe boss part damage of the player's hits, and a burst round a target the player\nstaggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,\nthe effects stacking in path order and a later level's same effect replacing the\nearlier one.",
+          "properties": {
+            "effects": {
+              "description": "What the style does, each variant at most once; 1 to 4 entries.",
+              "items": {
+                "$ref": "#/$defs/BreakerEffect"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "breaker",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "effects"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -11428,6 +11678,48 @@
             "smash_pct",
             "rally_pct",
             "super_armour"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a breaker: a factor, in percent, on the stagger fills, the poise damage\nand a smash's damage on a boss part (0 where the kind names none) and, when it names one,\na burst round a target the player staggers.",
+          "properties": {
+            "burst": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/StaggerBurstView"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "part_break_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "poise_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stagger_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "breaker",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stagger_pct",
+            "poise_pct",
+            "part_break_pct"
           ],
           "type": "object"
         }

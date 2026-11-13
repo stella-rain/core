@@ -29,16 +29,16 @@
 
 use super::World;
 use crate::expertise::{
-    Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
-    TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
+    BreakerEffect, BurstEffect, Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat,
+    StepGrant, Style, StyleKind, TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StatValueView,
-    StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StaggerBurstView,
+    StatValueView, StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::{SmashEffect, WeaponRef};
@@ -665,6 +665,39 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     }
                 }
                 view
+            }
+            StyleKind::Breaker(b) => {
+                let (mut stagger_pct, mut poise_pct, mut part_break_pct, mut burst) =
+                    (0, 0, 0, None);
+                for effect in &b.effects {
+                    match effect {
+                        BreakerEffect::StaggerPct { pct } => stagger_pct = *pct,
+                        BreakerEffect::PoisePct { pct } => poise_pct = *pct,
+                        BreakerEffect::PartBreakPct { pct } => part_break_pct = *pct,
+                        BreakerEffect::OnStaggerBurst { radius_px, effects } => {
+                            let mut v = StaggerBurstView {
+                                radius_px: *radius_px,
+                                damage_pct: 0,
+                                stun_ticks: 0,
+                                knock_down: false,
+                            };
+                            for e in effects {
+                                match e {
+                                    BurstEffect::DamagePct { pct } => v.damage_pct = *pct,
+                                    BurstEffect::StunTicks { ticks } => v.stun_ticks = *ticks,
+                                    BurstEffect::KnockDown {} => v.knock_down = true,
+                                }
+                            }
+                            burst = Some(v);
+                        }
+                    }
+                }
+                StyleKindView::Breaker {
+                    stagger_pct,
+                    poise_pct,
+                    part_break_pct,
+                    burst,
+                }
             }
         })
         .collect()

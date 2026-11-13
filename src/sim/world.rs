@@ -671,6 +671,32 @@ pub(crate) struct World {
     grant_triggers: Vec<Option<TriggerGrant>>,
     /// Some style names a giant trigger: the tick looks for one only then.
     pub has_trigger: bool,
+    /// The breaker each of those copies has (the `breaker` kinds of the style's own level and the
+    /// path levels taken, folded in path order), at the same index; empty when no style names one.
+    grant_breakers: Vec<Option<BreakerGrant>>,
+    /// Some style names a breaker: the hit pass looks for one only then.
+    pub has_breaker: bool,
+}
+
+/// A style's breaker resolved once: a factor in percent on the stagger fills, on the poise damage
+/// of the combo hits and on a smash's damage on a boss part (each 100: none), and the burst round
+/// a target the player staggers, every number inside its cap (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BreakerGrant {
+    pub stagger_pct: u32,
+    pub poise_pct: u32,
+    pub part_break_pct: u32,
+    pub burst: Option<BurstGrant>,
+}
+
+/// A stagger burst resolved once: its radius, the damage a percent of the staggering hit's (0:
+/// none), a stun in ticks (0: none) and whether it knocks down.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BurstGrant {
+    pub radius: i32,
+    pub damage_pct: u32,
+    pub stun_ticks: u32,
+    pub knock_down: bool,
 }
 
 /// A style's giant trigger resolved once: how long the state runs and each effect folded into its
@@ -861,6 +887,7 @@ impl World {
         let grant_counters = grant_counters(main, weapon.as_ref(), content);
         let grant_tempos = grant_tempos(main, weapon.as_ref(), content);
         let grant_triggers = grant_triggers(main, weapon.as_ref(), content);
+        let grant_breakers = grant_breakers(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -929,6 +956,8 @@ impl World {
             grant_tempos,
             has_trigger: grant_triggers.iter().any(Option::is_some),
             grant_triggers,
+            has_breaker: grant_breakers.iter().any(Option::is_some),
+            grant_breakers,
             weapon,
         };
         // The shared flinch ID is built here, not on the first flinch of a steady tick.
@@ -1149,6 +1178,19 @@ impl World {
             return None;
         }
         self.grant_triggers.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The breaker player `me`'s style gives, read from the same slot as `weapon_of`; none after
+    /// one bool test for a run that names no breaker.
+    pub(crate) fn breaker_of(
+        &self,
+        s: &super::state::State,
+        me: PlayerIdx,
+    ) -> Option<&BreakerGrant> {
+        if !self.has_breaker {
+            return None;
+        }
+        self.grant_breakers.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1473,6 +1515,91 @@ fn grant_triggers(
         out.clear();
     }
     out
+}
+
+/// The breaker of each style and number of places of its path taken (the same index as
+/// `grant_weapons`): the `breaker` kinds of the style's own level, then of each place taken, in
+/// path order, each effect folded into its field and a later level's same effect replacing the
+/// earlier one (ADR-SIM-9), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_breakers(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<BreakerGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let breaker_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        let mut grant: Option<BreakerGrant> = None;
+        for kind in std::iter::once(s.kinds.as_slice()).chain(places).flatten() {
+            if let StyleKind::Breaker(b) = kind {
+                breaker_folded(grant.get_or_insert(BreakerGrant::NONE), b);
+            }
+        }
+        grant
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(breaker_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+impl BreakerGrant {
+    /// A breaker that does nothing: every factor 100, no burst.
+    const NONE: BreakerGrant = BreakerGrant {
+        stagger_pct: 100,
+        poise_pct: 100,
+        part_break_pct: 100,
+        burst: None,
+    };
+}
+
+/// `b`'s effects laid over `g`, every number inside its cap.
+fn breaker_folded(g: &mut BreakerGrant, b: &crate::expertise::Breaker) {
+    use crate::expertise::{BreakerEffect, BurstEffect};
+    for e in b.effects.iter().take(4) {
+        match e {
+            BreakerEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
+            BreakerEffect::PoisePct { pct } => g.poise_pct = (*pct).clamp(100, MAX_PCT),
+            BreakerEffect::PartBreakPct { pct } => g.part_break_pct = (*pct).clamp(100, MAX_PCT),
+            BreakerEffect::OnStaggerBurst { radius_px, effects } => {
+                let radius = (*radius_px).clamp(1, crate::rewards::MAX_BURST_RADIUS_PX);
+                let mut burst = BurstGrant {
+                    radius: i32::try_from(i64::from(radius) * i64::from(Fx::px(1).0))
+                        .unwrap_or(i32::MAX),
+                    damage_pct: 0,
+                    stun_ticks: 0,
+                    knock_down: false,
+                };
+                for effect in effects.iter().take(3) {
+                    match effect {
+                        BurstEffect::DamagePct { pct } => {
+                            burst.damage_pct = (*pct).clamp(1, MAX_PCT)
+                        }
+                        BurstEffect::StunTicks { ticks } => {
+                            burst.stun_ticks =
+                                (*ticks).clamp(1, crate::validate::limits::MAX_STUN_TICKS);
+                        }
+                        BurstEffect::KnockDown {} => burst.knock_down = true,
+                    }
+                }
+                g.burst = Some(burst);
+            }
+        }
+    }
 }
 
 /// `t` as a flat grant, every number inside its cap.

@@ -270,6 +270,9 @@ pub(super) fn check_style_grants(
                             triggers.push(at.clone());
                             continue;
                         }
+                        // The breaker changes no step: it reads the fills, poise damage and
+                        // part hits of the player's hits.
+                        StyleKind::Breaker(_) => continue,
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()

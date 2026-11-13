@@ -19,7 +19,10 @@
 //! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
 //! and the first dash-branch step inside its window takes, or a combo tempo whose stacks, gained
 //! from the swings that hit, speed the attacks the combo starts, or a giant trigger that the
-//! full-gauge smash starts and that runs a time with a closed list of effects (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! full-gauge smash starts and that runs a time with a closed list of effects, or a breaker whose
+//! closed list of effects scales the stagger and the poise damage the player deals, the damage of
+//! a smash on a boss part and the burst round a target the player staggers; a path may name it at
+//! several levels, the effects stacking in path order (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -43,7 +46,7 @@ use crate::limits::{
 };
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
-use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
+use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
 use crate::validate::limits::MAX_COMBO_DEPTH;
 use crate::validate::{self, Error, Issue};
@@ -222,6 +225,91 @@ pub enum StyleKind {
     /// style ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is
     /// `full_smash`. One per style path: a second is refused.
     GiantTrigger(GiantTrigger),
+    /// The style's breaker: a closed list of effects on the stagger fills, the poise damage and
+    /// the boss part damage of the player's hits, and a burst round a target the player
+    /// staggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,
+    /// the effects stacking in path order and a later level's same effect replacing the
+    /// earlier one.
+    Breaker(Breaker),
+}
+
+/// A breaker's effects, every number bounded by the validator and clamped again when the world
+/// is built (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Breaker {
+    /// What the style does, each variant at most once; 1 to 4 entries.
+    pub effects: Vec<BreakerEffect>,
+}
+
+/// What a breaker does: a closed list built into `core`, one variant per effect, each bounded
+/// alone. A factor is in percent, 100 meaning none (200 doubles it).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BreakerEffect {
+    /// A factor on every stagger fill credited to the player. 101 to `MAX_PCT`.
+    StaggerPct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// A factor on the poise damage of the player's combo hits. 101 to `MAX_PCT`.
+    PoisePct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// A factor on the damage of the player's smash step on a boss part. 101 to `MAX_PCT`.
+    PartBreakPct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// A burst round an elite or boss the player's fill staggers: the other enemies within
+    /// `radius_px` take the burst's effects. `radius_px` 1 to `MAX_BURST_RADIUS_PX`; 1 to 3
+    /// effects, each variant at most once.
+    OnStaggerBurst {
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
+        effects: Vec<BurstEffect>,
+    },
+}
+
+impl BreakerEffect {
+    fn name(&self) -> u8 {
+        match self {
+            BreakerEffect::StaggerPct { .. } => 0,
+            BreakerEffect::PoisePct { .. } => 1,
+            BreakerEffect::PartBreakPct { .. } => 2,
+            BreakerEffect::OnStaggerBurst { .. } => 3,
+        }
+    }
+}
+
+/// What a stagger burst does to the enemies in its radius: a closed list, each bounded alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BurstEffect {
+    /// The damage each enemy takes, a percent of the damage of the hit that staggered the
+    /// target. 1 to `MAX_PCT`.
+    DamagePct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// A stun on each regular enemy in the radius. 1 to `MAX_STUN_TICKS`.
+    StunTicks {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
+        ticks: u32,
+    },
+    /// A knockdown on each regular enemy in the radius (the rules' `down_ticks`).
+    KnockDown {},
+}
+
+impl BurstEffect {
+    fn name(&self) -> u8 {
+        match self {
+            BurstEffect::DamagePct { .. } => 0,
+            BurstEffect::StunTicks { .. } => 1,
+            BurstEffect::KnockDown {} => 2,
+        }
+    }
 }
 
 /// A giant trigger's numbers, every one bounded by the validator and clamped again when the
@@ -855,6 +943,7 @@ fn check_level(
             StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c),
             StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t),
             StyleKind::GiantTrigger(t) => check_giant_trigger(issue, &at, t),
+            StyleKind::Breaker(b) => check_breaker(issue, &at, b),
         }
     }
 }
@@ -1032,6 +1121,79 @@ fn check_giant_trigger(issue: &mut impl FnMut(String, String), at: &str, t: &Gia
     }
 }
 
+/// A breaker's numbers, each in its own range; it names an effect once, its burst too.
+fn check_breaker(issue: &mut impl FnMut(String, String), at: &str, b: &Breaker) {
+    if b.effects.is_empty() || b.effects.len() > 4 {
+        issue(
+            format!("{at}.effects"),
+            format!("1 to 4 effects (found {})", b.effects.len()),
+        );
+    }
+    let mut seen = [false; 4];
+    for (e, effect) in b.effects.iter().enumerate().take(4) {
+        let at = format!("{at}.effects[{e}]");
+        match effect {
+            BreakerEffect::StaggerPct { pct }
+            | BreakerEffect::PoisePct { pct }
+            | BreakerEffect::PartBreakPct { pct } => {
+                if !(101..=MAX_PCT).contains(pct) {
+                    issue(
+                        format!("{at}.pct"),
+                        format!("101 to {MAX_PCT} (found {pct})"),
+                    );
+                }
+            }
+            BreakerEffect::OnStaggerBurst { radius_px, effects } => {
+                if !(1..=MAX_BURST_RADIUS_PX).contains(radius_px) {
+                    issue(
+                        format!("{at}.radius_px"),
+                        format!("1 to {MAX_BURST_RADIUS_PX} (found {radius_px})"),
+                    );
+                }
+                check_burst(issue, &at, effects);
+            }
+        }
+        let slot = &mut seen[usize::from(effect.name())];
+        if *slot {
+            issue(at, "the kind already names this effect".into());
+        }
+        *slot = true;
+    }
+}
+
+/// A burst's effects: 1 to 3, each in its own range, each variant once.
+fn check_burst(issue: &mut impl FnMut(String, String), at: &str, effects: &[BurstEffect]) {
+    if effects.is_empty() || effects.len() > 3 {
+        issue(
+            format!("{at}.effects"),
+            format!("1 to 3 effects (found {})", effects.len()),
+        );
+    }
+    let mut seen = [false; 3];
+    for (e, effect) in effects.iter().enumerate().take(3) {
+        let at = format!("{at}.effects[{e}]");
+        match effect {
+            BurstEffect::DamagePct { pct } => {
+                if !(1..=MAX_PCT).contains(pct) {
+                    issue(format!("{at}.pct"), format!("1 to {MAX_PCT} (found {pct})"));
+                }
+            }
+            BurstEffect::StunTicks { ticks } => {
+                let max = validate::limits::MAX_STUN_TICKS;
+                if !(1..=max).contains(ticks) {
+                    issue(format!("{at}.ticks"), format!("1 to {max} (found {ticks})"));
+                }
+            }
+            BurstEffect::KnockDown {} => {}
+        }
+        let slot = &mut seen[usize::from(effect.name())];
+        if *slot {
+            issue(at, "the burst already names this effect".into());
+        }
+        *slot = true;
+    }
+}
+
 /// A counter bonus's numbers, each in its own range; it names an effect once.
 fn check_counter_bonus(issue: &mut impl FnMut(String, String), at: &str, c: &CounterBonus) {
     if !(1..=u32::from(MAX_COUNTER_WINDOW_TICKS)).contains(&c.window_ticks) {
@@ -1122,8 +1284,19 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
         }
     }
     for (path, kinds) in levels {
+        // A path may name the breaker at every level (its effects stack), a level only once.
+        let mut breaker_here = false;
         for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
             match kind {
+                StyleKind::Breaker(_) => {
+                    if breaker_here {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the level already names a breaker".into(),
+                        );
+                    }
+                    breaker_here = true;
+                }
                 StyleKind::ReplaceStep { step, .. } => {
                     if seen.contains(&step) {
                         issue(
@@ -1363,6 +1536,8 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 // Nor does the combo tempo (`World::tempo_of`).
                 StyleKind::ComboTempoPct(_) => {}
                 StyleKind::GiantTrigger(_) => {}
+                // Nor does the breaker (`World::breaker_of`).
+                StyleKind::Breaker(_) => {}
             }
         }
     }
