@@ -4657,7 +4657,10 @@
   "poise_damage_a": 10,
   "poise_damage_b": 100,
   "flinch_ticks": 12,
-  "flinch_immune_ticks": 30
+  "flinch_immune_ticks": 30,
+  "control_repeat_pcts": [100, 50, 25],
+  "control_reset_ticks": 180,
+  "control_immune_ticks": 120
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
