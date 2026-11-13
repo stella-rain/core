@@ -33,6 +33,14 @@
 //! (`stun::counter_bonus_stun`, merged with a counter's) and its advance slides the first phase
 //! in `magnetism`. A down empties both fields.
 //!
+//! The combo tempo (when the style names the `combo_tempo_pct` kind): a swing of a combo step that
+//! hits adds one stack to `combo_tempo`, to the kind's `max_stacks` (`tempo_from_hits`);
+//! `strike` reads the stacks when an attack starts, adding their percent to the attack speed under
+//! the run's cap (`tempo_speed_pct`), so a step, each loop of a hold and a release take the
+//! stacks held at their start. `tempo_lose` empties them: a combo reset away from the middle of
+//! a combo (`combo_reset`), a smash press after the smash itself started (`tempo_on_smash`;
+//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`), a down and another style.
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the

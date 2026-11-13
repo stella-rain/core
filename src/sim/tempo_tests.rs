@@ -509,3 +509,63 @@ fn the_bundled_run_never_holds_a_stack() {
         assert_eq!(r.tempo(0), 0);
     }
 }
+
+/// B9: under `try_styles` a style pick onto another style zeroes the stacks; the same style
+/// again keeps them.
+#[test]
+fn leaving_the_style_empties_the_stacks() {
+    use crate::input::EquipAction;
+    let pick = |option: u32| {
+        let mut r = rig(1, vec![tempo_kind(5, 4, false)], 0);
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        std::sync::Arc::make_mut(world).stage.try_styles = true;
+        let g = state
+            .players
+            .career_mut(ME)
+            .expertise
+            .as_mut()
+            .expect("a gauge");
+        g.level = 99;
+        state.players[ME].combat.combo_tempo = 3;
+        r.e.act(ME, EquipAction::TreePick { option })
+            .expect("a pick");
+        r.tempo(0)
+    };
+    assert_eq!(pick(0), 3, "the same style again");
+    assert_eq!(pick(1), 0, "another style");
+}
+
+/// B12: a run's stacks are inside its state hash, and a held stack changes it.
+#[test]
+fn a_held_stack_is_in_the_state_hash() {
+    let mut a = rig(1, vec![tempo_kind(5, 4, false)], 0);
+    let mut b = rig(1, vec![tempo_kind(5, 4, false)], 0);
+    b.set_tempo(0, 3);
+    a.idle(1);
+    b.idle(1);
+    assert_ne!(a.e.state_hash(), b.e.state_hash());
+}
+
+/// B3: a held step's loop re-hits and each loop hit adds a stack (the AAA hold).
+#[test]
+fn a_hold_adds_a_stack_per_loop_hit() {
+    let mut r = rig(1, vec![tempo_kind(10, 4, false)], 1);
+    r.run_step(false);
+    r.run_step(false);
+    let before = r.tempo(0);
+    // The third A held: the loop re-hits while the button stays down.
+    let hold = Input {
+        main: true,
+        ..Input::default()
+    };
+    for _ in 0..80 {
+        r.step([hold, Input::default(), Input::default()]);
+    }
+    assert!(
+        r.tempo(0) >= before + 3,
+        "the loop's hits count: {} from {before}",
+        r.tempo(0)
+    );
+}

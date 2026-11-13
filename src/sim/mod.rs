@@ -90,6 +90,15 @@
 //! `PlayerView.counter` and the two counter events are not state. A run whose styles name no
 //! counter bonus keeps both fields at zero, one bool test each.
 //!
+//! The combo tempo a style grants (`World::tempo_of`, the `combo_tempo_pct` style kind) is
+//! dormant the same way: it reads and writes only `PlayerCombat::combo_tempo`. A swing of a combo
+//! step that hits adds one stack (`player::tempo_from_hits`, from the swing pass of
+//! `hit_boxes::land`), `strike` adds the stacks' percent to the attack speed under the run's cap
+//! (`player::tempo_speed_pct`), and the stacks end on a combo reset, a smash press, a hit taken,
+//! a down or another style (`player::tempo_lose`, `combo_reset`). `PlayerView.tempo` and the two
+//! tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
+//! one bool test each.
+//!
 //! Both are visible without being state: `PlayerView.gauge` and `PlayerView.perfect_evade`
 //! read the timers and the gauge, and the events `GaugeFilled`, `GaugeSpent`, `PerfectEvade`
 //! and `OrbBroken.player` say what moved. Events are not hashed, saved or replayed.
