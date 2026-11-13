@@ -3533,6 +3533,66 @@
             "data"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A swing of `player`'s combo that hit raised its combo tempo to `stacks` stacks (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "stacks": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "player",
+                "stacks"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "TempoRaised",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`player`'s combo tempo stacks ended (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "TempoLost",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -6973,6 +7033,17 @@
             }
           ],
           "description": "The enemy aim assist and auto mode would face, while either is on, so the\nfrontend can mark it."
+        },
+        "tempo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TempoView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The combo tempo of its style, while the style grants one, at 0 stacks too (ADR-SIM-9);\nabsent otherwise."
         },
         "tree_ready": {
           "anyOf": [
@@ -10796,6 +10867,36 @@
             "effects"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's combo tempo: each swing of a combo step that hits adds a stack, up to\n`max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;\nthe stacks end when the combo resets, when a smash is pressed (unless the stacks are full\nand the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).\nOne per style path: a second is refused.",
+          "properties": {
+            "effects": {
+              "description": "What the stacks do, each variant at most once; 1 to 2 entries, `speed_pct` among them.",
+              "items": {
+                "$ref": "#/$defs/TempoEffect"
+              },
+              "type": "array"
+            },
+            "max_stacks": {
+              "description": "The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.",
+              "format": "uint32",
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "combo_tempo_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "max_stacks",
+            "effects"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -10987,8 +11088,104 @@
             "window_ticks"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster.",
+          "properties": {
+            "max_stacks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pct_per_stack": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "combo_tempo_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "max_stacks",
+            "pct_per_stack"
+          ],
+          "type": "object"
         }
       ]
+    },
+    "TempoEffect": {
+      "description": "What a combo tempo's stacks do: a closed list built into `core`, one variant per effect,\neach bounded alone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Each stack's share of attack speed, added to the player's attack speed when an attack\nstarts, in percent. 1 to `MAX_ATTACK_SPEED_PCT`; `max_stacks` times it at most that.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 800,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "speed_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A smash pressed with the stacks full leaves them; below full it ends them as it always does.",
+          "properties": {
+            "type": {
+              "const": "keep_on_smash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TempoView": {
+      "additionalProperties": false,
+      "description": "A player's combo tempo (ADR-SIM-9): not state, built each frame from the stacks held and the\nstyle's numbers.",
+      "properties": {
+        "max_stacks": {
+          "description": "The most stacks the style holds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "speed_pct": {
+          "description": "The attack speed the stacks give, in percent, before the run's attack speed cap.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stacks": {
+          "description": "The stacks held, 0 to `max_stacks`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stacks",
+        "max_stacks",
+        "speed_pct"
+      ],
+      "type": "object"
     },
     "ThreatColour": {
       "additionalProperties": false,
