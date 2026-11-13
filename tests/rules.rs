@@ -1494,7 +1494,10 @@ fn counter_r4_a_file_naming_every_stagger_knockdown_and_counter_key_parses_withi
 
 #[test]
 fn grace_r1_the_bundled_file_names_a_grace_of_60() {
-    assert_eq!(bundled_value().get("ranged_grace_ticks"), Some(&Value::from(60)));
+    assert_eq!(
+        bundled_value().get("ranged_grace_ticks"),
+        Some(&Value::from(60))
+    );
     assert_eq!(Rules::bundled().ranged_grace_ticks(), 60);
 }
 
