@@ -290,6 +290,7 @@ pub(super) fn refresh(
     Build::write(&was, &now, player, progress, regen);
     if player.max_hp != max_was {
         player.hp = keep_fraction(hp_was, max_was, player.max_hp);
+        super::player::rally_clamp(player);
     }
     let grants = Grants::of(rewards, &after);
     let was_grants = Grants::of(rewards, &before_places);

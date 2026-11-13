@@ -115,6 +115,7 @@ fn a_combo_hit_wins_the_rally_back() {
         let mut r = tuned(1, 50, 180, regain, vec![], 1);
         {
             let c = &mut st(&mut r.e).players[ME];
+            c.max_hp = 1_000_000;
             c.hp = 500;
             c.combat.rally = rally;
             c.combat.rally_ticks = 180;
@@ -132,15 +133,15 @@ fn a_combo_hit_wins_the_rally_back() {
         );
         (won, left, ticks, events)
     };
-    let (won, left, _, events) = win(100, 400);
+    let (won, left, _, events) = win(100, 500_000);
     assert!(won > 0, "a hit won hit points back");
-    assert_eq!(left, 400 - won);
+    assert_eq!(left, 500_000 - won);
     assert_eq!(events.len(), 1, "one hit, one event");
     assert_eq!(
         events[0],
-        json!({ "player": "first", "amount": won, "rally": 400 - won })
+        json!({ "player": "first", "amount": won, "rally": 500_000 - won })
     );
-    let (half, ..) = win(50, 400);
+    let (half, ..) = win(50, 500_000);
     assert_eq!(half, won / 2, "half the share");
     // The rally is the limit, and it ends with it.
     let (small, left, ticks, _) = win(100, 1);
