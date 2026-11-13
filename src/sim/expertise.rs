@@ -469,9 +469,12 @@ pub(super) fn tree_pick(
     if kind == ExpertiseOfferKind::Style {
         let was = (g.style, g.level);
         g.style = Some(at);
-        if (stage.has_gauge || stage.has_spirit) && was.0 != Some(at) {
-            // The new style's bar starts empty; a style with no gauge reads empty, and its
-            // spirit level starts at 0 (a style with no spirit reads 0).
+        if (stage.has_gauge || stage.has_spirit || stage.has_counter_bonus) && was.0 != Some(at) {
+            // The new style's bar starts empty; a style with no gauge reads empty, its spirit
+            // level starts at 0 (a style with no spirit reads 0), and an old style's counter
+            // window and mark do not carry over.
+            player.combat.counter_window = 0;
+            player.combat.counter_bonus_step = 0;
             player.combat.weapon_gauge = 0;
             player.combat.gauge_step_fill = 0;
             player.combat.spirit_level = 0;
@@ -607,6 +610,9 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             StyleKind::Spirit(s) => StyleKindView::Spirit {
                 max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),
                 decay_ticks: s.decay_ticks,
+            },
+            StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
+                window_ticks: c.window_ticks,
             },
         })
         .collect()

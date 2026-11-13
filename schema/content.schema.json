@@ -1508,6 +1508,124 @@
       ],
       "type": "object"
     },
+    "CounterEffect": {
+      "description": "What a counter bonus gives its step: a closed list built into `core`, one variant per\neffect, each bounded alone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Added to the attack-up percent fixed when the step starts. 1 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "damage_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A factor on every gauge fill the step's hits credit to its player, in percent. 101 to\n`MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "stagger_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The stun each target the step hits takes. 1 to `MAX_STUN_TICKS`.",
+          "properties": {
+            "ticks": {
+              "format": "uint32",
+              "maximum": 120,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "stun_ticks",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "ticks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The slide toward the target over the step's first phase, when that phase names no\n`advance` (1/256 px, 1 px to `MAX_ADVANCE_DISTANCE`).",
+          "properties": {
+            "distance": {
+              "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+              "format": "int32",
+              "maximum": 61440,
+              "minimum": 256,
+              "type": "integer"
+            },
+            "type": {
+              "const": "advance",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "distance"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CounterView": {
+      "additionalProperties": false,
+      "description": "A player's counter bonus (ADR-SIM-9): not state, built each frame from the window, the mark of\nthe running step and the style's numbers. Both can hold at once: a near miss during the step\nthat took the bonus reopens the window.",
+      "properties": {
+        "taken": {
+          "description": "The running step took the bonus.",
+          "type": "boolean"
+        },
+        "window_left": {
+          "description": "Ticks left of the window; 0 closed.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window_ticks": {
+          "description": "The window a near miss opens.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "window_left",
+        "window_ticks",
+        "taken"
+      ],
+      "type": "object"
+    },
     "DamageOverTimeRune": {
       "additionalProperties": false,
       "description": "A damage-over-time rune's numbers: the status a combo step's hit puts on\nthe enemy hit.",
@@ -3353,6 +3471,60 @@
             },
             "type": {
               "const": "PerfectEvade",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A near miss of `player` opened its counter window (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "CounterWindowOpened",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The dash-branch step `player` started took the counter bonus (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "CounterBonusTaken",
               "type": "string"
             }
           },
@@ -6561,6 +6733,17 @@
         "combo": {
           "$ref": "#/$defs/ComboView",
           "description": "Where it is in its Main weapon's combos."
+        },
+        "counter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CounterView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The counter bonus of its style, while the style grants one, closed too (ADR-SIM-9); absent\notherwise."
         },
         "crit_chance_pct": {
           "description": "What the combat rewards taken add up to (core#NS2b): the chance of a crit in percent\n(at most 75), a crit's bonus damage beyond twice (at most 300), an echo's percent of a\nhit (at most 100), and a kill burst's percent of max hit points, radius in pixels and\nchain depth; each 0 while none is held.",
@@ -10583,6 +10766,36 @@
             "levels"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's counter bonus: a near miss of the player's evade opens a window of\n`window_ticks`, and the first dash-branch step started inside it takes the bonus's\neffects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style\npath: a second is refused.",
+          "properties": {
+            "effects": {
+              "description": "What the step takes, each variant at most once; 1 to 4 entries.",
+              "items": {
+                "$ref": "#/$defs/CounterEffect"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "counter_bonus",
+              "type": "string"
+            },
+            "window_ticks": {
+              "description": "Ticks after the near miss in which a dash-branch step takes the bonus. 1 to\n`MAX_COUNTER_WINDOW_TICKS`.",
+              "format": "uint32",
+              "maximum": 60,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "window_ticks",
+            "effects"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -10752,6 +10965,26 @@
             "type",
             "max_level",
             "decay_ticks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a counter bonus whose window lasts `window_ticks` after a near miss.",
+          "properties": {
+            "type": {
+              "const": "counter_bonus",
+              "type": "string"
+            },
+            "window_ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "type",
+            "window_ticks"
           ],
           "type": "object"
         }
