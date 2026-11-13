@@ -69,10 +69,26 @@ fn edited(edit: impl FnOnce(&mut Value)) -> Vec<u8> {
     serde_json::to_vec(&v).expect("JSON")
 }
 
+/// A copy of bundled content without the `sim_version` 2 combat keys (`poise`, `stagger_max`,
+/// `staggered_ticks`), at every depth: this fixture stage runs the frozen rules.
+fn without_combat_keys(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            for key in ["poise", "stagger_max", "staggered_ticks"] {
+                map.remove(key);
+            }
+            map.values_mut().for_each(without_combat_keys);
+        }
+        Value::Array(items) => items.iter_mut().for_each(without_combat_keys),
+        _ => {}
+    }
+}
+
 /// A stage whose only enemy is the bundled `id` at `(x, y)`, with its enemy edited by `edit`; the
 /// main character keeps its weapon, so a splitter can be hit (`tests/enemy_roles.rs`).
 fn alone(id: &str, x: i32, y: i32, edit: impl FnOnce(&mut Value)) -> Engine {
     let mut enemy = role(id)["enemy"].clone();
+    without_combat_keys(&mut enemy);
     edit(&mut enemy);
     engine(&stage_with(
         18_000,
