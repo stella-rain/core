@@ -15,7 +15,8 @@
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
 //! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
-//! on a full-gauge attack (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
+//! lowers, each level with its own effects (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -32,7 +33,9 @@ use sha2::{Digest, Sha256};
 use crate::attack::AttackRef;
 use crate::event::Press;
 use crate::id::ContentId;
-use crate::limits::{MAX_GAUGE_DAMAGE_PCT, MAX_WEAPON_GAUGE};
+use crate::limits::{
+    MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+};
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
@@ -69,6 +72,9 @@ pub const MAX_REPEAT_AFTER_TICKS: u32 = 120;
 pub const MAX_PROC_PCT: u32 = 100;
 /// The most repeats on one step, summed over one style's path (a tuning placeholder).
 pub const MAX_STEP_REPEATS: usize = 4;
+/// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
+/// tuning placeholder).
+pub const MAX_SPIRIT_BLEED_STACKS: u32 = 4;
 /// The most options in a weapon's common pool.
 pub const MAX_COMMON_OPTIONS: usize = 32;
 pub use crate::limits::MAX_SET_STATS;
@@ -190,6 +196,59 @@ pub enum StyleKind {
     /// hit points lost, and a B press with it full plays the full-gauge attack and empties it
     /// (ADR-SIM-9 points 3 and 7). One per style path: a second is refused.
     Gauge(Gauge),
+    /// The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every
+    /// smash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;
+    /// each level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge
+    /// whose spend is `full_smash`. One per style path: a second is refused.
+    Spirit(Spirit),
+}
+
+/// A spirit's numbers, every one bounded by the validator and clamped again when the world is
+/// built (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Spirit {
+    /// Ticks a level lasts without a smash. 1 to `MAX_SPIRIT_DECAY_TICKS`.
+    #[schemars(range(min = 1, max = MAX_SPIRIT_DECAY_TICKS))]
+    pub decay_ticks: u32,
+    /// Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the
+    /// style's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and
+    /// a level names each effect at most once.
+    pub levels: Vec<Vec<SpiritEffect>>,
+}
+
+/// What a spirit level does: a closed list built into `core`, one variant per effect, each
+/// bounded alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SpiritEffect {
+    /// Added to the attack-up percent fixed when a combo step starts. 1 to `MAX_PCT`.
+    DamagePct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// Added to the step's range percent, the total held to `MAX_RANGE_PCT`. 1 to
+    /// `MAX_RANGE_PCT`.
+    RangePct {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
+    /// Bleed stacks added to a smash hit on top of the one the smash's own effect adds; needs a
+    /// bleed smash. 1 to `MAX_SPIRIT_BLEED_STACKS`.
+    SmashBleedStacks {
+        #[schemars(range(min = 1, max = MAX_SPIRIT_BLEED_STACKS))]
+        stacks: u32,
+    },
+}
+
+impl SpiritEffect {
+    fn name(&self) -> u8 {
+        match self {
+            SpiritEffect::DamagePct { .. } => 0,
+            SpiritEffect::RangePct { .. } => 1,
+            SpiritEffect::SmashBleedStacks { .. } => 2,
+        }
+    }
 }
 
 /// A weapon gauge's numbers, every one bounded by the validator and clamped again when the
@@ -629,6 +688,7 @@ fn check_level(
                 check_proc_pct(issue, &at, Some(*proc_pct));
             }
             StyleKind::Gauge(g) => check_gauge(issue, &at, g),
+            StyleKind::Spirit(s) => check_spirit(issue, &at, s),
         }
     }
 }
@@ -674,6 +734,48 @@ fn check_gauge(issue: &mut impl FnMut(String, String), at: &str, g: &Gauge) {
     }
 }
 
+/// A spirit's numbers, each in its own range; a level names an effect once.
+fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: &Spirit) {
+    if !(1..=u32::from(MAX_SPIRIT_DECAY_TICKS)).contains(&s.decay_ticks) {
+        issue(
+            format!("{at}.decay_ticks"),
+            format!("1 to {MAX_SPIRIT_DECAY_TICKS} (found {})", s.decay_ticks),
+        );
+    }
+    if s.levels.is_empty() || s.levels.len() > usize::from(MAX_SPIRIT_LEVEL) {
+        issue(
+            format!("{at}.levels"),
+            format!("1 to {MAX_SPIRIT_LEVEL} levels (found {})", s.levels.len()),
+        );
+    }
+    for (l, level) in s
+        .levels
+        .iter()
+        .enumerate()
+        .take(usize::from(MAX_SPIRIT_LEVEL))
+    {
+        let mut seen = [false; 3];
+        for (e, effect) in level.iter().enumerate() {
+            let at = format!("{at}.levels[{l}][{e}]");
+            let (key, v, most) = match effect {
+                SpiritEffect::DamagePct { pct } => ("pct", *pct, MAX_PCT),
+                SpiritEffect::RangePct { pct } => ("pct", *pct, MAX_RANGE_PCT),
+                SpiritEffect::SmashBleedStacks { stacks } => {
+                    ("stacks", *stacks, MAX_SPIRIT_BLEED_STACKS)
+                }
+            };
+            if !(1..=most).contains(&v) {
+                issue(format!("{at}.{key}"), format!("1 to {most} (found {v})"));
+            }
+            let slot = &mut seen[usize::from(effect.name())];
+            if *slot {
+                issue(at, "the level already names this effect".into());
+            }
+            *slot = true;
+        }
+    }
+}
+
 fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &[Press]) {
     if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
         issue(
@@ -702,13 +804,14 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
     ]
 }
 
-/// One grant on a step per style, and one smash effect and one gauge: a second grant on a step an earlier level
-/// of the same style granted, or a second smash effect or gauge, is refused at the later one.
+/// One grant on a step per style, and one smash effect, one gauge and one spirit: a second grant on a
+/// step an earlier level of the same style granted, or a second smash effect, gauge or spirit, is refused at the later one.
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
     let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut gauge_set = false;
+    let mut spirit_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -757,6 +860,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     gauge_set = true;
+                }
+                StyleKind::Spirit(_) => {
+                    if spirit_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already names a spirit".into(),
+                        );
+                    }
+                    spirit_set = true;
                 }
             }
         }
@@ -914,6 +1026,8 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 }
                 // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
                 StyleKind::Gauge(_) => {}
+                // Nor does the spirit: the rules read it beside the weapon (`World::spirit_of`).
+                StyleKind::Spirit(_) => {}
             }
         }
     }

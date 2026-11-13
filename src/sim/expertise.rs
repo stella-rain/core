@@ -601,6 +601,10 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
                 },
             },
+            StyleKind::Spirit(s) => StyleKindView::Spirit {
+                max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),
+                decay_ticks: s.decay_ticks,
+            },
         })
         .collect()
 }

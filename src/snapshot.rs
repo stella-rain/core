@@ -270,6 +270,8 @@ pub enum StyleKindView {
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
     /// The style has a weapon gauge `max` long, spent as `spend`.
     Gauge { max: u32, spend: GaugeSpendKind },
+    /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.
+    Spirit { max_level: u8, decay_ticks: u32 },
 }
 
 /// The kinds one level of a style's path grants.

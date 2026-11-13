@@ -509,9 +509,7 @@ fn a_spirit_needs_a_full_smash_gauge_on_its_path() {
     let both = hammer_pack(vec![spirit.clone(), gauge.clone()]);
     assert!(Pack::from_bytes(&serde_json::to_vec(&both).unwrap()).is_ok());
     let mut later = hammer_pack(vec![spirit]);
-    later["expertise"]["weapons"][0]["styles"][0]["upgrade_2"] = json!([{
-        "id": "late_gauge", "effect": "none", "kinds": [gauge]
-    }]);
+    later["expertise"]["weapons"][0]["styles"][0]["upgrade_2"][0]["kinds"] = json!([gauge]);
     let loaded = Pack::from_bytes(&serde_json::to_vec(&later).unwrap());
     assert!(loaded.is_ok(), "{:?}", loaded.err());
 }
@@ -525,7 +523,7 @@ fn bleed_stacks_need_a_bleed_smash() {
     let knock = smash_kind(json!({ "type": "knockback", "distance": 4_096, "ticks": 10 }));
     spirit_refused(
         vec![gauge.clone(), stacks.clone(), knock],
-        "$.weapons[0].styles[0].kinds[2]",
+        "$.weapons[0].styles[0].kinds[1].levels[0][0]",
     );
     let bleed = smash_kind(json!({ "type": "bleed" }));
     let ok = hammer_pack(vec![gauge, stacks, bleed]);
