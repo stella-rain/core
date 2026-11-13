@@ -15,24 +15,36 @@ use stella_rain_core::stage::Stage;
 use stella_rain_core::validate::{Error, limits};
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SIM_VERSION, Versions};
 
+/// The bundled rules without the `sim_version` 2 combat keys (`common::COMBAT_RULE_KEYS`): the
+/// base the tests below build on, so none reads a shipped combat number.
+fn dormant_bundled() -> Value {
+    common::dormant_rules_value()
+}
+
+/// The dormant bundled rules, parsed.
+fn dormant_rules() -> Rules {
+    Rules::parse(dormant_bundled().to_string().as_bytes(), Versions::CURRENT)
+        .expect("the dormant bundled rules load")
+}
+
 /// The bundled file with the crowd's two numbers set.
 fn file(crowd_target: u64, cap_headroom_pct: u64) -> Vec<u8> {
-    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    let mut v = dormant_bundled();
     v["crowd_target"] = json!(crowd_target);
     v["cap_headroom_pct"] = json!(cap_headroom_pct);
     v.to_string().into_bytes()
 }
 
-/// The bundled file with one field set.
+/// The dormant bundled file with one field set.
 fn with(field: &str, value: i64) -> Vec<u8> {
-    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    let mut v = dormant_bundled();
     v[field] = json!(value);
     v.to_string().into_bytes()
 }
 
 /// The bundled file with several fields set.
 fn with_all(fields: &[(&str, i64)]) -> Vec<u8> {
-    let mut v: Value = serde_json::from_slice(common::bundled_file("rules")).unwrap();
+    let mut v = dormant_bundled();
     for (field, value) in fields {
         v[*field] = json!(*value);
     }
@@ -543,9 +555,7 @@ fn the_bundled_timer_is_300_and_its_bounds_are_checked() {
     use stella_rain_core::rules::MAX_OFFER_TIMER_TICKS;
     assert_eq!(Rules::bundled().offer_timer_ticks(), 300);
     assert_eq!(MAX_OFFER_TIMER_TICKS, 3600);
-    let bundled: serde_json::Value =
-        serde_json::from_slice(stella_rain_core::pack::ContentFiles::bundled_file("rules"))
-            .unwrap();
+    let bundled = dormant_bundled();
     // At sim_version 2 the key is deprecated; the frozen version 1 rules still read it.
     let versions = Versions {
         schema_version: 1,
@@ -656,23 +666,23 @@ fn poise_keys() -> Value {
     })
 }
 
-/// The bundled file with `patch` merged over it, as bytes.
+/// The dormant bundled file with `patch` merged over it, as bytes.
 fn patched(patch: &Value) -> Vec<u8> {
-    let mut v = bundled_value();
+    let mut v = dormant_bundled();
     for (key, value) in patch.as_object().unwrap() {
         v[key] = value.clone();
     }
     v.to_string().into_bytes()
 }
 
-/// The bundled file with `key` set to `value` after every key of `poise_keys` is named.
+/// The dormant bundled file with `key` set to `value` after every key of `poise_keys` is named.
 fn with_key(key: &str, value: Value) -> Vec<u8> {
     let mut all = poise_keys();
     all[key] = value;
     patched(&all)
 }
 
-/// The bundled file with only `keys` of `poise_keys`, then `key` set to `value`.
+/// The dormant bundled file with only `keys` of `poise_keys`, then `key` set to `value`.
 fn with_only(keys: &[&str], key: &str, value: Value) -> Vec<u8> {
     let all = poise_keys();
     let mut chosen = serde_json::Map::new();
@@ -684,8 +694,8 @@ fn with_only(keys: &[&str], key: &str, value: Value) -> Vec<u8> {
 }
 
 #[test]
-fn c1_the_bundled_file_names_none_of_the_poise_keys() {
-    let v = bundled_value();
+fn c1_the_dormant_bundled_file_names_none_of_the_poise_keys() {
+    let v = dormant_bundled();
     for key in poise_keys().as_object().unwrap().keys() {
         assert!(v.get(key).is_none(), "{key}");
     }
@@ -861,12 +871,12 @@ fn stagger_keys() -> Value {
 }
 
 #[test]
-fn r1_the_bundled_file_names_none_of_the_stagger_keys() {
-    let v = bundled_value();
+fn r1_the_dormant_bundled_file_names_none_of_the_stagger_keys() {
+    let v = dormant_bundled();
     for key in stagger_keys().as_object().unwrap().keys() {
         assert!(v.get(key).is_none(), "{key}");
     }
-    let rules = Rules::bundled();
+    let rules = dormant_rules();
     assert_eq!(rules.staggered_ticks(), 0);
     assert_eq!(rules.stagger_smash(), 0);
     assert_eq!(rules.stagger_values(), [0, 0, 0]);
@@ -876,7 +886,7 @@ fn r1_the_bundled_file_names_none_of_the_stagger_keys() {
     assert_eq!(rules.vulnerable_stagger_pct(), 0);
 }
 
-/// The bundled file with `key` set to `value` after every stagger key is named.
+/// The dormant bundled file with `key` set to `value` after every stagger key is named.
 fn stagger_with(key: &str, value: Value) -> Vec<u8> {
     let mut all = stagger_keys();
     all[key] = value;
@@ -1042,7 +1052,7 @@ fn knockdown_keys() -> Value {
     })
 }
 
-/// The bundled file with `patch` merged over the four keys.
+/// The dormant bundled file with `patch` merged over the four keys.
 fn knockdown_with(patch: Value) -> Vec<u8> {
     let mut all = knockdown_keys();
     for (k, v) in patch.as_object().unwrap() {
@@ -1052,8 +1062,8 @@ fn knockdown_with(patch: Value) -> Vec<u8> {
 }
 
 #[test]
-fn knockdown_r1_the_bundled_file_names_none_of_the_knockdown_keys() {
-    let v = bundled_value();
+fn knockdown_r1_the_dormant_bundled_file_names_none_of_the_knockdown_keys() {
+    let v = dormant_bundled();
     assert!(v.get("down_ticks").is_none());
     assert!(v.get("down_bonus_pct").is_none());
     assert!(
@@ -1064,7 +1074,7 @@ fn knockdown_r1_the_bundled_file_names_none_of_the_knockdown_keys() {
         v.get("stagger_values")
             .is_none_or(|o| o.get("knockdown").is_none())
     );
-    let rules = Rules::bundled();
+    let rules = dormant_rules();
     assert_eq!(rules.down_ticks(), 0);
     assert_eq!(rules.down_bonus_pct(), 0);
     assert_eq!(rules.vulnerable_knockdown_pct(), 0);
@@ -1386,14 +1396,14 @@ fn counter_keys() -> Value {
 }
 
 #[test]
-fn counter_r1_the_bundled_file_names_neither_key() {
-    let v = bundled_value();
+fn counter_r1_the_dormant_bundled_file_names_neither_key() {
+    let v = dormant_bundled();
     assert!(v.get("counter_stun_ticks").is_none());
     assert!(
         v.get("stagger_values")
             .is_none_or(|o| o.get("counter").is_none())
     );
-    let rules = Rules::bundled();
+    let rules = dormant_rules();
     assert_eq!(rules.counter_stun_ticks(), 0);
     assert_eq!(rules.counter_stagger_value(), 0);
 }
@@ -1539,4 +1549,65 @@ fn grace_r4_a_file_naming_every_combat_key_and_the_grace_parses_within_the_size_
     let bytes = patched(&all);
     assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
     Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}
+
+// --- The shipped combat numbers (the bundled rules name them; each family is one content commit) ---
+
+#[test]
+fn the_bundled_file_names_the_poise_numbers() {
+    let r = Rules::bundled();
+    assert_eq!(r.poise_damage_a(), 10);
+    assert_eq!(r.poise_damage_b(), 100);
+    assert_eq!(r.flinch_ticks(), 12);
+    assert_eq!(r.flinch_immune_ticks(), 30);
+}
+
+#[test]
+fn the_bundled_file_names_the_control_numbers() {
+    let r = Rules::bundled();
+    assert_eq!(r.control_repeat_pcts(), [100, 50, 25]);
+    assert_eq!(r.control_reset_ticks(), 180);
+    assert_eq!(r.control_immune_ticks(), 120);
+}
+
+#[test]
+fn the_bundled_file_names_the_vulnerable_numbers() {
+    let r = Rules::bundled();
+    assert_eq!(r.vulnerable_stun_pct(), 20);
+    assert_eq!(r.vulnerable_stagger_pct(), 20);
+}
+
+#[test]
+fn the_bundled_file_names_the_stagger_numbers() {
+    let r = Rules::bundled();
+    assert_eq!(r.staggered_ticks(), 120);
+    assert_eq!(r.stagger_smash(), 100);
+    assert_eq!(r.stagger_values(), [50, 30, 50]);
+    assert_eq!(r.stagger_refill_pcts(), [100, 75, 50]);
+    assert_eq!(r.stagger_drain(), (180, 2));
+    assert_eq!(r.stagger_damage_pct(), 30);
+}
+
+#[test]
+fn the_bundled_file_names_the_knockdown_numbers() {
+    let r = Rules::bundled();
+    assert_eq!(r.down_ticks(), 40);
+    assert_eq!(r.down_bonus_pct(), 25);
+    assert_eq!(r.vulnerable_knockdown_pct(), 20);
+    assert_eq!(r.knockdown_stagger_value(), 50);
+}
+
+#[test]
+fn the_bundled_file_names_the_counter_stun_number() {
+    let r = Rules::bundled();
+    assert_eq!(r.counter_stun_ticks(), 60);
+    assert_eq!(r.counter_stagger_value(), 250);
+}
+
+#[test]
+fn the_bundled_file_is_refused_at_sim_version_1_naming_its_first_combat_key() {
+    // A version 1 parse of the shipped file refuses its sim_version 2 keys; the first is
+    // `poise_damage_a`.
+    let bytes = ContentFiles::bundled_file("rules");
+    assert!(paths(Rules::parse(bytes, V1)).contains(&"$.poise_damage_a".to_string()));
 }

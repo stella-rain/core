@@ -278,6 +278,39 @@ pub fn bundled_file(name: &str) -> &'static [u8] {
     ContentFiles::bundled_file(name)
 }
 
+/// The `sim_version` 2 combat keys of `rules.json` (poise and flinch, the control list,
+/// `vulnerable`, the stagger numbers, knockdown and the counter stun).
+pub const COMBAT_RULE_KEYS: [&str; 18] = [
+    "poise_damage_a",
+    "poise_damage_b",
+    "flinch_ticks",
+    "flinch_immune_ticks",
+    "control_repeat_pcts",
+    "control_reset_ticks",
+    "control_immune_ticks",
+    "vulnerable_pcts",
+    "staggered_ticks",
+    "stagger_smash",
+    "stagger_values",
+    "stagger_refill_pcts",
+    "stagger_drain_delay_ticks",
+    "stagger_drain_per_tick",
+    "stagger_damage_pct",
+    "down_ticks",
+    "down_bonus_pct",
+    "counter_stun_ticks",
+];
+
+/// The bundled rules without any of `COMBAT_RULE_KEYS`: the base a test sets its own combat
+/// preconditions on, so it reads no shipped combat number.
+pub fn dormant_rules_value() -> Value {
+    let mut v: Value = serde_json::from_slice(bundled_file("rules")).unwrap();
+    for key in COMBAT_RULE_KEYS {
+        v.as_object_mut().unwrap().remove(key);
+    }
+    v
+}
+
 /// The bundled content with an enemy's attack at the design value of the older tests: 100 stored
 /// (1 shown), so a stage's hand-worked hit points last the hits its test counts. The bundled
 /// value is 10,000 (`bundled_engine`).

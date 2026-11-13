@@ -820,6 +820,10 @@ mod tests {
         let (mut w, mut s) = bare();
         w.tuning.down_ticks = 30;
         w.has_down = true;
+        // No control list unless a test names one: the bundled list stays out.
+        w.tuning.control_repeat_len = 0;
+        w.tuning.control_reset_ticks = 0;
+        w.tuning.control_immune_ticks = 0;
         let e = &mut s.enemies[0];
         assert!(e.elite.is_none() && e.hp > 0, "a regular enemy");
         e.stun_immune = 0;

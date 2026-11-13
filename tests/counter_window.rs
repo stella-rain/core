@@ -10,7 +10,6 @@ use stella_rain_core::engine::Engine;
 use stella_rain_core::event::DomainEvent;
 use stella_rain_core::id::{EntityId, PlayerIdx};
 use stella_rain_core::input::Input;
-use stella_rain_core::pack::ContentFiles;
 use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::snapshot::{EntityKind, EntityView};
@@ -57,7 +56,7 @@ fn rules_counter() -> Value {
 }
 
 fn content_with(patch: Value) -> RunContent {
-    let mut v: Value = serde_json::from_slice(ContentFiles::bundled_file("rules")).unwrap();
+    let mut v: Value = dormant_rules_value();
     for (k, x) in patch.as_object().unwrap() {
         v[k] = x.clone();
     }
