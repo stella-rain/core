@@ -57,7 +57,10 @@ fn pack(kinds: Vec<Value>) -> Pack {
     let rules = v["rules"].as_object_mut().expect("the rules");
     rules.remove("counter_stun_ticks");
     rules.remove("vulnerable_pcts");
-    if let Some(values) = rules.get_mut("stagger_values").and_then(Value::as_object_mut) {
+    if let Some(values) = rules
+        .get_mut("stagger_values")
+        .and_then(Value::as_object_mut)
+    {
         values.remove("counter");
     }
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
