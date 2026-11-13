@@ -261,7 +261,7 @@ fn elite_mid_lobs_three_and_charges() {
         json!({
             "when": { "type": "always" }, "target": "nearest_ally",
             "do": { "type": "attack", "attack": { "inline": [
-                { "kind": "wind_up", "ticks": 55, "damage": 4000, "spawn": [
+                { "kind": "wind_up", "counterable": true, "ticks": 55, "damage": 4000, "spawn": [
                     { "type": "ring", "count": 3, "body": [
                         { "type": "zone", "shape": { "type": "circle", "radius": 7168 },
                           "anchor": "target", "offset": { "forward": 10_240 },
