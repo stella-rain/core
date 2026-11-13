@@ -1660,3 +1660,96 @@ fn a_transition_is_clear_orbs_and_the_old_name_is_refused() {
     with_old["boss"]["phases"][1]["transition"] = json!([{ "type": "clear_bullets" }]);
     assert!(serde_json::from_value::<Stage>(with_old).is_err());
 }
+
+// --- The counterable wind-up (dormant until content flags a phase) -------------------------------
+
+const BOSS_TIMELINE_ATTACK: &str = "/boss/phases/0/timeline/1/attack";
+
+/// A `sim_version` 2 stage whose enemy attack is `phases`.
+fn counter_enemy(phases: Value, version: u64) -> Value {
+    let mut v = with_phases(phases);
+    v["sim_version"] = json!(version);
+    v
+}
+
+fn counter_phase(kind: &str, counterable: bool) -> Value {
+    json!({ "kind": kind, "ticks": 5, "counterable": counterable })
+}
+
+#[test]
+fn counter_v1_a_wind_up_of_an_enemy_s_and_the_boss_s_attack_may_be_counterable() {
+    assert_valid(&counter_enemy(
+        json!([counter_phase("wind_up", true), phase(json!({}))]),
+        2,
+    ));
+    let mut boss = base();
+    boss["sim_version"] = json!(2);
+    set(
+        &mut boss,
+        BOSS_TIMELINE_ATTACK,
+        json!({ "inline": [counter_phase("wind_up", true), phase(json!({}))] }),
+    );
+    assert_valid(&boss);
+}
+
+#[test]
+fn counter_v2_only_a_wind_up_is_counterable() {
+    for kind in ["active", "recovery"] {
+        let v = counter_enemy(json!([counter_phase(kind, true)]), 2);
+        let issue = first_issue(&v);
+        assert!(issue.path.ends_with("[0].counterable"), "{issue:?}");
+        assert!(
+            issue.message.contains("only a wind_up phase is counterable"),
+            "{issue:?}"
+        );
+    }
+}
+
+#[test]
+fn counter_v3_only_an_enemy_s_or_the_boss_s_attack_is_counterable() {
+    let phases = json!([counter_phase("wind_up", true), phase(json!({}))]);
+    let mut main = with_weapon(main_weapon(chain(1), |_| {}));
+    main["sim_version"] = json!(2);
+    set(
+        &mut main,
+        "/player/weapon/inline/combo/main/attack",
+        json!({ "inline": phases.clone() }),
+    );
+    let mut ally = base();
+    ally["sim_version"] = json!(2);
+    ally["companions"][0]["rules"][0]["do"] = json!({ "type": "attack", "attack": { "inline": phases } });
+    ally["companions"][0]["rules"][0]["target"] = json!("nearest_enemy");
+    for v in [main, ally] {
+        let issue = first_issue(&v);
+        assert!(issue.path.ends_with(".counterable"), "{issue:?}");
+        assert!(
+            issue
+                .message
+                .contains("an enemy's or the boss's attack only"),
+            "{issue:?}"
+        );
+    }
+}
+
+#[test]
+fn counter_v4_at_sim_version_1_it_needs_sim_version_2() {
+    let v = counter_enemy(json!([counter_phase("wind_up", true), phase(json!({}))]), 1);
+    let issue = first_issue(&v);
+    assert!(issue.path.ends_with("[0].counterable"), "{issue:?}");
+    assert!(issue.message.contains("needs sim_version 2"), "{issue:?}");
+}
+
+#[test]
+fn counter_v5_false_and_absent_are_the_same_file() {
+    let flagged = counter_enemy(json!([counter_phase("wind_up", false)]), 1);
+    assert_valid(&flagged);
+    let s = stage(&flagged);
+    let back = serde_json::to_value(&s).unwrap();
+    assert!(
+        back.pointer("/waves/0/enemy/rules/0/do/attack/inline/0")
+            .unwrap()
+            .get("counterable")
+            .is_none(),
+        "false is skipped when written"
+    );
+}
