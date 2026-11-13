@@ -1479,3 +1479,64 @@ fn counter_r4_a_file_naming_every_stagger_knockdown_and_counter_key_parses_withi
     assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
     Rules::parse(&bytes, Versions::CURRENT).expect("parses");
 }
+
+// --- The ranged grace (`ranged_grace_ticks`, `sim_version` 2) ------------------------------------
+
+#[test]
+fn grace_r1_the_bundled_file_names_no_grace() {
+    assert!(bundled_value().get("ranged_grace_ticks").is_none());
+    assert_eq!(Rules::bundled().ranged_grace_ticks(), 0);
+}
+
+#[test]
+fn grace_r2_the_bound_is_checked_at_its_key() {
+    for ok in [1, 600] {
+        let file = patched(&json!({ "ranged_grace_ticks": ok }));
+        let rules = Rules::parse(&file, Versions::CURRENT).expect("parses");
+        assert_eq!(u32::from(rules.ranged_grace_ticks()), ok);
+    }
+    for bad in [0, 601] {
+        let file = patched(&json!({ "ranged_grace_ticks": bad }));
+        assert_eq!(
+            paths(Rules::parse(&file, Versions::CURRENT)),
+            ["$.ranged_grace_ticks"],
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn grace_r3_a_pack_at_sim_version_1_refuses_the_key() {
+    let file = patched(&json!({ "ranged_grace_ticks": 60 }));
+    let Err(Error::Invalid(issues)) = Rules::parse(&file, V1) else {
+        panic!("not refused at sim_version 1");
+    };
+    assert!(
+        issues
+            .iter()
+            .any(|i| i.path == "$.ranged_grace_ticks" && i.message.contains("needs sim_version 2")),
+        "{issues:?}"
+    );
+}
+
+#[test]
+fn grace_r4_a_file_naming_every_combat_key_and_the_grace_parses_within_the_size_limit() {
+    let mut all = poise_keys();
+    for (k, v) in stagger_keys().as_object().unwrap() {
+        if k == "vulnerable_pcts" {
+            all["vulnerable_pcts"]["stagger"] = v["stagger"].clone();
+        } else {
+            all[k] = v.clone();
+        }
+    }
+    all["down_ticks"] = json!(30);
+    all["down_bonus_pct"] = json!(50);
+    all["vulnerable_pcts"]["knockdown"] = json!(20);
+    all["stagger_values"]["knockdown"] = json!(5);
+    all["counter_stun_ticks"] = json!(40);
+    all["stagger_values"]["counter"] = json!(60);
+    all["ranged_grace_ticks"] = json!(60);
+    let bytes = patched(&all);
+    assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
+    Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}
