@@ -72,6 +72,7 @@ mod equipment_slots;
 mod evade;
 mod expertise;
 mod expertise_gauge;
+mod expertise_spirit;
 mod explosion;
 mod extremes;
 mod frozen_v1;

@@ -167,6 +167,8 @@ mod offer_rating;
 mod repeat_tests;
 mod slots;
 #[cfg(test)]
+mod spirit_tests;
+#[cfg(test)]
 mod try_styles_tests;
 pub(crate) use expertise::TreeError;
 pub(crate) use offer_rating::swap_ratings;
