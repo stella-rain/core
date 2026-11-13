@@ -52,6 +52,17 @@ fn pack(kinds: Vec<Value>) -> Pack {
         .find(|w| w["weapon"] == "giant_hammer")
         .expect("the Hammer's expertise");
     w["styles"][0]["kinds"] = json!(kinds);
+    // The tests set their own stun: the bundled counter stun, its gauge value and the
+    // `vulnerable` a landing stun adds (a second status of the stun's ticks) stay out.
+    let rules = v["rules"].as_object_mut().expect("the rules");
+    rules.remove("counter_stun_ticks");
+    rules.remove("vulnerable_pcts");
+    if let Some(values) = rules
+        .get_mut("stagger_values")
+        .and_then(Value::as_object_mut)
+    {
+        values.remove("counter");
+    }
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
 }
 

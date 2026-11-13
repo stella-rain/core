@@ -3,7 +3,6 @@
 
 use serde_json::{Value, json};
 use stella_rain_core::engine::Engine;
-use stella_rain_core::pack::ContentFiles;
 use stella_rain_core::rules::Rules;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::stage::Stage;
@@ -115,7 +114,7 @@ fn c7_a_phases_poise_damage_is_a_hit_phase_of_the_main_characters() {
 }
 
 fn content_naming(patch: Value) -> RunContent {
-    let mut v: Value = serde_json::from_slice(ContentFiles::bundled_file("rules")).unwrap();
+    let mut v: Value = dormant_rules_value();
     for (k, x) in patch.as_object().unwrap() {
         v[k] = x.clone();
     }
