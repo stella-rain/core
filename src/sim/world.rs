@@ -12,13 +12,15 @@ use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement, Skill};
 use crate::expertise::{
     CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind, TempoEffect,
+    TriggerEffect,
 };
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::limits::{
     MAX_ADVANCE_DISTANCE, MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT,
-    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS,
+    MAX_WEAPON_GAUGE,
 };
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
@@ -455,6 +457,8 @@ pub(crate) struct Tuning {
     pub vulnerable_stun_pct: u16,
     /// The perfect evade (`sim_version` 2); `None`: the rule is off.
     pub perfect_evade: Option<crate::rules::PerfectEvade>,
+    /// The rally (`sim_version` 2); `None`: the rule is off.
+    pub rally: Option<crate::rules::Rally>,
     /// The stagger gauge (`sim_version` 2; each 0 when its key is absent): what a smash step adds
     /// when its phase names none, what a resisted `[stun, pull, knockback]` adds, the percent of a
     /// fill kept by bars broken (`stagger_refill_len` entries, 0: all in full), the ticks before
@@ -540,6 +544,7 @@ impl Tuning {
             control_immune_ticks: rules.control_immune_ticks(),
             vulnerable_stun_pct: u16::try_from(rules.vulnerable_stun_pct()).unwrap_or(u16::MAX),
             perfect_evade: rules.perfect_evade(),
+            rally: rules.rally(),
             stagger_smash: rules.stagger_smash(),
             stagger_values: rules.stagger_values(),
             stagger_refill_pcts,
@@ -661,6 +666,22 @@ pub(crate) struct World {
     grant_tempos: Vec<Option<TempoGrant>>,
     /// Some style names a combo tempo: the tick looks for one only then.
     pub has_tempo: bool,
+    /// The giant trigger each of those copies has (the first `giant_trigger` kind of the style's
+    /// own level and the path levels taken), at the same index; empty when no style names one.
+    grant_triggers: Vec<Option<TriggerGrant>>,
+    /// Some style names a giant trigger: the tick looks for one only then.
+    pub has_trigger: bool,
+}
+
+/// A style's giant trigger resolved once: how long the state runs and each effect folded into its
+/// field (0 where it has none, 100 for the rally factor), every number inside its cap (ADR-SVC-1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TriggerGrant {
+    pub ticks: u16,
+    pub range_pct: u32,
+    pub smash_pct: u32,
+    pub rally_pct: u32,
+    pub super_armour: bool,
 }
 
 /// A style's combo tempo resolved once: the most stacks, each stack's attack speed and whether a
@@ -670,6 +691,8 @@ pub(crate) struct TempoGrant {
     pub max_stacks: u8,
     pub speed_pct: u32,
     pub keep_on_smash: bool,
+    /// Full stacks in a held hold are super armour, and only that armour shelters the stacks.
+    pub hold_armour: bool,
 }
 
 /// A style's counter bonus resolved once: the window and each effect folded into its field, 0
@@ -837,6 +860,7 @@ impl World {
         let grant_spirits = grant_spirits(main, weapon.as_ref(), content);
         let grant_counters = grant_counters(main, weapon.as_ref(), content);
         let grant_tempos = grant_tempos(main, weapon.as_ref(), content);
+        let grant_triggers = grant_triggers(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -903,6 +927,8 @@ impl World {
             grant_counters,
             has_tempo: grant_tempos.iter().any(Option::is_some),
             grant_tempos,
+            has_trigger: grant_triggers.iter().any(Option::is_some),
+            grant_triggers,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -1108,6 +1134,19 @@ impl World {
             return None;
         }
         self.grant_tempos.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The giant trigger player `me`'s style gives, read from the same slot as `weapon_of`; none
+    /// after one bool test for a run that names no giant trigger.
+    pub(crate) fn trigger_of(
+        &self,
+        s: &super::state::State,
+        me: PlayerIdx,
+    ) -> Option<&TriggerGrant> {
+        if !self.has_trigger {
+            return None;
+        }
+        self.grant_triggers.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1396,6 +1435,68 @@ fn grant_tempos(
     out
 }
 
+/// The giant trigger of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_triggers(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<TriggerGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let trigger_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::GiantTrigger(t) => Some(trigger_folded(t)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(trigger_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `t` as a flat grant, every number inside its cap.
+fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
+    let mut g = TriggerGrant {
+        ticks: u16::try_from(t.ticks)
+            .unwrap_or(MAX_TRIGGER_TICKS)
+            .clamp(1, MAX_TRIGGER_TICKS),
+        range_pct: 0,
+        smash_pct: 0,
+        rally_pct: 100,
+        super_armour: false,
+    };
+    for e in t.effects.iter().take(4) {
+        match e {
+            TriggerEffect::RangePct { pct } => {
+                g.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
+            }
+            TriggerEffect::SmashPct { pct } => g.smash_pct = (*pct).min(MAX_PCT),
+            TriggerEffect::SuperArmour {} => g.super_armour = true,
+            TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
+        }
+    }
+    g
+}
+
 /// `t` as a flat grant, every number inside its cap.
 fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
     let mut g = TempoGrant {
@@ -1404,11 +1505,13 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
             .clamp(1, MAX_TEMPO_STACKS),
         speed_pct: 0,
         keep_on_smash: false,
+        hold_armour: false,
     };
-    for e in t.effects.iter().take(2) {
+    for e in t.effects.iter().take(3) {
         match e {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
             TempoEffect::KeepOnSmash {} => g.keep_on_smash = true,
+            TempoEffect::SuperArmourAtFull {} => g.hold_armour = true,
         }
     }
     g

@@ -3593,6 +3593,171 @@
             "data"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`player`'s full-gauge smash started its giant trigger: it runs `ticks` ticks (a restart\nwhile it runs emits this again) (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "ticks": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "player",
+                "ticks"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "TriggerStarted",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`player`'s giant trigger ran out or ended with a down (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "TriggerEnded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A hit `player` took added `amount` hit points to its rally, now `rally` (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "amount": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "rally": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "player",
+                "amount",
+                "rally"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "RallyGained",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A combo hit of `player` won `amount` hit points back from its rally, `rally` left\n(ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "amount": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                },
+                "rally": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "player",
+                "amount",
+                "rally"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "RallyWon",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The rest of `player`'s rally was lost, its ticks ran out or it was downed (ADR-SIM-9).",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "RallyLapsed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -6941,6 +7106,17 @@
           "format": "int32",
           "type": "integer"
         },
+        "rally": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RallyView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The rally, while it holds hit points (ADR-SIM-9); absent otherwise."
+        },
         "range_pct": {
           "description": "What the range rewards taken add up to, in percent, before the clamp at\n`MAX_RANGE_PCT`. The wider hit boxes are already in `attacks`.",
           "format": "uint32",
@@ -7055,6 +7231,17 @@
             }
           ],
           "description": "The weapon tree point it holds (equipment mode); absent at `sim_version` 1 and while none is\nheld."
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TriggerView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The giant trigger of its style, while the style grants one, at 0 ticks left too\n(ADR-SIM-9); absent otherwise."
         },
         "type_bonuses": {
           "description": "What the type bonus rewards taken add up to, for each damage type that has any, in the\norder of `DamageType::ALL`, before the clamp at the match-up file's `max_type_bonus_pct`\n.",
@@ -7229,6 +7416,29 @@
       "required": [
         "at",
         "radius",
+        "ticks_left"
+      ],
+      "type": "object"
+    },
+    "RallyView": {
+      "additionalProperties": false,
+      "description": "A player's rally (ADR-SIM-9): the hit points a hit took that its own combo hits can win back,\nthe grey part of the hit points bar. Not state, built each frame.",
+      "properties": {
+        "hp": {
+          "description": "The hit points that can still be won back.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ticks_left": {
+          "description": "The ticks before the rest is lost.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hp",
         "ticks_left"
       ],
       "type": "object"
@@ -8067,6 +8277,36 @@
           "description": "The same for a smash step (B): 0 to 1,000. `sim_version` 2 only. Absent: 0.",
           "format": "uint32",
           "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rally_pct": {
+          "description": "The rally (`sim_version` 2; all three `rally_*` keys or none; absent: the rule is off).\nThe percent of the hit points a hit took that stays as rally: 1 to 100.",
+          "format": "uint32",
+          "maximum": 100,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rally_regain_pct": {
+          "description": "The percent of the damage a combo hit deals that is won back from the rally as hit\npoints: 1 to `limits::MAX_PCT` (1,000).",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rally_ticks": {
+          "description": "Ticks the rally lasts, restarted by a hit that leaves rally: 1 to `MAX_RALLY_TICKS` (600).",
+          "format": "uint32",
+          "maximum": 600,
+          "minimum": 1,
           "type": [
             "integer",
             "null"
@@ -10873,7 +11113,7 @@
           "description": "The style's combo tempo: each swing of a combo step that hits adds a stack, up to\n`max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;\nthe stacks end when the combo resets, when a smash is pressed (unless the stacks are full\nand the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).\nOne per style path: a second is refused.",
           "properties": {
             "effects": {
-              "description": "What the stacks do, each variant at most once; 1 to 2 entries, `speed_pct` among them.",
+              "description": "What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them.",
               "items": {
                 "$ref": "#/$defs/TempoEffect"
               },
@@ -10894,6 +11134,36 @@
           "required": [
             "type",
             "max_stacks",
+            "effects"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one\nrestarts the count) whose effects apply while it runs; being downed or picking another\nstyle ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is\n`full_smash`. One per style path: a second is refused.",
+          "properties": {
+            "effects": {
+              "description": "What the state does, each variant at most once; 1 to 4 entries.",
+              "items": {
+                "$ref": "#/$defs/TriggerEffect"
+              },
+              "type": "array"
+            },
+            "ticks": {
+              "description": "How long the state runs, in ticks. 1 to `MAX_TRIGGER_TICKS`.",
+              "format": "uint32",
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "giant_trigger",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "ticks",
             "effects"
           ],
           "type": "object"
@@ -11091,8 +11361,11 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster.",
+          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour.",
           "properties": {
+            "armour_at_full": {
+              "type": "boolean"
+            },
             "max_stacks": {
               "format": "uint32",
               "minimum": 0,
@@ -11111,7 +11384,50 @@
           "required": [
             "type",
             "max_stacks",
-            "pct_per_stack"
+            "pct_per_stack",
+            "armour_at_full"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and\nwhile it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash\nsteps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,\nwith `super_armour`, gives super armour (0 and false where the kind names none).",
+          "properties": {
+            "rally_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "range_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "smash_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "super_armour": {
+              "type": "boolean"
+            },
+            "ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "giant_trigger",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "ticks",
+            "range_pct",
+            "smash_pct",
+            "rally_pct",
+            "super_armour"
           ],
           "type": "object"
         }
@@ -11147,6 +11463,20 @@
           "properties": {
             "type": {
               "const": "keep_on_smash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The player has super armour while its stacks are full and a hold is held, and only this\narmour shelters the stacks from a hit.",
+          "properties": {
+            "type": {
+              "const": "super_armour_at_full",
               "type": "string"
             }
           },
@@ -11590,6 +11920,111 @@
       "required": [
         "style",
         "stats"
+      ],
+      "type": "object"
+    },
+    "TriggerEffect": {
+      "description": "What a giant trigger does while it runs: a closed list built into `core`, one variant per\neffect, each bounded alone.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Added to the range percent fixed when a combo step starts, the total held to\n`MAX_RANGE_PCT`. 1 to `MAX_RANGE_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "range_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Added to the attack-up percent of a smash step when it starts. 1 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "smash_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The player has super armour while the state runs.",
+          "properties": {
+            "type": {
+              "const": "super_armour",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A factor, in percent, on the hit points a hit adds to the rally while the state runs\n(200 doubles it). 101 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "rally_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TriggerView": {
+      "additionalProperties": false,
+      "description": "A player's giant trigger (ADR-SIM-9): not state, built each frame from the ticks left and the\nstyle's numbers.",
+      "properties": {
+        "ticks": {
+          "description": "How long one start of the state runs.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ticks_left": {
+          "description": "The ticks the state has left, 0 when it is off.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ticks_left",
+        "ticks"
       ],
       "type": "object"
     },

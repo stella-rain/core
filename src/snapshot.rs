@@ -279,8 +279,23 @@ pub enum StyleKindView {
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
     CounterBonus { window_ticks: u32 },
     /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
-    /// faster.
-    ComboTempoPct { max_stacks: u32, pct_per_stack: u32 },
+    /// faster; `armour_at_full` when the full stacks held in a hold give super armour.
+    ComboTempoPct {
+        max_stacks: u32,
+        pct_per_stack: u32,
+        armour_at_full: bool,
+    },
+    /// The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and
+    /// while it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash
+    /// steps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,
+    /// with `super_armour`, gives super armour (0 and false where the kind names none).
+    GiantTrigger {
+        ticks: u32,
+        range_pct: u32,
+        smash_pct: u32,
+        rally_pct: u32,
+        super_armour: bool,
+    },
 }
 
 /// The kinds one level of a style's path grants.
@@ -584,6 +599,28 @@ pub struct TempoView {
     pub speed_pct: u32,
 }
 
+/// A player's giant trigger (ADR-SIM-9): not state, built each frame from the ticks left and the
+/// style's numbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TriggerView {
+    /// The ticks the state has left, 0 when it is off.
+    pub ticks_left: u32,
+    /// How long one start of the state runs.
+    pub ticks: u32,
+}
+
+/// A player's rally (ADR-SIM-9): the hit points a hit took that its own combo hits can win back,
+/// the grey part of the hit points bar. Not state, built each frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RallyView {
+    /// The hit points that can still be won back.
+    pub hp: u32,
+    /// The ticks before the rest is lost.
+    pub ticks_left: u32,
+}
+
 /// A player's perfect evade after the near miss (ADR-SIM-8).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -627,6 +664,13 @@ pub struct PlayerView {
     /// absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tempo: Option<TempoView>,
+    /// The giant trigger of its style, while the style grants one, at 0 ticks left too
+    /// (ADR-SIM-9); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<TriggerView>,
+    /// The rally, while it holds hit points (ADR-SIM-9); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rally: Option<RallyView>,
     /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
     /// perfect evade (ADR-SIM-8); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]

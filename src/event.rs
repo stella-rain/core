@@ -365,4 +365,31 @@ pub enum DomainEvent {
     TempoLost {
         player: PlayerIdx,
     },
+    /// `player`'s full-gauge smash started its giant trigger: it runs `ticks` ticks (a restart
+    /// while it runs emits this again) (ADR-SIM-9).
+    TriggerStarted {
+        player: PlayerIdx,
+        ticks: u32,
+    },
+    /// `player`'s giant trigger ran out or ended with a down (ADR-SIM-9).
+    TriggerEnded {
+        player: PlayerIdx,
+    },
+    /// A hit `player` took added `amount` hit points to its rally, now `rally` (ADR-SIM-9).
+    RallyGained {
+        player: PlayerIdx,
+        amount: u32,
+        rally: u32,
+    },
+    /// A combo hit of `player` won `amount` hit points back from its rally, `rally` left
+    /// (ADR-SIM-9).
+    RallyWon {
+        player: PlayerIdx,
+        amount: u32,
+        rally: u32,
+    },
+    /// The rest of `player`'s rally was lost, its ticks ran out or it was downed (ADR-SIM-9).
+    RallyLapsed {
+        player: PlayerIdx,
+    },
 }

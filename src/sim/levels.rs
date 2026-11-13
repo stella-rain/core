@@ -182,6 +182,8 @@ pub(super) fn remove_effect(
     if effect == StatEffect::MaxHp {
         player.max_hp = player.max_hp.saturating_sub(amount).max(1);
         player.hp = player.hp.min(player.max_hp);
+        // The rally stays within it (the savepoint's decode refuses more).
+        super::player::rally_clamp(player);
     }
 }
 
