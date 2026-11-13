@@ -44,7 +44,7 @@ fn all_effects() -> Value {
 
 /// The bundled pack with `kinds` on the Hammer's first style.
 fn pack(kinds: Vec<Value>) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
