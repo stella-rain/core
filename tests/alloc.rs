@@ -233,8 +233,8 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
     ("worst_tick_3p", pin(2, 0, 2)),
-    ("rollback", pin(346, 17, 8)),
-    ("rollback_equip", pin(465, 29, 124)),
+    ("rollback", pin(346, 14, 8)),
+    ("rollback_equip", pin(460, 25, 119)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {

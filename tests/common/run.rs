@@ -18,7 +18,7 @@ pub const KEPT_BOT_SEED: u64 = 1;
 /// The world seed of the `stage_skill` run case, found by `search_corpus_run_seeds`: the first
 /// world seed in 1..=20 (with `STAGE_SKILL_BOT_SEED`) whose equipment run uses the black hole and
 /// nothing else, and ends Failed.
-pub const STAGE_SKILL_SEED: u64 = 3;
+pub const STAGE_SKILL_SEED: u64 = 1;
 /// The building bot's seed of the `stage_skill` run case (the first pair of the search, with the
 /// golem chasing and the star pack, that uses the black hole and ends Failed).
 pub const STAGE_SKILL_BOT_SEED: u64 = 1;

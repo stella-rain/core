@@ -50,5 +50,6 @@
   "stagger_damage_pct": 30,
   "down_ticks": 40,
   "down_bonus_pct": 25,
-  "counter_stun_ticks": 60
+  "counter_stun_ticks": 60,
+  "ranged_grace_ticks": 60
 }

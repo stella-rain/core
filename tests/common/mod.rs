@@ -279,8 +279,8 @@ pub fn bundled_file(name: &str) -> &'static [u8] {
 }
 
 /// The `sim_version` 2 combat keys of `rules.json` (poise and flinch, the control list,
-/// `vulnerable`, the stagger numbers, knockdown and the counter stun).
-pub const COMBAT_RULE_KEYS: [&str; 18] = [
+/// `vulnerable`, the stagger numbers, knockdown, the counter stun and the ranged grace).
+pub const COMBAT_RULE_KEYS: [&str; 19] = [
     "poise_damage_a",
     "poise_damage_b",
     "flinch_ticks",
@@ -299,6 +299,7 @@ pub const COMBAT_RULE_KEYS: [&str; 18] = [
     "down_ticks",
     "down_bonus_pct",
     "counter_stun_ticks",
+    "ranged_grace_ticks",
 ];
 
 /// The bundled rules without any of `COMBAT_RULE_KEYS`: the base a test sets its own combat
