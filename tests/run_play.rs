@@ -559,13 +559,13 @@ pub fn equipment_rig(n: u8) -> PartyCase {
 /// `search_corpus_party_seeds` (world 1..=20 x bot 1..=20) that delivers the case's promise
 /// (`party_promise_miss`).
 pub const PARTY_SEEDS: [(&str, u64, u64); 7] = [
-    ("two_time_limit", 1, 1),
+    ("two_time_limit", 1, 3),
     ("three_time_limit", 1, 1),
     ("three_tutorial", 1, 1),
-    ("join_two", 1, 3),
+    ("join_two", 1, 1),
     ("leave_hole", 1, 1),
     ("two_revive", 1, 3),
-    ("three_revive", 1, 4),
+    ("three_revive", 1, 13),
 ];
 
 /// The equipment party case `name` of `PARTY_SEEDS`.
