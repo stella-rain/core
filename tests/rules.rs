@@ -675,14 +675,14 @@ fn patched(patch: &Value) -> Vec<u8> {
     v.to_string().into_bytes()
 }
 
-/// The bundled file with `key` set to `value` after every key of `poise_keys` is named.
+/// The dormant bundled file with `key` set to `value` after every key of `poise_keys` is named.
 fn with_key(key: &str, value: Value) -> Vec<u8> {
     let mut all = poise_keys();
     all[key] = value;
     patched(&all)
 }
 
-/// The bundled file with only `keys` of `poise_keys`, then `key` set to `value`.
+/// The dormant bundled file with only `keys` of `poise_keys`, then `key` set to `value`.
 fn with_only(keys: &[&str], key: &str, value: Value) -> Vec<u8> {
     let all = poise_keys();
     let mut chosen = serde_json::Map::new();
@@ -886,7 +886,7 @@ fn r1_the_dormant_bundled_file_names_none_of_the_stagger_keys() {
     assert_eq!(rules.vulnerable_stagger_pct(), 0);
 }
 
-/// The bundled file with `key` set to `value` after every stagger key is named.
+/// The dormant bundled file with `key` set to `value` after every stagger key is named.
 fn stagger_with(key: &str, value: Value) -> Vec<u8> {
     let mut all = stagger_keys();
     all[key] = value;
@@ -1052,7 +1052,7 @@ fn knockdown_keys() -> Value {
     })
 }
 
-/// The bundled file with `patch` merged over the four keys.
+/// The dormant bundled file with `patch` merged over the four keys.
 fn knockdown_with(patch: Value) -> Vec<u8> {
     let mut all = knockdown_keys();
     for (k, v) in patch.as_object().unwrap() {
