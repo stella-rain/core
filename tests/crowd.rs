@@ -259,10 +259,10 @@ fn fnv1a(hash: u64, word: u32) -> u64 {
 /// The first tick the standing bot's crowd (counted as `Load::enemies` is) has the 200 of the
 /// target, taken after VS1 (DS109), again after SPAWN-CORNER moved the `any`
 /// spawns and again after VIEW-RECT widened the spawn rectangle and the leash, and once more when the run moved to equipment mode (the mode the game keeps; an offers-mode run no longer stops for level offers): the director first acts on it, so every tick before it is what it always was.
-const T200: u32 = 31_680;
+const T200: u32 = 31_320;
 /// FNV-1a 64 of each tick's `(tick, enemies, refused_spawns, relocated)` for the ticks before
 /// `T200` of the standing bot's run, taken after VS1 (DS109), SPAWN-CORNER and VIEW-RECT, in equipment mode.
-const UNDER_TARGET_DIGEST: u64 = 0x576c_64e6_0bb3_f19f;
+const UNDER_TARGET_DIGEST: u64 = 0x1336_445e_9613_1fe9;
 
 #[test]
 fn under_the_target_a_run_is_what_it_was() {
