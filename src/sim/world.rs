@@ -9,7 +9,7 @@ use std::sync::Arc;
 use super::drops::DropTable;
 use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
-use crate::behaviour::{Action, Agent, Movement};
+use crate::behaviour::{Action, Agent, Movement, Skill};
 use crate::expertise::{Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind};
 use crate::fixed::Fx;
 use crate::id::ContentId;
@@ -74,6 +74,9 @@ pub(crate) struct AttackDef {
     /// Whether a phase after the first has a hit box or a `spawn`: a channelled attack, whose
     /// ranged token a cancel cools (`attacks::cancel_runs_of`). A zone-leaving attack is not.
     pub channelled: bool,
+    /// Whether any phase's `spawn` lays a zone, a line or an orb (a bare `wait` does not): what
+    /// the view bar holds back off view for an elite or a companion.
+    pub lays: bool,
 }
 
 /// The two pools of the ranged tokens (RA1, DS83): an attack that lays a line zone takes the
@@ -137,6 +140,9 @@ pub(crate) struct AgentDef {
     pub agent: Agent,
     /// The ranged pool of each rule, by rule; empty when no rule is a `ranged` attack (RA1).
     pub ranged_pools: Vec<Option<RangedPool>>,
+    /// Whether each rule is held to the view (an elite's or a companion's rule that lays
+    /// something or casts a `Shot`); empty when no rule is.
+    pub view_barred: Vec<bool>,
     /// The entry of the run's threat colour table its `threat_colour` names (snapshot only).
     pub colour: Option<ThreatColourIndex>,
     /// The leash may move an enemy of this definition (EC2b): `leash_eligible`. Decided once when
@@ -208,6 +214,7 @@ impl AgentDefs {
             kind: kinds.of(&agent.base),
             agent: agent.clone(),
             ranged_pools: Vec::new(),
+            view_barred: Vec::new(),
             // A companion has none (the validator refuses the field), so the compile side and
             // `colour_of_owner`, which gives a companion's attacks none, agree even for a stage
             // that skipped validation.
@@ -465,6 +472,9 @@ pub(crate) struct Tuning {
     /// elite or the boss; each 0 when the rules do not name it.
     pub counter_stun_ticks: u32,
     pub stagger_counter: u32,
+    /// The ticks a hit on a player keeps a regular enemy's ranged start off it (the grace); 0
+    /// when the rules do not name it.
+    pub ranged_grace_ticks: u16,
 }
 
 impl Tuning {
@@ -538,6 +548,7 @@ impl Tuning {
             stagger_down: rules.knockdown_stagger_value(),
             counter_stun_ticks: rules.counter_stun_ticks(),
             stagger_counter: rules.counter_stagger_value(),
+            ranged_grace_ticks: rules.ranged_grace_ticks(),
         }
     }
 }
@@ -850,6 +861,7 @@ impl World {
         };
         attack_table::compile_run(&mut world, content)?;
         world.resolve_ranged_pools();
+        world.resolve_view_bars();
         world.resolve_program_colours();
         world.has_dash = world
             .attacks
@@ -936,6 +948,39 @@ impl World {
                 .collect();
             if pools.iter().any(Option::is_some) {
                 self.defs.defs[i].ranged_pools = pools;
+            }
+        }
+    }
+
+    /// Sets each elite's and companion's `view_barred`, now that the attacks are compiled.
+    fn resolve_view_bars(&mut self) {
+        for i in 0..self.defs.defs.len() {
+            let def = &self.defs.defs[i];
+            let companion = self
+                .defs
+                .keys
+                .iter()
+                .any(|(k, at)| usize::from(at.0) == i && k.source == AgentSource::Companion);
+            if def.agent.elite.is_none() && !companion {
+                continue;
+            }
+            let colour = def.colour;
+            let barred: Vec<bool> = def
+                .agent
+                .rules
+                .iter()
+                .map(|rule| match &rule.action {
+                    Action::Attack { attack, .. } => {
+                        self.attacks[usize::from(self.attack_index(attack, colour).0)].lays
+                    }
+                    Action::Cast {
+                        skill: Skill::Shot { .. },
+                    } => true,
+                    _ => false,
+                })
+                .collect();
+            if barred.iter().any(|b| *b) {
+                self.defs.defs[i].view_barred = barred;
             }
         }
     }

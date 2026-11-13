@@ -38,6 +38,10 @@ pub(super) fn hurt_player(
     let before_hp = p.hp;
     p.hp = p.hp.saturating_sub(dealt);
     p.invulnerable = stage.tuning.hit_invulnerable_ticks;
+    // sim_version >= 2: a ranged start is kept off a player just hit (the grace, a rules row).
+    if stage.tuning.ranged_grace_ticks > 0 {
+        p.combat.ranged_grace = stage.tuning.ranged_grace_ticks;
+    }
     events.push(DomainEvent::PlayerHit {
         hp_left: p.hp,
         source: HitSource {

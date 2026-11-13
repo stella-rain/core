@@ -7,7 +7,7 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::attack::{AttackPhase, AttackRef};
+use crate::attack::{AttackPhase, AttackRef, Emitter};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Rule, Skill};
 use crate::id::ContentId;
@@ -148,6 +148,7 @@ impl AttackKeys {
             .iter()
             .skip(1)
             .any(|p| p.hit_box.is_some() || !p.spawn.is_empty());
+        let lays = phases.iter().any(|p| lays_something(&p.spawn));
         attacks.push(AttackDef {
             phases,
             preset_id: preset.as_ref().map(|p| Arc::from(p.as_str())),
@@ -156,6 +157,7 @@ impl AttackKeys {
             pool,
             colour,
             channelled,
+            lays,
         });
         let at = AttackIndex(at);
         let first = self.first(attack, colour);
@@ -282,4 +284,17 @@ fn combo_step(step: &Step, out: &mut Vec<AttackRef>) {
         out.push(hold.release.clone());
     }
     branches(&step.next, out);
+}
+
+/// Whether a spawn list lays a zone or an orb, however deep: a `wait` alone holds an attack task
+/// and lays nothing, so the view bar leaves its attack alone.
+fn lays_something(list: &[Emitter]) -> bool {
+    list.iter().any(|n| match n {
+        Emitter::Zone { .. } | Emitter::Orb { .. } => true,
+        Emitter::Repeat { body, .. }
+        | Emitter::Ring { body, .. }
+        | Emitter::Spread { body, .. }
+        | Emitter::Rotate { body, .. } => lays_something(body),
+        Emitter::Wait { .. } => false,
+    })
 }
