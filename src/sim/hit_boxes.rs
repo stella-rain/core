@@ -201,22 +201,23 @@ fn land(
             cage_beams(stage, s, me, events);
         }
     }
-    let gauge = stage.has_gauge;
+    let (gauge, tempo) = (stage.has_gauge, stage.has_tempo);
     for w in swings {
         if w.friendly {
             let grid = grid.get_or_insert_with(|| enemy_grid(stage, s));
             hit_enemy_side(stage, s, grid, w, (bits, found), events);
-            if gauge && w.combo {
-                // The enemies this swing hit now, each counted once: the weapon gauge's fill.
+            if (gauge || tempo) && w.combo {
+                // The enemies this swing hit now, each counted once: the weapon gauge's fill and
+                // the combo tempo's stack.
                 let tick = s.tick;
-                let n = hits_of(s, w).iter().filter(|h| h.1 == tick).count();
-                super::player::gauge_from_hits(
-                    stage,
-                    s,
-                    w.owner,
-                    u32::try_from(n).unwrap_or(u32::MAX),
-                    events,
-                );
+                let n = u32::try_from(hits_of(s, w).iter().filter(|h| h.1 == tick).count())
+                    .unwrap_or(u32::MAX);
+                if gauge {
+                    super::player::gauge_from_hits(stage, s, w.owner, n, events);
+                }
+                if tempo {
+                    super::player::tempo_from_hits(stage, s, w.owner, n, events);
+                }
             }
         } else {
             hit_players_side(stage, s, w, events);

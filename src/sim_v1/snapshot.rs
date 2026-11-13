@@ -229,6 +229,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             gauge: None,
             spirit: None,
             counter: None,
+            tempo: None,
             perfect_evade: None,
             combo: {
                 let (presses, dash, buffered, window_left, auto) = combo_view(s);

@@ -278,6 +278,9 @@ pub enum StyleKindView {
     Spirit { max_level: u8, decay_ticks: u32 },
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
     CounterBonus { window_ticks: u32 },
+    /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
+    /// faster.
+    ComboTempoPct { max_stacks: u32, pct_per_stack: u32 },
 }
 
 /// The kinds one level of a style's path grants.
@@ -568,6 +571,19 @@ pub struct CounterView {
     pub taken: bool,
 }
 
+/// A player's combo tempo (ADR-SIM-9): not state, built each frame from the stacks held and the
+/// style's numbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TempoView {
+    /// The stacks held, 0 to `max_stacks`.
+    pub stacks: u32,
+    /// The most stacks the style holds.
+    pub max_stacks: u32,
+    /// The attack speed the stacks give, in percent, before the run's attack speed cap.
+    pub speed_pct: u32,
+}
+
 /// A player's perfect evade after the near miss (ADR-SIM-8).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -607,6 +623,10 @@ pub struct PlayerView {
     /// otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub counter: Option<CounterView>,
+    /// The combo tempo of its style, while the style grants one, at 0 stacks too (ADR-SIM-9);
+    /// absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tempo: Option<TempoView>,
     /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
     /// perfect evade (ADR-SIM-8); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
