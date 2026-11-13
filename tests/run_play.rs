@@ -541,7 +541,7 @@ pub fn equipment_party(n: u8) -> PartyCase {
 
 /// The (world seed, bot seed) of `equipment_rig_1`, `_2` and `_3` (`search_equipment_rig_seeds`
 /// in `party_bot.rs`).
-pub const EQUIP_RIG_SEEDS: [(u64, u64); 3] = [(2, 2), (1, 6), (1, 1)];
+pub const EQUIP_RIG_SEEDS: [(u64, u64); 3] = [(2, 2), (1, 1), (1, 2)];
 
 /// The building rig case of `n` (1 to 3) players: every slot a `PartyBot` that builds.
 pub fn equipment_rig(n: u8) -> PartyCase {
