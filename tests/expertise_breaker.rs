@@ -260,17 +260,17 @@ fn a_path_may_name_the_breaker_at_several_levels() {
     assert!(parse_at(&file(), Versions::CURRENT).is_ok());
 }
 
-/// S3: the bundled pack names no breaker kind, and the kind's JSON serializes back to itself.
+/// S3: the bundled pack names the breaker kind, and the kind's JSON serializes back to itself.
 #[test]
-fn the_kind_round_trips_and_the_bundled_file_names_none() {
+fn the_kind_round_trips_and_the_bundled_file_names_it() {
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
-    assert!(!bundled.contains("breaker"));
+    assert!(bundled.contains("breaker"));
     let kind: StyleKind = serde_json::from_value(breaker()).expect("the kind parses");
     assert_eq!(serde_json::to_value(&kind).unwrap(), breaker());
 }
 
 /// S4: the views carry the kind compactly (0 and no `burst` where it names none) and the
-/// bundled pack names none.
+/// bundled pack's views carry it.
 #[test]
 fn the_views_carry_the_breaker_kind() {
     let build = |kinds: Value| {
@@ -321,7 +321,7 @@ fn the_views_carry_the_breaker_kind() {
     assert_eq!(ready, json!([want]));
     let bundled = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let ready = serde_json::to_string(bundled.players[0].tree_ready.as_ref().unwrap()).unwrap();
-    assert!(!ready.contains("breaker"));
+    assert!(ready.contains("breaker"));
 }
 
 /// S6: the stagger burst uses the event enum's tag form (`type` and `data`, the player by name).
