@@ -30,7 +30,7 @@
 use super::World;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
-    TABLE_LEVELS, TempoEffect, WeaponExpertise,
+    TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
@@ -625,10 +625,41 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     .iter()
                     .find_map(|e| match e {
                         TempoEffect::SpeedPct { pct } => Some(*pct),
-                        TempoEffect::KeepOnSmash {} => None,
+                        _ => None,
                     })
                     .unwrap_or(0),
+                armour_at_full: t
+                    .effects
+                    .iter()
+                    .any(|e| matches!(e, TempoEffect::SuperArmourAtFull {})),
             },
+            StyleKind::GiantTrigger(t) => {
+                let mut view = StyleKindView::GiantTrigger {
+                    ticks: t.ticks,
+                    range_pct: 0,
+                    smash_pct: 0,
+                    rally_pct: 0,
+                    super_armour: false,
+                };
+                if let StyleKindView::GiantTrigger {
+                    range_pct,
+                    smash_pct,
+                    rally_pct,
+                    super_armour,
+                    ..
+                } = &mut view
+                {
+                    for effect in &t.effects {
+                        match effect {
+                            TriggerEffect::RangePct { pct } => *range_pct = *pct,
+                            TriggerEffect::SmashPct { pct } => *smash_pct = *pct,
+                            TriggerEffect::RallyPct { pct } => *rally_pct = *pct,
+                            TriggerEffect::SuperArmour {} => *super_armour = true,
+                        }
+                    }
+                }
+                view
+            }
         })
         .collect()
 }

@@ -18,7 +18,8 @@
 //! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
 //! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
 //! and the first dash-branch step inside its window takes, or a combo tempo whose stacks, gained
-//! from the swings that hit, speed the attacks the combo starts (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! from the swings that hit, speed the attacks the combo starts, or a giant trigger that the
+//! full-gauge smash starts and that runs a time with a closed list of effects (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -38,7 +39,7 @@ use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
     MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
 };
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
@@ -216,6 +217,60 @@ pub enum StyleKind {
     /// and the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).
     /// One per style path: a second is refused.
     ComboTempoPct(ComboTempo),
+    /// The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one
+    /// restarts the count) whose effects apply while it runs; being downed or picking another
+    /// style ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is
+    /// `full_smash`. One per style path: a second is refused.
+    GiantTrigger(GiantTrigger),
+}
+
+/// A giant trigger's numbers, every one bounded by the validator and clamped again when the
+/// world is built (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GiantTrigger {
+    /// How long the state runs, in ticks. 1 to `MAX_TRIGGER_TICKS`.
+    #[schemars(range(min = 1, max = MAX_TRIGGER_TICKS))]
+    pub ticks: u32,
+    /// What the state does, each variant at most once; 1 to 4 entries.
+    pub effects: Vec<TriggerEffect>,
+}
+
+/// What a giant trigger does while it runs: a closed list built into `core`, one variant per
+/// effect, each bounded alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TriggerEffect {
+    /// Added to the range percent fixed when a combo step starts, the total held to
+    /// `MAX_RANGE_PCT`. 1 to `MAX_RANGE_PCT`.
+    RangePct {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
+    /// Added to the attack-up percent of a smash step when it starts. 1 to `MAX_PCT`.
+    SmashPct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// The player has super armour while the state runs.
+    SuperArmour {},
+    /// A factor, in percent, on the hit points a hit adds to the rally while the state runs
+    /// (200 doubles it). 101 to `MAX_PCT`.
+    RallyPct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
+}
+
+impl TriggerEffect {
+    fn name(&self) -> u8 {
+        match self {
+            TriggerEffect::RangePct { .. } => 0,
+            TriggerEffect::SmashPct { .. } => 1,
+            TriggerEffect::SuperArmour {} => 2,
+            TriggerEffect::RallyPct { .. } => 3,
+        }
+    }
 }
 
 /// A combo tempo's numbers, every one bounded by the validator and clamped again when the world
@@ -226,7 +281,7 @@ pub struct ComboTempo {
     /// The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.
     #[schemars(range(min = 1, max = MAX_TEMPO_STACKS))]
     pub max_stacks: u32,
-    /// What the stacks do, each variant at most once; 1 to 2 entries, `speed_pct` among them.
+    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them.
     pub effects: Vec<TempoEffect>,
 }
 
@@ -243,6 +298,9 @@ pub enum TempoEffect {
     },
     /// A smash pressed with the stacks full leaves them; below full it ends them as it always does.
     KeepOnSmash {},
+    /// The player has super armour while its stacks are full and a hold is held, and only this
+    /// armour shelters the stacks from a hit.
+    SuperArmourAtFull {},
 }
 
 impl TempoEffect {
@@ -250,6 +308,7 @@ impl TempoEffect {
         match self {
             TempoEffect::SpeedPct { .. } => 0,
             TempoEffect::KeepOnSmash {} => 1,
+            TempoEffect::SuperArmourAtFull {} => 2,
         }
     }
 }
@@ -795,6 +854,7 @@ fn check_level(
             StyleKind::Spirit(s) => check_spirit(issue, &at, s),
             StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c),
             StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t),
+            StyleKind::GiantTrigger(t) => check_giant_trigger(issue, &at, t),
         }
     }
 }
@@ -892,15 +952,15 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
             format!("1 to {MAX_TEMPO_STACKS} (found {})", t.max_stacks),
         );
     }
-    if t.effects.is_empty() || t.effects.len() > 2 {
+    if t.effects.is_empty() || t.effects.len() > 3 {
         issue(
             format!("{at}.effects"),
-            format!("1 to 2 effects (found {})", t.effects.len()),
+            format!("1 to 3 effects (found {})", t.effects.len()),
         );
     }
-    let mut seen = [false; 2];
+    let mut seen = [false; 3];
     let mut speed = None;
-    for (e, effect) in t.effects.iter().enumerate().take(2) {
+    for (e, effect) in t.effects.iter().enumerate().take(3) {
         let at = format!("{at}.effects[{e}]");
         if let TempoEffect::SpeedPct { pct } = effect {
             if !(1..=MAX_ATTACK_SPEED_PCT).contains(pct) {
@@ -917,7 +977,7 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
         }
         *slot = true;
     }
-    if !t.effects.is_empty() && t.effects.len() <= 2 {
+    if !t.effects.is_empty() && t.effects.len() <= 3 {
         match speed {
             None => issue(format!("{at}.effects"), "names no speed_pct".into()),
             Some(pct) if (1..=MAX_ATTACK_SPEED_PCT).contains(&pct) => {
@@ -933,6 +993,42 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
             }
             Some(_) => {}
         }
+    }
+}
+
+/// A giant trigger's numbers, each in its own range; it names an effect once.
+fn check_giant_trigger(issue: &mut impl FnMut(String, String), at: &str, t: &GiantTrigger) {
+    if !(1..=u32::from(MAX_TRIGGER_TICKS)).contains(&t.ticks) {
+        issue(
+            format!("{at}.ticks"),
+            format!("1 to {MAX_TRIGGER_TICKS} (found {})", t.ticks),
+        );
+    }
+    if t.effects.is_empty() || t.effects.len() > 4 {
+        issue(
+            format!("{at}.effects"),
+            format!("1 to 4 effects (found {})", t.effects.len()),
+        );
+    }
+    let mut seen = [false; 4];
+    for (e, effect) in t.effects.iter().enumerate().take(4) {
+        let at = format!("{at}.effects[{e}]");
+        let bound = match effect {
+            TriggerEffect::RangePct { pct } => Some((*pct, 1, MAX_RANGE_PCT)),
+            TriggerEffect::SmashPct { pct } => Some((*pct, 1, MAX_PCT)),
+            TriggerEffect::RallyPct { pct } => Some((*pct, 101, MAX_PCT)),
+            TriggerEffect::SuperArmour {} => None,
+        };
+        if let Some((pct, lo, hi)) = bound
+            && !(lo..=hi).contains(&pct)
+        {
+            issue(format!("{at}.pct"), format!("{lo} to {hi} (found {pct})"));
+        }
+        let slot = &mut seen[usize::from(effect.name())];
+        if *slot {
+            issue(at, "the kind already names this effect".into());
+        }
+        *slot = true;
     }
 }
 
@@ -1018,6 +1114,7 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     let mut spirit_set = false;
     let mut counter_set = false;
     let mut tempo_set = false;
+    let mut trigger_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -1093,6 +1190,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     tempo_set = true;
+                }
+                StyleKind::GiantTrigger(_) => {
+                    if trigger_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already names a giant trigger".into(),
+                        );
+                    }
+                    trigger_set = true;
                 }
             }
         }
@@ -1256,6 +1362,7 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 StyleKind::CounterBonus(_) => {}
                 // Nor does the combo tempo (`World::tempo_of`).
                 StyleKind::ComboTempoPct(_) => {}
+                StyleKind::GiantTrigger(_) => {}
             }
         }
     }

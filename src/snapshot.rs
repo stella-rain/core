@@ -279,8 +279,23 @@ pub enum StyleKindView {
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
     CounterBonus { window_ticks: u32 },
     /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
-    /// faster.
-    ComboTempoPct { max_stacks: u32, pct_per_stack: u32 },
+    /// faster; `armour_at_full` when the full stacks held in a hold give super armour.
+    ComboTempoPct {
+        max_stacks: u32,
+        pct_per_stack: u32,
+        armour_at_full: bool,
+    },
+    /// The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and
+    /// while it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash
+    /// steps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,
+    /// with `super_armour`, gives super armour (0 and false where the kind names none).
+    GiantTrigger {
+        ticks: u32,
+        range_pct: u32,
+        smash_pct: u32,
+        rally_pct: u32,
+        super_armour: bool,
+    },
 }
 
 /// The kinds one level of a style's path grants.

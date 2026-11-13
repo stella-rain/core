@@ -1405,10 +1405,11 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
         speed_pct: 0,
         keep_on_smash: false,
     };
-    for e in t.effects.iter().take(2) {
+    for e in t.effects.iter().take(3) {
         match e {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
             TempoEffect::KeepOnSmash {} => g.keep_on_smash = true,
+            TempoEffect::SuperArmourAtFull {} => {}
         }
     }
     g
