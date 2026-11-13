@@ -277,6 +277,10 @@
           "description": "A powerful attack: its hits on the main character, by hit box or by the zones the phase\nspawns, break a charge in progress (core#83).",
           "type": "boolean"
         },
+        "counterable": {
+          "description": "A `wind_up` phase of an enemy's or the boss's attack only: a smash step of the main\ncharacter's whose hit box hits the attacker while the phase runs counters it (cancels the\nattack, stuns a regular enemy or an elite, staggers an elite or the boss). `sim_version` 2\nonly; absent or false: the phase cannot be countered.",
+          "type": "boolean"
+        },
         "damage": {
           "description": "Base damage of the phase's hits and of the zones it spawns. Absent, it is\nwhat the attacker's own attack does: the main character's `atk`, a `shot` skill's\n`damage`, or 100 (1 at the design values) for an enemy or the boss.",
           "format": "uint32",
@@ -583,6 +587,10 @@
             }
           ],
           "description": "Where its hit box is centred, offset along `facing`, when that is not its attacker: an\non-hit rune's attack, at the point the combo step hit."
+        },
+        "counterable": {
+          "description": "The run's current phase is a `counterable` wind-up: the frontend marks the attack as one a\nsmash counters. Derived each tick, not state; absent is the key missing from the JSON.",
+          "type": "boolean"
         },
         "facing": {
           "$ref": "#/$defs/Facing",
@@ -2276,6 +2284,43 @@
             },
             "type": {
               "const": "KnockdownEnded",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A smash step of `player`'s hit `attacker` during a `counterable` wind-up and countered\nit: the attack is cancelled. `attack` is the attack's preset, absent for an inline one.",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "attack": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "attacker": {
+                  "$ref": "#/$defs/EntityId"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "attacker",
+                "player"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "Countered",
               "type": "string"
             }
           },
@@ -6731,6 +6776,10 @@
           },
           "type": "array"
         },
+        "super_armour": {
+          "description": "The player has super armour: a hit that breaks a charge or a hold does not break it. Derived\neach tick from its charge and its running step, not a timer; absent is the key missing.",
+          "type": "boolean"
+        },
         "target": {
           "anyOf": [
             {
@@ -7542,6 +7591,16 @@
           "format": "uint16",
           "maximum": 65535,
           "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "counter_stun_ticks": {
+          "description": "The ticks a counter stuns a regular enemy or an elite (an elite for its share): 1 to\n`validate::limits::MAX_STUN_TICKS` (120). `sim_version` 2 only. Absent: a counter stuns\nnothing (it still cancels the attack and fills the gauge).",
+          "format": "uint32",
+          "maximum": 120,
+          "minimum": 1,
           "type": [
             "integer",
             "null"
@@ -9479,6 +9538,16 @@
       "additionalProperties": false,
       "description": "What a resisted control adds to a stagger gauge, by kind of control (each 1 to\n`limits::MAX_STAGGER`); a kind left out adds nothing. The other controls add their own key later.",
       "properties": {
+        "counter": {
+          "description": "What a counter adds to the gauge of an elite or the boss it countered. Read at\n`sim_version` 2; absent: a counter adds nothing.",
+          "format": "uint32",
+          "maximum": 10000,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "knockback": {
           "description": "A smash's knockback.",
           "format": "uint32",
