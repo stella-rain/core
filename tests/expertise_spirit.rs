@@ -207,7 +207,7 @@ fn the_kind_round_trips_and_the_bundled_file_names_none() {
 }
 
 /// S6: a `PlayerView` with `spirit: None` serializes without the key, and the two events use
-/// the event enum's tag form.
+/// the event enum's tag form (`type` and `data`, the player by name).
 #[test]
 fn the_view_and_the_events_serialize() {
     use stella_rain_core::event::DomainEvent;
@@ -230,7 +230,7 @@ fn the_view_and_the_events_serialize() {
     };
     assert_eq!(
         serde_json::to_value(raised).unwrap(),
-        json!({ "type": "spirit_raised", "player": 0, "level": 1 })
+        json!({ "type": "SpiritRaised", "data": { "player": "first", "level": 1 } })
     );
     let fell = DomainEvent::SpiritFell {
         player: PlayerIdx::SOLO,
@@ -238,7 +238,7 @@ fn the_view_and_the_events_serialize() {
     };
     assert_eq!(
         serde_json::to_value(fell).unwrap(),
-        json!({ "type": "spirit_fell", "player": 0, "level": 0 })
+        json!({ "type": "SpiritFell", "data": { "player": "first", "level": 0 } })
     );
     let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let player = serde_json::to_value(&snap.players[0]).unwrap();
