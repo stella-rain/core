@@ -146,6 +146,8 @@ pub(crate) use world::{
 #[cfg(test)]
 mod codec_fields_tests;
 mod combat;
+#[cfg(test)]
+mod counter_tests;
 mod damage;
 mod dash;
 mod entity;
