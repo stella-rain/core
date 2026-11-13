@@ -29,11 +29,11 @@
   },
   "expertise/breaker_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "파괴자 1"
+    "title": "파괴자 Ⅰ"
   },
   "expertise/breaker_up_2": {
     "description": "강타가 보스 부위를 더 빨리 부수고, 경직 시 폭발해 주변 적을 기절시켜요",
-    "title": "파괴자 2"
+    "title": "파괴자 Ⅱ"
   },
   "expertise/damage": {
     "description": "피해가 10% 늘어요",
@@ -49,11 +49,11 @@
   },
   "expertise/foresight_counter_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "예지의 반격 1"
+    "title": "예지의 반격 Ⅰ"
   },
   "expertise/foresight_counter_up_2": {
     "description": "공격 속도가 10% 늘어요",
-    "title": "예지의 반격 2"
+    "title": "예지의 반격 Ⅱ"
   },
   "expertise/hit_box": {
     "description": "모든 콤보 단계의 타격 범위가 10% 커져요",
@@ -69,11 +69,11 @@
   },
   "expertise/judgement_cut_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "심판의 일섬 1"
+    "title": "심판의 일섬 Ⅰ"
   },
   "expertise/judgement_cut_up_2": {
     "description": "공격 속도가 10% 늘어요",
-    "title": "심판의 일섬 2"
+    "title": "심판의 일섬 Ⅱ"
   },
   "expertise/momentum": {
     "description": "세 번째 회전을 누르고 있을 수 있고, 연속 타격마다 다음 공격이 빨라져요",
@@ -85,11 +85,11 @@
   },
   "expertise/momentum_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "기세 1"
+    "title": "기세 Ⅰ"
   },
   "expertise/momentum_up_2": {
     "description": "공격 속도가 10% 늘어요",
-    "title": "기세 2"
+    "title": "기세 Ⅱ"
   },
   "expertise/spirit_blade": {
     "description": "세 번째 공격을 모아 치고, 검을 채워 꽉 찬 일격으로 정령 단계를 올려요",
@@ -101,11 +101,11 @@
   },
   "expertise/spirit_blade_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "정령검 1"
+    "title": "정령검 Ⅰ"
   },
   "expertise/spirit_blade_up_2": {
     "description": "공격 속도가 10% 늘어요",
-    "title": "정령검 2"
+    "title": "정령검 Ⅱ"
   },
   "expertise/swiftness": {
     "description": "이동 속도가 5% 빨라져요",
@@ -121,11 +121,11 @@
   },
   "expertise/titan_trigger_up_1": {
     "description": "공격력이 10% 늘어요",
-    "title": "거인의 방아쇠 1"
+    "title": "거인의 방아쇠 Ⅰ"
   },
   "expertise/titan_trigger_up_2": {
     "description": "공격 속도가 10% 늘어요",
-    "title": "거인의 방아쇠 2"
+    "title": "거인의 방아쇠 Ⅱ"
   },
   "expertise/vitality": {
     "description": "최대 체력이 100 늘고, 그만큼 회복해요",
