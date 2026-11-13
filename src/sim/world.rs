@@ -12,13 +12,15 @@ use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement, Skill};
 use crate::expertise::{
     CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind, TempoEffect,
+    TriggerEffect,
 };
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::kinds::{KindIndex, KindTable};
 use crate::limits::{
     MAX_ADVANCE_DISTANCE, MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT,
-    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS,
+    MAX_WEAPON_GAUGE,
 };
 use crate::rewards::EquipmentRules;
 use crate::rules::Rules;
@@ -664,6 +666,22 @@ pub(crate) struct World {
     grant_tempos: Vec<Option<TempoGrant>>,
     /// Some style names a combo tempo: the tick looks for one only then.
     pub has_tempo: bool,
+    /// The giant trigger each of those copies has (the first `giant_trigger` kind of the style's
+    /// own level and the path levels taken), at the same index; empty when no style names one.
+    grant_triggers: Vec<Option<TriggerGrant>>,
+    /// Some style names a giant trigger: the tick looks for one only then.
+    pub has_trigger: bool,
+}
+
+/// A style's giant trigger resolved once: how long the state runs and each effect folded into its
+/// field (0 where it has none, 100 for the rally factor), every number inside its cap (ADR-SVC-1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TriggerGrant {
+    pub ticks: u16,
+    pub range_pct: u32,
+    pub smash_pct: u32,
+    pub rally_pct: u32,
+    pub super_armour: bool,
 }
 
 /// A style's combo tempo resolved once: the most stacks, each stack's attack speed and whether a
@@ -840,6 +858,7 @@ impl World {
         let grant_spirits = grant_spirits(main, weapon.as_ref(), content);
         let grant_counters = grant_counters(main, weapon.as_ref(), content);
         let grant_tempos = grant_tempos(main, weapon.as_ref(), content);
+        let grant_triggers = grant_triggers(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -906,6 +925,8 @@ impl World {
             grant_counters,
             has_tempo: grant_tempos.iter().any(Option::is_some),
             grant_tempos,
+            has_trigger: grant_triggers.iter().any(Option::is_some),
+            grant_triggers,
             weapon,
         };
         attack_table::compile_run(&mut world, content)?;
@@ -1111,6 +1132,19 @@ impl World {
             return None;
         }
         self.grant_tempos.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The giant trigger player `me`'s style gives, read from the same slot as `weapon_of`; none
+    /// after one bool test for a run that names no giant trigger.
+    pub(crate) fn trigger_of(
+        &self,
+        s: &super::state::State,
+        me: PlayerIdx,
+    ) -> Option<&TriggerGrant> {
+        if !self.has_trigger {
+            return None;
+        }
+        self.grant_triggers.get(self.grant_slot(s, me)?)?.as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1397,6 +1431,68 @@ fn grant_tempos(
         out.clear();
     }
     out
+}
+
+/// The giant trigger of each style and number of places of its path taken (the same index as
+/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_triggers(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<TriggerGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let trigger_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|k| match k {
+                StyleKind::GiantTrigger(t) => Some(trigger_folded(t)),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(trigger_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// `t` as a flat grant, every number inside its cap.
+fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
+    let mut g = TriggerGrant {
+        ticks: u16::try_from(t.ticks)
+            .unwrap_or(MAX_TRIGGER_TICKS)
+            .clamp(1, MAX_TRIGGER_TICKS),
+        range_pct: 0,
+        smash_pct: 0,
+        rally_pct: 100,
+        super_armour: false,
+    };
+    for e in t.effects.iter().take(4) {
+        match e {
+            TriggerEffect::RangePct { pct } => {
+                g.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
+            }
+            TriggerEffect::SmashPct { pct } => g.smash_pct = (*pct).min(MAX_PCT),
+            TriggerEffect::SuperArmour {} => g.super_armour = true,
+            TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
+        }
+    }
+    g
 }
 
 /// `t` as a flat grant, every number inside its cap.
