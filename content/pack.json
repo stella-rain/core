@@ -3693,6 +3693,7 @@
       "id": "elite_slam",
       "phases": [
         {
+          "counterable": true,
           "kind": "wind_up",
           "move_pct": 50,
           "ticks": 90
