@@ -1225,6 +1225,8 @@ pub(super) fn stagger_burst(
             && super::kills::damageable(s, Who::Enemy(j))
             && super::collide::overlaps(at, burst.radius, e.at, stage.defs.agent(e.def).radius.0)
     };
+    // Kills in the hit pass leave `s.enemies` as it is until the tick's retain, so the indexes
+    // below stay valid across the damage (as in `combat::bursts`).
     if burst.damage_pct > 0 {
         let shot = super::Shot {
             at,
