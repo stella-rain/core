@@ -16,6 +16,13 @@
 //! B step at a full gauge plays the style's full-gauge attack in place of the step's own, empties
 //! the gauge and lets no hold begin after it (`spend_gauge`). A new step resets the step's fill.
 //!
+//! The spirit level (when the style names the `spirit` kind): the full-gauge smash raises
+//! `spirit_level` by one at the press (`spirit_raise`, so its own hits carry it), every smash step
+//! restarts `spirit_decay` (`spirit_restart`), and `spirit_tick` in `update` counts it down before
+//! the press, dropping the level at 0, for a downed player too. A combo step starts with the
+//! level's damage and range percents (`strike`), a smash hit that leaves its target standing adds
+//! the level's bleed stacks (`spirit_bleed_stacks`, read in `collide::damage`).
+//!
 //! The combo: a press of `main` or `smash` is buffered (one, the latest; `main` when both come
 //! on one tick). With no step running it takes the next step from where the combo is, or from
 //! the root when there is none; a running step is cancelled for it once it reaches the

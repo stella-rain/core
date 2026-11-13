@@ -653,3 +653,22 @@ fn the_view_shows_the_level_every_tick() {
         assert!(r.view(1).get("spirit").is_none(), "a style with no spirit");
     }
 }
+
+/// B12: the bundled trial run, with presses and hits taken, never moves either field.
+#[test]
+fn the_bundled_run_keeps_the_spirit_at_zero() {
+    let mut e = crate::bench_fixtures::worst_case::warmed_up();
+    for t in 0..600 {
+        let press = Input {
+            main: t % 20 == 0,
+            smash: t % 70 == 69,
+            ..Input::default()
+        };
+        e.step(&[press, Input::default(), Input::default()]);
+        for i in 0..3 {
+            let c = &st(&mut e).players[slot(i)].combat;
+            assert_eq!((c.spirit_level, c.spirit_decay), (0, 0), "tick {t}");
+        }
+        assert!(e.snapshot().players[0].spirit.is_none());
+    }
+}
