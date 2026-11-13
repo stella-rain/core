@@ -156,17 +156,23 @@ pub struct LevelTable {
 }
 
 impl LevelTable {
-    /// The normal run's table (placeholder numbers).
+    /// The normal run's table: the style path.
     pub const NORMAL: LevelTable = LevelTable {
-        style: 3,
+        style: 1,
         upgrades: [6, 9],
         capstone: 10,
     };
-    /// The short run's table (placeholder numbers).
+    /// The short run's table: Easy's.
     pub const SHORT: LevelTable = LevelTable {
-        style: 2,
+        style: 1,
         upgrades: [4, 6],
         capstone: 8,
+    };
+    /// What a `sim_version` 1 stage that names no table takes: the frozen rules' default.
+    pub const V1_NORMAL: LevelTable = LevelTable {
+        style: 3,
+        upgrades: [6, 9],
+        capstone: 10,
     };
 
     /// The levels in path order: the style, the two upgrades, the capstone.
@@ -322,7 +328,11 @@ pub struct Levels {
 impl Stage {
     /// The levels of the expertise style path.
     pub fn level_table(&self) -> LevelTable {
-        self.level_table.unwrap_or(LevelTable::NORMAL)
+        self.level_table.unwrap_or(if self.sim_version == 1 {
+            LevelTable::V1_NORMAL
+        } else {
+            LevelTable::NORMAL
+        })
     }
 
     /// The most elites alive at once.

@@ -42,21 +42,45 @@ fn the_bundled_modes_take_the_style_path_at_level_1() {
     assert_eq!(*TimeLimit::bundled().level_table(), path);
     let trial = stella_rain_core::run_content::RunContent::bundled().trial();
     assert_eq!(trial.level_table(), path);
-    // The Rust default of a stage file that names no table is unchanged: style 3.
-    let normal = LevelTable {
-        style: 3,
-        upgrades: [6, 9],
-        capstone: 10,
-    };
-    assert_eq!(LevelTable::NORMAL, normal);
-    assert_ne!(path, LevelTable::NORMAL);
+    // The Rust default of a stage file that names no table is the same style path.
+    assert_eq!(LevelTable::NORMAL, path);
 }
 
 #[test]
 fn the_short_table_validates() {
-    let t = mode(json!({ "style": 2, "upgrades": [4, 6], "capstone": 8 })).unwrap();
+    let t = mode(json!({ "style": 1, "upgrades": [4, 6], "capstone": 8 })).unwrap();
     assert_eq!(*t.level_table(), LevelTable::SHORT);
-    assert!(stage_with(json!({ "style": 2, "upgrades": [4, 6], "capstone": 8 })).is_ok());
+    assert!(stage_with(json!({ "style": 1, "upgrades": [4, 6], "capstone": 8 })).is_ok());
+}
+
+/// The trial mode's JSON with no `level_table`, as a stage of the given `sim_version`.
+fn stage_without_table(sim_version: u32) -> Stage {
+    let mut v: Value =
+        serde_json::from_slice(stella_rain_core::run_setup::mode_file("trial").unwrap()).unwrap();
+    v.as_object_mut().unwrap().remove("level_table");
+    v["sim_version"] = json!(sim_version);
+    serde_json::from_value(v).unwrap()
+}
+
+#[test]
+fn a_stage_with_no_table_takes_the_style_path() {
+    let want = LevelTable {
+        style: 1,
+        upgrades: [6, 9],
+        capstone: 10,
+    };
+    assert_eq!(stage_without_table(2).level_table(), want);
+}
+
+/// A guard: green before and after the default moved, since the frozen rules keep style 3.
+#[test]
+fn a_version_1_stage_with_no_table_keeps_its_default() {
+    let frozen = LevelTable {
+        style: 3,
+        upgrades: [6, 9],
+        capstone: 10,
+    };
+    assert_eq!(stage_without_table(1).level_table(), frozen);
 }
 
 #[test]

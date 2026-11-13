@@ -434,5 +434,14 @@ fn a_short_run_table_gives_its_own_levels() {
     let held: Vec<u8> = (0..=9)
         .map(|l| expertise::tree_earned(&LevelTable::SHORT, l))
         .collect();
-    assert_eq!(held, [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+    assert_eq!(held, [0, 1, 1, 1, 2, 2, 3, 3, 4, 4]);
+}
+
+/// The normal table is the style path: the style at level 1, upgrades at 6 and 9, the capstone at 10.
+#[test]
+fn the_normal_table_gives_the_style_path_levels() {
+    let held: Vec<u8> = (0..=10)
+        .map(|l| expertise::tree_earned(&LevelTable::NORMAL, l))
+        .collect();
+    assert_eq!(held, [0, 1, 1, 1, 1, 1, 2, 2, 2, 3, 4]);
 }
