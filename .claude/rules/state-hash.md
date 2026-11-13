@@ -14,7 +14,7 @@ paths:
 
 # The state hash and entity numbers
 
-Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-4. Also `replay.md`.
+Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SIM-9, ADR-REPL-5, ADR-SAVE-4. Also `replay.md`.
 
 ## The state hash
 
@@ -22,7 +22,7 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-4. Also `replay.m
 
 - the shared fields (`tick`, the four streams, `outcome`, `boss`, `companions`, `enemies`, `tasks`,
   `runs`, `ranged_cooling`, `orbs`, `zones`, `spawned`, `next_id`, `next_orb_group`, the star
-  field's shared part, `heal_pickups`, the tuning percentages, `horde`, `crit_seed`, `echoes`);
+  field's shared part, `heal_pickups`, the tuning percentages, `horde`, `crit_seed`, `echoes`, `repeats`);
 - the presence byte `players.mask()` (bit `i` is slot `i`, the step log's byte 0), then three
   bytes: the generation of every slot, present or not (an absent slot's next occupant depends
   on it);
@@ -30,6 +30,16 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-REPL-5, ADR-SAVE-4. Also `replay.m
   generator, `offers`, `expertise`, `stardust`, `regen`, `equipment`). `Progress` hashes its
   `totals` (13, one per `StatEffect`) and then `set_tenths`; `Equipment` hashes `inventory`,
   `slots`, `lumine`, `starlight`, `tree_points`. An absent slot writes no block. The encoding is prefix-free.
+- The combat state is inside these blocks, not a block of its own: `AgentState.control`
+  (`FoeControl`: flinch, flinch immunity, hard controls and their reset, knocked down),
+  `EliteState.stagger` and the boss's (`Stagger`: gauge, breaks, drain, staggered) and
+  `PlayerState.combat` (`PlayerCombat`, 14 fields: the perfect evade window, slow and cooldown;
+  the weapon gauge and its step fill; rally and its ticks; spirit level and decay; the counter
+  window and the step that took the bonus; combo tempo; the giant trigger; the ranged grace).
+  Derived, not hashed: the snapshot's `flinch`, `knocked_down`, `staggered`, the views and events
+  (`PlayerView.spirit`, `.counter`, `.tempo`, `.trigger`, `.rally`), the slowed set
+  (`Scratch::slowed`) and the grants a style gives (`World::grant_slot` reads the recorded style
+  and path).
 
 A hole mask (0b101) hashes and saves; the step log reaches one by LEAVE (only a hole at tick 0 is
 refused). Each impl destructures its type without `..`; a skipped field is `_` with
@@ -40,7 +50,8 @@ The savepoint mirrors it (`src/sim/state_codec.rs`): the same bytes in the same 
 `next_id` below `MAX_PLAYERS` or at or past `MAX_ENTITY_NUMBER`.
 The refusals that read the rewards file and the equipment (`check_shape`, `check_indices`) are in
 `savepoint.md`. The rules of equipment mode are pack data, not state: the hash holds what a
-player has, not the rules.
+player has, not the rules. A new combat field is a hash move: a savepoint format bump, new
+pins and a corpus and bench re-record, its own change (ADR-SAVE-4, ADR-SIM-3).
 
 ## Entity numbers
 
