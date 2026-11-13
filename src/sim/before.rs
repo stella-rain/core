@@ -95,7 +95,7 @@ pub(crate) fn start(setup: &RunSetup) -> Result<Engine, Error> {
 }
 
 /// A stage's weapon holding the old base tree of `id` inline, as the weapons file stores it.
-#[allow(dead_code)] // the copy in tests/before.rs uses it; kept the same text
+#[allow(dead_code)] // only the integration copy (tests/before.rs) calls it; the two copies keep the same text
 pub(crate) fn inline_weapon(id: &str) -> Value {
     let v = pack_value();
     let weapon = v["weapons"]["weapons"]
