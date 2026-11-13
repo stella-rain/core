@@ -153,6 +153,13 @@ pub enum DomainEvent {
     KnockdownEnded {
         target: EntityId,
     },
+    /// A smash step of `player`'s hit `attacker` during a `counterable` wind-up and countered
+    /// it: the attack is cancelled. `attack` is the attack's preset, absent for an inline one.
+    Countered {
+        attacker: EntityId,
+        player: PlayerIdx,
+        attack: Option<Arc<str>>,
+    },
     /// The main character started an evade.
     Evaded,
     /// The main character used its stage skill, at `level`.

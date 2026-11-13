@@ -50,7 +50,7 @@ use crate::rewards::MAX_OFFER_CANDIDATES;
 use crate::run_stats::MAX_STUN_IMMUNE_TICKS;
 use crate::sim::MAX_RANGED_ATTACKERS;
 use crate::validate::limits::{
-    MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_POISE_DAMAGE, MAX_RADIUS,
+    MAX_AGGRO, MAX_ENEMY_CAP, MAX_ENEMY_XP, MAX_POISE_DAMAGE, MAX_RADIUS, MAX_STUN_TICKS,
 };
 use crate::validate::{Error, Issue};
 use crate::version::{self, Versions};
@@ -132,6 +132,11 @@ pub struct StaggerValues {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
     pub knockdown: Option<u32>,
+    /// What a counter adds to the gauge of an elite or the boss it countered. Read at
+    /// `sim_version` 2; absent: a counter adds nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_STAGGER))]
+    pub counter: Option<u32>,
 }
 
 /// The rules file.
@@ -283,6 +288,12 @@ pub struct RulesFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
     pub down_bonus_pct: Option<u32>,
+    /// The ticks a counter stuns a regular enemy or an elite (an elite for its share): 1 to
+    /// `validate::limits::MAX_STUN_TICKS` (120). `sim_version` 2 only. Absent: a counter stuns
+    /// nothing (it still cancels the attack and fills the gauge).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
+    pub counter_stun_ticks: Option<u32>,
     /// The perfect evade (`sim_version` 2; all five `perfect_evade_*` keys or none; absent: the
     /// rule is off). Ticks after an effective evade press in which a hit the evade alone stops is
     /// a near miss: 1 to `MAX_PERFECT_WINDOW_TICKS` (30).
@@ -538,6 +549,20 @@ impl Rules {
             .unwrap_or(0)
     }
 
+    /// The ticks a counter stuns its target; 0 when absent.
+    pub fn counter_stun_ticks(&self) -> u32 {
+        self.file.counter_stun_ticks.unwrap_or(0)
+    }
+
+    /// What a counter adds to an elite's or the boss's stagger gauge; 0 when absent.
+    pub fn counter_stagger_value(&self) -> u32 {
+        self.file
+            .stagger_values
+            .as_ref()
+            .and_then(|v| v.counter)
+            .unwrap_or(0)
+    }
+
     /// The crowd target of a run that overrides nothing.
     pub fn crowd_target(&self) -> u16 {
         self.file.crowd_target
@@ -782,6 +807,7 @@ fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
         ("$.stagger_damage_pct", file.stagger_damage_pct.is_some()),
         ("$.down_ticks", file.down_ticks.is_some()),
         ("$.down_bonus_pct", file.down_bonus_pct.is_some()),
+        ("$.counter_stun_ticks", file.counter_stun_ticks.is_some()),
     ];
     named
         .into_iter()
@@ -1114,6 +1140,24 @@ fn validate_combat_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
     }
     validate_stagger_keys(file, issues);
     validate_knockdown_keys(file, issues);
+    if let Some(n) = file.counter_stun_ticks {
+        within(
+            issues,
+            "counter_stun_ticks",
+            i64::from(n),
+            1,
+            i64::from(MAX_STUN_TICKS),
+        );
+    }
+    if let Some(n) = file.stagger_values.as_ref().and_then(|v| v.counter) {
+        within(
+            issues,
+            "stagger_values.counter",
+            i64::from(n),
+            1,
+            i64::from(MAX_STAGGER),
+        );
+    }
 }
 
 /// The checks of the knockdown keys: each bound, and the three partner keys need `down_ticks`.

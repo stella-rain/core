@@ -130,13 +130,19 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
 /// `threat_colour` of `AttackView` and `ZoneView` (the threat colours), `gauge`,
 /// `spirit` and `perfect_evade` of `PlayerView` (the weapon gauge, the spirit level and the perfect evade), `stagger` and
 /// `stagger_max` of `EntityView` (the stagger gauge), and `repeat: false` of a `Hit` event (the
-/// step repeat). The digests were
+/// step repeat), `counterable: false` of an `AttackView` and `super_armour` of a `PlayerView`
+/// (the counter and super armour; the armour flag is derived from the charge and the running
+/// smash step, so it reads true in a shipped run while a smash swings, whichever value, it is
+/// no gameplay: only a `breaks_charge` hit reads it, and no shipped phase has one). The digests were
 /// recorded before the fields existed, and an empty one changes no gameplay. `OrbBroken`'s
 /// `player`, the last field of the one event that has one, is dropped too: it names who broke
 /// the orb, and the event's other fields and the tick it comes on are still digested. A view that names
 /// a kind or a colour keeps its field and so moves the digest.
 pub(crate) fn drop_empty_added_fields(text: &str) -> String {
     text.replace(", kinds: [] }", " }")
+        .replace(", counterable: false }", " }")
+        .replace(", super_armour: false", "")
+        .replace(", super_armour: true", "")
         .replace(", grants: [] }", " }")
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")

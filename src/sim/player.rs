@@ -1408,6 +1408,22 @@ pub(crate) fn hold_view(stage: &World, s: &State, me: PlayerIdx) -> Option<(u32,
     Some((held, current_hold(stage, s, me)?.max_ticks))
 }
 
+/// Whether `me` has super armour: a `breaks_charge` hit does not break its charge or hold. Derived,
+/// never state: its charge is at level 2 or more (by hand, or the level auto mode recorded), or its
+/// running combo step is a smash step in an active phase (a hold's loop). The one place a later
+/// condition is added.
+pub(super) fn super_armour(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    let c = &s.players[me].combo;
+    if let (Some(held), Some(charge)) = (c.charge, current_charge(stage, s, me)) {
+        if level_at(charge, held) >= 2 {
+            return true;
+        }
+    }
+    last_press_smash(c)
+        && attacks::run_phase_kind(stage, s, s.players.id(me), COMBO_SLOT)
+            == Some(crate::attack::PhaseKind::Active)
+}
+
 /// The presses of `path` from the root, `depth` of them.
 fn presses_of(path: u32, depth: u8) -> Vec<Press> {
     (0..depth).map(|i| press_of(path >> i & 1 == 1)).collect()

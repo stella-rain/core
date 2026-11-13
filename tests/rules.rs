@@ -1375,3 +1375,107 @@ fn orb_clear_radius_changes_the_derived_content_hash() {
         );
     }
 }
+
+// --- The counter's two keys (dormant until a phase is flagged `counterable`) ---------------------
+
+fn counter_keys() -> Value {
+    json!({
+        "counter_stun_ticks": 40,
+        "stagger_values": { "counter": 60 },
+    })
+}
+
+#[test]
+fn counter_r1_the_bundled_file_names_neither_key() {
+    let v = bundled_value();
+    assert!(v.get("counter_stun_ticks").is_none());
+    assert!(
+        v.get("stagger_values")
+            .is_none_or(|o| o.get("counter").is_none())
+    );
+    let rules = Rules::bundled();
+    assert_eq!(rules.counter_stun_ticks(), 0);
+    assert_eq!(rules.counter_stagger_value(), 0);
+}
+
+#[test]
+fn counter_r2_every_bound_is_checked_at_its_key() {
+    let cases: Vec<(Value, Vec<Value>, &str)> = vec![
+        (
+            json!({ "counter_stun_ticks": 120 }),
+            vec![
+                json!({ "counter_stun_ticks": 0 }),
+                json!({ "counter_stun_ticks": 121 }),
+            ],
+            "$.counter_stun_ticks",
+        ),
+        (
+            json!({ "stagger_values": { "counter": 10_000 } }),
+            vec![
+                json!({ "stagger_values": { "counter": 0 } }),
+                json!({ "stagger_values": { "counter": 10_001 } }),
+            ],
+            "$.stagger_values.counter",
+        ),
+    ];
+    for (ok, bad, path) in cases {
+        assert!(
+            Rules::parse(&patched(&ok), Versions::CURRENT).is_ok(),
+            "{ok}"
+        );
+        for b in bad {
+            assert_eq!(
+                paths(Rules::parse(&patched(&b), Versions::CURRENT)),
+                [path],
+                "{b}"
+            );
+        }
+    }
+}
+
+#[test]
+fn counter_r3_a_pack_at_sim_version_1_refuses_both_keys() {
+    for (patch, path) in [
+        (json!({ "counter_stun_ticks": 40 }), "$.counter_stun_ticks"),
+        (
+            json!({ "stagger_values": { "counter": 60 } }),
+            "$.stagger_values",
+        ),
+    ] {
+        let Err(Error::Invalid(issues)) = Rules::parse(&patched(&patch), V1) else {
+            panic!("{path} not refused at sim_version 1");
+        };
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.path == path && i.message.contains("needs sim_version 2")),
+            "{path}: {issues:?}"
+        );
+    }
+}
+
+#[test]
+fn counter_r4_a_file_naming_every_stagger_knockdown_and_counter_key_parses_within_the_size_limit() {
+    let mut all = poise_keys();
+    for (k, v) in stagger_keys().as_object().unwrap() {
+        if k == "vulnerable_pcts" {
+            all["vulnerable_pcts"]["stagger"] = v["stagger"].clone();
+        } else {
+            all[k] = v.clone();
+        }
+    }
+    all["down_ticks"] = json!(30);
+    all["down_bonus_pct"] = json!(50);
+    all["vulnerable_pcts"]["knockdown"] = json!(20);
+    all["stagger_values"]["knockdown"] = json!(5);
+    for (k, v) in counter_keys().as_object().unwrap() {
+        if k == "stagger_values" {
+            all["stagger_values"]["counter"] = v["counter"].clone();
+        } else {
+            all[k] = v.clone();
+        }
+    }
+    let bytes = patched(&all);
+    assert!(bytes.len() <= MAX_RULES_BYTES, "{}", bytes.len());
+    Rules::parse(&bytes, Versions::CURRENT).expect("parses");
+}

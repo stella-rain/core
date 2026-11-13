@@ -41,6 +41,7 @@ mod corpus_contract;
 mod corpus_keeps;
 mod corpus_pins;
 mod corpus_seeds;
+mod counter_window;
 mod crowd;
 mod cwd_free_paths;
 mod damage_types;

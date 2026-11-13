@@ -81,6 +81,12 @@ pub struct AttackPhase {
     /// spawns, break a charge in progress (core#83).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub breaks_charge: bool,
+    /// A `wind_up` phase of an enemy's or the boss's attack only: a smash step of the main
+    /// character's whose hit box hits the attacker while the phase runs counters it (cancels the
+    /// attack, stuns a regular enemy or an elite, staggers an elite or the boss). `sim_version` 2
+    /// only; absent or false: the phase cannot be countered.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub counterable: bool,
     /// An active phase of an enemy's or the boss's attack only: the attacker moves along the
     /// attack's locked facing over the phase, hit box and boss parts with it (DS11).
     #[serde(default, skip_serializing_if = "Option::is_none")]

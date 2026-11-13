@@ -33,6 +33,7 @@ use crate::id::EntityId;
 use crate::rune::Rune;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{Dir, Smash, State};
+use crate::sim::world::AttackIndex;
 use crate::trig;
 
 use super::entity::Who;
@@ -677,7 +678,11 @@ fn hit_enemy_side(
         if boss.invulnerable == 0 {
             let (id, at, radius) = (boss.id, boss.at, def.radius.0);
             if boss.hp > 0 && covers(w, at, radius) && take_hit(s, w, id) {
+                let c = counterable(stage, s, me, w, id);
                 damage(stage, s, me, shot(w), Who::Boss, events);
+                if let Some(a) = c {
+                    super::stun::counter(stage, s, me, Who::Boss, a, events);
+                }
                 if stage.has_stagger {
                     stagger_by(stage, s, me, w, Who::Boss, events);
                     resisted_move_fills(stage, s, me, w, Who::Boss, events);
@@ -690,7 +695,12 @@ fn hit_enemy_side(
                 };
                 let (id, hp, radius) = (part.id, part.hp, part.radius);
                 if hp > 0 && covers(w, s.at(Who::BossPart(i)), radius) && take_hit(s, w, id) {
+                    let owner = s.boss_state().id;
+                    let c = counterable(stage, s, me, w, owner);
                     damage(stage, s, me, shot(w), Who::BossPart(i), events);
+                    if let Some(a) = c {
+                        super::stun::counter(stage, s, me, Who::BossPart(i), a, events);
+                    }
                     if stage.has_stagger {
                         stagger_by(stage, s, me, w, Who::BossPart(i), events);
                         resisted_move_fills(stage, s, me, w, Who::BossPart(i), events);
@@ -726,6 +736,7 @@ fn hit_enemy_side(
             && covers(w, at, radius)
             && take_hit(s, w, id)
         {
+            let c = counterable(stage, s, me, w, id);
             damage(stage, s, me, shot(w), Who::Enemy(i), events);
             match w.smash {
                 Some(Smash::Pull(pull)) => super::pull_enemy(stage, s, me, i, pull),
@@ -737,6 +748,11 @@ fn hit_enemy_side(
                     }
                 }
                 _ => {}
+            }
+            // C05: the smash that hit it in a counterable wind-up counters the attack, after the
+            // smash's own stun, pull and knockback have landed.
+            if let Some(a) = c {
+                super::stun::counter(stage, s, me, Who::Enemy(i), a, events);
             }
             // C03, C04: a combo hit fills an elite's gauge, and a pull or a knockback it resists
             // fills it more.
@@ -753,6 +769,43 @@ fn hit_enemy_side(
                 flinch_by(stage, s, me, i, w, events);
             }
         }
+    }
+}
+
+/// C05: the attack of `owner` that a combo hit of `me`'s counters, if it does: the rules flag some
+/// phase, the swing is a combo hit of a smash step of an up player (not a rune's, an echo's or a
+/// zone's), and `owner` is in a counterable wind-up. Read before the hit, so that a target the
+/// hit kills is not countered. One flag read when no phase is flagged.
+#[inline(always)]
+fn counterable(
+    stage: &World,
+    s: &State,
+    me: PlayerIdx,
+    w: &Swing,
+    owner: EntityId,
+) -> Option<AttackIndex> {
+    if !stage.has_counter {
+        return None;
+    }
+    counterable_slow(stage, s, me, w, owner)
+}
+
+#[inline(never)]
+fn counterable_slow(
+    stage: &World,
+    s: &State,
+    me: PlayerIdx,
+    w: &Swing,
+    owner: EntityId,
+) -> Option<AttackIndex> {
+    if w.combo
+        && w.rune.is_none()
+        && s.players[me].is_up()
+        && super::player::last_press_smash(&s.players[me].combo)
+    {
+        super::attacks::counterable_run(stage, s, owner)
+    } else {
+        None
     }
 }
 

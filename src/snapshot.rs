@@ -51,6 +51,10 @@ pub struct AttackView {
     /// key missing from the JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threat_colour: Option<ThreatColourIndex>,
+    /// The run's current phase is a `counterable` wind-up: the frontend marks the attack as one a
+    /// smash counters. Derived each tick, not state; absent is the key missing from the JSON.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub counterable: bool,
 }
 
 /// A zone (core Z1): where it is, which way an arc or a line points, and how long its current
@@ -571,6 +575,10 @@ pub struct PlayerView {
     pub facing: Facing,
     /// Ticks of invulnerability left, after a hit or from an evade; the frontend can flash it.
     pub invulnerable: u32,
+    /// The player has super armour: a hit that breaks a charge or a hold does not break it. Derived
+    /// each tick from its charge and its running step, not a timer; absent is the key missing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub super_armour: bool,
     pub evade: EvadeView,
     /// The weapon gauge of its style, while the style grants one (ADR-SIM-9); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
