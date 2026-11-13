@@ -554,6 +554,20 @@ pub struct SpiritView {
     pub decay_ticks: u32,
 }
 
+/// A player's counter bonus (ADR-SIM-9): not state, built each frame from the window, the mark of
+/// the running step and the style's numbers. Both can hold at once: a near miss during the step
+/// that took the bonus reopens the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CounterView {
+    /// Ticks left of the window; 0 closed.
+    pub window_left: u32,
+    /// The window a near miss opens.
+    pub window_ticks: u32,
+    /// The running step took the bonus.
+    pub taken: bool,
+}
+
 /// A player's perfect evade after the near miss (ADR-SIM-8).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -589,6 +603,10 @@ pub struct PlayerView {
     /// absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spirit: Option<SpiritView>,
+    /// The counter bonus of its style, while the style grants one, closed too (ADR-SIM-9); absent
+    /// otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counter: Option<CounterView>,
     /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
     /// perfect evade (ADR-SIM-8); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]

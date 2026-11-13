@@ -348,4 +348,12 @@ pub enum DomainEvent {
     PerfectEvade {
         player: PlayerIdx,
     },
+    /// A near miss of `player` opened its counter window (ADR-SIM-9).
+    CounterWindowOpened {
+        player: PlayerIdx,
+    },
+    /// The dash-branch step `player` started took the counter bonus (ADR-SIM-9).
+    CounterBonusTaken {
+        player: PlayerIdx,
+    },
 }

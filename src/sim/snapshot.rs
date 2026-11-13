@@ -265,6 +265,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             decay_left: u32::from(s.players[me].combat.spirit_decay),
             decay_ticks: u32::from(g.decay_ticks),
         }),
+        counter: None,
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {
