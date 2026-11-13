@@ -16,7 +16,8 @@
 //! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
 //! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
-//! lowers, each level with its own effects (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
+//! and the first dash-branch step inside its window takes (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -32,9 +33,11 @@ use sha2::{Digest, Sha256};
 
 use crate::attack::AttackRef;
 use crate::event::Press;
+use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
-    MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+    MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
+    MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
 };
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
@@ -201,6 +204,64 @@ pub enum StyleKind {
     /// each level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge
     /// whose spend is `full_smash`. One per style path: a second is refused.
     Spirit(Spirit),
+    /// The style's counter bonus: a near miss of the player's evade opens a window of
+    /// `window_ticks`, and the first dash-branch step started inside it takes the bonus's
+    /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style
+    /// path: a second is refused.
+    CounterBonus(CounterBonus),
+}
+
+/// A counter bonus's numbers, every one bounded by the validator and clamped again when the
+/// world is built (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CounterBonus {
+    /// Ticks after the near miss in which a dash-branch step takes the bonus. 1 to
+    /// `MAX_COUNTER_WINDOW_TICKS`.
+    #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
+    pub window_ticks: u32,
+    /// What the step takes, each variant at most once; 1 to 4 entries.
+    pub effects: Vec<CounterEffect>,
+}
+
+/// What a counter bonus gives its step: a closed list built into `core`, one variant per
+/// effect, each bounded alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum CounterEffect {
+    /// Added to the attack-up percent fixed when the step starts. 1 to `MAX_PCT`.
+    DamagePct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// A factor on every gauge fill the step's hits credit to its player, in percent. 101 to
+    /// `MAX_PCT`.
+    StaggerPct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// The stun each target the step hits takes. 1 to `MAX_STUN_TICKS`.
+    StunTicks {
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_STUN_TICKS))]
+        ticks: u32,
+    },
+    /// The slide toward the target over the step's first phase, when that phase names no
+    /// `advance` (1/256 px, 1 px to `MAX_ADVANCE_DISTANCE`).
+    Advance {
+        #[schemars(range(min = 256, max = crate::limits::MAX_ADVANCE_DISTANCE * 256))]
+        distance: Fx,
+    },
+}
+
+impl CounterEffect {
+    fn name(&self) -> u8 {
+        match self {
+            CounterEffect::DamagePct { .. } => 0,
+            CounterEffect::StaggerPct { .. } => 1,
+            CounterEffect::StunTicks { .. } => 2,
+            CounterEffect::Advance { .. } => 3,
+        }
+    }
 }
 
 /// A spirit's numbers, every one bounded by the validator and clamped again when the world is
@@ -689,6 +750,7 @@ fn check_level(
             }
             StyleKind::Gauge(g) => check_gauge(issue, &at, g),
             StyleKind::Spirit(s) => check_spirit(issue, &at, s),
+            StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c),
         }
     }
 }
@@ -776,6 +838,50 @@ fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: &Spirit) {
     }
 }
 
+/// A counter bonus's numbers, each in its own range; it names an effect once.
+fn check_counter_bonus(issue: &mut impl FnMut(String, String), at: &str, c: &CounterBonus) {
+    if !(1..=u32::from(MAX_COUNTER_WINDOW_TICKS)).contains(&c.window_ticks) {
+        issue(
+            format!("{at}.window_ticks"),
+            format!("1 to {MAX_COUNTER_WINDOW_TICKS} (found {})", c.window_ticks),
+        );
+    }
+    if c.effects.is_empty() || c.effects.len() > 4 {
+        issue(
+            format!("{at}.effects"),
+            format!("1 to 4 effects (found {})", c.effects.len()),
+        );
+    }
+    let mut seen = [false; 4];
+    for (e, effect) in c.effects.iter().enumerate().take(4) {
+        let at = format!("{at}.effects[{e}]");
+        let (key, v, lo, hi) = match effect {
+            CounterEffect::DamagePct { pct } => ("pct", i64::from(*pct), 1, i64::from(MAX_PCT)),
+            CounterEffect::StaggerPct { pct } => ("pct", i64::from(*pct), 101, i64::from(MAX_PCT)),
+            CounterEffect::StunTicks { ticks } => (
+                "ticks",
+                i64::from(*ticks),
+                1,
+                i64::from(validate::limits::MAX_STUN_TICKS),
+            ),
+            CounterEffect::Advance { distance } => (
+                "distance",
+                i64::from(distance.0),
+                i64::from(Fx::px(1).0),
+                i64::from(Fx::px(crate::limits::MAX_ADVANCE_DISTANCE).0),
+            ),
+        };
+        if !(lo..=hi).contains(&v) {
+            issue(format!("{at}.{key}"), format!("{lo} to {hi} (found {v})"));
+        }
+        let slot = &mut seen[usize::from(effect.name())];
+        if *slot {
+            issue(at, "the kind already names this effect".into());
+        }
+        *slot = true;
+    }
+}
+
 fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &[Press]) {
     if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
         issue(
@@ -812,6 +918,7 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     let mut smash_set = false;
     let mut gauge_set = false;
     let mut spirit_set = false;
+    let mut counter_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -869,6 +976,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     spirit_set = true;
+                }
+                StyleKind::CounterBonus(_) => {
+                    if counter_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already names a counter bonus".into(),
+                        );
+                    }
+                    counter_set = true;
                 }
             }
         }
@@ -1028,6 +1144,8 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 StyleKind::Gauge(_) => {}
                 // Nor does the spirit: the rules read it beside the weapon (`World::spirit_of`).
                 StyleKind::Spirit(_) => {}
+                // Nor does the counter bonus (`World::counter_of`).
+                StyleKind::CounterBonus(_) => {}
             }
         }
     }

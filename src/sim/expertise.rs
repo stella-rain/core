@@ -608,6 +608,9 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),
                 decay_ticks: s.decay_ticks,
             },
+            StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
+                window_ticks: c.window_ticks,
+            },
         })
         .collect()
 }

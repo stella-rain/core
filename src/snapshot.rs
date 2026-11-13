@@ -276,6 +276,8 @@ pub enum StyleKindView {
     Gauge { max: u32, spend: GaugeSpendKind },
     /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.
     Spirit { max_level: u8, decay_ticks: u32 },
+    /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
+    CounterBonus { window_ticks: u32 },
 }
 
 /// The kinds one level of a style's path grants.
