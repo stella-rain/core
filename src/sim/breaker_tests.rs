@@ -137,7 +137,6 @@ fn filled(r: &mut Rig, me: u8, value: u32) -> u32 {
 #[test]
 fn the_breaker_kind_changes_no_step() {
     use crate::expertise::{Expertise, weapon_with_style};
-    use crate::pack::Pack;
     use crate::version::Versions;
     let base = super::before::pack()
         .content()
