@@ -112,6 +112,7 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
     let mut len = [0usize; 2];
     let area = super::Area::of_view(&world.map(), &s.players);
     let down_on = world.has_down;
+    let grace_on = world.tuning.ranged_grace_ticks > 0;
     for (i, e) in s.enemies.iter().enumerate() {
         let def = world.defs.get(e.def);
         // A stunned, flinching or downed enemy fires nothing (`act_one`), so it could not use a grant.
@@ -149,9 +150,14 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
             }
             // Nor could one whose rule's condition or selector fails: `fire_first_rule` skips it.
             let rule = &def.agent.rules[rule];
-            if !condition_holds(s, Who::Enemy(i), &rule.when)
-                || select(s, Who::Enemy(i), &rule.target).is_none()
-            {
+            if !condition_holds(s, Who::Enemy(i), &rule.when) {
+                continue;
+            }
+            let Some(target) = select(s, Who::Enemy(i), &rule.target) else {
+                continue;
+            };
+            // The grace: the token goes to the next candidate (`ranged_grace_ticks`).
+            if grace_on && in_grace(s, target) {
                 continue;
             }
             let at = best[p][..len[p]].partition_point(|(bd, _)| *bd <= d);
@@ -166,6 +172,13 @@ pub(in crate::sim) fn grant_ranged(world: &World, s: &mut State, up: &super::sel
         let p = pool.index();
         s.scratch.ranged_grants[p].extend(best[p][..len[p]].iter().map(|(_, id)| *id));
     }
+}
+
+/// Whether `target` is a player a hit has put in grace: a ranged start against it waits. A
+/// companion or no player is never in grace.
+#[inline(never)]
+fn in_grace(s: &State, target: Who) -> bool {
+    matches!(target, Who::Player(me) if s.players[me].combat.ranged_grace > 0)
 }
 
 /// Marks the run that just started as a `ranged` one: it is the last in `runs`.
@@ -309,10 +322,26 @@ mod tests {
         s.players[p(1)].hp = 0;
         for me in [p(0), p(1)] {
             s.players[me].combat.ranged_grace = 3;
-            player::update(&w, &rewards, &mut s, me, Default::default(), false, &mut Vec::new());
+            player::update(
+                &w,
+                &rewards,
+                &mut s,
+                me,
+                Default::default(),
+                false,
+                &mut Vec::new(),
+            );
             assert_eq!(s.players[me].combat.ranged_grace, 2, "{me:?}");
             s.players[me].combat.ranged_grace = 0;
-            player::update(&w, &rewards, &mut s, me, Default::default(), false, &mut Vec::new());
+            player::update(
+                &w,
+                &rewards,
+                &mut s,
+                me,
+                Default::default(),
+                false,
+                &mut Vec::new(),
+            );
             assert_eq!(s.players[me].combat.ranged_grace, 0);
         }
     }
