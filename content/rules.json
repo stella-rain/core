@@ -51,5 +51,11 @@
   "down_ticks": 40,
   "down_bonus_pct": 25,
   "counter_stun_ticks": 60,
-  "ranged_grace_ticks": 60
+  "ranged_grace_ticks": 60,
+  "perfect_evade_window_ticks": 6,
+  "perfect_evade_slow_ticks": 90,
+  "perfect_evade_cooldown_ticks": 300,
+  "perfect_evade_reach": 51200,
+  "perfect_evade_slow_every": 2,
+  "orb_clear_radius": 25600
 }
