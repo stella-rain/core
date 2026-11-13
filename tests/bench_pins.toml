@@ -72,35 +72,35 @@ input = "22e23fc640006991"
 
 [rollback_equip]
 bench = "rollback_equip"
-before = "509ece75f40dec26"
-after = "10759fc1173dd8be"
+before = "44b3bf03225b2e26"
+after = "437bf56aa72426c6"
 stage = "5c15665e2e94db92"
 input = "42725cbb18ad956d"
 
 [rollback_session_w4]
 bench = "rollback_session"
-before = "1368757925d69920"
-after = "8348b4c2a468b639"
+before = "d6d257a31a79f7e0"
+after = "e3d353fbb7ddf0cf"
 stage = "5c15665e2e94db92"
 input = "a4037a748a2245f2"
 
 [rollback_session_w16]
 bench = "rollback_session"
-before = "de630451a3227f3e"
-after = "9f147f81c98ef133"
+before = "0f31e78fbf5993b7"
+after = "b0c4beb4604eb99d"
 stage = "5c15665e2e94db92"
 input = "1b21bd1854ce783f"
 
 [clone_ring_save]
 bench = "rollback_session"
-before = "509ece75f40dec26"
-after = "509ece75f40dec26"
+before = "44b3bf03225b2e26"
+after = "44b3bf03225b2e26"
 stage = "5c15665e2e94db92"
 input = "3f5be22dc234d8d3"
 
 [clone_ring_resave]
 bench = "rollback_session"
-before = "509ece75f40dec26"
-after = "509ece75f40dec26"
+before = "44b3bf03225b2e26"
+after = "44b3bf03225b2e26"
 stage = "5c15665e2e94db92"
 input = "5cd36d0a5b90f1c9"
