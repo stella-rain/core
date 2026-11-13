@@ -75,6 +75,7 @@ mod expertise;
 mod expertise_counter;
 mod expertise_gauge;
 mod expertise_spirit;
+mod expertise_tempo;
 mod explosion;
 mod extremes;
 mod frozen_v1;
