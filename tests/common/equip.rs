@@ -164,7 +164,9 @@ fn build(
         rewards = rewards.with_constellations(sets);
     }
     let mut content = RunContent::new(common::design_run_stats(), rewards)
-        .with_perk_sets(plain_content().perk_sets().clone());
+        .with_perk_sets(plain_content().perk_sets().clone())
+        .with_weapons(crate::before::content().weapons().clone())
+        .with_expertise(crate::before::expertise().clone());
     if let Some(runes) = parts.runes {
         content = content.with_runes(runes);
     }
