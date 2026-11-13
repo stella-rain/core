@@ -354,6 +354,13 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
     assert_tick_pinned("worst_minute_peak", counted3(|| run.play(1)));
 }
 
+/// The ticks the test below samples from the start of the dense minute (`MINUTE_START`). The
+/// shipped enemies with a poise of 0 flinch on every combo hit, which puts a `StatusApplied` on
+/// their tick, and such a tick is not plain; so fewer defeat ticks are plain in the first
+/// `MINUTE_TICKS` (36, not the 175 with a defeat), and 5,400 ticks is the first window of a
+/// multiple of 600 that holds more than 50 of them (52; 6,000 holds 59, 7,200 holds 76).
+const DENSE_WINDOW_TICKS: u32 = 5_400;
+
 /// The dense minute's plain ticks allocate nothing (T1b): attacks launched with a type bonus
 /// (the player holds one from its first star), enemies defeated, aim assist's targets, telegraphs
 /// and rule firings. A tick that spawns or loses an elite or does anything else
@@ -363,10 +370,9 @@ fn the_worst_minute_peak_tick_allocates_as_pinned() {
 /// hooked-orb tick; the orb's own counts are the worst tick's (`worst_tick`, 1, 0, 1).
 #[test]
 fn the_dense_minutes_plain_ticks_allocate_nothing() {
-    use stella_rain_core::bench_fixtures::worst_minute_case::MINUTE_TICKS;
     let mut run = bench_fixtures::worst_minute();
     let (mut launched, mut defeated) = (0, 0);
-    for tick in 0..MINUTE_TICKS {
+    for tick in 0..DENSE_WINDOW_TICKS {
         let counts = counted3(|| run.play(1));
         let events = run.engine.events();
         let plain = events.iter().all(|ev| {
