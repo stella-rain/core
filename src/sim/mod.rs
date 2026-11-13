@@ -191,12 +191,16 @@ mod levels_tests;
 mod loadout;
 mod offer_rating;
 #[cfg(test)]
+mod rally_tests;
+#[cfg(test)]
 mod repeat_tests;
 mod slots;
 #[cfg(test)]
 mod spirit_tests;
 #[cfg(test)]
 mod tempo_tests;
+#[cfg(test)]
+mod trigger_tests;
 #[cfg(test)]
 mod try_styles_tests;
 pub(crate) use expertise::TreeError;
