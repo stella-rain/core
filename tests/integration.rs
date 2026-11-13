@@ -129,6 +129,7 @@ mod push_apart;
 mod range_reward;
 mod ranged_cap;
 mod ranged_report;
+mod ranged_rules;
 mod ranged_tokens;
 mod rarities;
 mod rarity_rows_d6c;
