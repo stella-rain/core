@@ -121,6 +121,7 @@ pub(super) fn counter(
     me: PlayerIdx,
     target: Who,
     attack: AttackIndex,
+    stun_ticks: u32,
     events: &mut Vec<DomainEvent>,
 ) {
     let target = match target {
@@ -139,11 +140,46 @@ pub(super) fn counter(
         attack: stage.attacks[usize::from(attack.0)].preset_id.clone(),
     });
     let t = &stage.tuning;
-    if matches!(target, Who::Enemy(_)) && t.counter_stun_ticks > 0 {
-        apply(stage, s, target, source, t.counter_stun_ticks, events);
+    if matches!(target, Who::Enemy(_)) && stun_ticks > 0 {
+        apply(stage, s, target, source, stun_ticks, events);
     }
     if t.stagger_counter > 0 {
         fill(stage, s, target, me, t.stagger_counter, events);
+    }
+}
+
+/// What a combo hit of `me` on `target` does after the damage: the counter of a counterable
+/// wind-up (`countered`) and the stun of a taken counter bonus. A hit that does both stuns once,
+/// for the longer of the two, so the control list counts one stun for the hit. The boss and a
+/// part take only the resisted share fill, as for any stun. A target the hit killed is not
+/// stunned. Only a combo hit carries the bonus.
+#[inline(never)]
+pub(super) fn counter_bonus_stun(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    (target, combo): (Who, bool),
+    countered: Option<AttackIndex>,
+    events: &mut Vec<DomainEvent>,
+) {
+    let own = stage.tuning.counter_stun_ticks;
+    let bonus = if combo {
+        super::player::counter_taken(stage, s, me).map_or(0, |g| g.stun_ticks)
+    } else {
+        0
+    };
+    if let Some(a) = countered {
+        counter(stage, s, me, target, a, own.max(bonus), events);
+    }
+    let target = match target {
+        Who::BossPart(_) => Who::Boss,
+        other => other,
+    };
+    // A counter has applied the stun to an enemy already; the boss never takes one but its fill.
+    let applied = countered.is_some() && matches!(target, Who::Enemy(_));
+    if bonus > 0 && !applied && s.is_alive(target) {
+        let source = s.players.id(me);
+        apply(stage, s, target, source, bonus, events);
     }
 }
 
@@ -299,6 +335,11 @@ pub(super) fn fill(
     if !alive {
         return;
     }
+    // A step that took the counter bonus scales every fill credited to its player.
+    let value = match super::player::counter_taken(stage, s, me) {
+        Some(fx) if fx.stagger_pct > 100 => value.saturating_mul(fx.stagger_pct) / 100,
+        _ => value,
+    };
     let t = &stage.tuning;
     let Some(g) = gauge_of(s, target) else {
         return;
@@ -637,7 +678,8 @@ mod tests {
         let attack = attacks::counterable_run(w, s, s.enemies[0].id).expect("a counterable run");
         s.enemies[0].stun_immune = 0;
         s.scratch.ends_pinned = Some(s.runs.len());
-        counter(w, s, me, Who::Enemy(0), attack, &mut Vec::new());
+        let own = w.tuning.counter_stun_ticks;
+        counter(w, s, me, Who::Enemy(0), attack, own, &mut Vec::new());
         super::super::hit_boxes::apply_ends(w, s);
         s.scratch.ends_pinned = None;
     }
@@ -714,7 +756,8 @@ mod tests {
         let second = PlayerIdx::new(1).unwrap();
         let attack = attacks::counterable_run(&w, &s, owner).expect("counterable");
         events.clear();
-        counter(&w, &mut s, second, Who::Enemy(0), attack, &mut events);
+        let own = w.tuning.counter_stun_ticks;
+        counter(&w, &mut s, second, Who::Enemy(0), attack, own, &mut events);
         assert!(attacks::counterable_run(&w, &s, owner).is_none());
         let countered: Vec<_> = events
             .iter()
