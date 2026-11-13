@@ -461,3 +461,120 @@ fn the_scenario_is_deterministic() {
     };
     assert_eq!(run(), run());
 }
+
+/// B7: every gauge fill credited to a player whose step took the bonus is scaled by the factor
+/// (20 becomes 60), a fill of another player and a fill after the step are not.
+#[test]
+fn the_taken_step_scales_the_fills_it_credits() {
+    use super::state::{EliteState, Stagger};
+    let mut r = rig(2, vec![counter_kind(all_effects())], 1);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let def = state.enemies[0].def;
+    let w = Arc::make_mut(world);
+    w.defs.agent_mut(def).stagger_max = Some(1_000);
+    w.has_stagger = true;
+    state.enemies[0].elite = Some(EliteState {
+        home: state.enemies[0].at,
+        called: false,
+        boss_call: Default::default(),
+        disguised: false,
+        stagger: Stagger::default(),
+    });
+    let gauge = |s: &State| s.enemies[0].elite.as_ref().unwrap().stagger.gauge;
+    let mut fill = |state: &mut State, me: u8| {
+        state.enemies[0].elite.as_mut().unwrap().stagger.gauge = 0;
+        super::stun::fill(
+            world,
+            state,
+            super::entity::Who::Enemy(0),
+            slot(me),
+            20,
+            &mut Vec::new(),
+        );
+        gauge(state)
+    };
+    assert_eq!(fill(state, 0), 20, "no mark");
+    state.players[slot(0)].combat.counter_bonus_step = 1;
+    assert_eq!(fill(state, 0), 60, "the mark");
+    assert_eq!(fill(state, 1), 20, "another player's fill");
+    state.players[slot(0)].combat.counter_bonus_step = 0;
+    assert_eq!(fill(state, 0), 20, "after the step");
+}
+
+/// B9: the first phase of the taken step slides the player toward its target by the grant's
+/// distance; the plain step slides nothing.
+#[test]
+fn the_taken_step_slides_toward_its_target() {
+    let slid = |window: u16| {
+        let mut r = rig(1, vec![counter_kind(all_effects())], 1);
+        r.set_window(0, window);
+        r.keep_dash_strike(0);
+        let start = st(&mut r.e).players[ME].at;
+        let facing = st(&mut r.e).players[ME].facing;
+        let press = Input {
+            main: true,
+            assist: true,
+            ..Input::default()
+        };
+        // The target stands 100 px ahead along the facing.
+        let at = |s: &State| s.players[ME].at;
+        let place = |e: &mut Engine| {
+            let s = st(e);
+            let (p, scale) = (s.players[ME].at, i64::from(crate::trig::SCALE));
+            let ahead = i64::from(Fx::px(100).0);
+            s.enemies[0].at = Point {
+                x: Fx(p.x.0 + i32::try_from(i64::from(facing.x) * ahead / scale).unwrap()),
+                y: Fx(p.y.0 + i32::try_from(i64::from(facing.y) * ahead / scale).unwrap()),
+            };
+            s.enemies[0].hp = BIG;
+        };
+        place(&mut r.e);
+        r.e.step(&[press, Input::default(), Input::default()]);
+        for _ in 0..12 {
+            place(&mut r.e);
+            r.e.step(&[Input::default(); 3]);
+        }
+        let end = at(st(&mut r.e));
+        let (dx, dy) = (
+            i64::from(end.x.0 - start.x.0),
+            i64::from(end.y.0 - start.y.0),
+        );
+        dx * dx + dy * dy
+    };
+    assert_eq!(slid(0), 0, "the plain step slides nothing");
+    let moved = slid(30);
+    assert!(moved > 0, "the taken step slides");
+    let px48 = i64::from(Fx::px(48).0);
+    assert!(moved <= px48 * px48, "no further than the distance");
+}
+
+/// B10: under `try_styles` a style pick onto another style zeroes the window and the mark; the
+/// same style again keeps them.
+#[test]
+fn leaving_the_style_empties_the_window_and_the_mark() {
+    use crate::input::EquipAction;
+    let pick = |option: u32| {
+        let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        Arc::make_mut(world).stage.try_styles = true;
+        let g = state
+            .players
+            .career_mut(ME)
+            .expertise
+            .as_mut()
+            .expect("a gauge");
+        g.level = 99;
+        let c = &mut state.players[ME].combat;
+        c.counter_window = 12;
+        c.counter_bonus_step = 1;
+        r.e.act(ME, EquipAction::TreePick { option })
+            .expect("a pick");
+        r.combat(0)
+    };
+    assert_eq!(pick(0), (12, 1), "the same style again");
+    assert_eq!(pick(1), (0, 0), "another style");
+}

@@ -306,6 +306,12 @@ impl AgentDefs {
         &self.defs[def.at()]
     }
 
+    /// Test code only: a definition's agent, to give it a stagger gauge.
+    #[cfg(test)]
+    pub(super) fn agent_mut(&mut self, def: DefIndex) -> &mut Agent {
+        &mut self.defs[def.at()].agent
+    }
+
     /// How many definitions the run has: what a saved `DefIndex` is checked against.
     pub fn len(&self) -> usize {
         self.defs.len()
