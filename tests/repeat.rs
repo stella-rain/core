@@ -24,7 +24,7 @@ fn factor_kind(step: &[&str]) -> Value {
 }
 
 fn expertise_file(kinds: Value) -> Value {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["weapons"][0]["styles"][0]["kinds"] = kinds;
     file
 }
@@ -150,7 +150,7 @@ fn the_kinds_need_sim_version_2() {
 }
 
 fn pack_with_hammer_kinds(kinds: Value) -> Value {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
@@ -262,7 +262,7 @@ fn the_pack_checks_the_kinds_against_the_base_tree() {
 #[test]
 fn a_weapons_file_cannot_name_a_repeat_or_a_factor() {
     for (key, value) in [("repeats", json!([])), ("proc_pct", json!(10))] {
-        let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+        let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
         v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"][key] = value;
         match load(&v) {
             Err(PackError::File {
@@ -278,7 +278,7 @@ fn a_weapons_file_cannot_name_a_repeat_or_a_factor() {
 #[test]
 fn the_views_carry_the_kinds() {
     let file = {
-        let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+        let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
         file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
         for w in file["weapons"].as_array_mut().unwrap() {
             w["base"] = json!([]);
@@ -340,7 +340,7 @@ use crate::common::{START_X, START_Y, enemy, hold, idle, stage_full, wave};
 
 /// Style 0 names `kinds` on its first level; every other style names none.
 fn expertise_with(kinds: Vec<Value>) -> Expertise {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
         w["base"] = json!([]);
