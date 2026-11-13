@@ -4663,19 +4663,23 @@
   "control_immune_ticks": 120,
   "vulnerable_pcts": {
     "stun": 20,
-    "stagger": 20
+    "stagger": 20,
+    "knockdown": 20
   },
   "staggered_ticks": 120,
   "stagger_smash": 100,
   "stagger_values": {
     "stun": 50,
     "pull": 30,
-    "knockback": 50
+    "knockback": 50,
+    "knockdown": 50
   },
   "stagger_refill_pcts": [100, 75, 50],
   "stagger_drain_delay_ticks": 180,
   "stagger_drain_per_tick": 2,
-  "stagger_damage_pct": 30
+  "stagger_damage_pct": 30,
+  "down_ticks": 40,
+  "down_bonus_pct": 25
 },
   "starting_unlocks": {
   "free_weapon": "giant_sword",
