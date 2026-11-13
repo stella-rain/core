@@ -886,7 +886,7 @@ fn the_party_promises_name_what_a_run_misses() {
         "{joined}"
     );
     // A run that fails early is no Running run: join_two (1, 1) ends Failed before 3000 ticks.
-    let failed = play(party_case("join_two", 1, 1));
+    let failed = play(party_case("join_two", 2, 6));
     assert_ne!(failed.ticks, 3000, "the run this test needs fails early");
     let miss = party_promise_miss("join_two", &failed).expect("not Running at 3000");
     assert!(miss.contains("Running at 3000"), "{miss}");

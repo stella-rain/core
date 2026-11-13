@@ -1137,7 +1137,7 @@ mod builds {
         // A passive bot walks; the first decision of a building bot that equips is checked
         // against the ratings computed here.
         let mut checked = 0;
-        for (e, s, _, a) in decisions(1) {
+        for (e, s, _, a) in decisions(3) {
             let Some(EquipAction::Equip { item, slot } | EquipAction::Replace { item, slot }) = a
             else {
                 continue;
