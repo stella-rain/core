@@ -526,9 +526,25 @@ fn horn_charger_phase_two_throws_two_orbs_with_its_ring() {
     assert_eq!(orbs_at_ring, Some(2));
 }
 
+/// A copy of bundled content without the `sim_version` 2 combat keys (`poise`, `stagger_max`,
+/// `staggered_ticks`), at every depth: this fixture stage runs the frozen rules.
+fn without_combat_keys(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            for key in ["poise", "stagger_max", "staggered_ticks"] {
+                map.remove(key);
+            }
+            map.values_mut().for_each(without_combat_keys);
+        }
+        Value::Array(items) => items.iter_mut().for_each(without_combat_keys),
+        _ => {}
+    }
+}
+
 /// The bundled elite `id` alone, `(dx, dy)` pixels from the main character.
 fn elite_stage(id: &str, dx: i32, dy: i32) -> Stage {
-    let elite = elite_def(id)["enemy"].clone();
+    let mut elite = elite_def(id)["enemy"].clone();
+    without_combat_keys(&mut elite);
     let mut stage = stage_with(
         6_000,
         Some(far_boss()),
@@ -591,6 +607,7 @@ fn elite_mid_lobs_and_charges_within_420_ticks() {
 
 fn shrine_stage() -> Stage {
     let mut elite = elite_def("elite_shrine")["enemy"].clone();
+    without_combat_keys(&mut elite);
     elite["radius"] = json!(3072);
     let mut stage = stage_full(
         18_000,
