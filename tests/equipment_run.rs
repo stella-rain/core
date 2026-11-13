@@ -273,7 +273,7 @@ fn a_default_setup_runs_in_equipment_mode() {
     for _ in 0..600 {
         engine.step(&Default::default());
     }
-    // The state hash of this run at tick 600; re-pinned when the combat fields joined the hash, then for the counter-bonus mark.
+    // The state hash of this run at tick 600; re-pinned when the combat fields joined the hash, then for the counter-bonus mark, then for the shipped ranged grace.
     assert_eq!(format!("{:016x}", engine.state_hash()), "b77d4117b61d7847");
 
     let frozen = RunSetup {

@@ -24,7 +24,8 @@ use crate::version::Versions;
 /// which the Main weapon hits and 260 enemies stand, tick 1,695 has the most attacks running (4) and
 /// then the most zones (28). Found by `window`, which reads the engine's `Load`, not an
 /// instruction count; `tests/time_limit_case.rs` pins that the constant is where the scan puts it.
-/// In offers mode the same scan gave tick 1,027 (3 attacks, 124 zones): the run differs.
+/// In offers mode the same scan gave tick 1,027 (3 attacks, 124 zones) before the shipped ranged
+/// grace; it was not re-scanned (no check names it): the run differs.
 pub const WARMUP_TICKS: u32 = 1_694;
 
 /// The longest stage there is: 5 minutes. The mode's run is longer, which only the mode may be.
