@@ -320,6 +320,18 @@ pub enum DomainEvent {
         player: PlayerIdx,
         amount: u32,
     },
+    /// The spirit level of `player` rose to `level` (1 to the style's top), by a full-gauge
+    /// smash that was not already at the top (ADR-SIM-9).
+    SpiritRaised {
+        player: PlayerIdx,
+        level: u8,
+    },
+    /// The spirit level of `player` fell to `level` (0 to the style's top less one) because
+    /// no smash came within the countdown (ADR-SIM-9).
+    SpiritFell {
+        player: PlayerIdx,
+        level: u8,
+    },
     /// A near miss of `player` was a perfect evade: its slow and its cooldown have just started
     /// (ADR-SIM-8).
     PerfectEvade {

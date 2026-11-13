@@ -205,3 +205,42 @@ fn the_kind_round_trips_and_the_bundled_file_names_none() {
     let kind: StyleKind = serde_json::from_value(spirit()).expect("the kind parses");
     assert_eq!(serde_json::to_value(&kind).unwrap(), spirit());
 }
+
+/// S6: a `PlayerView` with `spirit: None` serializes without the key, and the two events use
+/// the event enum's tag form.
+#[test]
+fn the_view_and_the_events_serialize() {
+    use stella_rain_core::event::DomainEvent;
+    use stella_rain_core::id::PlayerIdx;
+    use stella_rain_core::snapshot::SpiritView;
+
+    let view = SpiritView {
+        level: 1,
+        max_level: 3,
+        decay_left: 100,
+        decay_ticks: 100,
+    };
+    assert_eq!(
+        serde_json::to_value(view).unwrap(),
+        json!({ "level": 1, "max_level": 3, "decay_left": 100, "decay_ticks": 100 })
+    );
+    let raised = DomainEvent::SpiritRaised {
+        player: PlayerIdx::SOLO,
+        level: 1,
+    };
+    assert_eq!(
+        serde_json::to_value(raised).unwrap(),
+        json!({ "type": "spirit_raised", "player": 0, "level": 1 })
+    );
+    let fell = DomainEvent::SpiritFell {
+        player: PlayerIdx::SOLO,
+        level: 0,
+    };
+    assert_eq!(
+        serde_json::to_value(fell).unwrap(),
+        json!({ "type": "spirit_fell", "player": 0, "level": 0 })
+    );
+    let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
+    let player = serde_json::to_value(&snap.players[0]).unwrap();
+    assert!(player.get("spirit").is_none(), "{player}");
+}

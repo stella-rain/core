@@ -254,6 +254,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             value: s.players[me].combat.weapon_gauge,
             max: g.max,
         }),
+        // Built in the step that reads the level.
+        spirit: None,
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {

@@ -533,6 +533,21 @@ pub struct GaugeView {
     pub max: u32,
 }
 
+/// A player's spirit level (ADR-SIM-9): not state, built each frame from the level, the countdown
+/// and the style's numbers.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SpiritView {
+    /// The level now, 0 to `max_level`.
+    pub level: u8,
+    /// The style's top level.
+    pub max_level: u8,
+    /// Ticks until the level drops; 0 at level 0, where nothing counts.
+    pub decay_left: u32,
+    /// The countdown a smash restarts.
+    pub decay_ticks: u32,
+}
+
 /// A player's perfect evade after the near miss (ADR-SIM-8).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -560,6 +575,10 @@ pub struct PlayerView {
     /// The weapon gauge of its style, while the style grants one (ADR-SIM-9); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gauge: Option<GaugeView>,
+    /// The spirit level of its style, while the style grants one, at level 0 too (ADR-SIM-9);
+    /// absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spirit: Option<SpiritView>,
     /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
     /// perfect evade (ADR-SIM-8); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
