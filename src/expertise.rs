@@ -17,7 +17,8 @@
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
 //! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
 //! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
-//! and the first dash-branch step inside its window takes (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
+//! and the first dash-branch step inside its window takes, or a combo tempo whose stacks, gained
+//! from the swings that hit, speed the attacks the combo starts (ADR-SIM-9). A repeat and a factor are runtime-only fields of the
 //! step on the style's copy of the tree.
 //!
 //! The file is untrusted (ADR-SVC-1), as the rewards are: a size limit before parsing, strict
@@ -37,12 +38,12 @@ use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
     MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_SPIRIT_LEVEL, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_WEAPON_GAUGE,
 };
 use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_HP_AMOUNT, MAX_RANGE_PCT};
-use crate::run_stats::{MAX_STEP, StatEffect};
+use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
 use crate::validate::limits::MAX_COMBO_DEPTH;
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
@@ -209,6 +210,48 @@ pub enum StyleKind {
     /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style
     /// path: a second is refused.
     CounterBonus(CounterBonus),
+    /// The style's combo tempo: each swing of a combo step that hits adds a stack, up to
+    /// `max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;
+    /// the stacks end when the combo resets, when a smash is pressed (unless the stacks are full
+    /// and the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).
+    /// One per style path: a second is refused.
+    ComboTempoPct(ComboTempo),
+}
+
+/// A combo tempo's numbers, every one bounded by the validator and clamped again when the world
+/// is built (ADR-SVC-1, ADR-SIM-5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ComboTempo {
+    /// The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.
+    #[schemars(range(min = 1, max = MAX_TEMPO_STACKS))]
+    pub max_stacks: u32,
+    /// What the stacks do, each variant at most once; 1 to 2 entries, `speed_pct` among them.
+    pub effects: Vec<TempoEffect>,
+}
+
+/// What a combo tempo's stacks do: a closed list built into `core`, one variant per effect,
+/// each bounded alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TempoEffect {
+    /// Each stack's share of attack speed, added to the player's attack speed when an attack
+    /// starts, in percent. 1 to `MAX_ATTACK_SPEED_PCT`; `max_stacks` times it at most that.
+    SpeedPct {
+        #[schemars(range(min = 1, max = MAX_ATTACK_SPEED_PCT))]
+        pct: u32,
+    },
+    /// A smash pressed with the stacks full leaves them; below full it ends them as it always does.
+    KeepOnSmash {},
+}
+
+impl TempoEffect {
+    fn name(&self) -> u8 {
+        match self {
+            TempoEffect::SpeedPct { .. } => 0,
+            TempoEffect::KeepOnSmash {} => 1,
+        }
+    }
 }
 
 /// A counter bonus's numbers, every one bounded by the validator and clamped again when the
@@ -751,6 +794,7 @@ fn check_level(
             StyleKind::Gauge(g) => check_gauge(issue, &at, g),
             StyleKind::Spirit(s) => check_spirit(issue, &at, s),
             StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c),
+            StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t),
         }
     }
 }
@@ -838,6 +882,60 @@ fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: &Spirit) {
     }
 }
 
+/// A combo tempo's numbers, each in its own range; it names an effect once and names
+/// `speed_pct`, and the stacks' total speed stays within the attack speed ceiling.
+fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &ComboTempo) {
+    let max = u64::from(MAX_TEMPO_STACKS);
+    if !(1..=max).contains(&u64::from(t.max_stacks)) {
+        issue(
+            format!("{at}.max_stacks"),
+            format!("1 to {MAX_TEMPO_STACKS} (found {})", t.max_stacks),
+        );
+    }
+    if t.effects.is_empty() || t.effects.len() > 2 {
+        issue(
+            format!("{at}.effects"),
+            format!("1 to 2 effects (found {})", t.effects.len()),
+        );
+    }
+    let mut seen = [false; 2];
+    let mut speed = None;
+    for (e, effect) in t.effects.iter().enumerate().take(2) {
+        let at = format!("{at}.effects[{e}]");
+        if let TempoEffect::SpeedPct { pct } = effect {
+            if !(1..=MAX_ATTACK_SPEED_PCT).contains(pct) {
+                issue(
+                    format!("{at}.pct"),
+                    format!("1 to {MAX_ATTACK_SPEED_PCT} (found {pct})"),
+                );
+            }
+            speed.get_or_insert(*pct);
+        }
+        let slot = &mut seen[usize::from(effect.name())];
+        if *slot {
+            issue(at, "the kind already names this effect".into());
+        }
+        *slot = true;
+    }
+    if !t.effects.is_empty() && t.effects.len() <= 2 {
+        match speed {
+            None => issue(format!("{at}.effects"), "names no speed_pct".into()),
+            Some(pct) if (1..=MAX_ATTACK_SPEED_PCT).contains(&pct) => {
+                let total = u64::from(t.max_stacks) * u64::from(pct);
+                if total > u64::from(MAX_ATTACK_SPEED_PCT) {
+                    issue(
+                        format!("{at}.effects"),
+                        format!(
+                            "max_stacks times speed_pct is at most {MAX_ATTACK_SPEED_PCT} (found {total})"
+                        ),
+                    );
+                }
+            }
+            Some(_) => {}
+        }
+    }
+}
+
 /// A counter bonus's numbers, each in its own range; it names an effect once.
 fn check_counter_bonus(issue: &mut impl FnMut(String, String), at: &str, c: &CounterBonus) {
     if !(1..=u32::from(MAX_COUNTER_WINDOW_TICKS)).contains(&c.window_ticks) {
@@ -919,6 +1017,7 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     let mut gauge_set = false;
     let mut spirit_set = false;
     let mut counter_set = false;
+    let mut tempo_set = false;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -985,6 +1084,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     counter_set = true;
+                }
+                StyleKind::ComboTempoPct(_) => {
+                    if tempo_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already names a combo tempo".into(),
+                        );
+                    }
+                    tempo_set = true;
                 }
             }
         }
@@ -1146,6 +1254,8 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 StyleKind::Spirit(_) => {}
                 // Nor does the counter bonus (`World::counter_of`).
                 StyleKind::CounterBonus(_) => {}
+                // Nor does the combo tempo (`World::tempo_of`).
+                StyleKind::ComboTempoPct(_) => {}
             }
         }
     }

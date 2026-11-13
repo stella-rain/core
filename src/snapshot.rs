@@ -278,6 +278,9 @@ pub enum StyleKindView {
     Spirit { max_level: u8, decay_ticks: u32 },
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
     CounterBonus { window_ticks: u32 },
+    /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
+    /// faster.
+    ComboTempoPct { max_stacks: u32, pct_per_stack: u32 },
 }
 
 /// The kinds one level of a style's path grants.

@@ -30,7 +30,7 @@
 use super::World;
 use crate::expertise::{
     Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat, StepGrant, Style, StyleKind,
-    TABLE_LEVELS, WeaponExpertise,
+    TABLE_LEVELS, TempoEffect, WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
@@ -613,6 +613,17 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             },
             StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
                 window_ticks: c.window_ticks,
+            },
+            StyleKind::ComboTempoPct(t) => StyleKindView::ComboTempoPct {
+                max_stacks: t.max_stacks,
+                pct_per_stack: t
+                    .effects
+                    .iter()
+                    .find_map(|e| match e {
+                        TempoEffect::SpeedPct { pct } => Some(*pct),
+                        TempoEffect::KeepOnSmash {} => None,
+                    })
+                    .unwrap_or(0),
             },
         })
         .collect()

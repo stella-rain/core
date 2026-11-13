@@ -261,6 +261,8 @@ pub(super) fn check_style_grants(
                         // branch, which this check cannot see: a pack lacking either has a
                         // counter that never opens.
                         StyleKind::CounterBonus(_) => continue,
+                        // The combo tempo changes no step: nothing to check.
+                        StyleKind::ComboTempoPct(_) => continue,
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()

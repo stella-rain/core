@@ -140,10 +140,7 @@ fn a_kind_names_one_effect_per_variant_and_a_path_one_tempo() {
         ]))]),
         &format!("{PATH}.effects[1]"),
     );
-    refused_at(
-        json!([tempo(), tempo()]),
-        "$.weapons[0].styles[0].kinds[1]",
-    );
+    refused_at(json!([tempo(), tempo()]), "$.weapons[0].styles[0].kinds[1]");
     let mut v = with_kinds(json!([tempo()]));
     v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
         "id": "again", "effect": "none", "kinds": [tempo()]
