@@ -72,6 +72,20 @@ pub(super) struct Swing {
     once: bool,
 }
 
+impl Swing {
+    /// The place of its source in `State::runs` or `State::zones`.
+    fn place(&self) -> usize {
+        match self.source {
+            Source::Run(i) | Source::Zone(i) => i,
+        }
+    }
+}
+
+/// Puts the tick's hit boxes in owner, then slot order.
+fn sort_swings(swings: &mut [Swing]) {
+    swings.sort_by_key(|w| (w.owner.0, w.slot));
+}
+
 /// The ground a hit box covers: a circle at `centre`, narrowed to a sector when `arc` is set.
 pub(super) struct Area {
     centre: Point,
@@ -160,7 +174,7 @@ pub(super) fn resolve(
     let mut found = std::mem::take(&mut s.scratch.found);
     let mut bits = std::mem::take(&mut s.scratch.found_bits);
     active_swings(stage, s, &mut swings);
-    swings.sort_by_key(|w| (w.owner.0, w.slot));
+    sort_swings(&mut swings);
     // The zones land after the hit boxes, in the order they were placed.
     zone_swings(s, &mut swings);
     if !s.orbs.is_empty() {
@@ -1712,5 +1726,97 @@ mod party_tests {
         s.scratch.push_end(end);
         s.scratch.push_end(RunEnd::All(EntityId(901)));
         assert_eq!(s.scratch.ends_pending.len(), 2);
+    }
+
+    mod sort_tests {
+        use super::*;
+
+        /// The order of the stable sort: tied swings stay in `active_swings` order.
+        fn stable_order(swings: &[Swing]) -> Vec<(u32, u8, usize)> {
+            let mut keys: Vec<_> = swings
+                .iter()
+                .map(|w| (w.owner.0, w.slot, w.place()))
+                .collect();
+            keys.sort_by_key(|k| (k.0, k.1));
+            keys
+        }
+
+        fn keys(swings: &[Swing]) -> Vec<(u32, u8, usize)> {
+            swings
+                .iter()
+                .map(|w| (w.owner.0, w.slot, w.place()))
+                .collect()
+        }
+
+        fn made(owner: u32, slot: u8, place: usize) -> Swing {
+            at_place(
+                swing(Point::default(), 1, false, EntityId(owner)),
+                place,
+                slot,
+            )
+        }
+
+        /// A fixed pseudo-random order (an LCG; the tests draw no `Rng`).
+        fn shuffled(n: usize, owners: u32, slots: u8, unique: bool) -> Vec<Swing> {
+            let mut x: u64 = 0x2545_F491_4F6C_DD1D;
+            let mut next = move || {
+                x = x.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                (x >> 33) as u32
+            };
+            let mut all: Vec<(u32, u8)> = (0..n)
+                .map(|i| {
+                    if unique {
+                        (
+                            900 + (i / usize::from(slots)) as u32,
+                            (i % usize::from(slots)) as u8,
+                        )
+                    } else {
+                        (900 + next() % owners, (next() % u32::from(slots)) as u8)
+                    }
+                })
+                .collect();
+            for i in (1..all.len()).rev() {
+                all.swap(i, next() as usize % (i + 1));
+            }
+            all.into_iter()
+                .enumerate()
+                .map(|(place, (o, sl))| made(o, sl, place))
+                .collect()
+        }
+
+        #[test]
+        fn unique_keys_sort_as_the_stable_sort_does() {
+            for n in [0, 1, 20, 21, 260] {
+                let mut w = shuffled(n, 0, 8, true);
+                let want = stable_order(&w);
+                sort_swings(&mut w);
+                assert_eq!(keys(&w), want, "{n} swings");
+            }
+        }
+
+        #[test]
+        fn tied_keys_keep_their_places_in_order() {
+            let mut w = shuffled(60, 5, 3, false);
+            let mut pairs: Vec<_> = w.iter().map(|x| (x.owner.0, x.slot)).collect();
+            pairs.sort();
+            pairs.dedup();
+            assert!(pairs.len() < w.len(), "the keys tie");
+            let want = stable_order(&w);
+            sort_swings(&mut w);
+            assert_eq!(keys(&w), want);
+        }
+
+        #[test]
+        fn sorted_and_reversed_inputs_sort_as_the_stable_sort_does() {
+            let mut w = shuffled(260, 0, 8, true);
+            w.sort_by_key(|w| (w.owner.0, w.slot));
+            let want = stable_order(&w);
+            sort_swings(&mut w);
+            assert_eq!(keys(&w), want);
+            w.reverse();
+            let want = stable_order(&w);
+            sort_swings(&mut w);
+            assert_eq!(keys(&w), want);
+        }
     }
 }
