@@ -65,11 +65,12 @@ x86_64 = 5_600_000
 # replays 8 ticks of the full crowd (the caps are written once, for the first, which is the
 # worst_tick_combat tick; the 7 after it run as the rules leave them), not one frame's tick, and a
 # shortened window would no longer be comparable with rollback and rollback_equip. CI counts
-# (arm64 / x86_64) on the first run of the case: 28,715,782 / 32,804,368; budgets by the margin
-# rule ceil(count * 1.1 / 100_000) * 100_000.
+# (arm64 / x86_64) on the first run of the case, once the in-place swing sort had merged:
+# 28,502,636 / 32,173,900 (before it, 28,715,782 / 32,804,368); budgets by the margin rule
+# ceil(count * 1.1 / 100_000) * 100_000.
 [rollback_combat]
-arm64 = 31_600_000
-x86_64 = 36_100_000
+arm64 = 31_400_000
+x86_64 = 35_400_000
 
 # rollback_session: one rolling-back Session::advance of the rollback_equip case at window 4 and
 # 16 (rollback_session_w4, rollback_session_w16, the largest is _w16), one CloneRing save into an
