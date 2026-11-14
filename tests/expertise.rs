@@ -634,8 +634,68 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
             }
         }
     }
-    // 6 style levels and the 4 built upgrade and capstone levels.
-    assert_eq!(built, 10);
+    // 6 style levels and the 8 built upgrade and capstone levels.
+    assert_eq!(built, 14);
+}
+
+/// C1: the four upgrade levels of the stacking kinds are kinds (no stat, no amount); the ten
+/// other placeholder levels are still stats.
+#[test]
+fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats() {
+    let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
+    let mut levels = std::collections::BTreeMap::new();
+    for w in weapons.as_array().unwrap() {
+        for s in w["styles"].as_array().unwrap() {
+            for f in ["upgrade_1", "upgrade_2", "capstone"] {
+                for o in s[f].as_array().unwrap() {
+                    levels.insert(o["id"].as_str().unwrap().to_string(), o.clone());
+                }
+            }
+        }
+    }
+    let want = [
+        (
+            "spirit_blade_up_1",
+            json!({ "type": "spirit", "decay_ticks": 1800, "levels": [[]] }),
+        ),
+        (
+            "titan_trigger_up_1",
+            json!({ "type": "giant_trigger", "ticks": 720, "effects": [] }),
+        ),
+        (
+            "foresight_counter_up_1",
+            json!({ "type": "counter_bonus", "window_ticks": 38, "effects": [] }),
+        ),
+        (
+            "foresight_counter_up_2",
+            json!({
+                "type": "counter_bonus", "window_ticks": 38,
+                "effects": [{ "type": "advance", "distance": 12288 }]
+            }),
+        ),
+    ];
+    for (id, kind) in want {
+        let level = &levels[id];
+        assert_eq!(level["effect"], "none", "{id}");
+        assert!(level.get("amount").is_none(), "{id}: {level}");
+        assert_eq!(level["kinds"], json!([kind]), "{id}");
+    }
+    let stats = [
+        "spirit_blade_up_2",
+        "foresight_counter_cap",
+        "judgement_cut_up_1",
+        "judgement_cut_up_2",
+        "titan_trigger_up_2",
+        "titan_trigger_cap",
+        "momentum_up_1",
+        "momentum_up_2",
+        "momentum_cap",
+        "breaker_up_1",
+    ];
+    for id in stats {
+        assert_ne!(levels[id]["effect"], "none", "{id}");
+        assert!(levels[id].get("kinds").is_none(), "{id}");
+    }
 }
 
 /// A common option is a stat: it names no kind and is never `none`.
