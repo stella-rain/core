@@ -1766,20 +1766,21 @@ mod party_tests {
                 x = x.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
                 (x >> 33) as u32
             };
-            let mut all: Vec<(u32, u8)> = (0..n)
-                .map(|i| {
-                    if unique {
-                        (
-                            900 + (i / usize::from(slots)) as u32,
-                            (i % usize::from(slots)) as u8,
-                        )
-                    } else {
-                        (900 + next() % owners, (next() % u32::from(slots)) as u8)
-                    }
-                })
-                .collect();
+            let mut all: Vec<(u32, u8)> = Vec::new();
+            for i in 0..n {
+                let i = u32::try_from(i).expect("a small count");
+                all.push(if unique {
+                    (
+                        900 + i / u32::from(slots),
+                        u8::try_from(i % u32::from(slots)).expect("a slot"),
+                    )
+                } else {
+                    let (o, sl) = (next() % owners, next() % u32::from(slots));
+                    (900 + o, u8::try_from(sl).expect("a slot"))
+                });
+            }
             for i in (1..all.len()).rev() {
-                all.swap(i, next() as usize % (i + 1));
+                all.swap(i, usize::try_from(next()).expect("a usize") % (i + 1));
             }
             all.into_iter()
                 .enumerate()
