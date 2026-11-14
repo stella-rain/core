@@ -62,6 +62,17 @@ pub(super) fn levelled_pack(
     upgrade_2: Vec<Value>,
     capstone: Vec<Value>,
 ) -> Pack {
+    let v = levelled_value(extra, upgrade_1, upgrade_2, capstone);
+    Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
+}
+
+/// The JSON of `levelled_pack`, before the pack check reads it.
+pub(super) fn levelled_value(
+    extra: Vec<Value>,
+    upgrade_1: Vec<Value>,
+    upgrade_2: Vec<Value>,
+    capstone: Vec<Value>,
+) -> Value {
     let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
@@ -93,7 +104,7 @@ pub(super) fn levelled_pack(
             w["styles"][0][field][0]["kinds"] = json!(kinds);
         }
     }
-    Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
+    v
 }
 
 pub(super) fn st(e: &mut Engine) -> &mut State {

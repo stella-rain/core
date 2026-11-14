@@ -4,7 +4,7 @@
 //! effect it does not list stays. Every number is a test value, not content.
 
 use super::state::PlayerIdx;
-use super::trigger_tests::{levelled_pack, slot, st};
+use super::trigger_tests::{levelled_pack, levelled_value, slot, st};
 use crate::engine::{Engine, Run};
 use crate::pack::Pack;
 use crate::run_setup::RunSetup;
@@ -606,4 +606,59 @@ fn the_bundled_foresight_widens_its_window_and_slides() {
     assert_eq!(counter_at(&mut e, 0, 1), Some((38, 100, 300, 45, 0)));
     assert_eq!(counter_at(&mut e, 0, 2), Some((38, 100, 300, 45, 12288)));
     assert_eq!(counter_at(&mut e, 0, 3), Some((38, 100, 300, 45, 12288)));
+}
+
+/// The pack check reads a later level's spirit against the path: its bleed entry needs a bleed
+/// smash on the path, as the first naming's does, and is refused at the later level's own path.
+#[test]
+fn the_pack_check_reads_a_later_spirit_against_the_path() {
+    let load = |smash: bool| {
+        let mut kinds = vec![spirit(1200, json!([[dmg(8)]]))];
+        if smash {
+            kinds.push(json!({ "type": "smash_effect", "effect": { "type": "bleed" } }));
+        }
+        let v = levelled_value(
+            kinds,
+            vec![spirit(1800, json!([[bleed(2)]]))],
+            vec![],
+            vec![],
+        );
+        Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
+    };
+    assert!(load(true).is_ok());
+    let err = format!("{:?}", load(false).err().expect("refused"));
+    assert!(
+        err.contains("$.weapons[0].styles[0].upgrade_1[0].kinds[0].levels[0][0]")
+            && err.contains("needs a bleed smash"),
+        "{err}"
+    );
+}
+
+/// The pack check reads a later trigger against the path too: with no full-smash gauge on the path
+/// a later trigger is refused (the first naming's refusal), with one it loads.
+#[test]
+fn the_pack_check_reads_a_later_trigger_against_the_path() {
+    let load = |gauge_removed: bool| {
+        let mut v = levelled_value(
+            vec![trigger(480, vec![pct("range_pct", 40)])],
+            vec![trigger(720, vec![])],
+            vec![],
+            vec![],
+        );
+        if gauge_removed {
+            let kinds = &mut v["expertise"]["weapons"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|w| w["weapon"] == "giant_hammer")
+                .unwrap()["styles"][0]["kinds"];
+            kinds
+                .as_array_mut()
+                .unwrap()
+                .retain(|k| k["type"] != "gauge");
+        }
+        Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
+    };
+    assert!(load(false).is_ok());
+    assert!(load(true).is_err());
 }
