@@ -164,3 +164,73 @@ fn a_later_spirit_past_the_caps_is_clamped() {
     assert_eq!(fx.range_pct, crate::rewards::MAX_RANGE_PCT);
     assert_eq!(fx.bleed_stacks, crate::expertise::MAX_SPIRIT_BLEED_STACKS);
 }
+
+fn counter(window: u32, effects: Vec<Value>) -> Value {
+    json!({ "type": "counter_bonus", "window_ticks": window, "effects": effects })
+}
+
+/// A counter grant as `(window, damage_pct, stagger_pct, stun_ticks, advance)`.
+type CounterSeen = (u16, u32, u32, u32, i32);
+
+fn counter_at(e: &mut Engine, i: u8, places: usize) -> Option<CounterSeen> {
+    read(e, i, places, |w, s, me| w.counter_of(s, me).cloned()).map(|g| {
+        (
+            g.window,
+            g.damage_pct,
+            g.stagger_pct,
+            g.stun_ticks,
+            g.advance.0,
+        )
+    })
+}
+
+/// G2: the counter's window and each effect stack in path order; an effect a later level does not
+/// list stays.
+#[test]
+fn the_counter_bonus_stacks_across_the_path() {
+    let base = counter(
+        30,
+        vec![
+            json!({ "type": "damage_pct", "pct": 100 }),
+            json!({ "type": "stagger_pct", "pct": 300 }),
+            json!({ "type": "stun_ticks", "ticks": 45 }),
+        ],
+    );
+    let mut e = stacked(
+        vec![base],
+        vec![counter(45, vec![])],
+        vec![counter(
+            45,
+            vec![json!({ "type": "advance", "distance": 12288 })],
+        )],
+        vec![counter(
+            20,
+            vec![json!({ "type": "damage_pct", "pct": 150 })],
+        )],
+    );
+    assert_eq!(counter_at(&mut e, 0, 0), Some((30, 100, 300, 45, 0)));
+    assert_eq!(counter_at(&mut e, 0, 1), Some((45, 100, 300, 45, 0)));
+    assert_eq!(counter_at(&mut e, 0, 2), Some((45, 100, 300, 45, 12288)));
+    assert_eq!(counter_at(&mut e, 0, 3), Some((20, 150, 300, 45, 12288)));
+}
+
+/// G2: each player reads its own place on the path; a style naming none gives none.
+#[test]
+fn each_player_reads_its_own_counter() {
+    let mut e = stacked(
+        vec![counter(
+            30,
+            vec![json!({ "type": "damage_pct", "pct": 100 })],
+        )],
+        vec![counter(45, vec![])],
+        vec![],
+        vec![],
+    );
+    assert_eq!(counter_at(&mut e, 0, 0).map(|g| g.0), Some(30));
+    assert_eq!(counter_at(&mut e, 2, 1).map(|g| g.0), Some(45));
+    assert_eq!(counter_at(&mut e, 0, 0).map(|g| g.0), Some(30));
+    if let Some(g) = st(&mut e).players.career_mut(slot(1)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    assert_eq!(counter_at(&mut e, 1, 1), None, "a style naming none");
+}
