@@ -62,19 +62,9 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   (`ContentFiles::bundled_file`). `attack_presets.json` (the attack presets, ADR-CONT-3 point 6) is a
   required member of the pack, read by `attack_presets.rs`; a check that needs a preset's
   phases runs at pack load and in `World::new`.
+  `threat_colours` is an optional member (`threat_colours.rs`; the bundled pack has none): `content-rules.md`.
 - `text.rs`: UI text outside the hashed pack, `content/text.<locale>.json` per `SHIPPED_LOCALES` code (`ko`, `en`).
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
   `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
 
-## Content or code (ADR-CONT-3)
-
-- A number a designer tunes for feel or balance is content: a strict, bounded, schema-generated key
-  of `rules.json`, read once into `Tuning`. A `tune/` PR changes it: a new pack hash, no new `sim_version`.
-- Caps, the grid, the push-apart, the view and the units stay in Rust. The test: a number whose
-  change needs code review stays in Rust. A key's bounds are code (`validate_rules` in `rules.rs`; the two ranged
-  token pools sum to at most `MAX_RANGED_ATTACKERS`).
-- `offer_timer_ticks` of `rules.json`: read by no run, kept for older packs: 1 to `MAX_OFFER_TIMER_TICKS` (3,600), checked in
-  `validate_rules`, 300 when absent. A key added after bytes were published carries `#[serde(default)]`, so an older pack still
-  reads; a setup key also `skip_serializing_if` its default, so an older setup writes the same bytes.
-- `docs/tuning.md` (generated from `src/limits.rs`) lists caps and code numbers only; a key's
-  bounds are the schema's.
+What a content key may hold, and what stays in Rust (ADR-CONT-3): `content-rules.md`.
