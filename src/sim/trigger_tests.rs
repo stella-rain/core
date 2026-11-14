@@ -62,7 +62,7 @@ pub(super) fn levelled_pack(
     upgrade_2: Vec<Value>,
     capstone: Vec<Value>,
 ) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
