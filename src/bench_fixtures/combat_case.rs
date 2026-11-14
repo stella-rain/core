@@ -14,6 +14,7 @@
 //! (`prepare`, through the crate-internal `Engine::bench_run_mut`). The sword's steps stay out of the
 //! crowd's reach, as the main character stands where the enemies' attacks cannot reach it.
 
+use super::party_case::ROLLBACK_TICKS;
 use super::{common, worst_case};
 use crate::attack::{HitBox, PhaseKind};
 use crate::engine::{Engine, Run};
@@ -218,6 +219,21 @@ pub fn warmed_up() -> Engine {
     engine
 }
 
+/// The measured body of the combat rollback bench (ADR-SIM-6, ADR-SIM-7): a clone of `saved`
+/// (a `warmed_up` engine, its 64 repeats queued), `ROLLBACK_TICKS` ticks played on it with `play`
+/// (the first is the measured tick of `worst_tick_combat`), and both engines handed back so that
+/// nothing is dropped inside the counted region. `prepare` does not run again: it is fixture
+/// work, and the queued repeats are all due on the first replayed tick.
+#[inline]
+pub fn rollback(saved: Engine) -> (Engine, Engine) {
+    let mut engine = saved.clone();
+    for _ in 0..ROLLBACK_TICKS {
+        let tick = engine.tick() + 1;
+        play(&mut engine, tick);
+    }
+    (engine, saved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,6 +293,28 @@ mod tests {
         assert_eq!(engine.outcome(), Outcome::Running);
         let (_, s) = state_of(&engine);
         assert!(s.repeats.is_empty(), "every entry was due on the tick");
+    }
+
+    /// The rollback leaves the saved engine alone, equals a direct play of the same ticks, and
+    /// the saved engine keeps the queued repeats the replay spends.
+    #[test]
+    fn the_rollback_replays_the_window_on_a_clone() {
+        let saved = warmed_up();
+        let before = saved.state_hash();
+        let mut direct = warmed_up();
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + ROLLBACK_TICKS {
+            play(&mut direct, tick);
+        }
+        let (played, saved) = rollback(saved);
+        assert_eq!(saved.state_hash(), before);
+        assert_eq!(saved.tick(), WARMUP_TICKS);
+        assert_eq!(state_of(&saved).1.repeats.len(), MAX_REPEATS_QUEUED);
+        assert_eq!(played.tick(), WARMUP_TICKS + ROLLBACK_TICKS);
+        assert_eq!(played.state_hash(), direct.state_hash());
+        assert!(
+            state_of(&played).1.repeats.is_empty(),
+            "every entry was due on the first replayed tick"
+        );
     }
 
     /// The weight `Load` sees of a tick.

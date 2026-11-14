@@ -68,6 +68,8 @@ enum Kind {
     Rollback(fn() -> Engine),
     /// The saved engine of the equipment rollback bench (`equip_case::rollback_equip`).
     EquipRollback(fn() -> Engine),
+    /// The saved engine of the combat rollback bench (`combat_case::rollback`).
+    CombatRollback(fn() -> Engine),
     /// One rolling-back `Session::advance` of the equipment run at a window
     /// (`session_case::rollback`).
     SessionRollback(u32),
@@ -86,7 +88,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 14] {
+fn specs() -> [Spec; 15] {
     [
         Spec {
             id: "worst_tick",
@@ -147,6 +149,12 @@ fn specs() -> [Spec; 14] {
             bench: "rollback_equip",
             mode: "time_limit",
             kind: Kind::EquipRollback(equip_case::saved),
+        },
+        Spec {
+            id: "rollback_combat",
+            bench: "rollback_combat",
+            mode: "time_limit",
+            kind: Kind::CombatRollback(combat_case::warmed_up),
         },
         Spec {
             id: "rollback_session_w4",
@@ -317,6 +325,30 @@ fn measure(spec: &Spec) -> Pins {
                 &actions,
             ]);
             let (engine, saved) = equip_case::rollback_equip(saved);
+            std::mem::forget(saved);
+            after = hash_hex(engine.state_hash());
+        }
+        Kind::CombatRollback(saved) => {
+            let saved = saved();
+            before = hash_hex(saved.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&saved, spec.mode),
+            ]);
+            let mut played = Vec::new();
+            for tick in saved.tick() + 1..=saved.tick() + ROLLBACK_TICKS {
+                serde_json::to_writer(&mut played, &combat_case::input(tick))
+                    .expect("the input serializes");
+                played.push(b'\n');
+            }
+            let defaults = serde_json::to_vec(&Input::default()).expect("the input serializes");
+            input = digest(&[
+                b"stella-rain/bench-input-combat-rollback/v1\n",
+                &played,
+                b"defaults:",
+                &defaults,
+            ]);
+            let (engine, saved) = combat_case::rollback(saved);
             std::mem::forget(saved);
             after = hash_hex(engine.state_hash());
         }
@@ -508,6 +540,11 @@ fn the_rollback_is_the_benches_case() {
 #[test]
 fn the_rollback_equip_is_the_benches_case() {
     check("rollback_equip");
+}
+
+#[test]
+fn the_rollback_combat_is_the_benches_case() {
+    check("rollback_combat");
 }
 
 #[test]

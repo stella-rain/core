@@ -233,10 +233,11 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 7] = [
 /// holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const
 /// so that `tests/bench_region.rs` keeps zipping the six solo cases. `worst_tick_3p` 2 -> 1: the
 /// swing sort works in place, so its crowd tick lost the sort's buffer.
-pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
+pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 4] = [
     ("worst_tick_3p", pin(1, 0, 1)),
     ("rollback", pin(345, 14, 8)),
     ("rollback_equip", pin(459, 23, 119)),
+    ("rollback_combat", pin(331, 11, 0)),
 ];
 
 fn party_pinned(case: &str) -> Allocs {
@@ -270,6 +271,19 @@ fn rollback_equip_allocates_as_pinned() {
         counts,
         party_pinned("rollback_equip"),
         "rollback_equip: (allocs, reallocs, frees)"
+    );
+}
+
+#[test]
+fn the_combat_rollback_allocates_as_pinned() {
+    let saved = bench_fixtures::combat_case::warmed_up();
+    let mut out = None;
+    let counts = counted3(|| out = Some(bench_fixtures::combat_case::rollback(saved)));
+    std::mem::forget(out);
+    assert_eq!(
+        counts,
+        party_pinned("rollback_combat"),
+        "rollback_combat: (allocs, reallocs, frees)"
     );
 }
 
