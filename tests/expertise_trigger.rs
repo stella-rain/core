@@ -36,8 +36,9 @@ fn one(effect: Value) -> Value {
     with(480, json!([effect]))
 }
 
+/// The styles from before the weapons' content moved (`crate::before`): the tests patch style 0.
 fn file() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn with_kinds(kinds: Value) -> Value {
@@ -207,7 +208,7 @@ fn gauge() -> Value {
 }
 
 fn hammer_pack(kinds: Vec<Value>) -> Value {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let mut v = crate::before::pack_value();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
@@ -215,7 +216,6 @@ fn hammer_pack(kinds: Vec<Value>) -> Value {
         .find(|w| w["weapon"] == "giant_hammer")
         .expect("the Hammer's expertise");
     w["styles"][0]["kinds"] = json!(kinds);
-    w["styles"][0]["upgrade_1"][0]["effect"] = json!("attack_pct");
     v
 }
 

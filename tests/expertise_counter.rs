@@ -36,8 +36,9 @@ fn effects(effects: Value) -> Value {
     json!({ "type": "counter_bonus", "window_ticks": 30, "effects": effects })
 }
 
+/// The styles from before the weapons' content moved (`crate::before`): the tests patch style 0.
 fn file() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn with_kinds(kinds: Value) -> Value {
@@ -214,7 +215,7 @@ fn the_kind_round_trips_and_the_bundled_file_names_it() {
 /// S4: the views carry the kind compactly and the bundled pack's views carry it.
 #[test]
 fn the_views_carry_the_counter_kind() {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     let w = file["weapons"]
         .as_array_mut()

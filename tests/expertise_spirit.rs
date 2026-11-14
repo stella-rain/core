@@ -35,8 +35,9 @@ fn one_level(effects: Value) -> Value {
     json!({ "type": "spirit", "decay_ticks": 100, "levels": [effects] })
 }
 
+/// The styles from before the weapons' content moved (`crate::before`): the tests patch style 0.
 fn file() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn with_kinds(kinds: Value) -> Value {
