@@ -234,3 +234,35 @@ fn each_player_reads_its_own_counter() {
     }
     assert_eq!(counter_at(&mut e, 1, 1), None, "a style naming none");
 }
+/// G2: a later counter past every cap (a value the validator refuses) is clamped as a single
+/// level's is.
+#[test]
+fn a_later_counter_past_the_caps_is_clamped() {
+    use super::world::{CounterGrant, counter_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::CounterBonus>(v).expect("a counter bonus")
+    };
+    let mut g = CounterGrant::none();
+    counter_fold(&mut g, &kind(counter(30, vec![])));
+    counter_fold(
+        &mut g,
+        &kind(counter(
+            4_000_000_000,
+            vec![
+                json!({ "type": "damage_pct", "pct": u32::MAX }),
+                json!({ "type": "stagger_pct", "pct": u32::MAX }),
+                json!({ "type": "stun_ticks", "ticks": u32::MAX }),
+                json!({ "type": "advance", "distance": i32::MAX }),
+            ],
+        )),
+    );
+    assert_eq!(g.window, crate::limits::MAX_COUNTER_WINDOW_TICKS);
+    assert_eq!(g.damage_pct, crate::limits::MAX_PCT);
+    assert_eq!(g.stagger_pct, crate::limits::MAX_PCT);
+    assert_eq!(g.stun_ticks, crate::validate::limits::MAX_STUN_TICKS);
+    assert_eq!(
+        g.advance,
+        crate::fixed::Fx::px(crate::limits::MAX_ADVANCE_DISTANCE)
+    );
+}

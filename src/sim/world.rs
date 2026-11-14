@@ -1412,7 +1412,9 @@ fn grant_spirits(
 }
 
 /// The counter bonus of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `counter_bonus` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's window and effects replacing the earlier ones (see
+/// `counter_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_counters(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1425,17 +1427,13 @@ fn grant_counters(
         return Vec::new();
     };
     let counter_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::CounterBonus(c) => Some(counter_folded(c)),
-                _ => None,
-            })
+        let mut grant: Option<CounterGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::CounterBonus(c) = k {
+                counter_fold(grant.get_or_insert_with(CounterGrant::none), c);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1654,17 +1652,25 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
     g
 }
 
-/// `c` as a flat grant, every number inside its cap.
-fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
-    let mut g = CounterGrant {
-        window: u16::try_from(c.window_ticks)
-            .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
-            .clamp(1, MAX_COUNTER_WINDOW_TICKS),
-        damage_pct: 0,
-        stagger_pct: 100,
-        stun_ticks: 0,
-        advance: Fx(0),
-    };
+impl CounterGrant {
+    /// A counter bonus that does nothing yet: the longest window, no effect.
+    pub(super) fn none() -> CounterGrant {
+        CounterGrant {
+            window: MAX_COUNTER_WINDOW_TICKS,
+            damage_pct: 0,
+            stagger_pct: 100,
+            stun_ticks: 0,
+            advance: Fx(0),
+        }
+    }
+}
+
+/// `c` laid over `g`, every number inside its cap: its window replaces the earlier one and each
+/// effect it lists replaces the same effect; an effect it does not list stays.
+pub(super) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::CounterBonus) {
+    g.window = u16::try_from(c.window_ticks)
+        .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
+        .clamp(1, MAX_COUNTER_WINDOW_TICKS);
     for e in c.effects.iter().take(4) {
         match e {
             CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
@@ -1677,7 +1683,6 @@ fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
             }
         }
     }
-    g
 }
 
 impl SpiritGrant {
