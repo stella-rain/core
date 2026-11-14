@@ -20,7 +20,9 @@ use stella_rain_core::bench_fixtures::party_case::{self, PEAK_TICK_3P, ROLLBACK_
 use stella_rain_core::bench_fixtures::worst_minute_case::{
     MINUTE_START, MINUTE_TICKS, Run, input_at, worst_minute_window,
 };
-use stella_rain_core::bench_fixtures::{self, Case, hit_case, time_limit_case, worst_case};
+use stella_rain_core::bench_fixtures::{
+    self, Case, combat_case, hit_case, time_limit_case, worst_case,
+};
 use stella_rain_core::engine::Engine;
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
@@ -84,7 +86,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 13] {
+fn specs() -> [Spec; 14] {
     [
         Spec {
             id: "worst_tick",
@@ -127,6 +129,12 @@ fn specs() -> [Spec; 13] {
             bench: "worst_tick_3p",
             mode: "time_limit",
             kind: Kind::Party(party_case::worst_tick_3p, worst_case::stage),
+        },
+        Spec {
+            id: "worst_tick_combat",
+            bench: "worst_tick_combat",
+            mode: "time_limit",
+            kind: Kind::Tick(bench_fixtures::worst_tick_combat, combat_case::stage),
         },
         Spec {
             id: "rollback",
@@ -480,6 +488,11 @@ fn the_worst_minute_is_the_benches_case() {
 #[test]
 fn the_worst_minute_peak_tick_is_the_benches_case() {
     check("worst_minute_peak");
+}
+
+#[test]
+fn the_worst_tick_combat_is_the_benches_case() {
+    check("worst_tick_combat");
 }
 
 #[test]

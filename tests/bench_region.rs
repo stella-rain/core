@@ -31,7 +31,7 @@ fn minute_case(build: fn() -> Run, ticks: u32) -> Allocs {
     counts
 }
 
-fn measured() -> [(&'static str, Allocs); 6] {
+fn measured() -> [(&'static str, Allocs); 7] {
     [
         ("worst_tick", tick_case(bench_fixtures::worst_tick)),
         ("hit_tick", tick_case(bench_fixtures::hit_tick)),
@@ -51,6 +51,10 @@ fn measured() -> [(&'static str, Allocs); 6] {
             "worst_minute_peak",
             minute_case(bench_fixtures::worst_minute_peak, 1),
         ),
+        (
+            "worst_tick_combat",
+            tick_case(bench_fixtures::worst_tick_combat),
+        ),
     ]
 }
 
@@ -68,12 +72,12 @@ fn the_bench_helpers_allocate_as_pinned() {
     }
 }
 
-/// The four cases whose region the simulation leaves allocation-free stay at nothing.
+/// The cases whose region the simulation leaves allocation-free stay at nothing.
 #[test]
 fn the_allocation_free_regions_stay_free() {
     let zero = none();
     for (case, counts) in measured() {
-        if !matches!(case, "worst_tick" | "worst_minute") {
+        if !matches!(case, "worst_tick" | "worst_minute" | "worst_tick_combat") {
             assert_eq!(counts, zero, "{case}: (allocs, reallocs, frees)");
         }
     }

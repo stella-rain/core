@@ -126,6 +126,10 @@ name = "worst_tick_3p"
 harness = false
 
 [[bench]]
+name = "worst_tick_combat"
+harness = false
+
+[[bench]]
 name = "rollback"
 harness = false
 

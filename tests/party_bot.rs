@@ -1615,6 +1615,50 @@ mod gauge {
         }
     }
 
+    /// Plays slot 0 of an engine whose weapon already holds every level (`script_expertise`),
+    /// and returns each tree pick the bot took: the offer's kind, its option count and the option.
+    fn every_tree_pick(bot: &PartyBot, world: u64) -> Vec<(ExpertiseOfferKind, usize, u32)> {
+        let mut e = engine_of("giant_sword", world);
+        e.script_expertise(PlayerIdx::new(0).unwrap(), u32::MAX / 2)
+            .unwrap();
+        let mut picks = Vec::new();
+        for t in 0..600u32 {
+            let ready = e.snapshot().players[0].tree_ready.clone();
+            if let Some(a) = bot.action(&e, 0, t) {
+                if let (EquipAction::TreePick { option }, Some(r)) = (a, ready) {
+                    picks.push((r.kind, r.options.len(), option));
+                }
+                e.act(PlayerIdx::new(0).unwrap(), a).unwrap();
+            }
+            let input = bot.input(&e, 0, t);
+            e.step(&[input, Input::default(), Input::default()]);
+        }
+        picks
+    }
+
+    #[test]
+    fn upgrade_and_capstone_points_take_option_zero() {
+        for seed in 1..=8u64 {
+            let picks = every_tree_pick(&building(seed), 2);
+            let kinds: Vec<_> = picks.iter().map(|p| p.0).collect();
+            assert_eq!(
+                kinds,
+                [
+                    ExpertiseOfferKind::Style,
+                    ExpertiseOfferKind::Upgrade,
+                    ExpertiseOfferKind::Upgrade,
+                    ExpertiseOfferKind::Capstone
+                ],
+                "seed {seed}: the whole tree is taken in path order"
+            );
+            for (kind, len, option) in picks {
+                if kind != ExpertiseOfferKind::Style {
+                    assert_eq!((len, option), (1, 0), "seed {seed} {kind:?}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn sight_reads_the_gauge_full() {
         let bot = building(2);

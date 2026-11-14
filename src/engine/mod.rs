@@ -693,6 +693,14 @@ impl Engine {
         Ok(())
     }
 
+    /// The run, to write the combat caps into its state before a tick
+    /// (`bench_fixtures::combat_case`): the bench cases' own seam, crate-internal and behind the
+    /// `bench` feature like `script_expertise`; `run_mut` is for tests only.
+    #[cfg(feature = "bench")]
+    pub(crate) fn bench_run_mut(&mut self) -> &mut Run {
+        &mut self.run
+    }
+
     /// Starts a run of the `time_limit` mode from `mode` in place of the bundled file: its
     /// waves, and its bosses as they come (`TICK`'s first step).
     pub fn start_time_limit(

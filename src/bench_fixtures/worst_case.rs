@@ -109,6 +109,12 @@ pub const ENEMIES_AT: (i32, i32) = (60_000, 20_480);
 /// of the main character's start and so in its view, where RA1's off-view rule lets its attack
 /// start at once (RA1b, DS82); it then walks to the stack as the others do, which arrive there.
 pub fn stage() -> Stage {
+    stage_with(None)
+}
+
+/// `stage`, its elites naming `stagger_max` when `elite_stagger` is given (the combat case,
+/// `combat_case`): every elite then has a stagger gauge. `None` builds `stage` byte for byte.
+pub(crate) fn stage_with(elite_stagger: Option<u32>) -> Stage {
     let swing = json!([{ "kind": "active", "ticks": 30,
                          "spawn": [{ "type": "wait", "ticks": 29 }],
                          "hit_box": { "type": "arc", "radius": 32_768,
@@ -193,6 +199,9 @@ pub fn stage() -> Stage {
         let mut elite = enemy.clone();
         elite["base"] = json!(base);
         elite["elite"] = json!({ "range": ELITE_RANGE });
+        if let Some(max) = elite_stagger {
+            elite["stagger_max"] = json!(max);
+        }
         let share = MAX_ELITES_ALIVE / 3 + u16::from(i < usize::from(MAX_ELITES_ALIVE % 3));
         waves.push(common::wave(WAVES_AT + 4, share, 1, elite, x, y));
         let after = WAVES_AT + 4 + u32::from(share);
@@ -337,7 +346,12 @@ pub fn start() -> Engine {
         seed: u64::from(stage.seed),
         ..RunSetup::default()
     };
-    let mut engine = Engine::new_equipped(&stage, &content(), &setup).expect("the run starts");
+    start_in(&stage, &content(), &setup)
+}
+
+/// `start` over the `stage`, `content` and `setup` it is given (the combat case brings its own).
+pub(crate) fn start_in(stage: &Stage, content: &RunContent, setup: &RunSetup) -> Engine {
+    let mut engine = Engine::new_equipped(stage, content, setup).expect("the run starts");
     engine
         .script_equipment(PlayerIdx::SOLO, &[HASTE.into()], &[(0, 1)])
         .expect("Rune Haste is scripted");

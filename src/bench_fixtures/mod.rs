@@ -6,6 +6,7 @@
 //!
 //! Behind the `bench` feature; not part of the library's API.
 
+pub mod combat_case;
 pub mod equip_case;
 pub mod hit_case;
 #[cfg(test)]
@@ -39,6 +40,15 @@ pub fn worst_tick() -> Case {
     Case {
         engine: worst_case::warmed_up(),
         input: worst_case::input(worst_case::WARMUP_TICKS + 1),
+    }
+}
+
+/// The worst combat tick (`benches/worst_tick_combat.rs`): the worst-case crowd with the step
+/// repeats, the stagger and the hard controls at their caps (`combat_case`).
+pub fn worst_tick_combat() -> Case {
+    Case {
+        engine: combat_case::warmed_up(),
+        input: combat_case::input(combat_case::WARMUP_TICKS + 1),
     }
 }
 

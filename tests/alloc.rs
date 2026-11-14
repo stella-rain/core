@@ -212,13 +212,14 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// keeps its hook and path inline and firing it builds no list, so `worst_minute` was 9, 0, 8. It
 /// runs in equipment mode now (no offer, no expertise offer's `Vec`s, no orb): 3, 0, 2.
 /// The cases are built by `bench_fixtures`, outside the count.
-pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 6] = [
+pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 7] = [
     ("worst_tick", pin(1, 0, 1)),
     ("hit_tick", pin(0, 0, 0)),
     ("hit_tick_spread", pin(0, 0, 0)),
     ("time_limit_tick", pin(0, 0, 0)),
     ("worst_minute", pin(3, 0, 2)),
     ("worst_minute_peak", pin(0, 0, 0)),
+    ("worst_tick_combat", pin(1, 0, 1)),
 ];
 
 /// The allocator calls of the two party benches (`benches/worst_tick_3p.rs`, `benches/rollback.rs`),
@@ -322,6 +323,32 @@ fn measure_case(case: &str, build: fn() -> Case) {
 #[test]
 fn the_worst_tick_allocates_as_pinned() {
     measure_case("worst_tick", bench_fixtures::worst_tick);
+}
+
+#[test]
+fn the_worst_tick_combat_allocates_as_pinned() {
+    measure_case("worst_tick_combat", bench_fixtures::worst_tick_combat);
+}
+
+/// The 60 ticks after the measured combat tick allocate what `worst_tick` does and no more, with
+/// the caps written again before each (`combat_case::prepare` is outside the count): the repeats,
+/// the stagger gauges and the control counts add no allocation. The one allocation of both is the
+/// stable sort's scratch buffer of `hit_boxes::resolve` (about 35 KB, the crowd's swings), so a
+/// steady tick of a crowd at the cap is not (0, 0, 0) (T1b holds for the other cases).
+#[test]
+fn the_combat_ticks_after_the_measured_one_allocate_as_the_worst_tick() {
+    use stella_rain_core::bench_fixtures::combat_case;
+    let mut engine = combat_case::warmed_up();
+    let from = combat_case::WARMUP_TICKS + 1;
+    for tick in from..=from + 60 {
+        let counts = counted3(|| combat_case::play(&mut engine, tick));
+        assert_eq!(
+            counts,
+            pinned("worst_tick"),
+            "tick {tick}: (allocs, reallocs, frees)"
+        );
+        combat_case::prepare(&mut engine);
+    }
 }
 
 #[test]

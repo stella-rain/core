@@ -63,6 +63,13 @@ after = "da38ed58ab660fad"
 stage = "741ef69c43a26984"
 input = "ce2422ff60f961b0"
 
+[worst_tick_combat]
+bench = "worst_tick_combat"
+before = "d7967d26e3f94edc"
+after = "8867450b90a07e0c"
+stage = "cfe2fc86fa7711db"
+input = "c8f0ff41826bb896"
+
 [rollback]
 bench = "rollback"
 before = "98d3a0c443795f1a"
