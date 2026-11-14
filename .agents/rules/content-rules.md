@@ -38,8 +38,8 @@ Sources: ADR-CONT-1, ADR-CONT-3, ADR-BRDG-4, ADR-SIM-9. Where each content file 
 
 - The 25 of `COMBAT_RULE_KEYS` (`tests/common/mod.rs`); what each does: `combat.md`. Each is optional, bounded in
   `validate_rules` (`rules.rs`) and off when absent; `sim_version` 2 only.
-- Two groups are all or none: `perfect_evade_*` (five keys) and `rally_*` (three). The bundled `rules.json` ships the first and
-  has no `rally_*` key.
+- Two groups are all or none: `perfect_evade_*` (five keys, among the 25) and `rally_*` (three, not in `COMBAT_RULE_KEYS`). The
+  bundled `rules.json` ships the first and has no `rally_*` key.
 
 ## Enemy, boss and phase fields
 
