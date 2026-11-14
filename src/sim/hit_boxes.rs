@@ -81,9 +81,12 @@ impl Swing {
     }
 }
 
-/// Puts the tick's hit boxes in owner, then slot order.
+/// Puts the tick's hit boxes in owner, then slot order, in place: the stable sort allocates a
+/// scratch buffer the size of the crowd's swings, and a steady tick allocates nothing (T1b). The
+/// place is the tie-break, so the order is total and equals the stable sort's for any input:
+/// tied swings kept their `State::runs` order, which is their place (ADR-SIM-3).
 fn sort_swings(swings: &mut [Swing]) {
-    swings.sort_by_key(|w| (w.owner.0, w.slot));
+    swings.sort_unstable_by_key(|w| (w.owner.0, w.slot, w.place()));
 }
 
 /// The ground a hit box covers: a circle at `centre`, narrowed to a sector when `arc` is set.
