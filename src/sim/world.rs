@@ -1365,8 +1365,20 @@ fn grant_gauges(
     out
 }
 
+/// The kinds of a style's own level, then of each of the first `taken` places of its path, in
+/// path order (ADR-SIM-9 point 3).
+fn path_kinds(s: &crate::expertise::Style, taken: usize) -> impl Iterator<Item = &StyleKind> {
+    let places = crate::expertise::style_levels(s)
+        .into_iter()
+        .take(taken)
+        .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+    std::iter::once(s.kinds.as_slice()).chain(places).flatten()
+}
+
 /// The spirit of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `spirit` kinds of the style's own level, then of each place taken, in
+/// path order, a later level's countdown and level effects replacing the earlier ones (see
+/// `spirit_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_spirits(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1379,17 +1391,13 @@ fn grant_spirits(
         return Vec::new();
     };
     let spirit_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::Spirit(sp) => Some(folded(sp)),
-                _ => None,
-            })
+        let mut grant: Option<SpiritGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::Spirit(sp) = k {
+                spirit_fold(grant.get_or_insert_with(SpiritGrant::none), sp);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1672,33 +1680,44 @@ fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
     g
 }
 
-/// `sp` as a flat table, every number inside its cap.
-fn folded(sp: &crate::expertise::Spirit) -> SpiritGrant {
-    let levels = sp
+impl SpiritGrant {
+    /// A spirit that does nothing yet: the longest countdown and no level.
+    pub(super) fn none() -> SpiritGrant {
+        SpiritGrant {
+            decay_ticks: MAX_SPIRIT_DECAY_TICKS,
+            levels: Vec::new(),
+        }
+    }
+}
+
+/// `sp` laid over `g`, every number inside its cap: its countdown replaces the earlier one and
+/// each effect of entry `i` replaces the same effect of level `i + 1`, an entry past the table
+/// extending it up to `MAX_SPIRIT_LEVEL`; an empty entry changes nothing.
+pub(super) fn spirit_fold(g: &mut SpiritGrant, sp: &crate::expertise::Spirit) {
+    g.decay_ticks = u16::try_from(sp.decay_ticks)
+        .unwrap_or(MAX_SPIRIT_DECAY_TICKS)
+        .clamp(1, MAX_SPIRIT_DECAY_TICKS);
+    for (i, effects) in sp
         .levels
         .iter()
         .take(usize::from(MAX_SPIRIT_LEVEL))
-        .map(|effects| {
-            let mut fx = SpiritFx::default();
-            for e in effects {
-                match e {
-                    SpiritEffect::DamagePct { pct } => fx.damage_pct = (*pct).min(MAX_PCT),
-                    SpiritEffect::RangePct { pct } => {
-                        fx.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
-                    }
-                    SpiritEffect::SmashBleedStacks { stacks } => {
-                        fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
-                    }
+        .enumerate()
+    {
+        if g.levels.len() <= i {
+            g.levels.push(SpiritFx::default());
+        }
+        let fx = &mut g.levels[i];
+        for e in effects {
+            match e {
+                SpiritEffect::DamagePct { pct } => fx.damage_pct = (*pct).min(MAX_PCT),
+                SpiritEffect::RangePct { pct } => {
+                    fx.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
+                }
+                SpiritEffect::SmashBleedStacks { stacks } => {
+                    fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
                 }
             }
-            fx
-        })
-        .collect();
-    SpiritGrant {
-        decay_ticks: u16::try_from(sp.decay_ticks)
-            .unwrap_or(MAX_SPIRIT_DECAY_TICKS)
-            .clamp(1, MAX_SPIRIT_DECAY_TICKS),
-        levels,
+        }
     }
 }
 

@@ -141,3 +141,26 @@ fn each_player_reads_its_own_spirit() {
     }
     assert_eq!(spirit_at(&mut e, 1, 0), None, "a style naming none");
 }
+
+/// G1: a later kind past every cap (a value the validator refuses) is clamped as a single
+/// level's is.
+#[test]
+fn a_later_spirit_past_the_caps_is_clamped() {
+    use super::world::{SpiritGrant, spirit_fold};
+    let kind = |v: Value| serde_json::from_value::<crate::expertise::Spirit>(v).expect("a spirit");
+    let mut g = SpiritGrant::none();
+    spirit_fold(&mut g, &kind(json!({ "decay_ticks": 100, "levels": [[]] })));
+    spirit_fold(
+        &mut g,
+        &kind(json!({
+            "decay_ticks": 4_000_000_000u32,
+            "levels": [[dmg(u32::MAX), range(u32::MAX), bleed(u32::MAX)], [], [], [dmg(5)]]
+        })),
+    );
+    assert_eq!(g.decay_ticks, crate::limits::MAX_SPIRIT_DECAY_TICKS);
+    assert_eq!(g.levels.len(), usize::from(crate::limits::MAX_SPIRIT_LEVEL));
+    let fx = g.levels[0];
+    assert_eq!(fx.damage_pct, crate::limits::MAX_PCT);
+    assert_eq!(fx.range_pct, crate::rewards::MAX_RANGE_PCT);
+    assert_eq!(fx.bleed_stacks, crate::expertise::MAX_SPIRIT_BLEED_STACKS);
+}
