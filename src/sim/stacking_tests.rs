@@ -397,3 +397,31 @@ fn each_player_reads_its_own_trigger() {
     }
     assert_eq!(trigger_at(&mut e, 1, 1), None, "a style naming none");
 }
+
+/// G4: a later trigger past every cap (a value the validator refuses) is clamped as a single
+/// level's is.
+#[test]
+fn a_later_trigger_past_the_caps_is_clamped() {
+    use super::world::{TriggerGrant, trigger_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::GiantTrigger>(v).expect("a giant trigger")
+    };
+    let mut g = TriggerGrant::none();
+    trigger_fold(&mut g, &kind(trigger(480, vec![])));
+    trigger_fold(
+        &mut g,
+        &kind(trigger(
+            4_000_000_000,
+            vec![
+                pct("range_pct", u32::MAX),
+                pct("smash_pct", u32::MAX),
+                pct("rally_pct", u32::MAX),
+            ],
+        )),
+    );
+    assert_eq!(g.ticks, crate::limits::MAX_TRIGGER_TICKS);
+    assert_eq!(g.range_pct, crate::rewards::MAX_RANGE_PCT);
+    assert_eq!(g.smash_pct, crate::limits::MAX_PCT);
+    assert_eq!(g.rally_pct, crate::limits::MAX_PCT);
+}

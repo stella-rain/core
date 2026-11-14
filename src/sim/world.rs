@@ -1484,7 +1484,9 @@ fn grant_tempos(
 }
 
 /// The giant trigger of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `giant_trigger` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's length and effects replacing the earlier ones (see
+/// `trigger_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_triggers(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1497,17 +1499,13 @@ fn grant_triggers(
         return Vec::new();
     };
     let trigger_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::GiantTrigger(t) => Some(trigger_folded(t)),
-                _ => None,
-            })
+        let mut grant: Option<TriggerGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::GiantTrigger(t) = k {
+                trigger_fold(grant.get_or_insert_with(TriggerGrant::none), t);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1606,17 +1604,26 @@ fn breaker_folded(g: &mut BreakerGrant, b: &crate::expertise::Breaker) {
     }
 }
 
-/// `t` as a flat grant, every number inside its cap.
-fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
-    let mut g = TriggerGrant {
-        ticks: u16::try_from(t.ticks)
-            .unwrap_or(MAX_TRIGGER_TICKS)
-            .clamp(1, MAX_TRIGGER_TICKS),
-        range_pct: 0,
-        smash_pct: 0,
-        rally_pct: 100,
-        super_armour: false,
-    };
+impl TriggerGrant {
+    /// A giant trigger that does nothing yet: the longest length, no effect.
+    pub(super) fn none() -> TriggerGrant {
+        TriggerGrant {
+            ticks: MAX_TRIGGER_TICKS,
+            range_pct: 0,
+            smash_pct: 0,
+            rally_pct: 100,
+            super_armour: false,
+        }
+    }
+}
+
+/// `t` laid over `g`, every number inside its cap: its length replaces the earlier one and each
+/// effect it lists replaces the same effect; an effect it does not list stays, and the armour is
+/// true once any level names it.
+pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrigger) {
+    g.ticks = u16::try_from(t.ticks)
+        .unwrap_or(MAX_TRIGGER_TICKS)
+        .clamp(1, MAX_TRIGGER_TICKS);
     for e in t.effects.iter().take(4) {
         match e {
             TriggerEffect::RangePct { pct } => {
@@ -1627,7 +1634,6 @@ fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
             TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
         }
     }
-    g
 }
 
 impl TempoGrant {
