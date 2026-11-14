@@ -84,6 +84,13 @@ after = "f1ce9afe4a77a3ba"
 stage = "ac8fa66b22817e55"
 input = "42725cbb18ad956d"
 
+[rollback_combat]
+bench = "rollback_combat"
+before = "d7967d26e3f94edc"
+after = "034ab652893df536"
+stage = "d2791e674d2abb04"
+input = "9e4379056dce713e"
+
 [rollback_session_w4]
 bench = "rollback_session"
 before = "f51ad3c125b2123b"
