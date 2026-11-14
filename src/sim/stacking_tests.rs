@@ -552,3 +552,58 @@ fn three_players_each_read_their_own_grants() {
     assert_eq!(run([0, 1, 2]), (seen, hash), "the same run twice");
     assert_ne!(run([0, 0, 0]).1, hash, "the places change the run");
 }
+
+// C3: the bundled styles' folded grants at each place of their paths.
+
+/// A run on the bundled pack, the style `style` of `weapon` picked by every player.
+fn bundled(weapon: &str, style: u8) -> Engine {
+    let pack = Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack");
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: weapon.into(),
+        seed: 20_261_118,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, pack.content(), 1).expect("a run");
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(style);
+    }
+    e
+}
+
+/// C3: Spirit Blade's countdown is 1,200 ticks, then 1,800 once its first upgrade is taken, its
+/// three levels' effects unchanged.
+#[test]
+fn the_bundled_spirit_blade_lasts_longer_after_its_upgrade() {
+    let mut e = bundled("giant_sword", 0);
+    let own = vec![(8, 0, 0), (16, 15, 0), (25, 0, 2)];
+    assert_eq!(spirit_at(&mut e, 0, 0), Some((1200, own.clone())));
+    for places in 1..=3 {
+        assert_eq!(spirit_at(&mut e, 0, places), Some((1800, own.clone())));
+    }
+}
+
+/// C3: Titan Trigger runs 480 ticks, then 720 once its first upgrade is taken, its effects
+/// unchanged.
+#[test]
+fn the_bundled_titan_trigger_runs_longer_after_its_upgrade() {
+    let mut e = bundled("giant_hammer", 0);
+    assert_eq!(trigger_at(&mut e, 0, 0), Some((480, 40, 20, 100, true)));
+    for places in 1..=3 {
+        assert_eq!(
+            trigger_at(&mut e, 0, places),
+            Some((720, 40, 20, 100, true))
+        );
+    }
+}
+
+/// C3: Foresight's window is 30 ticks, then 38 after its first upgrade (8 ticks wider), and the
+/// slide of 48 px (12,288 stored) comes with its second; damage, stagger and stun never change.
+#[test]
+fn the_bundled_foresight_widens_its_window_and_slides() {
+    let mut e = bundled("giant_sword", 1);
+    assert_eq!(counter_at(&mut e, 0, 0), Some((30, 100, 300, 45, 0)));
+    assert_eq!(counter_at(&mut e, 0, 1), Some((38, 100, 300, 45, 0)));
+    assert_eq!(counter_at(&mut e, 0, 2), Some((38, 100, 300, 45, 12288)));
+    assert_eq!(counter_at(&mut e, 0, 3), Some((38, 100, 300, 45, 12288)));
+}
