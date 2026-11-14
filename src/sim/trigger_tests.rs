@@ -119,7 +119,18 @@ pub(super) struct Rig {
 }
 
 pub(super) fn rig(players: u8, extra: Vec<Value>, foes: u32) -> Rig {
-    let pack = pack(extra);
+    rig_levelled(players, extra, [vec![], vec![], vec![]], foes)
+}
+
+/// `rig` whose style also names `levels` kinds at its first upgrade, second upgrade and capstone.
+pub(super) fn rig_levelled(
+    players: u8,
+    extra: Vec<Value>,
+    levels: [Vec<Value>; 3],
+    foes: u32,
+) -> Rig {
+    let [up_1, up_2, cap] = levels;
+    let pack = levelled_pack(extra, up_1, up_2, cap);
     let setup = RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_hammer".into(),

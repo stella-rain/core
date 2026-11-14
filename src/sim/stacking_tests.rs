@@ -425,3 +425,130 @@ fn a_later_trigger_past_the_caps_is_clamped() {
     assert_eq!(g.smash_pct, crate::limits::MAX_PCT);
     assert_eq!(g.rally_pct, crate::limits::MAX_PCT);
 }
+
+// R1 to R4 and P1: a taken upgrade changes what the rule reads.
+
+use super::trigger_tests::{Rig, rig_levelled};
+
+fn rig_of(style: Vec<Value>, up_1: Vec<Value>, players: u8) -> Rig {
+    let mut kinds = vec![json!({ "type": "smash_effect", "effect": { "type": "bleed" } })];
+    kinds.extend(style);
+    rig_levelled(players, kinds, [up_1, vec![], vec![]], 3)
+}
+
+/// R1: the raised countdown is what a smash restarts, and a countdown already running is not cut.
+#[test]
+fn a_taken_spirit_upgrade_lengthens_the_restarted_countdown() {
+    let kinds = || {
+        (
+            vec![spirit(1200, json!([[dmg(8)]]))],
+            vec![spirit(1800, json!([[]]))],
+        )
+    };
+    for (places, want) in [(0, 1200), (1, 1800)] {
+        let (style, up) = kinds();
+        let mut r = rig_of(style, up, 1);
+        take(&mut r.e, 0, places);
+        r.fill_gauge(0);
+        r.press(true);
+        assert_eq!(st(&mut r.e).players[slot(0)].combat.spirit_decay, want);
+    }
+    let (style, up) = kinds();
+    let mut r = rig_of(style, up, 1);
+    st(&mut r.e).players[slot(0)].combat.spirit_decay = 700;
+    take(&mut r.e, 0, 1);
+    r.idle(1);
+    assert!(st(&mut r.e).players[slot(0)].combat.spirit_decay < 700);
+}
+
+/// R2: a near miss opens the raised window.
+#[test]
+fn a_taken_counter_upgrade_widens_the_window() {
+    use crate::rules::PerfectEvade;
+    let rule = PerfectEvade {
+        window_ticks: 10,
+        slow_ticks: 60,
+        cooldown_ticks: 300,
+        reach: 200 * 256,
+        slow_every: 2,
+    };
+    for (places, want) in [(0, 30), (1, 45)] {
+        let mut r = rig_of(
+            vec![counter(
+                30,
+                vec![json!({ "type": "damage_pct", "pct": 100 })],
+            )],
+            vec![counter(45, vec![])],
+            1,
+        );
+        take(&mut r.e, 0, places);
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        std::sync::Arc::make_mut(world).tuning.perfect_evade = Some(rule);
+        let p = &mut state.players[slot(0)];
+        p.combat.perfect_window = rule.window_ticks;
+        p.combat.perfect_cooldown = 0;
+        p.invulnerable = world.player.evade.invulnerable_ticks;
+        super::player::near_miss(world, state, slot(0), &mut Vec::new());
+        assert_eq!(state.players[slot(0)].combat.counter_window, want);
+    }
+}
+
+/// R3: the raised cap lets a hit swing add a sixth stack.
+#[test]
+fn a_taken_tempo_upgrade_raises_the_stack_cap() {
+    for (places, want) in [(0, 5), (1, 6)] {
+        let mut r = rig_of(vec![tempo(5, vec![speed(4)])], vec![tempo(6, vec![])], 1);
+        take(&mut r.e, 0, places);
+        st(&mut r.e).players[slot(0)].combat.combo_tempo = 5;
+        r.run_step(false);
+        assert_eq!(st(&mut r.e).players[slot(0)].combat.combo_tempo, want);
+    }
+}
+
+/// R4: a giant trigger started after the pick runs the longer length; one before it, the shorter.
+#[test]
+fn a_taken_trigger_upgrade_lengthens_the_state() {
+    for (places, want) in [(0, 480), (1, 720)] {
+        let mut r = rig_of(
+            vec![trigger(480, vec![pct("range_pct", 40)])],
+            vec![trigger(720, vec![])],
+            1,
+        );
+        take(&mut r.e, 0, places);
+        r.fill_gauge(0);
+        r.press(true);
+        let ticks = r.trigger(0);
+        assert!((want - 1..=want).contains(&ticks), "{places}: {ticks}");
+    }
+}
+
+/// P1: three players of one pack each read their own grants, and the run is deterministic.
+#[test]
+fn three_players_each_read_their_own_grants() {
+    let run = |places: [usize; 3]| {
+        let mut r = rig_of(
+            vec![trigger(480, vec![pct("range_pct", 40)])],
+            vec![trigger(720, vec![])],
+            3,
+        );
+        for (i, n) in places.into_iter().enumerate() {
+            take(&mut r.e, i as u8, n);
+        }
+        let seen: Vec<_> = (0..3)
+            .map(|i| {
+                let Run::V2 { world, state } = r.e.run_mut() else {
+                    panic!("the live rules");
+                };
+                world.trigger_of(state, slot(i)).map(|g| g.ticks)
+            })
+            .collect();
+        r.idle(600);
+        (seen, r.e.state_hash())
+    };
+    let (seen, hash) = run([0, 1, 2]);
+    assert_eq!(seen, [Some(480), Some(720), Some(720)]);
+    assert_eq!(run([0, 1, 2]), (seen, hash), "the same run twice");
+    assert_ne!(run([0, 0, 0]).1, hash, "the places change the run");
+}
