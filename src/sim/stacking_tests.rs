@@ -533,10 +533,10 @@ fn three_players_each_read_their_own_grants() {
             vec![trigger(720, vec![])],
             3,
         );
-        for (i, n) in places.into_iter().enumerate() {
-            take(&mut r.e, i as u8, n);
+        for (i, n) in (0u8..).zip(places) {
+            take(&mut r.e, i, n);
         }
-        let seen: Vec<_> = (0..3)
+        let seen: Vec<_> = (0u8..3)
             .map(|i| {
                 let Run::V2 { world, state } = r.e.run_mut() else {
                     panic!("the live rules");
