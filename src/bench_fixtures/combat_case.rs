@@ -309,10 +309,7 @@ mod tests {
         assert_eq!(saved.state_hash(), before);
         assert_eq!(saved.tick(), WARMUP_TICKS);
         assert_eq!(state_of(&saved).1.repeats.len(), MAX_REPEATS_QUEUED);
-        assert_eq!(
-            played.tick(),
-            WARMUP_TICKS + ROLLBACK_TICKS
-        );
+        assert_eq!(played.tick(), WARMUP_TICKS + ROLLBACK_TICKS);
         assert_eq!(played.state_hash(), direct.state_hash());
         assert!(
             state_of(&played).1.repeats.is_empty(),
