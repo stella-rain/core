@@ -88,7 +88,7 @@ input = "42725cbb18ad956d"
 bench = "rollback_combat"
 before = "d7967d26e3f94edc"
 after = "034ab652893df536"
-stage = "d2791e674d2abb04"
+stage = "779eb200930e6e80"
 input = "9e4379056dce713e"
 
 [rollback_session_w4]
