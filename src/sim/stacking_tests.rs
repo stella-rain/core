@@ -333,3 +333,67 @@ fn a_later_tempo_past_the_caps_is_clamped() {
     assert_eq!(g.max_stacks, crate::limits::MAX_TEMPO_STACKS);
     assert_eq!(g.speed_pct, crate::run_stats::MAX_ATTACK_SPEED_PCT);
 }
+
+fn trigger(ticks: u32, effects: Vec<Value>) -> Value {
+    json!({ "type": "giant_trigger", "ticks": ticks, "effects": effects })
+}
+
+fn pct(kind: &str, pct: u32) -> Value {
+    json!({ "type": kind, "pct": pct })
+}
+
+/// A trigger grant as `(ticks, range_pct, smash_pct, rally_pct, super_armour)`.
+type TriggerSeen = (u16, u32, u32, u32, bool);
+
+fn trigger_at(e: &mut Engine, i: u8, places: usize) -> Option<TriggerSeen> {
+    read(e, i, places, |w, s, me| w.trigger_of(s, me).copied()).map(|g| {
+        (
+            g.ticks,
+            g.range_pct,
+            g.smash_pct,
+            g.rally_pct,
+            g.super_armour,
+        )
+    })
+}
+
+/// G4: the trigger's length and each effect stack in path order; an effect a later level does not
+/// list stays.
+#[test]
+fn the_giant_trigger_stacks_across_the_path() {
+    let base = trigger(
+        480,
+        vec![
+            pct("range_pct", 40),
+            pct("smash_pct", 20),
+            json!({ "type": "super_armour" }),
+        ],
+    );
+    let mut e = stacked(
+        vec![base],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("range_pct", 60)])],
+        vec![trigger(720, vec![pct("rally_pct", 150)])],
+    );
+    assert_eq!(trigger_at(&mut e, 0, 0), Some((480, 40, 20, 100, true)));
+    assert_eq!(trigger_at(&mut e, 0, 1), Some((720, 40, 20, 100, true)));
+    assert_eq!(trigger_at(&mut e, 0, 2), Some((720, 60, 20, 100, true)));
+    assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 150, true)));
+}
+
+/// G4: each player reads its own place on the path; a style naming none gives none.
+#[test]
+fn each_player_reads_its_own_trigger() {
+    let mut e = stacked(
+        vec![trigger(480, vec![pct("range_pct", 40)])],
+        vec![trigger(720, vec![])],
+        vec![],
+        vec![],
+    );
+    assert_eq!(trigger_at(&mut e, 0, 0).map(|g| g.0), Some(480));
+    assert_eq!(trigger_at(&mut e, 2, 1).map(|g| g.0), Some(720));
+    if let Some(g) = st(&mut e).players.career_mut(slot(1)).expertise.as_mut() {
+        g.style = Some(2);
+    }
+    assert_eq!(trigger_at(&mut e, 1, 1), None, "a style naming none");
+}
