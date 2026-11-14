@@ -279,6 +279,31 @@ mod tests {
         assert!(s.repeats.is_empty(), "every entry was due on the tick");
     }
 
+    /// The rollback leaves the saved engine alone, equals a direct play of the same ticks, and
+    /// the saved engine keeps the queued repeats the replay spends.
+    #[test]
+    fn the_rollback_replays_the_window_on_a_clone() {
+        let saved = warmed_up();
+        let before = saved.state_hash();
+        let mut direct = warmed_up();
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + super::super::party_case::ROLLBACK_TICKS {
+            play(&mut direct, tick);
+        }
+        let (played, saved) = rollback(saved);
+        assert_eq!(saved.state_hash(), before);
+        assert_eq!(saved.tick(), WARMUP_TICKS);
+        assert_eq!(state_of(&saved).1.repeats.len(), MAX_REPEATS_QUEUED);
+        assert_eq!(
+            played.tick(),
+            WARMUP_TICKS + super::super::party_case::ROLLBACK_TICKS
+        );
+        assert_eq!(played.state_hash(), direct.state_hash());
+        assert!(
+            state_of(&played).1.repeats.is_empty(),
+            "every entry was due on the first replayed tick"
+        );
+    }
+
     /// The weight `Load` sees of a tick.
     fn weight(load: Load) -> u64 {
         [

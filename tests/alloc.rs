@@ -273,6 +273,19 @@ fn rollback_equip_allocates_as_pinned() {
 }
 
 #[test]
+fn the_combat_rollback_allocates_as_pinned() {
+    let saved = bench_fixtures::combat_case::warmed_up();
+    let mut out = None;
+    let counts = counted3(|| out = Some(bench_fixtures::combat_case::rollback(saved)));
+    std::mem::forget(out);
+    assert_eq!(
+        counts,
+        party_pinned("rollback_combat"),
+        "rollback_combat: (allocs, reallocs, frees)"
+    );
+}
+
+#[test]
 fn the_rollback_allocates_as_pinned() {
     let saved = bench_fixtures::party_case::saved();
     let mut out = None;
