@@ -207,23 +207,33 @@ pub enum StyleKind {
     /// The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every
     /// smash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;
     /// each level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge
-    /// whose spend is `full_smash`. One per style path: a second is refused.
+    /// whose spend is `full_smash`. One per level; a path may name it at several levels, the
+    /// numbers stacking in path order: a later level's `decay_ticks` replaces the earlier one,
+    /// each of its `levels` entries lays over the same level's effects (a longer table extends
+    /// the earlier one) and an effect it does not list stays.
     Spirit(Spirit),
     /// The style's counter bonus: a near miss of the player's evade opens a window of
     /// `window_ticks`, and the first dash-branch step started inside it takes the bonus's
-    /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style
-    /// path: a second is refused.
+    /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per
+    /// level; a path may name it at several levels, the numbers stacking in path order: a later
+    /// level's `window_ticks` replaces the earlier one and each effect it lists replaces the
+    /// same effect; one it does not list stays.
     CounterBonus(CounterBonus),
     /// The style's combo tempo: each swing of a combo step that hits adds a stack, up to
     /// `max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;
     /// the stacks end when the combo resets, when a smash is pressed (unless the stacks are full
     /// and the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).
-    /// One per style path: a second is refused.
+    /// One per level; a path may name it at several levels, the numbers stacking in path order:
+    /// a later level's `max_stacks` (never lower) replaces the earlier one, its `speed_pct`
+    /// replaces the earlier speed, the flag effects are on once any level names them, and the
+    /// folded `max_stacks` times `speed_pct` stays within the attack speed ceiling.
     ComboTempoPct(ComboTempo),
     /// The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one
     /// restarts the count) whose effects apply while it runs; being downed or picking another
     /// style ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is
-    /// `full_smash`. One per style path: a second is refused.
+    /// `full_smash`. One per level; a path may name it at several levels, the numbers stacking in
+    /// path order: a later level's `ticks` replaces the earlier one and each effect it lists
+    /// replaces the same effect; one it does not list stays.
     GiantTrigger(GiantTrigger),
     /// The style's breaker: a closed list of effects on the stagger fills, the poise damage and
     /// the boss part damage of the player's hits, and a burst round a target the player
@@ -320,7 +330,8 @@ pub struct GiantTrigger {
     /// How long the state runs, in ticks. 1 to `MAX_TRIGGER_TICKS`.
     #[schemars(range(min = 1, max = MAX_TRIGGER_TICKS))]
     pub ticks: u32,
-    /// What the state does, each variant at most once; 1 to 4 entries.
+    /// What the state does, each variant at most once; 1 to 4 entries (0 to 4 at a level after
+    /// one that names the kind).
     pub effects: Vec<TriggerEffect>,
 }
 
@@ -369,7 +380,8 @@ pub struct ComboTempo {
     /// The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.
     #[schemars(range(min = 1, max = MAX_TEMPO_STACKS))]
     pub max_stacks: u32,
-    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them.
+    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them (0
+    /// to 3 and no `speed_pct` needed at a level after one that names the kind).
     pub effects: Vec<TempoEffect>,
 }
 
@@ -410,7 +422,8 @@ pub struct CounterBonus {
     /// `MAX_COUNTER_WINDOW_TICKS`.
     #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
     pub window_ticks: u32,
-    /// What the step takes, each variant at most once; 1 to 4 entries.
+    /// What the step takes, each variant at most once; 1 to 4 entries (0 to 4 at a level after
+    /// one that names the kind).
     pub effects: Vec<CounterEffect>,
 }
 
@@ -464,7 +477,8 @@ pub struct Spirit {
     pub decay_ticks: u32,
     /// Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the
     /// style's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and
-    /// a level names each effect at most once.
+    /// a level names each effect at most once. At a later level of the path an entry lays over
+    /// the earlier level's same entry, and a longer table extends it.
     pub levels: Vec<Vec<SpiritEffect>>,
 }
 
