@@ -223,6 +223,8 @@ mod slots;
 #[cfg(test)]
 mod spirit_tests;
 #[cfg(test)]
+mod stacking_tests;
+#[cfg(test)]
 mod tempo_tests;
 #[cfg(test)]
 mod trigger_tests;

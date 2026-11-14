@@ -160,7 +160,7 @@ fn kind(step: &[&str], grant: Value) -> Value {
 
 /// Style 0 grants a charge on A, style 1 a hold on A, style 2's first upgrade a hold on AA.
 fn test_expertise() -> Expertise {
-    let mut file: Value = serde_json::from_slice(common::bundled_file("expertise")).unwrap();
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
     file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     for w in file["weapons"].as_array_mut().unwrap() {
         if w["weapon"] != "giant_hammer" {

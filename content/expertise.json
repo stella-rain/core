@@ -114,8 +114,14 @@
           "upgrade_1": [
             {
               "id": "titan_trigger_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "giant_trigger",
+                  "ticks": 720,
+                  "effects": []
+                }
+              ]
             }
           ],
           "upgrade_2": [
@@ -891,8 +897,16 @@
           "upgrade_1": [
             {
               "id": "spirit_blade_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "spirit",
+                  "decay_ticks": 1800,
+                  "levels": [
+                    []
+                  ]
+                }
+              ]
             }
           ],
           "upgrade_2": [
@@ -1104,15 +1118,32 @@
           "upgrade_1": [
             {
               "id": "foresight_counter_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "counter_bonus",
+                  "window_ticks": 38,
+                  "effects": []
+                }
+              ]
             }
           ],
           "upgrade_2": [
             {
               "id": "foresight_counter_up_2",
-              "effect": "attack_speed_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "counter_bonus",
+                  "window_ticks": 38,
+                  "effects": [
+                    {
+                      "type": "advance",
+                      "distance": 12288
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "capstone": [

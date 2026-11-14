@@ -207,23 +207,33 @@ pub enum StyleKind {
     /// The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every
     /// smash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;
     /// each level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge
-    /// whose spend is `full_smash`. One per style path: a second is refused.
+    /// whose spend is `full_smash`. One per level; a path may name it at several levels, the
+    /// numbers stacking in path order: a later level's `decay_ticks` replaces the earlier one,
+    /// each of its `levels` entries lays over the same level's effects (a longer table extends
+    /// the earlier one) and an effect it does not list stays.
     Spirit(Spirit),
     /// The style's counter bonus: a near miss of the player's evade opens a window of
     /// `window_ticks`, and the first dash-branch step started inside it takes the bonus's
-    /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style
-    /// path: a second is refused.
+    /// effects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per
+    /// level; a path may name it at several levels, the numbers stacking in path order: a later
+    /// level's `window_ticks` replaces the earlier one and each effect it lists replaces the
+    /// same effect; one it does not list stays.
     CounterBonus(CounterBonus),
     /// The style's combo tempo: each swing of a combo step that hits adds a stack, up to
     /// `max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;
     /// the stacks end when the combo resets, when a smash is pressed (unless the stacks are full
     /// and the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).
-    /// One per style path: a second is refused.
+    /// One per level; a path may name it at several levels, the numbers stacking in path order:
+    /// a later level's `max_stacks` (never lower) replaces the earlier one, its `speed_pct`
+    /// replaces the earlier speed, the flag effects are on once any level names them, and the
+    /// folded `max_stacks` times `speed_pct` stays within the attack speed ceiling.
     ComboTempoPct(ComboTempo),
     /// The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one
     /// restarts the count) whose effects apply while it runs; being downed or picking another
     /// style ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is
-    /// `full_smash`. One per style path: a second is refused.
+    /// `full_smash`. One per level; a path may name it at several levels, the numbers stacking in
+    /// path order: a later level's `ticks` replaces the earlier one and each effect it lists
+    /// replaces the same effect; one it does not list stays.
     GiantTrigger(GiantTrigger),
     /// The style's breaker: a closed list of effects on the stagger fills, the poise damage and
     /// the boss part damage of the player's hits, and a burst round a target the player
@@ -320,7 +330,8 @@ pub struct GiantTrigger {
     /// How long the state runs, in ticks. 1 to `MAX_TRIGGER_TICKS`.
     #[schemars(range(min = 1, max = MAX_TRIGGER_TICKS))]
     pub ticks: u32,
-    /// What the state does, each variant at most once; 1 to 4 entries.
+    /// What the state does, each variant at most once; 1 to 4 entries (0 to 4 at a level after
+    /// one that names the kind).
     pub effects: Vec<TriggerEffect>,
 }
 
@@ -369,7 +380,8 @@ pub struct ComboTempo {
     /// The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.
     #[schemars(range(min = 1, max = MAX_TEMPO_STACKS))]
     pub max_stacks: u32,
-    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them.
+    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them (0
+    /// to 3 and no `speed_pct` needed at a level after one that names the kind).
     pub effects: Vec<TempoEffect>,
 }
 
@@ -410,7 +422,8 @@ pub struct CounterBonus {
     /// `MAX_COUNTER_WINDOW_TICKS`.
     #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
     pub window_ticks: u32,
-    /// What the step takes, each variant at most once; 1 to 4 entries.
+    /// What the step takes, each variant at most once; 1 to 4 entries (0 to 4 at a level after
+    /// one that names the kind).
     pub effects: Vec<CounterEffect>,
 }
 
@@ -464,7 +477,8 @@ pub struct Spirit {
     pub decay_ticks: u32,
     /// Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the
     /// style's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and
-    /// a level names each effect at most once.
+    /// a level names each effect at most once. At a later level of the path an entry lays over
+    /// the earlier level's same entry, and a longer table extends it.
     pub levels: Vec<Vec<SpiritEffect>>,
 }
 
@@ -780,8 +794,10 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
                 style.amount,
                 &style.kinds,
                 sim_version,
+                Earlier::default(),
             );
             check_set(&mut issue, &format!("{base}.stats"), &style.stats);
+            let mut earlier = Earlier::default().with(&style.kinds);
             for (field, choices) in [
                 ("upgrade_1", &style.upgrade_1),
                 ("upgrade_2", &style.upgrade_2),
@@ -794,16 +810,25 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
                         format!("exactly 1 choice (found {})", choices.len()),
                     );
                 }
+                let before = earlier;
                 for (c, choice) in choices.iter().enumerate() {
                     let path = format!("{path}[{c}]");
-                    check_option(&mut issue, &mut seen, &path, choice, sim_version);
+                    check_option(&mut issue, &mut seen, &path, choice, sim_version, before);
+                    earlier = earlier.with(&choice.kinds);
                 }
             }
             check_step_once(&mut issue, &base, style);
         }
         for (c, option) in weapon.common.iter().enumerate() {
             let path = at(&format!("common[{c}]"));
-            check_option(&mut issue, &mut seen, &path, option, sim_version);
+            check_option(
+                &mut issue,
+                &mut seen,
+                &path,
+                option,
+                sim_version,
+                Earlier::default(),
+            );
             // A common option is a stat: the kinds are a style path's (ADR-SIM-9 point 3).
             if !option.kinds.is_empty() {
                 issue(
@@ -820,12 +845,39 @@ pub fn validate(file: &ExpertiseFile, sim_version: u32) -> Result<(), Error> {
     }
 }
 
+/// The kinds an earlier level of the same style path already names: a later level naming one
+/// again states only what it changes (ADR-SIM-9 points 2 to 7).
+#[derive(Clone, Copy, Default)]
+struct Earlier {
+    spirit: bool,
+    counter: bool,
+    tempo: bool,
+    trigger: bool,
+}
+
+impl Earlier {
+    /// This set and every kind `kinds` names.
+    fn with(mut self, kinds: &[StyleKind]) -> Self {
+        for kind in kinds {
+            match kind {
+                StyleKind::Spirit(_) => self.spirit = true,
+                StyleKind::CounterBonus(_) => self.counter = true,
+                StyleKind::ComboTempoPct(_) => self.tempo = true,
+                StyleKind::GiantTrigger(_) => self.trigger = true,
+                _ => {}
+            }
+        }
+        self
+    }
+}
+
 fn check_option<'a>(
     issue: &mut impl FnMut(String, String),
     seen: &mut Vec<&'a ContentId>,
     path: &str,
     option: &'a ExpertiseOption,
     sim_version: u32,
+    earlier: Earlier,
 ) {
     check_id(issue, seen, path, &option.id);
     check_level(
@@ -835,12 +887,14 @@ fn check_option<'a>(
         option.amount,
         &option.kinds,
         sim_version,
+        earlier,
     );
 }
 
 /// A level's stat and kinds: a stat effect has an amount from 1 to its most; `none` has none
 /// and names at least one kind; the kinds, and `none`, are `sim_version` 2's, at most
-/// `MAX_LEVEL_KINDS`, each bounded alone.
+/// `MAX_LEVEL_KINDS`, each bounded alone; `earlier` names the kinds a level before it on the
+/// style path already named.
 fn check_level(
     issue: &mut impl FnMut(String, String),
     path: &str,
@@ -848,6 +902,7 @@ fn check_level(
     amount: u32,
     kinds: &[StyleKind],
     sim_version: u32,
+    earlier: Earlier,
 ) {
     if effect == ExpertiseEffect::None {
         if sim_version < 2 {
@@ -940,9 +995,9 @@ fn check_level(
             }
             StyleKind::Gauge(g) => check_gauge(issue, &at, g),
             StyleKind::Spirit(s) => check_spirit(issue, &at, s),
-            StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c),
-            StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t),
-            StyleKind::GiantTrigger(t) => check_giant_trigger(issue, &at, t),
+            StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c, earlier.counter),
+            StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t, earlier.tempo),
+            StyleKind::GiantTrigger(t) => check_giant_trigger(issue, &at, t, earlier.trigger),
             StyleKind::Breaker(b) => check_breaker(issue, &at, b),
         }
     }
@@ -1031,9 +1086,15 @@ fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: &Spirit) {
     }
 }
 
-/// A combo tempo's numbers, each in its own range; it names an effect once and names
-/// `speed_pct`, and the stacks' total speed stays within the attack speed ceiling.
-fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &ComboTempo) {
+/// A combo tempo's numbers, each in its own range; it names an effect once and, unless an
+/// earlier level of the path named the kind (`later`), names `speed_pct` and keeps the stacks'
+/// total speed within the attack speed ceiling (a later level's fold is `check_step_once`'s).
+fn check_combo_tempo(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    t: &ComboTempo,
+    later: bool,
+) {
     let max = u64::from(MAX_TEMPO_STACKS);
     if !(1..=max).contains(&u64::from(t.max_stacks)) {
         issue(
@@ -1041,10 +1102,11 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
             format!("1 to {MAX_TEMPO_STACKS} (found {})", t.max_stacks),
         );
     }
-    if t.effects.is_empty() || t.effects.len() > 3 {
+    let least = usize::from(!later);
+    if t.effects.len() < least || t.effects.len() > 3 {
         issue(
             format!("{at}.effects"),
-            format!("1 to 3 effects (found {})", t.effects.len()),
+            format!("{least} to 3 effects (found {})", t.effects.len()),
         );
     }
     let mut seen = [false; 3];
@@ -1066,7 +1128,7 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
         }
         *slot = true;
     }
-    if !t.effects.is_empty() && t.effects.len() <= 3 {
+    if !later && !t.effects.is_empty() && t.effects.len() <= 3 {
         match speed {
             None => issue(format!("{at}.effects"), "names no speed_pct".into()),
             Some(pct) if (1..=MAX_ATTACK_SPEED_PCT).contains(&pct) => {
@@ -1085,18 +1147,25 @@ fn check_combo_tempo(issue: &mut impl FnMut(String, String), at: &str, t: &Combo
     }
 }
 
-/// A giant trigger's numbers, each in its own range; it names an effect once.
-fn check_giant_trigger(issue: &mut impl FnMut(String, String), at: &str, t: &GiantTrigger) {
+/// A giant trigger's numbers, each in its own range; it names an effect once, and names at
+/// least one unless an earlier level of the path named the kind (`later`).
+fn check_giant_trigger(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    t: &GiantTrigger,
+    later: bool,
+) {
     if !(1..=u32::from(MAX_TRIGGER_TICKS)).contains(&t.ticks) {
         issue(
             format!("{at}.ticks"),
             format!("1 to {MAX_TRIGGER_TICKS} (found {})", t.ticks),
         );
     }
-    if t.effects.is_empty() || t.effects.len() > 4 {
+    let least = usize::from(!later);
+    if t.effects.len() < least || t.effects.len() > 4 {
         issue(
             format!("{at}.effects"),
-            format!("1 to 4 effects (found {})", t.effects.len()),
+            format!("{least} to 4 effects (found {})", t.effects.len()),
         );
     }
     let mut seen = [false; 4];
@@ -1194,18 +1263,25 @@ fn check_burst(issue: &mut impl FnMut(String, String), at: &str, effects: &[Burs
     }
 }
 
-/// A counter bonus's numbers, each in its own range; it names an effect once.
-fn check_counter_bonus(issue: &mut impl FnMut(String, String), at: &str, c: &CounterBonus) {
+/// A counter bonus's numbers, each in its own range; it names an effect once, and names at
+/// least one unless an earlier level of the path named the kind (`later`).
+fn check_counter_bonus(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    c: &CounterBonus,
+    later: bool,
+) {
     if !(1..=u32::from(MAX_COUNTER_WINDOW_TICKS)).contains(&c.window_ticks) {
         issue(
             format!("{at}.window_ticks"),
             format!("1 to {MAX_COUNTER_WINDOW_TICKS} (found {})", c.window_ticks),
         );
     }
-    if c.effects.is_empty() || c.effects.len() > 4 {
+    let least = usize::from(!later);
+    if c.effects.len() < least || c.effects.len() > 4 {
         issue(
             format!("{at}.effects"),
-            format!("1 to 4 effects (found {})", c.effects.len()),
+            format!("{least} to 4 effects (found {})", c.effects.len()),
         );
     }
     let mut seen = [false; 4];
@@ -1266,17 +1342,17 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
     ]
 }
 
-/// One grant on a step per style, and one smash effect, one gauge and one spirit: a second grant on a
-/// step an earlier level of the same style granted, or a second smash effect, gauge or spirit, is refused at the later one.
+/// One grant on a step per style, and one smash effect and one gauge: a second grant on a step an
+/// earlier level of the same style granted, or a second smash effect or gauge, is refused at the
+/// later one. The spirit, counter bonus, combo tempo and giant trigger are named once per level
+/// and may be named at every level of the path.
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
     let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut gauge_set = false;
-    let mut spirit_set = false;
-    let mut counter_set = false;
-    let mut tempo_set = false;
-    let mut trigger_set = false;
+    // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
+    let mut tempo: Option<(u32, u32)> = None;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
     for (field, option) in style_levels(style) {
         if let Some(o) = option {
@@ -1284,8 +1360,13 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
         }
     }
     for (path, kinds) in levels {
-        // A path may name the breaker at every level (its effects stack), a level only once.
+        // A path may name the breaker, spirit, counter bonus, combo tempo and giant trigger at
+        // every level (their numbers stack in path order), a level only once.
         let mut breaker_here = false;
+        let mut spirit_here = false;
+        let mut counter_here = false;
+        let mut tempo_here = false;
+        let mut trigger_here = false;
         for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
             match kind {
                 StyleKind::Breaker(_) => {
@@ -1338,44 +1419,93 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                     gauge_set = true;
                 }
                 StyleKind::Spirit(_) => {
-                    if spirit_set {
+                    if spirit_here {
                         issue(
                             format!("{path}[{k}]"),
-                            "the style already names a spirit".into(),
+                            "the level already names a spirit".into(),
                         );
                     }
-                    spirit_set = true;
+                    spirit_here = true;
                 }
                 StyleKind::CounterBonus(_) => {
-                    if counter_set {
+                    if counter_here {
                         issue(
                             format!("{path}[{k}]"),
-                            "the style already names a counter bonus".into(),
+                            "the level already names a counter bonus".into(),
                         );
                     }
-                    counter_set = true;
+                    counter_here = true;
                 }
-                StyleKind::ComboTempoPct(_) => {
-                    if tempo_set {
+                StyleKind::ComboTempoPct(t) => {
+                    if tempo_here {
                         issue(
                             format!("{path}[{k}]"),
-                            "the style already names a combo tempo".into(),
+                            "the level already names a combo tempo".into(),
                         );
                     }
-                    tempo_set = true;
+                    tempo_here = true;
+                    check_tempo_fold(issue, &format!("{path}[{k}]"), t, &mut tempo);
                 }
                 StyleKind::GiantTrigger(_) => {
-                    if trigger_set {
+                    if trigger_here {
                         issue(
                             format!("{path}[{k}]"),
-                            "the style already names a giant trigger".into(),
+                            "the level already names a giant trigger".into(),
                         );
                     }
-                    trigger_set = true;
+                    trigger_here = true;
                 }
             }
         }
     }
+}
+
+/// A later level's combo tempo laid over the folded one: `max_stacks` never falls (the stacks
+/// held never pass the cap) and `max_stacks` times `speed_pct` stays within the attack speed
+/// ceiling at every place of the path, refused at the level that breaks it. The first naming is
+/// `check_combo_tempo`'s.
+fn check_tempo_fold(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    t: &ComboTempo,
+    folded: &mut Option<(u32, u32)>,
+) {
+    let speed = t.effects.iter().find_map(|e| match e {
+        TempoEffect::SpeedPct { pct } => Some(*pct),
+        _ => None,
+    });
+    let Some((max, pct)) = *folded else {
+        *folded = Some((t.max_stacks, speed.unwrap_or(0)));
+        return;
+    };
+    if t.max_stacks < max {
+        issue(
+            format!("{at}.max_stacks"),
+            format!(
+                "at least the earlier level's {max} (found {})",
+                t.max_stacks
+            ),
+        );
+    }
+    let max = max.max(t.max_stacks);
+    let pct = speed
+        .filter(|p| (1..=MAX_ATTACK_SPEED_PCT).contains(p))
+        .unwrap_or(pct);
+    let total = u64::from(max) * u64::from(pct);
+    if total > u64::from(MAX_ATTACK_SPEED_PCT) {
+        let key = if speed.is_some() {
+            "effects"
+        } else {
+            "max_stacks"
+        };
+        issue(
+            format!("{at}.{key}"),
+            format!(
+                "max_stacks times speed_pct, folded over the path, is at most {MAX_ATTACK_SPEED_PCT} (found {total})"
+            ),
+        );
+    }
+    *folded = Some((max, pct));
 }
 
 fn check_id<'a>(

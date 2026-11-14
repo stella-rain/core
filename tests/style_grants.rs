@@ -360,11 +360,15 @@ fn the_views_carry_the_kinds() {
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     let trees = stats["trees"].as_array().unwrap();
     assert_eq!(trees.len(), 3);
-    for t in trees {
-        // The style's own grant carries its kinds; a stat level has an empty one.
+    for (i, t) in trees.iter().enumerate() {
+        // The style's own grant carries its kinds; a stat level has an empty one, and the
+        // Titan Trigger's first upgrade is the one built level (a longer state).
         assert_eq!(t["grants"].as_array().unwrap().len(), 4);
         assert!(!t["grants"][0]["kinds"].as_array().unwrap().is_empty());
-        assert!(t["grants"][1]["kinds"].as_array().unwrap().is_empty());
+        assert_eq!(
+            t["grants"][1]["kinds"].as_array().unwrap().len(),
+            usize::from(i == 0)
+        );
     }
 }
 

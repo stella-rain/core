@@ -11275,7 +11275,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every\nsmash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;\neach level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge\nwhose spend is `full_smash`. One per style path: a second is refused.",
+          "description": "The style's spirit level, 0 to `levels.len()`: a full-gauge smash raises it by one, every\nsmash restarts a countdown of `decay_ticks`, and the level drops by one when it runs out;\neach level carries its own effects (ADR-SIM-9 points 2 to 7). The style also names a gauge\nwhose spend is `full_smash`. One per level; a path may name it at several levels, the\nnumbers stacking in path order: a later level's `decay_ticks` replaces the earlier one,\neach of its `levels` entries lays over the same level's effects (a longer table extends\nthe earlier one) and an effect it does not list stays.",
           "properties": {
             "decay_ticks": {
               "description": "Ticks a level lasts without a smash. 1 to `MAX_SPIRIT_DECAY_TICKS`.",
@@ -11285,7 +11285,7 @@
               "type": "integer"
             },
             "levels": {
-              "description": "Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the\nstyle's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and\na level names each effect at most once.",
+              "description": "Entry `i` is level `i + 1`'s effects, its own and no running sum; the length is the\nstyle's top level, 1 to `MAX_SPIRIT_LEVEL`. An empty entry is a level with no effect, and\na level names each effect at most once. At a later level of the path an entry lays over\nthe earlier level's same entry, and a longer table extends it.",
               "items": {
                 "items": {
                   "$ref": "#/$defs/SpiritEffect"
@@ -11308,10 +11308,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's counter bonus: a near miss of the player's evade opens a window of\n`window_ticks`, and the first dash-branch step started inside it takes the bonus's\neffects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per style\npath: a second is refused.",
+          "description": "The style's counter bonus: a near miss of the player's evade opens a window of\n`window_ticks`, and the first dash-branch step started inside it takes the bonus's\neffects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per\nlevel; a path may name it at several levels, the numbers stacking in path order: a later\nlevel's `window_ticks` replaces the earlier one and each effect it lists replaces the\nsame effect; one it does not list stays.",
           "properties": {
             "effects": {
-              "description": "What the step takes, each variant at most once; 1 to 4 entries.",
+              "description": "What the step takes, each variant at most once; 1 to 4 entries (0 to 4 at a level after\none that names the kind).",
               "items": {
                 "$ref": "#/$defs/CounterEffect"
               },
@@ -11338,10 +11338,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's combo tempo: each swing of a combo step that hits adds a stack, up to\n`max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;\nthe stacks end when the combo resets, when a smash is pressed (unless the stacks are full\nand the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).\nOne per style path: a second is refused.",
+          "description": "The style's combo tempo: each swing of a combo step that hits adds a stack, up to\n`max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;\nthe stacks end when the combo resets, when a smash is pressed (unless the stacks are full\nand the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).\nOne per level; a path may name it at several levels, the numbers stacking in path order:\na later level's `max_stacks` (never lower) replaces the earlier one, its `speed_pct`\nreplaces the earlier speed, the flag effects are on once any level names them, and the\nfolded `max_stacks` times `speed_pct` stays within the attack speed ceiling.",
           "properties": {
             "effects": {
-              "description": "What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them.",
+              "description": "What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them (0\nto 3 and no `speed_pct` needed at a level after one that names the kind).",
               "items": {
                 "$ref": "#/$defs/TempoEffect"
               },
@@ -11368,10 +11368,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one\nrestarts the count) whose effects apply while it runs; being downed or picking another\nstyle ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is\n`full_smash`. One per style path: a second is refused.",
+          "description": "The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one\nrestarts the count) whose effects apply while it runs; being downed or picking another\nstyle ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is\n`full_smash`. One per level; a path may name it at several levels, the numbers stacking in\npath order: a later level's `ticks` replaces the earlier one and each effect it lists\nreplaces the same effect; one it does not list stays.",
           "properties": {
             "effects": {
-              "description": "What the state does, each variant at most once; 1 to 4 entries.",
+              "description": "What the state does, each variant at most once; 1 to 4 entries (0 to 4 at a level after\none that names the kind).",
               "items": {
                 "$ref": "#/$defs/TriggerEffect"
               },

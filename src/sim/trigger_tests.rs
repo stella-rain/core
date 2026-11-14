@@ -52,7 +52,28 @@ fn full_attack() -> Value {
 /// The bundled pack with a gauge (one A hit fills it, spend `full_smash`) and `extra` kinds on the
 /// Hammer's first style.
 fn pack(extra: Vec<Value>) -> Pack {
-    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    levelled_pack(extra, vec![], vec![], vec![])
+}
+
+/// `pack(extra)` with the kinds of the style's first upgrade, second upgrade and capstone set too.
+pub(super) fn levelled_pack(
+    extra: Vec<Value>,
+    upgrade_1: Vec<Value>,
+    upgrade_2: Vec<Value>,
+    capstone: Vec<Value>,
+) -> Pack {
+    let v = levelled_value(extra, upgrade_1, upgrade_2, capstone);
+    Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
+}
+
+/// The JSON of `levelled_pack`, before the pack check reads it.
+pub(super) fn levelled_value(
+    extra: Vec<Value>,
+    upgrade_1: Vec<Value>,
+    upgrade_2: Vec<Value>,
+    capstone: Vec<Value>,
+) -> Value {
+    let mut v: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
@@ -69,7 +90,21 @@ fn pack(extra: Vec<Value>) -> Pack {
     })];
     kinds.extend(extra);
     w["styles"][0]["kinds"] = json!(kinds);
-    Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
+    for (field, kinds) in [
+        ("upgrade_1", upgrade_1),
+        ("upgrade_2", upgrade_2),
+        ("capstone", capstone),
+    ] {
+        if !kinds.is_empty() {
+            w["styles"][0][field][0]["effect"] = json!("none");
+            w["styles"][0][field][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("amount");
+            w["styles"][0][field][0]["kinds"] = json!(kinds);
+        }
+    }
+    v
 }
 
 pub(super) fn st(e: &mut Engine) -> &mut State {
@@ -95,7 +130,18 @@ pub(super) struct Rig {
 }
 
 pub(super) fn rig(players: u8, extra: Vec<Value>, foes: u32) -> Rig {
-    let pack = pack(extra);
+    rig_levelled(players, extra, [vec![], vec![], vec![]], foes)
+}
+
+/// `rig` whose style also names `levels` kinds at its first upgrade, second upgrade and capstone.
+pub(super) fn rig_levelled(
+    players: u8,
+    extra: Vec<Value>,
+    levels: [Vec<Value>; 3],
+    foes: u32,
+) -> Rig {
+    let [up_1, up_2, cap] = levels;
+    let pack = levelled_pack(extra, up_1, up_2, cap);
     let setup = RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_hammer".into(),
