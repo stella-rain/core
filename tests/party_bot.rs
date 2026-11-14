@@ -1159,44 +1159,77 @@ mod builds {
 
     #[test]
     fn the_best_rated_star_goes_in_first() {
-        // A passive bot walks; the first decision of a building bot that equips is checked
-        // against the ratings computed here.
-        let mut checked = 0;
-        for (e, s, _, a) in decisions(3) {
-            let Some(EquipAction::Equip { item, slot } | EquipAction::Replace { item, slot }) = a
-            else {
-                continue;
-            };
-            let p = PlayerIdx::new(s).unwrap();
-            let mut best = None;
-            let inv = e.snapshot().players[usize::from(s)].inventory.len().min(12);
-            for i in 0..u32::try_from(inv).unwrap() {
-                for r in e.swap_ratings(p, SwapItem::Inventory(i)) {
-                    let adopted = if r.replaces {
-                        r.dps_bp > Some(0) && r.level_after >= r.level_before
+        // A passive bot walks; every decision of a building bot that equips is checked
+        // against the ratings computed here, over several worlds.
+        let (mut checked, mut runes) = (0, 0);
+        for world in [1, 2, 3, 5, 8] {
+            for (e, s, _, a) in decisions(world) {
+                let Some(EquipAction::Equip { item, slot } | EquipAction::Replace { item, slot }) =
+                    a
+                else {
+                    continue;
+                };
+                let p = PlayerIdx::new(s).unwrap();
+                let snap = e.snapshot();
+                let view = &snap.players[usize::from(s)];
+                let mut best = None;
+                let inv = view.inventory.len().min(RATED_ITEMS);
+                let mut offer = |key, i, k, replaces: bool| {
+                    let action = if replaces {
+                        EquipAction::Replace { item: i, slot: k }
                     } else {
-                        r.dps_bp.unwrap_or(0) >= 0
+                        EquipAction::Equip { item: i, slot: k }
                     };
-                    if adopted {
-                        let key = (
-                            r.dps_bp.unwrap_or(0),
-                            !r.replaces,
-                            std::cmp::Reverse(i),
-                            std::cmp::Reverse(r.slot),
-                        );
-                        if best.is_none_or(|(k, _, _)| key > k) {
-                            best = Some((key, i, r.slot));
+                    if e.check_action(p, action).is_ok() && best.is_none_or(|(b, _, _)| key > b) {
+                        best = Some((key, i, k));
+                    }
+                };
+                for i in 0..u32::try_from(inv).unwrap() {
+                    if let HeldView::Rune { .. } = view.inventory[i as usize] {
+                        // A rune is not rated: it ties at 0 and takes the first rune slot that
+                        // accepts it.
+                        let k = (0..u32::try_from(view.slots.len()).unwrap())
+                            .filter(|k| view.slots[*k as usize].kind == SlotKindView::Rune)
+                            .find(|k| {
+                                e.check_action(p, EquipAction::Equip { item: i, slot: *k })
+                                    .is_ok()
+                            });
+                        if let Some(k) = k {
+                            let key = (0, true, std::cmp::Reverse(i), std::cmp::Reverse(k));
+                            offer(key, i, k, false);
+                        }
+                        continue;
+                    }
+                    for r in e.swap_ratings(p, SwapItem::Inventory(i)) {
+                        let adopted = if r.replaces {
+                            r.dps_bp > Some(0) && r.level_after >= r.level_before
+                        } else {
+                            r.dps_bp.unwrap_or(0) >= 0
+                        };
+                        if adopted {
+                            let key = (
+                                r.dps_bp.unwrap_or(0),
+                                !r.replaces,
+                                std::cmp::Reverse(i),
+                                std::cmp::Reverse(r.slot),
+                            );
+                            offer(key, i, r.slot, r.replaces);
                         }
                     }
                 }
-            }
-            if let Some((_, bi, bs)) = best {
-                // A rune is not rated here; only star choices are compared.
-                assert_eq!((item, slot), (bi, bs));
-                checked += 1;
+                {
+                    let (_, bi, bs) =
+                        best.unwrap_or_else(|| panic!("world {world}: no candidate for the pick"));
+                    assert_eq!((item, slot), (bi, bs), "world {world}");
+                    checked += 1;
+                    if matches!(view.inventory[item as usize], HeldView::Rune { .. }) {
+                        runes += 1;
+                    }
+                }
             }
         }
-        assert!(checked > 0, "some star equip was compared");
+        assert!(checked > 0, "some equip was compared");
+        assert!(runes > 0, "some rune pick was compared");
     }
 
     #[test]
