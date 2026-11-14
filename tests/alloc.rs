@@ -231,9 +231,10 @@ pub(crate) const BENCH_TICK_ALLOCS: [(&str, Allocs); 7] = [
 /// behind `Arc` took 7 more off each, to 357 and 472; the star-offer fields leaving `Offers` (the
 /// `due`, `taken` and `banished` lists) took 11 more off each, to 346 and 461. The rule of `BENCH_TICK_ALLOCS`
 /// holds: a count that falls is re-pinned lower, one that rises is a regression. A separate const
-/// so that `tests/bench_region.rs` keeps zipping the six solo cases.
+/// so that `tests/bench_region.rs` keeps zipping the six solo cases. `worst_tick_3p` 2 -> 1: the
+/// swing sort works in place, so its crowd tick lost the sort's buffer.
 pub(crate) const PARTY_BENCH_ALLOCS: [(&str, Allocs); 3] = [
-    ("worst_tick_3p", pin(2, 0, 2)),
+    ("worst_tick_3p", pin(1, 0, 1)),
     ("rollback", pin(345, 14, 8)),
     ("rollback_equip", pin(459, 23, 119)),
 ];
