@@ -1173,7 +1173,7 @@ mod builds {
                 let snap = e.snapshot();
                 let view = &snap.players[usize::from(s)];
                 let mut best = None;
-                let inv = view.inventory.len().min(12);
+                let inv = view.inventory.len().min(RATED_ITEMS);
                 let mut offer = |key, i, k, replaces: bool| {
                     let action = if replaces {
                         EquipAction::Replace { item: i, slot: k }
@@ -1217,7 +1217,9 @@ mod builds {
                         }
                     }
                 }
-                if let Some((_, bi, bs)) = best {
+                {
+                    let (_, bi, bs) =
+                        best.unwrap_or_else(|| panic!("world {world}: no candidate for the pick"));
                     assert_eq!((item, slot), (bi, bs), "world {world}");
                     checked += 1;
                     if matches!(view.inventory[item as usize], HeldView::Rune { .. }) {
