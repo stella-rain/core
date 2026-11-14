@@ -266,3 +266,54 @@ fn a_later_counter_past_the_caps_is_clamped() {
         crate::fixed::Fx::px(crate::limits::MAX_ADVANCE_DISTANCE)
     );
 }
+
+fn tempo(max: u32, effects: Vec<Value>) -> Value {
+    json!({ "type": "combo_tempo_pct", "max_stacks": max, "effects": effects })
+}
+
+fn speed(pct: u32) -> Value {
+    json!({ "type": "speed_pct", "pct": pct })
+}
+
+/// A tempo grant as `(max_stacks, speed_pct, keep_on_smash, hold_armour)`.
+type TempoSeen = (u8, u32, bool, bool);
+
+fn tempo_at(e: &mut Engine, i: u8, places: usize) -> Option<TempoSeen> {
+    read(e, i, places, |w, s, me| w.tempo_of(s, me).copied())
+        .map(|g| (g.max_stacks, g.speed_pct, g.keep_on_smash, g.hold_armour))
+}
+
+/// G3: the tempo's cap and each effect stack in path order; the flag effects are true once any
+/// level names them.
+#[test]
+fn the_combo_tempo_stacks_across_the_path() {
+    let keep = json!({ "type": "keep_on_smash" });
+    let armour = json!({ "type": "super_armour_at_full" });
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4), keep])],
+        vec![tempo(6, vec![])],
+        vec![tempo(6, vec![speed(5), armour])],
+        vec![],
+    );
+    assert_eq!(tempo_at(&mut e, 0, 0), Some((5, 4, true, false)));
+    assert_eq!(tempo_at(&mut e, 0, 1), Some((6, 4, true, false)));
+    assert_eq!(tempo_at(&mut e, 0, 2), Some((6, 5, true, true)));
+    assert_eq!(tempo_at(&mut e, 0, 3), Some((6, 5, true, true)));
+}
+
+/// G3: each player reads its own place on the path; a style naming none gives none.
+#[test]
+fn each_player_reads_its_own_tempo() {
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4)])],
+        vec![tempo(6, vec![])],
+        vec![],
+        vec![],
+    );
+    assert_eq!(tempo_at(&mut e, 0, 0).map(|g| g.0), Some(5));
+    assert_eq!(tempo_at(&mut e, 2, 1).map(|g| g.0), Some(6));
+    if let Some(g) = st(&mut e).players.career_mut(slot(1)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    assert_eq!(tempo_at(&mut e, 1, 1), None, "a style naming none");
+}
