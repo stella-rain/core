@@ -10089,7 +10089,7 @@
               "type": "null"
             }
           ],
-          "description": "The levels of the expertise style path; `LevelTable::NORMAL` when absent."
+          "description": "The levels of the expertise style path; `LevelTable::NORMAL` when absent, `V1_NORMAL` at `sim_version` 1."
         },
         "levels": {
           "anyOf": [
