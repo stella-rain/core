@@ -626,7 +626,7 @@ fn the_pack_check_reads_a_later_spirit_against_the_path() {
         Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
     };
     assert!(load(true).is_ok());
-    let err = format!("{:?}", load(false).err().expect("refused"));
+    let err = format!("{:?}", load(false).map(|_| ()).expect_err("refused"));
     assert!(
         err.contains("$.weapons[0].styles[0].upgrade_1[0].kinds[0].levels[0][0]")
             && err.contains("needs a bleed smash"),
