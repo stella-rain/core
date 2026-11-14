@@ -168,19 +168,6 @@ fn a_kind_names_one_effect_per_variant_and_a_path_one_counter() {
         json!([counter(), counter()]),
         "$.weapons[0].styles[0].kinds[1]",
     );
-    let mut v = with_kinds(json!([counter()]));
-    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
-        "id": "again", "effect": "none", "kinds": [counter()]
-    }]);
-    match parse_at(&v, Versions::CURRENT) {
-        Err(Error::Invalid(issues)) => assert!(
-            issues
-                .iter()
-                .any(|i| i.path == "$.weapons[0].styles[0].upgrade_1[0].kinds[0]"),
-            "{issues:?}"
-        ),
-        other => panic!("expected invalid, got {other:?}"),
-    }
     // Two styles may each name one.
     let mut v = with_kinds(json!([counter()]));
     v["weapons"][0]["styles"][1]["kinds"] = json!([counter()]);
@@ -284,4 +271,56 @@ fn the_view_and_the_events_serialize() {
     let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let player = serde_json::to_value(&snap.players[0]).unwrap();
     assert!(player.get("counter").is_none(), "{player}");
+}
+
+const LATER: &str = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+
+/// The style's own level names `style`, its first upgrade names `later`.
+fn stacked(style: Value, later: Value) -> Value {
+    let mut v = with_kinds(style);
+    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
+        "id": "again", "effect": "none", "kinds": later
+    }]);
+    v
+}
+
+fn stacked_loads(style: Value, later: Value) {
+    if let Err(e) = parse_at(&stacked(style, later), Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+}
+
+fn stacked_refused(style: Value, later: Value, path: &str) {
+    match parse_at(&stacked(style, later), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
+        }
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
+}
+
+/// V2: a later level of the path may name the counter bonus again, with no effect when an
+/// earlier level named it; the first naming keeps 1 to 4 effects; each number is bounded at its level.
+#[test]
+fn a_later_level_may_name_the_counter_bonus_again() {
+    let base = json!([{
+        "type": "counter_bonus", "window_ticks": 30,
+        "effects": [{ "type": "damage_pct", "pct": 100 }]
+    }]);
+    let later = |window: i64, effects: Value| json!([{ "type": "counter_bonus", "window_ticks": window, "effects": effects }]);
+    stacked_loads(base.clone(), later(45, json!([])));
+    stacked_loads(
+        base.clone(),
+        later(45, json!([{ "type": "advance", "distance": 12288 }])),
+    );
+    stacked_refused(
+        base.clone(),
+        later(61, json!([])),
+        &format!("{LATER}.window_ticks"),
+    );
+    refused_at(
+        json!([{ "type": "counter_bonus", "window_ticks": 30, "effects": [] }]),
+        &format!("{PATH}.effects"),
+    );
+    stacked_refused(json!([]), later(45, json!([])), &format!("{LATER}.effects"));
 }

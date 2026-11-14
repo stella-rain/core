@@ -142,19 +142,6 @@ fn a_kind_names_one_effect_per_variant_and_a_path_one_tempo() {
         &format!("{PATH}.effects[1]"),
     );
     refused_at(json!([tempo(), tempo()]), "$.weapons[0].styles[0].kinds[1]");
-    let mut v = with_kinds(json!([tempo()]));
-    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
-        "id": "again", "effect": "none", "kinds": [tempo()]
-    }]);
-    match parse_at(&v, Versions::CURRENT) {
-        Err(Error::Invalid(issues)) => assert!(
-            issues
-                .iter()
-                .any(|i| i.path == "$.weapons[0].styles[0].upgrade_1[0].kinds[0]"),
-            "{issues:?}"
-        ),
-        other => panic!("expected invalid, got {other:?}"),
-    }
     // Two styles may each name one.
     let mut v = with_kinds(json!([tempo()]));
     v["weapons"][0]["styles"][1]["kinds"] = json!([tempo()]);
@@ -259,4 +246,66 @@ fn the_view_and_the_events_serialize() {
     let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let player = serde_json::to_value(&snap.players[0]).unwrap();
     assert!(player.get("tempo").is_none(), "{player}");
+}
+
+const LATER: &str = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+
+/// The style's own level names `style`, its first upgrade names `later`.
+fn stacked(style: Value, later: Value) -> Value {
+    let mut v = with_kinds(style);
+    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
+        "id": "again", "effect": "none", "kinds": later
+    }]);
+    v
+}
+
+fn stacked_loads(style: Value, later: Value) {
+    if let Err(e) = parse_at(&stacked(style, later), Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+}
+
+fn stacked_refused(style: Value, later: Value, path: &str) {
+    match parse_at(&stacked(style, later), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
+        }
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
+}
+
+/// V3: a later level of the path may name the combo tempo again, with no effect when an earlier
+/// level named it; `max_stacks` never falls and the folded product stays within the ceiling.
+#[test]
+fn a_later_level_may_name_the_combo_tempo_again() {
+    let base = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 5,
+        "effects": [{ "type": "speed_pct", "pct": 4 }]
+    }]);
+    let later = |max: i64, effects: Value| json!([{ "type": "combo_tempo_pct", "max_stacks": max, "effects": effects }]);
+    stacked_loads(base.clone(), later(6, json!([])));
+    stacked_refused(
+        base.clone(),
+        later(4, json!([])),
+        &format!("{LATER}.max_stacks"),
+    );
+    stacked_refused(
+        json!([speed(5, 90)]),
+        later(10, json!([])),
+        &format!("{LATER}.max_stacks"),
+    );
+    stacked_refused(
+        base.clone(),
+        later(5, json!([{ "type": "speed_pct", "pct": 0 }])),
+        &format!("{LATER}.effects[0].pct"),
+    );
+    stacked_refused(json!([]), later(5, json!([])), &format!("{LATER}.effects"));
+    stacked_refused(
+        base,
+        later(
+            5,
+            json!([{ "type": "keep_on_smash" }, { "type": "keep_on_smash" }]),
+        ),
+        &format!("{LATER}.effects[1]"),
+    );
 }
