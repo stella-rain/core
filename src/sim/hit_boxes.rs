@@ -83,9 +83,12 @@ impl Swing {
 
 /// Puts the tick's hit boxes in owner, then slot order, in place: the stable sort allocates a
 /// scratch buffer the size of the crowd's swings, and a steady tick allocates nothing (T1b). The
-/// place is the tie-break, so the order is total and equals the stable sort's for any input:
-/// tied swings kept their `State::runs` order, which is their place (ADR-SIM-3).
+/// place is the tie-break, so the order is total. It equals the stable sort's for `active_swings`'
+/// output, which lists the runs in `State::runs` order, so tied swings come in ascending place
+/// (ADR-SIM-3); a caller that lists them in another order gets place order instead. Run before
+/// `zone_swings`: a run's and a zone's place share one index space, so every swing here is a run.
 fn sort_swings(swings: &mut [Swing]) {
+    debug_assert!(swings.iter().all(|w| matches!(w.source, Source::Run(_))));
     swings.sort_unstable_by_key(|w| (w.owner.0, w.slot, w.place()));
 }
 
@@ -1808,6 +1811,19 @@ mod party_tests {
             let want = stable_order(&w);
             sort_swings(&mut w);
             assert_eq!(keys(&w), want);
+        }
+
+        #[test]
+        fn tied_swings_in_any_input_order_come_out_in_place_order() {
+            let mut w = shuffled(60, 5, 3, false);
+            w.reverse();
+            w.rotate_left(7);
+            sort_swings(&mut w);
+            let k = keys(&w);
+            assert!(
+                k.windows(2)
+                    .all(|p| (p[0].0, p[0].1, p[0].2) < (p[1].0, p[1].1, p[1].2))
+            );
         }
 
         #[test]

@@ -208,7 +208,7 @@ const fn pin(allocs: u64, reallocs: u64, frees: u64) -> Allocs {
 /// each launch, and two `Vec`s per defeat and per aim assist's targets), and the three are in
 /// `Scratch` or inline now: 427 allocs, 2 reallocs, 426 frees -> 13, 0, 8 (the expertise offers'
 /// `Vec`s, a hooked orb's hook and path, the boss's and a shrine's entity), and `worst_tick`
-/// 3 -> 1 (aim assist's two). `worst_minute_peak` stays 0, 0, 0 on its new tick. A hooked orb
+/// 3 -> 1 (aim assist's two), then 1 -> 0 with `worst_tick_combat` (the swing sort works in place, so no scratch buffer for the crowd's swings). `worst_minute_peak` stays 0, 0, 0 on its new tick. A hooked orb
 /// keeps its hook and path inline and firing it builds no list, so `worst_minute` was 9, 0, 8. It
 /// runs in equipment mode now (no offer, no expertise offer's `Vec`s, no orb): 3, 0, 2.
 /// The cases are built by `bench_fixtures`, outside the count.
