@@ -25,8 +25,8 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
 ## What is where
 
 - `replay.rs`, `run_replay.rs`: the `.replay` file, record and verify (ADR-REPL-6, ADR-BRDG-3).
-  A run's replay holds the setup, the content SHA-256 and the inputs (picks, `choose` and
-  `spend`, are steps of the step log); it is verified from the file and its run stats (ADR-REPL-5).
+  A run's replay holds the setup, the content SHA-256 and the inputs (the run's picks are ACTIONS
+  steps of the step log; a schema 1 replay's `commands`); it is verified from the file and its run stats (ADR-REPL-5).
 - The step log, the range reader and the recorder (`step_log.rs`, `RunRecorder`):
   `step-log.md`.
 - `share.rs`, `base64.rs`: share codes; `recording.rs`: the `record` feature's JSON Lines.
@@ -44,7 +44,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
   equipment action, a join or a leave.
 - `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
-  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`: 10 cases,
+  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`: 11 cases,
   every one an equipment run (ACTIONS steps) but `tutorial_opening`, the tutorial cut at 240 ticks;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
   `stage.json`): 19 cases, all of `sim_version` 2: `two_time_limit` (2 players), `three_time_limit`,
