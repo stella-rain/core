@@ -52,6 +52,16 @@ fn full_attack() -> Value {
 /// The bundled pack with a gauge (one A hit fills it, spend `full_smash`) and `extra` kinds on the
 /// Hammer's first style.
 fn pack(extra: Vec<Value>) -> Pack {
+    levelled_pack(extra, vec![], vec![], vec![])
+}
+
+/// `pack(extra)` with the kinds of the style's first upgrade, second upgrade and capstone set too.
+pub(super) fn levelled_pack(
+    extra: Vec<Value>,
+    upgrade_1: Vec<Value>,
+    upgrade_2: Vec<Value>,
+    capstone: Vec<Value>,
+) -> Pack {
     let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
@@ -69,6 +79,20 @@ fn pack(extra: Vec<Value>) -> Pack {
     })];
     kinds.extend(extra);
     w["styles"][0]["kinds"] = json!(kinds);
+    for (field, kinds) in [
+        ("upgrade_1", upgrade_1),
+        ("upgrade_2", upgrade_2),
+        ("capstone", capstone),
+    ] {
+        if !kinds.is_empty() {
+            w["styles"][0][field][0]["effect"] = json!("none");
+            w["styles"][0][field][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("amount");
+            w["styles"][0][field][0]["kinds"] = json!(kinds);
+        }
+    }
     Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the test pack")
 }
 
