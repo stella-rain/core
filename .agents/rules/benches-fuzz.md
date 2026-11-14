@@ -23,21 +23,22 @@ Every case runs in equipment mode (no offer opens); the offers-mode and frozen-v
 
 - `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-5 (260 enemies, 32 orbs, 128 zones, DIR1), the seven runes and Rune
   Haste equipped (`script_runes`, `script_equipment`), each damage-over-time status on every enemy, a fresh stack to push apart and
-  aim assist over all 260. `bench_fixtures/worst_case.rs`; `tests/worst_case.rs`.
+  aim assist over all 260. `bench_fixtures/worst_case.rs` (`stage()` is `stage_with(None)`); `tests/worst_case.rs`.
 - `hit_tick.rs`: worst melee tick: 260 enemies under the main character's hit box, four companions' arcs, 128 zones (112 friendly),
   no orb; `hit_tick_spread` spreads the crowd (`bench_fixtures/hit_case.rs`, `tests/hit_case.rs`).
-- `time_limit_tick.rs`: the `time_limit` mode's heaviest tick (tick 295): 260 enemies, a boss and the Main weapon hitting, no orb
-  (`bench_fixtures/time_limit_case.rs`).
+- `time_limit_tick.rs`: `time_limit`'s heaviest tick (295): 260 enemies, a boss, the Main weapon hitting, no orb (`time_limit_case.rs`).
 - `worst_minute.rs`: the 3,600 ticks of the mode's dense minute (ticks 7,301 to 10,900: crowd held at 200 up to cap 260, up to 32
   elites, a mid-boss at tick 9,000), with the spawns and death bursts a one-tick bench misses; `worst_minute_peak.rs` is its
   heaviest tick, with its own budget (`bench_fixtures/worst_minute_case.rs`; `tests/worst_minute.rs` pins it).
 - `worst_tick_3p.rs`: the `worst_tick` tick once slots 1 and 2 joined and pressed Main (`party_case.rs`).
-- `rollback.rs`: the saved engine of the three-player dense minute (10,800 ticks in) cloned, 8 ticks played on the clone, the first
-  the minute's heaviest (`party_case.rs`).
-- `rollback_equip.rs`: that rollback in equipment mode (saved 10,800 ticks in): every player equips a star, then extracts one
-  (`bench_fixtures/equip_case.rs`; its ramp-up has its own policy).
-- `rollback_session.rs`: a `net` `Session::advance` that rolls back (windows 4, 16); a `CloneRing` save into an empty ring
-  (`clone_ring_save`) and into a reused slot (`clone_ring_resave`).
+- `worst_tick_combat.rs`: the `worst_tick` crowd (260 enemies, 32 elites, 128 zones, 32 orbs) on the bundled `giant_sword` with style
+  `judgement_cut`, the seven runes and Rune Haste; from tick 300 (`CAPS_FROM`) the fixture writes before each tick 64 queued repeats
+  (`MAX_REPEATS_QUEUED`) of 16 targets (`MAX_REPEAT_TARGETS`) all due, every elite's stagger gauge one short of full and every enemy at
+  its hard-control count, via `Engine::bench_run_mut` (crate-internal); measured after `WARMUP_TICKS` 450 (`combat_case.rs`).
+- `rollback.rs`: the saved engine of the three-player dense minute (10,800 ticks in) cloned, 8 ticks played on the clone, the first the
+  minute's heaviest (`party_case.rs`); `rollback_equip.rs`: that rollback in equipment mode: every player equips a star, then extracts
+  one (`bench_fixtures/equip_case.rs`; its ramp-up has its own policy); `rollback_session.rs`: a `net` `Session::advance` that rolls
+  back (windows 4, 16); a `CloneRing` save into an empty ring (`clone_ring_save`) and into a reused slot (`clone_ring_resave`).
 - Pins (`tests/bench_pins.toml`, written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`): per case the state hash
   `before`/`after` the measured tick(s) and the `stage` and `input` digests. A PR that moves a pin updates it and says so; an
   unmeant move is a bug.
@@ -48,15 +49,15 @@ Every case runs in equipment mode (no offer opens); the offers-mode and frozen-v
   ADR-SIM-5 and 6) runs both architectures: those budgets block on every run (`bench_budget.py`); a case over +2% on the base commit
   (`BENCH_ALARM_PCT`, `bench_alarm.py`) fails unless a `benches/accepted.toml` entry covers it (`[[accepted]]`: bench, case, arch,
   base, count, reason, pr; append-only; Kade merges).
-- A case is compared with the base commit when its `before`, `stage` and `input` pins are equal there and here and its bench file
-  and `benches/support/` are unchanged (`bench_pins.py`, ADR-SIM-6 point 5); `after` is pinned only. A moved case prints "case
-  moved: not compared", is not gated (`bench_alarm.py --cases`); budgets still block it.
+- A case is compared with the base commit when its `before`, `stage` and `input` pins are equal there and here and its bench file and
+  `benches/support/` are unchanged (`bench_pins.py`, ADR-SIM-6 point 5); `after` is pinned only. A moved case prints "case moved: not
+  compared", is not gated (`bench_alarm.py --cases`); budgets still block it.
 - Teardown guard (`bench_drop_guard.py`, after the budget check): `callgrind_annotate --tree=caller` fails a
   `drop_glue`/`drop_in_place` of an Engine, Run or Case called from `__iai_callgrind_wrapper_mod`. In 0.16 only that function is
   counted, not the teardown: a bench returns its fixture and ends with `teardown = support::forget_measured`; an unreadable profile
   fails. `tests/bench_teardown.rs` is its text-level twin.
-- Every run uploads `bench-profile-<arch>` (`callgrind_diff.py`): per case `*.diff.txt`, `*.diff-inclusive.txt` (rows `delta base
-  head function`), `*.steps.txt` (head Ir per tick step of `steps![..]` in `src/sim/schedule.rs`, plus `rest`; base and delta when
+- Every run uploads `bench-profile-<arch>` (`callgrind_diff.py`): per case `*.diff.txt`, `*.diff-inclusive.txt` (rows `delta base head
+  function`), `*.steps.txt` (head Ir per tick step of `steps![..]` in `src/sim/schedule.rs`, plus `rest`; base and delta when
   compared), `callgrind.*.out`; nested frames give "step table unreliable on <arch>". Locally: `callgrind_annotate`, or `--
   --save-baseline=base` then `-- --baseline=base --callgrind-limits=ir=2%`.
 
@@ -64,16 +65,16 @@ Every case runs in equipment mode (no offer opens); the offers-mode and frozen-v
 
 - `cargo-fuzz` targets for the parsers and loaders (stage, run, replays, share code, run setup, content packs, minisign, savepoints,
   step log ranges, net packets; ADR-SVC-1, ADR-REPL-5, ADR-CONT-5): every file in `fuzz_targets/`, in its own workspace, on nightly.
-- `fuzz/tests/smoke.rs` runs them on stable; `regressions/<target>/` keeps the inputs of fixed crashes (`replay_load/equipment-action.replay` is generated by
-  `cargo xtask bless`). `savepoint_load` and `step_log_range` are seeded from generated files (`write_savepoint_seeds`, `write_step_log_range_seeds`; both `#[ignore]`),
-  `net_decode` from `write_net_seeds`. `step_log_range` checks the range reader against an expanded-ticks oracle
-  (`fuzz/src/lib.rs`).
-- The root profile never reaches the fuzz workspace: `fuzz/Cargo.toml` sets `opt-level = 1` and `overflow-checks` (`cargo test`
-  there 84 s, was about 13 minutes; `the_fuzz_crate_tests_are_built_optimised`). The sweeps are bounded by
-  `STEP_LOG_RANGE_TICK_BUDGET` and `RUN_SEED_TICK_BUDGET` (`the_step_log_range_seeds_expand_a_bounded_number_of_ticks`,
+- `fuzz/tests/smoke.rs` runs them on stable; `regressions/<target>/` keeps the inputs of fixed crashes
+  (`replay_load/equipment-action.replay` is generated by `cargo xtask bless`). `savepoint_load` and `step_log_range` are seeded from
+  generated files (`write_savepoint_seeds`, `write_step_log_range_seeds`; both `#[ignore]`), `net_decode` from `write_net_seeds`.
+  `step_log_range` checks the range reader against an expanded-ticks oracle (`fuzz/src/lib.rs`).
+- The root profile never reaches the fuzz workspace: `fuzz/Cargo.toml` sets `opt-level = 1` and `overflow-checks` (`cargo test` there
+  84 s, was about 13 minutes; `the_fuzz_crate_tests_are_built_optimised`). The sweeps are bounded by `STEP_LOG_RANGE_TICK_BUDGET` and
+  `RUN_SEED_TICK_BUDGET` (`the_step_log_range_seeds_expand_a_bounded_number_of_ticks`,
   `the_run_seeds_simulate_a_bounded_number_of_ticks`); raising one takes CI minutes: Kade's call.
 - Gate, in `fuzz/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo +nightly fuzz build`
   (all targets). A PR touching parsing (`net/` counts, `rust.yml`) also runs each `fuzz/Cargo.toml` target 60 s, one per CPU
-  (`pack_load` with a whole pack as `-max_len`) (`.github/scripts/fuzz_targets.py` lists them; a unit test fails when
-  `fuzz_targets/` and it disagree), seeded from the corpus, bundled content, `content-pack export`, those seeds.
+  (`pack_load` with a whole pack as `-max_len`) (`.github/scripts/fuzz_targets.py` lists them; a unit test fails when `fuzz_targets/`
+  and it disagree), seeded from the corpus, bundled content, `content-pack export`, those seeds.
 - Weekly, each target runs 7 minutes on a growing cached corpus; a crash opens a hash-only issue.
