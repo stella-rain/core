@@ -1298,7 +1298,8 @@ fn grant_kind(step: Value, grant: Value) -> Value {
 
 /// The pack with `kinds` on the Hammer's first style (the style level's own kinds).
 fn pack_with_hammer_kinds(kinds: Value) -> Value {
-    let mut v = value();
+    // The styles from before the weapons' content moved: the test patches style 0 whole.
+    let mut v = crate::before::pack_value();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()

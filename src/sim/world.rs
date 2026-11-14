@@ -1365,8 +1365,20 @@ fn grant_gauges(
     out
 }
 
+/// The kinds of a style's own level, then of each of the first `taken` places of its path, in
+/// path order (ADR-SIM-9 point 3).
+fn path_kinds(s: &crate::expertise::Style, taken: usize) -> impl Iterator<Item = &StyleKind> {
+    let places = crate::expertise::style_levels(s)
+        .into_iter()
+        .take(taken)
+        .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+    std::iter::once(s.kinds.as_slice()).chain(places).flatten()
+}
+
 /// The spirit of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `spirit` kinds of the style's own level, then of each place taken, in
+/// path order, a later level's countdown and level effects replacing the earlier ones (see
+/// `spirit_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_spirits(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1379,17 +1391,13 @@ fn grant_spirits(
         return Vec::new();
     };
     let spirit_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::Spirit(sp) => Some(folded(sp)),
-                _ => None,
-            })
+        let mut grant: Option<SpiritGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::Spirit(sp) = k {
+                spirit_fold(grant.get_or_insert_with(SpiritGrant::none), sp);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1404,7 +1412,9 @@ fn grant_spirits(
 }
 
 /// The counter bonus of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `counter_bonus` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's window and effects replacing the earlier ones (see
+/// `counter_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_counters(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1417,17 +1427,13 @@ fn grant_counters(
         return Vec::new();
     };
     let counter_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::CounterBonus(c) => Some(counter_folded(c)),
-                _ => None,
-            })
+        let mut grant: Option<CounterGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::CounterBonus(c) = k {
+                counter_fold(grant.get_or_insert_with(CounterGrant::none), c);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1442,7 +1448,9 @@ fn grant_counters(
 }
 
 /// The combo tempo of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `combo_tempo_pct` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's cap and effects replacing the earlier ones (see
+/// `tempo_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_tempos(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1455,17 +1463,13 @@ fn grant_tempos(
         return Vec::new();
     };
     let tempo_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::ComboTempoPct(t) => Some(tempo_folded(t)),
-                _ => None,
-            })
+        let mut grant: Option<TempoGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::ComboTempoPct(t) = k {
+                tempo_fold(grant.get_or_insert_with(TempoGrant::none), t);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1480,7 +1484,9 @@ fn grant_tempos(
 }
 
 /// The giant trigger of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `giant_trigger` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's length and effects replacing the earlier ones (see
+/// `trigger_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_triggers(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1493,17 +1499,13 @@ fn grant_triggers(
         return Vec::new();
     };
     let trigger_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::GiantTrigger(t) => Some(trigger_folded(t)),
-                _ => None,
-            })
+        let mut grant: Option<TriggerGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::GiantTrigger(t) = k {
+                trigger_fold(grant.get_or_insert_with(TriggerGrant::none), t);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1602,17 +1604,26 @@ fn breaker_folded(g: &mut BreakerGrant, b: &crate::expertise::Breaker) {
     }
 }
 
-/// `t` as a flat grant, every number inside its cap.
-fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
-    let mut g = TriggerGrant {
-        ticks: u16::try_from(t.ticks)
-            .unwrap_or(MAX_TRIGGER_TICKS)
-            .clamp(1, MAX_TRIGGER_TICKS),
-        range_pct: 0,
-        smash_pct: 0,
-        rally_pct: 100,
-        super_armour: false,
-    };
+impl TriggerGrant {
+    /// A giant trigger that does nothing yet: the longest length, no effect.
+    pub(super) fn none() -> TriggerGrant {
+        TriggerGrant {
+            ticks: MAX_TRIGGER_TICKS,
+            range_pct: 0,
+            smash_pct: 0,
+            rally_pct: 100,
+            super_armour: false,
+        }
+    }
+}
+
+/// `t` laid over `g`, every number inside its cap: its length replaces the earlier one and each
+/// effect it lists replaces the same effect; an effect it does not list stays, and the armour is
+/// true once any level names it.
+pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrigger) {
+    g.ticks = u16::try_from(t.ticks)
+        .unwrap_or(MAX_TRIGGER_TICKS)
+        .clamp(1, MAX_TRIGGER_TICKS);
     for e in t.effects.iter().take(4) {
         match e {
             TriggerEffect::RangePct { pct } => {
@@ -1623,19 +1634,26 @@ fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
             TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
         }
     }
-    g
 }
 
-/// `t` as a flat grant, every number inside its cap.
-fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
-    let mut g = TempoGrant {
-        max_stacks: u8::try_from(t.max_stacks)
-            .unwrap_or(MAX_TEMPO_STACKS)
-            .clamp(1, MAX_TEMPO_STACKS),
-        speed_pct: 0,
-        keep_on_smash: false,
-        hold_armour: false,
-    };
+impl TempoGrant {
+    /// A combo tempo that does nothing yet: the most stacks, no speed, no flag.
+    pub(super) fn none() -> TempoGrant {
+        TempoGrant {
+            max_stacks: MAX_TEMPO_STACKS,
+            speed_pct: 0,
+            keep_on_smash: false,
+            hold_armour: false,
+        }
+    }
+}
+
+/// `t` laid over `g`, every number inside its cap: its `max_stacks` replaces the earlier one,
+/// `speed_pct` replaces the earlier speed and the flags are true once any level names them.
+pub(super) fn tempo_fold(g: &mut TempoGrant, t: &crate::expertise::ComboTempo) {
+    g.max_stacks = u8::try_from(t.max_stacks)
+        .unwrap_or(MAX_TEMPO_STACKS)
+        .clamp(1, MAX_TEMPO_STACKS);
     for e in t.effects.iter().take(3) {
         match e {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
@@ -1643,20 +1661,27 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
             TempoEffect::SuperArmourAtFull {} => g.hold_armour = true,
         }
     }
-    g
 }
 
-/// `c` as a flat grant, every number inside its cap.
-fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
-    let mut g = CounterGrant {
-        window: u16::try_from(c.window_ticks)
-            .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
-            .clamp(1, MAX_COUNTER_WINDOW_TICKS),
-        damage_pct: 0,
-        stagger_pct: 100,
-        stun_ticks: 0,
-        advance: Fx(0),
-    };
+impl CounterGrant {
+    /// A counter bonus that does nothing yet: the longest window, no effect.
+    pub(super) fn none() -> CounterGrant {
+        CounterGrant {
+            window: MAX_COUNTER_WINDOW_TICKS,
+            damage_pct: 0,
+            stagger_pct: 100,
+            stun_ticks: 0,
+            advance: Fx(0),
+        }
+    }
+}
+
+/// `c` laid over `g`, every number inside its cap: its window replaces the earlier one and each
+/// effect it lists replaces the same effect; an effect it does not list stays.
+pub(super) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::CounterBonus) {
+    g.window = u16::try_from(c.window_ticks)
+        .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
+        .clamp(1, MAX_COUNTER_WINDOW_TICKS);
     for e in c.effects.iter().take(4) {
         match e {
             CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
@@ -1669,36 +1694,46 @@ fn counter_folded(c: &crate::expertise::CounterBonus) -> CounterGrant {
             }
         }
     }
-    g
 }
 
-/// `sp` as a flat table, every number inside its cap.
-fn folded(sp: &crate::expertise::Spirit) -> SpiritGrant {
-    let levels = sp
+impl SpiritGrant {
+    /// A spirit that does nothing yet: the longest countdown and no level.
+    pub(super) fn none() -> SpiritGrant {
+        SpiritGrant {
+            decay_ticks: MAX_SPIRIT_DECAY_TICKS,
+            levels: Vec::new(),
+        }
+    }
+}
+
+/// `sp` laid over `g`, every number inside its cap: its countdown replaces the earlier one and
+/// each effect of entry `i` replaces the same effect of level `i + 1`, an entry past the table
+/// extending it up to `MAX_SPIRIT_LEVEL`; an empty entry changes nothing.
+pub(super) fn spirit_fold(g: &mut SpiritGrant, sp: &crate::expertise::Spirit) {
+    g.decay_ticks = u16::try_from(sp.decay_ticks)
+        .unwrap_or(MAX_SPIRIT_DECAY_TICKS)
+        .clamp(1, MAX_SPIRIT_DECAY_TICKS);
+    for (i, effects) in sp
         .levels
         .iter()
         .take(usize::from(MAX_SPIRIT_LEVEL))
-        .map(|effects| {
-            let mut fx = SpiritFx::default();
-            for e in effects {
-                match e {
-                    SpiritEffect::DamagePct { pct } => fx.damage_pct = (*pct).min(MAX_PCT),
-                    SpiritEffect::RangePct { pct } => {
-                        fx.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
-                    }
-                    SpiritEffect::SmashBleedStacks { stacks } => {
-                        fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
-                    }
+        .enumerate()
+    {
+        if g.levels.len() <= i {
+            g.levels.push(SpiritFx::default());
+        }
+        let fx = &mut g.levels[i];
+        for e in effects {
+            match e {
+                SpiritEffect::DamagePct { pct } => fx.damage_pct = (*pct).min(MAX_PCT),
+                SpiritEffect::RangePct { pct } => {
+                    fx.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
+                }
+                SpiritEffect::SmashBleedStacks { stacks } => {
+                    fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
                 }
             }
-            fx
-        })
-        .collect();
-    SpiritGrant {
-        decay_ticks: u16::try_from(sp.decay_ticks)
-            .unwrap_or(MAX_SPIRIT_DECAY_TICKS)
-            .clamp(1, MAX_SPIRIT_DECAY_TICKS),
-        levels,
+        }
     }
 }
 

@@ -45,8 +45,9 @@ fn burst(effects: Value) -> Value {
     one(json!({ "type": "on_stagger_burst", "radius_px": 64, "effects": effects }))
 }
 
+/// The styles from before the weapons' content moved (`crate::before`): the tests patch style 0.
 fn file() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn with_kinds(kinds: Value) -> Value {

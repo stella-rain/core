@@ -35,8 +35,9 @@ fn one_level(effects: Value) -> Value {
     json!({ "type": "spirit", "decay_ticks": 100, "levels": [effects] })
 }
 
+/// The styles from before the weapons' content moved (`crate::before`): the tests patch style 0.
 fn file() -> Value {
-    serde_json::from_slice(common::bundled_file("expertise")).unwrap()
+    serde_json::from_slice(crate::before::EXPERTISE).unwrap()
 }
 
 fn with_kinds(kinds: Value) -> Value {
@@ -157,19 +158,6 @@ fn a_level_names_one_effect_per_variant_and_a_path_one_spirit() {
         json!([spirit(), spirit()]),
         "$.weapons[0].styles[0].kinds[1]",
     );
-    let mut v = with_kinds(json!([spirit()]));
-    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
-        "id": "again", "effect": "none", "kinds": [spirit()]
-    }]);
-    match parse_at(&v, Versions::CURRENT) {
-        Err(Error::Invalid(issues)) => assert!(
-            issues
-                .iter()
-                .any(|i| i.path == "$.weapons[0].styles[0].upgrade_1[0].kinds[0]"),
-            "{issues:?}"
-        ),
-        other => panic!("expected invalid, got {other:?}"),
-    }
     // Two styles may each name one.
     let mut v = with_kinds(json!([spirit()]));
     v["weapons"][0]["styles"][1]["kinds"] = json!([spirit()]);
@@ -243,4 +231,58 @@ fn the_view_and_the_events_serialize() {
     let snap = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let player = serde_json::to_value(&snap.players[0]).unwrap();
     assert!(player.get("spirit").is_none(), "{player}");
+}
+
+const LATER: &str = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+
+/// The style's own level names `style`, its first upgrade names `later`.
+fn stacked(style: Value, later: Value) -> Value {
+    let mut v = with_kinds(style);
+    v["weapons"][0]["styles"][0]["upgrade_1"] = json!([{
+        "id": "again", "effect": "none", "kinds": later
+    }]);
+    v
+}
+
+fn stacked_loads(style: Value, later: Value) {
+    if let Err(e) = parse_at(&stacked(style, later), Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+}
+
+fn stacked_refused(style: Value, later: Value, path: &str) {
+    match parse_at(&stacked(style, later), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
+        }
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    }
+}
+
+/// V1: a later level of the path may name the spirit again; each number is bounded at the level
+/// that names it, at its own path; a level still names one spirit.
+#[test]
+fn a_later_level_may_name_the_spirit_again() {
+    let later = |decay: i64, levels: Value| json!([{ "type": "spirit", "decay_ticks": decay, "levels": levels }]);
+    stacked_loads(json!([spirit()]), later(1800, json!([[]])));
+    stacked_refused(
+        json!([spirit()]),
+        later(3601, json!([[]])),
+        &format!("{LATER}.decay_ticks"),
+    );
+    stacked_refused(
+        json!([spirit()]),
+        later(1800, json!([])),
+        &format!("{LATER}.levels"),
+    );
+    stacked_refused(
+        json!([spirit()]),
+        later(1800, json!([[], [], [], []])),
+        &format!("{LATER}.levels"),
+    );
+    stacked_refused(
+        json!([spirit()]),
+        json!([spirit(), spirit()]),
+        "$.weapons[0].styles[0].upgrade_1[0].kinds[1]",
+    );
 }
