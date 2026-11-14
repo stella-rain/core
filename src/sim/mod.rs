@@ -62,20 +62,21 @@
 //! In a stage with stars, defeated enemies then drop falling stars, and the main character takes
 //! those it reaches (`stars`); the live rules open no star offer.
 //!
-//! The perfect evade (`player::near_miss`, the step `perfect_slow`) and attack magnetism
-//! (`player::magnetism`) are dormant until the pack names them: `Tuning.perfect_evade` is `None`
-//! and no phase names an `advance`, so no state, hash or replay moves. The slowed set is
+//! The perfect evade (`player::near_miss`, the step `perfect_slow`) is off until the pack names it
+//! (`Tuning.perfect_evade` is `None` without the `perfect_evade_*` keys; the bundled pack names
+//! them) and attack magnetism (`player::magnetism`) is off until a phase names an `advance` (no
+//! bundled phase does), so a run without them moves no state, hash or replay. The slowed set is
 //! `Scratch::slowed`, recomputed each tick from the state.
 //!
-//! The weapon gauge a style grants (`World::gauge_of`, the `gauge` style kind) is just as dormant:
-//! it reads and writes only `PlayerCombat::weapon_gauge` and `gauge_step_fill`, fills in
+//! The weapon gauge a style grants (`World::gauge_of`, the `gauge` style kind) is off until a style
+//! names it (the bundled pack does): it reads and writes only `PlayerCombat::weapon_gauge` and `gauge_step_fill`, fills in
 //! `hit_boxes::land` (`player::gauge_from_hits`) and `player_hits::hurt_player`
 //! (`player::gauge_from_damage`), is spent by a B step at a full gauge (`player::spend_gauge`),
 //! and the orb clear (`hit_boxes::clear_orbs`) follows that attack. A run whose pack names no
 //! gauge keeps every one of those at zero, one bool test each.
 //!
-//! The spirit level a style grants (`World::spirit_of`, the `spirit` style kind) is dormant the same
-//! way: it reads and writes only `PlayerCombat::spirit_level` and `spirit_decay`, is raised by the
+//! The spirit level a style grants (`World::spirit_of`, the `spirit` style kind) is off the same
+//! way (the bundled pack names it): it reads and writes only `PlayerCombat::spirit_level` and `spirit_decay`, is raised by the
 //! full-gauge smash (`player::spend_gauge`), counted down in `player::update`, emptied by a pick
 //! that changes the style (`expertise::tree_pick`), and adds its level's damage, range and bleed
 //! stacks to a combo step (`player::strike`, `collide::damage`). `PlayerView.spirit` and the events
@@ -83,7 +84,7 @@
 //! spirit keeps both fields at zero, one bool test each.
 //!
 //! The counter bonus a style grants (`World::counter_of`, the `counter_bonus` style kind) is
-//! dormant the same way: it reads and writes only `PlayerCombat::counter_window` and
+//! off the same way (the bundled pack names it): it reads and writes only `PlayerCombat::counter_window` and
 //! `counter_bonus_step`, opens on a near miss of the evade and is taken by the first dash-branch
 //! step started inside it (`player::near_miss`, `counter_take`; damage, stagger factor, stun and
 //! slide in `strike`, `stun::fill`, `stun::counter_bonus_stun` and `magnetism`).
@@ -91,7 +92,7 @@
 //! counter bonus keeps both fields at zero, one bool test each.
 //!
 //! The combo tempo a style grants (`World::tempo_of`, the `combo_tempo_pct` style kind) is
-//! dormant the same way: it reads and writes only `PlayerCombat::combo_tempo`. A swing of a combo
+//! off the same way (the bundled pack names it): it reads and writes only `PlayerCombat::combo_tempo`. A swing of a combo
 //! step that hits adds one stack (`player::tempo_from_hits`, from the swing pass of
 //! `hit_boxes::land`), `strike` adds the stacks' percent to the attack speed under the run's cap
 //! (`player::tempo_speed_pct`), and the stacks end on a combo reset, a smash press, a hit taken,

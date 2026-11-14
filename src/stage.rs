@@ -71,7 +71,7 @@ pub struct Stage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_CROWD_TARGET))]
     pub crowd_target: Option<u16>,
-    /// The levels of the expertise style path; `LevelTable::NORMAL` when absent.
+    /// The levels of the expertise style path; `LevelTable::NORMAL` when absent, `V1_NORMAL` at `sim_version` 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_table: Option<LevelTable>,
     /// How a kill's Stardust grows over the run: without it the run counts none.
