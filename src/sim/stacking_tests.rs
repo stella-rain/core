@@ -313,7 +313,23 @@ fn each_player_reads_its_own_tempo() {
     assert_eq!(tempo_at(&mut e, 0, 0).map(|g| g.0), Some(5));
     assert_eq!(tempo_at(&mut e, 2, 1).map(|g| g.0), Some(6));
     if let Some(g) = st(&mut e).players.career_mut(slot(1)).expertise.as_mut() {
-        g.style = Some(1);
+        g.style = Some(2);
     }
     assert_eq!(tempo_at(&mut e, 1, 1), None, "a style naming none");
+}
+
+/// G3: a later tempo past every cap (a value the validator refuses) is clamped as a single
+/// level's is.
+#[test]
+fn a_later_tempo_past_the_caps_is_clamped() {
+    use super::world::{TempoGrant, tempo_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::ComboTempo>(v).expect("a combo tempo")
+    };
+    let mut g = TempoGrant::none();
+    tempo_fold(&mut g, &kind(tempo(5, vec![speed(4)])));
+    tempo_fold(&mut g, &kind(tempo(4_000_000_000, vec![speed(u32::MAX)])));
+    assert_eq!(g.max_stacks, crate::limits::MAX_TEMPO_STACKS);
+    assert_eq!(g.speed_pct, crate::run_stats::MAX_ATTACK_SPEED_PCT);
 }

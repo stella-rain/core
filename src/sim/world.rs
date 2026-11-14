@@ -1448,7 +1448,9 @@ fn grant_counters(
 }
 
 /// The combo tempo of each style and number of places of its path taken (the same index as
-/// `grant_weapons`), folded and clamped (ADR-SVC-1). Empty when no style of the weapon names one.
+/// `grant_weapons`): the `combo_tempo_pct` kinds of the style's own level, then of each place
+/// taken, in path order, a later level's cap and effects replacing the earlier ones (see
+/// `tempo_fold`), clamped (ADR-SVC-1). Empty when no style of the weapon names one.
 fn grant_tempos(
     main: &WeaponRef<Weapon>,
     base: Option<&Weapon>,
@@ -1461,17 +1463,13 @@ fn grant_tempos(
         return Vec::new();
     };
     let tempo_of = |s: &crate::expertise::Style, taken: usize| {
-        let places = crate::expertise::style_levels(s)
-            .into_iter()
-            .take(taken)
-            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
-        std::iter::once(s.kinds.as_slice())
-            .chain(places)
-            .flatten()
-            .find_map(|k| match k {
-                StyleKind::ComboTempoPct(t) => Some(tempo_folded(t)),
-                _ => None,
-            })
+        let mut grant: Option<TempoGrant> = None;
+        for k in path_kinds(s, taken) {
+            if let StyleKind::ComboTempoPct(t) = k {
+                tempo_fold(grant.get_or_insert_with(TempoGrant::none), t);
+            }
+        }
+        grant
     };
     let mut out = Vec::new();
     for style in &expertise.styles {
@@ -1632,16 +1630,24 @@ fn trigger_folded(t: &crate::expertise::GiantTrigger) -> TriggerGrant {
     g
 }
 
-/// `t` as a flat grant, every number inside its cap.
-fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
-    let mut g = TempoGrant {
-        max_stacks: u8::try_from(t.max_stacks)
-            .unwrap_or(MAX_TEMPO_STACKS)
-            .clamp(1, MAX_TEMPO_STACKS),
-        speed_pct: 0,
-        keep_on_smash: false,
-        hold_armour: false,
-    };
+impl TempoGrant {
+    /// A combo tempo that does nothing yet: the most stacks, no speed, no flag.
+    pub(super) fn none() -> TempoGrant {
+        TempoGrant {
+            max_stacks: MAX_TEMPO_STACKS,
+            speed_pct: 0,
+            keep_on_smash: false,
+            hold_armour: false,
+        }
+    }
+}
+
+/// `t` laid over `g`, every number inside its cap: its `max_stacks` replaces the earlier one,
+/// `speed_pct` replaces the earlier speed and the flags are true once any level names them.
+pub(super) fn tempo_fold(g: &mut TempoGrant, t: &crate::expertise::ComboTempo) {
+    g.max_stacks = u8::try_from(t.max_stacks)
+        .unwrap_or(MAX_TEMPO_STACKS)
+        .clamp(1, MAX_TEMPO_STACKS);
     for e in t.effects.iter().take(3) {
         match e {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
@@ -1649,7 +1655,6 @@ fn tempo_folded(t: &crate::expertise::ComboTempo) -> TempoGrant {
             TempoEffect::SuperArmourAtFull {} => g.hold_armour = true,
         }
     }
-    g
 }
 
 impl CounterGrant {
