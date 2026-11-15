@@ -1136,3 +1136,41 @@ fn the_bar_reads_the_length_of_the_stagger_that_was_caused() {
     let (remaining, total) = staggered_view(&mut r, 0).unwrap();
     assert!(remaining <= total);
 }
+
+/// C3: the bundled Hammer's breaker style reads `stagger_ticks_pct` 100 with no place taken and
+/// 150 with one, two or three (the first Breaker upgrade is this kind), its other factors
+/// unchanged at every place.
+#[test]
+fn the_bundled_breakers_first_upgrade_lengthens_the_stagger() {
+    let setup = crate::run_setup::RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_116,
+        ..crate::run_setup::RunSetup::default()
+    };
+    let content = crate::pack::Pack::bundled().content();
+    let mut e = crate::engine::Engine::start_party_with(&setup, content, 1).expect("a run");
+    let breaker_style = {
+        let w = crate::expertise::Expertise::bundled()
+            .weapons()
+            .iter()
+            .find(|w| w.weapon.as_str() == "giant_hammer")
+            .unwrap();
+        w.styles
+            .iter()
+            .position(|s| s.id.as_str() == "breaker")
+            .unwrap()
+    };
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(u8::try_from(breaker_style).unwrap());
+    }
+    for (places, want) in [(0usize, 100u32), (1, 150), (2, 150), (3, 150)] {
+        take(&mut e, 0, places);
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules");
+        };
+        let g = world.breaker_of(state, slot(0)).expect("a breaker grant");
+        assert_eq!(g.stagger_ticks_pct, want, "{places} places");
+        assert_eq!((g.stagger_pct, g.poise_pct), (200, 200), "{places} places");
+    }
+}
