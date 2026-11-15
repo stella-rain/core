@@ -28,7 +28,7 @@
     "title": "Breaker Capstone"
   },
   "expertise/breaker_up_1": {
-    "description": "+10% attack",
+    "description": "A stagger lasts 50% longer",
     "title": "Breaker I"
   },
   "expertise/breaker_up_2": {
@@ -44,15 +44,15 @@
     "title": "Foresight Counter"
   },
   "expertise/foresight_counter_cap": {
-    "description": "+20% attack",
+    "description": "The counter's first landed hit returns a spent evade",
     "title": "Foresight Counter Capstone"
   },
   "expertise/foresight_counter_up_1": {
-    "description": "+10% attack",
+    "description": "The counter window after a perfect evade lasts 0.63 seconds, up from 0.5",
     "title": "Foresight Counter I"
   },
   "expertise/foresight_counter_up_2": {
-    "description": "+10% attack speed",
+    "description": "The counter step slides 48 pixels toward the target",
     "title": "Foresight Counter II"
   },
   "expertise/hit_box": {
@@ -68,11 +68,11 @@
     "title": "Judgement Cut Capstone"
   },
   "expertise/judgement_cut_up_1": {
-    "description": "+10% attack",
+    "description": "Closing cuts break enemy orbs within 96 pixels of what they strike, 60% of the time",
     "title": "Judgement Cut I"
   },
   "expertise/judgement_cut_up_2": {
-    "description": "+10% attack speed",
+    "description": "Each closing cut leaves a bleed on every enemy it hits: 1 stack for 3 seconds, up to 6 stacks",
     "title": "Judgement Cut II"
   },
   "expertise/momentum": {
@@ -100,11 +100,11 @@
     "title": "Spirit Blade Capstone"
   },
   "expertise/spirit_blade_up_1": {
-    "description": "+10% attack",
+    "description": "A spirit level lasts 30 seconds without a smash, up from 20",
     "title": "Spirit Blade I"
   },
   "expertise/spirit_blade_up_2": {
-    "description": "+10% attack speed",
+    "description": "The third strike's charge reaches each level 25% sooner",
     "title": "Spirit Blade II"
   },
   "expertise/swiftness": {
@@ -120,11 +120,11 @@
     "title": "Titan Trigger Capstone"
   },
   "expertise/titan_trigger_up_1": {
-    "description": "+10% attack",
+    "description": "The giant hammer lasts 12 seconds, up from 8",
     "title": "Titan Trigger I"
   },
   "expertise/titan_trigger_up_2": {
-    "description": "+10% attack speed",
+    "description": "The giant hammer still lasts 12 seconds; no other effect yet",
     "title": "Titan Trigger II"
   },
   "expertise/vitality": {

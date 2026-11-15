@@ -1,16 +1,11 @@
 ---
 paths:
-  - "src/sim/stun.rs"
-  - "src/sim/hit_boxes.rs"
-  - "src/sim/player.rs"
-  - "src/sim/player_hits.rs"
-  - "src/sim/collide.rs"
+  - "src/sim/{stun,hit_boxes,player,player_hits,collide,combat,runes}.rs"
   - "src/sim/attacks/ranged.rs"
   - "src/sim/attacks/runs.rs"
   - "src/sim/state/foes.rs"
   - "src/sim/state/player_state.rs"
-  - "src/threat_colours.rs"
-  - "src/rules.rs"
+  - "src/{threat_colours,rules}.rs"
   - "src/sim/{breaker,counter,gauge,magnet,perfect_evade,rally,repeat,spirit,tempo,trigger}_tests.rs"
   - "tests/{poise,stagger,stun,knockdown,counter_window,evade,rally,repeat,threat_colours}.rs"
   - "tests/ranged_*.rs"
@@ -21,7 +16,8 @@ paths:
 # Combat rules: how one is built and touched
 
 Sources: ADR-SIM-3, ADR-SIM-9, ADR-SAVE-4, ADR-REPL-2. The weapon's sets and styles:
-`weapon-tree.md`; the bytes: `state-hash.md`. This file holds how a rule is built, not its numbers.
+`weapon-tree.md`, the style kinds: `weapon-styles.md`; the bytes: `state-hash.md`. This file holds how a rule is built, not its
+numbers.
 
 ## What a combat rule is
 
@@ -30,7 +26,7 @@ Sources: ADR-SIM-3, ADR-SIM-9, ADR-SAVE-4, ADR-REPL-2. The weapon's sets and sty
   stagger numbers, knockdown, the counter stun, `ranged_grace_ticks`, the perfect evade,
   `orb_clear_radius`); a field of an enemy, boss or attack phase (`poise`, `stagger_max`,
   `counterable`, `poise_damage`, `advance`: `behaviour.rs`, `attack.rs`); or a style kind
-  (`weapon-tree.md`).
+  (`weapon-styles.md`).
 - An absent key or a kind no style names is off: one bool test (`World::has_stagger`, `has_down`,
   `has_gauge`, ...), no state moved. `sim_version` 2 only (ADR-REPL-2).
 - The bundled content ships them on: the combat keys, poise and `stagger_max` on every enemy and
@@ -42,18 +38,24 @@ Sources: ADR-SIM-3, ADR-SIM-9, ADR-SAVE-4, ADR-REPL-2. The weapon's sets and sty
 
 ## State
 
-- A rule's state is `PlayerCombat`, `FoeControl`, `Stagger` and `State.repeats`
-  (`MAX_REPEATS_QUEUED`) and nothing else; a view or an event is derived (`state-hash.md`). A new
-  field is a hash move and its own change: format bump, pins, corpus, bench (ADR-SAVE-4).
+- A rule's state is `PlayerCombat`, `FoeControl`, `Stagger` and `State.repeats` (`MAX_REPEATS_QUEUED`), and the foe status
+  `repeat_bleed` that the repeat bleed puts on a foe (`StatusKind::RepeatBleed`), and nothing else; a view or an event is
+  derived (`state-hash.md`). A new field is a hash move and its own change: format bump, pins, corpus, bench (ADR-SAVE-4).
 - Snapshot fields and events for the gauge, spirit, counter, tempo, trigger, rally, perfect evade
   and the stagger burst are derived: the app draws them, and a change to one is a schema change
   (`schema-change` skill).
 
 ## One path per effect
 
-- Every stagger fill is `stun::fill` (the counter bonus's factor, then the breaker's, then the
-  refill percent; a full gauge staggers); the breaker's burst, `player::stagger_burst`, runs
-  right after with the filling hit's damage.
+- Every stagger fill is `stun::fill` (the counter bonus's factor, then the breaker's, then the refill percent; a full gauge
+  staggers, for the ticks the breaker's `stagger_ticks_pct` scales once (`player::breaker_stagger_ticks`); `Stagger::total`
+  stores that length and the status bar reads it); the breaker's burst, `player::stagger_burst`, runs right after with the
+  filling hit's damage.
+- A repeat (`combat::deal_repeats`) has no crit, echo, smash effect or flinch; its side effects are the on-hit runes at its own
+  factor; the orb break of the owner's `repeat_breaks_orbs`, read at the deal (`World::repeat_break_of`); and the bleed of its
+  stored row (`Repeat.bleed`, fixed when queued: `runes::apply_repeat_bleed`, the status `repeat_bleed`, a damage-over-time
+  status of its own that the runes' bleed, `reap` and the spirit's stacks do not see). Every damage-over-time tick is a
+  `Shot.dot` hit and never crits or echoes, whatever rune or none applied it.
 - A hard control is `stun::land_hard_control` (the n-th is shorter, then refused; knockdown reuses
   it). Flinch is `hit_boxes::flinch_by`.
 - Every cancel (stun, flinch, knockdown, stagger, counter) ends runs through `cancel_runs_of` /

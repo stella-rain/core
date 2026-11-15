@@ -1,10 +1,8 @@
 ---
 paths:
-  - "benches/**"
-  - "fuzz/**"
+  - "{benches,fuzz}/**"
   - "src/bench_fixtures/**"
-  - "tests/bench_fixture_pins.rs"
-  - "tests/bench_pins.toml"
+  - "tests/{bench_fixture_pins.rs,bench_pins.toml}"
   - "Cargo.toml"
   - ".github/scripts/bench_*"
   - ".github/scripts/callgrind_diff.py"
@@ -16,32 +14,34 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-6, ADR-SVC-1, ADR-REPL-5, ADR-CONT-5.
 
 ## Benches (`benches/`)
 
-All count instructions with `iai-callgrind` on cases from `src/bench_fixtures/`; each target is a key of `benches/budgets.toml` (the
-list CI reads). They build stages at the live `sim_version` (`bench_fixtures/common/mod.rs`) like `tests/alloc.rs`; `sim_v1` and the
-v1 event adapter are not benched. The `bench` feature (`Cargo.toml`) gates those cases and the equipment test seam (`equipment.md`).
-Every case runs in equipment mode (no offer opens); the offers-mode and frozen-v1 tests use the test-only `offers_cases`.
+All count instructions with `iai-callgrind` on cases from `src/bench_fixtures/`; each target is a key of `benches/budgets.toml` (the list CI
+reads). They build stages at the live `sim_version` (`bench_fixtures/common/mod.rs`) like `tests/alloc.rs`; `sim_v1` and the v1 event
+adapter are not benched. The `bench` feature (`Cargo.toml`) gates those cases and the equipment test seam (`equipment.md`). Every case runs
+in equipment mode (no offer opens); the offers-mode and frozen-v1 tests use the test-only `offers_cases`.
 
-- `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-5 (260 enemies, 32 orbs, 128 zones, DIR1), the seven runes and Rune
-  Haste equipped (`script_runes`, `script_equipment`), each damage-over-time status on every enemy, a fresh stack to push apart and
-  aim assist over all 260. `bench_fixtures/worst_case.rs` (`stage()` is `stage_with(None)`); `tests/worst_case.rs`.
-- `hit_tick.rs`: worst melee tick: 260 enemies under the main character's hit box, four companions' arcs, 128 zones (112 friendly),
-  no orb; `hit_tick_spread` spreads the crowd (`bench_fixtures/hit_case.rs`, `tests/hit_case.rs`).
+- `worst_tick.rs`: one synthetic tick at the caps of ADR-SIM-5 (260 enemies, 32 orbs, 128 zones, DIR1), the seven runes and Rune Haste
+  equipped (`script_runes`, `script_equipment`), each damage-over-time status on every enemy, a fresh stack to push apart and aim assist
+  over all 260. `bench_fixtures/worst_case.rs` (`stage()` is `stage_with(None)`); `tests/worst_case.rs`.
+- `hit_tick.rs`: worst melee tick: 260 enemies under the main character's hit box, four companions' arcs, 128 zones (112 friendly), no orb;
+  `hit_tick_spread` spreads the crowd (`bench_fixtures/hit_case.rs`, `tests/hit_case.rs`).
 - `time_limit_tick.rs`: `time_limit`'s heaviest tick (295): 260 enemies, a boss, the Main weapon hitting, no orb (`time_limit_case.rs`).
-- `worst_minute.rs`: the 3,600 ticks of the mode's dense minute (ticks 7,301 to 10,900: crowd held at 200 up to cap 260, up to 32
-  elites, a mid-boss at tick 9,000), with the spawns and death bursts a one-tick bench misses; `worst_minute_peak.rs` is its
-  heaviest tick, with its own budget (`bench_fixtures/worst_minute_case.rs`; `tests/worst_minute.rs` pins it).
+- `worst_minute.rs`: the 3,600 ticks of the mode's dense minute (ticks 7,301 to 10,900: crowd held at 200 up to cap 260, up to 32 elites, a
+  mid-boss at tick 9,000), with the spawns and death bursts a one-tick bench misses; `worst_minute_peak.rs` is its heaviest tick, with its
+  own budget (`bench_fixtures/worst_minute_case.rs`; `tests/worst_minute.rs` pins it).
 - `worst_tick_3p.rs`: the `worst_tick` tick once slots 1 and 2 joined and pressed Main (`party_case.rs`).
 - `worst_tick_combat.rs`: the `worst_tick` crowd (260 enemies, 32 elites, 128 zones, 32 orbs) on the bundled `giant_sword` with style
   `judgement_cut`, the seven runes and Rune Haste; from tick 300 (`CAPS_FROM`) the fixture writes before each tick 64 queued repeats
-  (`MAX_REPEATS_QUEUED`) of 16 targets (`MAX_REPEAT_TARGETS`) all due, every elite's stagger gauge one short of full and every enemy at
-  its hard-control count, via `Engine::bench_run_mut` (crate-internal); measured after `WARMUP_TICKS` 450 (`combat_case.rs`).
+  (`MAX_REPEATS_QUEUED`) of 16 targets (`MAX_REPEAT_TARGETS`) all due, every elite's stagger gauge one short of full and every enemy at its
+  hard-control count, via `Engine::bench_run_mut` (crate-internal); measured after `WARMUP_TICKS` 450 (`combat_case.rs`).
 - `rollback.rs`: the saved engine of the three-player dense minute (10,800 ticks in) cloned, 8 ticks played on the clone, the first the
-  minute's heaviest (`party_case.rs`); `rollback_equip.rs`: that rollback in equipment mode: every player equips a star, then extracts
-  one (`bench_fixtures/equip_case.rs`; its ramp-up has its own policy); `rollback_session.rs`: a `net` `Session::advance` that rolls
-  back (windows 4, 16); a `CloneRing` save into an empty ring (`clone_ring_save`) and into a reused slot (`clone_ring_resave`).
-- Pins (`tests/bench_pins.toml`, written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`): per case the state hash
-  `before`/`after` the measured tick(s) and the `stage` and `input` digests. A PR that moves a pin updates it and says so; an
-  unmeant move is a bug.
+  minute's heaviest (`party_case.rs`); `rollback_equip.rs`: that rollback in equipment mode: every player equips a star, then extracts one
+  (`bench_fixtures/equip_case.rs`; its ramp-up has its own policy); `rollback_session.rs`: a `net` `Session::advance` that rolls back
+  (windows 4, 16); a `CloneRing` save into an empty ring (`clone_ring_save`) and into a reused slot (`clone_ring_resave`).
+- `rollback_combat.rs`: the `worst_tick_combat` engine (64 queued repeats, staggered and controlled foes) cloned, 8 ticks played on the
+  clone; `rollback_combat_3p.rs`: the same for `warmed_up_party(PARTY)` (3 players: the repeats shared by the owners, every slot equipped
+  like slot 0, members tapping Main on odd ticks) (`combat_case.rs`; each has its own budget key).
+- Pins (`tests/bench_pins.toml`, written by `UPDATE_BENCH_PINS=1 cargo test bench_fixture_pins`): per case the state hash `before`/`after`
+  the measured tick(s) and the `stage` and `input` digests. A PR that moves a pin updates it and says so; an unmeant move is a bug.
 
 ## Tick cost gate
 

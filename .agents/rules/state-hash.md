@@ -22,7 +22,8 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SIM-9, ADR-REPL-5, ADR-SAVE-4. Als
 
 - the shared fields (`tick`, the four streams, `outcome`, `boss`, `companions`, `enemies`, `tasks`,
   `runs`, `ranged_cooling`, `orbs`, `zones`, `spawned`, `next_id`, `next_orb_group`, the star
-  field's shared part, `heal_pickups`, the tuning percentages, `horde`, `crit_seed`, `echoes`, `repeats`);
+  field's shared part, `heal_pickups`, the tuning percentages, `horde`, `crit_seed`,
+  `echoes`, `repeats`: each entry `owner`, `due`, `percent`, `proc_pct`, `anchor`, `attack`, `phase`, `damage`, `width_pct`, `bleed`);
 - the presence byte `players.mask()` (bit `i` is slot `i`, the step log's byte 0), then three
   bytes: the generation of every slot, present or not (an absent slot's next occupant depends
   on it);
@@ -32,10 +33,11 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SIM-9, ADR-REPL-5, ADR-SAVE-4. Als
   `slots`, `lumine`, `starlight`, `tree_points`. An absent slot writes no block. The encoding is prefix-free.
 - The combat state is inside these blocks, not a block of its own: `AgentState.control`
   (`FoeControl`: flinch, flinch immunity, hard controls and their reset, knocked down),
-  `EliteState.stagger` and the boss's (`Stagger`: gauge, breaks, drain, staggered) and
-  `PlayerState.combat` (`PlayerCombat`, 14 fields: the perfect evade window, slow and cooldown;
+  `EliteState.stagger` and the boss's (`Stagger`: gauge, breaks, drain, staggered, total) and
+  `PlayerState.combat` (`PlayerCombat`, 15 fields: the perfect evade window, slow and cooldown;
   the weapon gauge and its step fill; rally and its ticks; spirit level and decay; the counter
-  window and the step that took the bonus; combo tempo; the giant trigger; the ranged grace).
+  window, the step that took the bonus and the payout it still owes (`counter_payout`); combo tempo; the giant trigger; the
+  ranged grace).
   Derived, not hashed: the snapshot's `flinch`, `knocked_down`, `staggered`, the views and events
   (`PlayerView.spirit`, `.counter`, `.tempo`, `.trigger`, `.rally`), the slowed set
   (`Scratch::slowed`) and the grants a style gives (`World::grant_slot` reads the recorded style
