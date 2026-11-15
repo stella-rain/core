@@ -392,6 +392,9 @@ pub(super) fn fill(
     g.gauge = g.gauge.saturating_add(add).min(max);
     g.drain = t.stagger_drain_delay;
     if g.gauge >= max {
+        // The staggering player's breaker may lengthen it; the length chosen here is the one
+        // the stagger keeps (`Stagger::total`).
+        let ticks = super::player::breaker_stagger_ticks(stage, s, me, ticks);
         stagger(stage, s, target, s.players.id(me), ticks, events);
         // The breaker's burst goes off in the call that staggers the target, once.
         if let Some(burst) = stage.breaker_of(s, me).and_then(|g| g.burst) {

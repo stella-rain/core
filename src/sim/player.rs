@@ -1218,6 +1218,20 @@ pub(super) fn breaker_fill(stage: &World, s: &State, me: PlayerIdx, value: u32) 
     }
 }
 
+/// The breaker's factor on the ticks of a stagger `me` causes: `ticks` unchanged without a
+/// breaker naming `stagger_ticks_pct` (one bool test), else `ticks` scaled by it, one truncation,
+/// held to `MAX_STAGGERED_TICKS`.
+pub(super) fn breaker_stagger_ticks(stage: &World, s: &State, me: PlayerIdx, ticks: u16) -> u16 {
+    match stage.breaker_of(s, me) {
+        Some(g) if g.stagger_ticks_pct > 100 => {
+            let longer = scaled(u32::from(ticks), g.stagger_ticks_pct)
+                .min(u32::from(crate::limits::MAX_STAGGERED_TICKS));
+            u16::try_from(longer).unwrap_or(crate::limits::MAX_STAGGERED_TICKS)
+        }
+        _ => ticks,
+    }
+}
+
 /// The breaker's factor on the poise damage of a combo hit of `me`.
 pub(super) fn breaker_poise(stage: &World, s: &State, me: PlayerIdx, damage: u32) -> u32 {
     match stage.breaker_of(s, me) {
