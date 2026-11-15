@@ -2851,8 +2851,19 @@
           "upgrade_2": [
             {
               "id": "titan_trigger_up_2",
-              "effect": "attack_speed_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "giant_trigger",
+                  "ticks": 720,
+                  "effects": [
+                    {
+                      "type": "hold_move_pct",
+                      "pct": 80
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "capstone": [
