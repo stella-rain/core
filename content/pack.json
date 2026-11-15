@@ -3873,8 +3873,22 @@
           "capstone": [
             {
               "id": "foresight_counter_cap",
-              "effect": "attack_pct",
-              "amount": 20
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "counter_bonus",
+                  "window_ticks": 38,
+                  "effects": [
+                    {
+                      "type": "refund_evade"
+                    },
+                    {
+                      "type": "gauge_fill_pct",
+                      "pct": 25
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "stats": [
