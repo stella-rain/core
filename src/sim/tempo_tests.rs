@@ -637,7 +637,7 @@ fn full_stacks_reach_a_foe_the_plain_step_misses() {
                 f.hp = BIG;
             }
             r.e.step(&[if t == 0 { press } else { Input::default() }; 3]);
-            hits += count(&as_json(r.e.events()), "EnemyHit");
+            hits += count(&as_json(r.e.events()), "Hit");
         }
         hits
     };

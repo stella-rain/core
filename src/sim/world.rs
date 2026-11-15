@@ -1836,8 +1836,9 @@ pub(super) fn tempo_fold(g: &mut TempoGrant, t: &crate::expertise::ComboTempo) {
             TempoEffect::SpeedPct { pct } => g.speed_pct = (*pct).min(MAX_ATTACK_SPEED_PCT),
             TempoEffect::KeepOnSmash {} => g.keep_on_smash = true,
             TempoEffect::SuperArmourAtFull {} => g.hold_armour = true,
-            // Stored by the next step.
-            TempoEffect::RangePctAtFull { .. } => {}
+            TempoEffect::RangePctAtFull { pct } => {
+                g.range_pct_at_full = (*pct).min(crate::rewards::MAX_RANGE_PCT)
+            }
         }
     }
 }

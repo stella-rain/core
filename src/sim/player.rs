@@ -39,8 +39,9 @@
 //! The combo tempo (when the style names the `combo_tempo_pct` kind): a swing of a combo step that
 //! hits adds one stack to `combo_tempo`, to the kind's `max_stacks` (`tempo_from_hits`);
 //! `strike` reads the stacks when an attack starts, adding their percent to the attack speed under
-//! the run's cap (`tempo_speed_pct`), so a step, each loop of a hold and a release take the
-//! stacks held at their start. `tempo_lose` empties them: a combo reset away from the middle of
+//! the run's cap (`tempo_speed_pct`) and, at full stacks, the kind's `range_pct_at_full` to the
+//! range (`tempo_range_pct`), so a step, each loop of a hold and a release take the stacks held
+//! at their start. `tempo_lose` empties them: a combo reset away from the middle of
 //! a combo (`combo_reset`), a smash press after the smash itself started (`tempo_on_smash`;
 //! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`; not under `tempo_armoured`,
 //! full stacks in a held hold with `super_armour_at_full`), a down and another style.
@@ -694,6 +695,21 @@ pub(super) fn tempo_speed_pct(stage: &World, s: &State, me: PlayerIdx) -> u32 {
     }
     stage.tempo_of(s, me).map_or(0, |g| {
         u32::from(s.players[me].combat.combo_tempo) * g.speed_pct
+    })
+}
+
+/// The percent the stacks add to the range of an attack the combo starts: the kind's
+/// `range_pct_at_full` while the stacks are full, else 0.
+pub(super) fn tempo_range_pct(stage: &World, s: &State, me: PlayerIdx) -> u32 {
+    if !stage.has_tempo {
+        return 0;
+    }
+    stage.tempo_of(s, me).map_or(0, |g| {
+        if s.players[me].combat.combo_tempo == g.max_stacks {
+            g.range_pct_at_full
+        } else {
+            0
+        }
     })
 }
 
@@ -1851,6 +1867,8 @@ fn strike(
             }
         }
     }
+    // Read when the attack starts, as the speed is: full stacks widen this attack.
+    range_pct = range_pct.saturating_add(tempo_range_pct(stage, s, me));
     let strike = attacks::Strike {
         bonus_pct,
         speed_pct: if stage.has_tempo {
