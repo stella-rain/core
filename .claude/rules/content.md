@@ -56,9 +56,9 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
   (ADR-REPL-5, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
-  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-6); children `src/pack/{check,introduced,files,
-  compare,trust}.rs` (budgets and cross-file checks, the `introduced` table, the files and their places, the numbers-only
-  comparison, the signature check of `packs.json`). The offer effects (`offer_candidates`, `rerolls`, `banishes`,
+  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-6);
+  children `src/pack/{check,introduced,files,compare,trust}.rs` (budgets and cross-file checks, the `introduced` table, the
+  files and their places, the numbers-only comparison, the signature check of `packs.json`). The offer effects (`offer_candidates`, `rerolls`, `banishes`,
   `extra_rerolls`, `extra_banishes`) are deprecated: a pack of `sim_version` 2 holds one only in an entry its `introduced`
   table records below 2 (`check_offer_effects`).
   `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR
