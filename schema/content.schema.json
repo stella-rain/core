@@ -5887,7 +5887,7 @@
           "type": "boolean"
         },
         "interact": {
-          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules only (`player_hits.rs`); nothing else reads it. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules (`player_hits.rs`); the recorder and the replay codec carry it. Schema 2\nonly: the schema 1 stream cannot carry it.",
           "type": "boolean"
         },
         "main": {
