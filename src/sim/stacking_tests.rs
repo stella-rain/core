@@ -805,6 +805,98 @@ fn the_bundled_titan_trigger_runs_longer_after_its_upgrade() {
     }
 }
 
+/// C3 (end ring): the bundled Titan Trigger grant at places 0 to 3: the length, the hold and the
+/// end ring follow the path, the range, smash and armour stay.
+#[test]
+fn the_bundled_titan_trigger_names_the_end_ring_at_its_capstone() {
+    let mut e = bundled("giant_hammer", 0);
+    let seen: Vec<(u16, u32, bool)> = (0..4)
+        .map(|n| {
+            read(&mut e, 0, n, |w, s, me| {
+                w.trigger_of(s, me).map(|g| {
+                    assert_eq!((g.range_pct, g.smash_pct, g.super_armour), (40, 20, true));
+                    (g.ticks, g.hold_move_pct, g.end_ring)
+                })
+            })
+            .expect("a trigger")
+        })
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            (480, 0, false),
+            (720, 0, false),
+            (720, 80, false),
+            (720, 80, true)
+        ]
+    );
+}
+
+/// The bundled slam's first active phase and the Titan Trigger capstone's ring on `pack`.
+fn bundled_ring(pack: &Pack) -> (Option<AttackRef>, Vec<Option<AttackRef>>) {
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_119,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, pack.content(), 1).expect("a run");
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(0);
+    }
+    let first = read(&mut e, 0, 3, |w, s, me| {
+        let gauge = w.gauge_of(s, me)?;
+        let crate::expertise::GaugeSpend::FullSmash { attack } = &gauge.spend;
+        let phases = crate::presets::phases(attack, pack.content().attack_presets())?;
+        let p = phases.iter().find(|p| p.kind == PhaseKind::Active)?;
+        Some(AttackRef::Inline(vec![p.clone()]))
+    });
+    let rings = (0..4).map(|n| ring_ref_at(&mut e, 0, n)).collect();
+    (first, rings)
+}
+
+/// C4 (end ring): in the bundled world the ring at place 3 is the bundled slam's first active
+/// phase (read from the compiled slam: radius 24576, damage 8000, 3 ticks) and none before; a
+/// bundled pack whose slam's first ring changed moves the ring.
+#[test]
+fn the_bundled_ring_is_the_slams_first_active_phase() {
+    let pack = Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack");
+    let (first, rings) = bundled_ring(&pack);
+    let first = first.expect("a first active phase");
+    let AttackRef::Inline(phases) = &first else {
+        panic!("an inline ring");
+    };
+    assert_eq!(phases.len(), 1);
+    assert_eq!(phases[0].ticks, 3);
+    assert_eq!(phases[0].damage, Some(8000));
+    assert_eq!(rings, [None, None, None, Some(first.clone())]);
+
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let hammer = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    let gauge = hammer["styles"][0]["kinds"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|k| k["type"] == "gauge")
+        .unwrap();
+    let active = gauge["spend"]["attack"]["inline"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|p| p["kind"] == "active")
+        .unwrap();
+    active["hit_box"]["radius"] = json!(20_480);
+    let moved = Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the retuned pack");
+    let (first_moved, rings_moved) = bundled_ring(&moved);
+    assert_ne!(first_moved, Some(first));
+    assert_eq!(rings_moved[3], first_moved, "the ring follows the slam");
+}
+
 /// C3: Foresight's window is 30 ticks, then 38 after its first upgrade (8 ticks wider), and the
 /// slide of 48 px (12,288 stored) comes with its second; damage, stagger and stun never change.
 #[test]
