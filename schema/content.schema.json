@@ -11525,7 +11525,7 @@
           "description": "The style's giant trigger: the full-gauge smash starts a state of `ticks` (a second one\nrestarts the count) whose effects apply while it runs; being downed or picking another\nstyle ends it (ADR-SIM-9 points 2 to 7). The style also names a gauge whose spend is\n`full_smash`. One per level; a path may name it at several levels, the numbers stacking in\npath order: a later level's `ticks` replaces the earlier one and each effect it lists\nreplaces the same effect; one it does not list stays.",
           "properties": {
             "effects": {
-              "description": "What the state does, each variant at most once; 1 to 4 entries (0 to 4 at a level after\none that names the kind).",
+              "description": "What the state does, each variant at most once; 1 to `MAX_TRIGGER_EFFECTS` entries (0 to\n`MAX_TRIGGER_EFFECTS` at a level after one that names the kind).",
               "items": {
                 "$ref": "#/$defs/TriggerEffect"
               },
@@ -11886,8 +11886,13 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and\nwhile it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash\nsteps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,\nwith `super_armour`, gives super armour (0 and false where the kind names none).",
+          "description": "The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and\nwhile it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash\nsteps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,\nwith `super_armour`, gives super armour and with `hold_move_pct` raises the movement of a\nheld AAA hold to that percent of full speed (0 and false where the kind names none).",
           "properties": {
+            "hold_move_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
             "rally_pct": {
               "format": "uint32",
               "minimum": 0,
@@ -11922,7 +11927,8 @@
             "range_pct",
             "smash_pct",
             "rally_pct",
-            "super_armour"
+            "super_armour",
+            "hold_move_pct"
           ],
           "type": "object"
         },
@@ -12538,6 +12544,27 @@
             },
             "type": {
               "const": "rally_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "While the state runs, a player holding the AAA hold moves at `pct` percent of full speed:\nraised to it, never lowered below the hold's own `move_pct`. 1 to `MAX_HOLD_MOVE_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "hold_move_pct",
               "type": "string"
             }
           },

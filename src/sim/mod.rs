@@ -106,7 +106,8 @@
 //! and writes only `PlayerCombat::giant_trigger`, the ticks the timed state has left. A full-gauge
 //! smash starts it after its own attack began (`player::spend_gauge`, `trigger_start`), `update`
 //! counts it down, `strike` adds its range and smash percents when an attack starts, and
-//! `super_armour` gains its condition; a down or another style ends it. The run rules' rally
+//! `super_armour` gains its condition and `held_move_pct` raises a held hold's movement to its
+//! `hold_move_pct`; a down or another style ends it. The run rules' rally
 //! (`Tuning.rally`) reads and writes `PlayerCombat::rally` and `rally_ticks`: a hit taken leaves
 //! part of its hit points as rally (`player::rally_from_hit`), a player's own combo hit on a foe
 //! wins part of its damage back (`rally_win_back`, from `collide::damage`), and the ticks or a

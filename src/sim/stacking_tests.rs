@@ -381,6 +381,116 @@ fn the_giant_trigger_stacks_across_the_path() {
     assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 150, true)));
 }
 
+/// The folded hold movement percent of player `i`'s trigger at `places` places (0 for none).
+fn hold_at(e: &mut Engine, i: u8, places: usize) -> u32 {
+    read(e, i, places, |w, s, me| {
+        w.trigger_of(s, me).map(|g| g.hold_move_pct)
+    })
+    .unwrap_or(0)
+}
+
+/// G1: the hold movement effect stacks in path order and stays when a later level does not list it.
+#[test]
+fn the_hold_move_effect_stacks_across_the_path() {
+    let base = trigger(
+        480,
+        vec![
+            pct("range_pct", 40),
+            pct("smash_pct", 20),
+            json!({ "type": "super_armour" }),
+        ],
+    );
+    let mut e = stacked(
+        vec![base],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("hold_move_pct", 80)])],
+        vec![trigger(720, vec![pct("range_pct", 60)])],
+    );
+    let held: Vec<u32> = (0..4).map(|n| hold_at(&mut e, 0, n)).collect();
+    assert_eq!(held, [0, 0, 80, 80]);
+    assert_eq!(trigger_at(&mut e, 0, 2), Some((720, 40, 20, 100, true)));
+    assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 100, true)));
+}
+
+/// G2: a value past the cap (one the validator refuses) is clamped to 100, a trigger that never
+/// names the effect gives 0, and each player reads its own place.
+#[test]
+fn the_hold_move_effect_is_clamped_and_per_player() {
+    use super::world::{TriggerGrant, trigger_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::GiantTrigger>(v).expect("a giant trigger")
+    };
+    let mut g = TriggerGrant::none();
+    trigger_fold(&mut g, &kind(trigger(480, vec![pct("range_pct", 40)])));
+    assert_eq!(g.hold_move_pct, 0);
+    trigger_fold(
+        &mut g,
+        &kind(trigger(720, vec![pct("hold_move_pct", u32::MAX)])),
+    );
+    assert_eq!(g.hold_move_pct, 100);
+
+    let mut e = stacked(
+        vec![trigger(480, vec![pct("range_pct", 40)])],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("hold_move_pct", 80)])],
+        vec![],
+    );
+    assert_eq!(hold_at(&mut e, 0, 2), 80);
+    assert_eq!(hold_at(&mut e, 1, 1), 0);
+}
+
+/// C3: the bundled Titan Trigger at each place of its path: the length and effects stack, the
+/// hold movement comes with the second upgrade, and the style's weapon has no hold at any place
+/// (so the effect changes nothing a bundled player sees until a hold is granted).
+#[test]
+fn the_bundled_titan_trigger_names_the_hold_move_at_its_second_upgrade() {
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_118,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, Pack::bundled().content(), 1).expect("a run");
+    (0..3)
+        .find(|&n| {
+            if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+                g.style = Some(n);
+            }
+            read(&mut e, 0, 0, |w, s, me| w.trigger_of(s, me).copied()).is_some()
+        })
+        .expect("a bundled style names the trigger");
+    let seen: Vec<_> = (0..4)
+        .map(|n| {
+            read(&mut e, 0, n, |w, s, me| {
+                let g = w.trigger_of(s, me)?;
+                let weapon = serde_json::to_string(w.weapon_of(s, me)?).expect("a weapon");
+                assert!(
+                    !weapon.contains("\"hold\""),
+                    "place {n}: no hold in the tree"
+                );
+                Some((
+                    g.ticks,
+                    g.range_pct,
+                    g.smash_pct,
+                    g.super_armour,
+                    g.hold_move_pct,
+                ))
+            })
+            .expect("the trigger at every place")
+        })
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            (480, 40, 20, true, 0),
+            (720, 40, 20, true, 0),
+            (720, 40, 20, true, 80),
+            (720, 40, 20, true, 80)
+        ]
+    );
+}
+
 /// G4: each player reads its own place on the path; a style naming none gives none.
 #[test]
 fn each_player_reads_its_own_trigger() {

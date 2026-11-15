@@ -726,6 +726,7 @@ pub(crate) struct TriggerGrant {
     pub smash_pct: u32,
     pub rally_pct: u32,
     pub super_armour: bool,
+    pub hold_move_pct: u32,
 }
 
 /// A style's combo tempo resolved once: the most stacks, each stack's attack speed and whether a
@@ -1734,6 +1735,7 @@ impl TriggerGrant {
             smash_pct: 0,
             rally_pct: 100,
             super_armour: false,
+            hold_move_pct: 0,
         }
     }
 }
@@ -1745,8 +1747,11 @@ pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrig
     g.ticks = u16::try_from(t.ticks)
         .unwrap_or(MAX_TRIGGER_TICKS)
         .clamp(1, MAX_TRIGGER_TICKS);
-    for e in t.effects.iter().take(4) {
+    for e in t.effects.iter().take(crate::expertise::MAX_TRIGGER_EFFECTS) {
         match e {
+            TriggerEffect::HoldMovePct { pct } => {
+                g.hold_move_pct = (*pct).min(crate::expertise::MAX_HOLD_MOVE_PCT);
+            }
             TriggerEffect::RangePct { pct } => {
                 g.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
             }

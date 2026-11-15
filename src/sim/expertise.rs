@@ -669,12 +669,14 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     smash_pct: 0,
                     rally_pct: 0,
                     super_armour: false,
+                    hold_move_pct: 0,
                 };
                 if let StyleKindView::GiantTrigger {
                     range_pct,
                     smash_pct,
                     rally_pct,
                     super_armour,
+                    hold_move_pct,
                     ..
                 } = &mut view
                 {
@@ -684,6 +686,7 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                             TriggerEffect::SmashPct { pct } => *smash_pct = *pct,
                             TriggerEffect::RallyPct { pct } => *rally_pct = *pct,
                             TriggerEffect::SuperArmour {} => *super_armour = true,
+                            TriggerEffect::HoldMovePct { pct } => *hold_move_pct = *pct,
                         }
                     }
                 }
