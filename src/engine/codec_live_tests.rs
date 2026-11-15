@@ -979,10 +979,5 @@ fn the_repeat_bleed_is_status_tag_seven() {
         StatusKind::RepeatBleed
     );
     assert!(from_bytes::<StatusKind>(&[8]).is_err());
-    let hash = |k: StatusKind| {
-        let mut h = StateHasher::new();
-        k.hash(&mut h);
-        h.finish()
-    };
-    assert_ne!(hash(StatusKind::RepeatBleed), hash(StatusKind::Stun));
+    assert_ne!(hash_of(&StatusKind::RepeatBleed), hash_of(&StatusKind::Stun));
 }
