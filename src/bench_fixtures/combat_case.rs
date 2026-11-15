@@ -38,6 +38,9 @@ pub const WARMUP_TICKS: u32 = 450;
 /// tick 210 (`worst_case::WAVES_AT`).
 pub const CAPS_FROM: u32 = 300;
 
+/// The party of the three-player rollback bench (`rollback_party`).
+pub const PARTY: u8 = 3;
+
 /// The weapon and its style: Judgement Cut names three `repeat` kinds (`content/expertise.json`).
 const WEAPON: &str = "giant_sword";
 const STYLE: &str = "judgement_cut";
@@ -300,6 +303,18 @@ pub fn rollback(saved: Engine) -> (Engine, Engine) {
     (engine, saved)
 }
 
+/// `rollback` for a party of `party`: the slots play `play_party`. As `rollback`, `prepare_party`
+/// does not run again: the queued repeats are all due on the first replayed tick.
+#[inline]
+pub fn rollback_party(saved: Engine, party: u8) -> (Engine, Engine) {
+    let mut engine = saved.clone();
+    for _ in 0..ROLLBACK_TICKS {
+        let tick = engine.tick() + 1;
+        play_party(&mut engine, tick, party);
+    }
+    (engine, saved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,6 +511,34 @@ mod tests {
             );
             prepare_party(&mut engine, 3);
         }
+    }
+
+    /// The three-player rollback leaves the saved engine alone and equals a direct play.
+    #[test]
+    fn the_three_player_rollback_replays_to_the_same_hash() {
+        let saved = warmed_up_party(3);
+        let before = saved.state_hash();
+        let mut direct = warmed_up_party(3);
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + ROLLBACK_TICKS {
+            play_party(&mut direct, tick, 3);
+        }
+        let (played, saved) = rollback_party(saved, 3);
+        assert_eq!(saved.state_hash(), before);
+        assert_eq!(saved.tick(), WARMUP_TICKS);
+        assert_eq!(state_of(&saved).1.repeats.len(), MAX_REPEATS_QUEUED);
+        assert_eq!(played.tick(), WARMUP_TICKS + ROLLBACK_TICKS);
+        assert_eq!(played.state_hash(), direct.state_hash());
+        assert_eq!(played.outcome(), Outcome::Running);
+        assert!(
+            state_of(&played)
+                .1
+                .repeats
+                .iter()
+                .all(|r| r.due != WARMUP_TICKS + 1),
+            "every first-tick entry was dealt"
+        );
+        let (again, _) = rollback_party(warmed_up_party(3), 3);
+        assert_eq!(again.state_hash(), played.state_hash());
     }
 
     /// The weight `Load` sees of a tick.
