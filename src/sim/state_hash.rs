@@ -1,7 +1,7 @@
 //! The state hash of every `State` type (ADR-SIM-3 point 2): each impl destructures its type
 //! without `..`, so a field added without a decision does not compile. A field that is left out
-//! is `field: _` with `// not hashed: <why>`; `engine::hash_coverage_tests` lists them again and
-//! checks both halves.
+//! is `field: _` with `// not hashed: <why>`; `engine::hash_coverage_live_tests` lists them again
+//! and checks both halves.
 //!
 //! The fields are written in declaration order. A list writes its length first, an `Option` and
 //! an enum a tag byte (`hash_enum!`, a literal in each impl), so the encoding is prefix-free.

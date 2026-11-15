@@ -1,4 +1,5 @@
-//! Rewards (ADR-REPL-5, ADR-CONT-1): what an offer from a falling star holds. Each has a
+//! Rewards (ADR-REPL-5, ADR-CONT-1): the stars (each reward's rarity, stack limit, effect and
+//! category), the rarities and the `equipment` rules. Each reward has a
 //! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
