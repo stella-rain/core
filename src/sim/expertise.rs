@@ -481,6 +481,7 @@ pub(super) fn tree_pick(
             // window and mark do not carry over.
             player.combat.counter_window = 0;
             player.combat.counter_bonus_step = 0;
+            player.combat.counter_payout = 0;
             player.combat.weapon_gauge = 0;
             player.combat.gauge_step_fill = 0;
             player.combat.spirit_level = 0;

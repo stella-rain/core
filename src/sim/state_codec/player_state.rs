@@ -284,11 +284,7 @@ impl Decode for PlayerCombat {
                 MAX_COUNTER_BONUS_STEP,
                 "counter_bonus_step past its bound",
             )?,
-            counter_payout: within(
-                r.u8()?,
-                MAX_COUNTER_PAYOUT,
-                "counter_payout past its bound",
-            )?,
+            counter_payout: within(r.u8()?, MAX_COUNTER_PAYOUT, "counter_payout past its bound")?,
         })
     }
 }

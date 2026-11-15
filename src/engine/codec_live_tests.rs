@@ -871,7 +871,9 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         0
     );
     assert_eq!(
-        fresh.run.live().players[PlayerIdx::SOLO].combat.counter_payout,
+        fresh.run.live().players[PlayerIdx::SOLO]
+            .combat
+            .counter_payout,
         0
     );
 }

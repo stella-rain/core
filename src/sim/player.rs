@@ -31,7 +31,10 @@
 //! `counter_taken` reads the mark: its damage joins the attack-up percent in `strike`, its
 //! stagger factor scales every fill in `stun::fill`, its stun lands on each target hit
 //! (`stun::counter_bonus_stun`, merged with a counter's) and its advance slides the first phase
-//! in `magnetism`. A down empties both fields.
+//! in `magnetism`. The take also sets `counter_payout` to 1, the payout the counter owes: the
+//! first landed combo hit of the step clears it (`counter_first_hit`, called from
+//! `stun::counter_bonus_stun`), and it pays nothing yet. The mark's clears clear it too. A down
+//! empties all three fields.
 //!
 //! The combo tempo (when the style names the `combo_tempo_pct` kind): a swing of a combo step that
 //! hits adds one stack to `combo_tempo`, to the kind's `max_stacks` (`tempo_from_hits`);
@@ -1149,6 +1152,23 @@ pub(super) fn counter_taken<'a>(
     stage.counter_of(s, me)
 }
 
+/// The first landed combo hit of the taken step collects its payout: when the step took the
+/// counter bonus (the mark) and the payout is still owed (`counter_payout` 1), clears the flag
+/// and returns the grant, once per taken counter; otherwise none. Pays nothing yet: the caller
+/// binds the grant and acts on nothing.
+pub(super) fn counter_first_hit<'a>(
+    stage: &'a World,
+    s: &mut State,
+    me: PlayerIdx,
+) -> Option<&'a CounterGrant> {
+    let c = &mut s.players[me].combat;
+    if c.counter_bonus_step != 1 || c.counter_payout != 1 {
+        return None;
+    }
+    c.counter_payout = 0;
+    stage.counter_of(s, me)
+}
+
 /// `value` scaled by `pct` percent, one truncation, saturating to `u32`.
 pub(super) fn scaled(value: u32, pct: u32) -> u32 {
     u32::try_from(u64::from(value) * u64::from(pct) / 100).unwrap_or(u32::MAX)
@@ -1275,6 +1295,7 @@ fn counter_take(
 ) {
     let c = &mut s.players[me].combat;
     c.counter_bonus_step = 0;
+    c.counter_payout = 0;
     if first_dash
         && (1..=MAX_COUNTER_WINDOW_TICKS).contains(&c.counter_window)
         && stage.counter_of(s, me).is_some()
@@ -1282,6 +1303,7 @@ fn counter_take(
         let c = &mut s.players[me].combat;
         c.counter_window = 0;
         c.counter_bonus_step = 1;
+        c.counter_payout = 1;
         counter_bonus_taken(events, me);
     }
 }
@@ -1295,6 +1317,7 @@ fn counter_tick(s: &mut State, me: PlayerIdx) {
     let c = &p.combo;
     if !(c.running || c.charge.is_some() || c.hold.is_some()) {
         p.combat.counter_bonus_step = 0;
+        p.combat.counter_payout = 0;
     }
 }
 
@@ -1924,6 +1947,7 @@ pub(super) fn stand_down(
     // A downed player cannot press, and a revive does not resume an old window.
     s.players[me].combat.counter_window = 0;
     s.players[me].combat.counter_bonus_step = 0;
+    s.players[me].combat.counter_payout = 0;
     // A downed player holds no stacks, and a revive does not resume them.
     tempo_lose(stage, s, me, events);
     // Nor a giant trigger, nor a rally.

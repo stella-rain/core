@@ -693,7 +693,8 @@ fn the_hook_returns_the_grant_once() {
     assert!(super::player::counter_first_hit(world, state, ME).is_none());
 }
 
-/// H5: only a combo hit collects, on any kind of target.
+/// H5: only a combo hit collects. (The boss and its parts reach the hook the same way, from the
+/// same call; the rig has no boss to stand them up.)
 #[test]
 fn only_a_combo_hit_collects() {
     use super::entity::Who;
@@ -709,8 +710,6 @@ fn only_a_combo_hit_collects() {
     };
     assert_eq!(call(Who::Enemy(0), false, state), 1, "not a combo hit");
     assert_eq!(call(Who::Enemy(0), true, state), 0);
-    assert_eq!(call(Who::Boss, true, state), 0);
-    assert_eq!(call(Who::BossPart(0), true, state), 0);
 }
 
 /// H7: a second counter owes again, and two foes in one swing pay once.

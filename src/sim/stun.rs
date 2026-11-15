@@ -171,7 +171,8 @@ pub(super) fn counter(
 /// wind-up (`countered`) and the stun of a taken counter bonus. A hit that does both stuns once,
 /// for the longer of the two, so the control list counts one stun for the hit. The boss and a
 /// part take only the resisted share fill, as for any stun. A target the hit killed is not
-/// stunned. Only a combo hit carries the bonus.
+/// stunned. Only a combo hit carries the bonus, and the first one of a taken step clears the
+/// step's owed payout (`counter_first_hit`, which pays nothing yet).
 #[inline(never)]
 pub(super) fn counter_bonus_stun(
     stage: &World,
@@ -184,6 +185,9 @@ pub(super) fn counter_bonus_stun(
 ) {
     let own = stage.tuning.counter_stun_ticks;
     let bonus = if combo {
+        // The first landed combo hit of a taken step collects the counter's payout; it pays
+        // nothing yet, a later kind acts on `_paid`.
+        let _paid = super::player::counter_first_hit(stage, s, me);
         super::player::counter_taken(stage, s, me).map_or(0, |g| g.stun_ticks)
     } else {
         0
