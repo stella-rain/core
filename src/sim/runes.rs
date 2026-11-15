@@ -207,11 +207,12 @@ pub(super) fn apply_repeat_bleed(
         next_in: interval,
     };
     let duration = u32::from(row.duration_ticks).clamp(1, MAX_DOT_DURATION_TICKS);
-    let max_stacks = u16::from(row.max_stacks).clamp(1, MAX_DOT_STACKS as u16);
+    let max_stacks =
+        u16::from(row.max_stacks).clamp(1, u16::try_from(MAX_DOT_STACKS).unwrap_or(u16::MAX));
     let source = s.id_of(Who::Player(me));
     for _ in 0..row
         .stacks
-        .min(crate::expertise::MAX_REPEAT_BLEED_STACKS as u8)
+        .min(u8::try_from(crate::expertise::MAX_REPEAT_BLEED_STACKS).unwrap_or(u8::MAX))
     {
         s.add_dot(
             target,
