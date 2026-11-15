@@ -142,6 +142,9 @@ pub const MAX_RANGED_GRACE_TICKS: u16 = 600;
 /// Bounds the player's counter-bonus mark (1 while the running step took it): combat state, a
 /// tuning value (ADR-SIM-5 point 9).
 pub const MAX_COUNTER_BONUS_STEP: u8 = 1;
+/// Bounds the player's counter payout flag (1 while the taken step has not landed a hit): combat
+/// state, a tuning value (ADR-SIM-5 point 9).
+pub const MAX_COUNTER_PAYOUT: u8 = 1;
 pub const MAX_REPEATS_QUEUED: usize = 64;
 pub const MAX_REPEAT_TARGETS: usize = 16;
 
@@ -268,6 +271,7 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_TRIGGER_TICKS", "3600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_RANGED_GRACE_TICKS", "600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_COUNTER_BONUS_STEP", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_COUNTER_PAYOUT", "1", "flag", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEATS_QUEUED", "64", "entries", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEAT_TARGETS", "16", "targets", "ADR-SIM-5"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
