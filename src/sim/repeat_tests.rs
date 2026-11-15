@@ -287,7 +287,7 @@ fn the_bundled_run_is_dormant() {
     let Run::V2 { world, state, .. } = e.run() else {
         panic!("the live rules");
     };
-    assert!(!world.has_repeat && !world.has_proc);
+    assert!(!world.has_repeat && !world.has_proc && !world.has_repeat_break);
     assert_eq!(state.repeats.capacity(), 0);
 }
 
