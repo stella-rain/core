@@ -4,7 +4,9 @@
 //! own timing, over whole runs, is in `tests/repeat.rs`.
 
 use super::AttackIndex;
-use super::state::{PlayerIdx, Repeat, RepeatAnchor, State};
+use super::stacking_tests::take;
+use super::state::{OrbState, PlayerIdx, Repeat, RepeatAnchor, State};
+use super::trigger_tests::rig_levelled;
 use super::{World, combat, runes};
 use crate::attack::{HitBox, PhaseKind};
 use crate::bench_fixtures::worst_case;
@@ -14,6 +16,7 @@ use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::inline::InlineVec;
 use crate::limits::MAX_REPEATS_QUEUED;
+use serde_json::{Value, json};
 
 fn slot(i: u8) -> PlayerIdx {
     PlayerIdx::new(i).expect("a slot")
@@ -451,4 +454,270 @@ fn two_owners_draw_in_the_queue_order() {
     assert_eq!(super::state_hash(&s), super::state_hash(&twin));
     // One draw per ready check of each owner's runes, the two owners one after the other.
     assert_eq!(draws_since(&before, &s), 2 * candidates(&w, &s).len());
+}
+
+// ---- The orb-breaking kind: `combat::deal_repeat` breaks the orbs round what a repeat strikes ----
+
+fn repeat_on_main() -> Value {
+    json!({ "type": "repeat", "step": ["main"], "after_ticks": 10, "repeat_pct": 50,
+        "anchor": "hit_list" })
+}
+
+/// A three-player Hammer run whose style 0 names a repeat on `[main]` and, at its first upgrade,
+/// `repeat_breaks_orbs {chance, radius}`; player 0 has taken `places` places. Two foes: foe 0 at
+/// (0, 0) and foe 1 far away; no run, orb, zone, echo or queued repeat.
+fn broken(chance: u32, radius: u32, places: usize) -> (World, State) {
+    let kind = json!({ "type": "repeat_breaks_orbs", "chance_pct": chance, "radius_px": radius });
+    let mut r = rig_levelled(3, vec![repeat_on_main()], [vec![kind], vec![], vec![]], 2);
+    take(&mut r.e, 0, places);
+    let Run::V2 { world, state, .. } = r.e.run() else {
+        panic!("the live rules");
+    };
+    let mut s = state.clone();
+    s.runs.clear();
+    s.orbs.clear();
+    s.zones.clear();
+    s.echoes.clear();
+    s.repeats.clear();
+    s.boss = None;
+    s.enemies[0].at = Point::default();
+    s.enemies[1].at = Point {
+        x: Fx::px(10_000),
+        y: Fx::px(10_000),
+    };
+    (World::clone(world), s)
+}
+
+/// A breakable orb `dist` fixed-point units east of the origin, fired by `owner`.
+fn orb(dist: i32, owner: u32, breakable: bool) -> OrbState {
+    OrbState {
+        at: Point {
+            x: Fx(dist),
+            y: Fx(0),
+        },
+        vx: Fx(0),
+        vy: Fx(0),
+        dir: super::state::Dir::UP,
+        style: 0,
+        owner: EntityId(owner),
+        damage: 1,
+        damage_type: None,
+        breaks_charge: false,
+        smash: None,
+        combo: false,
+        hook: None,
+        breakable,
+        life: 100,
+        stop: None,
+        link: None,
+        program: super::world::ProgramIndex(0),
+    }
+}
+
+/// `dist_px` pixels plus the orb's own radius: an orb touching a circle of `dist_px`.
+fn touching(w: &World, dist_px: i32) -> i32 {
+    Fx::px(dist_px).0 + w.tuning.orb_radius
+}
+
+fn orbs_broken(ev: &[DomainEvent]) -> Vec<(EntityId, Point, Option<PlayerIdx>)> {
+    ev.iter()
+        .filter_map(|e| match e {
+            DomainEvent::OrbBroken { owner, at, player } => Some((*owner, *at, *player)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn owners(s: &State) -> Vec<u32> {
+    s.orbs.iter().map(|o| o.owner.0).collect()
+}
+
+/// B1 (chance 100, radius 96): the orbs inside the circle of the struck foe, the touching one
+/// included, break, reported in orb order before the entry's hits; the outside one and the
+/// unbreakable one stay; one draw per candidate, taken at 100 too.
+#[test]
+fn a_closing_cut_breaks_the_orbs_round_its_target() {
+    let (w, mut s) = broken(100, 96, 1);
+    s.tick = 50;
+    let cases = [
+        (Fx::px(50).0, 1, true),
+        (touching(&w, 96), 2, true),
+        (Fx::px(100).0 + 2 * w.tuning.orb_radius, 3, true),
+        (Fx::px(10).0, 4, false),
+    ];
+    for (d, o, b) in cases {
+        s.orbs.push(orb(d, o, b));
+    }
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    let before = s.rng.attack.clone();
+    let ev = deal(&w, &mut s);
+    assert_eq!(owners(&s), vec![3, 4]);
+    let me = Some(slot(0));
+    assert_eq!(
+        orbs_broken(&ev),
+        vec![
+            (
+                EntityId(1),
+                Point {
+                    x: Fx::px(50),
+                    y: Fx(0)
+                },
+                me
+            ),
+            (
+                EntityId(2),
+                Point {
+                    x: Fx(touching(&w, 96)),
+                    y: Fx(0)
+                },
+                me
+            ),
+        ]
+    );
+    let first_hit = ev.iter().position(|e| matches!(e, DomainEvent::Hit { .. }));
+    let last_broken = ev
+        .iter()
+        .rposition(|e| matches!(e, DomainEvent::OrbBroken { .. }));
+    assert!(last_broken < first_hit, "the orbs break before the hits");
+    assert_eq!(draws_since(&before, &s), 2);
+}
+
+/// B2: before the kind's place is taken (0 places) the grant is none: nothing breaks, the target
+/// still takes its hit; at 1, 2 and 3 places the orb breaks.
+#[test]
+fn the_cut_breaks_nothing_until_the_place_is_taken() {
+    for places in 0..=3 {
+        let (w, mut s) = broken(100, 96, places);
+        s.tick = 50;
+        s.orbs.push(orb(Fx::px(50).0, 1, true));
+        let a = list(&s, &[0]);
+        s.repeats.push(entry(&w, 0, 50, 50, a));
+        let before = s.rng.attack.clone();
+        let ev = deal(&w, &mut s);
+        assert_eq!(hits(&ev).len(), 1, "{places} places");
+        if places == 0 {
+            assert_eq!(s.orbs.len(), 1);
+            assert!(orbs_broken(&ev).is_empty());
+            assert_eq!(draws_since(&before, &s), 0);
+        } else {
+            assert!(s.orbs.is_empty(), "{places} places");
+            assert_eq!(orbs_broken(&ev).len(), 1);
+        }
+    }
+}
+
+/// B3 (60 percent): the orbs left are exactly those whose own draw, in orb order from a clone of
+/// the stream, is 60 or more; one draw per candidate, none for the outside or unbreakable orb.
+#[test]
+fn each_candidate_orb_takes_one_draw_against_the_chance() {
+    let (w, mut s) = broken(60, 96, 1);
+    s.tick = 50;
+    for i in 0..5u32 {
+        s.orbs.push(orb(
+            Fx::px(10 + 10 * i32::try_from(i).unwrap()).0,
+            10 + i,
+            true,
+        ));
+    }
+    s.orbs.push(orb(Fx::px(200).0, 20, true));
+    s.orbs.push(orb(Fx::px(20).0, 21, false));
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    let before = s.rng.attack.clone();
+    let mut probe = before.clone();
+    let mut left: Vec<u32> = Vec::new();
+    for o in 10..15 {
+        if probe.below(100) >= 60 {
+            left.push(o);
+        }
+    }
+    left.extend([20, 21]);
+    deal(&w, &mut s);
+    assert_eq!(owners(&s), left);
+    assert_eq!(draws_since(&before, &s), 5);
+}
+
+/// B4: an orb inside two circles takes one draw; a foe that fell breaks nothing round it.
+#[test]
+fn an_orb_in_two_circles_takes_one_draw_and_a_fallen_foe_breaks_nothing() {
+    let (w, mut s) = broken(60, 96, 1);
+    s.tick = 50;
+    s.enemies[1].at = Point {
+        x: Fx::px(150),
+        y: Fx(0),
+    };
+    s.orbs.push(orb(Fx::px(75).0, 1, true));
+    let a = list(&s, &[0, 1]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    let before = s.rng.attack.clone();
+    deal(&w, &mut s);
+    assert_eq!(draws_since(&before, &s), 1);
+    // The second foe has fallen: only the first circle counts.
+    let (w, mut s) = broken(100, 96, 1);
+    s.tick = 50;
+    s.enemies[0].hp = 0;
+    s.orbs.push(orb(Fx::px(50).0, 1, true));
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    let before = s.rng.attack.clone();
+    deal(&w, &mut s);
+    assert_eq!(owners(&s), vec![1]);
+    assert_eq!(draws_since(&before, &s), 0);
+}
+
+/// B5: a `place` anchor breaks the orbs round the place.
+#[test]
+fn a_place_repeat_breaks_the_orbs_round_the_place() {
+    let (w, mut s) = broken(100, 96, 1);
+    s.tick = 50;
+    s.orbs.push(orb(Fx::px(50).0, 1, true));
+    s.orbs
+        .push(orb(Fx::px(100).0 + 2 * w.tuning.orb_radius, 2, true));
+    let a = RepeatAnchor::Place {
+        at: Point::default(),
+        facing: super::state::Dir::UP,
+    };
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    deal(&w, &mut s);
+    assert_eq!(owners(&s), vec![2]);
+}
+
+/// B6: each owner reads its own grant; an entry whose owner is out is dropped and breaks nothing.
+#[test]
+fn each_owner_reads_its_own_grant() {
+    let (w, mut s) = broken(100, 96, 1);
+    s.tick = 50;
+    // Player 1 has taken no place of its path.
+    s.players
+        .career_mut(slot(1))
+        .expertise
+        .as_mut()
+        .expect("a gauge")
+        .path
+        .clear();
+    s.orbs.push(orb(Fx::px(50).0, 1, true));
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 1, 50, 50, a));
+    deal(&w, &mut s);
+    assert_eq!(s.orbs.len(), 1, "player 1 breaks nothing");
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    deal(&w, &mut s);
+    assert!(s.orbs.is_empty(), "player 0 breaks");
+}
+
+/// B7: the hits of the deal and the queue after it are those of the same deal without the kind.
+#[test]
+fn the_kind_changes_no_hit_and_no_entry() {
+    let run = |places: usize| {
+        let (w, mut s) = broken(100, 96, places);
+        s.tick = 50;
+        s.orbs.push(orb(Fx::px(50).0, 1, true));
+        let a = list(&s, &[0]);
+        s.repeats.push(entry(&w, 0, 50, 50, a));
+        let ev = deal(&w, &mut s);
+        (hits(&ev), s.repeats.len(), s.enemies[0].hp)
+    };
+    assert_eq!(run(0), run(1));
 }

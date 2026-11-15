@@ -33,7 +33,7 @@ fn stacked(style: Vec<Value>, up_1: Vec<Value>, up_2: Vec<Value>, cap: Vec<Value
 }
 
 /// Player `i` has taken `places` places of its path.
-fn take(e: &mut Engine, i: u8, places: usize) {
+pub(super) fn take(e: &mut Engine, i: u8, places: usize) {
     let path = &mut st(e)
         .players
         .career_mut(slot(i))
