@@ -48,7 +48,8 @@
 //! The giant trigger (when the style names the `giant_trigger` kind): `spend_gauge` starts it
 //! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
 //! in `update`, `strike` adds its range percent to every step and its smash percent to a smash
-//! step when they start, `super_armour` reads `trigger_armoured`, and `stand_down` ends it.
+//! step when they start, `super_armour` reads `trigger_armoured`, `held_move_pct` raises a held
+//! hold's movement to its `hold_move_pct` (`trigger_hold_pct`), and `stand_down` ends it.
 //!
 //! The breaker (when the style names the `breaker` kind): it holds no state, so nothing starts,
 //! counts down or ends. Its factors are read where the number is computed: `breaker_fill`
@@ -1505,6 +1506,18 @@ fn trigger_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {
         && stage.trigger_of(s, me).is_some_and(|g| g.super_armour)
 }
 
+/// The movement percent `me`'s running giant trigger gives a held hold: 0 while no trigger runs
+/// or it names no `hold_move_pct`.
+fn trigger_hold_pct(stage: &World, s: &State, me: PlayerIdx) -> i64 {
+    if stage.has_trigger && s.players[me].combat.giant_trigger > 0 {
+        stage
+            .trigger_of(s, me)
+            .map_or(0, |g| i64::from(g.hold_move_pct))
+    } else {
+        0
+    }
+}
+
 /// `me`'s giant trigger started, running `ticks`. Cold: a run with no trigger never calls it.
 #[cold]
 #[inline(never)]
@@ -2048,10 +2061,10 @@ pub(super) fn break_charge(
 }
 
 /// The movement speed, in percent, a charge or a hold leaves the main character: its
-/// `move_pct`, 100 when neither is on.
+/// `move_pct` (a hold's raised to the running trigger's `hold_move_pct`), 100 when neither is on.
 fn held_move_pct(stage: &World, s: &State, me: PlayerIdx) -> i64 {
     if let Some(hold) = current_hold(stage, s, me) {
-        return i64::from(hold.move_pct);
+        return i64::from(hold.move_pct).max(trigger_hold_pct(stage, s, me));
     }
     current_charge(stage, s, me).map_or(100, |c| i64::from(c.move_pct))
 }
