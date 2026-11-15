@@ -1872,7 +1872,7 @@
     },
     "DamageOverTimeView": {
       "additionalProperties": false,
-      "description": "A damage-over-time status on an entity: bleed, poison or burn.",
+      "description": "A damage-over-time status on an entity: bleed, poison, burn or the repeat bleed.",
       "properties": {
         "next_tick_in": {
           "description": "Ticks until it next deals its damage, at least 1.",
@@ -11258,6 +11258,48 @@
         },
         {
           "additionalProperties": false,
+          "description": "From the level that names it on, every delayed repeat of the style puts `stacks` stacks of\nthe repeat bleed (`StatusKind::RepeatBleed`, a damage-over-time status of its own) on each\nfoe it hits and leaves standing: `damage` a stack tick, every `REPEAT_BLEED_INTERVAL_TICKS`,\nfor `duration_ticks` after the last application, up to `max_stacks`. The numbers are the\nkind's own, fixed when the repeat is queued (`Repeat.bleed`). `stacks` 1 to\n`MAX_REPEAT_BLEED_STACKS`, `duration_ticks` `REPEAT_BLEED_INTERVAL_TICKS` to\n`MAX_DOT_DURATION_TICKS`, `damage` 1 to `MAX_DAMAGE`, `max_stacks` `stacks` to\n`MAX_DOT_STACKS`. One per style path; the pack check refuses it where the style names no\n`repeat` at or before its level. It changes no step: the weapon copy stamps it on each\nrepeat (`weapon_with_style`). `sim_version` 2 only.",
+          "properties": {
+            "damage": {
+              "format": "uint32",
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "duration_ticks": {
+              "format": "uint32",
+              "maximum": 3600,
+              "minimum": 20,
+              "type": "integer"
+            },
+            "max_stacks": {
+              "format": "uint32",
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "stacks": {
+              "format": "uint32",
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_bleed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks",
+            "duration_ticks",
+            "damage",
+            "max_stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls\nunder `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.",
           "properties": {
             "proc_pct": {
@@ -11597,6 +11639,44 @@
             "type",
             "chance_pct",
             "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each repeat of the style adds `stacks` stacks of the repeat bleed to what it hits and\nleaves standing: `damage` a stack tick for `duration_ticks`, up to `max_stacks`.",
+          "properties": {
+            "damage": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "duration_ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "max_stacks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stacks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_bleed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks",
+            "duration_ticks",
+            "damage",
+            "max_stacks"
           ],
           "type": "object"
         },
