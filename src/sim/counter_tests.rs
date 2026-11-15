@@ -702,7 +702,7 @@ fn only_a_combo_hit_collects() {
     let Run::V2 { world, state } = r.e.run_mut() else {
         panic!("the live rules");
     };
-    let mut call = |who: Who, combo: bool, state: &mut super::state::State| {
+    let call = |who: Who, combo: bool, state: &mut super::state::State| {
         state.players[ME].combat.counter_bonus_step = 1;
         state.players[ME].combat.counter_payout = 1;
         super::stun::counter_bonus_stun(world, state, ME, (who, combo), None, 10, &mut Vec::new());
