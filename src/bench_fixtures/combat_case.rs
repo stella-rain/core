@@ -38,6 +38,9 @@ pub const WARMUP_TICKS: u32 = 450;
 /// tick 210 (`worst_case::WAVES_AT`).
 pub const CAPS_FROM: u32 = 300;
 
+/// The party of the three-player rollback bench (`rollback_party`).
+pub const PARTY: u8 = 3;
+
 /// The weapon and its style: Judgement Cut names three `repeat` kinds (`content/expertise.json`).
 const WEAPON: &str = "giant_sword";
 const STYLE: &str = "judgement_cut";
@@ -130,17 +133,48 @@ pub fn play(engine: &mut Engine, tick: u32) {
     engine.step(&[input(tick), Default::default(), Default::default()]);
 }
 
+/// The inputs of tick `tick` for a party of `party` (1 to 3): slot 0 has `input`; the members
+/// walk as it does, with Main tapped on the odd ticks, the parity slot 0 does not tap on from the
+/// replayed window on (`party_case::tap`); the slots past `party` have the default.
+pub fn inputs_party(tick: u32, party: u8) -> [Input; 3] {
+    let lead = input(tick);
+    let member = Input {
+        main: tick % 2 == 1,
+        ..lead
+    };
+    std::array::from_fn(|slot| match slot {
+        0 => lead,
+        s if s < usize::from(party) => member,
+        _ => Input::default(),
+    })
+}
+
+/// `play` for a party of `party`: every slot has its `inputs_party`.
+pub fn play_party(engine: &mut Engine, tick: u32, party: u8) {
+    engine.step(&inputs_party(tick, party));
+}
+
 /// Plays tick `tick` (the engine's next): the caps written first, from `CAPS_FROM`; after the
 /// first step the weapon level has risen, and the style point is taken.
 pub fn step(engine: &mut Engine, tick: u32) {
+    step_party(engine, tick, 1);
+}
+
+/// `step` for a party of `party`: after tick 1 every slot, in slot order, takes the style point.
+pub fn step_party(engine: &mut Engine, tick: u32, party: u8) {
     if tick >= CAPS_FROM {
-        prepare(engine);
+        prepare_party(engine, party);
     }
-    play(engine, tick);
+    play_party(engine, tick, party);
     if tick == 1 {
-        engine
-            .act(PlayerIdx::SOLO, EquipAction::TreePick { option: 0 })
-            .expect("the only unlocked style is taken");
+        for slot in 0..party {
+            engine
+                .act(
+                    PlayerIdx::new(slot).expect("a slot of the party"),
+                    EquipAction::TreePick { option: 0 },
+                )
+                .expect("the only unlocked style is taken");
+        }
     }
 }
 
@@ -156,6 +190,13 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
 pub fn prepare(engine: &mut Engine) {
+    prepare_party(engine, 1);
+}
+
+/// `prepare` for a party of `party`: the repeats are shared by the slots, `n % party` owning
+/// repeat `n` (22, 21 and 21 of 64 for 3), so every slot's runes fire on the hits.
+pub fn prepare_party(engine: &mut Engine, party: u8) {
+    assert!((1..=3).contains(&party), "a party of 1 to 3");
     let due = engine.tick() + 1;
     let Run::V2 { world, state, .. } = engine.bench_run_mut() else {
         panic!("the live rules");
@@ -188,7 +229,7 @@ pub fn prepare(engine: &mut Engine) {
             .map(|k| ids[(n * MAX_REPEAT_TARGETS + k) % ids.len()])
             .collect();
         state.repeats.push(Repeat {
-            owner: 0,
+            owner: u8::try_from(n % usize::from(party)).expect("a slot"),
             due,
             percent: 50,
             proc_pct: None,
@@ -235,11 +276,16 @@ fn repeat_phase(world: &crate::sim::World) -> (AttackIndex, u8) {
 /// An engine `WARMUP_TICKS` ticks into the run with the caps written for the next tick: the
 /// next `step` (tick `WARMUP_TICKS + 1`) is the measured one, and its input is `input`.
 pub fn warmed_up() -> Engine {
-    let mut engine = start();
+    warmed_up_party(1)
+}
+
+/// `warmed_up` for a party of `party`.
+pub fn warmed_up_party(party: u8) -> Engine {
+    let mut engine = start_party(party);
     for tick in 1..=WARMUP_TICKS {
-        step(&mut engine, tick);
+        step_party(&mut engine, tick, party);
     }
-    prepare(&mut engine);
+    prepare_party(&mut engine, party);
     engine
 }
 
@@ -254,6 +300,18 @@ pub fn rollback(saved: Engine) -> (Engine, Engine) {
     for _ in 0..ROLLBACK_TICKS {
         let tick = engine.tick() + 1;
         play(&mut engine, tick);
+    }
+    (engine, saved)
+}
+
+/// `rollback` for a party of `party`: the slots play `play_party`. As `rollback`, `prepare_party`
+/// does not run again: the queued repeats are all due on the first replayed tick.
+#[inline]
+pub fn rollback_party(saved: Engine, party: u8) -> (Engine, Engine) {
+    let mut engine = saved.clone();
+    for _ in 0..ROLLBACK_TICKS {
+        let tick = engine.tick() + 1;
+        play_party(&mut engine, tick, party);
     }
     (engine, saved)
 }
@@ -381,6 +439,113 @@ mod tests {
             state_of(&played).1.repeats.is_empty(),
             "every entry was due on the first replayed tick"
         );
+    }
+
+    #[test]
+    fn the_party_of_one_warms_up_as_solo() {
+        assert_eq!(warmed_up_party(1).state_hash(), warmed_up().state_hash());
+    }
+
+    #[test]
+    fn inputs_party_of_one_is_the_solo_input() {
+        for t in 1..=460 {
+            assert_eq!(
+                inputs_party(t, 1),
+                [input(t), Input::default(), Input::default()],
+                "tick {t}"
+            );
+        }
+    }
+
+    #[test]
+    fn inputs_party_gives_the_members_a_tap() {
+        for t in 1..=460 {
+            let inputs = inputs_party(t, 3);
+            assert_eq!(inputs[0], input(t), "tick {t}");
+            if t > WARMUP_TICKS {
+                assert!(
+                    t % 2 == 0 || !inputs[0].main,
+                    "after the warm-up slot 0 taps on even ticks only, tick {t}"
+                );
+            }
+            for member in &inputs[1..] {
+                assert_eq!(member.main, t % 2 == 1, "tick {t}");
+                assert_eq!(member.move_x, input(t).move_x, "tick {t}");
+                assert_eq!(member.move_y, input(t).move_y, "tick {t}");
+            }
+        }
+    }
+
+    /// Every slot has the repeats of its share and has taken the style point.
+    #[test]
+    fn the_party_warm_up_is_per_slot() {
+        let engine = warmed_up_party(3);
+        assert_eq!(engine.present(), 0b111);
+        assert_eq!(engine.tick(), WARMUP_TICKS);
+        let (_, s) = state_of(&engine);
+        assert_eq!(s.repeats.len(), MAX_REPEATS_QUEUED);
+        let mut owners = [0usize; 3];
+        for r in &s.repeats {
+            assert_eq!(r.due, WARMUP_TICKS + 1);
+            owners[usize::from(r.owner)] += 1;
+        }
+        assert_eq!(owners, [22, 21, 21]);
+        let style = |i: u8| {
+            let idx = PlayerIdx::new(i).expect("a slot");
+            s.players.career(idx).expertise.as_ref().map(|g| g.style)
+        };
+        assert!(style(0).is_some_and(|st| st.is_some()), "slot 0 took it");
+        assert_eq!(style(1), style(0));
+        assert_eq!(style(2), style(0));
+    }
+
+    /// The solo caps test, over a party of 3.
+    #[test]
+    fn the_party_measured_tick_holds_the_caps_tick_after_tick() {
+        let mut engine = warmed_up_party(3);
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + 60 {
+            let (_, s) = state_of(&engine);
+            assert_eq!(s.repeats.len(), MAX_REPEATS_QUEUED, "tick {tick}");
+            step_party(&mut engine, tick, 3);
+            assert_eq!(engine.outcome(), Outcome::Running, "tick {tick}");
+            let load = engine.load();
+            assert_eq!(load.zones, 128, "tick {tick}");
+            assert_eq!(load.orbs, 32, "tick {tick}");
+            assert_eq!(
+                load.enemies,
+                u32::from(super::super::enemy_cap()),
+                "tick {tick}"
+            );
+            prepare_party(&mut engine, 3);
+        }
+    }
+
+    /// The three-player rollback leaves the saved engine alone and equals a direct play.
+    #[test]
+    fn the_three_player_rollback_replays_to_the_same_hash() {
+        let saved = warmed_up_party(3);
+        let before = saved.state_hash();
+        let mut direct = warmed_up_party(3);
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + ROLLBACK_TICKS {
+            play_party(&mut direct, tick, 3);
+        }
+        let (played, saved) = rollback_party(saved, 3);
+        assert_eq!(saved.state_hash(), before);
+        assert_eq!(saved.tick(), WARMUP_TICKS);
+        assert_eq!(state_of(&saved).1.repeats.len(), MAX_REPEATS_QUEUED);
+        assert_eq!(played.tick(), WARMUP_TICKS + ROLLBACK_TICKS);
+        assert_eq!(played.state_hash(), direct.state_hash());
+        assert_eq!(played.outcome(), Outcome::Running);
+        assert!(
+            state_of(&played)
+                .1
+                .repeats
+                .iter()
+                .all(|r| r.due != WARMUP_TICKS + 1),
+            "every first-tick entry was dealt"
+        );
+        let (again, _) = rollback_party(warmed_up_party(3), 3);
+        assert_eq!(again.state_hash(), played.state_hash());
     }
 
     /// The weight `Load` sees of a tick.

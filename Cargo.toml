@@ -142,6 +142,10 @@ name = "rollback_combat"
 harness = false
 
 [[bench]]
+name = "rollback_combat_3p"
+harness = false
+
+[[bench]]
 name = "rollback_session"
 harness = false
 
