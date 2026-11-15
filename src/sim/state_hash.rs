@@ -566,6 +566,7 @@ impl StableHash for PlayerCombat {
             giant_trigger,
             ranged_grace,
             counter_bonus_step,
+            counter_payout,
         } = self;
         perfect_window.stable_hash(h);
         perfect_slow.stable_hash(h);
@@ -581,6 +582,7 @@ impl StableHash for PlayerCombat {
         giant_trigger.stable_hash(h);
         ranged_grace.stable_hash(h);
         counter_bonus_step.stable_hash(h);
+        counter_payout.stable_hash(h);
     }
 }
 

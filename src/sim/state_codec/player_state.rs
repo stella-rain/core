@@ -217,6 +217,7 @@ impl Encode for PlayerCombat {
             giant_trigger,
             ranged_grace,
             counter_bonus_step,
+            counter_payout,
         } = self;
         perfect_window.encode(w);
         perfect_slow.encode(w);
@@ -232,6 +233,7 @@ impl Encode for PlayerCombat {
         giant_trigger.encode(w);
         ranged_grace.encode(w);
         counter_bonus_step.encode(w);
+        counter_payout.encode(w);
     }
 }
 
@@ -281,6 +283,11 @@ impl Decode for PlayerCombat {
                 r.u8()?,
                 MAX_COUNTER_BONUS_STEP,
                 "counter_bonus_step past its bound",
+            )?,
+            counter_payout: within(
+                r.u8()?,
+                MAX_COUNTER_PAYOUT,
+                "counter_payout past its bound",
             )?,
         })
     }
