@@ -72,6 +72,18 @@ x86_64 = 5_600_000
 arm64 = 31_400_000
 x86_64 = 35_400_000
 
+# rollback_combat_3p: the rollback_combat case for a party of 3 (ADR-SIM-5, ADR-SIM-6, ADR-SIM-7;
+# `bench_fixtures/combat_case.rs`): the 64 queued repeats shared by the three owners, every slot
+# equipped and scripted like slot 0, the members walking and tapping Main; cloned, then the 8 ticks
+# of the window played on the clone. It exceeds the 12.4 M frame ceiling as rollback_combat does,
+# for the same reason (8 ticks of the full crowd, not one frame's tick). PROVISIONAL: the local
+# x86_64 count is 34,456,348; the budgets are the margin rule on it (x86_64
+# ceil(count * 1.1 / 100_000) * 100_000, arm64 on 0.9 of the count, the ratio of rollback_combat's
+# CI counts) until the first CI run gives both counts.
+[rollback_combat_3p]
+arm64 = 34_200_000
+x86_64 = 38_000_000
+
 # rollback_session: one rolling-back Session::advance of the rollback_equip case at window 4 and
 # 16 (rollback_session_w4, rollback_session_w16, the largest is _w16), one CloneRing save into an
 # empty ring (clone_ring_save) and one into a reused slot of a full ring (clone_ring_resave). The
