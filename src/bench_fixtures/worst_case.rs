@@ -364,8 +364,8 @@ pub(crate) fn start_party_in(
 ) -> Engine {
     let mut engine =
         Engine::new_equipped_party(stage, content, setup, party).expect("the run starts");
-    for slot in 0..party {
-        let player = PlayerIdx::new(slot).expect("a slot of the party");
+    for member in 0..party {
+        let player = PlayerIdx::new(member).expect("a slot of the party");
         engine
             .script_equipment(player, &[HASTE.into()], &[(0, 1)])
             .expect("Rune Haste is scripted");
@@ -374,7 +374,7 @@ pub(crate) fn start_party_in(
             .expect("the runes are scripted");
         // The first rune slot comes from the layout itself: the categories' slots, then the rune
         // slots. An equip takes its item out of the inventory, so the next one is item 0 again.
-        let slots = engine.snapshot().players[usize::from(slot)].slots.clone();
+        let slots = engine.snapshot().players[usize::from(member)].slots.clone();
         let first_rune = slots
             .iter()
             .position(|s| s.kind == SlotKindView::Rune)
