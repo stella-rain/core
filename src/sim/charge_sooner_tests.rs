@@ -137,7 +137,6 @@ fn rig_on(pack: &Pack, places: &[usize]) -> Engine {
         seed: 20_261_113,
         ..RunSetup::default()
     };
-    let pack = pack_with_kind();
     let mut e =
         Engine::start_party_with(&setup, pack.content(), u8::try_from(places.len()).unwrap())
             .expect("a run");
