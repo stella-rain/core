@@ -662,3 +662,40 @@ fn the_pack_check_reads_a_later_trigger_against_the_path() {
     assert!(load(false).is_ok());
     assert!(load(true).is_err());
 }
+
+/// G1: the refund stays on once named, the fill percent is replaced by a later level, and the
+/// fold clamps the percent to the bar.
+#[test]
+fn the_refund_and_the_fill_stack_across_the_path() {
+    let mut e = stacked(
+        vec![counter(
+            30,
+            vec![json!({ "type": "damage_pct", "pct": 100 })],
+        )],
+        vec![counter(
+            38,
+            vec![
+                json!({ "type": "refund_evade" }),
+                json!({ "type": "gauge_fill_pct", "pct": 25 }),
+            ],
+        )],
+        vec![],
+        vec![counter(
+            38,
+            vec![json!({ "type": "gauge_fill_pct", "pct": 40 })],
+        )],
+    );
+    let at = |e: &mut Engine, places: usize| {
+        read(e, 0, places, |w, s, me| w.counter_of(s, me).cloned())
+            .map(|g| (g.window, g.damage_pct, g.refund_evade, g.gauge_fill_pct))
+    };
+    assert_eq!(at(&mut e, 0), Some((30, 100, false, 0)));
+    assert_eq!(at(&mut e, 1), Some((38, 100, true, 25)));
+    assert_eq!(at(&mut e, 3), Some((38, 100, true, 40)));
+    use super::world::{CounterGrant, counter_fold};
+    let mut g = CounterGrant::none();
+    let mut k = counter(30, vec![json!({ "type": "gauge_fill_pct", "pct": 200 })]);
+    k.as_object_mut().expect("a kind").remove("type");
+    counter_fold(&mut g, &serde_json::from_value(k).expect("a counter bonus"));
+    assert_eq!(g.gauge_fill_pct, 100);
+}
