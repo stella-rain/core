@@ -13,7 +13,8 @@
 //! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
-//! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
+//! step's charge or hold, a charge whose levels come sooner, a delayed repeat or a proc factor of
+//! a step's hits, the weapon's smash
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
 //! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
 //! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
@@ -1810,8 +1811,9 @@ pub(crate) fn charge_sooner(weapon: &mut Weapon, presses: &[Press], pct: u32) ->
 
 /// `base` with the grants a style gives when it is chosen and `taken` places of its path
 /// (0 to 3: the first upgrade, the second, the capstone) are taken, in path order: the style's
-/// own kinds, then each taken place's one choice. A grant that finds no step is skipped (the
-/// pack check refuses it before a run).
+/// own kinds, then each taken place's one choice. A grant that finds no step, or a
+/// `charge_sooner` that finds no charge, is skipped (the pack check refuses it before a run). The
+/// charge's levels come sooner here, at world build: no state, no hash field.
 pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> Weapon {
     let mut weapon = base.clone();
     let mut bleed = None;
