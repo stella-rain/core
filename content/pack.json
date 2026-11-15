@@ -4004,8 +4004,14 @@
           "upgrade_1": [
             {
               "id": "judgement_cut_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "repeat_breaks_orbs",
+                  "chance_pct": 60,
+                  "radius_px": 96
+                }
+              ]
             }
           ],
           "upgrade_2": [

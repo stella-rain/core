@@ -299,7 +299,11 @@ fn the_views_carry_the_kinds() {
                 s["stats"] = json!([]);
             }
             if w["weapon"] == "giant_hammer" {
-                w["styles"][0]["kinds"] = json!([repeat_kind(&A), factor_kind(&["main", "main"])]);
+                w["styles"][0]["kinds"] = json!([
+                    repeat_kind(&A),
+                    factor_kind(&["main", "main"]),
+                    orbs_kind(60, 96)
+                ]);
             }
         }
         file
@@ -313,11 +317,12 @@ fn the_views_carry_the_kinds() {
     let repeat = json!({ "type": "repeat", "step": ["main"], "after_ticks": 10, "repeat_pct": 50,
         "anchor": "hit_list", "proc_pct": 30 });
     let factor = json!({ "type": "proc_factor", "step": ["main", "main"], "proc_pct": 40 });
-    assert_eq!(ready["kinds"][0], json!([repeat, factor]));
+    let orbs = orbs_kind(60, 96);
+    assert_eq!(ready["kinds"][0], json!([repeat, factor, orbs]));
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     assert_eq!(
         stats["trees"][0]["grants"][0]["kinds"],
-        json!([repeat, factor])
+        json!([repeat, factor, orbs])
     );
     // The bundled Hammer styles carry kinds but no repeat (the Sword's two styles do).
     let e = style_grants::build(Expertise::bundled().clone());
@@ -339,6 +344,183 @@ fn only_a_repeat_s_hit_carries_the_repeat_key() {
     };
     assert_eq!(hit(true)["data"]["repeat"], json!(true));
     assert!(hit(false)["data"].get("repeat").is_none());
+}
+
+fn orbs_kind(chance: u32, radius: u32) -> Value {
+    json!({ "type": "repeat_breaks_orbs", "chance_pct": chance, "radius_px": radius })
+}
+
+/// The expertise file with style 0 naming a repeat on its own level and `upgrade_1` / `upgrade_2`
+/// naming `up1` / `up2` (each a list of kinds, `None` leaving the level as the fixture has it).
+fn level_file(own: Value, up1: Option<Value>, up2: Option<Value>) -> Value {
+    let mut file = expertise_file(own);
+    for (field, kinds) in [("upgrade_1", up1), ("upgrade_2", up2)] {
+        if let Some(kinds) = kinds {
+            let level = &mut file["weapons"][0]["styles"][0][field][0];
+            level["effect"] = json!("none");
+            level.as_object_mut().unwrap().remove("amount");
+            level["kinds"] = kinds;
+        }
+    }
+    file
+}
+
+fn invalid_level(file: &Value, path: &str, word: &str) {
+    match parse_at(file, 2) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == path && i.message.contains(word)),
+            "{path} {word}: {issues:?}"
+        ),
+        other => panic!("{path}: expected invalid, got {:?}", other.map(|_| ())),
+    }
+}
+
+const UP1: &str = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+
+/// V1: the kind parses and serializes back to the same JSON.
+#[test]
+fn the_orb_breaking_kind_round_trips() {
+    let kind = orbs_kind(60, 96);
+    let parsed: StyleKind = serde_json::from_value(kind.clone()).expect("the kind parses");
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), kind);
+    let file = level_file(json!([repeat_kind(&A)]), Some(json!([kind])), None);
+    if let Err(e) = parse_at(&file, 2) {
+        panic!("expected valid, got {e:?}");
+    }
+}
+
+/// V2: each number is bounded at its key; both keys are required and no other key is allowed.
+#[test]
+fn the_orb_breaking_bounds_are_checked_at_their_keys() {
+    for (chance, radius, key) in [
+        (0, 96, "chance_pct"),
+        (101, 96, "chance_pct"),
+        (60, 0, "radius_px"),
+        (60, 241, "radius_px"),
+    ] {
+        let file = level_file(
+            json!([repeat_kind(&A)]),
+            Some(json!([orbs_kind(chance, radius)])),
+            None,
+        );
+        invalid_level(&file, &format!("{UP1}.{key}"), "");
+    }
+    for (chance, radius) in [(1, 1), (100, 240), (60, 96)] {
+        let file = level_file(
+            json!([repeat_kind(&A)]),
+            Some(json!([orbs_kind(chance, radius)])),
+            None,
+        );
+        if let Err(e) = parse_at(&file, 2) {
+            panic!("({chance}, {radius}) expected valid, got {e:?}");
+        }
+    }
+    let mut missing = orbs_kind(60, 96);
+    missing.as_object_mut().unwrap().remove("radius_px");
+    let mut extra = orbs_kind(60, 96);
+    extra["step"] = json!(A);
+    for kind in [missing, extra] {
+        let file = level_file(json!([repeat_kind(&A)]), Some(json!([kind])), None);
+        assert!(matches!(parse_at(&file, 2), Err(Error::Parse { .. })));
+    }
+}
+
+/// V3: one per style path and one per level.
+#[test]
+fn the_orb_breaking_kind_is_named_once_per_path() {
+    let both = level_file(
+        json!([repeat_kind(&A)]),
+        Some(json!([orbs_kind(60, 96)])),
+        Some(json!([orbs_kind(60, 96)])),
+    );
+    invalid_level(
+        &both,
+        "$.weapons[0].styles[0].upgrade_2[0].kinds[0]",
+        "already",
+    );
+    let twice = level_file(
+        json!([repeat_kind(&A)]),
+        Some(json!([orbs_kind(60, 96), orbs_kind(50, 90)])),
+        None,
+    );
+    invalid_level(
+        &twice,
+        "$.weapons[0].styles[0].upgrade_1[0].kinds[1]",
+        "already",
+    );
+}
+
+/// V4: at `sim_version` 1 the kind is refused.
+#[test]
+fn the_orb_breaking_kind_needs_sim_version_2() {
+    let file = level_file(
+        json!([repeat_kind(&A)]),
+        Some(json!([orbs_kind(60, 96)])),
+        None,
+    );
+    match parse_at(&file, 1) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues.iter().any(|i| i.message.contains("sim_version 2")),
+            "{issues:?}"
+        ),
+        other => panic!("expected invalid, got {:?}", other.map(|_| ())),
+    }
+}
+
+fn pack_with_levels(own: Value, up1: Option<Value>, cap: Option<Value>) -> Value {
+    let mut v = pack_with_hammer_kinds(own);
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    for (field, kinds) in [("upgrade_1", up1), ("capstone", cap)] {
+        if let Some(kinds) = kinds {
+            let level = &mut w["styles"][0][field][0];
+            level["effect"] = json!("none");
+            level.as_object_mut().unwrap().remove("amount");
+            level["kinds"] = kinds;
+        }
+    }
+    v
+}
+
+/// V5: the pack refuses the kind where the style names no repeat at or before its level.
+#[test]
+fn the_pack_refuses_orb_breaking_with_no_repeat_before_it() {
+    let at = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+    // No repeat anywhere on the path.
+    let none = pack_with_levels(json!([]), Some(json!([orbs_kind(60, 96)])), None);
+    let paths = refused_in_expertise(&none);
+    assert!(
+        paths
+            .iter()
+            .any(|(p, m)| p == at && m.contains("no repeat")),
+        "{paths:?}"
+    );
+    // A repeat only at the capstone comes after the kind's level.
+    let late = pack_with_levels(
+        json!([]),
+        Some(json!([orbs_kind(60, 96)])),
+        Some(json!([repeat_kind(&A)])),
+    );
+    let paths = refused_in_expertise(&late);
+    assert!(
+        paths
+            .iter()
+            .any(|(p, m)| p == at && m.contains("no repeat")),
+        "{paths:?}"
+    );
+    // A repeat on the style's own level loads.
+    let ok = pack_with_levels(
+        json!([repeat_kind(&A)]),
+        Some(json!([orbs_kind(60, 96)])),
+        None,
+    );
+    assert!(load(&ok).is_ok());
 }
 
 // ---- The rules, over whole runs (the Hammer's A step: 6 ticks of wind-up, 4 active with a

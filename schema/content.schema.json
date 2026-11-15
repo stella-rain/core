@@ -11230,6 +11230,34 @@
         },
         {
           "additionalProperties": false,
+          "description": "From the level that names it on, every repeat the style queues breaks each breakable enemy\norb within `radius_px` of what it strikes (round the place for a `place` anchor) with\n`chance_pct` percent, one draw per orb, as the main character's own hit box breaks one: no\nburst, the `OrbBroken` event (ADR-SIM-9 points 2 to 7). `chance_pct` 1 to\n`MAX_ORB_BREAK_PCT` (100 still draws), `radius_px` 1 to `MAX_BURST_RADIUS_PX`. One per\nstyle path; the pack check refuses it where the style names no `repeat` at or before its\nlevel. Read at the deal from the owner's grant (`World::repeat_break_of`); no step changes.",
+          "properties": {
+            "chance_pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "radius_px": {
+              "format": "uint32",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_breaks_orbs",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "chance_pct",
+            "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls\nunder `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.",
           "properties": {
             "proc_pct": {
@@ -11543,6 +11571,32 @@
             "after_ticks",
             "repeat_pct",
             "anchor"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each repeat of the style breaks the enemy orbs within `radius_px` of what it strikes, each\nwith `chance_pct` percent.",
+          "properties": {
+            "chance_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "radius_px": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_breaks_orbs",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "chance_pct",
+            "radius_px"
           ],
           "type": "object"
         },

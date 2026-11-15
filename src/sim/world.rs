@@ -11,8 +11,8 @@ use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement, Skill};
 use crate::expertise::{
-    CounterEffect, Gauge, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind, TempoEffect,
-    TriggerEffect,
+    CounterEffect, Gauge, MAX_ORB_BREAK_PCT, MAX_SPIRIT_BLEED_STACKS, SpiritEffect, StyleKind,
+    TempoEffect, TriggerEffect,
 };
 use crate::fixed::Fx;
 use crate::id::ContentId;
@@ -676,6 +676,19 @@ pub(crate) struct World {
     grant_breakers: Vec<Option<BreakerGrant>>,
     /// Some style names a breaker: the hit pass looks for one only then.
     pub has_breaker: bool,
+    /// The orb break each of those copies has (the first `repeat_breaks_orbs` kind of the style's
+    /// own level and the path levels taken), at the same index; empty when no style names one.
+    grant_repeat_breaks: Vec<Option<OrbBreakGrant>>,
+    /// Some style names the kind: the deal of a repeat looks for the grant only then.
+    pub has_repeat_break: bool,
+}
+
+/// A style's orb break resolved once: the chance in percent and the radius round what a repeat
+/// strikes, inside their caps (ADR-SVC-1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OrbBreakGrant {
+    pub chance_pct: u8,
+    pub radius: Fx,
 }
 
 /// A style's breaker resolved once: a factor in percent on the stagger fills, on the poise damage
@@ -892,6 +905,7 @@ impl World {
         let grant_tempos = grant_tempos(main, weapon.as_ref(), content);
         let grant_triggers = grant_triggers(main, weapon.as_ref(), content);
         let grant_breakers = grant_breakers(main, weapon.as_ref(), content);
+        let grant_repeat_breaks = grant_repeat_breaks(main, weapon.as_ref(), content);
         // A stage's own weapon is judged by the content that runs it (ADR-CONT-3 point 6): the
         // held-step checks that read a preset's phases cannot run before the presets are known.
         if let WeaponRef::Inline(w) = main {
@@ -962,6 +976,8 @@ impl World {
             grant_triggers,
             has_breaker: grant_breakers.iter().any(Option::is_some),
             grant_breakers,
+            has_repeat_break: grant_repeat_breaks.iter().any(Option::is_some),
+            grant_repeat_breaks,
             weapon,
         };
         // The shared flinch ID is built here, not on the first flinch of a steady tick.
@@ -1195,6 +1211,23 @@ impl World {
             return None;
         }
         self.grant_breakers.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The orb break player `me`'s style gives its repeats, read from the same slot as
+    /// `weapon_of` at the deal (a repeat queued before a pick and dealt after reads the new grant:
+    /// a repeat lasts at most 120 ticks and a pick is a UI action); none after one bool test for
+    /// a run that names no such kind.
+    pub(crate) fn repeat_break_of(
+        &self,
+        s: &super::state::State,
+        me: PlayerIdx,
+    ) -> Option<&OrbBreakGrant> {
+        if !self.has_repeat_break {
+            return None;
+        }
+        self.grant_repeat_breaks
+            .get(self.grant_slot(s, me)?)?
+            .as_ref()
     }
 
     /// Every full-gauge attack, for the attack table.
@@ -1555,6 +1588,55 @@ fn grant_breakers(
     for style in &expertise.styles {
         for taken in 0..PATH_PLACES {
             out.push(breaker_of(style, taken));
+        }
+    }
+    if out.iter().all(Option::is_none) {
+        out.clear();
+    }
+    out
+}
+
+/// The orb break of each style and number of places of its path taken (the same index as
+/// `grant_weapons`): the `repeat_breaks_orbs` kind of the style's own level or of a place taken
+/// (one per path), clamped again (ADR-SVC-1). Empty when no style of the weapon names one.
+fn grant_repeat_breaks(
+    main: &WeaponRef<Weapon>,
+    base: Option<&Weapon>,
+    content: &RunContent,
+) -> Vec<Option<OrbBreakGrant>> {
+    let (WeaponRef::Preset { id, .. }, Some(_)) = (main, base) else {
+        return Vec::new();
+    };
+    let Some(expertise) = content.expertise().weapon(id) else {
+        return Vec::new();
+    };
+    let grant_of = |s: &crate::expertise::Style, taken: usize| {
+        let places = crate::expertise::style_levels(s)
+            .into_iter()
+            .take(taken)
+            .filter_map(|(_, o)| o.map(|o| o.kinds.as_slice()));
+        std::iter::once(s.kinds.as_slice())
+            .chain(places)
+            .flatten()
+            .find_map(|kind| match kind {
+                StyleKind::RepeatBreaksOrbs {
+                    chance_pct,
+                    radius_px,
+                } => Some(OrbBreakGrant {
+                    chance_pct: u8::try_from((*chance_pct).clamp(1, MAX_ORB_BREAK_PCT))
+                        .unwrap_or(100),
+                    radius: Fx::px(
+                        i32::try_from((*radius_px).clamp(1, crate::rewards::MAX_BURST_RADIUS_PX))
+                            .unwrap_or(1),
+                    ),
+                }),
+                _ => None,
+            })
+    };
+    let mut out = Vec::new();
+    for style in &expertise.styles {
+        for taken in 0..PATH_PLACES {
+            out.push(grant_of(style, taken));
         }
     }
     if out.iter().all(Option::is_none) {

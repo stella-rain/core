@@ -608,6 +608,13 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 anchor: *anchor,
                 proc_pct: *proc_pct,
             },
+            StyleKind::RepeatBreaksOrbs {
+                chance_pct,
+                radius_px,
+            } => StyleKindView::RepeatBreaksOrbs {
+                chance_pct: *chance_pct,
+                radius_px: *radius_px,
+            },
             StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
                 step: step.clone(),
                 proc_pct: *proc_pct,

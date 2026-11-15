@@ -8,10 +8,12 @@
 
 use super::World;
 use super::entity::Who;
+use super::world::OrbBreakGrant;
 use crate::attack::MatchUp;
 use crate::event::DomainEvent;
-use crate::fixed::Fx;
+use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
+use crate::inline::InlineVec;
 use crate::limits::{MAX_REPEAT_TARGETS, MAX_REPEATS_QUEUED};
 use crate::rewards::MAX_RANGE_PCT;
 use crate::rewards::{
@@ -213,8 +215,11 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
 /// `max(1, damage * percent / 100)` (0 stays 0) through the vulnerability, the match-up of the
 /// phase's damage type and the defence, then `damage::land`, so the party damage percent, the
 /// kill credit and the aggro are any hit's. A repeat carries nothing else: no smash effect, no
-/// expertise, no crit, echo, repeat or flinch; its only side effect is the on-hit runes, at its
-/// own factor. The boss and its parts are skipped while the boss is invulnerable.
+/// expertise, no crit, echo, repeat or flinch; its side effects are the on-hit runes, at its
+/// own factor, and, when the owner's style names `repeat_breaks_orbs`, the breakable enemy orbs
+/// round what it strikes (`break_orbs_round`, before the hits; the grant is read at the deal, so
+/// a repeat queued before a pick and dealt after reads the new grant). The boss and its parts are
+/// skipped while the boss is invulnerable.
 pub(super) fn deal_repeats(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.repeats.is_empty() {
         return;
@@ -245,6 +250,12 @@ fn deal_repeat(
 ) {
     let base = u32::try_from(u64::from(e.damage) * u64::from(e.percent) / 100).unwrap_or(u32::MAX);
     let base = if e.damage > 0 { base.max(1) } else { 0 };
+    // The guards in the order of their cost: no orb, no walk; then the flag; then one lookup.
+    if !s.orbs.is_empty() && stage.has_repeat_break {
+        if let Some(grant) = stage.repeat_break_of(s, me).copied() {
+            break_orbs_round(stage, s, me, e, grant, events);
+        }
+    }
     match e.anchor {
         RepeatAnchor::HitList(ids) => {
             for id in ids.iter() {
@@ -273,6 +284,59 @@ fn deal_repeat(
             }
         }
     }
+}
+
+/// The owner's style breaks the breakable enemy orbs within the grant's radius of what the repeat
+/// strikes (round each foe a `hit_list` entry stored that is still a foe, round the place of a
+/// `place` entry): each orb in index order takes one draw on the attack stream whatever the
+/// chance and breaks when it is below it. An orb inside two circles takes one draw. It is removed
+/// with no burst and reported as the main character's own hit box reports one, before the
+/// entry's hits.
+fn break_orbs_round(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    e: &Repeat,
+    grant: OrbBreakGrant,
+    events: &mut Vec<DomainEvent>,
+) {
+    let mut centres: InlineVec<Point, MAX_REPEAT_TARGETS> = InlineVec::new();
+    match e.anchor {
+        RepeatAnchor::HitList(ids) => {
+            for id in ids.iter() {
+                if let Some(target) = s.find(*id) {
+                    if !State::is_ally(target) && s.hp(target) > 0 && super::damageable(s, target) {
+                        centres.push(s.at(target));
+                    }
+                }
+            }
+        }
+        RepeatAnchor::Place { at, .. } => centres.push(at),
+    }
+    if centres.is_empty() {
+        return;
+    }
+    let (radius, orb_radius) = (grant.radius.0, stage.tuning.orb_radius);
+    let chance = u32::from(grant.chance_pct);
+    let State { orbs, rng, .. } = s;
+    orbs.retain(|orb| {
+        if !orb.breakable
+            || !centres
+                .iter()
+                .any(|c| overlaps(*c, radius, orb.at, orb_radius))
+        {
+            return true;
+        }
+        let broken = rng.attack.below(100) < chance;
+        if broken {
+            events.push(DomainEvent::OrbBroken {
+                owner: orb.owner,
+                at: orb.at,
+                player: Some(me),
+            });
+        }
+        !broken
+    });
 }
 
 /// The boss, then its parts, when the area covers them and the boss is not invulnerable.
