@@ -17,6 +17,7 @@ globs:
   - "src/rules.rs"
   - "src/run_stats.rs"
   - "src/rewards.rs"
+  - "src/star_chart.rs"
   - "src/match_ups.rs"
   - "src/rune*.rs"
   - "src/run_content.rs"
@@ -43,8 +44,10 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `registry.rs`: the content-ID registry (ADR-CONT-2).
 - `run_setup.rs`: the run setup a run starts from (ADR-REPL-5); each mode's content is bundled
   in `modes/`. `RunSetup` has no `offer_mode` and no `build_mode`: a setup naming either is refused as an unknown field.
-- `run_stats.rs` (the stats a point raises) and `rewards.rs` (what a falling star's offer
-  holds): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
+  `drop_weights` is the Star Chart's per-category map, checked against the rewards file's categories and `drop_weight_max`
+  (`validate_in`).
+- `run_stats.rs` (the stats a point raises) and `rewards.rs` (the stars: each reward's
+  rarity, limit, effect and category, the rarities and the `equipment` rules): JSON read as untrusted bytes, an open list over effect kinds in code, defaulting to
   `content/run_stats.json` and `content/rewards.json` (ADR-CONT-1). `match_ups.rs` reads
   `content/match_ups.json`; `rune.rs` is the closed list of runes and `runes.rs` reads
   `content/runes.json`, the same way.
@@ -53,7 +56,11 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   `time_limit` mode files, each with the SHA-256 of its bytes and the pack's SHA-256
   (ADR-REPL-5, ADR-CONT-6). The engine, the recorder and the verifier read the same value.
 - `pack.rs`, `src/bin/content_pack.rs`: the content pack, the game's content files as one JSON
-  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-6).
+  file, hashed as its bytes and read as untrusted bytes (ADR-SVC-1, ADR-CONT-6); children `src/pack/{check,introduced,files,
+  compare,trust}.rs` (budgets and cross-file checks, the `introduced` table, the files and their places, the numbers-only
+  comparison, the signature check of `packs.json`). The offer effects (`offer_candidates`, `rerolls`, `banishes`,
+  `extra_rerolls`, `extra_banishes`) are deprecated: a pack of `sim_version` 2 holds one only in an entry its `introduced`
+  table records below 2 (`check_offer_effects`).
   `content-pack verify FILE` checks one; `content-pack export [DIR]` writes the pack (no DIR
   writes `Pack::BUNDLED`; DIR builds from `DIR/*.json` and `DIR/../modes`).
 - `content/`: `pack.json` is a copy byte for byte of a `stella-rain/content` release
@@ -63,6 +70,8 @@ A change to a type, an event or a content ID starts with the `schema-change` ski
   required member of the pack, read by `attack_presets.rs`; a check that needs a preset's
   phases runs at pack load and in `World::new`.
   `threat_colours` is an optional member (`threat_colours.rs`; the bundled pack has none): `content-rules.md`.
+- `star_chart.rs`: `content/star_chart.json`, the Star Chart's Stardust prices (ADR-SAVE-17), an optional pack member the
+  simulation never reads; a pack released without it reads `None` (`Pack::star_chart`).
 - `text.rs`: UI text outside the hashed pack, `content/text.<locale>.json` per `SHIPPED_LOCALES` code (`ko`, `en`).
 - `schema/`: generated from the types (`pack.schema.json` is the content pack's);
   `cargo xtask bless` regenerates it (and the corpus, goldens and `content/pack.json`).
