@@ -24,7 +24,8 @@ Sources: ADR-SIM-3, ADR-PLAT-1, ADR-REL-3, ADR-REL-6.
 - `tests on x86_64 (release)` also runs the ignored `command_cap::measure_the_longest_run` in release on
   every run of the job (md-only PRs skip it): it counts the commands of the frozen `tests/corpus/v1/runs` replays, a folder
   that never changes, so `MEASURED_MOST` in `tests/command_cap.rs` can only fall; a PR that lowers the count re-pins it.
-- The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d measurements, in release,
+- The deep tier (`deep.yml`): 2,000 property cases and the `#[ignore]`d tests, `tests/numbers_report.rs`'s two probes included (the bot's drop, Starlight,
+  slot and Stardust numbers; they change nothing), in release,
   weekly, on demand and called by Candidate; not a PR check. The nextest test group
   `deep` runs those long tests one at a time so their times stay comparable.
 - The weekly long fuzz run (`fuzz-long.yml`), the iOS Simulator tests (`ios-sim.yml`, runner
