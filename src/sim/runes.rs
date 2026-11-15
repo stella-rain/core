@@ -248,6 +248,7 @@ pub(super) fn reap_smash(
         combo: false,
         rune: Rune::of_dot(st.kind),
         chain: false,
+        dot: false,
     };
     let me = super::hitter(s, st.source);
     super::damage(stage, s, me, shot, target, events);

@@ -41,6 +41,7 @@ fn shot(s: &State, owner: EntityId, at: usize, damage: u32) -> Shot {
         combo: false,
         rune: None,
         chain: false,
+        dot: false,
     }
 }
 

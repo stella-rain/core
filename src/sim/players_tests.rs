@@ -127,6 +127,7 @@ fn a_system_acts_on_the_player_it_is_given() {
         combo: false,
         rune: None,
         chain: false,
+        dot: false,
     };
     let by = Blame {
         kind: HitKind::Attack,
@@ -1006,6 +1007,7 @@ mod route {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         }
     }
 
@@ -1254,6 +1256,7 @@ mod stats_events {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         }
     }
 

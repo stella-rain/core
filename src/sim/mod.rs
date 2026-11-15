@@ -413,6 +413,9 @@ struct Shot {
     rune: Option<Rune>,
     /// A hit the combat rewards make (a kill burst), which neither crits nor echoes.
     chain: bool,
+    /// A tick of a damage-over-time status, which neither crits nor echoes, whatever rune (or
+    /// none) applied it. Set in `tick_dots_of` only.
+    dot: bool,
 }
 
 /// Where the attack of a hit is found.

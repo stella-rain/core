@@ -418,6 +418,7 @@ fn cage_beams(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<Doma
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         };
         if let Some(l) = s.orbs[i].link.as_mut() {
             l.last_hit = Some(s.tick);
@@ -679,6 +680,7 @@ fn shot(w: &Swing) -> Shot {
         combo: w.combo,
         rune: w.rune,
         chain: false,
+        dot: false,
     }
 }
 
@@ -1124,6 +1126,7 @@ mod party_tests {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         };
         let by = Blame::of_program(HitKind::Attack, crate::sim::world::ProgramIndex(0));
         let mut ev = Vec::new();
@@ -1393,6 +1396,7 @@ mod party_tests {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         };
         let by = Blame::of_program(HitKind::Attack, crate::sim::world::ProgramIndex(0));
         let before = hp(&s);

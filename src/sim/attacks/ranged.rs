@@ -299,6 +299,7 @@ mod tests {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         }
     }
 

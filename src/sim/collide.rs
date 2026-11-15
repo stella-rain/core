@@ -123,6 +123,7 @@ pub(super) fn collide(stage: &World, s: &mut State, dots: bool, events: &mut Vec
             combo: b.combo,
             rune: None,
             chain: false,
+            dot: false,
         };
         let by = Blame::of_program(HitKind::Attack, b.program);
         consumed.push(

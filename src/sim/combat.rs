@@ -36,6 +36,7 @@ pub(super) fn crits(s: &State, me: PlayerIdx, b: &Shot, id: EntityId, hp: u32, f
     let chance = s.players[me].crit_chance_pct.min(MAX_CRIT_CHANCE_TOTAL_PCT);
     if chance == 0
         || b.chain
+        || b.dot
         || b.rune.is_some()
         || !b.friendly
         || b.owner != s.players.id(me)
@@ -82,6 +83,7 @@ pub(super) fn queue_echo(
     if pct == 0
         || dealt == 0
         || b.chain
+        || b.dot
         || b.rune.is_some()
         || !b.friendly
         || b.owner != s.players.id(me)
@@ -486,6 +488,7 @@ pub(super) fn bursts(
                 combo: false,
                 rune: None,
                 chain: true,
+                dot: false,
             };
             for j in 0..s.enemies.len() {
                 let e = &s.enemies[j];
@@ -545,6 +548,7 @@ mod tests {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         }
     }
 
