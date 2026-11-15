@@ -807,7 +807,7 @@ fn a_landed_counter_refunds_and_fills_once() {
         if i == first {
             assert_eq!(
                 named(events, "GaugeFilled"),
-                vec![json!({ "player": 0, "amount": 25, "value": 25 })]
+                vec![json!({ "player": "first", "amount": 25, "value": 25 })]
             );
         }
         if i > first {
@@ -850,8 +850,8 @@ fn the_steps_own_fill_follows_the_payout() {
     assert_eq!(
         fills[..2],
         [
-            json!({ "player": 0, "amount": 25, "value": 25 }),
-            json!({ "player": 0, "amount": 3, "value": 28 })
+            json!({ "player": "first", "amount": 25, "value": 25 }),
+            json!({ "player": "first", "amount": 3, "value": 28 })
         ]
     );
     assert_eq!(r.evade_gauge(0).3, 28);
@@ -914,7 +914,7 @@ fn the_fill_stops_at_the_bar() {
         if gain > 0 {
             assert_eq!(
                 fills,
-                vec![json!({ "player": 0, "amount": gain, "value": 100, "full": full })]
+                vec![json!({ "player": "first", "amount": gain, "value": 100, "full": full })]
             );
         } else {
             assert!(fills.is_empty());

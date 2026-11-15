@@ -33,7 +33,7 @@
 //! (`stun::counter_bonus_stun`, merged with a counter's) and its advance slides the first phase
 //! in `magnetism`. The take also sets `counter_payout` to 1, the payout the counter owes: the
 //! first landed combo hit of the step clears it (`counter_first_hit`, called from
-//! `stun::counter_bonus_stun`), and it pays nothing yet. The mark's clears clear it too. A down
+//! `stun::counter_bonus_stun`), and the grant's refund and gauge fill pay then. The mark's clears clear it too. A down
 //! empties all three fields.
 //!
 //! The combo tempo (when the style names the `combo_tempo_pct` kind): a swing of a combo step that
@@ -1124,6 +1124,40 @@ fn gauge_filled(events: &mut Vec<DomainEvent>, me: PlayerIdx, added: u32, value:
     });
 }
 
+/// The payout of a taken counter, at its first landed combo hit (`counter_first_hit`'s grant):
+/// the last spent evade charge comes back (nothing when none is recovering) and the weapon gauge
+/// gains `gauge_fill_pct` of its bar, never past it (nothing without a gauge kind). Called once
+/// per taken counter and only when the grant names a payout, and out of line so the hit's common
+/// path stays as it was.
+#[inline(never)]
+pub(super) fn counter_pay(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    g: &CounterGrant,
+    events: &mut Vec<DomainEvent>,
+) {
+    if g.refund_evade {
+        s.players[me].evade_recovering.pop();
+    }
+    if g.gauge_fill_pct == 0 {
+        return;
+    }
+    let Some(gauge) = stage.gauge_of(s, me) else {
+        return;
+    };
+    let c = &s.players[me].combat;
+    let room = gauge.max.saturating_sub(c.weapon_gauge);
+    let want = u64::from(gauge.max) * u64::from(g.gauge_fill_pct) / 100;
+    let added = u32::try_from(want.min(u64::from(room))).unwrap_or(room);
+    let max = gauge.max;
+    if added > 0 {
+        let c = &mut s.players[me].combat;
+        c.weapon_gauge += added;
+        gauge_filled(events, me, added, c.weapon_gauge, max);
+    }
+}
+
 /// The counter window of `me` opened. Cold, as `gauge_filled`.
 #[cold]
 #[inline(never)]
@@ -1154,8 +1188,8 @@ pub(super) fn counter_taken<'a>(
 
 /// The first landed combo hit of the taken step collects its payout: when the step took the
 /// counter bonus (the mark) and the payout is still owed (`counter_payout` 1), clears the flag
-/// and returns the grant, once per taken counter; otherwise none. Pays nothing yet: the caller
-/// binds the grant and acts on nothing.
+/// and returns the grant, once per taken counter; otherwise none. The caller pays it
+/// (`counter_pay`).
 pub(super) fn counter_first_hit<'a>(
     stage: &'a World,
     s: &mut State,
