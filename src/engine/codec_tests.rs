@@ -734,10 +734,10 @@ fn the_state_has_no_star_offer_fields() {
 }
 
 /// The live state holds the combat fields (format 11): the encoding is the Base length plus what
-/// they take. Per enemy and companion `FoeControl` 9 bytes, per elite and the boss `Stagger` 10,
+/// they take. Per enemy and companion `FoeControl` 9 bytes, per elite and the boss `Stagger` 12,
 /// per present player `PlayerCombat` 32 (fifteen fields: 8 of 2 bytes, 3 of 4, 4 of 1; the
 /// plan's 28 left out one of the 2-byte fields), and the queue's 4-byte length prefix.
-/// The bytes the combat fields add: 9 per enemy and companion, 10 per elite and boss, 32 per
+/// The bytes the combat fields add: 9 per enemy and companion, 12 per elite and boss (one `u32`, four `u16`), 32 per
 /// present player and the queue's 4-byte prefix, the counts read from the state.
 fn combat_bytes(e: &crate::engine::Engine) -> usize {
     let st = match e.run() {
@@ -748,7 +748,7 @@ fn combat_bytes(e: &crate::engine::Engine) -> usize {
     let elites = st.enemies.iter().filter(|a| a.elite.is_some()).count();
     let boss = usize::from(st.boss.is_some());
     let players = st.players.iter().count();
-    9 * agents + 10 * (elites + boss) + 32 * players + 4
+    9 * agents + 12 * (elites + boss) + 32 * players + 4
 }
 
 #[test]
