@@ -634,11 +634,11 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
             }
         }
     }
-    // 6 style levels and the 9 built upgrade and capstone levels.
-    assert_eq!(built, 15);
+    // 6 style levels and the 10 built upgrade and capstone levels.
+    assert_eq!(built, 16);
 }
 
-/// C1: the four upgrade levels of the stacking kinds are kinds (no stat, no amount); the nine
+/// C1: the upgrade levels of the stacking kinds and of the orb break are kinds (no stat, no amount); the nine
 /// other placeholder levels are still stats.
 #[test]
 fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats() {
@@ -661,6 +661,10 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
         (
             "titan_trigger_up_1",
             json!({ "type": "giant_trigger", "ticks": 720, "effects": [] }),
+        ),
+        (
+            "judgement_cut_up_1",
+            json!({ "type": "repeat_breaks_orbs", "chance_pct": 60, "radius_px": 96 }),
         ),
         (
             "foresight_counter_up_1",
@@ -692,7 +696,6 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
     }
     let stats = [
         "spirit_blade_up_2",
-        "judgement_cut_up_1",
         "judgement_cut_up_2",
         "titan_trigger_up_2",
         "titan_trigger_cap",

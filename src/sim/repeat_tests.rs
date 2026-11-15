@@ -9,7 +9,7 @@ use super::state::{OrbState, PlayerIdx, Repeat, RepeatAnchor, State};
 use super::trigger_tests::rig_levelled;
 use super::{World, combat, runes};
 use crate::attack::{HitBox, PhaseKind};
-use crate::bench_fixtures::worst_case;
+use crate::bench_fixtures::{combat_case, worst_case};
 use crate::engine::{Engine, Run};
 use crate::event::DomainEvent;
 use crate::fixed::{Fx, Point};
@@ -720,4 +720,68 @@ fn the_kind_changes_no_hit_and_no_entry() {
         (hits(&ev), s.repeats.len(), s.enemies[0].hp)
     };
     assert_eq!(run(0), run(1));
+}
+
+/// C3: on the bundled `giant_sword` combat run (style `judgement_cut`) the world holds the grant:
+/// none at 0 places, 60 percent and 96 px at 1, 2 and 3; the other two styles read none; and a
+/// repeat dealt while `s.orbs` is empty takes no draw.
+#[test]
+fn the_bundled_judgement_cut_grants_the_break_from_its_first_upgrade() {
+    let mut e = combat_case::warmed_up();
+    let read = |e: &Engine, i: u8| {
+        let Run::V2 { world, state, .. } = e.run() else {
+            panic!("the live rules");
+        };
+        world.repeat_break_of(state, slot(i)).copied()
+    };
+    {
+        let Run::V2 { world, .. } = e.run() else {
+            panic!("the live rules");
+        };
+        assert!(world.has_repeat_break);
+    }
+    let own = super::trigger_tests::st(&mut e)
+        .players
+        .career_mut(slot(0))
+        .expertise
+        .as_ref()
+        .and_then(|g| g.style)
+        .expect("the style is taken");
+    for places in 0..=3 {
+        take(&mut e, 0, places);
+        let want = (places > 0).then_some((60, Fx::px(96)));
+        let got = read(&e, 0).map(|g| (g.chance_pct, g.radius));
+        assert_eq!(got, want, "{places} places");
+    }
+    for other in (0..3u8).filter(|&i| i != own) {
+        super::trigger_tests::st(&mut e)
+            .players
+            .career_mut(slot(0))
+            .expertise
+            .as_mut()
+            .expect("a gauge")
+            .style = Some(other);
+        assert_eq!(read(&e, 0), None, "style {other}");
+    }
+    // With no orb on the field the deal takes no draw.
+    super::trigger_tests::st(&mut e)
+        .players
+        .career_mut(slot(0))
+        .expertise
+        .as_mut()
+        .expect("a gauge")
+        .style = Some(own);
+    take(&mut e, 0, 1);
+    let Run::V2 { world, state, .. } = e.run() else {
+        panic!("the live rules");
+    };
+    let (w, mut s) = (World::clone(world), state.clone());
+    s.repeats.clear();
+    s.orbs.clear();
+    s.tick = 50;
+    let a = list(&s, &[0]);
+    s.repeats.push(entry(&w, 0, 50, 50, a));
+    let before = s.rng.attack.clone();
+    deal(&w, &mut s);
+    assert_eq!(draws_since(&before, &s), 0);
 }
