@@ -301,13 +301,15 @@ pub enum StyleKindView {
     /// The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and
     /// while it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash
     /// steps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,
-    /// with `super_armour`, gives super armour (0 and false where the kind names none).
+    /// with `super_armour`, gives super armour and with `hold_move_pct` raises the movement of a
+    /// held AAA hold to that percent of full speed (0 and false where the kind names none).
     GiantTrigger {
         ticks: u32,
         range_pct: u32,
         smash_pct: u32,
         rally_pct: u32,
         super_armour: bool,
+        hold_move_pct: u32,
     },
     /// The style has a breaker: a factor, in percent, on the stagger fills, the poise damage
     /// and a smash's damage on a boss part (0 where the kind names none) and, when it names one,

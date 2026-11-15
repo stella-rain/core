@@ -74,6 +74,10 @@ pub const MAX_STYLE_CHOICES: usize = 1;
 /// The most mechanic kinds one level names (a tuning placeholder): the style pick's, an
 /// upgrade's choice's or the capstone's.
 pub const MAX_LEVEL_KINDS: usize = 4;
+/// The most effects one giant trigger kind names (a bound: one per `TriggerEffect` variant).
+pub const MAX_TRIGGER_EFFECTS: usize = 5;
+/// The largest `pct` of a giant trigger's `hold_move_pct`: full speed, the `Hold.move_pct` ceiling.
+pub const MAX_HOLD_MOVE_PCT: u32 = 100;
 /// The longest delay of a `repeat` kind, in ticks (a tuning placeholder: 2 seconds).
 pub const MAX_REPEAT_AFTER_TICKS: u32 = 120;
 /// The largest `proc_pct` of a `repeat` or `proc_factor` kind: a factor is a chance (a
@@ -394,8 +398,8 @@ pub struct GiantTrigger {
     /// How long the state runs, in ticks. 1 to `MAX_TRIGGER_TICKS`.
     #[schemars(range(min = 1, max = MAX_TRIGGER_TICKS))]
     pub ticks: u32,
-    /// What the state does, each variant at most once; 1 to 4 entries (0 to 4 at a level after
-    /// one that names the kind).
+    /// What the state does, each variant at most once; 1 to `MAX_TRIGGER_EFFECTS` entries (0 to
+    /// `MAX_TRIGGER_EFFECTS` at a level after one that names the kind).
     pub effects: Vec<TriggerEffect>,
 }
 
@@ -423,6 +427,12 @@ pub enum TriggerEffect {
         #[schemars(range(min = 101, max = MAX_PCT))]
         pct: u32,
     },
+    /// While the state runs, a player holding the AAA hold moves at `pct` percent of full speed:
+    /// raised to it, never lowered below the hold's own `move_pct`. 1 to `MAX_HOLD_MOVE_PCT`.
+    HoldMovePct {
+        #[schemars(range(min = 1, max = MAX_HOLD_MOVE_PCT))]
+        pct: u32,
+    },
 }
 
 impl TriggerEffect {
@@ -432,6 +442,7 @@ impl TriggerEffect {
             TriggerEffect::SmashPct { .. } => 1,
             TriggerEffect::SuperArmour {} => 2,
             TriggerEffect::RallyPct { .. } => 3,
+            TriggerEffect::HoldMovePct { .. } => 4,
         }
     }
 }
@@ -1298,19 +1309,23 @@ fn check_giant_trigger(
         );
     }
     let least = usize::from(!later);
-    if t.effects.len() < least || t.effects.len() > 4 {
+    if t.effects.len() < least || t.effects.len() > MAX_TRIGGER_EFFECTS {
         issue(
             format!("{at}.effects"),
-            format!("{least} to 4 effects (found {})", t.effects.len()),
+            format!(
+                "{least} to {MAX_TRIGGER_EFFECTS} effects (found {})",
+                t.effects.len()
+            ),
         );
     }
-    let mut seen = [false; 4];
-    for (e, effect) in t.effects.iter().enumerate().take(4) {
+    let mut seen = [false; MAX_TRIGGER_EFFECTS];
+    for (e, effect) in t.effects.iter().enumerate().take(MAX_TRIGGER_EFFECTS) {
         let at = format!("{at}.effects[{e}]");
         let bound = match effect {
             TriggerEffect::RangePct { pct } => Some((*pct, 1, MAX_RANGE_PCT)),
             TriggerEffect::SmashPct { pct } => Some((*pct, 1, MAX_PCT)),
             TriggerEffect::RallyPct { pct } => Some((*pct, 101, MAX_PCT)),
+            TriggerEffect::HoldMovePct { pct } => Some((*pct, 1, MAX_HOLD_MOVE_PCT)),
             TriggerEffect::SuperArmour {} => None,
         };
         if let Some((pct, lo, hi)) = bound

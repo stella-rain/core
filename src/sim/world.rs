@@ -1745,8 +1745,10 @@ pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrig
     g.ticks = u16::try_from(t.ticks)
         .unwrap_or(MAX_TRIGGER_TICKS)
         .clamp(1, MAX_TRIGGER_TICKS);
-    for e in t.effects.iter().take(4) {
+    for e in t.effects.iter().take(crate::expertise::MAX_TRIGGER_EFFECTS) {
         match e {
+            // Stored by the effect's own step (the grant has no field for it yet).
+            TriggerEffect::HoldMovePct { .. } => {}
             TriggerEffect::RangePct { pct } => {
                 g.range_pct = (*pct).min(crate::rewards::MAX_RANGE_PCT);
             }
