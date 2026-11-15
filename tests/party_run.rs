@@ -350,8 +350,8 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// engine's tick count after the step), and the final hash. From the seed search; the hashes
 /// re-pinned when the combat fields joined the state hash, then for the counter-bonus mark, then for the shipped ranged grace.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [1, 1, 0], 2074, 2254, "5354d4aeb5dd4043"),
-    ("three_revive", [3, 3, 0], 2254, 2434, "f1a6094b6d346529"),
+    ("two_revive", [1, 1, 0], 2074, 2254, "790ffa2487a19da7"),
+    ("three_revive", [3, 3, 0], 2254, 2434, "115a1a50def4b25f"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,

@@ -142,6 +142,9 @@ pub const MAX_RANGED_GRACE_TICKS: u16 = 600;
 /// Bounds the player's counter-bonus mark (1 while the running step took it): combat state, a
 /// tuning value (ADR-SIM-5 point 9).
 pub const MAX_COUNTER_BONUS_STEP: u8 = 1;
+/// Bounds the player's counter payout flag (1 while the taken step has not landed a hit): combat
+/// state, a tuning value (ADR-SIM-5 point 9).
+pub const MAX_COUNTER_PAYOUT: u8 = 1;
 pub const MAX_REPEATS_QUEUED: usize = 64;
 pub const MAX_REPEAT_TARGETS: usize = 16;
 
@@ -268,6 +271,7 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_TRIGGER_TICKS", "3600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_RANGED_GRACE_TICKS", "600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_COUNTER_BONUS_STEP", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_COUNTER_PAYOUT", "1", "flag", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEATS_QUEUED", "64", "entries", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEAT_TARGETS", "16", "targets", "ADR-SIM-5"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
@@ -404,7 +408,7 @@ mod tests {
         );
     }
 
-    /// The combat state's caps (ADR-SIM-5 point 9) and the evade and advance caps: 29 rows, `MAX_WEAPON_GAUGE` bounding two
+    /// The combat state's caps (ADR-SIM-5 point 9) and the evade and advance caps: 30 rows, `MAX_WEAPON_GAUGE` bounding two
     /// fields. Tuning values: a cap bounds a decode and fixes no behaviour.
     #[test]
     fn the_combat_caps_have_rows() {
@@ -436,6 +440,7 @@ mod tests {
             ("MAX_TRIGGER_TICKS", "3600", "ticks"),
             ("MAX_RANGED_GRACE_TICKS", "600", "ticks"),
             ("MAX_COUNTER_BONUS_STEP", "1", "flag"),
+            ("MAX_COUNTER_PAYOUT", "1", "flag"),
             ("MAX_REPEATS_QUEUED", "64", "entries"),
             ("MAX_REPEAT_TARGETS", "16", "targets"),
             ("MAX_PERFECT_REACH", "420", "px"),
@@ -443,7 +448,7 @@ mod tests {
             ("MAX_ADVANCE_DISTANCE", "240", "px"),
             ("MAX_ADVANCE_PER_TICK", "12", "px"),
         ];
-        assert_eq!(rows.len(), 29);
+        assert_eq!(rows.len(), 30);
         assert_eq!(MAX_RALLY, crate::validate::limits::MAX_PLAYER_HP);
         for (name, value, unit) in rows {
             let row = LIMITS
