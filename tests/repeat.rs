@@ -868,3 +868,51 @@ fn a_place_repeat_with_nothing_to_hit_is_queued_and_hits_nothing() {
         "before it is queued and after it is dealt"
     );
 }
+
+/// I1 (a whole run): a style naming the repeat bleed puts a `repeat_bleed` stack on each enemy
+/// its repeat hits, on the repeat's tick (the step's hit tick, its 4 active ticks and the 10 of
+/// the delay: 14 later), and none before; the same style without the kind puts none.
+#[test]
+fn a_repeat_of_a_bleeding_style_puts_a_stack_on_what_it_hits() {
+    let repeat = json!({ "type": "repeat", "step": ["main"], "after_ticks": 10,
+        "repeat_pct": 50, "anchor": "hit_list" });
+    let applied = |kinds: Vec<Value>| {
+        let mut e = rig(kinds, &[(0, -20), (15, -10), (0, -100)], Some(0));
+        let mut hit_tick = None;
+        let mut seen = Vec::new();
+        for t in 0..80 {
+            let input = if t == 0 { tap() } else { idle() };
+            e.step(&[input, Default::default(), Default::default()]);
+            for ev in e.events() {
+                match ev {
+                    DomainEvent::Hit {
+                        repeat: false,
+                        player: Some(_),
+                        ..
+                    } => {
+                        hit_tick.get_or_insert(e.tick());
+                    }
+                    DomainEvent::StatusApplied {
+                        status,
+                        stacks,
+                        duration_ticks,
+                        ..
+                    } if status.as_str() == "repeat_bleed" => {
+                        seen.push((e.tick(), *stacks, *duration_ticks));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        (hit_tick.expect("the step hit"), seen)
+    };
+    let bleed = bleed_kind(1, 180, 300, 6);
+    let (hit, seen) = applied(vec![repeat.clone(), bleed]);
+    assert_eq!(
+        seen,
+        vec![(hit + 14, 1, 180), (hit + 14, 1, 180)],
+        "{seen:?}"
+    );
+    let (_, none) = applied(vec![repeat]);
+    assert!(none.is_empty(), "{none:?}");
+}
