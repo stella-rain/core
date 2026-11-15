@@ -10852,7 +10852,7 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/ContentId",
-          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `knocked_down`, `staggered`, `bleed`, `poison`, `burn`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
+          "description": "The status's content ID: `atk_up`, `vulnerable`, `slow`, `flinch`, `knocked_down`, `staggered`, `bleed`, `poison`, `burn`, `repeat_bleed`, or\n`aura` for a pack leader's aura, which has no content ID of its own."
         },
         "remaining": {
           "description": "Ticks left. An aura has none: it lasts while its entity is in reach, so both this and\n`total` are 0 for it.",
