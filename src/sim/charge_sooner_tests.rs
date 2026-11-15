@@ -127,6 +127,10 @@ fn state_of(e: &mut Engine) -> &mut crate::sim::state::State {
 /// A run of `places.len()` players on the Sword's first style, player `i` having taken
 /// `places[i]` places of its path, standing alone (no enemy) and hardy.
 fn rig(places: &[usize]) -> Engine {
+    rig_on(&pack_with_kind(), places)
+}
+
+fn rig_on(pack: &Pack, places: &[usize]) -> Engine {
     let setup = RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_sword".into(),
@@ -290,4 +294,63 @@ fn each_player_reads_their_own_charge_and_the_run_replays() {
     let seen = hold_to(&mut e, 2, 40);
     assert_eq!(seen[0], Some((1, 40)), "no place taken: level 1");
     assert_eq!(seen[1], Some((2, 40)), "place 2: level 2");
+}
+
+/// C3: the bundled Sword at each place of Spirit Blade: the charge at 20 and 50 ticks at places
+/// 0 and 1 and at 15 and 37 at 2 and 3; the spirit lasts 1200 ticks at place 0 and 1800 from
+/// place 1; the capstone's repeat is there at place 3 only.
+#[test]
+fn the_bundled_sword_at_each_place_of_spirit_blade() {
+    let pack = Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack");
+    let base = pack
+        .content()
+        .weapons()
+        .tree("giant_sword", None)
+        .expect("the Sword's base tree")
+        .clone();
+    let style = &pack
+        .content()
+        .expertise()
+        .weapons()
+        .iter()
+        .find(|w| w.weapon.as_str() == "giant_sword")
+        .unwrap()
+        .styles[0];
+    assert_eq!(style.id.as_str(), "spirit_blade");
+    let repeats = |w: &Weapon| {
+        let mut n = 0;
+        let mut at = Some(&w.combo);
+        while let Some(b) = at {
+            n += b.main.as_deref().map_or(0, |s| s.repeats.len());
+            at = b.main.as_deref().map(|s| &s.next);
+        }
+        n
+    };
+    for (taken, ticks, repeating) in [
+        (0, [20, 50], 0),
+        (1, [20, 50], 0),
+        (2, [15, 37], 0),
+        (3, [15, 37], 1),
+    ] {
+        let weapon = weapon_with_style(&base, style, taken);
+        let at: Vec<u32> = charge_of(&weapon)
+            .levels
+            .iter()
+            .map(|l| l.at_ticks)
+            .collect();
+        assert_eq!(at, ticks, "taken {taken}");
+        assert_eq!(
+            repeats(&weapon),
+            repeating,
+            "taken {taken}: the capstone's repeat"
+        );
+    }
+    for (taken, decay) in [(0, 1200), (1, 1800), (2, 1800), (3, 1800)] {
+        let mut e = rig_on(&pack, &[taken]);
+        let Run::V2 { world, state } = e.run_mut() else {
+            panic!("the live rules")
+        };
+        let grant = world.spirit_of(state, PlayerIdx::SOLO).expect("the spirit");
+        assert_eq!(grant.decay_ticks, decay, "taken {taken}");
+    }
 }
