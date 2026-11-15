@@ -730,6 +730,10 @@ pub(crate) struct CounterGrant {
     pub stagger_pct: u32,
     pub stun_ticks: u32,
     pub advance: Fx,
+    /// Give back one spent evade charge at the counter's first landed hit.
+    pub refund_evade: bool,
+    /// Percent of the weapon gauge's bar filled at that hit, 0 for none.
+    pub gauge_fill_pct: u32,
 }
 
 /// A style's spirit resolved once: the countdown and, for each level, the effects folded into
@@ -1672,6 +1676,8 @@ impl CounterGrant {
             stagger_pct: 100,
             stun_ticks: 0,
             advance: Fx(0),
+            refund_evade: false,
+            gauge_fill_pct: 0,
         }
     }
 }
@@ -1682,7 +1688,7 @@ pub(super) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::CounterBo
     g.window = u16::try_from(c.window_ticks)
         .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
         .clamp(1, MAX_COUNTER_WINDOW_TICKS);
-    for e in c.effects.iter().take(4) {
+    for e in c.effects.iter().take(6) {
         match e {
             CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
             CounterEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
@@ -1692,6 +1698,8 @@ pub(super) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::CounterBo
             CounterEffect::Advance { distance } => {
                 g.advance = Fx(distance.0.clamp(0, Fx::px(MAX_ADVANCE_DISTANCE).0));
             }
+            CounterEffect::RefundEvade {} => g.refund_evade = true,
+            CounterEffect::GaugeFillPct { pct } => g.gauge_fill_pct = (*pct).min(100),
         }
     }
 }
