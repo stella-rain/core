@@ -133,7 +133,119 @@ fn the_trigger_kind_is_bounded() {
         { "type": "rally_pct", "pct": 101 },
         { "type": "super_armour" }
     ]);
-    refused_at(json!([with(480, five)]), &format!("{PATH}.effects"));
+    refused_at(json!([with(480, five)]), &format!("{PATH}.effects[4]"));
+    let six = json!([
+        { "type": "range_pct", "pct": 1 },
+        { "type": "smash_pct", "pct": 1 },
+        { "type": "super_armour" },
+        { "type": "rally_pct", "pct": 101 },
+        { "type": "hold_move_pct", "pct": 80 },
+        { "type": "super_armour" }
+    ]);
+    refused_at(json!([with(480, six)]), &format!("{PATH}.effects"));
+}
+
+/// V1: the hold effect loads beside the three others and round-trips; `sim_version` 1 refuses it.
+#[test]
+fn the_hold_move_effect_loads_and_round_trips() {
+    let mut t = trigger();
+    t["effects"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "hold_move_pct", "pct": 80 }));
+    valid(json!([t.clone()]));
+    let kind: StyleKind = serde_json::from_value(t.clone()).expect("the kind parses");
+    assert_eq!(serde_json::to_value(&kind).unwrap(), t);
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&with_kinds(json!([t])), old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// V2: `pct` is 1 to 100, required, and the variant is strict.
+#[test]
+fn the_hold_move_effect_is_bounded_and_strict() {
+    for pct in [1, 100] {
+        valid(json!([one(json!({ "type": "hold_move_pct", "pct": pct }))]));
+    }
+    for pct in [0, 101] {
+        refused_at(
+            json!([one(json!({ "type": "hold_move_pct", "pct": pct }))]),
+            &format!("{PATH}.effects[0].pct"),
+        );
+    }
+    parse_error(json!([one(json!({ "type": "hold_move_pct" }))]));
+    parse_error(json!([one(
+        json!({ "type": "hold_move_pct", "pct": 80, "extra": 1 })
+    )]));
+}
+
+/// V3: five different effects load; two of one variant are refused at the second.
+#[test]
+fn five_different_effects_load_and_a_repeat_is_refused() {
+    valid(json!([with(
+        480,
+        json!([
+            { "type": "range_pct", "pct": 1 },
+            { "type": "smash_pct", "pct": 1 },
+            { "type": "super_armour" },
+            { "type": "rally_pct", "pct": 101 },
+            { "type": "hold_move_pct", "pct": 80 }
+        ])
+    )]));
+    refused_at(
+        json!([with(
+            480,
+            json!([
+                { "type": "hold_move_pct", "pct": 80 },
+                { "type": "hold_move_pct", "pct": 70 }
+            ])
+        )]),
+        &format!("{PATH}.effects[1]"),
+    );
+}
+
+/// V4: a later level may name the effect alone (or restate one); its numbers are bounded at its
+/// own path.
+#[test]
+fn a_later_level_may_name_the_hold_move_effect() {
+    let up = |effects: Value| {
+        let mut v = with_kinds(json!([trigger()]));
+        v["weapons"][0]["styles"][0]["upgrade_2"] =
+            json!([{ "id": "up2", "effect": "none", "kinds": [with(720, effects)] }]);
+        v
+    };
+    let ok = |effects: Value| {
+        if let Err(e) = parse_at(&up(effects), Versions::CURRENT) {
+            panic!("expected valid, got {e:?}");
+        }
+    };
+    ok(json!([{ "type": "hold_move_pct", "pct": 80 }]));
+    ok(json!([]));
+    ok(json!([{ "type": "range_pct", "pct": 40 }]));
+    let at = "$.weapons[0].styles[0].upgrade_2[0].kinds[0]";
+    let refuse = |v: Value, path: &str| match parse_at(&v, Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(issues.iter().any(|i| i.path == path), "{path}: {issues:?}")
+        }
+        other => panic!("{path}: expected invalid, got {other:?}"),
+    };
+    refuse(
+        up(json!([{ "type": "hold_move_pct", "pct": 101 }])),
+        &format!("{at}.effects[0].pct"),
+    );
+    let mut v = up(json!([{ "type": "hold_move_pct", "pct": 80 }]));
+    v["weapons"][0]["styles"][0]["upgrade_2"][0]["kinds"][0]["ticks"] = json!(3601);
+    refuse(v, &format!("{at}.ticks"));
 }
 
 /// S1: `ticks` and `effects` are required, an unknown effect type and an unknown key are parse
@@ -277,7 +389,7 @@ fn the_views_carry_the_trigger_kind() {
     let snap = crate::style_grants::build(expertise).snapshot();
     let want = json!({
         "type": "giant_trigger", "ticks": 480, "range_pct": 40, "smash_pct": 20,
-        "rally_pct": 0, "super_armour": true
+        "rally_pct": 0, "super_armour": true, "hold_move_pct": 0
     });
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert_eq!(ready["kinds"][0], json!([want]));
