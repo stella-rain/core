@@ -317,15 +317,14 @@ fn the_bundled_sword_at_each_place_of_spirit_blade() {
         .unwrap()
         .styles[0];
     assert_eq!(style.id.as_str(), "spirit_blade");
-    let repeats = |w: &Weapon| {
-        let mut n = 0;
-        let mut at = Some(&w.combo);
-        while let Some(b) = at {
-            n += b.main.as_deref().map_or(0, |s| s.repeats.len());
-            at = b.main.as_deref().map(|s| &s.next);
-        }
-        n
-    };
+    fn count(b: &crate::weapon::Branches) -> usize {
+        [b.main.as_deref(), b.smash.as_deref()]
+            .into_iter()
+            .flatten()
+            .map(|s| s.repeats.len() + count(&s.next))
+            .sum()
+    }
+    let repeats = |w: &Weapon| count(&w.combo);
     for (taken, ticks, repeating) in [
         (0, [20, 50], 0),
         (1, [20, 50], 0),
