@@ -615,6 +615,17 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 chance_pct: *chance_pct,
                 radius_px: *radius_px,
             },
+            StyleKind::RepeatBleed {
+                stacks,
+                duration_ticks,
+                damage,
+                max_stacks,
+            } => StyleKindView::RepeatBleed {
+                stacks: *stacks,
+                duration_ticks: *duration_ticks,
+                damage: *damage,
+                max_stacks: *max_stacks,
+            },
             StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
                 step: step.clone(),
                 proc_pct: *proc_pct,

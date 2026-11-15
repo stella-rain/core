@@ -36,6 +36,7 @@ pub(super) fn crits(s: &State, me: PlayerIdx, b: &Shot, id: EntityId, hp: u32, f
     let chance = s.players[me].crit_chance_pct.min(MAX_CRIT_CHANCE_TOTAL_PCT);
     if chance == 0
         || b.chain
+        || b.dot
         || b.rune.is_some()
         || !b.friendly
         || b.owner != s.players.id(me)
@@ -82,6 +83,7 @@ pub(super) fn queue_echo(
     if pct == 0
         || dealt == 0
         || b.chain
+        || b.dot
         || b.rune.is_some()
         || !b.friendly
         || b.owner != s.players.id(me)
@@ -205,6 +207,7 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
             phase: phase_at,
             damage,
             width_pct: r.width_pct.min(MAX_RANGE_PCT),
+            bleed: world.repeat_bleed_index(repeat.bleed),
         });
     }
 }
@@ -218,7 +221,10 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
 /// expertise, no crit, echo, repeat or flinch; its side effects are the on-hit runes, at its
 /// own factor, and, when the owner's style names `repeat_breaks_orbs`, the breakable enemy orbs
 /// round what it strikes (`break_orbs_round`, before the hits; the grant is read at the deal, so
-/// a repeat queued before a pick and dealt after reads the new grant). The boss and its parts are
+/// a repeat queued before a pick and dealt after reads the new grant) and, when the entry carries
+/// a bleed row (`Repeat.bleed`, fixed when it was queued: a style change in the delay changes
+/// nothing), the repeat bleed stacks on each foe the hit leaves standing (`runes::apply_repeat_bleed`;
+/// its ticks are `Shot.dot` hits, which neither crit nor echo). The boss and its parts are
 /// skipped while the boss is invulnerable.
 pub(super) fn deal_repeats(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.repeats.is_empty() {
@@ -417,7 +423,14 @@ fn repeat_hit(
         buffed_by: None,
     };
     let at = s.at(target);
-    super::damage::land(stage, s, me, target, dealt, how, events);
+    let landed = super::damage::land(stage, s, me, target, dealt, how, events);
+    // The repeat bleed, read from the table by the entry's own row: what the step had when the
+    // repeat was queued (`.get()`: a bad row applies nothing, and a load refuses one).
+    if e.bleed != 0 && !landed.dead {
+        if let Some(row) = stage.repeat_bleeds.get(usize::from(e.bleed) - 1) {
+            super::runes::apply_repeat_bleed(s, me, target, row, events);
+        }
+    }
     if !s.players[me].runes.is_empty() {
         super::runes::on_hit(stage, s, me, id, at, events, e.proc_pct);
     }
@@ -486,6 +499,7 @@ pub(super) fn bursts(
                 combo: false,
                 rune: None,
                 chain: true,
+                dot: false,
             };
             for j in 0..s.enemies.len() {
                 let e = &s.enemies[j];
@@ -545,6 +559,7 @@ mod tests {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         }
     }
 
@@ -614,6 +629,37 @@ mod tests {
             ),
             "nor on an ally"
         );
+    }
+
+    #[test]
+    fn a_dot_tick_neither_crits_nor_echoes() {
+        let mut s = state();
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 100;
+        s.players[PlayerIdx::SOLO].echo_hit_pct = 100;
+        let me = PlayerIdx::SOLO.id();
+        // The control: the same shot without the flag crits and echoes.
+        assert!(rolls(&mut s, shot(me)) > 0, "a plain shot crits");
+        queue_echo(&mut s, PlayerIdx::SOLO, &shot(me), EntityId(5), 100, true);
+        assert_eq!(s.echoes.len(), 1, "a plain shot echoes");
+        s.echoes.clear();
+        let mut tick = shot(me);
+        tick.dot = true;
+        assert_eq!(rolls(&mut s, tick), 0, "a dot tick never crits");
+        queue_echo(&mut s, PlayerIdx::SOLO, &tick, EntityId(5), 100, true);
+        assert!(s.echoes.is_empty(), "a dot tick never echoes");
+    }
+
+    #[test]
+    fn a_rune_dot_tick_still_neither_crits_nor_echoes() {
+        let mut s = state();
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 100;
+        s.players[PlayerIdx::SOLO].echo_hit_pct = 100;
+        let mut tick = shot(PlayerIdx::SOLO.id());
+        tick.rune = Some(crate::rune::Rune::ALL[0]);
+        tick.dot = true;
+        assert_eq!(rolls(&mut s, tick), 0);
+        queue_echo(&mut s, PlayerIdx::SOLO, &tick, EntityId(5), 100, true);
+        assert!(s.echoes.is_empty());
     }
 
     fn with_enemy(s: &mut State, id: u32, hp: u32) {

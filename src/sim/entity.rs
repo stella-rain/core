@@ -426,6 +426,7 @@ fn tick_dots_of(stage: &World, s: &mut State, who: Who, events: &mut Vec<DomainE
                 combo: false,
                 rune: Rune::of_dot(st.kind),
                 chain: false,
+                dot: true,
             };
             // The player who applied the stack last (`StatusState.source`); a source that is no
             // present player is the run's first.

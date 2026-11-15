@@ -571,6 +571,12 @@ macro_rules! state_codec_v2 {
                 )?;
                 let phases = world.attacks[usize::from(r.attack.0)].phases.len();
                 below(usize::from(r.phase), phases, "repeat phase out of range")?;
+                // The row of the repeat's bleed (0: none) is read unchecked at the due tick too.
+                below(
+                    usize::from(r.bleed),
+                    world.repeat_bleeds.len() + 1,
+                    "repeat bleed out of range",
+                )?;
             }
             for t in &s.tasks {
                 below(t.program.0 as usize, programs, "task program out of range")?;

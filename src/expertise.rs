@@ -48,11 +48,11 @@ use crate::pack::Pack;
 use crate::registry::{self, Kind};
 use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
-use crate::validate::limits::MAX_COMBO_DEPTH;
+use crate::validate::limits::{MAX_COMBO_DEPTH, MAX_DAMAGE};
 use crate::validate::{self, Error, Issue};
 use crate::version::{self, Versions};
 use crate::weapon::{
-    Branches, Charge, Hold, RepeatAnchorKind, SmashEffect, Step, StepRepeat, Weapon,
+    Branches, Charge, Hold, RepeatAnchorKind, RepeatBleed, SmashEffect, Step, StepRepeat, Weapon,
 };
 
 /// The largest expertise file read (a tuning value; ADR-SVC-1 decides that one exists).
@@ -80,6 +80,11 @@ pub const MAX_REPEAT_AFTER_TICKS: u32 = 120;
 pub const MAX_PROC_PCT: u32 = 100;
 /// The largest `chance_pct` of a `repeat_breaks_orbs` kind: a chance (a placeholder).
 pub const MAX_ORB_BREAK_PCT: u32 = 100;
+/// The most stacks one repeat of a `repeat_bleed` kind adds (a tuning placeholder: the spirit's cap).
+pub const MAX_REPEAT_BLEED_STACKS: u32 = 4;
+/// Ticks between two damage ticks of the repeat bleed: the runes bleed's own interval, not
+/// content and not scaled by rune haste (it is no rune).
+pub const REPEAT_BLEED_INTERVAL_TICKS: u32 = 20;
 /// The most repeats on one step, summed over one style's path (a tuning placeholder).
 pub const MAX_STEP_REPEATS: usize = 4;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
@@ -211,6 +216,26 @@ pub enum StyleKind {
         chance_pct: u32,
         #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
         radius_px: u32,
+    },
+    /// From the level that names it on, every delayed repeat of the style puts `stacks` stacks of
+    /// the repeat bleed (`StatusKind::RepeatBleed`, a damage-over-time status of its own) on each
+    /// foe it hits and leaves standing: `damage` a stack tick, every `REPEAT_BLEED_INTERVAL_TICKS`,
+    /// for `duration_ticks` after the last application, up to `max_stacks`. The numbers are the
+    /// kind's own, fixed when the repeat is queued (`Repeat.bleed`). `stacks` 1 to
+    /// `MAX_REPEAT_BLEED_STACKS`, `duration_ticks` `REPEAT_BLEED_INTERVAL_TICKS` to
+    /// `MAX_DOT_DURATION_TICKS`, `damage` 1 to `MAX_DAMAGE`, `max_stacks` `stacks` to
+    /// `MAX_DOT_STACKS`. One per style path; the pack check refuses it where the style names no
+    /// `repeat` at or before its level. It changes no step: the weapon copy stamps it on each
+    /// repeat (`weapon_with_style`). `sim_version` 2 only.
+    RepeatBleed {
+        #[schemars(range(min = 1, max = MAX_REPEAT_BLEED_STACKS))]
+        stacks: u32,
+        #[schemars(range(min = REPEAT_BLEED_INTERVAL_TICKS, max = crate::runes::MAX_DOT_DURATION_TICKS))]
+        duration_ticks: u32,
+        #[schemars(range(min = 1, max = MAX_DAMAGE))]
+        damage: u32,
+        #[schemars(range(min = 1, max = crate::runes::MAX_DOT_STACKS))]
+        max_stacks: u32,
     },
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
@@ -1032,6 +1057,41 @@ fn check_level(
                     );
                 }
             }
+            StyleKind::RepeatBleed {
+                stacks,
+                duration_ticks,
+                damage,
+                max_stacks,
+            } => {
+                if !(1..=MAX_REPEAT_BLEED_STACKS).contains(stacks) {
+                    issue(
+                        format!("{at}.stacks"),
+                        format!("1 to {MAX_REPEAT_BLEED_STACKS} (found {stacks})"),
+                    );
+                }
+                let longest = crate::runes::MAX_DOT_DURATION_TICKS;
+                if !(REPEAT_BLEED_INTERVAL_TICKS..=longest).contains(duration_ticks) {
+                    issue(
+                        format!("{at}.duration_ticks"),
+                        format!(
+                            "{REPEAT_BLEED_INTERVAL_TICKS} to {longest} (found {duration_ticks})"
+                        ),
+                    );
+                }
+                if !(1..=MAX_DAMAGE).contains(damage) {
+                    issue(
+                        format!("{at}.damage"),
+                        format!("1 to {MAX_DAMAGE} (found {damage})"),
+                    );
+                }
+                let most = crate::runes::MAX_DOT_STACKS;
+                if *max_stacks < (*stacks).max(1) || *max_stacks > most {
+                    issue(
+                        format!("{at}.max_stacks"),
+                        format!("{} to {most} (found {max_stacks})", (*stacks).max(1)),
+                    );
+                }
+            }
             StyleKind::ProcFactor { step, proc_pct } => {
                 check_step_len(issue, &at, step);
                 check_proc_pct(issue, &at, Some(*proc_pct));
@@ -1401,6 +1461,7 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut orbs_set = false;
+    let mut bleed_set = false;
     let mut gauge_set = false;
     // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
     let mut tempo: Option<(u32, u32)> = None;
@@ -1457,6 +1518,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     }
                     orbs_set = true;
+                }
+                StyleKind::RepeatBleed { .. } => {
+                    if bleed_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already bleeds on its repeats".into(),
+                        );
+                    }
+                    bleed_set = true;
                 }
                 StyleKind::ProcFactor { step, .. } => {
                     if factored.contains(&step) {
@@ -1685,6 +1755,7 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
 /// pack check refuses it before a run).
 pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> Weapon {
     let mut weapon = base.clone();
+    let mut bleed = None;
     let places = style_levels(style)
         .into_iter()
         .take(taken)
@@ -1709,11 +1780,26 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                             repeat_pct: u16::try_from(*repeat_pct).unwrap_or(u16::MAX),
                             anchor: *anchor,
                             proc_pct: proc_pct.map(|p| u16::try_from(p).unwrap_or(u16::MAX)),
+                            bleed: None,
                         });
                     }
                 }
                 // Nor does the orb-breaking kind change a step: `World::repeat_break_of`.
                 StyleKind::RepeatBreaksOrbs { .. } => {}
+                // The repeat bleed is stamped on every repeat once all the kinds are read.
+                StyleKind::RepeatBleed {
+                    stacks,
+                    duration_ticks,
+                    damage,
+                    max_stacks,
+                } => {
+                    bleed = Some(RepeatBleed {
+                        stacks: u8::try_from(*stacks).unwrap_or(u8::MAX),
+                        duration_ticks: u16::try_from(*duration_ticks).unwrap_or(u16::MAX),
+                        damage: (*damage).min(MAX_DAMAGE),
+                        max_stacks: u8::try_from(*max_stacks).unwrap_or(u8::MAX),
+                    });
+                }
                 StyleKind::ProcFactor { step, proc_pct } => {
                     if let Some(s) = step_mut(&mut weapon.combo, step) {
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
@@ -1733,7 +1819,27 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
             }
         }
     }
+    // A repeat granted by a later level carries the bleed too: it is read when the repeat is
+    // queued, so a path that has taken the kind bleeds on every repeat it holds.
+    if bleed.is_some() {
+        for_each_step_mut(&mut weapon.combo, &mut |step| {
+            for repeat in &mut step.repeats {
+                repeat.bleed = bleed;
+            }
+        });
+    }
     weapon
+}
+
+/// Runs `f` on every step of a combo tree, a step before the steps it reaches.
+fn for_each_step_mut(branches: &mut Branches, f: &mut impl FnMut(&mut Step)) {
+    for step in [branches.main.as_deref_mut(), branches.smash.as_deref_mut()]
+        .into_iter()
+        .flatten()
+    {
+        f(step);
+        for_each_step_mut(&mut step.next, f);
+    }
 }
 
 /// Every attack a weapon's combo and dash trees can start: a step's, a charge level's (and its

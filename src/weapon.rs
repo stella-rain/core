@@ -123,6 +123,21 @@ pub struct StepRepeat {
     pub anchor: RepeatAnchorKind,
     /// The repeat's own factor for on-hit runes; none: every ready rune fires.
     pub proc_pct: Option<u16>,
+    /// The repeat bleed the style's `repeat_bleed` kind gives this repeat; none: it bleeds
+    /// nothing. Runtime only, stamped by `weapon_with_style`.
+    pub bleed: Option<RepeatBleed>,
+}
+
+/// The numbers of a `repeat_bleed` kind at run time, each clamped again to its cap (ADR-SVC-1):
+/// a repeat puts `stacks` stacks of `StatusKind::RepeatBleed` on what it hits and leaves
+/// standing, each ticking `damage` for `duration_ticks` after the last application, up to
+/// `max_stacks`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RepeatBleed {
+    pub stacks: u8,
+    pub duration_ticks: u16,
+    pub damage: u32,
+    pub max_stacks: u8,
 }
 
 /// A held step: an attack that goes on while the button stays held, then a

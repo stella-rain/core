@@ -203,6 +203,7 @@ impl Rig {
             combo: false,
             rune: None,
             chain: false,
+            dot: false,
         };
         let by = Blame {
             kind: HitKind::Attack,

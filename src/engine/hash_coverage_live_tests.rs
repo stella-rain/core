@@ -773,6 +773,7 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         phase: 1,
         damage: 7,
         width_pct: 50,
+        bleed: 0,
     }];
     s.echoes = vec![Echo {
         source: EntityId(1),
@@ -912,7 +913,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Repeat, |s| &mut s.repeats[0],
-        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct],
+        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],

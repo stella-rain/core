@@ -308,6 +308,7 @@ fn hurt_logged(r: &mut Rig, damage: u32) -> (u32, Vec<DomainEvent>) {
         combo: false,
         rune: None,
         chain: false,
+        dot: false,
     };
     let by = Blame {
         kind: HitKind::Attack,

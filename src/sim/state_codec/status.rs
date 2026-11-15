@@ -36,6 +36,7 @@ impl Encode for StatusKind {
             StatusKind::Poison => 4,
             StatusKind::Burn => 5,
             StatusKind::Stun => 6,
+            StatusKind::RepeatBleed => 7,
         });
     }
 }
@@ -50,6 +51,7 @@ impl Decode for StatusKind {
             4 => StatusKind::Poison,
             5 => StatusKind::Burn,
             6 => StatusKind::Stun,
+            7 => StatusKind::RepeatBleed,
             _ => return Err(DecodeError::Invalid("status kind tag")),
         })
     }

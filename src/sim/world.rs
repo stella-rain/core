@@ -31,7 +31,7 @@ use crate::stage::{Boss, Stage};
 use crate::threat_colours::{ThreatColourIndex, ThreatColours};
 use crate::time_limit::EliteTier;
 use crate::validate::Issue;
-use crate::weapon::{Weapon, WeaponRef};
+use crate::weapon::{RepeatBleed, Weapon, WeaponRef};
 
 use super::state::PlayerIdx;
 
@@ -625,6 +625,9 @@ pub(crate) struct World {
     /// Some style's copy of the tree gives a step a repeat: a run queues repeats only then
     /// (false for the bundled pack).
     pub has_repeat: bool,
+    /// The distinct repeat-bleed rows the style copies' repeats carry, in the order first met
+    /// (derived from the pack, never hashed): `Repeat.bleed` is a row's place counted from 1.
+    pub repeat_bleeds: Vec<RepeatBleed>,
     /// Some style's copy of the tree gives a step a proc factor (false for the bundled pack): a
     /// combo hit reads its step's factor only then.
     pub has_proc: bool,
@@ -957,6 +960,7 @@ impl World {
             has_dash: false,
             has_advance: false,
             has_repeat: false,
+            repeat_bleeds: Vec::new(),
             has_proc: false,
             has_stagger: false,
             has_down: false,
@@ -1004,6 +1008,7 @@ impl World {
         for copy in world.grant_weapons.iter().flatten() {
             world.has_repeat |= any_step(&copy.combo, &|s| !s.repeats.is_empty());
             world.has_proc |= any_step(&copy.combo, &|s| s.proc_pct.is_some());
+            collect_bleeds(&copy.combo, &mut world.repeat_bleeds);
         }
         world.has_stagger = world
             .defs
@@ -1299,6 +1304,15 @@ impl World {
             .position(|a| a.programs.contains(&program))?;
         u16::try_from(at).ok().map(AttackIndex)
     }
+
+    /// The place, counted from 1, of `bleed`'s row in `repeat_bleeds`; 0 for no bleed, and for a
+    /// row the table lacks (a repeat then bleeds nothing: fail closed).
+    pub(crate) fn repeat_bleed_index(&self, bleed: Option<RepeatBleed>) -> u8 {
+        bleed
+            .and_then(|b| self.repeat_bleeds.iter().position(|r| *r == b))
+            .and_then(|i| u8::try_from(i + 1).ok())
+            .unwrap_or(0)
+    }
 }
 
 #[cfg(test)]
@@ -1350,6 +1364,21 @@ fn grant_weapons(
         }
     }
     out
+}
+
+/// Adds each distinct repeat-bleed row of the tree to `rows`, in the order first met.
+fn collect_bleeds(branches: &crate::weapon::Branches, rows: &mut Vec<RepeatBleed>) {
+    for step in [false, true]
+        .into_iter()
+        .filter_map(|smash| branches.get(smash))
+    {
+        for bleed in step.repeats.iter().filter_map(|r| r.bleed) {
+            if !rows.contains(&bleed) {
+                rows.push(bleed);
+            }
+        }
+        collect_bleeds(&step.next, rows);
+    }
 }
 
 /// Whether `pred` holds for some step of the tree under `branches`.

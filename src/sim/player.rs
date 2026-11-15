@@ -1294,6 +1294,7 @@ pub(super) fn stagger_burst(
             combo: false,
             rune: None,
             chain: true,
+            dot: false,
         };
         for j in 0..s.enemies.len() {
             if reached(s, j) {

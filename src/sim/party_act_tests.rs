@@ -332,6 +332,7 @@ fn lethal(e: &mut Engine, i: u8) -> Vec<DomainEvent> {
         combo: false,
         rune: None,
         chain: false,
+        dot: false,
     };
     let by = Blame {
         kind: HitKind::Attack,

@@ -339,6 +339,10 @@ pub(crate) struct Repeat {
     pub damage: u32,
     /// The range the run had, in percent (at most `MAX_RANGE_PCT`), widening a `Place` hit box.
     pub width_pct: u32,
+    /// The row of `World::repeat_bleeds` (counted from 1) whose stacks the repeat puts on what it
+    /// hits and leaves standing; 0: none. Fixed when the repeat is queued, as `damage` is, so a
+    /// style change inside the delay changes nothing. Hashed and saved.
+    pub bleed: u8,
 }
 
 /// Where a repeat lands: on the enemies the step hit, or on a place.
