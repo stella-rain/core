@@ -1752,6 +1752,41 @@
             "distance"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, one spent evade charge is given back (the\nmost recent spend); nothing when none is recovering. A counter that whiffs pays nothing.",
+          "properties": {
+            "type": {
+              "const": "refund_evade",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, the weapon gauge gains this percent of its bar\n(never past the bar); inert for a style that names no gauge kind. 1 to 100.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "gauge_fill_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -11311,7 +11346,7 @@
           "description": "The style's counter bonus: a near miss of the player's evade opens a window of\n`window_ticks`, and the first dash-branch step started inside it takes the bonus's\neffects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per\nlevel; a path may name it at several levels, the numbers stacking in path order: a later\nlevel's `window_ticks` replaces the earlier one and each effect it lists replaces the\nsame effect; one it does not list stays.",
           "properties": {
             "effects": {
-              "description": "What the step takes, each variant at most once; 1 to 4 entries (0 to 4 at a level after\none that names the kind).",
+              "description": "What the step takes, each variant at most once; 1 to 6 entries (0 to 6 at a level after\none that names the kind).",
               "items": {
                 "$ref": "#/$defs/CounterEffect"
               },
