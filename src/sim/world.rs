@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use super::drops::DropTable;
-use crate::attack::{AttackPhase, AttackRef, Emitter, ZoneShape};
+use crate::attack::{AttackPhase, AttackRef, Emitter, PhaseKind, ZoneShape};
 use crate::attack_presets::AttackPresets;
 use crate::behaviour::{Action, Agent, Movement, Skill};
 use crate::expertise::{
@@ -672,6 +672,10 @@ pub(crate) struct World {
     /// The giant trigger each of those copies has (the first `giant_trigger` kind of the style's
     /// own level and the path levels taken), at the same index; empty when no style names one.
     grant_triggers: Vec<Option<TriggerGrant>>,
+    /// The end ring of each of those copies whose trigger names `end_ring` and whose style has a
+    /// gauge whose smash has an `active` phase, at the same index: that first active phase alone.
+    /// Filled by `compile_rings`, after every other attack is compiled; empty until then.
+    grant_rings: Vec<Option<AttackRef>>,
     /// Some style names a giant trigger: the tick looks for one only then.
     pub has_trigger: bool,
     /// The breaker each of those copies has (the `breaker` kinds of the style's own level and the
@@ -727,6 +731,8 @@ pub(crate) struct TriggerGrant {
     pub rally_pct: u32,
     pub super_armour: bool,
     pub hold_move_pct: u32,
+    /// The trigger names `end_ring`: its end plays the ring `World::ring_of` holds.
+    pub end_ring: bool,
 }
 
 /// A style's combo tempo resolved once: the most stacks, each stack's attack speed and whether a
@@ -981,6 +987,7 @@ impl World {
             grant_tempos,
             has_trigger: grant_triggers.iter().any(Option::is_some),
             grant_triggers,
+            grant_rings: Vec::new(),
             has_breaker: grant_breakers.iter().any(Option::is_some),
             grant_breakers,
             has_repeat_break: grant_repeat_breaks.iter().any(Option::is_some),
@@ -1206,6 +1213,42 @@ impl World {
             return None;
         }
         self.grant_triggers.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// The end ring player `me`'s giant trigger plays when it runs out: the first active phase of
+    /// the style's full-gauge smash, read from the same slot as `trigger_of`; none when the trigger
+    /// does not name `end_ring` or the smash has no active phase.
+    pub(crate) fn ring_of(&self, s: &super::state::State, me: PlayerIdx) -> Option<&AttackRef> {
+        if !self.has_trigger {
+            return None;
+        }
+        self.grant_rings.get(self.grant_slot(s, me)?)?.as_ref()
+    }
+
+    /// Derives and compiles each end ring: the first `active` phase of the copy's full-gauge
+    /// smash as compiled (the same phases `AttackKeys::compile` takes apart), alone. Run last by
+    /// `compile_run`, after the runes, so no other attack's index moves.
+    pub(super) fn compile_rings(&mut self) -> Result<(), Issue> {
+        if !self.grant_triggers.iter().flatten().any(|g| g.end_ring) {
+            return Ok(());
+        }
+        let mut rings = vec![None; self.grant_triggers.len()];
+        for (i, ring) in rings.iter_mut().enumerate() {
+            let named = self.grant_triggers[i].as_ref().is_some_and(|g| g.end_ring);
+            let gauge = self.grant_gauges.get(i).and_then(Option::as_ref);
+            let (true, Some(gauge)) = (named, gauge) else {
+                continue;
+            };
+            let crate::expertise::GaugeSpend::FullSmash { attack } = &gauge.spend;
+            let first = crate::presets::phases(attack, &self.attack_presets)
+                .and_then(|p| p.iter().find(|p| p.kind == PhaseKind::Active).cloned());
+            *ring = first.map(|p| AttackRef::Inline(vec![p]));
+        }
+        for ring in rings.iter().flatten() {
+            self.compile_attack(ring, None)?;
+        }
+        self.grant_rings = rings;
+        Ok(())
     }
 
     /// The breaker player `me`'s style gives, read from the same slot as `weapon_of`; none after
@@ -1736,6 +1779,7 @@ impl TriggerGrant {
             rally_pct: 100,
             super_armour: false,
             hold_move_pct: 0,
+            end_ring: false,
         }
     }
 }
@@ -1757,6 +1801,9 @@ pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrig
             }
             TriggerEffect::SmashPct { pct } => g.smash_pct = (*pct).min(MAX_PCT),
             TriggerEffect::SuperArmour {} => g.super_armour = true,
+            // The ring itself is derived at world build (the compiled smash's first active
+            // phase, `compile_rings`); the grant keeps only that it is named.
+            TriggerEffect::EndRing {} => g.end_ring = true,
             TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
         }
     }

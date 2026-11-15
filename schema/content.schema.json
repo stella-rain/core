@@ -7166,7 +7166,7 @@
           "$ref": "#/$defs/Point"
         },
         "attacks": {
-          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came, then from 34 one for each\non-hit rune, by its place in `Rune::ALL`.",
+          "description": "Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,\none for each orb, in the order the orbits came, then from 34 one for each\non-hit rune, by its place in `Rune::ALL`, 41 the giant trigger's end ring.",
           "items": {
             "$ref": "#/$defs/AttackView"
           },
@@ -11886,8 +11886,11 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and\nwhile it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash\nsteps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,\nwith `super_armour`, gives super armour and with `hold_move_pct` raises the movement of a\nheld AAA hold to that percent of full speed (0 and false where the kind names none).",
+          "description": "The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and\nwhile it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash\nsteps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,\nwith `super_armour`, gives super armour and with `hold_move_pct` raises the movement of a\nheld AAA hold to that percent of full speed and, with `end_ring`, plays the smash's first\nring once when it runs out (0 and false where the kind names none).",
           "properties": {
+            "end_ring": {
+              "type": "boolean"
+            },
             "hold_move_pct": {
               "format": "uint32",
               "minimum": 0,
@@ -11928,7 +11931,8 @@
             "smash_pct",
             "rally_pct",
             "super_armour",
-            "hold_move_pct"
+            "hold_move_pct",
+            "end_ring"
           ],
           "type": "object"
         },
@@ -12571,6 +12575,20 @@
           "required": [
             "type",
             "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "When the state runs out with the player up (not on a down), the player plays the first\nring of the style's full-gauge smash once: the smash's first `active` phase as compiled,\nscaled by the player's range as the smash is, with no gauge, no wind-up and no combo\nslot. A flag with no field: the ring's numbers come from the smash.",
+          "properties": {
+            "type": {
+              "const": "end_ring",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
           ],
           "type": "object"
         }

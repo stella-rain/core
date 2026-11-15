@@ -238,6 +238,9 @@ pub(super) fn compile_run(world: &mut World, content: &RunContent) -> Result<(),
         };
         world.rune_attacks.push(at);
     }
+    // The end rings go last: every attack's index is its place in compile order, so compiling
+    // them after the rest moves no other attack's index (and no savepoint byte).
+    world.compile_rings()?;
     Ok(())
 }
 

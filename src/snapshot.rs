@@ -302,7 +302,8 @@ pub enum StyleKindView {
     /// while it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash
     /// steps by `smash_pct` percent, scales the rally a hit leaves to `rally_pct` percent and,
     /// with `super_armour`, gives super armour and with `hold_move_pct` raises the movement of a
-    /// held AAA hold to that percent of full speed (0 and false where the kind names none).
+    /// held AAA hold to that percent of full speed and, with `end_ring`, plays the smash's first
+    /// ring once when it runs out (0 and false where the kind names none).
     GiantTrigger {
         ticks: u32,
         range_pct: u32,
@@ -310,6 +311,7 @@ pub enum StyleKindView {
         rally_pct: u32,
         super_armour: bool,
         hold_move_pct: u32,
+        end_ring: bool,
     },
     /// The style has a breaker: a factor, in percent, on the stagger fills, the poise damage
     /// and a smash's damage on a boss part (0 where the kind names none) and, when it names one,
@@ -815,7 +817,7 @@ pub struct PlayerView {
     pub slots: Vec<SlotView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came, then from 34 one for each
-    /// on-hit rune, by its place in `Rune::ALL`.
+    /// on-hit rune, by its place in `Rune::ALL`, 41 the giant trigger's end ring.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
     /// Its statuses, sorted by ID: the timed buffs and debuffs it holds.

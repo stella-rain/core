@@ -670,6 +670,7 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     rally_pct: 0,
                     super_armour: false,
                     hold_move_pct: 0,
+                    end_ring: false,
                 };
                 if let StyleKindView::GiantTrigger {
                     range_pct,
@@ -677,6 +678,7 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     rally_pct,
                     super_armour,
                     hold_move_pct,
+                    end_ring,
                     ..
                 } = &mut view
                 {
@@ -687,6 +689,8 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                             TriggerEffect::RallyPct { pct } => *rally_pct = *pct,
                             TriggerEffect::SuperArmour {} => *super_armour = true,
                             TriggerEffect::HoldMovePct { pct } => *hold_move_pct = *pct,
+                            // The flag is the grant's; the view says whether the kind names it.
+                            TriggerEffect::EndRing {} => *end_ring = true,
                         }
                     }
                 }
