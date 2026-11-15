@@ -383,6 +383,79 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_party_of_one_warms_up_as_solo() {
+        assert_eq!(warmed_up_party(1).state_hash(), warmed_up().state_hash());
+    }
+
+    #[test]
+    fn inputs_party_of_one_is_the_solo_input() {
+        for t in 1..=460 {
+            assert_eq!(
+                inputs_party(t, 1),
+                [input(t), Input::default(), Input::default()],
+                "tick {t}"
+            );
+        }
+    }
+
+    #[test]
+    fn inputs_party_gives_the_members_a_tap() {
+        for t in 1..=460 {
+            let inputs = inputs_party(t, 3);
+            assert_eq!(inputs[0], input(t), "tick {t}");
+            for member in &inputs[1..] {
+                assert_eq!(member.main, t % 2 == 1, "tick {t}");
+                assert_eq!(member.move_x, input(t).move_x, "tick {t}");
+                assert_eq!(member.move_y, input(t).move_y, "tick {t}");
+            }
+        }
+    }
+
+    /// Every slot has the repeats of its share and has taken the style point.
+    #[test]
+    fn the_party_warm_up_is_per_slot() {
+        let engine = warmed_up_party(3);
+        assert_eq!(engine.present(), 0b111);
+        assert_eq!(engine.tick(), WARMUP_TICKS);
+        let (_, s) = state_of(&engine);
+        assert_eq!(s.repeats.len(), MAX_REPEATS_QUEUED);
+        let mut owners = [0usize; 3];
+        for r in &s.repeats {
+            assert_eq!(r.due, WARMUP_TICKS + 1);
+            owners[usize::from(r.owner)] += 1;
+        }
+        assert_eq!(owners, [22, 21, 21]);
+        let style = |i: u8| {
+            let idx = PlayerIdx::new(i).expect("a slot");
+            s.players.career(idx).expertise.as_ref().map(|g| g.style)
+        };
+        assert!(style(0).is_some_and(|st| st.is_some()), "slot 0 took it");
+        assert_eq!(style(1), style(0));
+        assert_eq!(style(2), style(0));
+    }
+
+    /// The solo caps test, over a party of 3.
+    #[test]
+    fn the_party_measured_tick_holds_the_caps_tick_after_tick() {
+        let mut engine = warmed_up_party(3);
+        for tick in WARMUP_TICKS + 1..=WARMUP_TICKS + 60 {
+            let (_, s) = state_of(&engine);
+            assert_eq!(s.repeats.len(), MAX_REPEATS_QUEUED, "tick {tick}");
+            step_party(&mut engine, tick, 3);
+            assert_eq!(engine.outcome(), Outcome::Running, "tick {tick}");
+            let load = engine.load();
+            assert_eq!(load.zones, 128, "tick {tick}");
+            assert_eq!(load.orbs, 32, "tick {tick}");
+            assert_eq!(
+                load.enemies,
+                u32::from(super::super::enemy_cap()),
+                "tick {tick}"
+            );
+            prepare_party(&mut engine, 3);
+        }
+    }
+
     /// The weight `Load` sees of a tick.
     fn weight(load: Load) -> u64 {
         [
