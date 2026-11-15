@@ -616,6 +616,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_dot_tick_neither_crits_nor_echoes() {
+        let mut s = state();
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 100;
+        s.players[PlayerIdx::SOLO].echo_hit_pct = 100;
+        let me = PlayerIdx::SOLO.id();
+        // The control: the same shot without the flag crits and echoes.
+        assert!(rolls(&mut s, shot(me)) > 0, "a plain shot crits");
+        queue_echo(&mut s, PlayerIdx::SOLO, &shot(me), EntityId(5), 100, true);
+        assert_eq!(s.echoes.len(), 1, "a plain shot echoes");
+        s.echoes.clear();
+        let mut tick = shot(me);
+        tick.dot = true;
+        assert_eq!(rolls(&mut s, tick), 0, "a dot tick never crits");
+        queue_echo(&mut s, PlayerIdx::SOLO, &tick, EntityId(5), 100, true);
+        assert!(s.echoes.is_empty(), "a dot tick never echoes");
+    }
+
+    #[test]
+    fn a_rune_dot_tick_still_neither_crits_nor_echoes() {
+        let mut s = state();
+        s.players[PlayerIdx::SOLO].crit_chance_pct = 100;
+        s.players[PlayerIdx::SOLO].echo_hit_pct = 100;
+        let mut tick = shot(PlayerIdx::SOLO.id());
+        tick.rune = Some(crate::rune::Rune::ALL[0]);
+        tick.dot = true;
+        assert_eq!(rolls(&mut s, tick), 0);
+        queue_echo(&mut s, PlayerIdx::SOLO, &tick, EntityId(5), 100, true);
+        assert!(s.echoes.is_empty());
+    }
+
     fn with_enemy(s: &mut State, id: u32, hp: u32) {
         use crate::sim::agents::new_agent;
         use crate::sim::state::{AgentKey, AgentSource};
