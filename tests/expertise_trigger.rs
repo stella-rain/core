@@ -142,7 +142,17 @@ fn the_trigger_kind_is_bounded() {
         { "type": "hold_move_pct", "pct": 80 },
         { "type": "super_armour" }
     ]);
-    refused_at(json!([with(480, six)]), &format!("{PATH}.effects"));
+    refused_at(json!([with(480, six)]), &format!("{PATH}.effects[5]"));
+    let seven = json!([
+        { "type": "range_pct", "pct": 1 },
+        { "type": "smash_pct", "pct": 1 },
+        { "type": "super_armour" },
+        { "type": "rally_pct", "pct": 101 },
+        { "type": "hold_move_pct", "pct": 80 },
+        { "type": "end_ring" },
+        { "type": "super_armour" }
+    ]);
+    refused_at(json!([with(480, seven)]), &format!("{PATH}.effects"));
 }
 
 /// V1: the hold effect loads beside the three others and round-trips; `sim_version` 1 refuses it.
@@ -494,7 +504,7 @@ fn the_views_carry_the_trigger_kind() {
     let snap = crate::style_grants::build(expertise).snapshot();
     let want = json!({
         "type": "giant_trigger", "ticks": 480, "range_pct": 40, "smash_pct": 20,
-        "rally_pct": 0, "super_armour": true, "hold_move_pct": 0
+        "rally_pct": 0, "super_armour": true, "hold_move_pct": 0, "end_ring": false
     });
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert_eq!(ready["kinds"][0], json!([want]));

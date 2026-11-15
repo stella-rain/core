@@ -1757,6 +1757,9 @@ pub(super) fn trigger_fold(g: &mut TriggerGrant, t: &crate::expertise::GiantTrig
             }
             TriggerEffect::SmashPct { pct } => g.smash_pct = (*pct).min(MAX_PCT),
             TriggerEffect::SuperArmour {} => g.super_armour = true,
+            // The ring itself is derived at world build (the compiled smash's first active
+            // phase); the grant keeps only that it is named.
+            TriggerEffect::EndRing {} => {}
             TriggerEffect::RallyPct { pct } => g.rally_pct = (*pct).clamp(100, MAX_PCT),
         }
     }

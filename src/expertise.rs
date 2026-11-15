@@ -75,7 +75,7 @@ pub const MAX_STYLE_CHOICES: usize = 1;
 /// upgrade's choice's or the capstone's.
 pub const MAX_LEVEL_KINDS: usize = 4;
 /// The most effects one giant trigger kind names (a bound: one per `TriggerEffect` variant).
-pub const MAX_TRIGGER_EFFECTS: usize = 5;
+pub const MAX_TRIGGER_EFFECTS: usize = 6;
 /// The largest `pct` of a giant trigger's `hold_move_pct`: full speed, the `Hold.move_pct` ceiling.
 pub const MAX_HOLD_MOVE_PCT: u32 = 100;
 /// The longest delay of a `repeat` kind, in ticks (a tuning placeholder: 2 seconds).
@@ -433,6 +433,11 @@ pub enum TriggerEffect {
         #[schemars(range(min = 1, max = MAX_HOLD_MOVE_PCT))]
         pct: u32,
     },
+    /// When the state runs out with the player up (not on a down), the player plays the first
+    /// ring of the style's full-gauge smash once: the smash's first `active` phase as compiled,
+    /// scaled by the player's range as the smash is, with no gauge, no wind-up and no combo
+    /// slot. A flag with no field: the ring's numbers come from the smash.
+    EndRing {},
 }
 
 impl TriggerEffect {
@@ -443,6 +448,7 @@ impl TriggerEffect {
             TriggerEffect::SuperArmour {} => 2,
             TriggerEffect::RallyPct { .. } => 3,
             TriggerEffect::HoldMovePct { .. } => 4,
+            TriggerEffect::EndRing {} => 5,
         }
     }
 }
@@ -1326,7 +1332,7 @@ fn check_giant_trigger(
             TriggerEffect::SmashPct { pct } => Some((*pct, 1, MAX_PCT)),
             TriggerEffect::RallyPct { pct } => Some((*pct, 101, MAX_PCT)),
             TriggerEffect::HoldMovePct { pct } => Some((*pct, 1, MAX_HOLD_MOVE_PCT)),
-            TriggerEffect::SuperArmour {} => None,
+            TriggerEffect::SuperArmour {} | TriggerEffect::EndRing {} => None,
         };
         if let Some((pct, lo, hi)) = bound
             && !(lo..=hi).contains(&pct)
