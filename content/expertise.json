@@ -145,8 +145,18 @@
           "capstone": [
             {
               "id": "titan_trigger_cap",
-              "effect": "attack_pct",
-              "amount": 20
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "giant_trigger",
+                  "ticks": 720,
+                  "effects": [
+                    {
+                      "type": "end_ring"
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "stats": [
