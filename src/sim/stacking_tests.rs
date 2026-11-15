@@ -440,6 +440,57 @@ fn the_hold_move_effect_is_clamped_and_per_player() {
     assert_eq!(hold_at(&mut e, 1, 1), 0);
 }
 
+/// C3: the bundled Titan Trigger at each place of its path: the length and effects stack, the
+/// hold movement comes with the second upgrade, and the style's weapon has no hold at any place
+/// (so the effect changes nothing a bundled player sees until a hold is granted).
+#[test]
+fn the_bundled_titan_trigger_names_the_hold_move_at_its_second_upgrade() {
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_118,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, Pack::bundled().content(), 1).expect("a run");
+    (0..3)
+        .find(|&n| {
+            if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+                g.style = Some(n);
+            }
+            read(&mut e, 0, 0, |w, s, me| w.trigger_of(s, me).copied()).is_some()
+        })
+        .expect("a bundled style names the trigger");
+    let seen: Vec<_> = (0..4)
+        .map(|n| {
+            read(&mut e, 0, n, |w, s, me| {
+                let g = w.trigger_of(s, me)?;
+                let weapon = serde_json::to_string(w.weapon_of(s, me)?).expect("a weapon");
+                assert!(
+                    !weapon.contains("\"hold\""),
+                    "place {n}: no hold in the tree"
+                );
+                Some((
+                    g.ticks,
+                    g.range_pct,
+                    g.smash_pct,
+                    g.super_armour,
+                    g.hold_move_pct,
+                ))
+            })
+            .expect("the trigger at every place")
+        })
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            (480, 40, 20, true, 0),
+            (720, 40, 20, true, 0),
+            (720, 40, 20, true, 80),
+            (720, 40, 20, true, 80)
+        ]
+    );
+}
+
 /// G4: each player reads its own place on the path; a style naming none gives none.
 #[test]
 fn each_player_reads_its_own_trigger() {
