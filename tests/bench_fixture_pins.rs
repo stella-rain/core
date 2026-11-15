@@ -70,6 +70,9 @@ enum Kind {
     EquipRollback(fn() -> Engine),
     /// The saved engine of the combat rollback bench (`combat_case::rollback`).
     CombatRollback(fn() -> Engine),
+    /// The saved engine of the party combat rollback bench (`combat_case::rollback_party`) and
+    /// the party's size.
+    CombatRollbackParty(fn() -> Engine, u8),
     /// One rolling-back `Session::advance` of the equipment run at a window
     /// (`session_case::rollback`).
     SessionRollback(u32),
@@ -88,7 +91,7 @@ struct Spec {
 }
 
 /// The cases, in the order of `benches/`.
-fn specs() -> [Spec; 15] {
+fn specs() -> [Spec; 16] {
     [
         Spec {
             id: "worst_tick",
@@ -155,6 +158,15 @@ fn specs() -> [Spec; 15] {
             bench: "rollback_combat",
             mode: "time_limit",
             kind: Kind::CombatRollback(combat_case::warmed_up),
+        },
+        Spec {
+            id: "rollback_combat_3p",
+            bench: "rollback_combat_3p",
+            mode: "time_limit",
+            kind: Kind::CombatRollbackParty(
+                || combat_case::warmed_up_party(combat_case::PARTY),
+                combat_case::PARTY,
+            ),
         },
         Spec {
             id: "rollback_session_w4",
@@ -352,6 +364,28 @@ fn measure(spec: &Spec) -> Pins {
             std::mem::forget(saved);
             after = hash_hex(engine.state_hash());
         }
+        Kind::CombatRollbackParty(saved, party) => {
+            let saved = saved();
+            before = hash_hex(saved.state_hash());
+            stage = digest(&[
+                b"stella-rain/bench-stage/v1\n",
+                &content_hash(&saved, spec.mode),
+            ]);
+            let mut played = Vec::new();
+            for tick in saved.tick() + 1..=saved.tick() + ROLLBACK_TICKS {
+                serde_json::to_writer(&mut played, &combat_case::inputs_party(tick, *party))
+                    .expect("the inputs serialize");
+                played.push(b'\n');
+            }
+            input = digest(&[
+                b"stella-rain/bench-input-combat-rollback-party/v1\n",
+                &[*party],
+                &played,
+            ]);
+            let (engine, saved) = combat_case::rollback_party(saved, *party);
+            std::mem::forget(saved);
+            after = hash_hex(engine.state_hash());
+        }
         Kind::SessionRollback(window) => {
             let prepared = session_case::driven(*window);
             before = hash_hex(prepared.session.engine().state_hash());
@@ -545,6 +579,27 @@ fn the_rollback_equip_is_the_benches_case() {
 #[test]
 fn the_rollback_combat_is_the_benches_case() {
     check("rollback_combat");
+}
+
+#[test]
+fn the_rollback_combat_3p_is_the_benches_case() {
+    check("rollback_combat_3p");
+}
+
+/// The three slots are in the pins: the party's case differs from the solo one in the saved
+/// state and in the inputs.
+#[test]
+fn the_party_rollback_pin_differs_from_the_solo_one() {
+    let by_id = |id: &str| {
+        let spec = specs()
+            .into_iter()
+            .find(|spec| spec.id == id)
+            .expect("a known case");
+        measure(&spec)
+    };
+    let (solo, party) = (by_id("rollback_combat"), by_id("rollback_combat_3p"));
+    assert_ne!(solo.before, party.before);
+    assert_ne!(solo.input, party.input);
 }
 
 #[test]
