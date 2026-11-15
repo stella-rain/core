@@ -229,7 +229,9 @@ pub(super) fn check_style_grants(
                             tree.smash = Some(*effect);
                             "effect"
                         }
-                        StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
+                        StyleKind::Repeat { step, .. }
+                        | StyleKind::ProcFactor { step, .. }
+                        | StyleKind::ChargeSooner { step, .. } => {
                             if step_mut(&mut tree.combo, step).is_none() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
