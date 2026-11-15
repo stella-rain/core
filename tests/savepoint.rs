@@ -530,13 +530,13 @@ fn record_of(stats: &stella_rain_core::ledger::PlayerStats) -> Vec<u8> {
 }
 
 #[test]
-fn format_eleven_is_written_and_an_older_file_is_refused() {
+fn format_twelve_is_written_and_an_older_file_is_refused() {
     let rec = run(300);
     let good = rec.replay();
     let bytes = rec.save();
-    assert_eq!(bytes[4..8], 11u32.to_le_bytes());
-    assert_eq!(SAVEPOINT_FORMAT, 11);
-    for older in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] {
+    assert_eq!(bytes[4..8], 12u32.to_le_bytes());
+    assert_eq!(SAVEPOINT_FORMAT, 12);
+    for older in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] {
         let mut old = bytes.clone();
         put_u32(&mut old, 4, older);
         reseal(&mut old);
