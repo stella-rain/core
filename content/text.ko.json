@@ -28,7 +28,7 @@
     "title": "파괴자 정점"
   },
   "expertise/breaker_up_1": {
-    "description": "공격력이 10% 늘어요",
+    "description": "경직이 50% 더 오래 지속돼요",
     "title": "파괴자 Ⅰ"
   },
   "expertise/breaker_up_2": {
@@ -44,15 +44,15 @@
     "title": "예지의 반격"
   },
   "expertise/foresight_counter_cap": {
-    "description": "공격력이 20% 늘어요",
+    "description": "반격의 첫 타격이 적중하면 사용한 회피 횟수를 하나 돌려받아요",
     "title": "예지의 반격 정점"
   },
   "expertise/foresight_counter_up_1": {
-    "description": "공격력이 10% 늘어요",
+    "description": "완벽한 회피 후 반격 가능 시간이 0.5초에서 0.63초로 늘어요",
     "title": "예지의 반격 Ⅰ"
   },
   "expertise/foresight_counter_up_2": {
-    "description": "공격 속도가 10% 늘어요",
+    "description": "반격 동작이 대상 쪽으로 48픽셀 전진해요",
     "title": "예지의 반격 Ⅱ"
   },
   "expertise/hit_box": {
@@ -68,11 +68,11 @@
     "title": "심판의 일섬 정점"
   },
   "expertise/judgement_cut_up_1": {
-    "description": "공격력이 10% 늘어요",
+    "description": "닫히는 베기가 맞힌 대상 주변 96픽셀 안의 적 구슬을 60% 확률로 부숴요",
     "title": "심판의 일섬 Ⅰ"
   },
   "expertise/judgement_cut_up_2": {
-    "description": "공격 속도가 10% 늘어요",
+    "description": "닫히는 베기가 맞힌 모든 적에게 3초 동안 출혈을 1중첩씩 남기고, 최대 6중첩까지 쌓여요",
     "title": "심판의 일섬 Ⅱ"
   },
   "expertise/momentum": {
@@ -100,11 +100,11 @@
     "title": "정령검 정점"
   },
   "expertise/spirit_blade_up_1": {
-    "description": "공격력이 10% 늘어요",
+    "description": "강타 없이 정령 단계가 유지되는 시간이 20초에서 30초로 늘어요",
     "title": "정령검 Ⅰ"
   },
   "expertise/spirit_blade_up_2": {
-    "description": "공격 속도가 10% 늘어요",
+    "description": "세 번째 공격을 모으면 각 단계에 25% 더 빨리 도달해요",
     "title": "정령검 Ⅱ"
   },
   "expertise/swiftness": {
@@ -120,11 +120,11 @@
     "title": "거인의 방아쇠 정점"
   },
   "expertise/titan_trigger_up_1": {
-    "description": "공격력이 10% 늘어요",
+    "description": "망치가 거대해지는 시간이 8초에서 12초로 늘어요",
     "title": "거인의 방아쇠 Ⅰ"
   },
   "expertise/titan_trigger_up_2": {
-    "description": "공격 속도가 10% 늘어요",
+    "description": "거대한 망치가 계속 12초 동안 유지돼요; 아직 다른 효과는 없어요",
     "title": "거인의 방아쇠 Ⅱ"
   },
   "expertise/vitality": {
