@@ -929,3 +929,210 @@ fn the_bar_is_never_over_full() {
     };
     assert_eq!(staggered_view(&mut r, 0), Some((50, 50)));
 }
+
+// --- The breaker's factor on the ticks of a stagger (`stagger_ticks_pct`) ---------------------
+
+fn ticks_pct(pct: u32) -> Value {
+    json!({ "type": "stagger_ticks_pct", "pct": pct })
+}
+
+/// Sets elite `i`'s own stagger ticks (the base the fill reads).
+fn own_ticks(r: &mut Rig, ticks: u16) {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let def = state.enemies[0].def;
+    Arc::make_mut(world).defs.agent_mut(def).staggered_ticks = Some(ticks);
+}
+
+/// B1: 150 makes a 120-tick stagger 180 and stores 180; without it the base, 120 and 120; the
+/// status carries the length.
+#[test]
+fn a_longer_stagger_stores_its_length() {
+    let mut r = rig(1, vec![breaker(vec![ticks_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    st(&mut r.e).enemies[0].elite.as_mut().unwrap().stagger = Stagger::default();
+    let events = fill(&mut r, 0, 0, 100, 0);
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (180, 180));
+    let applied = named(&events, "StatusApplied");
+    let status = applied
+        .iter()
+        .find(|e| e["status"] == "staggered")
+        .expect("a stagger status");
+    assert_eq!(status["duration_ticks"], 180);
+    let mut r = rig(1, vec![breaker(vec![stagger_pct(200)])], 1);
+    prep(&mut r, &[0]);
+    assert_eq!(stagger_len(&mut r, 0, 0), (120, 120));
+}
+
+/// B2: truncation, and a base of at least 1 stays at least 1.
+#[test]
+fn the_longer_stagger_truncates() {
+    for (base, pct, want) in [(5, 101, 5), (7, 150, 10), (120, 101, 121), (1, 150, 1)] {
+        let mut r = rig(1, vec![breaker(vec![ticks_pct(pct)])], 1);
+        prep(&mut r, &[0]);
+        own_ticks(&mut r, base);
+        assert_eq!(stagger_len(&mut r, 0, 0), (want, want), "{base} at {pct}");
+    }
+}
+
+/// B3: the longer stagger is held to `MAX_STAGGERED_TICKS`, for an elite and for the boss.
+#[test]
+fn the_longer_stagger_is_capped() {
+    let mut r = rig(1, vec![breaker(vec![ticks_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    own_ticks(&mut r, 500);
+    assert_eq!(stagger_len(&mut r, 0, 0), (600, 600));
+
+    let mut r = rig(1, vec![breaker(vec![ticks_pct(150)])], 0);
+    let mut n = 0;
+    while st(&mut r.e).boss.is_none() && n < 40_000 {
+        r.step([Input::default(); 3]);
+        n += 1;
+    }
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let w = Arc::make_mut(world);
+    w.tuning.staggered_ticks = 120;
+    w.tuning.stagger_refill_len = 0;
+    w.has_stagger = true;
+    for b in &mut w.bosses {
+        b.boss.stagger_max = Some(40);
+        b.boss.staggered_ticks = None;
+    }
+    let mut events = Vec::new();
+    super::stun::fill(world, state, Who::Boss, slot(0), 100, 0, &mut events);
+    let g = state.boss.as_ref().unwrap().stagger;
+    assert_eq!((g.staggered, g.total), (180, 180));
+}
+
+/// B4: the grant is the staggering player's own: player 0 on the style staggers for 180, a
+/// player on another style for 120.
+#[test]
+fn the_staggering_players_own_grant_sets_the_length() {
+    let mut r = rig(3, vec![breaker(vec![ticks_pct(150)])], 2);
+    prep(&mut r, &[0, 1]);
+    for i in [1u8, 2] {
+        if let Some(g) = st(&mut r.e).players.career_mut(slot(i)).expertise.as_mut() {
+            g.style = Some(1);
+        }
+    }
+    assert_eq!(stagger_len(&mut r, 0, 0), (180, 180));
+    assert_eq!(stagger_len(&mut r, 1, 1), (120, 120));
+    assert_eq!(stagger_len(&mut r, 0, 2), (120, 120));
+}
+
+/// B5: the factor stacks along the path as the other effects do (a later level's replaces):
+/// 120 ticks are 120, 180 and 240 at 0, 1 and 3 places taken.
+#[test]
+fn the_path_stacks_the_stagger_ticks_factor() {
+    let mut e = levelled(
+        vec![breaker(vec![stagger_pct(200)])],
+        vec![breaker(vec![ticks_pct(150)])],
+        vec![],
+        vec![breaker(vec![ticks_pct(200)])],
+    );
+    for (places, want) in [(0usize, 120u16), (1, 180), (3, 240)] {
+        take(&mut e, 0, places);
+        let Run::V2 { world, state } = e.run() else {
+            panic!("the live rules");
+        };
+        assert_eq!(
+            super::player::breaker_stagger_ticks(world, state, slot(0), 120),
+            want,
+            "{places} places"
+        );
+        let g = world.breaker_of(state, slot(0)).expect("a grant");
+        assert_eq!(
+            g.stagger_ticks_pct,
+            [100, 150, 200][[0, 1, 3].iter().position(|p| *p == places).unwrap()]
+        );
+    }
+}
+
+/// B6: one stagger, one length: the `vulnerable` status lasts as long, the countdown runs the
+/// stored ticks and the end zeroes both fields.
+#[test]
+fn one_stagger_has_one_length() {
+    let mut r = rig(1, vec![breaker(vec![ticks_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    {
+        let Run::V2 { world, .. } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        Arc::make_mut(world).tuning.vulnerable_stagger_pct = 50;
+    }
+    st(&mut r.e).enemies[0].elite.as_mut().unwrap().stagger = Stagger::default();
+    let events = fill(&mut r, 0, 0, 100, 0);
+    let vulnerable = named(&events, "StatusApplied")
+        .into_iter()
+        .find(|e| e["status"] == "vulnerable")
+        .expect("a vulnerable status");
+    assert_eq!(vulnerable["duration_ticks"], 180);
+    for _ in 0..179 {
+        assert_eq!(count(&tick_stagger(&mut r), "StaggerEnded"), 0);
+    }
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (1, 180));
+    assert_eq!(count(&tick_stagger(&mut r), "StaggerEnded"), 1);
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (0, 0));
+}
+
+/// B7: a pick that drops the factor mid-stagger changes neither the countdown nor the total.
+#[test]
+fn a_pick_mid_stagger_changes_neither_field() {
+    let mut r = rig(1, vec![breaker(vec![ticks_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    assert_eq!(stagger_len(&mut r, 0, 0), (180, 180));
+    if let Some(g) = st(&mut r.e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    for _ in 0..10 {
+        tick_stagger(&mut r);
+    }
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (170, 180));
+}
+
+/// B8: dormant: a breaker naming no `stagger_ticks_pct` leaves the ticks the rules' and its
+/// grant reads 100.
+#[test]
+fn a_breaker_without_the_factor_staggers_for_the_rules_ticks() {
+    let mut r = rig(1, vec![breaker(vec![stagger_pct(200), poise_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    assert_eq!(stagger_len(&mut r, 0, 0), (120, 120));
+    let Run::V2 { world, state } = r.e.run() else {
+        panic!("the live rules");
+    };
+    assert_eq!(
+        world.breaker_of(state, slot(0)).unwrap().stagger_ticks_pct,
+        100
+    );
+}
+
+/// S1 to S3: the bar reads the stored length: solo with the factor 180 of 180 and 120 of 180
+/// after 60 ticks; without it 120 of 120; in a party the player with the factor makes it 180
+/// of 180 and the one without 120 of 120, never over full.
+#[test]
+fn the_bar_reads_the_length_of_the_stagger_that_was_caused() {
+    let mut r = rig(3, vec![breaker(vec![ticks_pct(150)])], 1);
+    prep(&mut r, &[0]);
+    for i in [1u8, 2] {
+        if let Some(g) = st(&mut r.e).players.career_mut(slot(i)).expertise.as_mut() {
+            g.style = Some(1);
+        }
+    }
+    stagger_len(&mut r, 0, 1);
+    assert_eq!(staggered_view(&mut r, 0), Some((120, 120)));
+    stagger_len(&mut r, 0, 0);
+    assert_eq!(staggered_view(&mut r, 0), Some((180, 180)));
+    for _ in 0..60 {
+        tick_stagger(&mut r);
+    }
+    assert_eq!(staggered_view(&mut r, 0), Some((120, 180)));
+    let (remaining, total) = staggered_view(&mut r, 0).unwrap();
+    assert!(remaining <= total);
+}

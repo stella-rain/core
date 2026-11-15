@@ -92,7 +92,12 @@ fn parse_error(kinds: Value) {
 #[test]
 fn the_breaker_kind_is_bounded() {
     valid(json!([breaker()]));
-    for key in ["stagger_pct", "poise_pct", "part_break_pct", "stagger_ticks_pct"] {
+    for key in [
+        "stagger_pct",
+        "poise_pct",
+        "part_break_pct",
+        "stagger_ticks_pct",
+    ] {
         for pct in [101, 1_000] {
             valid(json!([one(json!({ "type": key, "pct": pct }))]));
         }
