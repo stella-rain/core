@@ -28,8 +28,9 @@ Sources: ADR-CONT-1, ADR-CONT-3, ADR-BRDG-4, ADR-SIM-9. Where each content file 
 - Caps, the grid, the push-apart, the view and the units stay in Rust. The test: a number whose
   change needs code review stays in Rust. A key's bounds are code (`validate_rules` in `rules.rs`; the two ranged
   token pools sum to at most `MAX_RANGED_ATTACKERS`).
-- `offer_timer_ticks` of `rules.json`: read by no run, kept for older packs: 1 to `MAX_OFFER_TIMER_TICKS` (3,600), checked in
-  `validate_rules`, 300 when absent. A key added after bytes were published carries `#[serde(default)]`, so an older pack still
+- `offer_size` and `offer_timer_ticks` of `rules.json` are deprecated (the first read only by the frozen rules, the second by no
+  run): a pack of `sim_version` 2 may omit them or hold their defaults, 3 and 300 (`Rules::parse`); bounds 1 to
+  `MAX_OFFER_CANDIDATES`, 1 to `MAX_OFFER_TIMER_TICKS` (3,600), checked in `validate_rules`. A key added after bytes were published carries `#[serde(default)]`, so an older pack still
   reads; a setup key also `skip_serializing_if` its default, so an older setup writes the same bytes.
 - `docs/tuning.md` (generated from `src/limits.rs`) lists caps and code numbers only; a key's
   bounds are the schema's.
