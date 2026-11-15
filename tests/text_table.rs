@@ -467,3 +467,272 @@ fn the_korean_draft_leaves_no_shown_key_out() {
     assert_eq!(set.check_shipped(), Ok(()));
     assert_eq!(Pack::bundled().check_texts(set), Ok(()));
 }
+
+// The shown text of the upgrade cells that became kinds (their words, and the content's
+// numbers in them). A fixed list: a generic "every kind cell" rule would turn red on a cell
+// that becomes a kind in another change.
+
+const CELLS: [&str; 10] = [
+    "foresight_counter_up_1",
+    "foresight_counter_up_2",
+    "foresight_counter_cap",
+    "judgement_cut_up_1",
+    "judgement_cut_up_2",
+    "spirit_blade_up_1",
+    "spirit_blade_up_2",
+    "breaker_up_1",
+    "titan_trigger_up_1",
+    "titan_trigger_up_2",
+];
+
+/// The wording Kade approves: (cell id, English, Korean).
+const WORDING: [(&str, &str, &str); 10] = [
+    (
+        "foresight_counter_up_1",
+        "The counter window after a perfect evade lasts 0.63 seconds, up from 0.5",
+        "완벽한 회피 후 반격 가능 시간이 0.5초에서 0.63초로 늘어요",
+    ),
+    (
+        "foresight_counter_up_2",
+        "The counter step slides 48 pixels toward the target",
+        "반격 동작이 대상 쪽으로 48픽셀 전진해요",
+    ),
+    (
+        "foresight_counter_cap",
+        "The counter's first landed hit returns a spent evade",
+        "반격의 첫 타격이 적중하면 사용한 회피 횟수를 하나 돌려받아요",
+    ),
+    (
+        "judgement_cut_up_1",
+        "Closing cuts break enemy orbs within 96 pixels of what they strike, 60% of the time",
+        "닫히는 베기가 맞힌 대상 주변 96픽셀 안의 적 구슬을 60% 확률로 부숴요",
+    ),
+    (
+        "judgement_cut_up_2",
+        "Each closing cut leaves a bleed on every enemy it hits: 1 stack for 3 seconds, up to 6 stacks",
+        "닫히는 베기가 맞힌 모든 적에게 3초 동안 출혈을 1중첩씩 남기고, 최대 6중첩까지 쌓여요",
+    ),
+    (
+        "spirit_blade_up_1",
+        "A spirit level lasts 30 seconds without a smash, up from 20",
+        "강타 없이 정령 단계가 유지되는 시간이 20초에서 30초로 늘어요",
+    ),
+    (
+        "spirit_blade_up_2",
+        "The third strike's charge reaches each level 25% sooner",
+        "세 번째 공격을 모으면 각 단계에 25% 더 빨리 도달해요",
+    ),
+    (
+        "breaker_up_1",
+        "A stagger lasts 50% longer",
+        "경직이 50% 더 오래 지속돼요",
+    ),
+    (
+        "titan_trigger_up_1",
+        "The giant hammer lasts 12 seconds, up from 8",
+        "망치가 거대해지는 시간이 8초에서 12초로 늘어요",
+    ),
+    (
+        "titan_trigger_up_2",
+        "The giant hammer still lasts 12 seconds; no other effect yet",
+        "거대한 망치가 계속 12초 동안 유지돼요; 아직 다른 효과는 없어요",
+    ),
+];
+
+fn expertise() -> Value {
+    let file = std::fs::read(crate::data_root::data_root().join("content/expertise.json")).unwrap();
+    serde_json::from_slice(&file).unwrap()
+}
+
+/// The style (null for a common cell) and the cell with this id.
+fn cell(root: &Value, id: &str) -> (Value, Value) {
+    for w in root["weapons"].as_array().unwrap() {
+        for s in w["styles"].as_array().unwrap() {
+            for slot in ["upgrade_1", "upgrade_2", "capstone"] {
+                for c in s[slot].as_array().unwrap() {
+                    if c["id"] == id {
+                        return (s.clone(), c.clone());
+                    }
+                }
+            }
+        }
+        for c in w["common"].as_array().unwrap() {
+            if c["id"] == id {
+                return (Value::Null, c.clone());
+            }
+        }
+    }
+    panic!("no cell {id}");
+}
+
+/// The first kind of this type in a style or a cell.
+fn kind(holder: &Value, ty: &str) -> Value {
+    holder["kinds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["type"] == ty)
+        .unwrap_or_else(|| panic!("no kind {ty}"))
+        .clone()
+}
+
+/// The first effect of this type in a kind.
+fn effect(k: &Value, ty: &str) -> Value {
+    k["effects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["type"] == ty)
+        .unwrap_or_else(|| panic!("no effect {ty}"))
+        .clone()
+}
+
+/// Ticks as seconds (60 ticks a second), rounded to two decimals, no trailing zero.
+fn seconds(ticks: i64) -> String {
+    let hundredths = (ticks * 100 + 30) / 60;
+    let (whole, frac) = (hundredths / 100, hundredths % 100);
+    match frac {
+        0 => format!("{whole}"),
+        f if f % 10 == 0 => format!("{whole}.{}", f / 10),
+        f => format!("{whole}.{f:02}"),
+    }
+}
+
+fn n(v: &Value) -> i64 {
+    v.as_i64().unwrap()
+}
+
+/// The numbers a cell's line shows, from the content, joined.
+fn expected_numbers(root: &Value, id: &str) -> String {
+    let (style, c) = cell(root, id);
+    let parts: Vec<String> = match id {
+        "foresight_counter_up_1" => vec![
+            seconds(n(&kind(&style, "counter_bonus")["window_ticks"])),
+            seconds(n(&kind(&c, "counter_bonus")["window_ticks"])),
+        ],
+        "foresight_counter_up_2" => {
+            let e = effect(&kind(&c, "counter_bonus"), "advance");
+            vec![(n(&e["distance"]) / 256).to_string()]
+        }
+        "foresight_counter_cap" => {
+            effect(&kind(&c, "counter_bonus"), "refund_evade");
+            vec![]
+        }
+        "judgement_cut_up_1" => {
+            let k = kind(&c, "repeat_breaks_orbs");
+            vec![
+                n(&k["radius_px"]).to_string(),
+                n(&k["chance_pct"]).to_string(),
+            ]
+        }
+        "judgement_cut_up_2" => {
+            let k = kind(&c, "repeat_bleed");
+            vec![
+                n(&k["stacks"]).to_string(),
+                seconds(n(&k["duration_ticks"])),
+                n(&k["max_stacks"]).to_string(),
+            ]
+        }
+        "spirit_blade_up_1" => vec![
+            seconds(n(&kind(&style, "spirit")["decay_ticks"])),
+            seconds(n(&kind(&c, "spirit")["decay_ticks"])),
+        ],
+        "spirit_blade_up_2" => vec![n(&kind(&c, "charge_sooner")["pct"]).to_string()],
+        "breaker_up_1" => {
+            let e = effect(&kind(&c, "breaker"), "stagger_ticks_pct");
+            vec![(n(&e["pct"]) - 100).to_string()]
+        }
+        "titan_trigger_up_1" => vec![
+            seconds(n(&kind(&style, "giant_trigger")["ticks"])),
+            seconds(n(&kind(&c, "giant_trigger")["ticks"])),
+        ],
+        "titan_trigger_up_2" => vec![seconds(n(&kind(&c, "giant_trigger")["ticks"]))],
+        other => panic!("no numbers for {other}"),
+    };
+    parts.join(" ")
+}
+
+#[test]
+fn a_kind_cell_does_not_show_placeholder_stat_text() {
+    let root = expertise();
+    let set = TextSet::bundled();
+    let (en, ko) = (set.table("en").unwrap(), set.table("ko").unwrap());
+    for id in CELLS {
+        assert_eq!(cell(&root, id).1["effect"], "none", "{id} is not a kind");
+        let key = format!("expertise/{id}");
+        assert!(
+            !en.get(&key).unwrap().description.starts_with('+'),
+            "{key} still shows stat text in English"
+        );
+        let k = &ko.get(&key).unwrap().description;
+        for amount in [10, 20] {
+            assert_ne!(k, &format!("공격력이 {amount}% 늘어요"), "{key}");
+            assert_ne!(k, &format!("공격 속도가 {amount}% 늘어요"), "{key}");
+        }
+    }
+}
+
+#[test]
+fn the_kind_cells_show_the_approved_wording() {
+    let set = TextSet::bundled();
+    let (en, ko) = (set.table("en").unwrap(), set.table("ko").unwrap());
+    for (id, english, korean) in WORDING {
+        let key = format!("expertise/{id}");
+        assert_eq!(en.get(&key).unwrap().description, english, "{key} (en)");
+        assert_eq!(ko.get(&key).unwrap().description, korean, "{key} (ko)");
+    }
+}
+
+#[test]
+fn the_kind_cells_show_the_numbers_of_the_content() {
+    let root = expertise();
+    let set = TextSet::bundled();
+    let (en, ko) = (set.table("en").unwrap(), set.table("ko").unwrap());
+    for id in CELLS {
+        let key = format!("expertise/{id}");
+        let want = digit_runs(&expected_numbers(&root, id));
+        assert_eq!(
+            digit_runs(&en.get(&key).unwrap().description),
+            want,
+            "{key} (en)"
+        );
+        assert_eq!(
+            digit_runs(&ko.get(&key).unwrap().description),
+            want,
+            "{key} (ko)"
+        );
+    }
+}
+
+#[test]
+fn the_cells_still_a_stat_keep_their_true_stat_text() {
+    let root = expertise();
+    let set = TextSet::bundled();
+    let (en, ko) = (set.table("en").unwrap(), set.table("ko").unwrap());
+    for id in [
+        "titan_trigger_cap",
+        "momentum_up_1",
+        "momentum_up_2",
+        "momentum_cap",
+    ] {
+        let c = cell(&root, id).1;
+        if c["effect"] == "none" {
+            continue; // became a kind: its text is a later text task's
+        }
+        let amount = n(&c["amount"]);
+        let (e, k) = match c["effect"].as_str().unwrap() {
+            "attack_pct" => (
+                format!("+{amount}% attack"),
+                format!("공격력이 {amount}% 늘어요"),
+            ),
+            "attack_speed_pct" => (
+                format!("+{amount}% attack speed"),
+                format!("공격 속도가 {amount}% 늘어요"),
+            ),
+            other => panic!("{id}: unexpected effect {other}"),
+        };
+        let key = format!("expertise/{id}");
+        assert_eq!(en.get(&key).unwrap().description, e, "{key} (en)");
+        assert_eq!(ko.get(&key).unwrap().description, k, "{key} (ko)");
+    }
+}
