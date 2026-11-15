@@ -1097,3 +1097,34 @@ fn the_bundled_foresight_path_folds_as_the_content_says() {
     assert_eq!(row(&seen[2]), (38, 12288, base, (false, 0)));
     assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
 }
+
+/// C3: the bundled Momentum grant at each place of the path through its first upgrade: five
+/// stacks, speed 4, both flags, and the range at full stacks 0, 25, 25, 25.
+#[test]
+fn the_bundled_momentum_grant_gains_the_range_at_its_first_upgrade() {
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_117,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, Pack::bundled().content(), 1).expect("a run");
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    let seen: Vec<_> = (0..4)
+        .map(|n| {
+            read(&mut e, 0, n, |w, s, me| w.tempo_of(s, me).copied()).map(|g| {
+                (
+                    g.max_stacks,
+                    g.speed_pct,
+                    g.keep_on_smash,
+                    g.hold_armour,
+                    g.range_pct_at_full,
+                )
+            })
+        })
+        .collect();
+    let at = |r: u32| Some((5, 4, true, true, r));
+    assert_eq!(seen, [at(0), at(25), at(25), at(25)]);
+}
