@@ -78,6 +78,12 @@ pub fn content() -> RunContent {
 /// An engine at the start of the run: the equipment of `worst_case::start` on the sword, with
 /// the weapon's expertise points seeded.
 pub fn start() -> Engine {
+    start_party(1)
+}
+
+/// `start` for a party of `party` players (1 to 3): every slot is equipped as slot 0 and has
+/// the expertise points seeded, slot 0 first.
+pub fn start_party(party: u8) -> Engine {
     let stage = stage();
     let setup = RunSetup {
         seed: u64::from(stage.seed),
@@ -85,10 +91,15 @@ pub fn start() -> Engine {
         unlocked_styles: Some(vec![STYLE.into()]),
         ..RunSetup::default()
     };
-    let mut engine = worst_case::start_in(&stage, &content(), &setup);
-    engine
-        .script_expertise(PlayerIdx::SOLO, EXPERTISE_POINTS)
-        .expect("the stage gives expertise points");
+    let mut engine = worst_case::start_party_in(&stage, &content(), &setup, party);
+    for slot in 0..party {
+        engine
+            .script_expertise(
+                PlayerIdx::new(slot).expect("a slot of the party"),
+                EXPERTISE_POINTS,
+            )
+            .expect("the stage gives expertise points");
+    }
     engine
 }
 
@@ -245,6 +256,48 @@ mod tests {
             Run::V2 { world, state, .. } => (world, state),
             Run::V1 { .. } => panic!("the live rules"),
         }
+    }
+
+    #[test]
+    fn a_three_player_stage_builds_and_ticks() {
+        let mut engine = start_party(3);
+        assert_eq!(engine.present(), 0b111);
+        assert_eq!(engine.tick(), 0);
+        for t in 1..=30 {
+            engine.step(&[input(t), Default::default(), Default::default()]);
+        }
+        assert_eq!(engine.tick(), 30);
+        assert_eq!(engine.outcome(), Outcome::Running);
+    }
+
+    #[test]
+    fn the_solo_stage_is_the_party_of_one() {
+        assert_eq!(start().state_hash(), start_party(1).state_hash());
+    }
+
+    /// Every slot of a party is scripted as slot 0 (the runes and the equips).
+    #[test]
+    fn every_slot_of_a_party_is_scripted() {
+        let engine = start_party(3);
+        let players = engine.snapshot().players;
+        let held = |i: usize| {
+            players[i]
+                .slots
+                .iter()
+                .filter(|s| s.kind == crate::snapshot::SlotKindView::Rune && s.held.is_some())
+                .count()
+        };
+        assert!(held(0) > 0, "slot 0 holds runes");
+        assert_eq!(held(1), held(0));
+        assert_eq!(held(2), held(0));
+        let (_, st) = state_of(&engine);
+        let points = |i: u8| {
+            let idx = PlayerIdx::new(i).expect("a slot");
+            st.players.career(idx).expertise.as_ref().map(|g| g.points)
+        };
+        assert!(points(0) == Some(EXPERTISE_POINTS));
+        assert_eq!(points(1), points(0));
+        assert_eq!(points(2), points(0));
     }
 
     /// On the measured tick the queues and gauges stand at their caps.

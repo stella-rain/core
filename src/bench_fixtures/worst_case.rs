@@ -351,26 +351,41 @@ pub fn start() -> Engine {
 
 /// `start` over the `stage`, `content` and `setup` it is given (the combat case brings its own).
 pub(crate) fn start_in(stage: &Stage, content: &RunContent, setup: &RunSetup) -> Engine {
-    let mut engine = Engine::new_equipped(stage, content, setup).expect("the run starts");
-    engine
-        .script_equipment(PlayerIdx::SOLO, &[HASTE.into()], &[(0, 1)])
-        .expect("Rune Haste is scripted");
-    engine
-        .script_runes(PlayerIdx::SOLO, &Rune::ALL)
-        .expect("the runes are scripted");
-    // The first rune slot comes from the layout itself: the categories' slots, then the rune
-    // slots. An equip takes its item out of the inventory, so the next one is item 0 again.
-    let slots = engine.snapshot().players[0].slots.clone();
-    let first_rune = slots
-        .iter()
-        .position(|s| s.kind == SlotKindView::Rune)
-        .expect("a rune slot");
-    let first_rune = u32::try_from(first_rune).expect("a slot index");
-    let targets = std::iter::once(0).chain((0..).map(|n| first_rune + n));
-    for slot in targets.take(1 + Rune::ALL.len()) {
+    start_party_in(stage, content, setup, 1)
+}
+
+/// `start_in` for a party of `party` players (1 to 3): every slot is scripted as slot 0 (Rune
+/// Haste, the seven runes, the equips), slot 0 first, so the party is a true worst case.
+pub(crate) fn start_party_in(
+    stage: &Stage,
+    content: &RunContent,
+    setup: &RunSetup,
+    party: u8,
+) -> Engine {
+    let mut engine =
+        Engine::new_equipped_party(stage, content, setup, party).expect("the run starts");
+    for member in 0..party {
+        let player = PlayerIdx::new(member).expect("a slot of the party");
         engine
-            .act(PlayerIdx::SOLO, EquipAction::Equip { item: 0, slot })
-            .expect("an accepted equip");
+            .script_equipment(player, &[HASTE.into()], &[(0, 1)])
+            .expect("Rune Haste is scripted");
+        engine
+            .script_runes(player, &Rune::ALL)
+            .expect("the runes are scripted");
+        // The first rune slot comes from the layout itself: the categories' slots, then the rune
+        // slots. An equip takes its item out of the inventory, so the next one is item 0 again.
+        let slots = engine.snapshot().players[usize::from(member)].slots.clone();
+        let first_rune = slots
+            .iter()
+            .position(|s| s.kind == SlotKindView::Rune)
+            .expect("a rune slot");
+        let first_rune = u32::try_from(first_rune).expect("a slot index");
+        let targets = std::iter::once(0).chain((0..).map(|n| first_rune + n));
+        for slot in targets.take(1 + Rune::ALL.len()) {
+            engine
+                .act(player, EquipAction::Equip { item: 0, slot })
+                .expect("an accepted equip");
+        }
     }
     engine
 }
@@ -457,4 +472,34 @@ pub fn warmed_up() -> Engine {
         engine.step(&[input(tick), Default::default(), Default::default()]);
     }
     engine
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The hashes of `start()` at tick 0 and after 10 ticks, captured before the party
+    /// constructor: the solo start is the party of one.
+    const SOLO_HASH_0: u64 = 15_672_718_769_193_565_418;
+    const SOLO_HASH_10: u64 = 3_307_359_630_554_531_496;
+
+    fn hashes(mut e: Engine) -> (u64, u64) {
+        let first = e.state_hash();
+        for t in 1..=10 {
+            e.step(&[input(t), Default::default(), Default::default()]);
+        }
+        (first, e.state_hash())
+    }
+
+    #[test]
+    fn the_solo_start_is_unchanged() {
+        assert_eq!(hashes(start()), (SOLO_HASH_0, SOLO_HASH_10));
+        let stage = stage();
+        let setup = RunSetup {
+            seed: u64::from(stage.seed),
+            ..RunSetup::default()
+        };
+        let one = start_party_in(&stage, &content(), &setup, 1);
+        assert_eq!(hashes(one), (SOLO_HASH_0, SOLO_HASH_10));
+    }
 }

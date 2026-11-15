@@ -581,3 +581,34 @@ fn equipped_in_seeds_expertise() {
     );
     assert!(plain.snapshot().players[0].tree_ready.is_none());
 }
+
+/// A party of 1 to 3 builds with that many players present; 0 and 4 are `$.party` errors.
+#[test]
+fn new_equipped_party_builds_a_party() {
+    let (stage, content, setup) = (stage(), content(), setup());
+    for party in 1..=3u8 {
+        let e = Engine::new_equipped_party(&stage, &content, &setup, party).expect("starts");
+        assert_eq!(e.present(), (1u8 << party) - 1);
+    }
+    for party in [0u8, 4] {
+        let Err(Error::Invalid(issues)) =
+            Engine::new_equipped_party(&stage, &content, &setup, party)
+        else {
+            panic!("a party of {party} is refused");
+        };
+        assert_eq!(issues[0].path, "$.party");
+    }
+}
+
+#[test]
+fn new_equipped_party_of_one_is_new_equipped() {
+    let (stage, content, setup) = (stage(), content(), setup());
+    let mut a = Engine::new_equipped(&stage, &content, &setup).expect("starts");
+    let mut b = Engine::new_equipped_party(&stage, &content, &setup, 1).expect("starts");
+    assert_eq!(a.state_hash(), b.state_hash());
+    for _ in 0..20 {
+        a.step(&[Default::default(), Default::default(), Default::default()]);
+        b.step(&[Default::default(), Default::default(), Default::default()]);
+    }
+    assert_eq!(a.state_hash(), b.state_hash());
+}

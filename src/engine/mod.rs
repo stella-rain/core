@@ -523,6 +523,26 @@ impl Engine {
         content: &RunContent,
         setup: &RunSetup,
     ) -> Result<Engine, Error> {
+        Engine::new_equipped_party(stage, content, setup, 1)
+    }
+
+    /// For tests and benches only, under the `bench` feature: as `new_equipped`, for a party of
+    /// `party` players (1 to `MAX_PLAYERS`, else `Error::Invalid` at `$.party`), each member a
+    /// copy of slot 0 as `start_party_with` builds it.
+    #[cfg(feature = "bench")]
+    #[doc(hidden)]
+    pub fn new_equipped_party(
+        stage: &Stage,
+        content: &RunContent,
+        setup: &RunSetup,
+        party: u8,
+    ) -> Result<Engine, Error> {
+        if !(1..=crate::id::MAX_PLAYERS).contains(&party) {
+            return Err(Error::Invalid(vec![Issue {
+                path: "$.party".into(),
+                message: "a party of 1 to 3 players".into(),
+            }]));
+        }
         run_setup::validate_in(setup, content)?;
         validate::validate(stage)?;
         let kinds = KindTable::of_stage(stage).map_err(|i| Error::Invalid(vec![i]))?;
@@ -541,7 +561,7 @@ impl Engine {
                 seed: setup.seed,
                 stat_priority: &setup.stat_priority,
                 setup: Some(setup),
-                party: 1,
+                party,
             },
         )
         .map_err(|i| Error::Invalid(vec![i]))?;
