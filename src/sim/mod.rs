@@ -86,7 +86,7 @@
 //! The counter bonus a style grants (`World::counter_of`, the `counter_bonus` style kind) is
 //! off the same way (the bundled pack names it): it reads and writes only `PlayerCombat::counter_window`,
 //! `counter_bonus_step` and `counter_payout` (owed from the take until the step's first landed
-//! combo hit, which pays nothing yet), opens on a near miss of the evade and is taken by the first dash-branch
+//! combo hit, which pays the evade refund and the gauge fill), opens on a near miss of the evade and is taken by the first dash-branch
 //! step started inside it (`player::near_miss`, `counter_take`; damage, stagger factor, stun and
 //! slide in `strike`, `stun::fill`, `stun::counter_bonus_stun` and `magnetism`).
 //! `PlayerView.counter` and the two counter events are not state. A run whose styles name no

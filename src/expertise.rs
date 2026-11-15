@@ -422,7 +422,7 @@ pub struct CounterBonus {
     /// `MAX_COUNTER_WINDOW_TICKS`.
     #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
     pub window_ticks: u32,
-    /// What the step takes, each variant at most once; 1 to 4 entries (0 to 4 at a level after
+    /// What the step takes, each variant at most once; 1 to 6 entries (0 to 6 at a level after
     /// one that names the kind).
     pub effects: Vec<CounterEffect>,
 }
@@ -454,6 +454,15 @@ pub enum CounterEffect {
         #[schemars(range(min = 256, max = crate::limits::MAX_ADVANCE_DISTANCE * 256))]
         distance: Fx,
     },
+    /// At the counter's first landed combo hit, one spent evade charge is given back (the
+    /// most recent spend); nothing when none is recovering. A counter that whiffs pays nothing.
+    RefundEvade {},
+    /// At the counter's first landed combo hit, the weapon gauge gains this percent of its bar
+    /// (never past the bar); inert for a style that names no gauge kind. 1 to 100.
+    GaugeFillPct {
+        #[schemars(range(min = 1, max = 100))]
+        pct: u32,
+    },
 }
 
 impl CounterEffect {
@@ -463,6 +472,8 @@ impl CounterEffect {
             CounterEffect::StaggerPct { .. } => 1,
             CounterEffect::StunTicks { .. } => 2,
             CounterEffect::Advance { .. } => 3,
+            CounterEffect::RefundEvade {} => 4,
+            CounterEffect::GaugeFillPct { .. } => 5,
         }
     }
 }
@@ -1278,16 +1289,23 @@ fn check_counter_bonus(
         );
     }
     let least = usize::from(!later);
-    if c.effects.len() < least || c.effects.len() > 4 {
+    if c.effects.len() < least || c.effects.len() > 6 {
         issue(
             format!("{at}.effects"),
-            format!("{least} to 4 effects (found {})", c.effects.len()),
+            format!("{least} to 6 effects (found {})", c.effects.len()),
         );
     }
-    let mut seen = [false; 4];
-    for (e, effect) in c.effects.iter().enumerate().take(4) {
+    let mut seen = [false; 6];
+    for (e, effect) in c.effects.iter().enumerate().take(6) {
         let at = format!("{at}.effects[{e}]");
         let (key, v, lo, hi) = match effect {
+            CounterEffect::RefundEvade {} => {
+                if std::mem::replace(&mut seen[usize::from(effect.name())], true) {
+                    issue(at, "the kind already names this effect".into());
+                }
+                continue;
+            }
+            CounterEffect::GaugeFillPct { pct } => ("pct", i64::from(*pct), 1, 100),
             CounterEffect::DamagePct { pct } => ("pct", i64::from(*pct), 1, i64::from(MAX_PCT)),
             CounterEffect::StaggerPct { pct } => ("pct", i64::from(*pct), 101, i64::from(MAX_PCT)),
             CounterEffect::StunTicks { ticks } => (

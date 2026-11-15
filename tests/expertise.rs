@@ -634,11 +634,11 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
             }
         }
     }
-    // 6 style levels and the 8 built upgrade and capstone levels.
-    assert_eq!(built, 14);
+    // 6 style levels and the 9 built upgrade and capstone levels.
+    assert_eq!(built, 15);
 }
 
-/// C1: the four upgrade levels of the stacking kinds are kinds (no stat, no amount); the ten
+/// C1: the four upgrade levels of the stacking kinds are kinds (no stat, no amount); the nine
 /// other placeholder levels are still stats.
 #[test]
 fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats() {
@@ -673,6 +673,16 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
                 "effects": [{ "type": "advance", "distance": 12288 }]
             }),
         ),
+        (
+            "foresight_counter_cap",
+            json!({
+                "type": "counter_bonus", "window_ticks": 38,
+                "effects": [
+                    { "type": "refund_evade" },
+                    { "type": "gauge_fill_pct", "pct": 25 }
+                ]
+            }),
+        ),
     ];
     for (id, kind) in want {
         let level = &levels[id];
@@ -682,7 +692,6 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
     }
     let stats = [
         "spirit_blade_up_2",
-        "foresight_counter_cap",
         "judgement_cut_up_1",
         "judgement_cut_up_2",
         "titan_trigger_up_2",

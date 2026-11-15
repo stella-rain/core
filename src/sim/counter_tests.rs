@@ -724,3 +724,254 @@ fn a_second_counter_pays_again() {
         r.idle(5);
     }
 }
+
+fn pair() -> Value {
+    counter_kind(json!([
+        { "type": "refund_evade" },
+        { "type": "gauge_fill_pct", "pct": 25 }
+    ]))
+}
+
+/// A gauge kind with no per-step and no per-hit fill, so the payout is the only fill.
+fn gauge_kind(extra: Value) -> Value {
+    let mut g = json!({
+        "type": "gauge", "max": 100, "step_cap": 1,
+        "spend": { "type": "full_smash", "attack": { "inline": [
+            { "kind": "wind_up", "ticks": 1 },
+            { "kind": "active", "ticks": 2, "type": "slash", "damage": 100,
+              "hit_box": { "type": "circle", "radius": 40 * 256,
+                           "offset": { "forward": 0, "right": 0 } } },
+            { "kind": "recovery", "ticks": 6 }
+        ] } }
+    });
+    for (k, v) in extra.as_object().into_iter().flatten() {
+        g[k] = v.clone();
+    }
+    g
+}
+
+impl Rig {
+    /// Player 0 holds `charges` evade charges, `timers` of them recovering.
+    fn evade_state(&mut self, charges: u8, timers: &[u32]) {
+        let p = &mut st(&mut self.e).players[ME];
+        p.evade_charges = charges;
+        p.evade_recovering.clear();
+        for t in timers {
+            p.evade_recovering.push(*t);
+        }
+    }
+
+    /// `(timers, ready, charges, weapon gauge, gauge step fill)` of player `i`.
+    fn evade_gauge(&mut self, i: u8) -> (Vec<u32>, u8, u8, u32, u32) {
+        let p = &st(&mut self.e).players[slot(i)];
+        (
+            p.evade_recovering.clone(),
+            p.evade_ready(),
+            p.evade_charges,
+            p.combat.weapon_gauge,
+            p.combat.gauge_step_fill,
+        )
+    }
+}
+
+/// B1: the take pays nothing.
+#[test]
+fn the_take_refunds_and_fills_nothing() {
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 0);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press();
+    assert_eq!(count(&events, "CounterBonusTaken"), 1);
+    let (timers, ready, _, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), ready, gauge), (1, 1, 0));
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+}
+
+/// B2: a landed counter pays exactly once, at its first hit; a second counter pays again.
+#[test]
+fn a_landed_counter_refunds_and_fills_once() {
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 1);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let mut ticks = vec![r.press()];
+    for _ in 0..40 {
+        ticks.push(r.step([Input::default(); 3]));
+    }
+    let first = ticks.iter().position(|t| t.0 > 0).expect("a hit");
+    for (i, (_, events)) in ticks.iter().enumerate() {
+        if i < first {
+            assert_eq!(count(events, "GaugeFilled"), 0, "tick {i}");
+        }
+        if i == first {
+            assert_eq!(
+                named(events, "GaugeFilled"),
+                vec![json!({ "player": "first", "amount": 25, "value": 25 })]
+            );
+        }
+        if i > first {
+            assert_eq!(count(events, "GaugeFilled"), 0, "tick {i}");
+        }
+    }
+    let (timers, ready, charges, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), ready, charges, gauge), (0, 2, 2, 25));
+    // A second counter with a fresh spend pays again.
+    r.idle(5);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    r.press();
+    r.finish(0, vec![]);
+    let (timers, ready, _, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), ready, gauge), (0, 2, 50));
+}
+
+/// B2b: the step's own fill runs after the payout in the same tick.
+#[test]
+fn the_steps_own_fill_follows_the_payout() {
+    let extra = json!({ "per_step": 3, "step_cap": 3 });
+    let mut r = rig(1, vec![gauge_kind(extra), pair()], 1);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let mut events = Vec::new();
+    let (lost, ev) = r.press();
+    events.extend(ev);
+    if lost == 0 {
+        for _ in 0..40 {
+            let (lost, ev) = r.step([Input::default(); 3]);
+            events.extend(ev);
+            if lost > 0 {
+                break;
+            }
+        }
+    }
+    let fills = named(&events, "GaugeFilled");
+    assert!(
+        fills.len() >= 2,
+        "the step lands and fills twice: {fills:?}"
+    );
+    assert_eq!(
+        fills[..2],
+        [
+            json!({ "player": "first", "amount": 25, "value": 25 }),
+            json!({ "player": "first", "amount": 3, "value": 28 })
+        ]
+    );
+    assert_eq!(r.evade_gauge(0).3, 28);
+}
+
+/// B3: a whiffed counter pays nothing, and never late.
+#[test]
+fn a_whiffed_counter_refunds_and_fills_nothing() {
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 0);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press();
+    let (_, events) = r.finish(0, events);
+    let (timers, _, _, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), gauge, r.payout(0)), (1, 0, 0));
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+}
+
+/// B4: the refund takes the most recent spend, none pending is no effect, a plain step pays nothing.
+#[test]
+fn the_refund_takes_the_last_spend_and_a_plain_step_pays_nothing() {
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 1);
+    r.evade_state(2, &[100, 300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    r.press();
+    r.finish(0, vec![]);
+    let (timers, _, charges, _, _) = r.evade_gauge(0);
+    assert_eq!(charges, 2);
+    assert_eq!(timers.len(), 1);
+    assert!(timers[0] < 100, "the earlier spend stays: {timers:?}");
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 1);
+    r.evade_state(2, &[]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    r.press();
+    r.finish(0, vec![]);
+    assert_eq!(r.evade_gauge(0).0.len(), 0);
+    let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 1);
+    r.evade_state(2, &[300]);
+    r.keep_dash_strike(0);
+    r.press();
+    r.finish(0, vec![]);
+    let (timers, _, _, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), gauge), (1, 0), "no window, no payout");
+}
+
+/// B5: the fill stops at the bar and leaves the step's fill alone.
+#[test]
+fn the_fill_stops_at_the_bar() {
+    for (have, gain, full) in [(90u32, 10u32, true), (100, 0, true)] {
+        let mut r = rig(1, vec![gauge_kind(json!({})), pair()], 1);
+        st(&mut r.e).players[ME].combat.weapon_gauge = have;
+        r.set_window(0, 30);
+        r.keep_dash_strike(0);
+        let (_, events) = r.press();
+        let (_, events) = r.finish(0, events);
+        let fills = named(&events, "GaugeFilled");
+        if gain > 0 {
+            assert_eq!(
+                fills,
+                vec![json!({ "player": "first", "amount": gain, "value": 100, "full": full })]
+            );
+        } else {
+            assert!(fills.is_empty());
+        }
+        let (_, _, _, gauge, step_fill) = r.evade_gauge(0);
+        assert_eq!((gauge, step_fill), (100, 0));
+    }
+}
+
+/// B6: no gauge kind, no fill; the refund still happens.
+#[test]
+fn without_a_gauge_kind_only_the_refund_pays() {
+    let mut r = rig(1, vec![pair()], 1);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press();
+    let (_, events) = r.finish(0, events);
+    let (timers, _, _, gauge, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), gauge), (0, 0));
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+}
+
+/// B7: only the player that took the counter is paid, two foes pay once, and the run is
+/// deterministic and differs from one without the effects.
+#[test]
+fn the_payout_is_the_takers_and_deterministic() {
+    let mut r = rig(2, vec![gauge_kind(json!({})), pair()], 2);
+    r.evade_state(2, &[300]);
+    st(&mut r.e).players[slot(1)].evade_charges = 2;
+    st(&mut r.e).players[slot(1)].evade_recovering.push(300);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press();
+    let (_, events) = r.finish(0, events);
+    assert_eq!(count(&events, "GaugeFilled"), 1, "two foes pay once");
+    assert_eq!(r.evade_gauge(0).3, 25);
+    let other = r.evade_gauge(1);
+    assert_eq!((other.0.len(), other.3), (1, 0), "player 1 is not paid");
+    let run = |kinds: Vec<Value>| {
+        let mut r = rig(1, kinds, 1);
+        r.evade_state(2, &[300]);
+        r.set_window(0, 30);
+        r.keep_dash_strike(0);
+        r.press();
+        r.idle(600);
+        r.e.state_hash()
+    };
+    let with = run(vec![gauge_kind(json!({})), pair()]);
+    assert_eq!(with, run(vec![gauge_kind(json!({})), pair()]));
+    let without = run(vec![
+        gauge_kind(json!({})),
+        counter_kind(json!([{ "type": "damage_pct", "pct": 100 }])),
+    ]);
+    assert_ne!(with, without);
+}
