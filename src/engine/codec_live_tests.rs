@@ -979,6 +979,20 @@ fn a_knocked_down_enemy_round_trips_with_an_equal_hash() {
     round_trip_hashed(&s.enemies[0]);
 }
 
+/// A staggered elite round-trips through the savepoint codec with both stagger fields and an
+/// equal hash.
+#[test]
+fn a_staggered_elite_round_trips_with_both_stagger_fields() {
+    let mut s = base();
+    let g = &mut s.enemies[0].elite.as_mut().unwrap().stagger;
+    g.staggered = 70;
+    g.total = 120;
+    round_trip_hashed(&s.enemies[0]);
+    let back: AgentState = from_bytes(&to_bytes(&s.enemies[0])).unwrap();
+    let g = back.elite.as_ref().unwrap().stagger;
+    assert_eq!((g.staggered, g.total), (70, 120));
+}
+
 /// T3: the repeat bleed is status tag 7, in the bytes and in the hash; the first undefined tag is 8.
 #[test]
 fn the_repeat_bleed_is_status_tag_seven() {

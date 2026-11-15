@@ -6,7 +6,8 @@
 //! Every stagger fill goes through `fill`: the counter bonus's factor and then the breaker's
 //! scale the value, the refill percent of the bars already broken applies, and a full gauge
 //! staggers the target. The breaker's burst (`player::stagger_burst`) goes off right after it,
-//! with the damage of the hit that filled, so one stagger bursts once.
+//! with the damage of the hit that filled, so one stagger bursts once. A stagger keeps the length
+//! it was given (`Stagger::total`) until it ends; the status bar reads it.
 
 use super::World;
 use crate::event::DomainEvent;
@@ -399,7 +400,8 @@ pub(super) fn fill(
     }
 }
 
-/// Staggers `target` (the boss or an elite) for `ticks`: its gauge empties, its next bar fills
+/// Staggers `target` (the boss or an elite) for `ticks`, which it stores as the stagger's length
+/// (`Stagger::total`, the status bar's total): its gauge empties, its next bar fills
 /// slower, its attacks end, and it reports the status and, when the rules say so, takes
 /// `vulnerable` for the stagger's ticks. It is no hard control (C03).
 fn stagger(
@@ -412,6 +414,7 @@ fn stagger(
 ) {
     if let Some(g) = gauge_of(s, target) {
         g.staggered = ticks;
+        g.total = ticks;
         g.gauge = 0;
         g.drain = 0;
         g.breaks = g.breaks.saturating_add(1).min(MAX_STAGGER_BREAKS);
@@ -447,6 +450,7 @@ pub(super) fn stagger_tick(stage: &World, s: &mut State, events: &mut Vec<Domain
         if g.staggered > 0 {
             g.staggered -= 1;
             if g.staggered == 0 {
+                g.total = 0;
                 events.push(DomainEvent::StaggerEnded { target: id });
             }
         } else if g.drain > 0 {

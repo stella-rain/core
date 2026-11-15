@@ -136,7 +136,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                         } else {
                             0
                         },
-                        boss.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
+                        b.stagger.total,
                     ),
                     (0, 0),
                 ),
@@ -182,7 +182,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                     (a.control.flinch, world.tuning.flinch_ticks),
                     (
                         a.elite.as_ref().map_or(0, |e| e.stagger.staggered),
-                        def.staggered_ticks.unwrap_or(world.tuning.staggered_ticks),
+                        a.elite.as_ref().map_or(0, |e| e.stagger.total),
                     ),
                     (a.control.knocked_down, world.tuning.down_ticks),
                 ),
@@ -627,7 +627,8 @@ fn status_views(
         views.push(StatusView {
             id: STAGGERED_ID.clone(),
             remaining: u32::from(staggered.0),
-            total: u32::from(staggered.1),
+            // A state that holds fewer ticks in `total` than are left (hand-built) shows a full bar.
+            total: u32::from(staggered.1.max(staggered.0)),
         });
     }
     // An enemy's knockdown, with what is left of it and the ticks the rules give one.

@@ -929,28 +929,3 @@ fn the_bar_is_never_over_full() {
     };
     assert_eq!(staggered_view(&mut r, 0), Some((50, 50)));
 }
-
-/// P6: an elite mid-stagger round-trips through the savepoint bytes with both fields and the
-/// state hash equal.
-#[test]
-fn a_staggered_elite_round_trips_through_the_savepoint() {
-    let make = || {
-        let mut r = rig(1, vec![], 3);
-        prep(&mut r, &[0, 1]);
-        r
-    };
-    let mut r = make();
-    stagger_len(&mut r, 0, 0);
-    for _ in 0..50 {
-        tick_stagger(&mut r);
-    }
-    let bytes = crate::savepoint::encode_state(&r.e);
-    let fresh = make().e;
-    let (state, ledger, counted, stats) =
-        crate::savepoint::state::decode_state(&bytes, &fresh).expect("a load");
-    let mut back = fresh.with_saved(state, ledger, counted, stats);
-    let s = st(&mut back);
-    assert_eq!((staggered(s, 0), total(s, 0)), (70, 120));
-    assert_eq!(back.state_hash(), r.e.state_hash());
-    assert_eq!(crate::savepoint::encode_state(&back), bytes);
-}
