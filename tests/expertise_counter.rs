@@ -128,14 +128,16 @@ fn the_counter_kind_is_bounded() {
         240 * 256 + 1,
     );
     refused_at(json!([effects(json!([]))]), &format!("{PATH}.effects"));
-    let five = json!([
+    let seven = json!([
         { "type": "damage_pct", "pct": 5 },
         { "type": "stagger_pct", "pct": 150 },
         { "type": "stun_ticks", "ticks": 5 },
         { "type": "advance", "distance": 256 },
+        { "type": "refund_evade" },
+        { "type": "gauge_fill_pct", "pct": 5 },
         { "type": "damage_pct", "pct": 6 }
     ]);
-    refused_at(json!([effects(five)]), &format!("{PATH}.effects"));
+    refused_at(json!([effects(seven)]), &format!("{PATH}.effects"));
 }
 
 /// S1: `window_ticks` and `effects` are required, an unknown effect type and an unknown key are
@@ -155,7 +157,7 @@ fn the_counter_kind_is_strict() {
 }
 
 /// S1: one effect of a variant per kind, one counter bonus per style path (inside a level and
-/// across levels), both refused at the later one; a level of five kinds is over the level's bound.
+/// across levels), both refused at the later one; a level of seven effects is over the level's bound.
 #[test]
 fn a_kind_names_one_effect_per_variant_and_a_path_one_counter() {
     refused_at(
@@ -324,4 +326,73 @@ fn a_later_level_may_name_the_counter_bonus_again() {
         &format!("{PATH}.effects"),
     );
     stacked_refused(json!([]), later(45, json!([])), &format!("{LATER}.effects"));
+}
+
+/// V1: the refund and the gauge fill load alone and together, and round-trip through JSON.
+#[test]
+fn the_refund_and_the_gauge_fill_load_and_round_trip() {
+    valid(json!([effects(json!([{ "type": "refund_evade" }]))]));
+    valid(json!([effects(
+        json!([{ "type": "gauge_fill_pct", "pct": 25 }])
+    )]));
+    let pair = json!([{ "type": "refund_evade" }, { "type": "gauge_fill_pct", "pct": 25 }]);
+    valid(json!([effects(pair.clone())]));
+    let parsed = parse_at(
+        &with_kinds(json!([effects(pair.clone())])),
+        Versions::CURRENT,
+    )
+    .unwrap();
+    let out = serde_json::to_value(parsed.weapons()).unwrap();
+    assert_eq!(out[0]["styles"][0]["kinds"][0]["effects"], pair);
+}
+
+/// V2: the fill's percent is the bar's own, 1 to 100, refused at its path.
+#[test]
+fn the_gauge_fill_percent_is_bounded() {
+    for pct in [1, 100] {
+        valid(json!([effects(
+            json!([{ "type": "gauge_fill_pct", "pct": pct }])
+        )]));
+    }
+    for pct in [0, 101] {
+        refused_at(
+            json!([effects(json!([{ "type": "gauge_fill_pct", "pct": pct }]))]),
+            &format!("{PATH}.effects[0].pct"),
+        );
+    }
+}
+
+/// V3: each new effect once per kind; six distinct effects load.
+#[test]
+fn the_new_effects_are_named_once_and_six_load() {
+    refused_at(
+        json!([effects(
+            json!([{ "type": "refund_evade" }, { "type": "refund_evade" }])
+        )]),
+        &format!("{PATH}.effects[1]"),
+    );
+    refused_at(
+        json!([effects(json!([
+            { "type": "gauge_fill_pct", "pct": 5 },
+            { "type": "gauge_fill_pct", "pct": 6 }
+        ]))]),
+        &format!("{PATH}.effects[1]"),
+    );
+    valid(json!([effects(json!([
+        { "type": "damage_pct", "pct": 5 },
+        { "type": "stagger_pct", "pct": 150 },
+        { "type": "stun_ticks", "ticks": 5 },
+        { "type": "advance", "distance": 256 },
+        { "type": "refund_evade" },
+        { "type": "gauge_fill_pct", "pct": 5 }
+    ]))]));
+}
+
+/// V4: the refund holds no number and the fill needs its percent.
+#[test]
+fn the_new_effects_are_strict() {
+    parse_error(json!([effects(
+        json!([{ "type": "refund_evade", "pct": 1 }])
+    )]));
+    parse_error(json!([effects(json!([{ "type": "gauge_fill_pct" }]))]));
 }
