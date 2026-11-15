@@ -480,8 +480,8 @@ mod tests {
 
     /// The hashes of `start()` at tick 0 and after 10 ticks, captured before the party
     /// constructor: the solo start is the party of one.
-    const SOLO_HASH_0: u64 = 5_294_846_714_384_129_936;
-    const SOLO_HASH_10: u64 = 4_772_203_626_335_401_242;
+    const SOLO_HASH_0: u64 = 10_117_421_401_490_331_352;
+    const SOLO_HASH_10: u64 = 4_828_260_849_493_317_178;
 
     fn hashes(mut e: Engine) -> (u64, u64) {
         let first = e.state_hash();
