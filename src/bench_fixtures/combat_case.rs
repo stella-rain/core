@@ -134,8 +134,8 @@ pub fn play(engine: &mut Engine, tick: u32) {
 }
 
 /// The inputs of tick `tick` for a party of `party` (1 to 3): slot 0 has `input`; the members
-/// walk as it does, with Main tapped on the odd ticks, the parity slot 0 does not tap on
-/// (`party_case::tap`); the slots past `party` have the default.
+/// walk as it does, with Main tapped on the odd ticks, the parity slot 0 does not tap on from the
+/// replayed window on (`party_case::tap`); the slots past `party` have the default.
 pub fn inputs_party(tick: u32, party: u8) -> [Input; 3] {
     let lead = input(tick);
     let member = Input {
@@ -196,6 +196,7 @@ pub fn prepare(engine: &mut Engine) {
 /// `prepare` for a party of `party`: the repeats are shared by the slots, `n % party` owning
 /// repeat `n` (22, 21 and 21 of 64 for 3), so every slot's runes fire on the hits.
 pub fn prepare_party(engine: &mut Engine, party: u8) {
+    assert!((1..=3).contains(&party), "a party of 1 to 3");
     let due = engine.tick() + 1;
     let Run::V2 { world, state, .. } = engine.bench_run_mut() else {
         panic!("the live rules");
@@ -461,6 +462,12 @@ mod tests {
         for t in 1..=460 {
             let inputs = inputs_party(t, 3);
             assert_eq!(inputs[0], input(t), "tick {t}");
+            if t > WARMUP_TICKS {
+                assert!(
+                    t % 2 == 0 || !inputs[0].main,
+                    "after the warm-up slot 0 taps on even ticks only, tick {t}"
+                );
+            }
             for member in &inputs[1..] {
                 assert_eq!(member.main, t % 2 == 1, "tick {t}");
                 assert_eq!(member.move_x, input(t).move_x, "tick {t}");
