@@ -13,7 +13,8 @@
 //! The gauge reads the thresholds, the growth and the maximum, the common offers
 //! draw from the common pool, and the style offers show the styles and the chosen style's
 //! upgrades and capstone (`sim`). A style level may also name mechanic kinds (`StyleKind`): a
-//! step's charge or hold, a delayed repeat or a proc factor of a step's hits, the weapon's smash
+//! step's charge or hold, a charge whose levels come sooner, a delayed repeat or a proc factor of
+//! a step's hits, the weapon's smash
 //! effect (`reap` among them) or a weapon gauge that fills from hits and damage taken and spends
 //! on a full-gauge attack, or a spirit level that the full-gauge smash raises and a countdown
 //! lowers, each level with its own effects, or a counter bonus that a near miss of the evade opens
@@ -85,6 +86,9 @@ pub const MAX_REPEAT_BLEED_STACKS: u32 = 4;
 /// Ticks between two damage ticks of the repeat bleed: the runes bleed's own interval, not
 /// content and not scaled by rune haste (it is no rune).
 pub const REPEAT_BLEED_INTERVAL_TICKS: u32 = 20;
+/// The largest `pct` of a `charge_sooner` kind: a share of the charge's ticks taken off (a bound,
+/// not a design number).
+pub const MAX_CHARGE_SOONER_PCT: u32 = 90;
 /// The most repeats on one step, summed over one style's path (a tuning placeholder).
 pub const MAX_STEP_REPEATS: usize = 4;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
@@ -240,6 +244,18 @@ pub enum StyleKind {
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    /// The charge of the step reached by `step` reaches each of its levels `pct` percent sooner
+    /// (1 to `MAX_CHARGE_SOONER_PCT`): each level's `at_ticks` becomes `at_ticks * (100 - pct) /
+    /// 100`, floored, at least 1. The perfect windows, the longest hold, the movement and the
+    /// attacks stay. It comes after the grant that gives the step its charge in the style's path
+    /// (the pack check refuses a step with no charge there), and a step takes it once per style
+    /// path. It is applied when the world builds the style's weapon (`weapon_with_style`): no
+    /// state, no hash field. `sim_version` 2 only.
+    ChargeSooner {
+        step: Vec<Press>,
+        #[schemars(range(min = 1, max = MAX_CHARGE_SOONER_PCT))]
+        pct: u32,
+    },
     /// The style's weapon gauge: it fills from the player's normal (A) steps that hit and from the
     /// hit points lost, and a B press with it full plays the full-gauge attack and empties it
     /// (ADR-SIM-9 points 3 and 7). One per style path: a second is refused.
@@ -1096,6 +1112,15 @@ fn check_level(
                 check_step_len(issue, &at, step);
                 check_proc_pct(issue, &at, Some(*proc_pct));
             }
+            StyleKind::ChargeSooner { step, pct } => {
+                check_step_len(issue, &at, step);
+                if !(1..=MAX_CHARGE_SOONER_PCT).contains(pct) {
+                    issue(
+                        format!("{at}.pct"),
+                        format!("1 to {MAX_CHARGE_SOONER_PCT} (found {pct})"),
+                    );
+                }
+            }
             StyleKind::Gauge(g) => check_gauge(issue, &at, g),
             StyleKind::Spirit(s) => check_spirit(issue, &at, s),
             StyleKind::CounterBonus(c) => check_counter_bonus(issue, &at, c, earlier.counter),
@@ -1459,6 +1484,7 @@ pub(crate) fn style_levels(style: &Style) -> [(&'static str, Option<&ExpertiseOp
 fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
     let mut seen: Vec<&Vec<Press>> = Vec::new();
     let mut factored: Vec<&Vec<Press>> = Vec::new();
+    let mut hastened: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut orbs_set = false;
     let mut bleed_set = false;
@@ -1537,6 +1563,18 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                         );
                     } else {
                         factored.push(step);
+                    }
+                }
+                StyleKind::ChargeSooner { step, .. } => {
+                    if hastened.contains(&step) {
+                        issue(
+                            format!("{path}[{k}].step"),
+                            "the step's charge is already made sooner by an earlier level of the \
+                             style"
+                                .into(),
+                        );
+                    } else {
+                        hastened.push(step);
                     }
                 }
                 StyleKind::Gauge(_) => {
@@ -1749,10 +1787,33 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
     }
     true
 }
+
+/// A level's `at_ticks` made `pct` percent sooner: `at * (100 - pct) / 100`, floored, at least 1.
+/// A `pct` past 100 counts as 100 (the validator holds it to `MAX_CHARGE_SOONER_PCT`).
+pub(crate) fn sooner_at(at: u32, pct: u32) -> u32 {
+    let kept = u64::from(100 - pct.min(100));
+    u32::try_from(u64::from(at) * kept / 100)
+        .unwrap_or(u32::MAX)
+        .max(1)
+}
+
+/// Makes each level of the charge on the step `presses` reach `pct` percent sooner. `false`,
+/// nothing changed, when no step is there or it has no charge.
+pub(crate) fn charge_sooner(weapon: &mut Weapon, presses: &[Press], pct: u32) -> bool {
+    let Some(charge) = step_mut(&mut weapon.combo, presses).and_then(|s| s.charge.as_mut()) else {
+        return false;
+    };
+    for level in &mut charge.levels {
+        level.at_ticks = sooner_at(level.at_ticks, pct);
+    }
+    true
+}
+
 /// `base` with the grants a style gives when it is chosen and `taken` places of its path
 /// (0 to 3: the first upgrade, the second, the capstone) are taken, in path order: the style's
-/// own kinds, then each taken place's one choice. A grant that finds no step is skipped (the
-/// pack check refuses it before a run).
+/// own kinds, then each taken place's one choice. A grant that finds no step, or a
+/// `charge_sooner` that finds no charge, is skipped (the pack check refuses it before a run). The
+/// charge's levels come sooner here, at world build: no state, no hash field.
 pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> Weapon {
     let mut weapon = base.clone();
     let mut bleed = None;
@@ -1804,6 +1865,10 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     if let Some(s) = step_mut(&mut weapon.combo, step) {
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
                     }
+                }
+                // A path with no charge at this place is refused by the pack check.
+                StyleKind::ChargeSooner { step, pct } => {
+                    charge_sooner(&mut weapon, step, *pct);
                 }
                 // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
                 StyleKind::Gauge(_) => {}

@@ -283,6 +283,8 @@ pub enum StyleKindView {
     },
     /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    /// The step's charge reaches each level `pct` percent sooner.
+    ChargeSooner { step: Vec<Press>, pct: u32 },
     /// The style has a weapon gauge `max` long, spent as `spend`.
     Gauge { max: u32, spend: GaugeSpendKind },
     /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.

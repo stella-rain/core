@@ -11327,6 +11327,34 @@
         },
         {
           "additionalProperties": false,
+          "description": "The charge of the step reached by `step` reaches each of its levels `pct` percent sooner\n(1 to `MAX_CHARGE_SOONER_PCT`): each level's `at_ticks` becomes `at_ticks * (100 - pct) /\n100`, floored, at least 1. The perfect windows, the longest hold, the movement and the\nattacks stay. It comes after the grant that gives the step its charge in the style's path\n(the pack check refuses a step with no charge there), and a step takes it once per style\npath. It is applied when the world builds the style's weapon (`weapon_with_style`): no\nstate, no hash field. `sim_version` 2 only.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 90,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "charge_sooner",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "The style's weapon gauge: it fills from the player's normal (A) steps that hit and from the\nhit points lost, and a B press with it full plays the full-gauge attack and empties it\n(ADR-SIM-9 points 3 and 7). One per style path: a second is refused.",
           "properties": {
             "from_damage_pct": {
@@ -11704,6 +11732,33 @@
             "type",
             "step",
             "proc_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The step's charge reaches each level `pct` percent sooner.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "items": {
+                "$ref": "#/$defs/Press"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "charge_sooner",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "pct"
           ],
           "type": "object"
         },

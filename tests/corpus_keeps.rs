@@ -26,7 +26,7 @@ const KEEPS: &[Keep] = &[
     ("runs/elites", 48700, "Failed", "|", 1120),
     ("runs/rainy", 4414, "Failed", "|", 23480),
     ("runs/stage_skill", 5400, "Failed", "|", 0),
-    ("runs/time_limit", 16834, "Failed", "|", 18770),
+    ("runs/time_limit", 14924, "Failed", "|", 27560),
     ("runs/time_limit_kill", 2278, "Cleared", "|", 2000),
     ("runs/time_limit_overtime", 600, "Failed", "|", 0),
     ("runs/trial", 3241, "Failed", "|", 0),

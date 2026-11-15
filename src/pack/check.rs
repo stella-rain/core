@@ -15,7 +15,7 @@ use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::expertise::{
     Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, apply_grant,
-    step_mut, style_levels, weapon_attacks,
+    charge_sooner, step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -228,6 +228,24 @@ pub(super) fn check_style_grants(
                         StyleKind::SmashEffect { effect } => {
                             tree.smash = Some(*effect);
                             "effect"
+                        }
+                        StyleKind::ChargeSooner { step, pct } => {
+                            if step_mut(&mut tree.combo, step).is_none() {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.step"),
+                                    message: "no such step in the weapon's base tree".into(),
+                                });
+                                break 'style;
+                            }
+                            if !charge_sooner(&mut tree, step, *pct) {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.step"),
+                                    message: "the step has no charge at this level of the path"
+                                        .into(),
+                                });
+                                break 'style;
+                            }
+                            "pct"
                         }
                         StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
                             if step_mut(&mut tree.combo, step).is_none() {

@@ -630,6 +630,10 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 step: step.clone(),
                 proc_pct: *proc_pct,
             },
+            StyleKind::ChargeSooner { step, pct } => StyleKindView::ChargeSooner {
+                step: step.clone(),
+                pct: *pct,
+            },
             StyleKind::Gauge(g) => StyleKindView::Gauge {
                 max: g.max,
                 spend: match g.spend {

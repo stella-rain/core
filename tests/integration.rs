@@ -74,6 +74,7 @@ mod equipment_slots;
 mod evade;
 mod expertise;
 mod expertise_breaker;
+mod expertise_charge;
 mod expertise_counter;
 mod expertise_gauge;
 mod expertise_spirit;
