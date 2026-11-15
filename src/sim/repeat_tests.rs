@@ -785,3 +785,78 @@ fn the_bundled_judgement_cut_grants_the_break_from_its_first_upgrade() {
     deal(&w, &mut s);
     assert_eq!(draws_since(&before, &s), 0);
 }
+
+/// The Sword's style 0 with one repeat on its own level, the repeat bleed at `upgrade_2` and a
+/// second repeat at the capstone.
+fn bleeding_style() -> (crate::weapon::Weapon, crate::expertise::Expertise) {
+    use crate::expertise::Expertise;
+    use crate::version::Versions;
+    let bundled: Value = serde_json::from_slice(super::before::pack_bytes()).unwrap();
+    let mut file = bundled["expertise"].clone();
+    let w = file["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_sword")
+        .unwrap();
+    let repeat = |after: u32| {
+        json!({ "type": "repeat", "step": ["main"], "after_ticks": after, "repeat_pct": 50,
+            "anchor": "hit_list" })
+    };
+    let s = &mut w["styles"][0];
+    s["kinds"] = json!([repeat(30)]);
+    for (field, kinds) in [
+        (
+            "upgrade_2",
+            json!([{ "type": "repeat_bleed", "stacks": 1, "duration_ticks": 180,
+                "damage": 300, "max_stacks": 6 }]),
+        ),
+        ("capstone", json!([repeat(60)])),
+    ] {
+        s[field][0]["effect"] = json!("none");
+        s[field][0].as_object_mut().unwrap().remove("amount");
+        s[field][0]["kinds"] = kinds;
+    }
+    let content = super::before::pack().content();
+    let base = content.weapons().tree("giant_sword", None).unwrap().clone();
+    let e = Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the file");
+    (base, e)
+}
+
+/// V6: the weapon copy stamps the style's repeat bleed on every repeat it holds, those a later
+/// level grants included, and on none before the cell is taken.
+#[test]
+fn the_weapon_copy_stamps_the_repeat_bleed_on_every_repeat() {
+    use crate::weapon::RepeatBleed;
+    let (base, e) = bleeding_style();
+    let style = &e
+        .weapons()
+        .iter()
+        .find(|w| w.weapon.as_str() == "giant_sword")
+        .unwrap()
+        .styles[0];
+    let row = RepeatBleed {
+        stacks: 1,
+        duration_ticks: 180,
+        damage: 300,
+        max_stacks: 6,
+    };
+    let bleeds = |taken| -> Vec<Option<RepeatBleed>> {
+        let w = crate::expertise::weapon_with_style(&base, style, taken);
+        let mut out = Vec::new();
+        for_each_repeat(&w, &mut |r| out.push(r.bleed));
+        out
+    };
+    assert_eq!(bleeds(0), [None]);
+    assert_eq!(bleeds(1), [None]);
+    assert_eq!(bleeds(2), [Some(row)]);
+    assert_eq!(bleeds(3), [Some(row), Some(row)]);
+}
+
+fn for_each_repeat(w: &crate::weapon::Weapon, f: &mut dyn FnMut(&crate::weapon::StepRepeat)) {
+    use crate::weapon::Press;
+    let mut w = w.clone();
+    if let Some(step) = crate::expertise::step_mut(&mut w.combo, &[Press::Main]) {
+        step.repeats.iter().for_each(&mut *f);
+    }
+}

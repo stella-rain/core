@@ -523,6 +523,137 @@ fn the_pack_refuses_orb_breaking_with_no_repeat_before_it() {
     assert!(load(&ok).is_ok());
 }
 
+fn bleed_kind(stacks: u32, duration: u32, damage: u32, max: u32) -> Value {
+    json!({ "type": "repeat_bleed", "stacks": stacks, "duration_ticks": duration,
+        "damage": damage, "max_stacks": max })
+}
+
+const UP2: &str = "$.weapons[0].styles[0].upgrade_2[0].kinds[0]";
+
+/// A level file with the repeat on the style's own level and `kind` at `upgrade_2`.
+fn bleed_file(kind: Value) -> Value {
+    level_file(json!([repeat_kind(&A)]), None, Some(json!([kind])))
+}
+
+/// V1: the repeat bleed parses, serializes back and takes no other key.
+#[test]
+fn the_repeat_bleed_kind_round_trips() {
+    let kind = bleed_kind(1, 180, 300, 6);
+    let parsed: StyleKind = serde_json::from_value(kind.clone()).expect("the kind parses");
+    assert_eq!(
+        parsed,
+        StyleKind::RepeatBleed {
+            stacks: 1,
+            duration_ticks: 180,
+            damage: 300,
+            max_stacks: 6
+        }
+    );
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), kind);
+    if let Err(e) = parse_at(&bleed_file(kind.clone()), 2) {
+        panic!("expected valid, got {e:?}");
+    }
+    let mut extra = kind.clone();
+    extra["pct"] = json!(5);
+    let mut missing = kind;
+    missing.as_object_mut().unwrap().remove("max_stacks");
+    for kind in [extra, missing] {
+        assert!(matches!(
+            parse_at(&bleed_file(kind), 2),
+            Err(Error::Parse { .. })
+        ));
+    }
+}
+
+/// V2: each number is bounded at its key and the boundary loads.
+#[test]
+fn the_repeat_bleed_bounds_are_checked_at_their_keys() {
+    let max_damage = stella_rain_core::validate::limits::MAX_DAMAGE;
+    for (kind, key) in [
+        (bleed_kind(0, 180, 300, 6), "stacks"),
+        (bleed_kind(5, 180, 300, 6), "stacks"),
+        (bleed_kind(1, 19, 300, 6), "duration_ticks"),
+        (bleed_kind(1, 3601, 300, 6), "duration_ticks"),
+        (bleed_kind(1, 180, 0, 6), "damage"),
+        (bleed_kind(1, 180, max_damage + 1, 6), "damage"),
+        (bleed_kind(1, 180, 300, 0), "max_stacks"),
+        (bleed_kind(1, 180, 300, 11), "max_stacks"),
+        (bleed_kind(3, 180, 300, 2), "max_stacks"),
+    ] {
+        invalid_level(&bleed_file(kind), &format!("{UP2}.{key}"), "");
+    }
+    for kind in [bleed_kind(4, 20, 1, 4), bleed_kind(1, 3600, max_damage, 10)] {
+        if let Err(e) = parse_at(&bleed_file(kind.clone()), 2) {
+            panic!("{kind} expected valid, got {e:?}");
+        }
+    }
+}
+
+/// V3: one per style path and one per level.
+#[test]
+fn the_repeat_bleed_is_named_once_per_path() {
+    let both = level_file(
+        json!([repeat_kind(&A)]),
+        Some(json!([bleed_kind(1, 180, 300, 6)])),
+        Some(json!([bleed_kind(1, 180, 300, 6)])),
+    );
+    invalid_level(&both, UP2, "already");
+    let twice = level_file(
+        json!([repeat_kind(&A)]),
+        None,
+        Some(json!([
+            bleed_kind(1, 180, 300, 6),
+            bleed_kind(1, 90, 100, 3)
+        ])),
+    );
+    invalid_level(
+        &twice,
+        "$.weapons[0].styles[0].upgrade_2[0].kinds[1]",
+        "already",
+    );
+    let later = level_file(
+        json!([repeat_kind(&A), bleed_kind(1, 180, 300, 6)]),
+        None,
+        Some(json!([bleed_kind(1, 180, 300, 6)])),
+    );
+    invalid_level(&later, UP2, "already");
+}
+
+/// V5: at `sim_version` 1 the kind is refused.
+#[test]
+fn the_repeat_bleed_needs_sim_version_2() {
+    match parse_at(&bleed_file(bleed_kind(1, 180, 300, 6)), 1) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues.iter().any(|i| i.message.contains("sim_version 2")),
+            "{issues:?}"
+        ),
+        other => panic!("expected invalid, got {:?}", other.map(|_| ())),
+    }
+}
+
+/// V4: the pack refuses the kind where the style names no repeat at or before its level.
+#[test]
+fn the_pack_refuses_the_repeat_bleed_with_no_repeat_before_it() {
+    let at = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+    let kind = bleed_kind(1, 180, 300, 6);
+    for (own, cap) in [
+        (json!([]), None),
+        // A repeat only at the capstone comes after the kind's level.
+        (json!([]), Some(json!([repeat_kind(&A)]))),
+    ] {
+        let v = pack_with_levels(own, Some(json!([kind.clone()])), cap);
+        let paths = refused_in_expertise(&v);
+        assert!(
+            paths
+                .iter()
+                .any(|(p, m)| p == at && m.contains("no repeat")),
+            "{paths:?}"
+        );
+    }
+    let ok = pack_with_levels(json!([repeat_kind(&A)]), Some(json!([kind])), None);
+    assert!(load(&ok).is_ok());
+}
+
 // ---- The rules, over whole runs (the Hammer's A step: 6 ticks of wind-up, 4 active with a
 // circle of 32 pixels at the player, 14 of recovery). ----
 
