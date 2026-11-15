@@ -147,8 +147,8 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// Writes the combat caps into the run, for the tick the engine plays next.
 ///
 /// Repeats: the queue holds `MAX_REPEATS_QUEUED` entries, each a hit list of `MAX_REPEAT_TARGETS`
-/// living enemies, due on that tick, spread round the crowd; each deals 1 damage, so the crowd
-/// outlives the scan. Stagger: every elite's gauge is one short of full and its breaks are past
+/// living enemies, due on that tick, spread round the crowd; each deals 1 damage and puts the
+/// repeat bleed's row 1 on its targets, so the crowd outlives the scan. Stagger: every elite's gauge is one short of full and its breaks are past
 /// the rules' refill list, and it is not staggered: a staggered elite takes no rule and the case
 /// counts about 193,000 fewer instructions on x86_64 (4,770,408 against 4,963,856, measured with the
 /// measured tick at 421),
@@ -161,6 +161,17 @@ pub fn prepare(engine: &mut Engine) {
         panic!("the live rules");
     };
     let (attack, phase) = repeat_phase(&*world);
+    // The bundled Judgement Cut's repeat bleed (stacks 1, 180 ticks, 300 a stack tick, cap 6)
+    // is the table's one row: each queued repeat applies it, so the case counts the application
+    // and the first ticks.
+    assert_eq!(
+        world
+            .repeat_bleeds
+            .first()
+            .map(|r| (r.stacks, r.duration_ticks, r.damage, r.max_stacks)),
+        Some((1, 180, 300, 6)),
+        "the bundled pack's repeat bleed row"
+    );
     let ids: Vec<EntityId> = state
         .enemies
         .iter()
@@ -186,7 +197,7 @@ pub fn prepare(engine: &mut Engine) {
             phase,
             damage: 1,
             width_pct: 0,
-            bleed: 0,
+            bleed: 1,
         });
     }
     let t = world.tuning;
