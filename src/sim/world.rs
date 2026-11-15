@@ -1366,7 +1366,6 @@ fn grant_weapons(
     out
 }
 
-/// Whether `pred` holds for some step of the tree under `branches`.
 /// Adds each distinct repeat-bleed row of the tree to `rows`, in the order first met.
 fn collect_bleeds(branches: &crate::weapon::Branches, rows: &mut Vec<RepeatBleed>) {
     for step in [false, true]
@@ -1382,6 +1381,7 @@ fn collect_bleeds(branches: &crate::weapon::Branches, rows: &mut Vec<RepeatBleed
     }
 }
 
+/// Whether `pred` holds for some step of the tree under `branches`.
 fn any_step(
     branches: &crate::weapon::Branches,
     pred: &dyn Fn(&crate::weapon::Step) -> bool,
