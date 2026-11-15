@@ -62,8 +62,9 @@ use super::{decode_state, encode_state};
 /// adds the combat fields: per agent `FoeControl`, per elite and boss `Stagger`, per player
 /// `PlayerCombat`, and the run's `repeats`; format 10 adds `PlayerCombat::counter_bonus_step`; format 11 adds
 /// `PlayerCombat::counter_payout`; format 12 adds `Repeat.bleed`, the byte of the queued repeat's
-/// bleed row; formats 1 to 11 are refused.
-pub const SAVEPOINT_FORMAT: u32 = 12;
+/// bleed row; format 13 adds `Stagger::total`, the length of an elite's or the boss's running
+/// stagger; formats 1 to 12 are refused.
+pub const SAVEPOINT_FORMAT: u32 = 13;
 /// The length of the header, in bytes.
 pub const HEADER_LEN: usize = 128;
 /// The most bytes a savepoint file may have; a larger one is `Damaged` without being read.
