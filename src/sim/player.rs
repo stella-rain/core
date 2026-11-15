@@ -1126,7 +1126,8 @@ fn gauge_filled(events: &mut Vec<DomainEvent>, me: PlayerIdx, added: u32, value:
 
 /// The payout of a taken counter, at its first landed combo hit (`counter_first_hit`'s grant):
 /// the last spent evade charge comes back (nothing when none is recovering) and the weapon gauge
-/// gains `gauge_fill_pct` of its bar, never past it (nothing without a gauge kind). Called once
+/// gains `gauge_fill_pct` of its bar, never past it (nothing without a gauge kind). The fill is the
+/// counter's own: it ignores the step's `step_cap` and leaves `gauge_step_fill` as it was. Called once
 /// per taken counter and only when the grant names a payout, and out of line so the hit's common
 /// path stays as it was.
 #[inline(never)]

@@ -847,6 +847,10 @@ fn the_steps_own_fill_follows_the_payout() {
         }
     }
     let fills = named(&events, "GaugeFilled");
+    assert!(
+        fills.len() >= 2,
+        "the step lands and fills twice: {fills:?}"
+    );
     assert_eq!(
         fills[..2],
         [
