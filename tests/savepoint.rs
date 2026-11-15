@@ -397,7 +397,7 @@ fn the_header_is_read_before_the_payload() {
 /// format 5 holds the longer stat totals, 11 instead of 6 (`v5.sha256`); format 7 drops the stale
 /// offer fields (`v7.sha256`); format 8 drops the star-offer fields; format 9 adds the combat
 /// fields; format 10 adds `PlayerCombat::counter_bonus_step`; format 11 adds
-/// `PlayerCombat::counter_payout`; formats 1 to 10 are refused.
+/// `PlayerCombat::counter_payout`; format 12 adds `Repeat.bleed`; formats 1 to 11 are refused.
 /// The golden test of the frozen `trial` run reproduces the newest pin; the byte pin of the live
 /// format is `sim::players_pin_tests` in `src/`.
 #[test]
