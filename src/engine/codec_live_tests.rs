@@ -968,3 +968,21 @@ fn a_knocked_down_enemy_round_trips_with_an_equal_hash() {
     s.enemies[0].control.knocked_down = 17;
     round_trip_hashed(&s.enemies[0]);
 }
+
+/// T3: the repeat bleed is status tag 7, in the bytes and in the hash; the first undefined tag is 8.
+#[test]
+fn the_repeat_bleed_is_status_tag_seven() {
+    assert_eq!(to_bytes(&StatusKind::Stun), [6]);
+    assert_eq!(to_bytes(&StatusKind::RepeatBleed), [7]);
+    assert_eq!(
+        from_bytes::<StatusKind>(&[7]).unwrap(),
+        StatusKind::RepeatBleed
+    );
+    assert!(from_bytes::<StatusKind>(&[8]).is_err());
+    let hash = |k: StatusKind| {
+        let mut h = StateHasher::new();
+        k.hash(&mut h);
+        h.finish()
+    };
+    assert_ne!(hash(StatusKind::RepeatBleed), hash(StatusKind::Stun));
+}

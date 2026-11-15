@@ -83,6 +83,7 @@ fn entry(w: &World, owner: u8, due: u32, percent: u16, anchor: RepeatAnchor) -> 
         phase,
         damage: 1_000,
         width_pct: 0,
+        bleed: 0,
     }
 }
 
@@ -859,4 +860,212 @@ fn for_each_repeat(w: &crate::weapon::Weapon, f: &mut dyn FnMut(&crate::weapon::
     if let Some(step) = crate::expertise::step_mut(&mut w.combo, &[Press::Main]) {
         step.repeats.iter().for_each(&mut *f);
     }
+}
+
+// ---- The repeat bleed (a status of its own, put by a repeat that carries a bleed row). ----
+
+use super::state::{StatusKind, StatusState};
+use crate::weapon::RepeatBleed;
+
+fn row(stacks: u8, duration_ticks: u16, damage: u32, max_stacks: u8) -> RepeatBleed {
+    RepeatBleed {
+        stacks,
+        duration_ticks,
+        damage,
+        max_stacks,
+    }
+}
+
+/// `bare`, with no crit and no echo on the players and one table row, and a due entry over the
+/// foes `foes` that carries that row.
+fn bleeding(foes: &[usize], near: usize, bleed_row: RepeatBleed) -> (World, State) {
+    let (mut w, mut s) = bare(1, near);
+    for p in 0..s.players.len() {
+        let p = slot(u8::try_from(p).unwrap());
+        s.players[p].crit_chance_pct = 0;
+        s.players[p].echo_hit_pct = 0;
+    }
+    w.repeat_bleeds = vec![bleed_row];
+    s.tick = 50;
+    let a = list(&s, foes);
+    let mut e = entry(&w, 0, 50, 50, a);
+    e.bleed = 1;
+    s.repeats.push(e);
+    (w, s)
+}
+
+fn status_of(s: &State, foe: usize, kind: StatusKind) -> Option<StatusState> {
+    s.enemies[foe]
+        .statuses
+        .iter()
+        .find(|st| st.kind == kind)
+        .copied()
+}
+
+/// S1: each foe the repeat hits holds one repeat-bleed status with the row's own numbers, and
+/// none of the runes' bleed; one `StatusApplied` each.
+#[test]
+fn a_repeat_with_a_bleed_row_puts_its_own_status_on_each_foe_it_hits() {
+    let (w, mut s) = bleeding(&[0, 1, 2], 3, row(1, 90, 100, 3));
+    let ev = deal(&w, &mut s);
+    for i in 0..3 {
+        let st = status_of(&s, i, StatusKind::RepeatBleed).expect("the status");
+        assert_eq!((st.stacks, st.remaining, st.total), (1, 90, 90));
+        let dot = st.dot.expect("a dot");
+        assert_eq!((dot.damage, dot.interval, dot.next_in), (100, 20, 20));
+        assert!(
+            status_of(&s, i, StatusKind::Bleed).is_none(),
+            "not the runes' bleed"
+        );
+    }
+    let applied: Vec<_> = ev
+        .iter()
+        .filter_map(|e| match e {
+            DomainEvent::StatusApplied {
+                target,
+                status,
+                stacks,
+                duration_ticks,
+                ..
+            } => Some((
+                *target,
+                status.as_str().to_owned(),
+                *stacks,
+                *duration_ticks,
+            )),
+            _ => None,
+        })
+        .collect();
+    let want: Vec<_> = (0..3)
+        .map(|i| (s.enemies[i].id, "repeat_bleed".to_owned(), 1, 90))
+        .collect();
+    assert_eq!(applied, want);
+}
+
+/// S2 and S3: a second repeat adds stacks up to the row's cap and restarts the duration; a tick
+/// deals the row's damage a stack.
+#[test]
+fn the_stacks_grow_to_the_cap_and_tick_for_the_rows_damage() {
+    let (w, mut s) = bleeding(&[0], 1, row(2, 90, 100, 3));
+    deal(&w, &mut s);
+    assert_eq!(status_of(&s, 0, StatusKind::RepeatBleed).unwrap().stacks, 2);
+    let mut again = s.repeats.clone();
+    again.clear();
+    let a = list(&s, &[0]);
+    let mut e = entry(&w, 0, 50, 50, a);
+    e.bleed = 1;
+    s.repeats.push(e);
+    deal(&w, &mut s);
+    assert_eq!(
+        status_of(&s, 0, StatusKind::RepeatBleed).unwrap().stacks,
+        3,
+        "the cap"
+    );
+    let before = s.enemies[0].hp;
+    let mut ev = Vec::new();
+    for _ in 0..20 {
+        super::entity::tick_dots(&w, &mut s, &mut ev);
+    }
+    assert_eq!(before - s.enemies[0].hp, 100 * 3);
+    for _ in 0..90 {
+        super::entity::tick_dots(&w, &mut s, &mut ev);
+    }
+    assert!(
+        status_of(&s, 0, StatusKind::RepeatBleed).is_none(),
+        "it ran out"
+    );
+}
+
+/// S4: a foe the repeat kills holds no status.
+#[test]
+fn a_foe_the_repeat_kills_bleeds_nothing() {
+    let (w, mut s) = bleeding(&[0], 1, row(1, 90, 100, 3));
+    s.enemies[0].hp = 1;
+    let ev = deal(&w, &mut s);
+    assert!(status_of(&s, 0, StatusKind::RepeatBleed).is_none());
+    assert!(
+        !ev.iter()
+            .any(|e| matches!(e, DomainEvent::StatusApplied { .. }))
+    );
+}
+
+/// S5: an entry with `bleed` 0 changes nothing.
+#[test]
+fn a_repeat_with_no_bleed_row_is_as_before() {
+    let (w, mut s) = bleeding(&[0], 1, row(1, 90, 100, 3));
+    s.repeats[0].bleed = 0;
+    let ev = deal(&w, &mut s);
+    assert!(status_of(&s, 0, StatusKind::RepeatBleed).is_none());
+    assert!(
+        !ev.iter()
+            .any(|e| matches!(e, DomainEvent::StatusApplied { .. }))
+    );
+}
+
+/// S6: beside the runes' bleed the status keeps its own numbers.
+#[test]
+fn the_repeat_bleed_lives_beside_the_runes_bleed() {
+    let (w, mut s) = bleeding(&[0], 1, row(1, 90, 100, 3));
+    let source = s.players.id(slot(0));
+    let dot = super::state::DotState {
+        damage: 300,
+        damage_type: None,
+        atk_up_pct: 0,
+        type_bonus_pct: 0,
+        interval: 20,
+        next_in: 20,
+    };
+    let mut ev = Vec::new();
+    for _ in 0..3 {
+        s.add_dot(
+            super::entity::Who::Enemy(0),
+            StatusKind::Bleed,
+            source,
+            dot,
+            180,
+            6,
+            &mut ev,
+        );
+    }
+    deal(&w, &mut s);
+    let runes = status_of(&s, 0, StatusKind::Bleed).unwrap();
+    assert_eq!((runes.stacks, runes.remaining), (3, 180));
+    assert_eq!(status_of(&s, 0, StatusKind::RepeatBleed).unwrap().stacks, 1);
+    let before = s.enemies[0].hp;
+    for _ in 0..20 {
+        super::entity::tick_dots(&w, &mut s, &mut ev);
+    }
+    assert_eq!(before - s.enemies[0].hp, 300 * 3 + 100);
+}
+
+/// S9: a repeat-bleed tick neither crits nor echoes, with the owner at 100 percent of both.
+#[test]
+fn a_repeat_bleed_tick_neither_crits_nor_echoes() {
+    let (w, mut s) = bleeding(&[0], 1, row(1, 90, 100, 3));
+    deal(&w, &mut s);
+    s.players[slot(0)].crit_chance_pct = 100;
+    s.players[slot(0)].echo_hit_pct = 100;
+    let before = s.enemies[0].hp;
+    let mut ev = Vec::new();
+    for _ in 0..20 {
+        super::entity::tick_dots(&w, &mut s, &mut ev);
+    }
+    assert_eq!(before - s.enemies[0].hp, 100);
+    assert!(s.echoes.is_empty());
+}
+
+/// Q2: the table lists each distinct row once, in the order first met; an entry's index is its
+/// row's place counted from 1, and a missing row or no row is 0.
+#[test]
+fn the_world_indexes_the_bleed_rows() {
+    let (mut w, _) = bare(1, 1);
+    w.repeat_bleeds = vec![row(1, 180, 300, 6), row(2, 90, 100, 3)];
+    assert_eq!(w.repeat_bleed_index(None), 0);
+    assert_eq!(w.repeat_bleed_index(Some(row(1, 180, 300, 6))), 1);
+    assert_eq!(w.repeat_bleed_index(Some(row(2, 90, 100, 3))), 2);
+    assert_eq!(
+        w.repeat_bleed_index(Some(row(3, 90, 100, 3))),
+        0,
+        "fails closed"
+    );
 }

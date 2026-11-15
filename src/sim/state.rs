@@ -34,9 +34,18 @@ mod status_kind_tests {
             StatusKind::Poison => 4,
             StatusKind::Burn => 5,
             StatusKind::Stun => 6,
+            StatusKind::RepeatBleed => 7,
         };
         let numbers: Vec<usize> = StatusKind::ALL.into_iter().map(number).collect();
         assert_eq!(numbers, (0..StatusKind::COUNT).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn the_repeat_bleed_is_a_status_of_its_own_no_skill_can_apply() {
+        assert_eq!(StatusKind::COUNT, 8);
+        assert_eq!(StatusKind::RepeatBleed.id().as_str(), "repeat_bleed");
+        assert_eq!(StatusKind::from_name("repeat_bleed"), None);
+        assert!(crate::rune::Rune::of_dot(StatusKind::RepeatBleed).is_none());
     }
 
     #[test]
