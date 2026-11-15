@@ -1293,8 +1293,16 @@
           "upgrade_2": [
             {
               "id": "judgement_cut_up_2",
-              "effect": "attack_speed_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "repeat_bleed",
+                  "stacks": 1,
+                  "duration_ticks": 180,
+                  "damage": 300,
+                  "max_stacks": 6
+                }
+              ]
             }
           ],
           "capstone": [
