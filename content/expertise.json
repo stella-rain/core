@@ -304,8 +304,19 @@
           "upgrade_1": [
             {
               "id": "momentum_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "combo_tempo_pct",
+                  "max_stacks": 5,
+                  "effects": [
+                    {
+                      "type": "range_pct_at_full",
+                      "pct": 25
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "upgrade_2": [
