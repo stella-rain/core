@@ -613,11 +613,13 @@ impl StableHash for Stagger {
             breaks,
             drain,
             staggered,
+            total,
         } = self;
         gauge.stable_hash(h);
         breaks.stable_hash(h);
         drain.stable_hash(h);
         staggered.stable_hash(h);
+        total.stable_hash(h);
     }
 }
 

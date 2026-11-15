@@ -634,8 +634,8 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
             }
         }
     }
-    // 6 style levels and the 12 built upgrade and capstone levels.
-    assert_eq!(built, 18);
+    // 6 style levels and the 13 built upgrade and capstone levels.
+    assert_eq!(built, 19);
 }
 
 /// C1: the upgrade levels of the stacking kinds, of the orb break, of the repeat bleed and of the
@@ -697,6 +697,13 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
                 ]
             }),
         ),
+        (
+            "breaker_up_1",
+            json!({
+                "type": "breaker",
+                "effects": [{ "type": "stagger_ticks_pct", "pct": 150 }]
+            }),
+        ),
     ];
     for (id, kind) in want {
         let level = &levels[id];
@@ -710,7 +717,6 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
         "momentum_up_1",
         "momentum_up_2",
         "momentum_cap",
-        "breaker_up_1",
     ];
     for id in stats {
         assert_ne!(levels[id]["effect"], "none", "{id}");

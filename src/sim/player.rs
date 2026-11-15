@@ -51,11 +51,12 @@
 //! step when they start, `super_armour` reads `trigger_armoured`, and `stand_down` ends it.
 //!
 //! The breaker (when the style names the `breaker` kind): it holds no state, so nothing starts,
-//! counts down or ends. Its three factors are read where the number is computed: `breaker_fill`
+//! counts down or ends. Its factors are read where the number is computed: `breaker_fill`
 //! in `stun::fill` (every stagger fill, after the counter bonus's factor), `breaker_poise` in
 //! `hit_boxes::flinch_by` (a combo hit's poise damage) and `breaker_part` in the part loop of
-//! `hit_boxes::hit_enemy_side` (a smash step's hit on a boss part). Its burst is
-//! `stagger_burst`, called by `stun::fill` right after `stagger` in the same call.
+//! `hit_boxes::hit_enemy_side` (a smash step's hit on a boss part); a fourth, on the ticks of the
+//! stagger the fill starts, is `breaker_stagger_ticks` in the same call, once the gauge is full.
+//! Its burst is `stagger_burst`, called by `stun::fill` right after `stagger` in the same call.
 //! The rally (when the rules name it): `rally_from_hit` from `hurt_player`, `rally_win_back` from
 //! `collide::damage`, `rally_tick` in `update`, `rally_lapse` on a down, `rally_clamp` where the
 //! most hit points fall.
@@ -1215,6 +1216,20 @@ pub(super) fn breaker_fill(stage: &World, s: &State, me: PlayerIdx, value: u32) 
     match stage.breaker_of(s, me) {
         Some(g) if g.stagger_pct > 100 => scaled(value, g.stagger_pct),
         _ => value,
+    }
+}
+
+/// The breaker's factor on the ticks of a stagger `me` causes: `ticks` unchanged without a
+/// breaker naming `stagger_ticks_pct` (one bool test), else `ticks` scaled by it, one truncation,
+/// held to `MAX_STAGGERED_TICKS`.
+pub(super) fn breaker_stagger_ticks(stage: &World, s: &State, me: PlayerIdx, ticks: u16) -> u16 {
+    match stage.breaker_of(s, me) {
+        Some(g) if g.stagger_ticks_pct > 100 => {
+            let longer = scaled(u32::from(ticks), g.stagger_ticks_pct)
+                .min(u32::from(crate::limits::MAX_STAGGERED_TICKS));
+            u16::try_from(longer).unwrap_or(crate::limits::MAX_STAGGERED_TICKS)
+        }
+        _ => ticks,
     }
 }
 

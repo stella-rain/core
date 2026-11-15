@@ -475,8 +475,18 @@
           "upgrade_1": [
             {
               "id": "breaker_up_1",
-              "effect": "attack_pct",
-              "amount": 10
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "breaker",
+                  "effects": [
+                    {
+                      "type": "stagger_ticks_pct",
+                      "pct": 150
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "upgrade_2": [

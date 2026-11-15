@@ -1036,6 +1036,27 @@
         },
         {
           "additionalProperties": false,
+          "description": "A factor, in percent, on the ticks of every stagger the player causes: 150 makes it 50%\nlonger (truncating, at most `MAX_STAGGERED_TICKS`). The stagger keeps the length it was\ngiven (`Stagger::total`). 101 to `MAX_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 101,
+              "type": "integer"
+            },
+            "type": {
+              "const": "stagger_ticks_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "A burst round an elite or boss the player's fill staggers: the other enemies within\n`radius_px` take the burst's effects. `radius_px` 1 to `MAX_BURST_RADIUS_PX`; 1 to 3\neffects, each variant at most once.",
           "properties": {
             "effects": {
@@ -11531,10 +11552,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's breaker: a closed list of effects on the stagger fills, the poise damage and\nthe boss part damage of the player's hits, and a burst round a target the player\nstaggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,\nthe effects stacking in path order and a later level's same effect replacing the\nearlier one.",
+          "description": "The style's breaker: a closed list of effects on the stagger fills, the length of the\nstagger they start, the poise damage and the boss part damage of the player's hits, and a\nburst round a target the player staggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,\nthe effects stacking in path order and a later level's same effect replacing the\nearlier one.",
           "properties": {
             "effects": {
-              "description": "What the style does, each variant at most once; 1 to 4 entries.",
+              "description": "What the style does, each variant at most once; 1 to 5 entries.",
               "items": {
                 "$ref": "#/$defs/BreakerEffect"
               },
@@ -11934,6 +11955,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "stagger_ticks_pct": {
+              "description": "A factor on the ticks of a stagger the player causes (0 where the kind names none).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
             "type": {
               "const": "breaker",
               "type": "string"
@@ -11943,7 +11970,8 @@
             "type",
             "stagger_pct",
             "poise_pct",
-            "part_break_pct"
+            "part_break_pct",
+            "stagger_ticks_pct"
           ],
           "type": "object"
         }

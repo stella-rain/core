@@ -92,7 +92,12 @@ fn parse_error(kinds: Value) {
 #[test]
 fn the_breaker_kind_is_bounded() {
     valid(json!([breaker()]));
-    for key in ["stagger_pct", "poise_pct", "part_break_pct"] {
+    for key in [
+        "stagger_pct",
+        "poise_pct",
+        "part_break_pct",
+        "stagger_ticks_pct",
+    ] {
         for pct in [101, 1_000] {
             valid(json!([one(json!({ "type": key, "pct": pct }))]));
         }
@@ -147,9 +152,14 @@ fn the_breaker_kind_is_bounded() {
         { "type": "poise_pct", "pct": 101 },
         { "type": "part_break_pct", "pct": 101 },
         { "type": "on_stagger_burst", "radius_px": 1, "effects": [{ "type": "knock_down" }] },
-        { "type": "stagger_pct", "pct": 101 }
+        { "type": "stagger_ticks_pct", "pct": 101 }
     ]);
-    refused_at(json!([with(five)]), &format!("{PATH}.effects"));
+    valid(json!([with(five.clone())]));
+    let mut six = five;
+    six.as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "stagger_pct", "pct": 101 }));
+    refused_at(json!([with(six)]), &format!("{PATH}.effects"));
     refused_at(json!([burst(json!([]))]), &format!("{at}.effects"));
     let four = json!([
         { "type": "damage_pct", "pct": 1 },
@@ -179,6 +189,10 @@ fn the_breaker_kind_is_strict() {
         json!({ "type": "stagger_pct", "pct": 150, "extra": 1 })
     )]));
     parse_error(json!([one(json!({ "type": "stagger_pct" }))]));
+    parse_error(json!([one(json!({ "type": "stagger_ticks_pct" }))]));
+    parse_error(json!([one(
+        json!({ "type": "stagger_ticks_pct", "pct": 150, "extra": 1 })
+    )]));
     parse_error(json!([burst(
         json!([{ "type": "knock_down", "extra": 1 }])
     )]));
@@ -192,6 +206,13 @@ fn a_kind_names_one_effect_per_variant_and_a_level_one_breaker() {
         json!([with(json!([
             { "type": "stagger_pct", "pct": 150 },
             { "type": "stagger_pct", "pct": 160 }
+        ]))]),
+        &format!("{PATH}.effects[1]"),
+    );
+    refused_at(
+        json!([with(json!([
+            { "type": "stagger_ticks_pct", "pct": 150 },
+            { "type": "stagger_ticks_pct", "pct": 160 }
         ]))]),
         &format!("{PATH}.effects[1]"),
     );
@@ -300,13 +321,15 @@ fn the_views_carry_the_breaker_kind() {
     };
     let want = json!({
         "type": "breaker", "stagger_pct": 200, "poise_pct": 200, "part_break_pct": 200,
+        "stagger_ticks_pct": 0,
         "burst": { "radius_px": 128, "damage_pct": 50, "stun_ticks": 45, "knock_down": true }
     });
     let (ready, grants) = build(json!([breaker()]));
     assert_eq!(ready, json!([want.clone()]));
     assert_eq!(grants, json!([want]));
     let bare = json!({
-        "type": "breaker", "stagger_pct": 0, "poise_pct": 0, "part_break_pct": 0
+        "type": "breaker", "stagger_pct": 0, "poise_pct": 0, "part_break_pct": 0,
+        "stagger_ticks_pct": 0
     });
     let (ready, _) = build(json!([one(
         json!({ "type": "on_stagger_burst", "radius_px": 1,
@@ -320,9 +343,23 @@ fn the_views_carry_the_breaker_kind() {
     let mut want = bare;
     want["poise_pct"] = json!(150);
     assert_eq!(ready, json!([want]));
+    let (ready, grants) = build(json!([one(
+        json!({ "type": "stagger_ticks_pct", "pct": 150 })
+    )]));
+    let mut want = bare_kind();
+    want["stagger_ticks_pct"] = json!(150);
+    assert_eq!(ready, json!([want.clone()]));
+    assert_eq!(grants, json!([want]));
     let bundled = crate::style_grants::build(Expertise::bundled().clone()).snapshot();
     let ready = serde_json::to_string(bundled.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert!(ready.contains("breaker"));
+}
+
+fn bare_kind() -> Value {
+    json!({
+        "type": "breaker", "stagger_pct": 0, "poise_pct": 0, "part_break_pct": 0,
+        "stagger_ticks_pct": 0
+    })
 }
 
 /// S6: the stagger burst uses the event enum's tag form (`type` and `data`, the player by name).

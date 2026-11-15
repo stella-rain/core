@@ -359,7 +359,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, BossState, |s| s.boss.as_mut().unwrap(),
         fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger]);
     each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
-        fields: [gauge, breaks, drain, staggered]);
+        fields: [gauge, breaks, drain, staggered, total]);
     each_field_moves_the_encoding!(failures, base, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         fields: [id, name, kind, hp, max_hp, defence, offset, radius, statuses]);
     each_field_moves_the_encoding!(failures, base, AgentKey, |s| &mut s.enemies[0].key,
@@ -375,7 +375,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
         fields: [home, called, boss_call, disguised, stagger]);
     each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
-        fields: [gauge, breaks, drain, staggered]);
+        fields: [gauge, breaks, drain, staggered, total]);
     each_field_moves_the_encoding!(failures, base, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         fields: [to, ticks_left]);
     each_field_moves_the_encoding!(failures, base, RuleState, |s| &mut s.enemies[0].rules[0],
@@ -778,6 +778,7 @@ fn the_enemy_combat_fields_are_bounded_at_decode() {
         breaks: MAX_STAGGER_BREAKS,
         drain: MAX_STAGGER_DRAIN_TICKS,
         staggered: MAX_STAGGERED_TICKS,
+        total: MAX_STAGGERED_TICKS,
     };
     round_trip(&at_cap);
     let refused = |f: &dyn Fn(&mut Stagger)| {
@@ -792,6 +793,8 @@ fn the_enemy_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.breaks += 1);
     refused(&|c| c.drain += 1);
     refused(&|c| c.staggered += 1);
+    refused(&|c| c.total += 1);
+    assert_eq!(Stagger::default().total, 0);
 
     let fresh = engine();
     let s = fresh.run.live();
@@ -974,6 +977,20 @@ fn a_knocked_down_enemy_round_trips_with_an_equal_hash() {
     let mut s = base();
     s.enemies[0].control.knocked_down = 17;
     round_trip_hashed(&s.enemies[0]);
+}
+
+/// A staggered elite round-trips through the savepoint codec with both stagger fields and an
+/// equal hash.
+#[test]
+fn a_staggered_elite_round_trips_with_both_stagger_fields() {
+    let mut s = base();
+    let g = &mut s.enemies[0].elite.as_mut().unwrap().stagger;
+    g.staggered = 70;
+    g.total = 120;
+    round_trip_hashed(&s.enemies[0]);
+    let back: AgentState = from_bytes(&to_bytes(&s.enemies[0])).unwrap();
+    let g = back.elite.as_ref().unwrap().stagger;
+    assert_eq!((g.staggered, g.total), (70, 120));
 }
 
 /// T3: the repeat bleed is status tag 7, in the bytes and in the hash; the first undefined tag is 8.
