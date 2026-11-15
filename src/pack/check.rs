@@ -208,7 +208,10 @@ pub(super) fn check_style_grants(
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             let mut spirits: Vec<(String, &Spirit)> = Vec::new();
             let mut triggers: Vec<String> = Vec::new();
+            // Whether the path so far, this level included, names a `repeat`.
+            let mut repeat_seen = false;
             'style: for (path, kinds) in levels {
+                repeat_seen |= kinds.iter().any(|k| matches!(k, StyleKind::Repeat { .. }));
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
                     let field = match kind {
@@ -246,6 +249,18 @@ pub(super) fn check_style_grants(
                                 } else {
                                     repeats.push((at.clone(), step));
                                 }
+                            }
+                            continue;
+                        }
+                        // The orb-breaking kind changes no step; it needs a repeat to close.
+                        StyleKind::RepeatBreaksOrbs { .. } => {
+                            if !repeat_seen {
+                                issues.push(validate::Issue {
+                                    path: at.clone(),
+                                    message: "nothing closes: the style names no repeat at or \
+                                              before this level"
+                                        .into(),
+                                });
                             }
                             continue;
                         }

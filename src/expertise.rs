@@ -78,6 +78,8 @@ pub const MAX_REPEAT_AFTER_TICKS: u32 = 120;
 /// The largest `proc_pct` of a `repeat` or `proc_factor` kind: a factor is a chance (a
 /// placeholder).
 pub const MAX_PROC_PCT: u32 = 100;
+/// The largest `chance_pct` of a `repeat_breaks_orbs` kind: a chance (a placeholder).
+pub const MAX_ORB_BREAK_PCT: u32 = 100;
 /// The most repeats on one step, summed over one style's path (a tuning placeholder).
 pub const MAX_STEP_REPEATS: usize = 4;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
@@ -196,6 +198,19 @@ pub enum StyleKind {
         anchor: RepeatAnchorKind,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         proc_pct: Option<u32>,
+    },
+    /// From the level that names it on, every repeat the style queues breaks each breakable enemy
+    /// orb within `radius_px` of what it strikes (round the place for a `place` anchor) with
+    /// `chance_pct` percent, one draw per orb, as the main character's own hit box breaks one: no
+    /// burst, the `OrbBroken` event (ADR-SIM-9 points 2 to 7). `chance_pct` 1 to
+    /// `MAX_ORB_BREAK_PCT` (100 still draws), `radius_px` 1 to `MAX_BURST_RADIUS_PX`. One per
+    /// style path; the pack check refuses it where the style names no `repeat` at or before its
+    /// level. Read at the deal from the owner's grant (`World::repeat_break_of`); no step changes.
+    RepeatBreaksOrbs {
+        #[schemars(range(min = 1, max = MAX_ORB_BREAK_PCT))]
+        chance_pct: u32,
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
     },
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
@@ -1000,6 +1015,23 @@ fn check_level(
                 }
                 check_proc_pct(issue, &at, *proc_pct);
             }
+            StyleKind::RepeatBreaksOrbs {
+                chance_pct,
+                radius_px,
+            } => {
+                if !(1..=MAX_ORB_BREAK_PCT).contains(chance_pct) {
+                    issue(
+                        format!("{at}.chance_pct"),
+                        format!("1 to {MAX_ORB_BREAK_PCT} (found {chance_pct})"),
+                    );
+                }
+                if !(1..=MAX_BURST_RADIUS_PX).contains(radius_px) {
+                    issue(
+                        format!("{at}.radius_px"),
+                        format!("1 to {MAX_BURST_RADIUS_PX} (found {radius_px})"),
+                    );
+                }
+            }
             StyleKind::ProcFactor { step, proc_pct } => {
                 check_step_len(issue, &at, step);
                 check_proc_pct(issue, &at, Some(*proc_pct));
@@ -1368,6 +1400,7 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
     let mut seen: Vec<&Vec<Press>> = Vec::new();
     let mut factored: Vec<&Vec<Press>> = Vec::new();
     let mut smash_set = false;
+    let mut orbs_set = false;
     let mut gauge_set = false;
     // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
     let mut tempo: Option<(u32, u32)> = None;
@@ -1416,6 +1449,15 @@ fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &S
                     smash_set = true;
                 }
                 StyleKind::Repeat { .. } => {}
+                StyleKind::RepeatBreaksOrbs { .. } => {
+                    if orbs_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already breaks orbs".into(),
+                        );
+                    }
+                    orbs_set = true;
+                }
                 StyleKind::ProcFactor { step, .. } => {
                     if factored.contains(&step) {
                         issue(
@@ -1670,6 +1712,8 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                         });
                     }
                 }
+                // Nor does the orb-breaking kind change a step: `World::repeat_break_of`.
+                StyleKind::RepeatBreaksOrbs { .. } => {}
                 StyleKind::ProcFactor { step, proc_pct } => {
                     if let Some(s) = step_mut(&mut weapon.combo, step) {
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));

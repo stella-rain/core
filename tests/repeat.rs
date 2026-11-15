@@ -299,7 +299,11 @@ fn the_views_carry_the_kinds() {
                 s["stats"] = json!([]);
             }
             if w["weapon"] == "giant_hammer" {
-                w["styles"][0]["kinds"] = json!([repeat_kind(&A), factor_kind(&["main", "main"])]);
+                w["styles"][0]["kinds"] = json!([
+                    repeat_kind(&A),
+                    factor_kind(&["main", "main"]),
+                    orbs_kind(60, 96)
+                ]);
             }
         }
         file
@@ -313,11 +317,12 @@ fn the_views_carry_the_kinds() {
     let repeat = json!({ "type": "repeat", "step": ["main"], "after_ticks": 10, "repeat_pct": 50,
         "anchor": "hit_list", "proc_pct": 30 });
     let factor = json!({ "type": "proc_factor", "step": ["main", "main"], "proc_pct": 40 });
-    assert_eq!(ready["kinds"][0], json!([repeat, factor]));
+    let orbs = orbs_kind(60, 96);
+    assert_eq!(ready["kinds"][0], json!([repeat, factor, orbs]));
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
     assert_eq!(
         stats["trees"][0]["grants"][0]["kinds"],
-        json!([repeat, factor])
+        json!([repeat, factor, orbs])
     );
     // The bundled Hammer styles carry kinds but no repeat (the Sword's two styles do).
     let e = style_grants::build(Expertise::bundled().clone());
@@ -516,14 +521,6 @@ fn the_pack_refuses_orb_breaking_with_no_repeat_before_it() {
         None,
     );
     assert!(load(&ok).is_ok());
-    // The view carries the kind.
-    let mut file = level_file(
-        json!([repeat_kind(&A)]),
-        Some(json!([orbs_kind(60, 96)])),
-        None,
-    );
-    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
-    assert!(file.to_string().contains("repeat_breaks_orbs"));
 }
 
 // ---- The rules, over whole runs (the Hammer's A step: 6 ticks of wind-up, 4 active with a

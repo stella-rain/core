@@ -270,6 +270,9 @@ pub enum StyleKindView {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         proc_pct: Option<u32>,
     },
+    /// Each repeat of the style breaks the enemy orbs within `radius_px` of what it strikes, each
+    /// with `chance_pct` percent.
+    RepeatBreaksOrbs { chance_pct: u32, radius_px: u32 },
     /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
     /// The style has a weapon gauge `max` long, spent as `spend`.
