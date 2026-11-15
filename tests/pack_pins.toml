@@ -1,5 +1,5 @@
 # Test pins that follow the bundled pack: they move with every pack bless, so `cargo xtask bless`
 # writes them (`UPDATE_PACK_PINS=1 cargo test --test integration pack_pins::`) and `--check`
 # reads them. Never edit by hand; a pin that does not move with the pack stays in its test.
-pack_sha256 = "13c8f51d6ef30c7b7404c800b8c711ce8ed0805e576f26c88512577a0d1eb041"
-savepoint_v2_trial_300 = "bb6b5ad9d048797c28efff4b9f08cb153eabcc77d296e533426e9459cfeb5021"
+pack_sha256 = "abbf9359033819458e8ff5ce2de735afc2edb7dbdde1ab2a682ed7972d747719"
+savepoint_v2_trial_300 = "0502a48bbe38308a839a88ac2d396d37145e9fa1761359fc69f57201c22b1cbe"
