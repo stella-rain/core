@@ -3,11 +3,8 @@ paths:
   - "src/sim/**"
   - "src/sim_v1/**"
   - "src/engine/**"
-  - "src/inline.rs"
+  - "src/{inline,trig,presets,hash}.rs"
   - "tests/alloc.rs"
-  - "src/trig.rs"
-  - "src/presets.rs"
-  - "src/hash.rs"
 ---
 
 # Simulation code
@@ -22,7 +19,7 @@ outcome changes follow the `schema-change` skill.
   1 takes only 1, `run.rs`), steps (`step(&[Input; MAX_PLAYERS])`: one entry per slot, an absent
   one ignored), joins and leaves a slot (`join`, `leave`, `present`, `PresenceError`), takes equipment actions between
   steps (`act`, `check_action`) and hashes. Only a `sim_version` 1 run opens an offer, and an open offer stops the
-  world; the live rules open none (`Run::offer_open`); `snapshot.rs` builds the
+  world; the live rules open none (`Run::offer_open`) and the live snapshot has no offer view; `snapshot.rs` builds the
   snapshot, `places` (ids, kinds, positions per tick) and `tally` (the HUD tallies, `Counted` in
   `ledger.rs`, outside the hashed state).
 - `sim/`: the live rules, run for the newest `sim_version` (2, open while `DEVELOPMENT` is true,
@@ -37,7 +34,7 @@ outcome changes follow the `schema-change` skill.
   falling stars (`stars.rs`: the live rules open no offer, ADR-REPL-5) and the weapon's expertise (`expertise.rs`: no
   level opens an offer). `offer_rating.rs` holds `swap_ratings`: `Engine::swap_ratings` rates a star against each
   slot it could go in (`SwapRating`: `dps_bp`, the set tiers, the stat changes); read-only, nothing hashed, saved or
-  recorded. `Engine::offer_ratings` is always empty (kept for callers). Equipment, what `sim_version` 2 runs:
+  recorded. Equipment, what `sim_version` 2 runs:
   `build.rs`, `slots.rs` (the swap rules: hit-point fraction, entry cooldown, the savepoint check), `starlight.rs`,
   `drops.rs`, `equipment.rs`, `loadout.rs`: `equipment.md`; `expertise.rs`: `weapon-tree.md`; a party: `party-equipment.md`.
 - `Players::party` (`state.rs`) copies slot 0's post-loadout player into each slot, a member
@@ -52,9 +49,11 @@ outcome changes follow the `schema-change` skill.
   same commit, and `tests/corpus/v1/` is the guard. Its hash keeps the single-player layout,
   no presence byte (`src/sim_v1/hash_layout_tests.rs`).
 - Events: `sim_v1/event.rs` holds the frozen `DomainEvent`, `HitKind` and `HitSource` as version 1 emitted them;
-  the live enum (`event.rs`) adds the player events and the combat events (`GaugeFilled` to `StaggerBurst`). The one adapter
+  the live enum (`event.rs`, 57 variants) is the 35 shared with the frozen copy plus the 3 player events and the 19 combat
+  events (`GaugeFilled` to `StaggerBurst`, 15, plus `FlinchEnded`, `StaggerEnded`, `KnockdownEnded`, `Countered`). The one adapter
   is `engine/v1_events.rs`: `adapt(v1::DomainEvent) -> Option<DomainEvent>`, an exhaustive `match` with no `_` arm, `None`
-  for the offer events the live rules lack (level and star offers), player fields `None`; `Run::V1` (`engine/run.rs`) drains
+  for the eight frozen offer events (the level, stat, star and expertise offers and their picks, skips, banishes and
+  replacements), player fields `None`; `Run::V1` (`engine/run.rs`) drains
   frozen events through it. A live event change edits the adapter, never `sim_v1` (`sim_v1_imports_nothing_from_the_live_event`).
 - `trig.rs`: the sine table. `presets.rs`: takes an attack preset (`content/attack_presets.json`,
   ADR-CONT-3 point 6) apart into attack phases. `inline.rs`: `InlineVec<T, N>`, a bounded list, no heap.
