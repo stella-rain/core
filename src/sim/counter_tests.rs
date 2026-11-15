@@ -194,6 +194,11 @@ impl Rig {
         (c.counter_window, c.counter_bonus_step)
     }
 
+    /// The counter payout flag of player `i`.
+    fn payout(&mut self, i: u8) -> u8 {
+        st(&mut self.e).players[slot(i)].combat.counter_payout
+    }
+
     fn set_window(&mut self, i: u8, window: u16) {
         st(&mut self.e).players[slot(i)].combat.counter_window = window;
     }
@@ -253,6 +258,7 @@ fn a_run_that_names_no_counter_bonus_stays_dormant() {
         events.extend(r.finish(0, vec![]).1);
         r.near_miss(0, 0);
         assert_eq!(r.combat(0), (0, 0));
+        assert_eq!(r.payout(0), 0);
         assert_eq!(count(&events, "CounterWindowOpened"), 0);
         assert_eq!(count(&events, "CounterBonusTaken"), 0);
     }
@@ -353,13 +359,15 @@ fn the_mark_ends_with_the_step_and_a_down_empties_both() {
     assert_eq!(r.combat(0).1, 1, "mid-step");
     r.finish(0, vec![]);
     assert_eq!(r.combat(0), (0, 0), "the step is over");
-    // An evade pressed mid-step ends the mark.
+    assert_eq!(r.payout(0), 0, "the step is over");
+    // An evade pressed mid-step ends the mark and the owed payout.
     r.set_window(0, 30);
     r.keep_dash_strike(0);
     r.press();
     assert_eq!(r.combat(0).1, 1);
     r.evade();
     assert_eq!(r.combat(0).1, 0);
+    assert_eq!(r.payout(0), 0, "an evade");
     // A near miss during the taken step reopens the window and the mark stays.
     r.set_window(0, 30);
     r.keep_dash_strike(0);
@@ -367,6 +375,7 @@ fn the_mark_ends_with_the_step_and_a_down_empties_both() {
     r.press();
     r.near_miss(0, 300);
     assert_eq!(r.combat(0), (30, 1));
+    assert_eq!(r.payout(0), 1, "owed while the mark stays");
     // A down.
     let Run::V2 { world, state } = r.e.run_mut() else {
         panic!("the live rules");
@@ -374,6 +383,7 @@ fn the_mark_ends_with_the_step_and_a_down_empties_both() {
     super::player::stand_down(world, state, ME, &mut Vec::new());
     assert_eq!(state.players[ME].combat.counter_window, 0);
     assert_eq!(state.players[ME].combat.counter_bonus_step, 0);
+    assert_eq!(state.players[ME].combat.counter_payout, 0, "a down");
 }
 
 /// B6: the plain dash step hits for D, the one that took the bonus for twice that.
@@ -449,6 +459,7 @@ fn each_player_keeps_its_own_window() {
     assert_eq!(r.combat(0), (26, 0));
     assert_eq!(r.combat(1), (0, 1));
     assert_eq!(r.combat(2), (26, 0));
+    assert_eq!((r.payout(0), r.payout(1), r.payout(2)), (0, 1, 0));
     assert_eq!(
         named(&events, "CounterBonusTaken"),
         vec![json!({ "player": "second" })]
@@ -583,10 +594,134 @@ fn leaving_the_style_empties_the_window_and_the_mark() {
         let c = &mut state.players[ME].combat;
         c.counter_window = 12;
         c.counter_bonus_step = 1;
+        c.counter_payout = 1;
         r.e.act(ME, EquipAction::TreePick { option })
             .expect("a pick");
-        r.combat(0)
+        let owed = r.payout(0);
+        (r.combat(0), owed)
     };
-    assert_eq!(pick(0), (12, 1), "the same style again");
-    assert_eq!(pick(1), (0, 0), "another style");
+    assert_eq!(pick(0), ((12, 1), 1), "the same style again");
+    assert_eq!(pick(1), ((0, 0), 0), "another style");
+}
+
+/// Ticks one at a time from the take of a counter on one foe, returning for each tick whether it
+/// landed a hit and the flag and the mark after it.
+fn taken_step(r: &mut Rig) -> Vec<(bool, u8, u8)> {
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let mut out = Vec::new();
+    let (lost, _) = r.press();
+    out.push((lost > 0, r.payout(0), r.combat(0).1));
+    for _ in 0..60 {
+        let (lost, _) = r.step([Input::default(); 3]);
+        out.push((lost > 0, r.payout(0), r.combat(0).1));
+    }
+    out
+}
+
+/// H1: the take owes the payout; a plain step owes nothing.
+#[test]
+fn the_take_owes_the_payout() {
+    let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press();
+    assert_eq!(count(&events, "CounterBonusTaken"), 1);
+    assert_eq!((r.combat(0).1, r.payout(0)), (1, 1));
+    let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+    r.set_window(0, 30);
+    st(&mut r.e).players[ME].combo.dash_strike_left = 0;
+    r.press();
+    assert_eq!(r.payout(0), 0, "no dash branch");
+    let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+    r.keep_dash_strike(0);
+    r.press();
+    assert_eq!(r.payout(0), 0, "no window");
+}
+
+/// H2: a landed counter pays once: the flag is 1 until the first tick that lands a hit and 0 from
+/// it on, while the mark stays 1 and the effects keep acting.
+#[test]
+fn a_landed_counter_collects_its_payout_once() {
+    let mut r = rig(1, vec![counter_kind(all_effects())], 1);
+    let ticks = taken_step(&mut r);
+    let first = ticks.iter().position(|t| t.0).expect("the step lands");
+    for (i, (_, flag, mark)) in ticks.iter().enumerate() {
+        if *mark == 1 && i < first {
+            assert_eq!(*flag, 1, "tick {i} before the first hit");
+        }
+        if i >= first && *mark == 1 {
+            assert_eq!(*flag, 0, "tick {i} from the first hit");
+        }
+    }
+    assert_eq!(ticks[first].2, 1, "the mark is still on at the first hit");
+}
+
+/// H3: a counter that whiffs keeps owing until the step ends, then the flag clears with the mark.
+#[test]
+fn a_whiffed_counter_pays_nothing() {
+    let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+    let ticks = taken_step(&mut r);
+    assert!(ticks.iter().all(|t| !t.0), "no foe, no hit");
+    for (flag, mark) in ticks.iter().map(|t| (t.1, t.2)) {
+        assert_eq!(flag, mark, "the flag follows the mark");
+    }
+    assert_eq!(ticks[0].1, 1);
+    assert_eq!(ticks.last().map(|t| t.1), Some(0), "never stuck at 1");
+}
+
+/// H4: the hook returns the grant once, then nothing; it needs the mark and the flag.
+#[test]
+fn the_hook_returns_the_grant_once() {
+    let mut r = rig(1, vec![counter_kind(all_effects())], 0);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    state.players[ME].combat.counter_bonus_step = 1;
+    state.players[ME].combat.counter_payout = 1;
+    let first = super::player::counter_first_hit(world, state, ME).map(|g| g.stun_ticks);
+    assert_eq!(first, Some(45));
+    assert_eq!(state.players[ME].combat.counter_payout, 0);
+    assert!(super::player::counter_first_hit(world, state, ME).is_none());
+    assert!(super::player::counter_first_hit(world, state, ME).is_none());
+    state.players[ME].combat.counter_bonus_step = 0;
+    state.players[ME].combat.counter_payout = 1;
+    assert!(super::player::counter_first_hit(world, state, ME).is_none());
+    assert_eq!(state.players[ME].combat.counter_payout, 1, "left alone");
+    state.players[ME].combat.counter_bonus_step = 1;
+    state.players[ME].combat.counter_payout = 0;
+    assert!(super::player::counter_first_hit(world, state, ME).is_none());
+}
+
+/// H5: only a combo hit collects, on any kind of target.
+#[test]
+fn only_a_combo_hit_collects() {
+    use super::entity::Who;
+    let mut r = rig(1, vec![counter_kind(all_effects())], 1);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let mut call = |who: Who, combo: bool, state: &mut super::state::State| {
+        state.players[ME].combat.counter_bonus_step = 1;
+        state.players[ME].combat.counter_payout = 1;
+        super::stun::counter_bonus_stun(world, state, ME, (who, combo), None, 10, &mut Vec::new());
+        state.players[ME].combat.counter_payout
+    };
+    assert_eq!(call(Who::Enemy(0), false, state), 1, "not a combo hit");
+    assert_eq!(call(Who::Enemy(0), true, state), 0);
+    assert_eq!(call(Who::Boss, true, state), 0);
+    assert_eq!(call(Who::BossPart(0), true, state), 0);
+}
+
+/// H7: a second counter owes again, and two foes in one swing pay once.
+#[test]
+fn a_second_counter_pays_again() {
+    let mut r = rig(1, vec![counter_kind(all_effects())], 2);
+    for _ in 0..2 {
+        let ticks = taken_step(&mut r);
+        assert_eq!(ticks[0].1, 1, "owed at the take");
+        let first = ticks.iter().position(|t| t.0).expect("a hit");
+        assert!(ticks[first..].iter().all(|t| t.1 == 0), "paid once");
+        r.idle(5);
+    }
 }
