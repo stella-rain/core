@@ -69,7 +69,8 @@ use super::entity::{Who, scale_damage, status_pct};
 use super::{AttackIndex, Shot, attacks, select};
 
 /// The first on-hit rune's slot: after the combo (0), the stage skill (1) and the orbits' orbs
-/// (2 to 33); each rune's is this plus its place in `Rune::ALL`.
+/// (2 to 33); each rune's is this plus its place in `Rune::ALL`. Slot 41, past the runes, is the
+/// giant trigger's end ring (`player::TRIGGER_RING_SLOT`).
 pub(super) const FIRST_SLOT: u8 = 34;
 /// Homing missiles' first missile's slot; missile k's is this plus k, past every rune's.
 pub(super) const MISSILE_SLOT: u8 = 64;

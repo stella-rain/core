@@ -817,7 +817,7 @@ pub struct PlayerView {
     pub slots: Vec<SlotView>,
     /// Its attacks in progress, by slot: 0 the combo, 1 the stage skill, then 8 for each orbit,
     /// one for each orb, in the order the orbits came, then from 34 one for each
-    /// on-hit rune, by its place in `Rune::ALL`.
+    /// on-hit rune, by its place in `Rune::ALL`, 41 the giant trigger's end ring.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attacks: Vec<AttackView>,
     /// Its statuses, sorted by ID: the timed buffs and debuffs it holds.

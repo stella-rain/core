@@ -103,7 +103,9 @@
 //! (`player::tempo_armoured`), the one armour that shelters the stacks from a hit.
 //!
 //! The giant trigger a style grants (`World::trigger_of`, the `giant_trigger` style kind) reads
-//! and writes only `PlayerCombat::giant_trigger`, the ticks the timed state has left. A full-gauge
+//! and writes only `PlayerCombat::giant_trigger`, the ticks the timed state has left; with its
+//! `end_ring` it also starts one attack run in `player::TRIGGER_RING_SLOT` when the count runs out
+//! (`World::ring_of`; the run is the existing `State.runs`, nothing new is hashed). A full-gauge
 //! smash starts it after its own attack began (`player::spend_gauge`, `trigger_start`), `update`
 //! counts it down, `strike` adds its range and smash percents when an attack starts, and
 //! `super_armour` gains its condition and `held_move_pct` raises a held hold's movement to its

@@ -49,7 +49,9 @@
 //! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
 //! in `update`, `strike` adds its range percent to every step and its smash percent to a smash
 //! step when they start, `super_armour` reads `trigger_armoured`, `held_move_pct` raises a held
-//! hold's movement to its `hold_move_pct` (`trigger_hold_pct`), and `stand_down` ends it.
+//! hold's movement to its `hold_move_pct` (`trigger_hold_pct`), and `stand_down` ends it. With
+//! `end_ring`, the tick its count reaches 0 (not a down) plays the ring once (`trigger_ring`, in
+//! `TRIGGER_RING_SLOT`): the smash's first active phase, free.
 //!
 //! The breaker (when the style names the `breaker` kind): it holds no state, so nothing starts,
 //! counts down or ends. Its factors are read where the number is computed: `breaker_fill`
