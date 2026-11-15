@@ -39,6 +39,10 @@ pub(super) fn full_effects() -> Vec<Value> {
 }
 
 /// The full-gauge attack: one wind-up tick, two active ticks and a recovery.
+pub(super) fn full_attack_value() -> Value {
+    full_attack()
+}
+
 fn full_attack() -> Value {
     json!({ "inline": [
         { "kind": "wind_up", "ticks": 1 },
@@ -127,6 +131,8 @@ pub(super) struct Rig {
     pub e: Engine,
     foes: Vec<EntityId>,
     pub events: Vec<Value>,
+    /// How far in front of the first player the enemies are stacked each tick, in stored units.
+    pub along: i32,
 }
 
 pub(super) fn rig(players: u8, extra: Vec<Value>, foes: u32) -> Rig {
@@ -141,7 +147,11 @@ pub(super) fn rig_levelled(
     foes: u32,
 ) -> Rig {
     let [up_1, up_2, cap] = levels;
-    let pack = levelled_pack(extra, up_1, up_2, cap);
+    rig_from(players, levelled_pack(extra, up_1, up_2, cap), foes)
+}
+
+/// `rig_levelled` over a pack already built.
+pub(super) fn rig_from(players: u8, pack: Pack, foes: u32) -> Rig {
     let setup = RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_hammer".into(),
@@ -189,6 +199,7 @@ pub(super) fn rig_levelled(
         e,
         foes: ids,
         events: Vec::new(),
+        along: Fx::px(24).0,
     }
 }
 
@@ -198,7 +209,7 @@ impl Rig {
         let (at, facing) = (s.players[ME].at, s.players[ME].facing);
         s.enemies.retain(|x| self.foes.contains(&x.id));
         let scale = i64::from(crate::trig::SCALE);
-        let along = i64::from(Fx::px(24).0);
+        let along = i64::from(self.along);
         for f in &mut s.enemies {
             f.at = Point {
                 x: Fx(at.x.0 + i32::try_from(i64::from(facing.x) * along / scale).unwrap_or(0)),
@@ -828,4 +839,331 @@ fn the_effect_does_nothing_for_a_player_without_a_hold() {
     let mut with_effect = full_effects();
     with_effect.push(hold_effect(80));
     assert_eq!(run(with_effect), run(full_effects()));
+}
+
+// The end ring (the Titan Trigger capstone): when the count runs out with the player up, the
+// slam's first active phase plays once in `TRIGGER_RING_SLOT`, free.
+
+use super::attacks::Strike;
+use super::player::TRIGGER_RING_SLOT;
+use crate::attack::{AttackRef, PhaseKind};
+
+fn ring_effects() -> Vec<Value> {
+    let mut e = full_effects();
+    e.push(json!({ "type": "end_ring" }));
+    e
+}
+
+/// How many runs player `i` has in the ring's slot.
+fn ring_runs(r: &mut Rig, i: u8) -> usize {
+    let s = st(&mut r.e);
+    s.runs
+        .iter()
+        .filter(|x| {
+            x.slot == TRIGGER_RING_SLOT
+                && crate::id::player_of(x.owner).map(|(p, _)| p) == Some(slot(i))
+        })
+        .count()
+}
+
+/// The hit points the stacked enemies lost this tick (`stack` refills them each tick).
+fn lost(r: &mut Rig) -> u64 {
+    let foes = r.foes.clone();
+    st(&mut r.e)
+        .enemies
+        .iter()
+        .filter(|x| foes.contains(&x.id))
+        .map(|x| u64::from(BIG - x.hp))
+        .sum()
+}
+
+/// Idles `ticks` ticks: the total hit points lost, the ticks that started a ring run, and the
+/// `TriggerEnded` events seen.
+fn watch(r: &mut Rig, ticks: u32) -> (u64, u32, usize) {
+    let (mut total, mut starts, mut ended, mut before) = (0, 0, 0, 0);
+    for _ in 0..ticks {
+        let ev = r.step([Input::default(); 3]);
+        ended += count(&ev, "TriggerEnded");
+        total += lost(r);
+        let now = ring_runs(r, 0);
+        if now > before {
+            starts += 1;
+        }
+        before = now;
+    }
+    (total, starts, ended)
+}
+
+/// Plays player 0's end ring once by hand (the control: no trigger, no end), as the rule would.
+fn play_ring(r: &mut Rig) {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let ring = world.ring_of(state, ME).cloned().expect("a ring");
+    let facing = state.players[ME].facing;
+    let damage = super::levels::attack(state, ME, world.player.atk);
+    let strike = Strike {
+        bonus_pct: 0,
+        speed_pct: 0,
+        range_pct: super::levels::range_pct(state, ME),
+        smash: None,
+    };
+    let mut events = Vec::new();
+    assert!(super::attacks::start_player(
+        world,
+        state,
+        ME,
+        TRIGGER_RING_SLOT,
+        facing,
+        &ring,
+        damage,
+        strike,
+        &mut events
+    ));
+}
+
+/// What the ring does to one enemy in the standard rig, played by hand with the trigger off.
+fn control_loss(pack: Pack, along: i32) -> u64 {
+    let mut r = rig_from(1, pack, 1);
+    r.along = along;
+    play_ring(&mut r);
+    watch(&mut r, 12).0
+}
+
+fn ring_pack() -> Pack {
+    levelled_pack(vec![trigger_kind(ring_effects())], vec![], vec![], vec![])
+}
+
+/// R1: the end plays one ring run in the ring's slot that hurts the enemy by what the ring does
+/// alone; without the effect nothing plays.
+#[test]
+fn the_end_of_the_state_plays_the_ring_once() {
+    let d = control_loss(ring_pack(), Fx::px(24).0);
+    assert!(d > 0, "the ring hurts");
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 1);
+    r.set_trigger(0, 3);
+    let (total, starts, ended) = watch(&mut r, 12);
+    assert_eq!((starts, ended), (1, 1), "one ring, one end");
+    assert_eq!(total, d);
+    let mut plain = rig(1, vec![trigger_kind(full_effects())], 1);
+    plain.set_trigger(0, 3);
+    assert_eq!(watch(&mut plain, 12), (0, 0, 1));
+}
+
+/// R2: the ring is free: the gauge, the step fill and the combo slot are as they were; it has no
+/// wind-up; no gauge is spent.
+#[test]
+fn the_ring_costs_nothing() {
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 1);
+    {
+        let c = &mut st(&mut r.e).players[ME].combat;
+        c.weapon_gauge = 40;
+        c.gauge_step_fill = 7;
+    }
+    r.set_trigger(0, 3);
+    let mut pressed = false;
+    for _ in 0..12 {
+        r.step([Input::default(); 3]);
+        if !pressed && ring_runs(&mut r, 0) > 0 {
+            pressed = true;
+            r.started(false);
+        }
+    }
+    assert!(pressed, "the ring ran and the combo slot was free to start");
+    let c = st(&mut r.e).players[ME].combat;
+    assert_eq!((c.weapon_gauge, c.gauge_step_fill), (40, 7));
+    assert_eq!(count(&r.events, "GaugeSpent"), 0);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let Some(AttackRef::Inline(phases)) = world.ring_of(state, ME) else {
+        panic!("an inline ring");
+    };
+    assert!(
+        phases.len() == 1 && phases[0].kind == PhaseKind::Active,
+        "no wind-up"
+    );
+}
+
+/// R3: a down does not play it; a second slam restarts the count and the ring waits for the new
+/// end; a player who is out gets none.
+#[test]
+fn the_ring_waits_for_the_end_not_a_down_or_a_restart() {
+    let mut r = rig(2, vec![trigger_kind(ring_effects())], 1);
+    r.set_trigger(0, 100);
+    let ev = r.hurt(0, 1_000_000, false);
+    assert_eq!(count(&ev, "TriggerEnded"), 1);
+    assert_eq!(watch(&mut r, 12), (0, 0, 0), "no ring on a down");
+
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 1);
+    r.fill_gauge(0);
+    r.run_step(true);
+    r.set_trigger(0, 40);
+    r.fill_gauge(0);
+    r.run_step(true);
+    assert!(r.trigger(0) > 40, "the second slam restarted the count");
+    r.set_trigger(0, 3);
+    let (_, starts, ended) = watch(&mut r, 12);
+    assert_eq!((starts, ended), (1, 1), "exactly one ring at the new end");
+
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 1);
+    r.set_trigger(0, 3);
+    st(&mut r.e).players[ME].out = true;
+    assert_eq!(watch(&mut r, 12).1, 0, "no ring for a player who is out");
+}
+
+fn orb(at: Point, breakable: bool) -> super::state::OrbState {
+    super::state::OrbState {
+        at,
+        vx: Fx(0),
+        vy: Fx(0),
+        dir: super::state::Dir::DOWN,
+        style: 0,
+        owner: EntityId(5000),
+        damage: 0,
+        damage_type: None,
+        breaks_charge: false,
+        smash: None,
+        combo: false,
+        hook: None,
+        breakable,
+        life: 600,
+        stop: Some(0),
+        link: None,
+        program: crate::sim::ProgramIndex(0),
+    }
+}
+
+fn orbs_left(r: &mut Rig) -> usize {
+    st(&mut r.e).orbs.len()
+}
+
+/// R4: an orb inside the ring's circle breaks by the ordinary swing rule; one outside it and inside
+/// the slam's clear radius stays (the slam's clear, the control, takes it).
+#[test]
+fn the_ring_breaks_the_orbs_it_covers_and_clears_none() {
+    let place = |r: &mut Rig, dx: i32| {
+        let me = st(&mut r.e).players[ME].at;
+        st(&mut r.e).orbs.push(orb(
+            Point {
+                x: Fx(me.x.0 + dx),
+                y: me.y,
+            },
+            true,
+        ));
+    };
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 0);
+    world(&mut r.e).tuning.orb_clear_radius = 40_000;
+    place(&mut r, 5_000);
+    place(&mut r, 30_000);
+    r.set_trigger(0, 3);
+    r.idle(12);
+    assert_eq!(
+        count(&r.events, "OrbBroken"),
+        1,
+        "the orb inside the circle"
+    );
+    assert_eq!(orbs_left(&mut r), 1, "the far orb stays");
+
+    let mut control = rig(1, vec![trigger_kind(ring_effects())], 0);
+    world(&mut control.e).tuning.orb_clear_radius = 40_000;
+    place(&mut control, 30_000);
+    control.fill_gauge(0);
+    control.press(true);
+    control.idle(6);
+    assert_eq!(orbs_left(&mut control), 0, "the slam's clear takes it");
+}
+
+/// R5: the ring's slot is no rune's and no missile's.
+#[test]
+fn the_ring_slot_is_no_runes() {
+    let mut r = rig(1, vec![trigger_kind(ring_effects())], 1);
+    r.set_trigger(0, 3);
+    let mut seen = false;
+    for _ in 0..12 {
+        r.step([Input::default(); 3]);
+        let s = st(&mut r.e);
+        for x in s.runs.iter().filter(|x| x.slot == TRIGGER_RING_SLOT) {
+            seen = true;
+            assert!(super::runes::of_run(x).is_none());
+        }
+    }
+    assert!(seen);
+}
+
+/// R6: the player's range widens the ring as it does the slam.
+#[test]
+fn the_ring_is_scaled_by_the_players_range() {
+    // The slam's radius is 40 px; an enemy at 56 px is out of it and in it widened by 50 percent.
+    let far = Fx::px(56).0;
+    let mut wide = rig_from(1, ring_pack(), 1);
+    wide.along = far;
+    if let Some(p) = st(&mut wide.e).players.career_mut(ME).progress.as_mut() {
+        p.totals[StatEffect::RangePct as usize] = 50;
+    }
+    wide.set_trigger(0, 3);
+    assert!(watch(&mut wide, 12).0 > 0, "hit with range 50");
+    let mut plain = rig_from(1, ring_pack(), 1);
+    plain.along = far;
+    plain.set_trigger(0, 3);
+    assert_eq!(watch(&mut plain, 12).0, 0, "not hit with range 0");
+}
+
+/// R7: the ring follows the slam: a retuned radius and damage move it; the ring is compiled after
+/// every other attack; a party ends on one hash and only the player whose trigger ended has a ring.
+#[test]
+fn a_retuned_slam_retunes_the_ring() {
+    let retuned = |radius: i64, damage: i64| {
+        let mut v = levelled_value(vec![trigger_kind(ring_effects())], vec![], vec![], vec![]);
+        let w = v["expertise"]["weapons"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|w| w["weapon"] == "giant_hammer")
+            .unwrap();
+        let active = &mut w["styles"][0]["kinds"][0]["spend"]["attack"]["inline"][1];
+        active["hit_box"]["radius"] = json!(radius);
+        active["damage"] = json!(damage);
+        Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the pack")
+    };
+    let near = Fx::px(27).0;
+    let unchanged = control_loss(retuned(40 * 256, 100), near);
+    let narrow = control_loss(retuned(20 * 256, 100), near);
+    assert!(unchanged > 0 && narrow == 0, "{unchanged} {narrow}");
+    assert!(
+        control_loss(retuned(40 * 256, 300), near) > unchanged,
+        "damage follows"
+    );
+
+    // Compiled last: the slam's index is the same with and without the effect, one attack more.
+    let slam = AttackRef::Inline(match serde_json::from_value(full_attack()).unwrap() {
+        AttackRef::Inline(p) => p,
+        AttackRef::Preset { .. } => unreachable!(),
+    });
+    let mut with = rig(1, vec![trigger_kind(ring_effects())], 0);
+    let mut without = rig(1, vec![trigger_kind(full_effects())], 0);
+    let (a, la) = {
+        let w = world(&mut with.e);
+        (w.attack_index(&slam, None), w.attacks.len())
+    };
+    let (b, lb) = {
+        let w = world(&mut without.e);
+        (w.attack_index(&slam, None), w.attacks.len())
+    };
+    assert_eq!((a, la), (b, lb + 1));
+
+    let run = || {
+        let mut r = rig(2, vec![trigger_kind(ring_effects())], 1);
+        r.set_trigger(0, 3);
+        let (mut one, mut two) = (0, 0);
+        for _ in 0..300 {
+            r.step([Input::default(); 3]);
+            one += ring_runs(&mut r, 0);
+            two += ring_runs(&mut r, 1);
+        }
+        (one > 0, two, r.e.state_hash())
+    };
+    let (rang, none, hash) = run();
+    assert!(rang && none == 0);
+    assert_eq!(run().2, hash, "the same run twice");
 }

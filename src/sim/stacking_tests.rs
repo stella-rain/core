@@ -5,6 +5,7 @@
 
 use super::state::PlayerIdx;
 use super::trigger_tests::{levelled_pack, levelled_value, slot, st};
+use crate::attack::{AttackPhase, AttackRef, PhaseKind};
 use crate::engine::{Engine, Run};
 use crate::pack::Pack;
 use crate::run_setup::RunSetup;
@@ -410,6 +411,105 @@ fn the_hold_move_effect_stacks_across_the_path() {
     assert_eq!(held, [0, 0, 80, 80]);
     assert_eq!(trigger_at(&mut e, 0, 2), Some((720, 40, 20, 100, true)));
     assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 100, true)));
+}
+
+/// Whether player `i`'s trigger names the end ring at `places` places (false for no trigger).
+fn ring_at(e: &mut Engine, i: u8, places: usize) -> bool {
+    read(e, i, places, |w, s, me| {
+        w.trigger_of(s, me).map(|g| g.end_ring)
+    })
+    .unwrap_or(false)
+}
+
+/// The compiled end ring of player `i` at `places` places: what `World::ring_of` holds.
+fn ring_ref_at(e: &mut Engine, i: u8, places: usize) -> Option<AttackRef> {
+    read(e, i, places, |w, s, me| w.ring_of(s, me).cloned())
+}
+
+fn end_ring() -> Value {
+    json!({ "type": "end_ring" })
+}
+
+/// G1 (end ring): the flag is the capstone's alone and the earlier effects are kept.
+#[test]
+fn the_end_ring_is_named_by_the_capstone_and_keeps_the_earlier_effects() {
+    let base = trigger(
+        480,
+        vec![
+            pct("range_pct", 40),
+            pct("smash_pct", 20),
+            json!({ "type": "super_armour" }),
+        ],
+    );
+    let mut e = stacked(
+        vec![base],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("hold_move_pct", 80)])],
+        vec![trigger(720, vec![end_ring()])],
+    );
+    let rings: Vec<bool> = (0..4).map(|n| ring_at(&mut e, 0, n)).collect();
+    assert_eq!(rings, [false, false, false, true]);
+    assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 40, 20, 100, true)));
+    assert_eq!(hold_at(&mut e, 0, 3), 80);
+}
+
+/// The slam's first `active` phase of the test packs' `full_attack`, as the pack holds it.
+fn first_active(attack: &Value) -> AttackPhase {
+    let AttackRef::Inline(phases) = serde_json::from_value(attack.clone()).expect("an attack")
+    else {
+        panic!("an inline slam");
+    };
+    phases
+        .into_iter()
+        .find(|p| p.kind == PhaseKind::Active)
+        .expect("an active phase")
+}
+
+/// G2 (end ring): the world holds a ring only where the grant names the flag and the style has a
+/// gauge, and it is the slam's first active phase alone; a slam with no active phase gives none.
+#[test]
+fn the_world_holds_the_ring_as_the_slams_first_active_phase() {
+    let mut kinds = vec![json!({ "type": "smash_effect", "effect": { "type": "bleed" } })];
+    kinds.push(trigger(480, vec![json!({ "type": "super_armour" })]));
+    let mut e = stacked(
+        kinds,
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![end_ring()])],
+    );
+    let slam = super::trigger_tests::full_attack_value();
+    let want = AttackRef::Inline(vec![first_active(&slam)]);
+    let seen: Vec<Option<AttackRef>> = (0..4).map(|n| ring_ref_at(&mut e, 0, n)).collect();
+    assert_eq!(seen, [None, None, None, Some(want)]);
+    // Each player reads its own place: player 0 at place 3 has a ring, player 1 at place 2 none.
+    assert!(ring_ref_at(&mut e, 0, 3).is_some());
+    assert!(ring_ref_at(&mut e, 1, 2).is_none());
+
+    // A slam with no active phase: nothing plays, nothing is refused.
+    let mut v = levelled_value(vec![trigger(480, vec![end_ring()])], vec![], vec![], vec![]);
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    w["styles"][0]["kinds"][0]["spend"]["attack"] = json!({ "inline": [
+        { "kind": "wind_up", "ticks": 1 },
+        { "kind": "recovery", "ticks": 6 }
+    ] });
+    let pack = Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).expect("the pack");
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_119,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, pack.content(), 1).expect("a run");
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(0);
+    }
+    assert!(ring_at(&mut e, 0, 0), "the flag is named");
+    assert_eq!(ring_ref_at(&mut e, 0, 0), None, "no active phase, no ring");
 }
 
 /// G2: a value past the cap (one the validator refuses) is clamped to 100, a trigger that never
