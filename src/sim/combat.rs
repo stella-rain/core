@@ -218,7 +218,8 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
 /// expertise, no crit, echo, repeat or flinch; its side effects are the on-hit runes, at its
 /// own factor, and, when the owner's style names `repeat_breaks_orbs`, the breakable enemy orbs
 /// round what it strikes (`break_orbs_round`, before the hits; the grant is read at the deal, so
-/// a repeat queued before a pick and dealt after reads the new grant). The boss and its parts are skipped while the boss is invulnerable.
+/// a repeat queued before a pick and dealt after reads the new grant). The boss and its parts are
+/// skipped while the boss is invulnerable.
 pub(super) fn deal_repeats(stage: &World, s: &mut State, events: &mut Vec<DomainEvent>) {
     if s.repeats.is_empty() {
         return;

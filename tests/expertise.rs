@@ -638,8 +638,8 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
     assert_eq!(built, 16);
 }
 
-/// C1: the upgrade levels of the stacking kinds and of the orb break are kinds (no stat, no amount); the nine
-/// other placeholder levels are still stats.
+/// C1: the upgrade levels of the stacking kinds and of the orb break are kinds (no stat, no
+/// amount); the eight other placeholder levels are still stats.
 #[test]
 fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats() {
     let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
