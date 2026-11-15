@@ -316,6 +316,8 @@ pub enum StyleKindView {
         stagger_pct: u32,
         poise_pct: u32,
         part_break_pct: u32,
+        /// A factor on the ticks of a stagger the player causes (0 where the kind names none).
+        stagger_ticks_pct: u32,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         burst: Option<StaggerBurstView>,
     },

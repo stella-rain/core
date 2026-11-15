@@ -702,6 +702,8 @@ pub(crate) struct BreakerGrant {
     pub stagger_pct: u32,
     pub poise_pct: u32,
     pub part_break_pct: u32,
+    /// A factor on the ticks of a stagger the player causes (100: none).
+    pub stagger_ticks_pct: u32,
     pub burst: Option<BurstGrant>,
 }
 
@@ -1680,6 +1682,7 @@ impl BreakerGrant {
         stagger_pct: 100,
         poise_pct: 100,
         part_break_pct: 100,
+        stagger_ticks_pct: 100,
         burst: None,
     };
 }
@@ -1687,11 +1690,14 @@ impl BreakerGrant {
 /// `b`'s effects laid over `g`, every number inside its cap.
 fn breaker_folded(g: &mut BreakerGrant, b: &crate::expertise::Breaker) {
     use crate::expertise::{BreakerEffect, BurstEffect};
-    for e in b.effects.iter().take(4) {
+    for e in b.effects.iter().take(5) {
         match e {
             BreakerEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
             BreakerEffect::PoisePct { pct } => g.poise_pct = (*pct).clamp(100, MAX_PCT),
             BreakerEffect::PartBreakPct { pct } => g.part_break_pct = (*pct).clamp(100, MAX_PCT),
+            BreakerEffect::StaggerTicksPct { pct } => {
+                g.stagger_ticks_pct = (*pct).clamp(100, MAX_PCT);
+            }
             BreakerEffect::OnStaggerBurst { radius_px, effects } => {
                 let radius = (*radius_px).clamp(1, crate::rewards::MAX_BURST_RADIUS_PX);
                 let mut burst = BurstGrant {

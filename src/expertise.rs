@@ -304,7 +304,7 @@ pub enum StyleKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Breaker {
-    /// What the style does, each variant at most once; 1 to 4 entries.
+    /// What the style does, each variant at most once; 1 to 5 entries.
     pub effects: Vec<BreakerEffect>,
 }
 
@@ -328,6 +328,13 @@ pub enum BreakerEffect {
         #[schemars(range(min = 101, max = MAX_PCT))]
         pct: u32,
     },
+    /// A factor, in percent, on the ticks of every stagger the player causes: 150 makes it 50%
+    /// longer (truncating, at most `MAX_STAGGERED_TICKS`). The stagger keeps the length it was
+    /// given (`Stagger::total`). 101 to `MAX_PCT`.
+    StaggerTicksPct {
+        #[schemars(range(min = 101, max = MAX_PCT))]
+        pct: u32,
+    },
     /// A burst round an elite or boss the player's fill staggers: the other enemies within
     /// `radius_px` take the burst's effects. `radius_px` 1 to `MAX_BURST_RADIUS_PX`; 1 to 3
     /// effects, each variant at most once.
@@ -345,6 +352,7 @@ impl BreakerEffect {
             BreakerEffect::PoisePct { .. } => 1,
             BreakerEffect::PartBreakPct { .. } => 2,
             BreakerEffect::OnStaggerBurst { .. } => 3,
+            BreakerEffect::StaggerTicksPct { .. } => 4,
         }
     }
 }
@@ -1320,19 +1328,20 @@ fn check_giant_trigger(
 
 /// A breaker's numbers, each in its own range; it names an effect once, its burst too.
 fn check_breaker(issue: &mut impl FnMut(String, String), at: &str, b: &Breaker) {
-    if b.effects.is_empty() || b.effects.len() > 4 {
+    if b.effects.is_empty() || b.effects.len() > 5 {
         issue(
             format!("{at}.effects"),
-            format!("1 to 4 effects (found {})", b.effects.len()),
+            format!("1 to 5 effects (found {})", b.effects.len()),
         );
     }
-    let mut seen = [false; 4];
-    for (e, effect) in b.effects.iter().enumerate().take(4) {
+    let mut seen = [false; 5];
+    for (e, effect) in b.effects.iter().enumerate().take(5) {
         let at = format!("{at}.effects[{e}]");
         match effect {
             BreakerEffect::StaggerPct { pct }
             | BreakerEffect::PoisePct { pct }
-            | BreakerEffect::PartBreakPct { pct } => {
+            | BreakerEffect::PartBreakPct { pct }
+            | BreakerEffect::StaggerTicksPct { pct } => {
                 if !(101..=MAX_PCT).contains(pct) {
                     issue(
                         format!("{at}.pct"),

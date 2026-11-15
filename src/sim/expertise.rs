@@ -692,11 +692,13 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             StyleKind::Breaker(b) => {
                 let (mut stagger_pct, mut poise_pct, mut part_break_pct, mut burst) =
                     (0, 0, 0, None);
+                let mut stagger_ticks_pct = 0;
                 for effect in &b.effects {
                     match effect {
                         BreakerEffect::StaggerPct { pct } => stagger_pct = *pct,
                         BreakerEffect::PoisePct { pct } => poise_pct = *pct,
                         BreakerEffect::PartBreakPct { pct } => part_break_pct = *pct,
+                        BreakerEffect::StaggerTicksPct { pct } => stagger_ticks_pct = *pct,
                         BreakerEffect::OnStaggerBurst { radius_px, effects } => {
                             let mut v = StaggerBurstView {
                                 radius_px: *radius_px,
@@ -719,6 +721,7 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     stagger_pct,
                     poise_pct,
                     part_break_pct,
+                    stagger_ticks_pct,
                     burst,
                 }
             }
