@@ -291,9 +291,9 @@ pub enum StyleKind {
     /// path order: a later level's `ticks` replaces the earlier one and each effect it lists
     /// replaces the same effect; one it does not list stays.
     GiantTrigger(GiantTrigger),
-    /// The style's breaker: a closed list of effects on the stagger fills, the poise damage and
-    /// the boss part damage of the player's hits, and a burst round a target the player
-    /// staggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,
+    /// The style's breaker: a closed list of effects on the stagger fills, the length of the
+    /// stagger they start, the poise damage and the boss part damage of the player's hits, and a
+    /// burst round a target the player staggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,
     /// the effects stacking in path order and a later level's same effect replacing the
     /// earlier one.
     Breaker(Breaker),

@@ -11552,7 +11552,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style's breaker: a closed list of effects on the stagger fills, the poise damage and\nthe boss part damage of the player's hits, and a burst round a target the player\nstaggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,\nthe effects stacking in path order and a later level's same effect replacing the\nearlier one.",
+          "description": "The style's breaker: a closed list of effects on the stagger fills, the length of the\nstagger they start, the poise damage and the boss part damage of the player's hits, and a\nburst round a target the player staggers (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several levels,\nthe effects stacking in path order and a later level's same effect replacing the\nearlier one.",
           "properties": {
             "effects": {
               "description": "What the style does, each variant at most once; 1 to 5 entries.",
