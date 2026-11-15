@@ -44,6 +44,7 @@ impl Encode for Repeat {
             phase,
             damage,
             width_pct,
+            bleed,
         } = self;
         owner.encode(w);
         due.encode(w);
@@ -54,6 +55,7 @@ impl Encode for Repeat {
         phase.encode(w);
         damage.encode(w);
         width_pct.encode(w);
+        bleed.encode(w);
     }
 }
 
@@ -87,6 +89,7 @@ impl Decode for Repeat {
         if width_pct > crate::rewards::MAX_RANGE_PCT {
             return Err(DecodeError::Invalid("repeat range past its bound"));
         }
+        let bleed = Decode::decode(r)?;
         Ok(Repeat {
             owner,
             due,
@@ -97,6 +100,7 @@ impl Decode for Repeat {
             phase,
             damage,
             width_pct,
+            bleed,
         })
     }
 }

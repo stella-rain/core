@@ -884,6 +884,12 @@ fn bleeding(foes: &[usize], near: usize, bleed_row: RepeatBleed) -> (World, Stat
         let p = slot(u8::try_from(p).unwrap());
         s.players[p].crit_chance_pct = 0;
         s.players[p].echo_hit_pct = 0;
+        // No rune: the runes' bleed would land beside the repeat's own.
+        s.players[p].runes.clear();
+    }
+    // The warmed-up foes already carry statuses of the runes: start from none.
+    for e in &mut s.enemies {
+        e.statuses = Default::default();
     }
     w.repeat_bleeds = vec![bleed_row];
     s.tick = 50;

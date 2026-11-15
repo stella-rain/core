@@ -40,6 +40,10 @@ pub(crate) enum StatusKind {
     Burn,
     /// The enemy stops what it was doing for its ticks. Not a skill's status.
     Stun,
+    /// Damage over time, in stacks, of its own beside bleed's: what a repeat of a style with the
+    /// `repeat_bleed` kind puts on a foe, with the kind's own damage, duration and cap. No rune
+    /// applies it and no skill can; its ticks are `Shot.dot` hits, which neither crit nor echo.
+    RepeatBleed,
 }
 
 /// The IDs of `StatusKind::ALL`, in that order, which is the order of the discriminants
@@ -61,7 +65,7 @@ impl StatusKind {
 
     /// Every kind. `COUNT` sizes the lists of statuses; a kind added without a place here fails
     /// the test `every_status_kind_is_listed`.
-    pub const ALL: [StatusKind; 7] = [
+    pub const ALL: [StatusKind; 8] = [
         StatusKind::AtkUp,
         StatusKind::Vulnerable,
         StatusKind::Slow,
@@ -69,6 +73,7 @@ impl StatusKind {
         StatusKind::Poison,
         StatusKind::Burn,
         StatusKind::Stun,
+        StatusKind::RepeatBleed,
     ];
     pub const COUNT: usize = StatusKind::ALL.len();
 
@@ -87,6 +92,7 @@ impl StatusKind {
             StatusKind::Poison => "poison",
             StatusKind::Burn => "burn",
             StatusKind::Stun => "stun",
+            StatusKind::RepeatBleed => "repeat_bleed",
         }
     }
 }

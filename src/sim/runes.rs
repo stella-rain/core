@@ -183,6 +183,48 @@ pub(super) fn apply_smash_bleed(
     apply_dot(s, me, target, Rune::Bleed, events);
 }
 
+/// A repeat's hit that leaves `target` standing puts `row.stacks` stacks of the repeat bleed on
+/// it, with the row's own damage, duration and cap (not the runes file's), one `StatusApplied`
+/// for each. The status is its own: the runes' bleed, `reap` and the spirit's stacks do not see
+/// it. Its damage is slash, with the owner's attack-up and slash bonus as of now; the interval is
+/// `REPEAT_BLEED_INTERVAL_TICKS`.
+pub(super) fn apply_repeat_bleed(
+    s: &mut State,
+    me: PlayerIdx,
+    target: Who,
+    row: &crate::weapon::RepeatBleed,
+    events: &mut Vec<DomainEvent>,
+) {
+    let limit = s.match_ups.max_type_bonus_pct().min(MAX_TYPE_BONUS_PCT);
+    let interval = crate::expertise::REPEAT_BLEED_INTERVAL_TICKS;
+    let dot = DotState {
+        damage: row.damage.min(MAX_DAMAGE),
+        damage_type: Some(crate::attack::DamageType::Slash),
+        atk_up_pct: status_pct(&s.players[me].statuses, StatusKind::AtkUp),
+        type_bonus_pct: s.players[me].type_bonus_pct[crate::attack::DamageType::Slash.index()]
+            .min(limit),
+        interval,
+        next_in: interval,
+    };
+    let duration = u32::from(row.duration_ticks).clamp(1, MAX_DOT_DURATION_TICKS);
+    let max_stacks = u16::from(row.max_stacks).clamp(1, MAX_DOT_STACKS as u16);
+    let source = s.id_of(Who::Player(me));
+    for _ in 0..row
+        .stacks
+        .min(crate::expertise::MAX_REPEAT_BLEED_STACKS as u8)
+    {
+        s.add_dot(
+            target,
+            StatusKind::RepeatBleed,
+            source,
+            dot,
+            duration,
+            max_stacks,
+            events,
+        );
+    }
+}
+
 /// A reap smash's hit that leaves `target` standing (ADR-SIM-9): on a target holding the bleed
 /// at `stacks` stacks or more it cashes them, the status goes and the target takes at once the
 /// damage of the bleed ticks still due, each as `tick_dots_of` scales it, a boss and its parts

@@ -207,6 +207,7 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
             phase: phase_at,
             damage,
             width_pct: r.width_pct.min(MAX_RANGE_PCT),
+            bleed: world.repeat_bleed_index(repeat.bleed),
         });
     }
 }
@@ -419,7 +420,14 @@ fn repeat_hit(
         buffed_by: None,
     };
     let at = s.at(target);
-    super::damage::land(stage, s, me, target, dealt, how, events);
+    let landed = super::damage::land(stage, s, me, target, dealt, how, events);
+    // The repeat bleed, read from the table by the entry's own row: what the step had when the
+    // repeat was queued (`.get()`: a bad row applies nothing, and a load refuses one).
+    if e.bleed != 0 && !landed.dead {
+        if let Some(row) = stage.repeat_bleeds.get(usize::from(e.bleed) - 1) {
+            super::runes::apply_repeat_bleed(s, me, target, row, events);
+        }
+    }
     if !s.players[me].runes.is_empty() {
         super::runes::on_hit(stage, s, me, id, at, events, e.proc_pct);
     }

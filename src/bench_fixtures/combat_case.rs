@@ -186,6 +186,7 @@ pub fn prepare(engine: &mut Engine) {
             phase,
             damage: 1,
             width_pct: 0,
+            bleed: 0,
         });
     }
     let t = world.tuning;

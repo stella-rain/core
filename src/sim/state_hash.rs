@@ -405,6 +405,7 @@ impl StableHash for StatusKind {
             StatusKind::Poison => hash_enum!(h, 4),
             StatusKind::Burn => hash_enum!(h, 5),
             StatusKind::Stun => hash_enum!(h, 6),
+            StatusKind::RepeatBleed => hash_enum!(h, 7),
         }
     }
 }
@@ -520,6 +521,7 @@ impl StableHash for Repeat {
             phase,
             damage,
             width_pct,
+            bleed,
         } = self;
         owner.stable_hash(h);
         due.stable_hash(h);
@@ -530,6 +532,7 @@ impl StableHash for Repeat {
         phase.stable_hash(h);
         damage.stable_hash(h);
         width_pct.stable_hash(h);
+        bleed.stable_hash(h);
     }
 }
 

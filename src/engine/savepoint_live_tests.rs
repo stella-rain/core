@@ -301,6 +301,7 @@ fn a_repeat_past_its_attack_or_phase_is_refused() {
         phase: phase as u8,
         damage: 10,
         width_pct: 0,
+        bleed: 0,
     };
     let last = attacks - 1;
     let edit = |r: Repeat| decode_edited(move |s| s.repeats = vec![r]).map(drop);
@@ -313,6 +314,44 @@ fn a_repeat_past_its_attack_or_phase_is_refused() {
         edit(repeat(last, phases(last))),
         invalid("repeat phase out of range")
     );
+}
+
+/// H3: a queued repeat names a row of the world's bleed table (counted from 1) or none (0): a
+/// row past the table is refused, and a world with no table loads only 0.
+#[test]
+fn a_repeat_bleed_past_the_table_is_refused() {
+    use crate::sim::AttackIndex;
+    use crate::sim::state::{Repeat, RepeatAnchor};
+    let repeat = |bleed: u8| Repeat {
+        owner: 0,
+        due: 9,
+        percent: 50,
+        proc_pct: None,
+        anchor: RepeatAnchor::HitList(Default::default()),
+        attack: AttackIndex(0),
+        phase: 0,
+        damage: 10,
+        width_pct: 0,
+        bleed,
+    };
+    let row = crate::weapon::RepeatBleed {
+        stacks: 1,
+        duration_ticks: 180,
+        damage: 300,
+        max_stacks: 6,
+    };
+    let load = |rows: usize, bleed: u8| {
+        let mut fresh = saved();
+        fresh.run.live_world_mut().repeat_bleeds = vec![row; rows];
+        let mut edited = fresh.clone();
+        edited.run.live_mut().repeats = vec![repeat(bleed)];
+        decode_state(&encode_state(&edited), &fresh).map(drop)
+    };
+    assert!(load(0, 0).is_ok(), "no table, no bleed");
+    assert!(load(1, 1).is_ok());
+    assert!(load(1, 0).is_ok());
+    assert_eq!(load(1, 2), invalid("repeat bleed out of range"));
+    assert_eq!(load(0, 1), invalid("repeat bleed out of range"));
 }
 
 /// The first byte at which two encodings differ.
