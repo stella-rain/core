@@ -570,3 +570,224 @@ fn a_hold_adds_a_stack_per_loop_hit() {
         r.tempo(0)
     );
 }
+
+/// A tempo kind of 5 stacks of 4 percent that is `pct` percent wider at full stacks.
+fn range_kind(pct: u32) -> Value {
+    let mut k = tempo_kind(5, 4, false);
+    k["effects"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "range_pct_at_full", "pct": pct }));
+    k
+}
+
+impl Rig {
+    /// The range of player 0's running combo attack, None if none runs.
+    fn width(&mut self) -> Option<u32> {
+        let s = st(&mut self.e);
+        s.runs
+            .iter()
+            .find(|r| super::attacks::is_combo(s, r))
+            .map(|r| r.width_pct)
+    }
+
+    /// A press of A at `stacks` stacks: the range the started attack has.
+    fn width_at(&mut self, stacks: u8) -> u32 {
+        self.idle(120);
+        self.set_tempo(0, stacks);
+        self.press(false);
+        self.width().expect("a combo attack runs")
+    }
+}
+
+/// R1: at full stacks the attack starts `pct` wider; below full, nothing.
+#[test]
+fn full_stacks_widen_the_attack() {
+    let mut r = rig(1, vec![range_kind(25)], 1);
+    let base = r.width_at(0);
+    for stacks in [3, 4] {
+        assert_eq!(r.width_at(stacks), base, "{stacks} stacks");
+    }
+    assert_eq!(r.width_at(5), base + 25);
+}
+
+/// R2: a foe just past the first step's circle is missed at 4 stacks and hit at 5.
+#[test]
+fn full_stacks_reach_a_foe_the_plain_step_misses() {
+    let hit = |stacks: u8, along: i32| {
+        let mut r = rig(1, vec![range_kind(25)], 1);
+        r.idle(120);
+        r.set_tempo(0, stacks);
+        let s = st(&mut r.e);
+        let (at, facing) = (s.players[ME].at, s.players[ME].facing);
+        let scale = i64::from(crate::trig::SCALE);
+        let d = i64::from(Fx::px(along).0);
+        let x = at.x.0 + i32::try_from(i64::from(facing.x) * d / scale).unwrap();
+        let y = at.y.0 + i32::try_from(i64::from(facing.y) * d / scale).unwrap();
+        s.enemies.retain(|f| r.foes.contains(&f.id));
+        let mut hits = 0;
+        let press = Input {
+            main: true,
+            ..Input::default()
+        };
+        for t in 0..60 {
+            let s = st(&mut r.e);
+            for f in &mut s.enemies {
+                f.at = Point { x: Fx(x), y: Fx(y) };
+                f.hp = BIG;
+            }
+            r.e.step(&[if t == 0 { press } else { Input::default() }; 3]);
+            hits += count(&as_json(r.e.events()), "Hit");
+        }
+        hits
+    };
+    // Found by the sweep: the plain circle reaches `along` px at most, the widened one 25% more.
+    let mut found = false;
+    for along in 20..120 {
+        if hit(4, along) == 0 && hit(5, along) > 0 {
+            found = true;
+            break;
+        }
+    }
+    assert!(found, "no distance is hit only at full stacks");
+}
+
+/// R3: each loop of the hold and its release start wider at full stacks; below full the first
+/// loop is plain.
+#[test]
+fn the_hold_and_its_release_are_wider_at_full_stacks() {
+    let hold = Input {
+        main: true,
+        ..Input::default()
+    };
+    let widths = |stacks: u8, foes: u32| {
+        let mut r = rig(1, vec![range_kind(25)], foes);
+        r.run_step(false);
+        r.run_step(false);
+        r.idle(60);
+        r.set_tempo(0, stacks);
+        let mut seen = Vec::new();
+        for _ in 0..40 {
+            r.step([hold, Input::default(), Input::default()]);
+            seen.extend(r.width());
+        }
+        for _ in 0..40 {
+            r.step([Input::default(); 3]);
+            seen.extend(r.width());
+        }
+        seen
+    };
+    let base = widths(0, 0);
+    assert!(!base.is_empty(), "the hold ran");
+    let plain = base[0];
+    let full = widths(5, 0);
+    assert!(!full.is_empty());
+    assert!(
+        full.iter().all(|w| *w == plain + 25),
+        "{full:?} from {plain}"
+    );
+    let four = widths(4, 0);
+    assert_eq!(four[0], plain);
+}
+
+/// R4: the swing that adds the fifth stack is not wider, the next one is.
+#[test]
+fn the_stack_is_read_when_the_attack_starts() {
+    let mut r = rig(1, vec![range_kind(25)], 1);
+    r.idle(120);
+    r.set_tempo(0, 4);
+    r.press(false);
+    let first = r.width().expect("a run");
+    while r.busy() {
+        r.step([Input::default(); 3]);
+    }
+    assert_eq!(r.tempo(0), 5, "the swing hit and filled the stacks");
+    r.press(false);
+    assert_eq!(r.width(), Some(first + 25));
+}
+
+/// R5: in a party only the player with full stacks is wider, and two runs agree.
+#[test]
+fn only_the_player_at_full_stacks_is_wider() {
+    let run = || {
+        let mut r = rig(2, vec![range_kind(25)], 1);
+        r.idle(120);
+        r.set_tempo(0, 5);
+        let press = Input {
+            main: true,
+            ..Input::default()
+        };
+        r.step([press, press, Input::default()]);
+        let s = st(&mut r.e);
+        let width = |i: u8| {
+            let id = s.players.id(slot(i));
+            s.runs
+                .iter()
+                .find(|x| x.owner == id && x.slot == super::player::COMBO_SLOT)
+                .map(|x| x.width_pct)
+                .expect("a run")
+        };
+        let (a, b) = (width(0), width(1));
+        for _ in 0..300 {
+            r.step([Input::default(); 3]);
+        }
+        (a, b, r.e.state_hash())
+    };
+    let (a, b, h1) = run();
+    assert_eq!(a, b + 25);
+    assert_eq!(run().2, h1);
+}
+
+/// R6: stacks that never reach full change nothing; the range sum is stored whole and the box
+/// is held to twice the plain radius.
+#[test]
+fn below_full_nothing_moves_and_the_sum_is_capped_when_used() {
+    let play = |kind: Value| {
+        let mut r = rig(1, vec![kind], 1);
+        r.idle(60);
+        for t in 0..600 {
+            r.set_tempo(0, 4);
+            let press = Input {
+                main: t % 20 == 0,
+                move_x: if t % 7 < 3 { 100 } else { 0 },
+                ..Input::default()
+            };
+            r.step([press, Input::default(), Input::default()]);
+        }
+        r.e.state_hash()
+    };
+    assert_eq!(play(range_kind(25)), play(tempo_kind(5, 4, false)));
+
+    let mut r = rig(1, vec![range_kind(25)], 1);
+    r.idle(120);
+    st(&mut r.e).players[ME].range_pct = 90;
+    r.set_tempo(0, 5);
+    r.press(false);
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let run = state
+        .runs
+        .iter()
+        .find(|x| super::attacks::is_combo(state, x))
+        .expect("a run");
+    assert!(
+        run.width_pct > 100,
+        "the sum is stored whole: {}",
+        run.width_pct
+    );
+    let phases = super::attacks::phase_count(world, run);
+    let capped = (0..phases)
+        .find_map(|i| super::attacks::phase(world, run, i).hit_box().cloned())
+        .expect("a widened box");
+    let plain = (0..phases)
+        .find_map(|i| super::attacks::widened_box(world, run.attack, i, 0))
+        .expect("a box");
+    use crate::attack::HitBox;
+    match (capped, plain) {
+        (HitBox::Circle { radius: a, .. }, HitBox::Circle { radius: b, .. }) => {
+            assert_eq!(i64::from(a.0), i64::from(b.0) * 2)
+        }
+        other => panic!("{other:?}"),
+    }
+}

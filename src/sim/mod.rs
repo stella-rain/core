@@ -96,7 +96,8 @@
 //! off the same way (the bundled pack names it): it reads and writes only `PlayerCombat::combo_tempo`. A swing of a combo
 //! step that hits adds one stack (`player::tempo_from_hits`, from the swing pass of
 //! `hit_boxes::land`), `strike` adds the stacks' percent to the attack speed under the run's cap
-//! (`player::tempo_speed_pct`), and the stacks end on a combo reset, a smash press, a hit taken,
+//! (`player::tempo_speed_pct`) and, at full stacks, `range_pct_at_full` to the range of the
+//! attack it starts (`player::tempo_range_pct`), and the stacks end on a combo reset, a smash press, a hit taken,
 //! a down or another style (`player::tempo_lose`, `combo_reset`). `PlayerView.tempo` and the two
 //! tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
 //! one bool test each. With `super_armour_at_full`, full stacks in a held hold are super armour

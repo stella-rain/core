@@ -661,6 +661,14 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                     .effects
                     .iter()
                     .any(|e| matches!(e, TempoEffect::SuperArmourAtFull {})),
+                range_pct_at_full: t
+                    .effects
+                    .iter()
+                    .find_map(|e| match e {
+                        TempoEffect::RangePctAtFull { pct } => Some(*pct),
+                        _ => None,
+                    })
+                    .unwrap_or(0),
             },
             StyleKind::GiantTrigger(t) => {
                 let mut view = StyleKindView::GiantTrigger {

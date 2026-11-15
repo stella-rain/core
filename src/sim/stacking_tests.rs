@@ -335,6 +335,59 @@ fn a_later_tempo_past_the_caps_is_clamped() {
     assert_eq!(g.speed_pct, crate::run_stats::MAX_ATTACK_SPEED_PCT);
 }
 
+fn range_full(pct: u32) -> Value {
+    json!({ "type": "range_pct_at_full", "pct": pct })
+}
+
+/// The folded range at full stacks of player `i`'s tempo at `places` places (0 for none).
+fn range_at_full(e: &mut Engine, i: u8, places: usize) -> u32 {
+    read(e, i, places, |w, s, me| {
+        w.tempo_of(s, me).map(|g| g.range_pct_at_full)
+    })
+    .unwrap_or(0)
+}
+
+/// G1: the range at full stacks stacks in path order, and speed and flags stay when a later
+/// level lists only the range.
+#[test]
+fn the_range_at_full_stacks_across_the_path() {
+    let keep = json!({ "type": "keep_on_smash" });
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4), keep])],
+        vec![tempo(5, vec![range_full(25)])],
+        vec![tempo(5, vec![])],
+        vec![tempo(5, vec![range_full(40)])],
+    );
+    let seen: Vec<u32> = (0..4).map(|n| range_at_full(&mut e, 0, n)).collect();
+    assert_eq!(seen, [0, 25, 25, 40]);
+    assert_eq!(tempo_at(&mut e, 0, 1), Some((5, 4, true, false)));
+}
+
+/// G2: a range past the cap (a value the validator refuses) folds to `MAX_RANGE_PCT`, a tempo
+/// that never names it gives 0, and each player reads its own place.
+#[test]
+fn the_range_at_full_is_clamped_and_per_player() {
+    use super::world::{TempoGrant, tempo_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::ComboTempo>(v).expect("a combo tempo")
+    };
+    let mut g = TempoGrant::none();
+    tempo_fold(&mut g, &kind(tempo(5, vec![speed(4)])));
+    assert_eq!(g.range_pct_at_full, 0);
+    tempo_fold(&mut g, &kind(tempo(5, vec![range_full(u32::MAX)])));
+    assert_eq!(g.range_pct_at_full, crate::rewards::MAX_RANGE_PCT);
+
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4)])],
+        vec![tempo(5, vec![range_full(25)])],
+        vec![],
+        vec![],
+    );
+    assert_eq!(range_at_full(&mut e, 0, 1), 25);
+    assert_eq!(range_at_full(&mut e, 1, 0), 0);
+}
+
 fn trigger(ticks: u32, effects: Vec<Value>) -> Value {
     json!({ "type": "giant_trigger", "ticks": ticks, "effects": effects })
 }
@@ -1043,4 +1096,35 @@ fn the_bundled_foresight_path_folds_as_the_content_says() {
     assert_eq!(row(&seen[1]), (38, 0, base, (false, 0)));
     assert_eq!(row(&seen[2]), (38, 12288, base, (false, 0)));
     assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
+}
+
+/// C3: the bundled Momentum grant at each place of the path through its first upgrade: five
+/// stacks, speed 4, both flags, and the range at full stacks 0, 25, 25, 25.
+#[test]
+fn the_bundled_momentum_grant_gains_the_range_at_its_first_upgrade() {
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_hammer".into(),
+        seed: 20_261_117,
+        ..RunSetup::default()
+    };
+    let mut e = Engine::start_party_with(&setup, Pack::bundled().content(), 1).expect("a run");
+    if let Some(g) = st(&mut e).players.career_mut(slot(0)).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    let seen: Vec<_> = (0..4)
+        .map(|n| {
+            read(&mut e, 0, n, |w, s, me| w.tempo_of(s, me).copied()).map(|g| {
+                (
+                    g.max_stacks,
+                    g.speed_pct,
+                    g.keep_on_smash,
+                    g.hold_armour,
+                    g.range_pct_at_full,
+                )
+            })
+        })
+        .collect();
+    let at = |r: u32| Some((5, 4, true, true, r));
+    assert_eq!(seen, [at(0), at(25), at(25), at(25)]);
 }

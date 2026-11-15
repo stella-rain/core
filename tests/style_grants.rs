@@ -362,12 +362,13 @@ fn the_views_carry_the_kinds() {
     assert_eq!(trees.len(), 3);
     for (i, t) in trees.iter().enumerate() {
         // The style's own grant carries its kinds; a stat level has an empty one, and the
-        // first upgrades of the Titan Trigger and the Breaker are the built levels.
+        // first upgrades of the Titan Trigger, Momentum and the Breaker are the built levels.
         assert_eq!(t["grants"].as_array().unwrap().len(), 4);
         assert!(!t["grants"][0]["kinds"].as_array().unwrap().is_empty());
         assert_eq!(
             t["grants"][1]["kinds"].as_array().unwrap().len(),
-            usize::from(i == 0 || i == 2)
+            1,
+            "tree {i}"
         );
     }
 }

@@ -11495,7 +11495,7 @@
           "description": "The style's combo tempo: each swing of a combo step that hits adds a stack, up to\n`max_stacks`, and each stack makes every attack the player's combo starts afterwards faster;\nthe stacks end when the combo resets, when a smash is pressed (unless the stacks are full\nand the kind keeps them) and when the player is hit or downed (ADR-SIM-9 points 2 to 7).\nOne per level; a path may name it at several levels, the numbers stacking in path order:\na later level's `max_stacks` (never lower) replaces the earlier one, its `speed_pct`\nreplaces the earlier speed, the flag effects are on once any level names them, and the\nfolded `max_stacks` times `speed_pct` stays within the attack speed ceiling.",
           "properties": {
             "effects": {
-              "description": "What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them (0\nto 3 and no `speed_pct` needed at a level after one that names the kind).",
+              "description": "What the stacks do, each variant at most once; 1 to `MAX_TEMPO_EFFECTS` entries, `speed_pct` among them\n(0 to `MAX_TEMPO_EFFECTS` and no `speed_pct` needed at a level after one that names the kind).",
               "items": {
                 "$ref": "#/$defs/TempoEffect"
               },
@@ -11856,7 +11856,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour.",
+          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour and\n`range_pct_at_full` percent wider attacks while the stacks are full (0 where none).",
           "properties": {
             "armour_at_full": {
               "type": "boolean"
@@ -11871,6 +11871,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "range_pct_at_full": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
             "type": {
               "const": "combo_tempo_pct",
               "type": "string"
@@ -11880,7 +11885,8 @@
             "type",
             "max_stacks",
             "pct_per_stack",
-            "armour_at_full"
+            "armour_at_full",
+            "range_pct_at_full"
           ],
           "type": "object"
         },
@@ -12036,6 +12042,27 @@
           },
           "required": [
             "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "While the stacks are full, every attack the combo starts is `pct` percent wider, through\nthe same range term as the spirit's and the trigger's (the sum is held to\n`MAX_RANGE_PCT` when the attack's box is built). 1 to `MAX_RANGE_PCT`.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "range_pct_at_full",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
           ],
           "type": "object"
         }
