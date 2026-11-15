@@ -854,7 +854,7 @@ fn the_weapon_copy_stamps_the_repeat_bleed_on_every_repeat() {
 }
 
 fn for_each_repeat(w: &crate::weapon::Weapon, f: &mut dyn FnMut(&crate::weapon::StepRepeat)) {
-    use crate::weapon::Press;
+    use crate::event::Press;
     let mut w = w.clone();
     if let Some(step) = crate::expertise::step_mut(&mut w.combo, &[Press::Main]) {
         step.repeats.iter().for_each(&mut *f);

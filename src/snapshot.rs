@@ -273,6 +273,14 @@ pub enum StyleKindView {
     /// Each repeat of the style breaks the enemy orbs within `radius_px` of what it strikes, each
     /// with `chance_pct` percent.
     RepeatBreaksOrbs { chance_pct: u32, radius_px: u32 },
+    /// Each repeat of the style adds `stacks` stacks of the repeat bleed to what it hits and
+    /// leaves standing: `damage` a stack tick for `duration_ticks`, up to `max_stacks`.
+    RepeatBleed {
+        stacks: u32,
+        duration_ticks: u32,
+        damage: u32,
+        max_stacks: u32,
+    },
     /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
     ProcFactor { step: Vec<Press>, proc_pct: u32 },
     /// The style has a weapon gauge `max` long, spent as `spend`.
@@ -1063,7 +1071,7 @@ pub struct StatusView {
     pub total: u32,
 }
 
-/// A damage-over-time status on an entity: bleed, poison or burn.
+/// A damage-over-time status on an entity: bleed, poison, burn or the repeat bleed.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DamageOverTimeView {

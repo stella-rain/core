@@ -252,8 +252,8 @@ pub(super) fn check_style_grants(
                             }
                             continue;
                         }
-                        // The orb-breaking kind changes no step; it needs a repeat to close.
-                        StyleKind::RepeatBreaksOrbs { .. } => {
+                        // The orb-breaking and the repeat bleed kinds change no step; each needs a repeat to close.
+                        StyleKind::RepeatBreaksOrbs { .. } | StyleKind::RepeatBleed { .. } => {
                             if !repeat_seen {
                                 issues.push(validate::Issue {
                                     path: at.clone(),
