@@ -130,17 +130,48 @@ pub fn play(engine: &mut Engine, tick: u32) {
     engine.step(&[input(tick), Default::default(), Default::default()]);
 }
 
+/// The inputs of tick `tick` for a party of `party` (1 to 3): slot 0 has `input`; the members
+/// walk as it does, with Main tapped on the odd ticks, the parity slot 0 does not tap on
+/// (`party_case::tap`); the slots past `party` have the default.
+pub fn inputs_party(tick: u32, party: u8) -> [Input; 3] {
+    let lead = input(tick);
+    let member = Input {
+        main: tick % 2 == 1,
+        ..lead
+    };
+    std::array::from_fn(|slot| match slot {
+        0 => lead,
+        s if s < usize::from(party) => member,
+        _ => Input::default(),
+    })
+}
+
+/// `play` for a party of `party`: every slot has its `inputs_party`.
+pub fn play_party(engine: &mut Engine, tick: u32, party: u8) {
+    engine.step(&inputs_party(tick, party));
+}
+
 /// Plays tick `tick` (the engine's next): the caps written first, from `CAPS_FROM`; after the
 /// first step the weapon level has risen, and the style point is taken.
 pub fn step(engine: &mut Engine, tick: u32) {
+    step_party(engine, tick, 1);
+}
+
+/// `step` for a party of `party`: after tick 1 every slot, in slot order, takes the style point.
+pub fn step_party(engine: &mut Engine, tick: u32, party: u8) {
     if tick >= CAPS_FROM {
-        prepare(engine);
+        prepare_party(engine, party);
     }
-    play(engine, tick);
+    play_party(engine, tick, party);
     if tick == 1 {
-        engine
-            .act(PlayerIdx::SOLO, EquipAction::TreePick { option: 0 })
-            .expect("the only unlocked style is taken");
+        for slot in 0..party {
+            engine
+                .act(
+                    PlayerIdx::new(slot).expect("a slot of the party"),
+                    EquipAction::TreePick { option: 0 },
+                )
+                .expect("the only unlocked style is taken");
+        }
     }
 }
 
@@ -156,6 +187,12 @@ pub fn step(engine: &mut Engine, tick: u32) {
 /// rules' list length with its reset running, so the next control takes the refuse-and-immune
 /// path.
 pub fn prepare(engine: &mut Engine) {
+    prepare_party(engine, 1);
+}
+
+/// `prepare` for a party of `party`: the repeats are shared by the slots, `n % party` owning
+/// repeat `n` (22, 21 and 21 of 64 for 3), so every slot's runes fire on the hits.
+pub fn prepare_party(engine: &mut Engine, party: u8) {
     let due = engine.tick() + 1;
     let Run::V2 { world, state, .. } = engine.bench_run_mut() else {
         panic!("the live rules");
@@ -188,7 +225,7 @@ pub fn prepare(engine: &mut Engine) {
             .map(|k| ids[(n * MAX_REPEAT_TARGETS + k) % ids.len()])
             .collect();
         state.repeats.push(Repeat {
-            owner: 0,
+            owner: u8::try_from(n % usize::from(party)).expect("a slot"),
             due,
             percent: 50,
             proc_pct: None,
@@ -235,11 +272,16 @@ fn repeat_phase(world: &crate::sim::World) -> (AttackIndex, u8) {
 /// An engine `WARMUP_TICKS` ticks into the run with the caps written for the next tick: the
 /// next `step` (tick `WARMUP_TICKS + 1`) is the measured one, and its input is `input`.
 pub fn warmed_up() -> Engine {
-    let mut engine = start();
+    warmed_up_party(1)
+}
+
+/// `warmed_up` for a party of `party`.
+pub fn warmed_up_party(party: u8) -> Engine {
+    let mut engine = start_party(party);
     for tick in 1..=WARMUP_TICKS {
-        step(&mut engine, tick);
+        step_party(&mut engine, tick, party);
     }
-    prepare(&mut engine);
+    prepare_party(&mut engine, party);
     engine
 }
 
