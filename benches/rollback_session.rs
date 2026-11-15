@@ -1,6 +1,6 @@
 //! The instruction count of a rolling-back `Session` (ADR-SIM-5, ADR-SIM-6, ADR-SIM-7): the
 //! rollback `Session` of `stella-rain-net` has played the three-player equipment run of the
-//! `rollback_equip` case up to tick 10,800, predicted a window of ticks with both remotes silent,
+//! `rollback_equip` case up to tick `EQUIP_PEAK_TICK` (9,834), predicted a window of ticks with both remotes silent,
 //! and now gets their real inputs; the counted `advance` restores the first mispredicted tick,
 //! re-simulates the window (a clone saved per tick) and steps one new tick. It is counted at the
 //! default window (4) and the largest (16), and one save of a clone ring is counted alone. The
@@ -8,7 +8,7 @@
 //! copies into the session's engine. `clone_ring_save` counts a first fill (one clone into an
 //! empty ring); `clone_ring_resave` counts a reused slot (a copy into the oldest slot of a ring
 //! that has filled).
-//! Run it with `cargo bench --bench rollback_session`; each case's setup plays about 10,800 ticks
+//! Run it with `cargo bench --bench rollback_session`; each case's setup plays `EQUIP_PEAK_TICK` (9,834) ticks
 //! through a `Session`, so it is longer than `rollback_equip`'s (the CI bench job has a 30 minute
 //! timeout). It is budgeted like the other targets: the `[rollback_session]` key of
 //! `benches/budgets.toml` (ADR-SIM-6), which `tests/bench_teardown.rs` requires of every bench.
