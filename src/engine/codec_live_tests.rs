@@ -359,7 +359,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, BossState, |s| s.boss.as_mut().unwrap(),
         fields: [id, boss, origin, no_call, kind, at, hp, max_hp, defence, statuses, phase, phase_age, invulnerable, step, wait_left, order, rules, parts, elites_called, age, stagger]);
     each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
-        fields: [gauge, breaks, drain, staggered]);
+        fields: [gauge, breaks, drain, staggered, total]);
     each_field_moves_the_encoding!(failures, base, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
         fields: [id, name, kind, hp, max_hp, defence, offset, radius, statuses]);
     each_field_moves_the_encoding!(failures, base, AgentKey, |s| &mut s.enemies[0].key,
@@ -375,7 +375,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EliteState, |s| s.enemies[0].elite.as_mut().unwrap(),
         fields: [home, called, boss_call, disguised, stagger]);
     each_field_moves_the_encoding!(failures, base, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
-        fields: [gauge, breaks, drain, staggered]);
+        fields: [gauge, breaks, drain, staggered, total]);
     each_field_moves_the_encoding!(failures, base, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
         fields: [to, ticks_left]);
     each_field_moves_the_encoding!(failures, base, RuleState, |s| &mut s.enemies[0].rules[0],
@@ -778,6 +778,7 @@ fn the_enemy_combat_fields_are_bounded_at_decode() {
         breaks: MAX_STAGGER_BREAKS,
         drain: MAX_STAGGER_DRAIN_TICKS,
         staggered: MAX_STAGGERED_TICKS,
+        total: MAX_STAGGERED_TICKS,
     };
     round_trip(&at_cap);
     let refused = |f: &dyn Fn(&mut Stagger)| {
@@ -792,6 +793,8 @@ fn the_enemy_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.breaks += 1);
     refused(&|c| c.drain += 1);
     refused(&|c| c.staggered += 1);
+    refused(&|c| c.total += 1);
+    assert_eq!(Stagger::default().total, 0);
 
     let fresh = engine();
     let s = fresh.run.live();

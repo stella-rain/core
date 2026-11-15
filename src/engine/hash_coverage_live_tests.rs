@@ -416,6 +416,7 @@ fn agent() -> AgentState {
                 breaks: 7,
                 drain: 8,
                 staggered: 9,
+                total: 10,
             },
         }),
         leave: Some(LeaveState {
@@ -469,6 +470,7 @@ fn boss() -> BossState {
             breaks: 7,
             drain: 8,
             staggered: 9,
+            total: 10,
         },
     }
 }
@@ -997,7 +999,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: [boss, kind]);
     each_field_moves_the_hash!(p, Stagger, |s| &mut s.boss.as_mut().unwrap().stagger,
-        moves: [gauge, breaks, drain, staggered],
+        moves: [gauge, breaks, drain, staggered, total],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, PartState, |s| &mut s.boss.as_mut().unwrap().parts[0],
@@ -1029,7 +1031,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [boss_call],
         content: []);
     each_field_moves_the_hash!(p, Stagger, |s| &mut s.enemies[0].elite.as_mut().unwrap().stagger,
-        moves: [gauge, breaks, drain, staggered],
+        moves: [gauge, breaks, drain, staggered, total],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, MoveOrder, |s| s.enemies[0].order.as_mut().unwrap(),
