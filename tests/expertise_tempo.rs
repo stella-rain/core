@@ -103,7 +103,16 @@ fn the_tempo_kind_is_bounded() {
         { "type": "super_armour_at_full" },
         { "type": "keep_on_smash" }
     ]);
-    refused_at(json!([effects(four)]), &format!("{PATH}.effects"));
+    // Four entries are within the bound; the fourth is a duplicate, refused at its own path.
+    refused_at(json!([effects(four)]), &format!("{PATH}.effects[3]"));
+    let five = json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
+        { "type": "range_pct_at_full", "pct": 25 },
+        { "type": "keep_on_smash" }
+    ]);
+    refused_at(json!([effects(five)]), &format!("{PATH}.effects"));
     refused_at(
         json!([effects(json!([{ "type": "keep_on_smash" }]))]),
         &format!("{PATH}.effects"),
@@ -308,5 +317,156 @@ fn a_later_level_may_name_the_combo_tempo_again() {
             json!([{ "type": "keep_on_smash" }, { "type": "keep_on_smash" }]),
         ),
         &format!("{LATER}.effects[1]"),
+    );
+}
+
+/// The four different effects of the kind.
+fn all_four() -> Value {
+    json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
+        { "type": "range_pct_at_full", "pct": 25 }
+    ])
+}
+
+/// V1: the kind with `range_pct_at_full` loads under the current versions, serialises back to
+/// its input and is refused under `sim_version` 1.
+#[test]
+fn range_pct_at_full_loads_and_round_trips() {
+    let kind = effects(all_four());
+    valid(json!([kind.clone()]));
+    let parsed: StyleKind = serde_json::from_value(kind.clone()).expect("the kind parses");
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), kind);
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&with_kinds(json!([kind])), old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// V2: `pct` is 1 to 100; `pct` is required and the effect is strict.
+#[test]
+fn range_pct_at_full_is_bounded_and_strict() {
+    let with = |pct: i64| {
+        json!([effects(json!([
+            { "type": "speed_pct", "pct": 4 },
+            { "type": "range_pct_at_full", "pct": pct }
+        ]))])
+    };
+    valid(with(1));
+    valid(with(100));
+    for pct in [0, 101] {
+        refused_at(with(pct), &format!("{PATH}.effects[1].pct"));
+    }
+    parse_error(json!([effects(json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "range_pct_at_full" }
+    ]))]));
+    parse_error(json!([effects(json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "range_pct_at_full", "pct": 25, "extra": 1 }
+    ]))]));
+}
+
+/// V3: four different effects load, a repeated one is refused at its own path.
+#[test]
+fn a_kind_may_name_four_effects() {
+    valid(json!([effects(all_four())]));
+    refused_at(
+        json!([effects(json!([
+            { "type": "speed_pct", "pct": 4 },
+            { "type": "range_pct_at_full", "pct": 25 },
+            { "type": "range_pct_at_full", "pct": 30 }
+        ]))]),
+        &format!("{PATH}.effects[2]"),
+    );
+}
+
+/// V3b: the speed checks still run at four effects.
+#[test]
+fn the_speed_checks_run_at_four_effects() {
+    let first = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 10,
+        "effects": [
+            { "type": "speed_pct", "pct": 81 },
+            { "type": "keep_on_smash" },
+            { "type": "super_armour_at_full" },
+            { "type": "range_pct_at_full", "pct": 25 }
+        ]
+    }]);
+    match parse_at(&with_kinds(first), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == format!("{PATH}.effects") && i.message.contains("at most 800")),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+    let no_speed = json!([effects(json!([
+        { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
+        { "type": "range_pct_at_full", "pct": 25 },
+        { "type": "keep_on_smash" }
+    ]))]);
+    match parse_at(&with_kinds(no_speed), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(
+                issues
+                    .iter()
+                    .any(|i| i.path == format!("{PATH}.effects[3]")),
+                "{issues:?}"
+            );
+            assert!(
+                issues.iter().any(|i| i.path == format!("{PATH}.effects")
+                    && i.message.contains("names no speed_pct")),
+                "{issues:?}"
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// V4: a later level lists only the range, or nothing; its bounds hold there too.
+#[test]
+fn a_later_level_may_name_range_pct_at_full() {
+    let base = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 5,
+        "effects": [{ "type": "speed_pct", "pct": 4 }]
+    }]);
+    let later = |max: i64, effects: Value| json!([{ "type": "combo_tempo_pct", "max_stacks": max, "effects": effects }]);
+    let range = |pct: i64| json!([{ "type": "range_pct_at_full", "pct": pct }]);
+    stacked_loads(base.clone(), later(5, range(25)));
+    stacked_loads(base.clone(), later(5, json!([])));
+    stacked_loads(
+        base.clone(),
+        later(
+            5,
+            json!([{ "type": "speed_pct", "pct": 4 }, { "type": "range_pct_at_full", "pct": 25 }]),
+        ),
+    );
+    stacked_refused(
+        base.clone(),
+        later(5, range(101)),
+        &format!("{LATER}.effects[0].pct"),
+    );
+    stacked_refused(base, later(4, range(25)), &format!("{LATER}.max_stacks"));
+    // A first naming with only the range has no speed.
+    valid_refused_no_speed();
+}
+
+fn valid_refused_no_speed() {
+    refused_at(
+        json!([effects(json!([{ "type": "range_pct_at_full", "pct": 25 }]))]),
+        &format!("{PATH}.effects"),
     );
 }
