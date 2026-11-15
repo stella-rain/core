@@ -49,8 +49,8 @@ pub struct Input {
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
     /// The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down
-    /// and revive rules only (`player_hits.rs`); nothing else reads it. Schema 2 only: the
-    /// schema 1 stream cannot carry it.
+    /// and revive rules (`player_hits.rs`); the recorder and the replay codec carry it. Schema 2
+    /// only: the schema 1 stream cannot carry it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interact: bool,
     /// An equipment action made on this step. It is recorded as an ACTIONS step, never inside a
