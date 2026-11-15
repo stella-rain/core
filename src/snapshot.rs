@@ -799,7 +799,7 @@ pub struct PlayerView {
     /// Its Starlight balance (equipment mode; absent reads as 0).
     #[serde(default, skip_serializing_if = "crate::behaviour::is_zero")]
     pub starlight: u32,
-    /// For each star of the setup's star pool, in pool order (the index `Craft` takes): whether
+    /// For each star of the run's star pool, in pool order (the index `Craft` takes): whether
     /// a craft of it is refused because this player already holds that named star. Empty in a
     /// stage run alone and at `sim_version` 1.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

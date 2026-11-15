@@ -21,7 +21,7 @@ pub enum EquipAction {
     Replace { item: u32, slot: u32 },
     /// Extract the inventory item `item`.
     Extract { item: u32 },
-    /// Craft with the star at index `star` of the setup's star pool.
+    /// Craft with the star at index `star` of the run's star pool.
     Craft { star: u32 },
     /// Take option `option` on the weapon's in-run style path.
     TreePick { option: u32 },
@@ -49,13 +49,14 @@ pub struct Input {
     /// at the target. Its presses come from the state, never from this record.
     pub auto: bool,
     /// The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down
-    /// and revive rules only; the simulation ignores it until they exist. Schema 2 only: the
+    /// and revive rules only (`player_hits.rs`); nothing else reads it. Schema 2 only: the
     /// schema 1 stream cannot carry it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interact: bool,
     /// An equipment action made on this step. It is recorded as an ACTIONS step, never inside a
-    /// TICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: no
-    /// rule accepts an action yet.
+    /// TICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: an
+    /// action is made between steps by `Engine::act`, or by `RunRecorder::step`, which records
+    /// the ones `check_action` accepts and clears the field before the tick.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<EquipAction>,
 }
