@@ -235,13 +235,17 @@ pub(crate) struct FoeControl {
 }
 
 /// An elite's or the boss's stagger: the gauge, the breaks so far, the ticks to the next drain
-/// step and the ticks left staggered. All zero until a rule writes them.
+/// step, the ticks left staggered and the length the running stagger was given. All zero until a
+/// rule writes them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Stagger {
     pub gauge: u32,
     pub breaks: u16,
     pub drain: u16,
     pub staggered: u16,
+    /// The ticks the running stagger was given (its length, chosen when the gauge filled); 0
+    /// while not staggered. The status bar's total.
+    pub total: u16,
 }
 
 /// A companion or an enemy: a movement and a rule list (ADR-SIM-4 tier 1).

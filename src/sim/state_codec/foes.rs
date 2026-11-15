@@ -76,11 +76,13 @@ impl Encode for Stagger {
             breaks,
             drain,
             staggered,
+            total,
         } = self;
         gauge.encode(w);
         breaks.encode(w);
         drain.encode(w);
         staggered.encode(w);
+        total.encode(w);
     }
 }
 
@@ -100,6 +102,7 @@ impl Decode for Stagger {
                 "stagger_drain past its bound",
             )?,
             staggered: within(r.u16()?, MAX_STAGGERED_TICKS, "staggered past its bound")?,
+            total: within(r.u16()?, MAX_STAGGERED_TICKS, "stagger_total past its bound")?,
         })
     }
 }

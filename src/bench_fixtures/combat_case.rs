@@ -212,6 +212,7 @@ pub fn prepare(engine: &mut Engine) {
                 breaks,
                 drain: t.stagger_drain_delay,
                 staggered: 0,
+                total: 0,
             };
         }
     }
