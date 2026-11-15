@@ -699,3 +699,48 @@ fn the_refund_and_the_fill_stack_across_the_path() {
     counter_fold(&mut g, &serde_json::from_value(k).expect("a counter bonus"));
     assert_eq!(g.gauge_fill_pct, 100);
 }
+
+/// C3: the bundled Foresight path folds to the window 30 then 38, the advance from place 2 and
+/// the refund and the 25 percent fill only from place 3 (the capstone).
+#[test]
+fn the_bundled_foresight_path_folds_as_the_content_says() {
+    use super::world::{CounterGrant, counter_fold};
+    let weapons = serde_json::to_value(crate::expertise::Expertise::bundled().weapons()).unwrap();
+    let style = weapons
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|w| w["styles"].as_array().unwrap())
+        .find(|s| s["id"] == "foresight_counter")
+        .expect("the Foresight style")
+        .clone();
+    let mut levels = vec![style.clone()];
+    for f in ["upgrade_1", "upgrade_2", "capstone"] {
+        levels.push(style[f][0].clone());
+    }
+    let mut g = CounterGrant::none();
+    let mut seen = Vec::new();
+    for l in &levels {
+        for k in l["kinds"].as_array().into_iter().flatten() {
+            if k["type"] == "counter_bonus" {
+                let mut k = k.clone();
+                k.as_object_mut().unwrap().remove("type");
+                counter_fold(&mut g, &serde_json::from_value(k).unwrap());
+            }
+        }
+        seen.push(g.clone());
+    }
+    let row = |g: &CounterGrant| {
+        (
+            g.window,
+            g.advance.0,
+            (g.damage_pct, g.stagger_pct, g.stun_ticks),
+            (g.refund_evade, g.gauge_fill_pct),
+        )
+    };
+    let base = (100, 300, 45);
+    assert_eq!(row(&seen[0]), (30, 0, base, (false, 0)));
+    assert_eq!(row(&seen[1]), (38, 0, base, (false, 0)));
+    assert_eq!(row(&seen[2]), (38, 12288, base, (false, 0)));
+    assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
+}
