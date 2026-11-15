@@ -118,3 +118,124 @@ fn a_common_option_may_not_name_it() {
     v.pointer_mut("/weapons/0/common/0").unwrap()["kinds"] = json!([aaa(25)]);
     refused_at(&v, "$.weapons[0].common[0].kinds");
 }
+
+// The tree check, through the bundled pack: the Sword's style grants the AAA charge (levels at
+// 20 and 50 ticks) and its second upgrade names the kind.
+
+use stella_rain_core::pack::{Pack, PackError};
+
+fn sword(v: &mut Value) -> &mut Value {
+    v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_sword")
+        .expect("the Sword's expertise")
+}
+
+fn index_of_sword(v: &Value) -> usize {
+    v["expertise"]["weapons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|w| w["weapon"] == "giant_sword")
+        .unwrap()
+}
+
+/// The bundled pack with `upgrade_2` made the kind (a cell of kinds only, no stat).
+fn bundled() -> Value {
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
+    let up = &mut sword(&mut v)["styles"][0]["upgrade_2"][0];
+    up["effect"] = json!("none");
+    up.as_object_mut().unwrap().remove("amount");
+    up["kinds"] = json!([aaa(25)]);
+    v
+}
+
+/// The issues of the pack's expertise file, as (path, message).
+fn issues(v: &Value) -> Vec<(String, String)> {
+    match Pack::from_bytes(&serde_json::to_vec(v).unwrap()) {
+        Err(PackError::File {
+            file: "expertise",
+            error: Error::Invalid(found),
+        }) => found.into_iter().map(|i| (i.path, i.message)).collect(),
+        Err(other) => panic!("another error: {other:?}"),
+        Ok(_) => Vec::new(),
+    }
+}
+
+fn path(v: &Value, tail: &str) -> String {
+    format!("$.weapons[{}].styles[0].{tail}", index_of_sword(v))
+}
+
+/// P1: the kind after the grant that gives the charge checks ok.
+#[test]
+fn the_pack_accepts_it_after_the_charge() {
+    assert_eq!(issues(&bundled()), Vec::new());
+}
+
+/// P2: no charge at its place in the path, or no such step: refused at the step.
+#[test]
+fn the_pack_refuses_a_step_with_no_charge() {
+    // As the style's own only kind with the charge removed: nothing to hasten.
+    let mut v = bundled();
+    let style = &mut sword(&mut v)["styles"][0];
+    let kinds = style["kinds"].as_array_mut().unwrap();
+    kinds.retain(|k| k["type"] != "replace_step");
+    kinds.insert(0, aaa(25));
+    style["upgrade_2"][0]["kinds"] = json!([sooner(&["main", "main"], 25)]);
+    let found = issues(&v);
+    let want = path(&v, "kinds[0].step");
+    assert!(
+        found
+            .iter()
+            .any(|(p, m)| *p == want && m.contains("no charge")),
+        "{found:?}"
+    );
+
+    // The charge comes at the capstone, the kind at the first upgrade: too early.
+    let mut v = bundled();
+    let style = &mut sword(&mut v)["styles"][0];
+    let charge = style["kinds"][0].clone();
+    style["kinds"].as_array_mut().unwrap().remove(0);
+    style["capstone"][0]["kinds"] = json!([charge]);
+    style["upgrade_2"][0]["kinds"] = json!([sooner(&["main", "main"], 25)]);
+    style["upgrade_1"][0]["kinds"] = json!([aaa(25)]);
+    let found = issues(&v);
+    let want = path(&v, "upgrade_1[0].kinds[0].step");
+    assert!(
+        found
+            .iter()
+            .any(|(p, m)| *p == want && m.contains("no charge")),
+        "{found:?}"
+    );
+
+    // A step the tree lacks.
+    let mut v = bundled();
+    let deep = ["main"; 7];
+    sword(&mut v)["styles"][0]["upgrade_2"][0]["kinds"] = json!([sooner(&deep, 25)]);
+    let found = issues(&v);
+    let want = path(&v, "upgrade_2[0].kinds[0].step");
+    assert!(found.iter().any(|(p, _)| *p == want), "{found:?}");
+}
+
+/// P3: a scaling that makes the levels fall together, or a window past the next level, is
+/// refused at `pct`; one that keeps them apart loads.
+#[test]
+fn the_pack_refuses_a_charge_the_scaling_breaks() {
+    let mut v = bundled();
+    let levels = &mut sword(&mut v)["styles"][0]["kinds"][0]["grant"]["charge"]["levels"];
+    levels[0]["at_ticks"] = json!(20);
+    levels[0]["perfect_ticks"] = json!(0);
+    levels[1]["at_ticks"] = json!(21);
+    sword(&mut v)["styles"][0]["upgrade_2"][0]["kinds"] = json!([aaa(90)]);
+    let found = issues(&v);
+    let want = path(&v, "upgrade_2[0].kinds[0].pct");
+    assert!(found.iter().any(|(p, _)| *p == want), "{found:?}");
+
+    let mut v = bundled();
+    let levels = &mut sword(&mut v)["styles"][0]["kinds"][0]["grant"]["charge"]["levels"];
+    levels[0]["perfect_ticks"] = json!(15);
+    levels[1]["at_ticks"] = json!(40);
+    assert_eq!(issues(&v), Vec::new());
+}

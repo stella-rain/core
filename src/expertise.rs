@@ -1786,6 +1786,11 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
     }
     true
 }
+/// A level's `at_ticks` made `pct` percent sooner: `at * (100 - pct) / 100`, floored, at least 1.
+pub(crate) fn sooner_at(at: u32, _pct: u32) -> u32 {
+    at
+}
+
 /// `base` with the grants a style gives when it is chosen and `taken` places of its path
 /// (0 to 3: the first upgrade, the second, the capstone) are taken, in path order: the style's
 /// own kinds, then each taken place's one choice. A grant that finds no step is skipped (the

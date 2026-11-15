@@ -178,6 +178,8 @@ mod breaker_tests;
 mod build;
 #[cfg(test)]
 mod build_pin_tests;
+#[cfg(test)]
+mod charge_sooner_tests;
 mod drops;
 mod world;
 pub(crate) use attacks::phase;
