@@ -458,3 +458,33 @@ pub fn warmed_up() -> Engine {
     }
     engine
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The hashes of `start()` at tick 0 and after 10 ticks, captured before the party
+    /// constructor: the solo start is the party of one.
+    const SOLO_HASH_0: u64 = 15_672_718_769_193_565_418;
+    const SOLO_HASH_10: u64 = 3_307_359_630_554_531_496;
+
+    fn hashes(mut e: Engine) -> (u64, u64) {
+        let first = e.state_hash();
+        for t in 1..=10 {
+            e.step(&[input(t), Default::default(), Default::default()]);
+        }
+        (first, e.state_hash())
+    }
+
+    #[test]
+    fn the_solo_start_is_unchanged() {
+        assert_eq!(hashes(start()), (SOLO_HASH_0, SOLO_HASH_10));
+        let stage = stage();
+        let setup = RunSetup {
+            seed: u64::from(stage.seed),
+            ..RunSetup::default()
+        };
+        let one = start_party_in(&stage, &content(), &setup, 1);
+        assert_eq!(hashes(one), (SOLO_HASH_0, SOLO_HASH_10));
+    }
+}

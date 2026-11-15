@@ -247,6 +247,44 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_three_player_stage_builds_and_ticks() {
+        let mut engine = start_party(3);
+        assert_eq!(engine.present(), 0b111);
+        assert_eq!(engine.tick(), 0);
+        for t in 1..=30 {
+            engine.step(&[input(t), Default::default(), Default::default()]);
+        }
+        assert_eq!(engine.tick(), 30);
+        assert_eq!(engine.outcome(), Outcome::Running);
+    }
+
+    #[test]
+    fn the_solo_stage_is_the_party_of_one() {
+        assert_eq!(start().state_hash(), start_party(1).state_hash());
+    }
+
+    /// Every slot of a party is scripted as slot 0 (the runes and the equips).
+    #[test]
+    fn every_slot_of_a_party_is_scripted() {
+        let engine = start_party(3);
+        let players = engine.snapshot().players;
+        let held = |i: usize| {
+            players[i]
+                .slots
+                .iter()
+                .filter(|s| s.kind == crate::snapshot::SlotKindView::Rune && s.held.is_some())
+                .count()
+        };
+        assert!(held(0) > 0, "slot 0 holds runes");
+        assert_eq!(held(1), held(0));
+        assert_eq!(held(2), held(0));
+        let (_, s) = state_of(&engine);
+        let points: Vec<_> = s.players.iter().map(|p| p.expertise).collect();
+        assert_eq!(points[1], points[0]);
+        assert_eq!(points[2], points[0]);
+    }
+
     /// On the measured tick the queues and gauges stand at their caps.
     #[test]
     fn the_measured_tick_holds_the_combat_caps() {
