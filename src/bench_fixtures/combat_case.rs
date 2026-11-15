@@ -78,6 +78,12 @@ pub fn content() -> RunContent {
 /// An engine at the start of the run: the equipment of `worst_case::start` on the sword, with
 /// the weapon's expertise points seeded.
 pub fn start() -> Engine {
+    start_party(1)
+}
+
+/// `start` for a party of `party` players (1 to 3): every slot is equipped as slot 0 and has
+/// the expertise points seeded, slot 0 first.
+pub fn start_party(party: u8) -> Engine {
     let stage = stage();
     let setup = RunSetup {
         seed: u64::from(stage.seed),
@@ -85,10 +91,15 @@ pub fn start() -> Engine {
         unlocked_styles: Some(vec![STYLE.into()]),
         ..RunSetup::default()
     };
-    let mut engine = worst_case::start_in(&stage, &content(), &setup);
-    engine
-        .script_expertise(PlayerIdx::SOLO, EXPERTISE_POINTS)
-        .expect("the stage gives expertise points");
+    let mut engine = worst_case::start_party_in(&stage, &content(), &setup, party);
+    for slot in 0..party {
+        engine
+            .script_expertise(
+                PlayerIdx::new(slot).expect("a slot of the party"),
+                EXPERTISE_POINTS,
+            )
+            .expect("the stage gives expertise points");
+    }
     engine
 }
 
@@ -279,10 +290,14 @@ mod tests {
         assert!(held(0) > 0, "slot 0 holds runes");
         assert_eq!(held(1), held(0));
         assert_eq!(held(2), held(0));
-        let (_, s) = state_of(&engine);
-        let points: Vec<_> = s.players.iter().map(|p| p.expertise).collect();
-        assert_eq!(points[1], points[0]);
-        assert_eq!(points[2], points[0]);
+        let (_, st) = state_of(&engine);
+        let points = |i: u8| {
+            let idx = PlayerIdx::new(i).expect("a slot");
+            st.players.career(idx).expertise.as_ref().map(|g| g.points)
+        };
+        assert!(points(0) == Some(EXPERTISE_POINTS));
+        assert_eq!(points(1), points(0));
+        assert_eq!(points(2), points(0));
     }
 
     /// On the measured tick the queues and gauges stand at their caps.
