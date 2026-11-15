@@ -1786,9 +1786,26 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
     }
     true
 }
+
 /// A level's `at_ticks` made `pct` percent sooner: `at * (100 - pct) / 100`, floored, at least 1.
-pub(crate) fn sooner_at(at: u32, _pct: u32) -> u32 {
-    at
+/// A `pct` past 100 counts as 100 (the validator holds it to `MAX_CHARGE_SOONER_PCT`).
+pub(crate) fn sooner_at(at: u32, pct: u32) -> u32 {
+    let kept = u64::from(100 - pct.min(100));
+    u32::try_from(u64::from(at) * kept / 100)
+        .unwrap_or(u32::MAX)
+        .max(1)
+}
+
+/// Makes each level of the charge on the step `presses` reach `pct` percent sooner. `false`,
+/// nothing changed, when no step is there or it has no charge.
+pub(crate) fn charge_sooner(weapon: &mut Weapon, presses: &[Press], pct: u32) -> bool {
+    let Some(charge) = step_mut(&mut weapon.combo, presses).and_then(|s| s.charge.as_mut()) else {
+        return false;
+    };
+    for level in &mut charge.levels {
+        level.at_ticks = sooner_at(level.at_ticks, pct);
+    }
+    true
 }
 
 /// `base` with the grants a style gives when it is chosen and `taken` places of its path
@@ -1847,8 +1864,10 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
                     }
                 }
-                // The charge's levels come sooner: applied in the next commit.
-                StyleKind::ChargeSooner { .. } => {}
+                // A path with no charge at this place is refused by the pack check.
+                StyleKind::ChargeSooner { step, pct } => {
+                    charge_sooner(&mut weapon, step, *pct);
+                }
                 // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
                 StyleKind::Gauge(_) => {}
                 // Nor does the spirit: the rules read it beside the weapon (`World::spirit_of`).
