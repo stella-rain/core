@@ -788,3 +788,169 @@ fn a_burst_is_deterministic_and_leaves_no_state_behind() {
         assert_eq!(a.e.state_hash(), b.e.state_hash());
     }
 }
+
+// --- The stored length of a stagger (`Stagger::total`) ------------------------------------------
+
+fn total(state: &State, i: usize) -> u16 {
+    state.enemies[i].elite.as_ref().unwrap().stagger.total
+}
+
+/// Fills elite `i` to full from a bar at 0, credited to `me`: `(staggered, total)` after.
+fn stagger_len(r: &mut Rig, i: usize, me: u8) -> (u16, u16) {
+    st(&mut r.e).enemies[i].elite.as_mut().unwrap().stagger = Stagger::default();
+    fill(r, i, me, 100, 0);
+    let s = st(&mut r.e);
+    (staggered(s, i), total(s, i))
+}
+
+/// One `stagger_tick`: the events it pushed, as JSON.
+fn tick_stagger(r: &mut Rig) -> Vec<Value> {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let mut events = Vec::new();
+    super::stun::stagger_tick(world, state, &mut events);
+    super::trigger_tests::as_json(&events)
+}
+
+/// The `staggered` status the snapshot shows on enemy `i`: `(remaining, total)`.
+fn staggered_view(r: &mut Rig, i: usize) -> Option<(u32, u32)> {
+    let id = st(&mut r.e).enemies[i].id;
+    let snap = r.e.snapshot();
+    let view = snap.entities.iter().find(|v| v.id == id)?;
+    view.statuses
+        .iter()
+        .find(|s| s.id.as_str() == "staggered")
+        .map(|s| (s.remaining, s.total))
+}
+
+/// P1: a stagger with no grant is given the rules' ticks, or the agent's own: `total` is the
+/// length, from the fill.
+#[test]
+fn a_stagger_stores_the_ticks_it_was_given() {
+    let mut r = rig(1, vec![], 3);
+    prep(&mut r, &[0, 1]);
+    assert_eq!(stagger_len(&mut r, 0, 0), (120, 120));
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let def = state.enemies[0].def;
+    Arc::make_mut(world).defs.agent_mut(def).staggered_ticks = Some(90);
+    assert_eq!(stagger_len(&mut r, 0, 0), (90, 90));
+}
+
+/// P1, the boss: its stagger stores the rules' ticks too.
+#[test]
+fn the_boss_stagger_stores_the_ticks_it_was_given() {
+    let mut r = rig(1, vec![], 0);
+    let mut n = 0;
+    while st(&mut r.e).boss.is_none() && n < 40_000 {
+        r.step([Input::default(); 3]);
+        n += 1;
+    }
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let w = Arc::make_mut(world);
+    w.tuning.staggered_ticks = 120;
+    w.tuning.stagger_refill_len = 0;
+    w.has_stagger = true;
+    for b in &mut w.bosses {
+        b.boss.stagger_max = Some(40);
+    }
+    let mut events = Vec::new();
+    super::stun::fill(world, state, Who::Boss, slot(0), 100, 0, &mut events);
+    let g = state.boss.as_ref().unwrap().stagger;
+    assert_eq!((g.staggered, g.total), (120, 120));
+}
+
+/// P2: `total` holds while `staggered` counts down, and both are 0 on the tick the stagger ends.
+#[test]
+fn the_total_holds_while_the_stagger_counts_down_and_clears_at_its_end() {
+    let mut r = rig(1, vec![], 3);
+    prep(&mut r, &[0, 1]);
+    stagger_len(&mut r, 0, 0);
+    assert_eq!(count(&tick_stagger(&mut r), "StaggerEnded"), 0);
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (119, 120));
+    for _ in 0..118 {
+        tick_stagger(&mut r);
+    }
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (1, 120));
+    assert_eq!(count(&tick_stagger(&mut r), "StaggerEnded"), 1);
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (0, 0));
+}
+
+/// P3: a fill on a staggered target changes neither field.
+#[test]
+fn a_fill_on_a_staggered_target_changes_neither_field() {
+    let mut r = rig(1, vec![], 3);
+    prep(&mut r, &[0, 1]);
+    stagger_len(&mut r, 0, 0);
+    for _ in 0..10 {
+        tick_stagger(&mut r);
+    }
+    fill(&mut r, 0, 0, 100, 0);
+    let s = st(&mut r.e);
+    assert_eq!((staggered(s, 0), total(s, 0)), (110, 120));
+}
+
+/// P4: the status bar reads `(remaining, total)`: 120 of 120 at the fill, 60 of 120 after 60
+/// ticks, none after the end.
+#[test]
+fn the_status_bar_reads_the_stored_total() {
+    let mut r = rig(1, vec![], 3);
+    prep(&mut r, &[0, 1]);
+    stagger_len(&mut r, 0, 0);
+    assert_eq!(staggered_view(&mut r, 0), Some((120, 120)));
+    for _ in 0..60 {
+        tick_stagger(&mut r);
+    }
+    assert_eq!(staggered_view(&mut r, 0), Some((60, 120)));
+    for _ in 0..60 {
+        tick_stagger(&mut r);
+    }
+    assert_eq!(staggered_view(&mut r, 0), None);
+}
+
+/// P5: a state that holds a `staggered` above a `total` of 0 (hand-built) shows the remaining
+/// ticks as the total: the bar never reads more than full.
+#[test]
+fn the_bar_is_never_over_full() {
+    let mut r = rig(1, vec![], 3);
+    prep(&mut r, &[0, 1]);
+    let g = &mut st(&mut r.e).enemies[0].elite.as_mut().unwrap().stagger;
+    *g = Stagger {
+        staggered: 50,
+        total: 0,
+        ..Stagger::default()
+    };
+    assert_eq!(staggered_view(&mut r, 0), Some((50, 50)));
+}
+
+/// P6: an elite mid-stagger round-trips through the savepoint bytes with both fields and the
+/// state hash equal.
+#[test]
+fn a_staggered_elite_round_trips_through_the_savepoint() {
+    let make = || {
+        let mut r = rig(1, vec![], 3);
+        prep(&mut r, &[0, 1]);
+        r
+    };
+    let mut r = make();
+    stagger_len(&mut r, 0, 0);
+    for _ in 0..50 {
+        tick_stagger(&mut r);
+    }
+    let bytes = crate::savepoint::encode_state(&r.e);
+    let fresh = make().e;
+    let (state, ledger, counted, stats) =
+        crate::savepoint::state::decode_state(&bytes, &fresh).expect("a load");
+    let mut back = fresh.with_saved(state, ledger, counted, stats);
+    let s = st(&mut back);
+    assert_eq!((staggered(s, 0), total(s, 0)), (70, 120));
+    assert_eq!(back.state_hash(), r.e.state_hash());
+    assert_eq!(crate::savepoint::encode_state(&back), bytes);
+}
