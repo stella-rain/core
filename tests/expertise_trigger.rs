@@ -248,6 +248,111 @@ fn a_later_level_may_name_the_hold_move_effect() {
     refuse(v, &format!("{at}.ticks"));
 }
 
+/// The trigger's effects with `end_ring` and the five others (test values).
+fn all_six() -> Value {
+    json!([
+        { "type": "range_pct", "pct": 1 },
+        { "type": "smash_pct", "pct": 1 },
+        { "type": "super_armour" },
+        { "type": "rally_pct", "pct": 101 },
+        { "type": "hold_move_pct", "pct": 80 },
+        { "type": "end_ring" }
+    ])
+}
+
+/// V1 (end ring): the effect loads beside the three others, round-trips, and `sim_version` 1
+/// refuses the kind.
+#[test]
+fn the_end_ring_effect_loads_and_round_trips() {
+    let mut t = trigger();
+    t["effects"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "end_ring" }));
+    valid(json!([t.clone()]));
+    let kind: StyleKind = serde_json::from_value(t.clone()).expect("the kind parses");
+    assert_eq!(serde_json::to_value(&kind).unwrap(), t);
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&with_kinds(json!([t])), old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// V2 (end ring): the effect holds no field.
+#[test]
+fn the_end_ring_effect_is_a_flag() {
+    parse_error(json!([one(json!({ "type": "end_ring", "extra": 1 }))]));
+    parse_error(json!([one(
+        json!({ "type": "end_ring", "attack": { "preset": { "id": "slash" } } })
+    )]));
+}
+
+/// V3 (end ring): all six different effects load; a seventh entry is refused at the list, a
+/// second `end_ring` at its own index.
+#[test]
+fn six_different_effects_load_and_a_seventh_is_refused() {
+    valid(json!([with(480, all_six())]));
+    let mut seven = all_six();
+    seven
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "super_armour" }));
+    refused_at(json!([with(480, seven)]), &format!("{PATH}.effects"));
+    refused_at(
+        json!([with(
+            480,
+            json!([{ "type": "end_ring" }, { "type": "end_ring" }])
+        )]),
+        &format!("{PATH}.effects[1]"),
+    );
+}
+
+/// V4 (end ring): a capstone may name it alone, with no effects after a level naming the kind, or
+/// beside the style's own; its ticks stay bounded at its own path.
+#[test]
+fn a_later_level_may_name_the_end_ring() {
+    let cap = |kinds: Value| {
+        let mut v = with_kinds(json!([with(
+            480,
+            json!([{ "type": "range_pct", "pct": 40 }])
+        )]));
+        v["weapons"][0]["styles"][0]["capstone"] =
+            json!([{ "id": "cap", "effect": "none", "kinds": kinds }]);
+        v
+    };
+    let ok = |v: Value| {
+        if let Err(e) = parse_at(&v, Versions::CURRENT) {
+            panic!("expected valid, got {e:?}");
+        }
+    };
+    ok(cap(json!([with(720, json!([{ "type": "end_ring" }]))])));
+    ok(cap(json!([with(720, json!([]))])));
+    let v = cap(json!([with(3601, json!([{ "type": "end_ring" }]))]));
+    match parse_at(&v, Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            let path = "$.weapons[0].styles[0].capstone[0].kinds[0].ticks";
+            assert!(issues.iter().any(|i| i.path == path), "{issues:?}");
+        }
+        other => panic!("expected invalid, got {other:?}"),
+    }
+    // Named in both the style's kind and the later one.
+    let mut v = with_kinds(json!([with(480, json!([{ "type": "end_ring" }]))]));
+    v["weapons"][0]["styles"][0]["capstone"] = json!([{
+        "id": "cap", "effect": "none",
+        "kinds": [with(720, json!([{ "type": "end_ring" }]))]
+    }]);
+    ok(v);
+}
+
 /// S1: `ticks` and `effects` are required, an unknown effect type and an unknown key are parse
 /// errors.
 #[test]
