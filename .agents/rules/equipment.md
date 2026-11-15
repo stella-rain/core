@@ -70,11 +70,11 @@ Sources: ADR-SIM-3, ADR-SIM-5, ADR-SIM-7, ADR-SAVE-4, ADR-SAVE-7, ADR-CONT-3. Th
 
 ## Tests on a hand-built stage
 
-- Equip the star instead of playing for a drop: `common::equip` (`tests/common/equip.rs`, ADR-SIM-7). `equipped` and
-  `try_equipped` (the refusal as an `ActionError`) take the rewards file, `(reward ID, slot)` pairs and a level;
-  `equipped_in` and `try_equipped_in` also take `Parts` (skills, sets, runes, expertise). A `src/sim/` unit test equips
-  a `State` with `equip_stars` (`equip_support.rs`, `cfg(test)`; it has no rune or expertise twin).
-- They rest on the seam, under the `bench` feature and hidden from docs: `Engine::new_equipped` (a stage as given),
-  `script_equipment`, `script_runes` and `script_expertise` (each before the first tick).
-- A recorded solo run: `play_equipment_run*` (`tests/run_play.rs`) plays it through a `RunRecorder`, which applies and
-  records `Input.action` (a bare `Engine::step` ignores it); `common::equip_run` holds its loop (`replay.md`).
+- Equip the star instead of playing for a drop: `common::equip` (`tests/common/equip.rs`, ADR-SIM-7). `equipped` and `try_equipped` (the refusal
+  as an `ActionError`) take the rewards file, `(reward ID, slot)` pairs and a level; `equipped_in` and `try_equipped_in` also take `Parts`
+  (skills, sets, runes, expertise). A `src/sim/` unit test uses `equip_stars` on a `State` (`equip_support.rs`, `cfg(test)`; no rune or expertise
+  twin).
+- They rest on the seam, under the `bench` feature, hidden from docs: `Engine::new_equipped` (a stage as given), `new_equipped_party` (a party of
+  1 to `MAX_PLAYERS`, each member a copy of slot 0), `script_equipment`, `script_runes`, `script_expertise` (each before the first tick).
+- A recorded solo run: `play_equipment_run*` (`tests/run_play.rs`) plays it through a `RunRecorder`, which applies and records `Input.action` (a
+  bare `Engine::step` ignores it); `common::equip_run` holds its loop (`replay.md`).
