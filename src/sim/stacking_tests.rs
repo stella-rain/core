@@ -381,6 +381,65 @@ fn the_giant_trigger_stacks_across_the_path() {
     assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 150, true)));
 }
 
+/// The folded hold movement percent of player `i`'s trigger at `places` places (0 for none).
+fn hold_at(e: &mut Engine, i: u8, places: usize) -> u32 {
+    read(e, i, places, |w, s, me| {
+        w.trigger_of(s, me).map(|g| g.hold_move_pct)
+    })
+    .unwrap_or(0)
+}
+
+/// G1: the hold movement effect stacks in path order and stays when a later level does not list it.
+#[test]
+fn the_hold_move_effect_stacks_across_the_path() {
+    let base = trigger(
+        480,
+        vec![
+            pct("range_pct", 40),
+            pct("smash_pct", 20),
+            json!({ "type": "super_armour" }),
+        ],
+    );
+    let mut e = stacked(
+        vec![base],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("hold_move_pct", 80)])],
+        vec![trigger(720, vec![pct("range_pct", 60)])],
+    );
+    let held: Vec<u32> = (0..4).map(|n| hold_at(&mut e, 0, n)).collect();
+    assert_eq!(held, [0, 0, 80, 80]);
+    assert_eq!(trigger_at(&mut e, 0, 2), Some((720, 40, 20, 100, true)));
+    assert_eq!(trigger_at(&mut e, 0, 3), Some((720, 60, 20, 100, true)));
+}
+
+/// G2: a value past the cap (one the validator refuses) is clamped to 100, a trigger that never
+/// names the effect gives 0, and each player reads its own place.
+#[test]
+fn the_hold_move_effect_is_clamped_and_per_player() {
+    use super::world::{TriggerGrant, trigger_fold};
+    let kind = |mut v: Value| {
+        v.as_object_mut().expect("a kind").remove("type");
+        serde_json::from_value::<crate::expertise::GiantTrigger>(v).expect("a giant trigger")
+    };
+    let mut g = TriggerGrant::none();
+    trigger_fold(&mut g, &kind(trigger(480, vec![pct("range_pct", 40)])));
+    assert_eq!(g.hold_move_pct, 0);
+    trigger_fold(
+        &mut g,
+        &kind(trigger(720, vec![pct("hold_move_pct", u32::MAX)])),
+    );
+    assert_eq!(g.hold_move_pct, 100);
+
+    let mut e = stacked(
+        vec![trigger(480, vec![pct("range_pct", 40)])],
+        vec![trigger(720, vec![])],
+        vec![trigger(720, vec![pct("hold_move_pct", 80)])],
+        vec![],
+    );
+    assert_eq!(hold_at(&mut e, 0, 2), 80);
+    assert_eq!(hold_at(&mut e, 1, 1), 0);
+}
+
 /// G4: each player reads its own place on the path; a style naming none gives none.
 #[test]
 fn each_player_reads_its_own_trigger() {

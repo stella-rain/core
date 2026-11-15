@@ -656,3 +656,176 @@ fn other_armour_does_not_shelter_the_stacks() {
     let ev = r.hurt(0, 10, true);
     assert_eq!(count(&ev, "TempoLost"), 1);
 }
+
+/// A hold of `move_pct` on the style's `main` step, as Momentum grants one (test values).
+fn hold_grant(move_pct: u32) -> Value {
+    let strike = |ticks: u32| {
+        json!({ "inline": [{
+            "kind": "active", "ticks": ticks, "type": "strike", "rehit_ticks": ticks,
+            "hit_box": { "type": "circle", "radius": 12_288,
+                         "offset": { "forward": 0, "right": 0 } }
+        }] })
+    };
+    json!({
+        "type": "replace_step", "step": ["main"],
+        "grant": { "hold": {
+            "loop": strike(8), "release": strike(5), "max_ticks": 600, "move_pct": move_pct
+        } }
+    })
+}
+
+/// A rig whose style grants a hold of `hold` on its `main` step and names a trigger with
+/// `effects`.
+fn hold_rig(players: u8, hold: u32, effects: Vec<Value>) -> Rig {
+    rig(players, vec![hold_grant(hold), trigger_kind(effects)], 0)
+}
+
+fn hold_effect(pct: u32) -> Value {
+    json!({ "type": "hold_move_pct", "pct": pct })
+}
+
+/// The x position of player `i`.
+fn x_of(r: &mut Rig, i: u8) -> i32 {
+    st(&mut r.e).players[slot(i)].at.x.0
+}
+
+/// Main held and the stick right for `players` listed in `walking`; true when `i` is in a hold.
+fn held(r: &mut Rig, i: u8) -> bool {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    super::player::hold_view(world, state, slot(i)).is_some()
+}
+
+/// Walks every player in `walking` with Main held until all are held, then returns each one's
+/// step on one held tick.
+fn held_steps(r: &mut Rig, walking: &[u8]) -> Vec<i32> {
+    let input = Input {
+        main: true,
+        move_x: 127,
+        ..Input::default()
+    };
+    let mut inputs = [Input::default(); 3];
+    for &i in walking {
+        inputs[usize::from(i)] = input;
+    }
+    for _ in 0..200 {
+        r.step(inputs);
+        if walking.iter().all(|&i| held(r, i)) {
+            let before: Vec<i32> = walking.iter().map(|&i| x_of(r, i)).collect();
+            r.step(inputs);
+            assert!(walking.iter().all(|&i| held(r, i)), "still held");
+            return walking
+                .iter()
+                .zip(before)
+                .map(|(&i, b)| x_of(r, i) - b)
+                .collect();
+        }
+    }
+    panic!("no hold started");
+}
+
+/// The step of a free walk (Main released) on the same rig.
+fn free_step(r: &mut Rig) -> i32 {
+    let input = Input {
+        move_x: 127,
+        ..Input::default()
+    };
+    r.step([input, Input::default(), Input::default()]);
+    let before = x_of(r, 0);
+    r.step([input, Input::default(), Input::default()]);
+    x_of(r, 0) - before
+}
+
+/// R1: a held hold moves at its own percent, and at the trigger's while the trigger runs.
+#[test]
+fn the_trigger_raises_the_hold_s_movement() {
+    let free = free_step(&mut hold_rig(1, 50, vec![hold_effect(80)]));
+    assert!(free > 0);
+    let mut r = hold_rig(1, 50, vec![hold_effect(80)]);
+    assert_eq!(held_steps(&mut r, &[0])[0], free * 50 / 100);
+    let mut r = hold_rig(1, 50, vec![hold_effect(80)]);
+    r.set_trigger(0, 100);
+    assert_eq!(held_steps(&mut r, &[0])[0], free * 80 / 100);
+}
+
+/// R2: with no hold nothing changes, and a trigger without the effect leaves the hold at its own.
+#[test]
+fn the_effect_needs_a_hold_and_a_trigger_that_names_it() {
+    let mut r = hold_rig(1, 50, vec![hold_effect(80)]);
+    let free = free_step(&mut r);
+    r.set_trigger(0, 100);
+    assert_eq!(free_step(&mut r), free, "no hold, no change");
+    let mut r = hold_rig(1, 50, full_effects());
+    r.set_trigger(0, 100);
+    assert_eq!(held_steps(&mut r, &[0])[0], free * 50 / 100);
+}
+
+/// R3: when the trigger counts out the hold is back at its own percent.
+#[test]
+fn the_raise_ends_with_the_trigger() {
+    let free = free_step(&mut hold_rig(1, 50, vec![hold_effect(80)]));
+    let mut r = hold_rig(1, 50, vec![hold_effect(80)]);
+    r.set_trigger(0, 1);
+    let ev = r.step([Input::default(); 3]);
+    assert_eq!(count(&ev, "TriggerEnded"), 1);
+    assert_eq!(held_steps(&mut r, &[0])[0], free * 50 / 100);
+}
+
+/// R4: the trigger raises a hold, never lowers it.
+#[test]
+fn the_trigger_never_lowers_a_faster_hold() {
+    let free = free_step(&mut hold_rig(1, 90, vec![hold_effect(80)]));
+    let mut r = hold_rig(1, 90, vec![hold_effect(80)]);
+    r.set_trigger(0, 100);
+    assert_eq!(held_steps(&mut r, &[0])[0], free * 90 / 100);
+}
+
+/// R5: each player's own trigger decides; the run is deterministic.
+#[test]
+fn each_player_s_hold_follows_its_own_trigger() {
+    let free = free_step(&mut hold_rig(2, 50, vec![hold_effect(80)]));
+    let mut r = hold_rig(2, 50, vec![hold_effect(80)]);
+    r.set_trigger(0, 600);
+    assert_eq!(
+        held_steps(&mut r, &[0, 1]),
+        [free * 80 / 100, free * 50 / 100]
+    );
+    let run = || {
+        let mut r = hold_rig(2, 50, vec![hold_effect(80)]);
+        r.set_trigger(0, 300);
+        let input = Input {
+            main: true,
+            move_x: 127,
+            ..Input::default()
+        };
+        for _ in 0..300 {
+            r.step([input, input, Input::default()]);
+        }
+        r.e.state_hash()
+    };
+    assert_eq!(run(), run());
+}
+
+/// R6: a trigger naming the effect in a weapon with no hold moves the player exactly as one
+/// without it.
+#[test]
+fn the_effect_does_nothing_for_a_player_without_a_hold() {
+    let run = |effects: Vec<Value>| {
+        let mut r = rig(1, vec![trigger_kind(effects)], 0);
+        r.set_trigger(0, 600);
+        for t in 0..600u32 {
+            let input = Input {
+                main: t % 7 == 0,
+                move_x: if t % 50 < 25 { 127 } else { -127 },
+                move_y: if t % 90 < 45 { 60 } else { -60 },
+                ..Input::default()
+            };
+            r.step([input, Input::default(), Input::default()]);
+        }
+        (x_of(&mut r, 0), r.e.state_hash())
+    };
+    let mut with_effect = full_effects();
+    with_effect.push(hold_effect(80));
+    assert_eq!(run(with_effect), run(full_effects()));
+}
