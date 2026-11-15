@@ -31,7 +31,8 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   (option); an unknown kind is `BadInputs("an action kind is unknown")`, a record of only `0x00` is refused ("a record has no
   action"). At most `MAX_ACTION_STEPS` (4096, `run_replay.rs`), counted apart from `MAX_COMMANDS`. Record bytes `0x05` to `0xFF` are
   unknown; a retired kind keeps its byte. Bit 6 of `flags` is `interact`; an axis of -128 is written -127 (`block_of`, `replay.rs`).
-  `SCHEMA_VERSION` 2 is written, 1 and 2 read (`version.rs`); schema 1 migrates in memory (`from_schema1`).
+  The recorder writes schema 1 (`inputs` plus `commands`) for a `sim_version` 1 run, refusing `interact`, and `SCHEMA_VERSION` 2
+  for every other (`written`, `run_replay.rs`); 1 and 2 are read (`version.rs`); schema 1 migrates in memory (`from_schema1`).
 - The party: `StepLog::party_of(present)` is the one validator of tick 0's `present` byte
   (`0b001`, `0b011`, `0b111` are parties of 1 to 3; a hole or a bit past slot 2 is `None`,
   refused): a hole arises only by LEAVE. The non-test reader of the party at the end is
@@ -67,7 +68,8 @@ hashes and the corpus: `replay.md`; join, leave and the party tests: `party.md`.
   `actions(&[Option<EquipAction>; MAX_PLAYERS])` is one ACTIONS step (refused after the end, past
   `MAX_ACTION_STEPS` or when `check_action` refuses). `step` refuses an input while an offer is
   open (`RunReplayError::OfferOpen`; only a `sim_version` 1 run opens one), and `resimulate`
-  refuses a TICKS run over an open offer.
+  refuses a TICKS run over an open offer. A pick enters a recorder only through `v1_pick_step` (`bench` feature), one PICKS
+  step answering a frozen run's offer; `encode` refuses PICKS.
 - `join(slot)` and `leave(slot)` call the engine and write a JOIN or LEAVE at the tick the run
   is on; a refusal (`PresenceRefused`, the end of the run, the cap) records nothing.
 - `replay_at` cuts the log with `StepLog::prefix` and reads nothing from the engine.
