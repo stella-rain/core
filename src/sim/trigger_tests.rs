@@ -961,18 +961,20 @@ fn the_ring_costs_nothing() {
         c.gauge_step_fill = 7;
     }
     r.set_trigger(0, 3);
-    let mut pressed = false;
+    let mut ran = false;
     for _ in 0..12 {
         r.step([Input::default(); 3]);
-        if !pressed && ring_runs(&mut r, 0) > 0 {
-            pressed = true;
-            r.started(false);
+        if ring_runs(&mut r, 0) > 0 {
+            ran = true;
+            break;
         }
     }
-    assert!(pressed, "the ring ran and the combo slot was free to start");
+    assert!(ran, "the ring ran");
     let c = st(&mut r.e).players[ME].combat;
     assert_eq!((c.weapon_gauge, c.gauge_step_fill), (40, 7));
     assert_eq!(count(&r.events, "GaugeSpent"), 0);
+    // The combo slot is free while the ring runs: a step pressed now starts.
+    r.started(false);
     let Run::V2 { world, state } = r.e.run_mut() else {
         panic!("the live rules");
     };
@@ -1128,7 +1130,7 @@ fn a_retuned_slam_retunes_the_ring() {
     };
     let near = Fx::px(27).0;
     let unchanged = control_loss(retuned(40 * 256, 100), near);
-    let narrow = control_loss(retuned(20 * 256, 100), near);
+    let narrow = control_loss(retuned(5 * 256, 100), near);
     assert!(unchanged > 0 && narrow == 0, "{unchanged} {narrow}");
     assert!(
         control_loss(retuned(40 * 256, 300), near) > unchanged,

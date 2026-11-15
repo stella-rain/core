@@ -178,7 +178,7 @@ pub(super) fn update(
     }
     // So is the giant trigger's.
     if stage.has_trigger {
-        trigger_tick(s, me, events);
+        trigger_tick(stage, s, me, events);
     }
     // The rally's countdown too (ADR-SIM-9).
     if stage.tuning.rally.is_some() {
@@ -571,6 +571,14 @@ fn dash(stage: &World, p: &mut PlayerState) {
 /// The main character's attack slots: the combo; the stage skill and the effects
 /// that attack on their own come with their own.
 pub(super) const COMBO_SLOT: u8 = 0;
+
+/// The attack slot of the giant trigger's end ring: past the runes' slots (34 to 40) and below
+/// the homing missiles' (64 up), so `runes::of_run` takes it for neither.
+pub(super) const TRIGGER_RING_SLOT: u8 = 41;
+const _: () = assert!(
+    TRIGGER_RING_SLOT as usize >= super::runes::FIRST_SLOT as usize + crate::rune::Rune::ALL.len()
+        && TRIGGER_RING_SLOT < super::runes::MISSILE_SLOT
+);
 
 fn press_of(smash: bool) -> Press {
     if smash { Press::Smash } else { Press::Main }
@@ -1477,8 +1485,9 @@ fn trigger_start(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<D
     trigger_started(events, me, g.ticks);
 }
 
-/// One tick of the giant trigger: it ends on the tick it reaches 0.
-fn trigger_tick(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+/// One tick of the giant trigger: it ends on the tick it reaches 0, and a trigger that names
+/// `end_ring` then plays its ring.
+fn trigger_tick(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     let c = &mut s.players[me].combat;
     if c.giant_trigger == 0 {
         return;
@@ -1486,7 +1495,40 @@ fn trigger_tick(s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
     c.giant_trigger -= 1;
     if c.giant_trigger == 0 {
         trigger_ended(events, me);
+        trigger_ring(stage, s, me, events);
     }
+}
+
+/// The end ring: the first ring of the style's full-gauge smash, once, in `TRIGGER_RING_SLOT`,
+/// scaled by `me`'s range as the smash is. Free: no gauge, no wind-up, no combo slot, no
+/// trigger. Only for a player who is up; a down ends the trigger through `trigger_end`, which
+/// plays nothing. Nothing happens if the style has no ring or the slot is busy.
+fn trigger_ring(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+    if !s.players[me].is_up() {
+        return;
+    }
+    let Some(ring) = stage.ring_of(s, me) else {
+        return;
+    };
+    let strike = attacks::Strike {
+        bonus_pct: 0,
+        speed_pct: 0,
+        range_pct: levels::range_pct(s, me),
+        smash: None,
+    };
+    let facing = s.players[me].facing;
+    let damage = levels::attack(s, me, stage.player.atk);
+    attacks::start_player(
+        stage,
+        s,
+        me,
+        TRIGGER_RING_SLOT,
+        facing,
+        ring,
+        damage,
+        strike,
+        events,
+    );
 }
 
 /// A down ends the giant trigger at once.

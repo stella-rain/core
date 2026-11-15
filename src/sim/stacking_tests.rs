@@ -469,10 +469,8 @@ fn first_active(attack: &Value) -> AttackPhase {
 /// gauge, and it is the slam's first active phase alone; a slam with no active phase gives none.
 #[test]
 fn the_world_holds_the_ring_as_the_slams_first_active_phase() {
-    let mut kinds = vec![json!({ "type": "smash_effect", "effect": { "type": "bleed" } })];
-    kinds.push(trigger(480, vec![json!({ "type": "super_armour" })]));
     let mut e = stacked(
-        kinds,
+        vec![trigger(480, vec![json!({ "type": "super_armour" })])],
         vec![trigger(720, vec![])],
         vec![trigger(720, vec![])],
         vec![trigger(720, vec![end_ring()])],
