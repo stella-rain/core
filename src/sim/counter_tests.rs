@@ -765,7 +765,7 @@ impl Rig {
     fn evade_gauge(&mut self, i: u8) -> (Vec<u32>, u8, u8, u32, u32) {
         let p = &st(&mut self.e).players[slot(i)];
         (
-            p.evade_recovering.iter().copied().collect(),
+            p.evade_recovering.clone(),
             p.evade_ready(),
             p.evade_charges,
             p.combat.weapon_gauge,
