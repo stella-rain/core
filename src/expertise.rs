@@ -76,6 +76,8 @@ pub const MAX_STYLE_CHOICES: usize = 1;
 pub const MAX_LEVEL_KINDS: usize = 4;
 /// The most effects one giant trigger kind names (a bound: one per `TriggerEffect` variant).
 pub const MAX_TRIGGER_EFFECTS: usize = 6;
+/// The most effects one combo tempo kind names (a bound: one per `TempoEffect` variant).
+pub const MAX_TEMPO_EFFECTS: usize = 4;
 /// The largest `pct` of a giant trigger's `hold_move_pct`: full speed, the `Hold.move_pct` ceiling.
 pub const MAX_HOLD_MOVE_PCT: u32 = 100;
 /// The longest delay of a `repeat` kind, in ticks (a tuning placeholder: 2 seconds).
@@ -461,8 +463,8 @@ pub struct ComboTempo {
     /// The most stacks the player holds. 1 to `MAX_TEMPO_STACKS`.
     #[schemars(range(min = 1, max = MAX_TEMPO_STACKS))]
     pub max_stacks: u32,
-    /// What the stacks do, each variant at most once; 1 to 3 entries, `speed_pct` among them (0
-    /// to 3 and no `speed_pct` needed at a level after one that names the kind).
+    /// What the stacks do, each variant at most once; 1 to `MAX_TEMPO_EFFECTS` entries, `speed_pct` among them
+    /// (0 to `MAX_TEMPO_EFFECTS` and no `speed_pct` needed at a level after one that names the kind).
     pub effects: Vec<TempoEffect>,
 }
 
@@ -482,6 +484,13 @@ pub enum TempoEffect {
     /// The player has super armour while its stacks are full and a hold is held, and only this
     /// armour shelters the stacks from a hit.
     SuperArmourAtFull {},
+    /// While the stacks are full, every attack the combo starts is `pct` percent wider, through
+    /// the same range term as the spirit's and the trigger's (the sum is held to
+    /// `MAX_RANGE_PCT` when the attack's box is built). 1 to `MAX_RANGE_PCT`.
+    RangePctAtFull {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
 }
 
 impl TempoEffect {
@@ -490,6 +499,7 @@ impl TempoEffect {
             TempoEffect::SpeedPct { .. } => 0,
             TempoEffect::KeepOnSmash {} => 1,
             TempoEffect::SuperArmourAtFull {} => 2,
+            TempoEffect::RangePctAtFull { .. } => 3,
         }
     }
 }
@@ -1256,15 +1266,18 @@ fn check_combo_tempo(
         );
     }
     let least = usize::from(!later);
-    if t.effects.len() < least || t.effects.len() > 3 {
+    if t.effects.len() < least || t.effects.len() > MAX_TEMPO_EFFECTS {
         issue(
             format!("{at}.effects"),
-            format!("{least} to 3 effects (found {})", t.effects.len()),
+            format!(
+                "{least} to {MAX_TEMPO_EFFECTS} effects (found {})",
+                t.effects.len()
+            ),
         );
     }
-    let mut seen = [false; 3];
+    let mut seen = [false; MAX_TEMPO_EFFECTS];
     let mut speed = None;
-    for (e, effect) in t.effects.iter().enumerate().take(3) {
+    for (e, effect) in t.effects.iter().enumerate().take(MAX_TEMPO_EFFECTS) {
         let at = format!("{at}.effects[{e}]");
         if let TempoEffect::SpeedPct { pct } = effect {
             if !(1..=MAX_ATTACK_SPEED_PCT).contains(pct) {
@@ -1275,13 +1288,21 @@ fn check_combo_tempo(
             }
             speed.get_or_insert(*pct);
         }
+        if let TempoEffect::RangePctAtFull { pct } = effect
+            && !(1..=MAX_RANGE_PCT).contains(pct)
+        {
+            issue(
+                format!("{at}.pct"),
+                format!("1 to {MAX_RANGE_PCT} (found {pct})"),
+            );
+        }
         let slot = &mut seen[usize::from(effect.name())];
         if *slot {
             issue(at, "the kind already names this effect".into());
         }
         *slot = true;
     }
-    if !later && !t.effects.is_empty() && t.effects.len() <= 3 {
+    if !later && !t.effects.is_empty() && t.effects.len() <= MAX_TEMPO_EFFECTS {
         match speed {
             None => issue(format!("{at}.effects"), "names no speed_pct".into()),
             Some(pct) if (1..=MAX_ATTACK_SPEED_PCT).contains(&pct) => {

@@ -214,7 +214,7 @@ fn the_views_carry_the_tempo_kind() {
     let expertise =
         Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the expertise");
     let snap = crate::style_grants::build(expertise).snapshot();
-    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4, "armour_at_full": false });
+    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4, "armour_at_full": false, "range_pct_at_full": 0 });
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert_eq!(ready["kinds"][0], json!([want]));
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
