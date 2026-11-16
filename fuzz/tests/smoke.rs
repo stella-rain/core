@@ -14,16 +14,18 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
-    Command, RunRecorder, RunReplay, RunReplayError, record_run_with,
+    RunRecorder, RunReplay, RunReplayError, record_run_with, verify_run,
 };
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
+use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::{RangeStep, read_step_range};
 use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, net_decode, pack_load,
-    packs_load, party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes,
-    savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range,
-    step_log_range_input,
+    packs_load, party_recorder, recorder_until, replay_load, run_setup, savepoint_load,
+    savepoint_prefixes, savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run,
+    step_log_range, step_log_range_input,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -90,33 +92,129 @@ fn run_replays() -> Vec<Vec<u8>> {
         .collect()
 }
 
-/// Run replays cut half-way: the first three run replays of the corpus, played again by their own
-/// commands up to the middle tick, so each ends where its run is still going.
-fn run_prefixes() -> Vec<Vec<u8>> {
-    run_replays()
+/// Run replays cut half-way: the first three run replays of the list, played again to the middle
+/// tick (at most half the cap), so each ends where its run is still going.
+fn run_prefixes(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    cases
         .iter()
         .take(3)
         .map(|bytes| {
             let run = RunReplay::from_bytes(bytes).expect("a corpus run replay");
-            let mut recorder = RunRecorder::start(&run.setup).expect("the corpus setup starts");
-            let mut steps = 0;
-            for command in commands(&run) {
-                match command {
-                    Command::Step(input) => {
-                        if steps == run.ticks / 2 {
-                            break;
-                        }
-                        steps += 1;
-                        recorder
-                            .step(&[input, Default::default(), Default::default()])
-                            .expect("a corpus run steps");
-                    }
-                    Command::Choose(_) => panic!("a current run holds no pick"),
-                }
-            }
-            recorder.replay().to_bytes()
+            let end = (run.ticks / 2).min(SWEEP_TICK_CAP / 2);
+            recorder_until(&run, Some(end)).replay().to_bytes()
         })
         .collect()
+}
+
+/// The run seeds of `replay_load`: each case of the list cut at the cap, and the prefixes of the
+/// first three.
+fn run_sweep_seeds(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut seeds: Vec<Vec<u8>> = cases
+        .iter()
+        .map(|bytes| cut_run(bytes, SWEEP_TICK_CAP))
+        .collect();
+    seeds.extend(run_prefixes(cases));
+    seeds
+}
+
+/// The most ticks one run case adds to a sweep (60 seconds at 60 ticks per second, a multiple of
+/// the 60-tick checkpoint grid). Raising it takes CI minutes: it is Kade's call. The whole cases
+/// are still read whole by `a_real_run_replay_verifies` and `a_real_log_range_gets_past_the_scanner`.
+const SWEEP_TICK_CAP: u32 = 3_600;
+
+/// A run replay cut to `cap` ticks at a tick boundary: the bytes unchanged when it holds no more,
+/// else the run played again to the cap, so the cut file verifies (checkpoints and final hash).
+/// It plays on the bundled pack, so it is for the cases `run_replays()` holds.
+fn cut_run(bytes: &[u8], cap: u32) -> Vec<u8> {
+    let run = RunReplay::from_bytes(bytes).expect("a corpus run replay");
+    if run.ticks <= cap {
+        return bytes.to_vec();
+    }
+    recorder_until(&run, Some(cap)).replay().to_bytes()
+}
+
+/// One LEB128 `u32` at `at`: the value and the bytes it takes.
+fn read_leb(log: &[u8], at: usize) -> (u32, usize) {
+    let mut value = 0u32;
+    for (i, byte) in log[at..].iter().enumerate() {
+        assert!(i < 5, "a varint of more than 5 bytes at byte {at}");
+        value |= u32::from(byte & 0x7f) << (7 * i);
+        if byte & 0x80 == 0 {
+            return (value, i + 1);
+        }
+    }
+    panic!("a varint with no end at byte {at}");
+}
+
+fn write_leb(out: &mut Vec<u8>, mut value: u32) {
+    while value >= 0x80 {
+        out.push(u8::try_from(value & 0x7f).unwrap() | 0x80);
+        value >>= 7;
+    }
+    out.push(u8::try_from(value).unwrap());
+}
+
+/// A step log (`src/step_log.rs`) cut to `cap` world ticks, with the ticks it holds: no
+/// simulation, so it also cuts the cases that pin a derived pack. Whole records are kept while
+/// their ticks stay within the cap, the TICKS record that crosses it is shortened, and a JOIN,
+/// LEAVE or ACTIONS record at the cap is dropped. The log unchanged when it holds no more. A
+/// test helper over trusted corpus bytes: it panics on a record it does not know.
+fn cut_log(log: &[u8], ticks: u32, cap: u32) -> (u32, Vec<u8>) {
+    if ticks <= cap {
+        return (ticks, log.to_vec());
+    }
+    let mut present = log[0];
+    let mut out = vec![log[0]];
+    let (mut world, mut at) = (0u32, 1usize);
+    while at < log.len() && world < cap {
+        let slots = usize::try_from(present.count_ones()).unwrap();
+        match log[at] {
+            0x00 => {
+                let (run, len) = read_leb(log, at + 1);
+                let end = at + 1 + len + 3 * slots;
+                if world + run <= cap {
+                    out.extend_from_slice(&log[at..end]);
+                    world += run;
+                } else {
+                    out.push(0x00);
+                    write_leb(&mut out, cap - world);
+                    out.extend_from_slice(&log[at + 1 + len..end]);
+                    world = cap;
+                }
+                at = end;
+            }
+            0x02 | 0x03 => {
+                let slot = log[at + 1];
+                present = if log[at] == 0x02 {
+                    present | (1 << slot)
+                } else {
+                    present & !(1 << slot)
+                };
+                out.extend_from_slice(&log[at..at + 2]);
+                at += 2;
+            }
+            0x04 => {
+                let start = at;
+                at += 1;
+                for _ in 0..slots {
+                    let kind = log[at];
+                    at += 1;
+                    let operands = match kind {
+                        0x00 => 0,
+                        0x01 | 0x02 => 2,
+                        0x03..=0x05 => 1,
+                        other => panic!("an unknown action kind {other:#04x} at byte {at}"),
+                    };
+                    for _ in 0..operands {
+                        at += read_leb(log, at).1;
+                    }
+                }
+                out.extend_from_slice(&log[start..at]);
+            }
+            other => panic!("a record the cutter does not know: {other:#04x} at byte {at}"),
+        }
+    }
+    (cap, out)
 }
 
 /// `commands` is the inverse of `record_run_with` on every run case that plays on the bundled
@@ -154,7 +252,7 @@ fn clear() -> (Vec<u8>, Vec<u8>) {
 
 #[test]
 fn a_run_prefix_resumes() {
-    let prefixes = run_prefixes();
+    let prefixes = run_prefixes(&run_replays());
     assert_eq!(prefixes.len(), 3);
     for prefix in prefixes {
         assert!(replay_load(&prefix), "replay_load does not verify a prefix");
@@ -442,11 +540,9 @@ fn pack_with_constellations() -> Vec<u8> {
     serde_json::to_vec(&pack).expect("a pack serialises")
 }
 
-/// The seeds of `step_log_range`, named for what they are: for each run case of the corpus (all
-/// of them, the target takes the step log alone) the ranges `0..0`, `0..ticks`, the middle
-/// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
-/// ticks, a PICKS record (reserved: refused) and an unknown record. Generated, never committed.
-fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
+/// `(name, ticks, step log)` of every run case of the corpus, sorted by name: all of them, the
+/// step log reads without the pack.
+fn run_case_logs() -> Vec<(String, u32, Vec<u8>)> {
     let dir = root().join("tests/corpus/current/runs");
     let mut cases: Vec<_> = fs::read_dir(&dir)
         .expect("the run corpus directory")
@@ -454,35 +550,76 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
         .collect();
     cases.sort();
     assert!(cases.len() >= 9, "the corpus has fewer than 9 run cases");
+    cases
+        .into_iter()
+        .map(|case| {
+            let name = case.file_name().unwrap().to_string_lossy().into_owned();
+            let run =
+                RunReplay::from_bytes(&fs::read(case.join("run.replay")).expect("run.replay"))
+                    .expect("a corpus run replay");
+            assert_eq!(run.setup.schema_version, 2, "{name}");
+            let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+            (name, run.ticks, log)
+        })
+        .collect()
+}
+
+/// `(name, ticks, step log)` of the two party cases of the corpus.
+fn party_logs() -> Vec<(String, u32, Vec<u8>)> {
+    let parties = root().join("tests/corpus/current/parties");
+    ["join_two", "leave_hole"]
+        .into_iter()
+        .map(|case| {
+            let run = RunReplay::from_bytes(
+                &fs::read(parties.join(case).join("run.replay")).expect("run"),
+            )
+            .expect("a corpus party replay");
+            let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+            (case.to_owned(), run.ticks, log)
+        })
+        .collect()
+}
+
+/// The five ranges of one run case: `0..0`, `0..ticks`, the middle third, the last tick and
+/// `ticks..ticks`, each claiming `ticks` ticks of `log`.
+fn run_case_range_seeds(name: &str, ticks: u32, log: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let t = ticks;
+    [
+        ("empty", 0, 0),
+        ("whole", 0, t),
+        ("middle", t / 3, 2 * t / 3),
+        ("last", t - 1, t),
+        ("end", t, t),
+    ]
+    .into_iter()
+    .map(|(label, a, b)| {
+        (
+            format!("{name}-{label}"),
+            step_log_range_input(t, a, b, log),
+        )
+    })
+    .collect()
+}
+
+/// The seeds of `step_log_range`, named for what they are: for each run case of the corpus (all
+/// of them, the target takes the step log alone) the ranges `0..0`, `0..ticks`, the middle
+/// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
+/// ticks, a PICKS record (reserved: refused) and an unknown record. Generated, never committed.
+fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
+    step_log_seeds(u32::MAX)
+}
+
+/// The seeds of `step_log_range` with every log cut at `cap` ticks (a log of no more is kept
+/// whole): `u32::MAX` for the seed files, `SWEEP_TICK_CAP` for the sweep.
+fn step_log_seeds(cap: u32) -> Vec<(String, Vec<u8>)> {
     let mut seeds = Vec::new();
-    for case in cases {
-        let name = case.file_name().unwrap().to_string_lossy().into_owned();
-        let run = RunReplay::from_bytes(&fs::read(case.join("run.replay")).expect("run.replay"))
-            .expect("a corpus run replay");
-        assert_eq!(run.setup.schema_version, 2, "{name}");
-        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-        let t = run.ticks;
-        for (label, a, b) in [
-            ("empty", 0, 0),
-            ("whole", 0, t),
-            ("middle", t / 3, 2 * t / 3),
-            ("last", t - 1, t),
-            ("end", t, t),
-        ] {
-            seeds.push((
-                format!("{name}-{label}"),
-                step_log_range_input(t, a, b, &log),
-            ));
-        }
+    for (name, ticks, log) in run_case_logs() {
+        let (t, log) = cut_log(&log, ticks, cap);
+        seeds.extend(run_case_range_seeds(&name, t, &log));
     }
     // The party cases hold joins and leaves: the whole log and the middle third of each.
-    let parties = root().join("tests/corpus/current/parties");
-    for case in ["join_two", "leave_hole"] {
-        let run =
-            RunReplay::from_bytes(&fs::read(parties.join(case).join("run.replay")).expect("run"))
-                .expect("a corpus party replay");
-        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-        let t = run.ticks;
+    for (case, ticks, log) in party_logs() {
+        let (t, log) = cut_log(&log, ticks, cap);
         for (label, a, b) in [("whole", 0, t), ("middle", t / 3, 2 * t / 3)] {
             seeds.push((
                 format!("{case}-{label}"),
@@ -555,7 +692,8 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
     seeds
 }
 
-/// The files each target is given: stages for the stage targets, and for `stage_parse` also the
+/// The files each target is given (the sweep's: each run case is cut at `SWEEP_TICK_CAP` ticks):
+/// stages for the stage targets, and for `stage_parse` also the
 /// bundled rewards (with their stage skills), run stats and expertise, which it reads too; stage
 /// and run replays for the replay target, share codes (of the corpus pairs) for the share target
 /// and run setups for the setup target.
@@ -576,7 +714,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             .collect();
     }
     if target == "step_log_range" {
-        return step_log_range_seeds()
+        return step_log_seeds(SWEEP_TICK_CAP)
             .into_iter()
             .map(|(_, bytes)| bytes)
             .collect();
@@ -599,8 +737,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         })
         .collect();
     if target == "replay_load" {
-        seeds.extend(run_replays());
-        seeds.extend(run_prefixes());
+        seeds.extend(run_sweep_seeds(&run_replays()));
     }
     if target == "stage_parse" {
         for file in [
@@ -992,20 +1129,6 @@ fn write_net_seeds() {
     }
 }
 
-/// The most ticks the `step_log_range` seeds may claim in all, counting the seeds the target's
-/// oracle runs on (those at or under `EXPAND_LIMIT`, 65,536 ticks). Each seed is swept by
-/// `every_prefix_and_flipped_byte_of_the_seeds_is_survived`, so this bounds the cost of that
-/// sweep for the target. Raising it is a decision to take the CI minutes: it grew from 500,000 by
-/// the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`, `hammer_breaker`),
-/// then to 700,000.
-const STEP_LOG_RANGE_TICK_BUDGET: u64 = 700_000;
-
-/// The most ticks the run replays seeded to `replay_load` may hold in all (what it re-simulates
-/// per call, before the sweep multiplies it). Raising it is a decision to take the CI minutes: it
-/// grew from 56,000 by the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`,
-/// `hammer_breaker`), to 100,000.
-const RUN_SEED_TICK_BUDGET: u64 = 100_000;
-
 /// The bound of the target's oracle on the ticks a log claims (`EXPAND_LIMIT`).
 const ORACLE_TICK_LIMIT: u32 = 65_536;
 
@@ -1040,37 +1163,17 @@ fn the_fuzz_crate_tests_are_built_optimised() {
     );
 }
 
+/// The seed files hold whole logs: only a forged one claims more ticks than the oracle of the
+/// target expands.
 #[test]
-fn the_step_log_range_seeds_expand_a_bounded_number_of_ticks() {
-    let mut sum = 0u64;
+fn only_a_forged_step_log_seed_claims_more_than_the_oracle_expands() {
     for (name, bytes) in step_log_range_seeds() {
-        let ticks = u32::from_le_bytes(bytes[..4].try_into().expect("the ticks word"));
-        if ticks <= ORACLE_TICK_LIMIT {
-            sum += u64::from(ticks);
-        } else {
-            assert!(
-                name.starts_with("forged-"),
-                "{name} claims {ticks} ticks, over the oracle's {ORACLE_TICK_LIMIT}"
-            );
-        }
+        let ticks = claimed_ticks(&bytes);
+        assert!(
+            ticks <= ORACLE_TICK_LIMIT || name.starts_with("forged-"),
+            "{name} claims {ticks} ticks, over the oracle's {ORACLE_TICK_LIMIT}"
+        );
     }
-    assert!(
-        sum <= STEP_LOG_RANGE_TICK_BUDGET,
-        "the step_log_range seeds claim {sum} ticks, over the budget {STEP_LOG_RANGE_TICK_BUDGET}"
-    );
-}
-
-#[test]
-fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
-    let sum: u64 = run_replays()
-        .iter()
-        .chain(run_prefixes().iter())
-        .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
-        .sum();
-    assert!(
-        sum <= RUN_SEED_TICK_BUDGET,
-        "the run seeds hold {sum} ticks, over the budget {RUN_SEED_TICK_BUDGET}"
-    );
 }
 
 #[test]
@@ -1153,4 +1256,152 @@ fn a_replay_whose_setup_names_pick_stats_is_refused() {
     let forged = text.replace("\"sim_version\":2", "\"pick_stats\":true,\"sim_version\":2");
     assert_ne!(forged, text);
     assert!(!replay_load(forged.as_bytes()));
+}
+
+/// The ticks a step log seed claims (its first word).
+fn claimed_ticks(seed: &[u8]) -> u32 {
+    u32::from_le_bytes(seed[..4].try_into().expect("the ticks word"))
+}
+
+#[test]
+fn a_run_case_adds_at_most_the_cap_to_the_run_sweep() {
+    for case in run_replays() {
+        let sum: u64 = run_sweep_seeds(std::slice::from_ref(&case))
+            .iter()
+            .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
+            .sum();
+        let bound = u64::from(SWEEP_TICK_CAP + SWEEP_TICK_CAP / 2);
+        let ticks = RunReplay::from_bytes(&case).expect("a corpus run").ticks;
+        assert!(
+            sum <= bound,
+            "a run case of {ticks} ticks adds {sum} ticks to the run sweep, over {bound}"
+        );
+    }
+}
+
+#[test]
+fn a_run_case_adds_at_most_the_cap_to_the_step_log_sweep() {
+    let bound = 5 * u64::from(SWEEP_TICK_CAP);
+    for (name, ticks, log) in run_case_logs().into_iter().chain(party_logs()) {
+        let (n, cut) = cut_log(&log, ticks, SWEEP_TICK_CAP);
+        let seeds = run_case_range_seeds(&name, n, &cut);
+        assert_eq!(seeds.len(), 5, "{name}");
+        let mut sum = 0;
+        for (seed_name, seed) in &seeds {
+            let claimed = claimed_ticks(seed);
+            assert!(
+                claimed <= SWEEP_TICK_CAP,
+                "{seed_name} claims {claimed} ticks, over the cap {SWEEP_TICK_CAP}"
+            );
+            sum += u64::from(claimed);
+        }
+        assert!(
+            sum <= bound,
+            "{name} adds {sum} claimed ticks, over {bound}"
+        );
+    }
+}
+
+/// The ticks of the `Ticks` steps of a range.
+fn ticks_of(steps: &[RangeStep]) -> u32 {
+    steps
+        .iter()
+        .map(|step| match step {
+            RangeStep::Ticks { run, .. } => *run,
+            _ => 0,
+        })
+        .sum()
+}
+
+#[test]
+fn a_cut_run_and_a_cut_log_are_prefixes() {
+    for bytes in run_replays() {
+        let run = RunReplay::from_bytes(&bytes).expect("a corpus run");
+        let cut = cut_run(&bytes, SWEEP_TICK_CAP);
+        let short = RunReplay::from_bytes(&cut).expect("a cut run loads");
+        let n = run.ticks.min(SWEEP_TICK_CAP);
+        assert_eq!(short.ticks, n, "ticks of a cut of {} ticks", run.ticks);
+        let groups = 16 * usize::try_from(n / 60).unwrap();
+        assert_eq!(
+            short.checkpoints,
+            run.checkpoints[..groups],
+            "checkpoints of a cut of {} ticks",
+            run.ticks
+        );
+        assert_eq!(
+            short
+                .step_range(0, n, MAX_TICKS)
+                .expect("the cut ranges")
+                .steps,
+            run.step_range(0, n, MAX_TICKS)
+                .expect("the run ranges")
+                .steps,
+            "steps of a cut of {} ticks",
+            run.ticks
+        );
+        assert!(
+            verify_run(&cut).is_ok(),
+            "a cut of {} ticks does not verify",
+            run.ticks
+        );
+        if run.ticks <= SWEEP_TICK_CAP {
+            assert_eq!(
+                cut, bytes,
+                "a case of {} ticks is returned as it is",
+                run.ticks
+            );
+        }
+        // The cutter agrees with the recorder on the bundled cases (their logs hold no join, leave
+        // or action at the cut).
+        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+        let (_, cut_bytes) = cut_log(&log, run.ticks, SWEEP_TICK_CAP);
+        assert_eq!(
+            cut_bytes,
+            stella_rain_core::base64::decode(&short.inputs).expect("the cut step log"),
+            "cut_log of a case of {} ticks differs from the recorder's",
+            run.ticks
+        );
+    }
+    for (name, ticks, log) in run_case_logs().into_iter().chain(party_logs()) {
+        let (n, cut) = cut_log(&log, ticks, SWEEP_TICK_CAP);
+        assert_eq!(n, ticks.min(SWEEP_TICK_CAP), "{name}");
+        let full = read_step_range(&log, ticks, u32::MAX, 0, n).expect("the log ranges");
+        let short = read_step_range(&cut, n, u32::MAX, 0, n).expect("the cut log ranges");
+        assert_eq!(short.steps, full.steps, "{name}: steps of the cut log");
+        assert_eq!(ticks_of(&short.steps), n, "{name}: ticks of the cut log");
+    }
+}
+
+/// The seed files and the whole-replay tests keep every run case whole, so a later change cannot
+/// cap the writers' list or the list of `run_replays()` unseen.
+#[test]
+fn the_seed_files_keep_the_whole_run_cases() {
+    let seeds = step_log_range_seeds();
+    for (name, ticks, _) in run_case_logs() {
+        let (_, whole) = seeds
+            .iter()
+            .find(|(n, _)| *n == format!("{name}-whole"))
+            .unwrap_or_else(|| panic!("no whole seed for {name}"));
+        assert_eq!(
+            claimed_ticks(whole),
+            ticks,
+            "{name}-whole claims its own ticks"
+        );
+        assert!(
+            ticks <= ORACLE_TICK_LIMIT,
+            "{name} is over the oracle's limit"
+        );
+    }
+    let dir = root().join("tests/corpus/current/runs");
+    let mut cases: Vec<_> = fs::read_dir(&dir)
+        .expect("the run corpus directory")
+        .map(|e| e.expect("a run case").path())
+        .filter(|case| pins_bundled(case))
+        .collect();
+    cases.sort();
+    let files: Vec<Vec<u8>> = cases
+        .iter()
+        .map(|case| fs::read(case.join("run.replay")).expect("run.replay"))
+        .collect();
+    assert_eq!(run_replays(), files, "run_replays() holds the files whole");
 }
