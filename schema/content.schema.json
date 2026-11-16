@@ -11856,7 +11856,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour and\n`range_pct_at_full` percent wider attacks while the stacks are full (0 where none);\n`carry_at_full` when a combo that ends on a full-stack smash leaves the stacks standing\nuntil the combo window runs out.",
+          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour and\n`range_pct_at_full` percent wider attacks while the stacks are full (0 where none);\n`carry_at_full` when a combo that ends on a full-stack smash leaves the stacks standing\nat every reset but the combo window running out.",
           "properties": {
             "armour_at_full": {
               "type": "boolean"
