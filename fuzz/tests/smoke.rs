@@ -14,7 +14,7 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
-    Command, RunRecorder, RunReplay, RunReplayError, record_run_with, verify_run,
+    RunRecorder, RunReplay, RunReplayError, record_run_with, verify_run,
 };
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
@@ -23,9 +23,9 @@ use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_
 use stella_rain_core::{RangeStep, read_step_range};
 use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, net_decode, pack_load,
-    packs_load, party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes,
-    savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run, step_log_range,
-    step_log_range_input,
+    packs_load, party_recorder, recorder_until, replay_load, run_setup, savepoint_load,
+    savepoint_prefixes, savepoint_recorder, savepoint_seeds, share_decode, stage_parse, stage_run,
+    step_log_range, step_log_range_input,
 };
 
 type Target = fn(&[u8]) -> bool;
@@ -92,38 +92,27 @@ fn run_replays() -> Vec<Vec<u8>> {
         .collect()
 }
 
-/// Run replays cut half-way: the first three run replays of the corpus, played again by their own
-/// commands up to the middle tick, so each ends where its run is still going.
+/// Run replays cut half-way: the first three run replays of the list, played again to the middle
+/// tick (at most half the cap), so each ends where its run is still going.
 fn run_prefixes(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
     cases
         .iter()
         .take(3)
         .map(|bytes| {
             let run = RunReplay::from_bytes(bytes).expect("a corpus run replay");
-            let mut recorder = RunRecorder::start(&run.setup).expect("the corpus setup starts");
-            let mut steps = 0;
-            for command in commands(&run) {
-                match command {
-                    Command::Step(input) => {
-                        if steps == run.ticks / 2 {
-                            break;
-                        }
-                        steps += 1;
-                        recorder
-                            .step(&[input, Default::default(), Default::default()])
-                            .expect("a corpus run steps");
-                    }
-                    Command::Choose(_) => panic!("a current run holds no pick"),
-                }
-            }
-            recorder.replay().to_bytes()
+            let end = (run.ticks / 2).min(SWEEP_TICK_CAP / 2);
+            recorder_until(&run, Some(end)).replay().to_bytes()
         })
         .collect()
 }
 
-/// The run seeds of `replay_load`: the cases of the list and the prefixes of the first three.
+/// The run seeds of `replay_load`: each case of the list cut at the cap, and the prefixes of the
+/// first three.
 fn run_sweep_seeds(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let mut seeds = cases.to_vec();
+    let mut seeds: Vec<Vec<u8>> = cases
+        .iter()
+        .map(|bytes| cut_run(bytes, SWEEP_TICK_CAP))
+        .collect();
     seeds.extend(run_prefixes(cases));
     seeds
 }
@@ -133,14 +122,98 @@ fn run_sweep_seeds(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
 /// are still read whole by `a_real_run_replay_verifies` and `a_real_log_range_gets_past_the_scanner`.
 const SWEEP_TICK_CAP: u32 = 3_600;
 
-/// A run replay cut to `cap` ticks (a stub: the bytes unchanged).
-fn cut_run(bytes: &[u8], _cap: u32) -> Vec<u8> {
-    bytes.to_vec()
+/// A run replay cut to `cap` ticks at a tick boundary: the bytes unchanged when it holds no more,
+/// else the run played again to the cap, so the cut file verifies (checkpoints and final hash).
+/// It plays on the bundled pack, so it is for the cases `run_replays()` holds.
+fn cut_run(bytes: &[u8], cap: u32) -> Vec<u8> {
+    let run = RunReplay::from_bytes(bytes).expect("a corpus run replay");
+    if run.ticks <= cap {
+        return bytes.to_vec();
+    }
+    recorder_until(&run, Some(cap)).replay().to_bytes()
 }
 
-/// A step log cut to `cap` ticks, with the ticks it holds (a stub: the log unchanged).
-fn cut_log(log: &[u8], ticks: u32, _cap: u32) -> (u32, Vec<u8>) {
-    (ticks, log.to_vec())
+/// One LEB128 `u32` at `at`: the value and the bytes it takes.
+fn read_leb(log: &[u8], at: usize) -> (u32, usize) {
+    let mut value = 0u32;
+    for (i, byte) in log[at..].iter().enumerate() {
+        value |= u32::from(byte & 0x7f) << (7 * i);
+        if byte & 0x80 == 0 {
+            return (value, i + 1);
+        }
+    }
+    panic!("a varint with no end at byte {at}");
+}
+
+fn write_leb(out: &mut Vec<u8>, mut value: u32) {
+    while value >= 0x80 {
+        out.push(u8::try_from(value & 0x7f).unwrap() | 0x80);
+        value >>= 7;
+    }
+    out.push(u8::try_from(value).unwrap());
+}
+
+/// A step log (`src/step_log.rs`) cut to `cap` world ticks, with the ticks it holds: no
+/// simulation, so it also cuts the cases that pin a derived pack. Whole records are kept while
+/// their ticks stay within the cap, the TICKS record that crosses it is shortened, and a JOIN,
+/// LEAVE or ACTIONS record at the cap is dropped. The log unchanged when it holds no more. A
+/// test helper over trusted corpus bytes: it panics on a record it does not know.
+fn cut_log(log: &[u8], ticks: u32, cap: u32) -> (u32, Vec<u8>) {
+    if ticks <= cap {
+        return (ticks, log.to_vec());
+    }
+    let mut present = log[0];
+    let mut out = vec![log[0]];
+    let (mut world, mut at) = (0u32, 1usize);
+    while at < log.len() && world < cap {
+        let slots = usize::try_from(present.count_ones()).unwrap();
+        match log[at] {
+            0x00 => {
+                let (run, len) = read_leb(log, at + 1);
+                let end = at + 1 + len + 3 * slots;
+                if world + run <= cap {
+                    out.extend_from_slice(&log[at..end]);
+                    world += run;
+                } else {
+                    out.push(0x00);
+                    write_leb(&mut out, cap - world);
+                    out.extend_from_slice(&log[at + 1 + len..end]);
+                    world = cap;
+                }
+                at = end;
+            }
+            0x02 | 0x03 => {
+                let slot = log[at + 1];
+                present = if log[at] == 0x02 {
+                    present | (1 << slot)
+                } else {
+                    present & !(1 << slot)
+                };
+                out.extend_from_slice(&log[at..at + 2]);
+                at += 2;
+            }
+            0x04 => {
+                let start = at;
+                at += 1;
+                for _ in 0..slots {
+                    let kind = log[at];
+                    at += 1;
+                    let operands = match kind {
+                        0x00 => 0,
+                        0x01 | 0x02 => 2,
+                        0x03..=0x05 => 1,
+                        other => panic!("an unknown action kind {other:#04x} at byte {at}"),
+                    };
+                    for _ in 0..operands {
+                        at += read_leb(log, at).1;
+                    }
+                }
+                out.extend_from_slice(&log[start..at]);
+            }
+            other => panic!("a record the cutter does not know: {other:#04x} at byte {at}"),
+        }
+    }
+    (cap, out)
 }
 
 /// `commands` is the inverse of `record_run_with` on every run case that plays on the bundled
@@ -532,12 +605,20 @@ fn run_case_range_seeds(name: &str, ticks: u32, log: &[u8]) -> Vec<(String, Vec<
 /// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
 /// ticks, a PICKS record (reserved: refused) and an unknown record. Generated, never committed.
 fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
+    step_log_seeds(u32::MAX)
+}
+
+/// The seeds of `step_log_range` with every log cut at `cap` ticks (a log of no more is kept
+/// whole): `u32::MAX` for the seed files, `SWEEP_TICK_CAP` for the sweep.
+fn step_log_seeds(cap: u32) -> Vec<(String, Vec<u8>)> {
     let mut seeds = Vec::new();
     for (name, ticks, log) in run_case_logs() {
-        seeds.extend(run_case_range_seeds(&name, ticks, &log));
+        let (t, log) = cut_log(&log, ticks, cap);
+        seeds.extend(run_case_range_seeds(&name, t, &log));
     }
     // The party cases hold joins and leaves: the whole log and the middle third of each.
-    for (case, t, log) in party_logs() {
+    for (case, ticks, log) in party_logs() {
+        let (t, log) = cut_log(&log, ticks, cap);
         for (label, a, b) in [("whole", 0, t), ("middle", t / 3, 2 * t / 3)] {
             seeds.push((
                 format!("{case}-{label}"),
@@ -631,7 +712,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
             .collect();
     }
     if target == "step_log_range" {
-        return step_log_range_seeds()
+        return step_log_seeds(SWEEP_TICK_CAP)
             .into_iter()
             .map(|(_, bytes)| bytes)
             .collect();
