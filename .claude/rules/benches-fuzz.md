@@ -33,7 +33,7 @@ in equipment mode (no offer opens); the offers-mode and frozen-v1 tests use the 
   `judgement_cut`, the seven runes and Rune Haste; from tick 300 (`CAPS_FROM`) the fixture writes before each tick 64 queued repeats
   (`MAX_REPEATS_QUEUED`) of 16 targets (`MAX_REPEAT_TARGETS`) all due, every elite's stagger gauge one short of full and every enemy at its
   hard-control count, via `Engine::bench_run_mut` (crate-internal); measured after `WARMUP_TICKS` 450 (`combat_case.rs`).
-- `rollback.rs`: the saved engine of the three-player dense minute (10,800 ticks in) cloned, 8 ticks played on the clone, the first the
+- `rollback.rs`: the saved engine of the three-player dense minute (`PEAK_TICK_3P`, 9,834 ticks in) cloned, 8 ticks played on the clone, the first the
   minute's heaviest (`party_case.rs`); `rollback_equip.rs`: that rollback in equipment mode: every player equips a star, then extracts one
   (`bench_fixtures/equip_case.rs`; its ramp-up has its own policy); `rollback_session.rs`: a `net` `Session::advance` that rolls back
   (windows 4, 16); a `CloneRing` save into an empty ring (`clone_ring_save`) and into a reused slot (`clone_ring_resave`).
