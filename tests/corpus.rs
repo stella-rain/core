@@ -1385,7 +1385,8 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// opening cut at `TUTORIAL_OPENING_TICKS`, the trial,
 /// a run that takes the black hole from an elite's star and uses it, the time_limit mode and its
 /// easy and rainy difficulties, the two short modes that end by the boss's kill and by the
-/// overtime, the elites run, and the Hammer's two styles (`hammer_titan`, `hammer_momentum`).
+/// overtime, the elites run, and the Hammer's three styles (`hammer_titan`, `hammer_momentum`,
+/// `hammer_breaker`).
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
 pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 
@@ -1395,10 +1396,11 @@ const TUTORIAL_OPENING_TICKS: u32 = 240;
 
 fn run_definitions() -> Vec<RunDefinition> {
     use common::run::{
-        ELITES_BOT_SEED, ELITES_SEED, HAMMER_MOMENTUM_BOT_SEED, HAMMER_MOMENTUM_SEED,
-        HAMMER_TITAN_BOT_SEED, HAMMER_TITAN_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
-        STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
-        TRIAL_BOT_SEED, TRIAL_KINDS_BOT_SEED, TRIAL_KINDS_SEED, TRIAL_SEED, trial_setup,
+        ELITES_BOT_SEED, ELITES_SEED, HAMMER_BREAKER_BOT_SEED, HAMMER_BREAKER_SEED,
+        HAMMER_MOMENTUM_BOT_SEED, HAMMER_MOMENTUM_SEED, HAMMER_TITAN_BOT_SEED, HAMMER_TITAN_SEED,
+        KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED, STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED,
+        TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED, TRIAL_BOT_SEED, TRIAL_KINDS_BOT_SEED,
+        TRIAL_KINDS_SEED, TRIAL_SEED, trial_setup,
     };
     // The cases that keep the world seed they had play it with the bot's first seed.
     let kept = trial_setup().seed;
@@ -1436,6 +1438,13 @@ fn run_definitions() -> Vec<RunDefinition> {
             "hammer_momentum",
             HAMMER_MOMENTUM_SEED,
             HAMMER_MOMENTUM_BOT_SEED,
+        ),
+        // The Hammer's Breaker on easy, steered to an elite's stagger: a longer stagger, the
+        // up_2 burst's stun and the capstone's knockdown.
+        equipment_run_definition(
+            "hammer_breaker",
+            HAMMER_BREAKER_SEED,
+            HAMMER_BREAKER_BOT_SEED,
         ),
     ]
 }
@@ -1534,6 +1543,22 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
             });
             let commands = play_equipment_run_from(&setup, HAMMER_TICKS, &bot);
             (case, setup, None, commands)
+        }
+        "hammer_breaker" => {
+            let setup = equipment_setup(RunSetup {
+                difficulty: "easy".into(),
+                weapon: "giant_hammer".into(),
+                unlocked_styles: Some(vec!["breaker".into()]),
+                ..limited
+            });
+            let commands = play_equipment_run_with(
+                &setup,
+                bundled,
+                HAMMER_TICKS,
+                crate::zone_bot::stagger_input,
+                &bot,
+            );
+            ("hammer_breaker", setup, None, commands)
         }
         "easy" | "rainy" => {
             let difficulty = RunSetup {
