@@ -92,8 +92,8 @@ fn run_replays() -> Vec<Vec<u8>> {
 
 /// Run replays cut half-way: the first three run replays of the corpus, played again by their own
 /// commands up to the middle tick, so each ends where its run is still going.
-fn run_prefixes() -> Vec<Vec<u8>> {
-    run_replays()
+fn run_prefixes(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    cases
         .iter()
         .take(3)
         .map(|bytes| {
@@ -117,6 +117,13 @@ fn run_prefixes() -> Vec<Vec<u8>> {
             recorder.replay().to_bytes()
         })
         .collect()
+}
+
+/// The run seeds of `replay_load`: the cases of the list and the prefixes of the first three.
+fn run_sweep_seeds(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let mut seeds = cases.to_vec();
+    seeds.extend(run_prefixes(cases));
+    seeds
 }
 
 /// `commands` is the inverse of `record_run_with` on every run case that plays on the bundled
@@ -154,7 +161,7 @@ fn clear() -> (Vec<u8>, Vec<u8>) {
 
 #[test]
 fn a_run_prefix_resumes() {
-    let prefixes = run_prefixes();
+    let prefixes = run_prefixes(&run_replays());
     assert_eq!(prefixes.len(), 3);
     for prefix in prefixes {
         assert!(replay_load(&prefix), "replay_load does not verify a prefix");
@@ -442,6 +449,27 @@ fn pack_with_constellations() -> Vec<u8> {
     serde_json::to_vec(&pack).expect("a pack serialises")
 }
 
+/// The five ranges of one run case: `0..0`, `0..ticks`, the middle third, the last tick and
+/// `ticks..ticks`, each claiming `ticks` ticks of `log`.
+fn run_case_range_seeds(name: &str, ticks: u32, log: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let t = ticks;
+    [
+        ("empty", 0, 0),
+        ("whole", 0, t),
+        ("middle", t / 3, 2 * t / 3),
+        ("last", t - 1, t),
+        ("end", t, t),
+    ]
+    .into_iter()
+    .map(|(label, a, b)| {
+        (
+            format!("{name}-{label}"),
+            step_log_range_input(t, a, b, log),
+        )
+    })
+    .collect()
+}
+
 /// The seeds of `step_log_range`, named for what they are: for each run case of the corpus (all
 /// of them, the target takes the step log alone) the ranges `0..0`, `0..ticks`, the middle
 /// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
@@ -461,19 +489,7 @@ fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
             .expect("a corpus run replay");
         assert_eq!(run.setup.schema_version, 2, "{name}");
         let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-        let t = run.ticks;
-        for (label, a, b) in [
-            ("empty", 0, 0),
-            ("whole", 0, t),
-            ("middle", t / 3, 2 * t / 3),
-            ("last", t - 1, t),
-            ("end", t, t),
-        ] {
-            seeds.push((
-                format!("{name}-{label}"),
-                step_log_range_input(t, a, b, &log),
-            ));
-        }
+        seeds.extend(run_case_range_seeds(&name, run.ticks, &log));
     }
     // The party cases hold joins and leaves: the whole log and the middle third of each.
     let parties = root().join("tests/corpus/current/parties");
@@ -599,8 +615,7 @@ fn seeds(target: &str) -> Vec<Vec<u8>> {
         })
         .collect();
     if target == "replay_load" {
-        seeds.extend(run_replays());
-        seeds.extend(run_prefixes());
+        seeds.extend(run_sweep_seeds(&run_replays()));
     }
     if target == "stage_parse" {
         for file in [
@@ -1064,7 +1079,7 @@ fn the_step_log_range_seeds_expand_a_bounded_number_of_ticks() {
 fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
     let sum: u64 = run_replays()
         .iter()
-        .chain(run_prefixes().iter())
+        .chain(run_prefixes(&run_replays()).iter())
         .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
         .sum();
     assert!(
