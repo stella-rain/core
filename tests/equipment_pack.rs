@@ -466,7 +466,9 @@ fn the_bundled_sets_are_the_placeholder_values() {
                 stat(AttackPct, 300),
                 stat(AttackSpeedPct, 200),
                 stat(SkillCooldownPct, 200),
-                stat(RangePct, 800),
+                // 5 percent a weapon level, so the first upgrade's range at full stacks keeps
+                // its value under the 100 cap.
+                stat(RangePct, 500),
             ],
         ),
         (

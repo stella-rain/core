@@ -105,6 +105,75 @@ fn invalid_at(v: &Value, path: &str) {
     }
 }
 
+/// A bundled style's set row for `effect`, as the stored tenths by weapon level.
+fn set_row(weapon: &str, style: &str, effect: &str) -> Vec<u64> {
+    let ex = Expertise::bundled();
+    let w = ex.weapon(&weapon.into()).unwrap();
+    let s = w.styles.iter().find(|s| s.id.as_str() == style).unwrap();
+    let rows = serde_json::to_value(&s.stats).unwrap();
+    let row = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["effect"] == effect)
+        .unwrap_or_else(|| panic!("{weapon}/{style} has no {effect} row"));
+    row["by_level"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n.as_u64().unwrap())
+        .collect()
+}
+
+#[test]
+fn momentum_set_range_is_five_percent_a_weapon_level() {
+    let range = set_row("giant_hammer", "momentum", "range_pct");
+    assert_eq!(range.len(), TABLE_LEVELS);
+    assert!(range.windows(2).all(|w| w[0] <= w[1]), "never falls");
+    // The first upgrade's range at full stacks, read from the bundled content.
+    let ex = Expertise::bundled();
+    let hammer = ex.weapon(&"giant_hammer".into()).unwrap();
+    let momentum = hammer
+        .styles
+        .iter()
+        .find(|s| s.id.as_str() == "momentum")
+        .unwrap();
+    let up1 = serde_json::to_value(&momentum.upgrade_1).unwrap();
+    let at_full = up1[0]["kinds"][0]["effects"][0].clone();
+    assert_eq!(at_full["type"], "range_pct_at_full");
+    let at_full = at_full["pct"].as_u64().unwrap();
+    assert_eq!(at_full, 25);
+    for (i, &tenths) in range.iter().enumerate() {
+        let level = i as u64 + 1;
+        assert_eq!(tenths, 50 * level, "Lv{level} tenths");
+        assert_eq!(tenths / 10, 5 * level, "Lv{level} whole percent");
+        assert!(
+            tenths / 10 + at_full <= u64::from(MAX_RANGE_PCT),
+            "Lv{level}: the set range and the first upgrade stay under the cap"
+        );
+    }
+    assert_eq!(range[5] / 10 + at_full, 55);
+    assert_eq!(range[8] / 10 + at_full, 70);
+    assert_eq!(range[9] / 10 + at_full, 75);
+    // The other three rows of the set stay.
+    for (effect, per_level) in [
+        ("attack_pct", 30),
+        ("attack_speed_pct", 20),
+        ("skill_cooldown_pct", 20),
+    ] {
+        let row = set_row("giant_hammer", "momentum", effect);
+        let want: Vec<u64> = (1..=TABLE_LEVELS as u64).map(|l| per_level * l).collect();
+        assert_eq!(row, want, "momentum {effect}");
+    }
+}
+
+#[test]
+fn judgement_cut_set_range_stays_eight_percent_a_weapon_level() {
+    let range = set_row("giant_sword", "judgement_cut", "range_pct");
+    let want: Vec<u64> = (1..=TABLE_LEVELS as u64).map(|l| 80 * l).collect();
+    assert_eq!(range, want);
+}
+
 #[test]
 fn the_bundled_file_covers_every_weapon_with_three_complete_styles() {
     let bundled = Expertise::bundled();
