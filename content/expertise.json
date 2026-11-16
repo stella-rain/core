@@ -138,6 +138,64 @@
                       "pct": 80
                     }
                   ]
+                },
+                {
+                  "type": "replace_step",
+                  "step": [
+                    "main",
+                    "main",
+                    "main"
+                  ],
+                  "grant": {
+                    "hold": {
+                      "loop": {
+                        "inline": [
+                          {
+                            "hit_box": {
+                              "offset": {
+                                "forward": 0,
+                                "right": 0
+                              },
+                              "radius": 12288,
+                              "type": "circle"
+                            },
+                            "kind": "active",
+                            "rehit_ticks": 8,
+                            "ticks": 8,
+                            "type": "strike"
+                          }
+                        ]
+                      },
+                      "max_ticks": 180,
+                      "move_pct": 50,
+                      "release": {
+                        "inline": [
+                          {
+                            "kind": "wind_up",
+                            "ticks": 10
+                          },
+                          {
+                            "damage": 10000,
+                            "hit_box": {
+                              "offset": {
+                                "forward": 4096,
+                                "right": 0
+                              },
+                              "radius": 16384,
+                              "type": "circle"
+                            },
+                            "kind": "active",
+                            "ticks": 5,
+                            "type": "strike"
+                          },
+                          {
+                            "kind": "recovery",
+                            "ticks": 24
+                          }
+                        ]
+                      }
+                    }
+                  }
                 }
               ]
             }
