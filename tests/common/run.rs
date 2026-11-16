@@ -58,7 +58,7 @@ pub const TIME_LIMIT_SEED: u64 = 1;
 /// The building bot's seed of the `time_limit` run case.
 pub const TIME_LIMIT_BOT_SEED: u64 = 2;
 
-/// How long the two Hammer run cases run: 4 minutes, after the capstone and the first hold of the
+/// How long the three Hammer run cases run: 4 minutes, after the capstone and the first hold of the
 /// styles with the bots' play, which is a pure function of the state.
 pub const HAMMER_TICKS: u32 = 14_400;
 
@@ -73,6 +73,12 @@ pub const HAMMER_TITAN_BOT_SEED: u64 = 1;
 pub const HAMMER_MOMENTUM_SEED: u64 = 1;
 /// The building bot's seed of the `hammer_momentum` run case.
 pub const HAMMER_MOMENTUM_BOT_SEED: u64 = 1;
+
+/// The world seed of the `hammer_breaker` run case: with `HAMMER_BREAKER_BOT_SEED` the first pair
+/// (world 1..=20, bot 1..=20) that `search_corpus_run_seeds` finds to keep the promise of the case.
+pub const HAMMER_BREAKER_SEED: u64 = 1;
+/// The building bot's seed of the `hammer_breaker` run case.
+pub const HAMMER_BREAKER_BOT_SEED: u64 = 6;
 
 /// The seed of the runes reroll test: the first seed under R1's streams where the first offer
 /// after the reroll holds the three other rewards.

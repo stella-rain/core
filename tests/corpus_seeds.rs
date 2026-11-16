@@ -44,6 +44,7 @@ fn promise(name: &str, case: &Path) {
         "elites" => assert_elites(&elite_reach_at(case, name)),
         "hammer_titan" => crate::corpus_hammer::assert_hammer_titan(case),
         "hammer_momentum" => crate::corpus_hammer::assert_hammer_momentum(case),
+        "hammer_breaker" => crate::corpus_hammer::assert_hammer_breaker(case),
         // `easy` and `rainy` name no outcome: the run only has to verify.
         _ => {
             let bytes = fs::read(case.join("run.replay")).unwrap();
@@ -147,6 +148,7 @@ fn search_corpus_run_seeds() {
         "time_limit",
         "hammer_titan",
         "hammer_momentum",
+        "hammer_breaker",
     ] {
         if search(&tree, name).is_none() {
             missing.push(name);

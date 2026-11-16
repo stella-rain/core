@@ -24,6 +24,7 @@ type Keep = (&'static str, u32, &'static str, &'static str, u32);
 const KEEPS: &[Keep] = &[
     ("runs/easy", 6000, "Running", "|", 12810),
     ("runs/elites", 48700, "Failed", "|", 1120),
+    ("runs/hammer_breaker", 14400, "Running", "|", 27300),
     ("runs/hammer_momentum", 14400, "Running", "|", 27340),
     ("runs/hammer_titan", 14400, "Running", "|", 27390),
     ("runs/rainy", 4414, "Failed", "|", 23480),

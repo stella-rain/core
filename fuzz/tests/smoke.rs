@@ -142,9 +142,9 @@ fn the_smoke_corpus_has_every_case() {
             .count()
     };
     assert_eq!(count("stages"), 16);
-    assert_eq!(count("runs"), 13);
+    assert_eq!(count("runs"), 14);
     assert_eq!(corpus().len(), 16);
-    assert_eq!(run_replays().len(), 9);
+    assert_eq!(run_replays().len(), 10);
 }
 
 fn clear() -> (Vec<u8>, Vec<u8>) {
@@ -996,13 +996,15 @@ fn write_net_seeds() {
 /// oracle runs on (those at or under `EXPAND_LIMIT`, 65,536 ticks). Each seed is swept by
 /// `every_prefix_and_flipped_byte_of_the_seeds_is_survived`, so this bounds the cost of that
 /// sweep for the target. Raising it is a decision to take the CI minutes: it grew from 500,000 by
-/// the two 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`).
-const STEP_LOG_RANGE_TICK_BUDGET: u64 = 650_000;
+/// the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`, `hammer_breaker`),
+/// then to 700,000.
+const STEP_LOG_RANGE_TICK_BUDGET: u64 = 700_000;
 
 /// The most ticks the run replays seeded to `replay_load` may hold in all (what it re-simulates
 /// per call, before the sweep multiplies it). Raising it is a decision to take the CI minutes: it
-/// grew from 56,000 by the two 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`).
-const RUN_SEED_TICK_BUDGET: u64 = 90_000;
+/// grew from 56,000 by the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`,
+/// `hammer_breaker`), to 100,000.
+const RUN_SEED_TICK_BUDGET: u64 = 100_000;
 
 /// The bound of the target's oracle on the ticks a log claims (`EXPAND_LIMIT`).
 const ORACLE_TICK_LIMIT: u32 = 65_536;

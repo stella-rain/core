@@ -306,6 +306,7 @@ const CURRENT_ONLY: &[&str] = &[
     "trial_kinds",
     "hammer_momentum",
     "hammer_titan",
+    "hammer_breaker",
 ];
 
 /// What the proof made of a case.
@@ -389,6 +390,7 @@ macro_rules! run_cases {
 run_cases!(
     easy,
     elites,
+    hammer_breaker,
     hammer_momentum,
     hammer_titan,
     rainy,
@@ -406,9 +408,10 @@ run_cases!(
 /// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
 /// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
 /// `v1/` runs: `tutorial()` below reads one.
-const FEATURES: [(&str, bool, bool, bool); 13] = [
+const FEATURES: [(&str, bool, bool, bool); 14] = [
     ("easy", false, true, true),
     ("elites", false, true, true),
+    ("hammer_breaker", false, true, true),
     ("hammer_momentum", false, true, true),
     ("hammer_titan", false, true, true),
     ("rainy", false, true, true),
@@ -447,7 +450,7 @@ fn the_case_lists_are_the_directories() {
 
 /// The floor of the proof per tree: (tree, proved at least, skipped at most). `current` proves
 /// every case, and so does the frozen `v1/` (nine cases), counted from `prove`'s own verdicts.
-const FLOOR: [(&str, usize, usize); 2] = [("current", 13, 0), ("v1", 9, 0)];
+const FLOOR: [(&str, usize, usize); 2] = [("current", 14, 0), ("v1", 9, 0)];
 
 fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), String> {
     let (min, max) = floor_of(tree);
@@ -478,11 +481,11 @@ fn floor_of(tree: &str) -> (usize, usize) {
 
 #[test]
 fn a_proof_that_proves_nothing_fails() {
-    assert_eq!(floor_of("current"), (13, 0));
+    assert_eq!(floor_of("current"), (14, 0));
     let err = check_floor("current", &[], &names_of(RUN_CASES)).unwrap_err();
     assert!(err.contains("savepoint proof, current"), "{err}");
     assert!(err.contains("0 proved"), "{err}");
-    assert!(err.contains("13 skipped"), "{err}");
+    assert!(err.contains("14 skipped"), "{err}");
     assert!(err.contains("raise the floor"), "{err}");
 }
 
