@@ -115,9 +115,39 @@ const STAGGER_NEAR: i64 = 40 * 256;
 /// `stagger_input` presses `smash` on the first two ticks of every this many.
 const STAGGER_EVERY: u32 = 20;
 
-/// `run_input` until an elite that can be staggered is on the field.
+/// `run_input` that, once an elite whose definition names a `stagger_max` is on the field, goes
+/// after that elite's stagger gauge: it walks to the nearest one (the dead zone of
+/// `run_input_for`), stops within `STAGGER_NEAR` and presses only `smash`, on the first two ticks
+/// of every `STAGGER_EVERY`, since a smash step's hit is what fills the gauge. Without such an
+/// elite it is `run_input`. For the run case that plays a style built on staggers.
 pub fn stagger_input(engine: &Engine, tick: u32) -> Input {
-    run_input(engine, tick)
+    let mut input = run_input(engine, tick);
+    let s = engine.snapshot();
+    let me = s.players[0].at;
+    let d2 = |at: stella_rain_core::fixed::Point| {
+        let (x, y) = (i64::from(at.x.0 - me.x.0), i64::from(at.y.0 - me.y.0));
+        x * x + y * y
+    };
+    let Some(elite) = s
+        .entities
+        .iter()
+        .filter(|v| v.kind == EntityKind::Enemy && v.elite && v.stagger_max.is_some() && v.hp > 0)
+        .min_by_key(|v| d2(v.at))
+    else {
+        return input;
+    };
+    let toward = |d: i32| match d {
+        d if d > 256 => 127,
+        d if d < -256 => -127,
+        _ => 0,
+    };
+    let near = d2(elite.at) <= STAGGER_NEAR * STAGGER_NEAR;
+    let walk = i8::from(!near);
+    input.move_x = walk * toward(elite.at.x.0 - me.x.0);
+    input.move_y = walk * toward(elite.at.y.0 - me.y.0);
+    input.main = false;
+    input.smash = near && tick % STAGGER_EVERY < 2;
+    input
 }
 
 #[cfg(test)]
