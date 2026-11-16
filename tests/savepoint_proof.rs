@@ -301,7 +301,12 @@ fn check_run(case: &Case, r: &Reference, cut_at: &[u32], restore: Restore) -> Re
 }
 
 /// Run cases recorded after `v1/` was frozen: only `current/` holds them.
-const CURRENT_ONLY: &[&str] = &["tutorial_opening", "trial_kinds"];
+const CURRENT_ONLY: &[&str] = &[
+    "tutorial_opening",
+    "trial_kinds",
+    "hammer_momentum",
+    "hammer_titan",
+];
 
 /// What the proof made of a case.
 #[derive(Clone, Debug, PartialEq)]
@@ -384,6 +389,8 @@ macro_rules! run_cases {
 run_cases!(
     easy,
     elites,
+    hammer_momentum,
+    hammer_titan,
     rainy,
     stage_skill,
     time_limit,
@@ -399,9 +406,11 @@ run_cases!(
 /// somewhere in the uninterrupted run. A re-bless that moves one fails the guard below. Every
 /// current case is an equipment run (no offer opens), so the open offer is covered by the frozen
 /// `v1/` runs: `tutorial()` below reads one.
-const FEATURES: [(&str, bool, bool, bool); 11] = [
+const FEATURES: [(&str, bool, bool, bool); 13] = [
     ("easy", false, true, true),
     ("elites", false, true, true),
+    ("hammer_momentum", false, true, true),
+    ("hammer_titan", false, true, true),
     ("rainy", false, true, true),
     ("stage_skill", false, true, true),
     ("time_limit", false, true, true),
@@ -438,7 +447,7 @@ fn the_case_lists_are_the_directories() {
 
 /// The floor of the proof per tree: (tree, proved at least, skipped at most). `current` proves
 /// every case, and so does the frozen `v1/` (nine cases), counted from `prove`'s own verdicts.
-const FLOOR: [(&str, usize, usize); 2] = [("current", 11, 0), ("v1", 9, 0)];
+const FLOOR: [(&str, usize, usize); 2] = [("current", 13, 0), ("v1", 9, 0)];
 
 fn check_floor(tree: &str, proved: &[String], skipped: &[String]) -> Result<(), String> {
     let (min, max) = floor_of(tree);
@@ -469,11 +478,11 @@ fn floor_of(tree: &str) -> (usize, usize) {
 
 #[test]
 fn a_proof_that_proves_nothing_fails() {
-    assert_eq!(floor_of("current"), (11, 0));
+    assert_eq!(floor_of("current"), (13, 0));
     let err = check_floor("current", &[], &names_of(RUN_CASES)).unwrap_err();
     assert!(err.contains("savepoint proof, current"), "{err}");
     assert!(err.contains("0 proved"), "{err}");
-    assert!(err.contains("11 skipped"), "{err}");
+    assert!(err.contains("13 skipped"), "{err}");
     assert!(err.contains("raise the floor"), "{err}");
 }
 

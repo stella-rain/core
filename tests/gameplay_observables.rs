@@ -341,6 +341,8 @@ const PINS: &[(&str, &str)] = &[
     ("bench/worst_tick", "f7615e32fdd91f74"),
     ("runs/easy", "501029e0118b1ab8"),
     ("runs/elites", "e7dac7a7b9af16d2"),
+    ("runs/hammer_momentum", "d36eba6f61ff2916"),
+    ("runs/hammer_titan", "e2fa49b944d6dce3"),
     ("runs/rainy", "80b5efc9cfd6500c"),
     ("runs/stage_skill", "4971adb6081f4f43"),
     ("runs/time_limit", "e3639294ebc8fdf5"),
