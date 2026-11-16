@@ -44,7 +44,7 @@
     "title": "Foresight Counter"
   },
   "expertise/foresight_counter_cap": {
-    "description": "The counter's first landed hit returns a spent evade",
+    "description": "A counter's first hit returns a spent evade and fills 25% of a gauge; at 4 counters, your next smash is the full-gauge smash",
     "title": "Foresight Counter Capstone"
   },
   "expertise/foresight_counter_up_1": {
@@ -80,15 +80,15 @@
     "title": "Momentum"
   },
   "expertise/momentum_cap": {
-    "description": "+20% attack",
+    "description": "A smash at full stacks carries them into the next combo, until the combo window runs out",
     "title": "Momentum Capstone"
   },
   "expertise/momentum_up_1": {
-    "description": "+10% attack",
+    "description": "At full stacks, every attack the combo starts reaches 25% wider",
     "title": "Momentum I"
   },
   "expertise/momentum_up_2": {
-    "description": "+10% attack speed",
+    "description": "Each stack speeds attacks up 6% instead of 4%, 30% at full stacks",
     "title": "Momentum II"
   },
   "expertise/spirit_blade": {
@@ -116,7 +116,7 @@
     "title": "Titan Trigger"
   },
   "expertise/titan_trigger_cap": {
-    "description": "+20% attack",
+    "description": "When the giant hammer runs out, the full-gauge smash's first ring strikes once more, free",
     "title": "Titan Trigger Capstone"
   },
   "expertise/titan_trigger_up_1": {
@@ -124,7 +124,7 @@
     "title": "Titan Trigger I"
   },
   "expertise/titan_trigger_up_2": {
-    "description": "The giant hammer still lasts 12 seconds; no other effect yet",
+    "description": "Hold the third spin, moving at 80% speed while the hammer is giant and 50% otherwise",
     "title": "Titan Trigger II"
   },
   "expertise/vitality": {
