@@ -1090,16 +1090,18 @@ fn each_player_carries_alone() {
         r.set_tempo(1, 3);
         r.set_tempo(0, 5);
         let mut hashes = Vec::new();
-        let (_, ev) = r.run_step(true);
+        r.run_step(true);
         hashes.push(r.e.state_hash());
         r.run_step(false);
+        let ev = r.events.clone();
+        let held = (r.tempo(0), r.tempo(1));
         for t in 0..60 {
             r.step([Input::default(); 3]);
             if t % 10 == 0 {
                 hashes.push(r.e.state_hash());
             }
         }
-        (r.tempo(0), r.tempo(1), ev, hashes)
+        (held.0, held.1, ev, hashes)
     };
     let (p0, p1, ev, hashes) = run();
     assert_eq!((p0, p1), (5, 0), "player 0 carried, player 1 lost its own");

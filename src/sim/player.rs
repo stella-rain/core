@@ -646,15 +646,47 @@ fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
     c.released = false;
 }
 
+/// Which kind of end a `combo_reset` is: the combo window running out ends the tempo's carry,
+/// every other reset may keep it (`tempo_carries`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reset {
+    /// The window after the last step ran out.
+    Window,
+    /// A press that does not continue the combo, auto's restart, an evade or a broken charge.
+    Continue,
+}
+
 /// Back to the root through `reset`, for every caller that has the whole world: the one place the
-/// combo's end is seen from outside the combo (ADR-SIM-9).
-fn combo_reset(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEvent>) {
+/// combo's end is seen from outside the combo (ADR-SIM-9). A combo that was mid-combo ends the
+/// tempo's stacks, unless it ended on a smash pressed at full stacks and the tempo names
+/// `carry_at_full` and the reset is not the window running out: then they stand for the next combo.
+fn combo_reset(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    kind: Reset,
+    events: &mut Vec<DomainEvent>,
+) {
     // A reset at the root changes nothing: only a combo that was somewhere else ends the stacks.
     let mid_combo = s.players[me].combo.depth > 0;
+    // Read before `reset`, which clears the path and depth the smash test needs.
+    let carry = mid_combo && kind == Reset::Continue && tempo_carries(stage, s, me);
     reset(&mut s.players[me].combo, events);
-    if mid_combo {
+    if mid_combo && !carry {
         tempo_lose(stage, s, me, events);
     }
+}
+
+/// Whether the combo of `me` ends on a smash pressed at full stacks and its tempo carries them:
+/// the smash is the last press, the stacks are full (a smash below full has ended them at the
+/// press, and a smash's own hits add none) and the grant names `carry_at_full`.
+fn tempo_carries(stage: &World, s: &State, me: PlayerIdx) -> bool {
+    stage.has_tempo
+        && stage.tempo_of(s, me).is_some_and(|g| {
+            g.carry_at_full
+                && last_press_smash(&s.players[me].combo)
+                && s.players[me].combat.combo_tempo == g.max_stacks
+        })
 }
 
 /// The combo tempo of `me` ends: the stacks go to 0 and `TempoLost` says so, once. None after one
@@ -813,7 +845,7 @@ fn combo(
     // The window counts the ticks after the step on which a press continues the combo; once
     // they are used up, the combo is back at the root before this tick's press.
     if !busy && s.players[me].combo.depth > 0 && s.players[me].combo.window_left == 0 {
-        combo_reset(stage, s, me, events);
+        combo_reset(stage, s, me, Reset::Window, events);
     }
     let c = s.players[me].combo;
     let (smash, by_hand) = match (
@@ -823,7 +855,7 @@ fn combo(
         (Some(smash), _) => (smash, true),
         (None, Some(Auto::Next(smash))) => (smash, false),
         (None, Some(Auto::Again)) if !busy => {
-            combo_reset(stage, s, me, events);
+            combo_reset(stage, s, me, Reset::Continue, events);
             (c.auto_path & 1 == 1, false)
         }
         _ => {
@@ -1028,7 +1060,7 @@ fn take_step(
     s.players[me].combo.released = false;
     let onward = step_at(main, &s.players[me].combo).is_some_and(|st| st.next.get(smash).is_some());
     if !onward {
-        combo_reset(stage, s, me, events);
+        combo_reset(stage, s, me, Reset::Continue, events);
         let c = &mut s.players[me].combo;
         c.dash = by_hand && c.dash_strike_left > 0 && main.dash.get(smash).is_some();
         if !c.dash && main.combo.get(smash).is_none() {
@@ -2094,7 +2126,7 @@ fn cancel(stage: &World, s: &mut State, me: PlayerIdx, events: &mut Vec<DomainEv
     }
     c.buffered = None;
     c.running = false;
-    combo_reset(stage, s, me, events);
+    combo_reset(stage, s, me, Reset::Continue, events);
 }
 
 /// A hit from a phase that breaks charges ends a charge or a hold in progress without an
@@ -2119,7 +2151,7 @@ pub(super) fn break_charge(
         events.push(DomainEvent::ChargeBroken);
     }
     s.players[me].combo.buffered = None;
-    combo_reset(stage, s, me, events);
+    combo_reset(stage, s, me, Reset::Continue, events);
 }
 
 /// The movement speed, in percent, a charge or a hold leaves the main character: its
