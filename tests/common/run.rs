@@ -78,7 +78,7 @@ pub const HAMMER_MOMENTUM_BOT_SEED: u64 = 1;
 /// world seed in 1..=20 (with `HAMMER_BREAKER_BOT_SEED`) whose run keeps the promise of the case.
 pub const HAMMER_BREAKER_SEED: u64 = 1;
 /// The building bot's seed of the `hammer_breaker` run case.
-pub const HAMMER_BREAKER_BOT_SEED: u64 = 1;
+pub const HAMMER_BREAKER_BOT_SEED: u64 = 6;
 
 /// The seed of the runes reroll test: the first seed under R1's streams where the first offer
 /// after the reroll holds the three other rewards.
