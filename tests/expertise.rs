@@ -703,13 +703,13 @@ fn the_bundled_file_names_kinds_and_every_other_level_is_a_stat() {
             }
         }
     }
-    // 6 style levels and the 16 built upgrade and capstone levels.
-    assert_eq!(built, 22);
+    // 6 style levels and the 17 built upgrade and capstone levels.
+    assert_eq!(built, 23);
 }
 
 /// C1: the upgrade levels of the stacking kinds, of the orb break, of the repeat bleed and of the
 /// charge that comes sooner, the second Titan Trigger upgrade and its capstone (the end ring) are
-/// kinds (no stat, no amount); the three other placeholder levels are still stats.
+/// kinds (no stat, no amount); the other placeholder level (the Momentum capstone) is still a stat.
 #[test]
 fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats() {
     let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
@@ -796,6 +796,13 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
                 "effects": [{ "type": "range_pct_at_full", "pct": 25 }]
             }),
         ),
+        (
+            "momentum_up_2",
+            json!({
+                "type": "combo_tempo_pct", "max_stacks": 5,
+                "effects": [{ "type": "speed_pct", "pct": 6 }]
+            }),
+        ),
     ]);
     for (id, kind) in want {
         let level = &levels[id];
@@ -803,7 +810,7 @@ fn the_stacking_upgrade_levels_are_kinds_and_the_other_placeholders_stay_stats()
         assert!(level.get("amount").is_none(), "{id}: {level}");
         assert_eq!(level["kinds"], json!([kind]), "{id}");
     }
-    let stats = ["momentum_up_2", "momentum_cap"];
+    let stats = ["momentum_cap"];
     for id in stats {
         assert_ne!(levels[id]["effect"], "none", "{id}");
         assert!(levels[id].get("kinds").is_none(), "{id}");
