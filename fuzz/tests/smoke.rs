@@ -137,6 +137,7 @@ fn cut_run(bytes: &[u8], cap: u32) -> Vec<u8> {
 fn read_leb(log: &[u8], at: usize) -> (u32, usize) {
     let mut value = 0u32;
     for (i, byte) in log[at..].iter().enumerate() {
+        assert!(i < 5, "a varint of more than 5 bytes at byte {at}");
         value |= u32::from(byte & 0x7f) << (7 * i);
         if byte & 0x80 == 0 {
             return (value, i + 1);
