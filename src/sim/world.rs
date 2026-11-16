@@ -1843,7 +1843,7 @@ pub(super) fn tempo_fold(g: &mut TempoGrant, t: &crate::expertise::ComboTempo) {
             TempoEffect::RangePctAtFull { pct } => {
                 g.range_pct_at_full = (*pct).min(crate::rewards::MAX_RANGE_PCT)
             }
-            // Stored here, read by `player::tempo_carries` (step 4 wires the rule).
+            // Read by `player::tempo_carries`.
             TempoEffect::CarryAtFull {} => g.carry_at_full = true,
         }
     }

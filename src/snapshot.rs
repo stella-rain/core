@@ -295,7 +295,7 @@ pub enum StyleKindView {
     /// faster; `armour_at_full` when the full stacks held in a hold give super armour and
     /// `range_pct_at_full` percent wider attacks while the stacks are full (0 where none);
     /// `carry_at_full` when a combo that ends on a full-stack smash leaves the stacks standing
-    /// until the combo window runs out.
+    /// at every reset but the combo window running out.
     ComboTempoPct {
         max_stacks: u32,
         pct_per_stack: u32,
