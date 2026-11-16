@@ -39,6 +39,7 @@ mod content_pack_unpack;
 mod controls;
 mod corpus;
 mod corpus_contract;
+mod corpus_hammer;
 mod corpus_keeps;
 mod corpus_pins;
 mod corpus_seeds;
