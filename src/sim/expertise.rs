@@ -669,6 +669,10 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                         _ => None,
                     })
                     .unwrap_or(0),
+                carry_at_full: t
+                    .effects
+                    .iter()
+                    .any(|e| matches!(e, TempoEffect::CarryAtFull {})),
             },
             StyleKind::GiantTrigger(t) => {
                 let mut view = StyleKindView::GiantTrigger {

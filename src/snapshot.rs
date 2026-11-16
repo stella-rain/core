@@ -293,12 +293,15 @@ pub enum StyleKindView {
     CounterBonus { window_ticks: u32 },
     /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
     /// faster; `armour_at_full` when the full stacks held in a hold give super armour and
-    /// `range_pct_at_full` percent wider attacks while the stacks are full (0 where none).
+    /// `range_pct_at_full` percent wider attacks while the stacks are full (0 where none);
+    /// `carry_at_full` when a combo that ends on a full-stack smash leaves the stacks standing
+    /// at every reset but the combo window running out.
     ComboTempoPct {
         max_stacks: u32,
         pct_per_stack: u32,
         armour_at_full: bool,
         range_pct_at_full: u32,
+        carry_at_full: bool,
     },
     /// The style has a giant trigger the full-gauge smash starts: it runs `ticks` ticks and
     /// while it runs widens the combo hit boxes by `range_pct` percent, strengthens the smash

@@ -747,6 +747,9 @@ pub(crate) struct TempoGrant {
     /// Percent added to the range of every attack the combo starts while the stacks are full, 0
     /// where no level names it.
     pub range_pct_at_full: u32,
+    /// A combo that ends on a full-stack smash leaves the stacks at a reset that is not the window
+    /// running out (`player::tempo_carries`).
+    pub carry_at_full: bool,
 }
 
 /// A style's counter bonus resolved once: the window and each effect folded into its field, 0
@@ -1821,6 +1824,7 @@ impl TempoGrant {
             keep_on_smash: false,
             hold_armour: false,
             range_pct_at_full: 0,
+            carry_at_full: false,
         }
     }
 }
@@ -1839,6 +1843,8 @@ pub(super) fn tempo_fold(g: &mut TempoGrant, t: &crate::expertise::ComboTempo) {
             TempoEffect::RangePctAtFull { pct } => {
                 g.range_pct_at_full = (*pct).min(crate::rewards::MAX_RANGE_PCT)
             }
+            // Read by `player::tempo_carries`.
+            TempoEffect::CarryAtFull {} => g.carry_at_full = true,
         }
     }
 }

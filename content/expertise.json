@@ -340,8 +340,18 @@
           "capstone": [
             {
               "id": "momentum_cap",
-              "effect": "attack_pct",
-              "amount": 20
+              "effect": "none",
+              "kinds": [
+                {
+                  "type": "combo_tempo_pct",
+                  "max_stacks": 5,
+                  "effects": [
+                    {
+                      "type": "carry_at_full"
+                    }
+                  ]
+                }
+              ]
             }
           ],
           "stats": [

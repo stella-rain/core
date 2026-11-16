@@ -11856,9 +11856,12 @@
         },
         {
           "additionalProperties": false,
-          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour and\n`range_pct_at_full` percent wider attacks while the stacks are full (0 where none).",
+          "description": "The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent\nfaster; `armour_at_full` when the full stacks held in a hold give super armour and\n`range_pct_at_full` percent wider attacks while the stacks are full (0 where none);\n`carry_at_full` when a combo that ends on a full-stack smash leaves the stacks standing\nat every reset but the combo window running out.",
           "properties": {
             "armour_at_full": {
+              "type": "boolean"
+            },
+            "carry_at_full": {
               "type": "boolean"
             },
             "max_stacks": {
@@ -11886,7 +11889,8 @@
             "max_stacks",
             "pct_per_stack",
             "armour_at_full",
-            "range_pct_at_full"
+            "range_pct_at_full",
+            "carry_at_full"
           ],
           "type": "object"
         },
@@ -12063,6 +12067,20 @@
           "required": [
             "type",
             "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A combo that ends on a smash pressed at full stacks leaves the stacks standing at every\nreset but the combo window running out: a press that does not continue the combo, the\nauto combo's restart and an evade. The next combo then starts at full stacks. Needs\n`keep_on_smash` to have any effect (a smash below full ends the stacks at the press).",
+          "properties": {
+            "type": {
+              "const": "carry_at_full",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
           ],
           "type": "object"
         }

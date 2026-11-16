@@ -112,7 +112,17 @@ fn the_tempo_kind_is_bounded() {
         { "type": "range_pct_at_full", "pct": 25 },
         { "type": "keep_on_smash" }
     ]);
-    refused_at(json!([effects(five)]), &format!("{PATH}.effects"));
+    // Five entries are within the bound; the fifth is a duplicate, refused at its own path.
+    refused_at(json!([effects(five)]), &format!("{PATH}.effects[4]"));
+    let six = json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
+        { "type": "range_pct_at_full", "pct": 25 },
+        { "type": "carry_at_full" },
+        { "type": "keep_on_smash" }
+    ]);
+    refused_at(json!([effects(six)]), &format!("{PATH}.effects"));
     refused_at(
         json!([effects(json!([{ "type": "keep_on_smash" }]))]),
         &format!("{PATH}.effects"),
@@ -214,7 +224,7 @@ fn the_views_carry_the_tempo_kind() {
     let expertise =
         Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the expertise");
     let snap = crate::style_grants::build(expertise).snapshot();
-    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4, "armour_at_full": false, "range_pct_at_full": 0 });
+    let want = json!({ "type": "combo_tempo_pct", "max_stacks": 5, "pct_per_stack": 4, "armour_at_full": false, "range_pct_at_full": 0, "carry_at_full": false });
     let ready = serde_json::to_value(snap.players[0].tree_ready.as_ref().unwrap()).unwrap();
     assert_eq!(ready["kinds"][0], json!([want]));
     let stats = serde_json::to_value(snap.players[0].weapon_stats.as_ref().unwrap()).unwrap();
@@ -516,4 +526,141 @@ fn valid_refused_no_speed() {
         json!([effects(json!([{ "type": "range_pct_at_full", "pct": 25 }]))]),
         &format!("{PATH}.effects"),
     );
+}
+
+/// The five different effects of the kind.
+fn all_five() -> Value {
+    let mut v = all_four();
+    v.as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "carry_at_full" }));
+    v
+}
+
+/// CV1: the kind with `carry_at_full` loads under the current versions, serialises back to its
+/// input and is refused under `sim_version` 1.
+#[test]
+fn carry_at_full_loads_and_round_trips() {
+    let kind = effects(all_five());
+    valid(json!([kind.clone()]));
+    let parsed: StyleKind = serde_json::from_value(kind.clone()).expect("the kind parses");
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), kind);
+    let old = Versions {
+        sim_version: 1,
+        ..Versions::CURRENT
+    };
+    match parse_at(&with_kinds(json!([kind])), old) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == "$.weapons[0].styles[0].kinds"),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// CV2: `carry_at_full` is a flag: no field, once per kind.
+#[test]
+fn carry_at_full_is_a_flag() {
+    valid(json!([effects(json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "carry_at_full" }
+    ]))]));
+    parse_error(json!([effects(json!([
+        { "type": "speed_pct", "pct": 4 },
+        { "type": "carry_at_full", "pct": 1 }
+    ]))]));
+    refused_at(
+        json!([effects(json!([
+            { "type": "speed_pct", "pct": 4 },
+            { "type": "carry_at_full" },
+            { "type": "carry_at_full" }
+        ]))]),
+        &format!("{PATH}.effects[2]"),
+    );
+}
+
+/// CV3b: the speed checks run at five effects.
+#[test]
+fn the_speed_checks_run_at_five_effects() {
+    let first = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 10,
+        "effects": [
+            { "type": "speed_pct", "pct": 81 },
+            { "type": "keep_on_smash" },
+            { "type": "super_armour_at_full" },
+            { "type": "range_pct_at_full", "pct": 25 },
+            { "type": "carry_at_full" }
+        ]
+    }]);
+    match parse_at(&with_kinds(first), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == format!("{PATH}.effects") && i.message.contains("at most 800")),
+            "{issues:?}"
+        ),
+        other => panic!("{other:?}"),
+    }
+    let no_speed = json!([effects(json!([
+        { "type": "keep_on_smash" },
+        { "type": "super_armour_at_full" },
+        { "type": "range_pct_at_full", "pct": 25 },
+        { "type": "carry_at_full" },
+        { "type": "keep_on_smash" }
+    ]))]);
+    match parse_at(&with_kinds(no_speed), Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => {
+            assert!(
+                issues
+                    .iter()
+                    .any(|i| i.path == format!("{PATH}.effects[4]")),
+                "{issues:?}"
+            );
+            assert!(
+                issues.iter().any(|i| i.path == format!("{PATH}.effects")
+                    && i.message.contains("names no speed_pct")),
+                "{issues:?}"
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// CV4: a later level, the capstone included, may list only the carry; its bounds hold there.
+#[test]
+fn a_later_level_may_name_carry_at_full() {
+    let base = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 5,
+        "effects": [{ "type": "speed_pct", "pct": 4 }]
+    }]);
+    let later = |max: i64, effects: Value| json!([{ "type": "combo_tempo_pct", "max_stacks": max, "effects": effects }]);
+    let carry = json!([{ "type": "carry_at_full" }]);
+    stacked_loads(base.clone(), later(5, carry.clone()));
+    stacked_loads(
+        base.clone(),
+        later(
+            5,
+            json!([{ "type": "speed_pct", "pct": 4 }, { "type": "carry_at_full" }]),
+        ),
+    );
+    stacked_refused(
+        base.clone(),
+        later(4, carry.clone()),
+        &format!("{LATER}.max_stacks"),
+    );
+    // The capstone, with an upgrade between.
+    let mut v = stacked(
+        base.clone(),
+        later(5, json!([{ "type": "range_pct_at_full", "pct": 25 }])),
+    );
+    v["weapons"][0]["styles"][0]["capstone"] = json!([{
+        "id": "cap", "effect": "none", "kinds": later(5, carry.clone())
+    }]);
+    if let Err(e) = parse_at(&v, Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+    // A first naming with only the carry has no speed.
+    refused_at(json!([effects(carry)]), &format!("{PATH}.effects"));
 }
