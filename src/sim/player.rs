@@ -42,7 +42,8 @@
 //! the run's cap (`tempo_speed_pct`) and, at full stacks, the kind's `range_pct_at_full` to the
 //! range (`tempo_range_pct`), so a step, each loop of a hold and a release take the stacks held
 //! at their start. `tempo_lose` empties them: a combo reset away from the middle of
-//! a combo (`combo_reset`), a smash press after the smash itself started (`tempo_on_smash`;
+//! a combo (`combo_reset`; not one that follows a smash pressed at full stacks when the kind names
+//! `carry_at_full`, unless it is the combo window running out: `tempo_carries`), a smash press after the smash itself started (`tempo_on_smash`;
 //! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`; not under `tempo_armoured`,
 //! full stacks in a held hold with `super_armour_at_full`), a down and another style.
 //!
