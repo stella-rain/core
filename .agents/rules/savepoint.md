@@ -17,7 +17,13 @@ A pinned format or hash is never re-pinned: a change is a new version.
 - Savepoint: `tests/fixtures/savepoint/v<N>.sha256` per `SAVEPOINT_FORMAT` (now 13,
   `savepoint/file.rs`; `v1` to `v13` are pinned and `tests/savepoint.rs` wants one per older
   format and refuses each); the v2 savepoint bytes are pinned by `sim::players_pin_tests` in
-  `src/`. A file of format 1 to 12 is refused as `Format`.
+  `src/`, and the v2 trial savepoint at tick 300 also by `savepoint_v2_trial_300` in
+  `tests/pack_pins.toml` (read by `tests/savepoint_proof.rs`; it moves with every pack bless, so
+  `cargo xtask bless` writes it). The newest format's `v<N>.sha256` is written once, by
+  `UPDATE_SAVEPOINT_PIN=1 cargo test --release --test integration savepoint::golden`, which
+  refuses to overwrite one. A file of format 1 to 12 is refused as `Format`.
+- The header's `schema_version` (offset 12) is the prefix's schema (1 for a `sim_version` 1
+  recorder), not the build's; a header that disagrees with its prefix is `PrefixMismatch`.
 - The format history: 4 added the party and each player's equipment; 5 the stat totals; 6 13
   totals (`StatEffect::ALL`) and, after them, the 13 weapon-set entries `Progress.set_tenths`
   (`weapon-tree.md`); 7 drops the stale offer fields of `Progress` and `ExpertiseGauge`; 8 drops

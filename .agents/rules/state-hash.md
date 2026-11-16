@@ -7,6 +7,7 @@ globs:
   - "src/sim/hash_layout_tests.rs"
   - "src/sim/codec_fields_tests.rs"
   - "src/engine/hash_coverage_tests.rs"
+  - "src/engine/hash_coverage_live_tests.rs"
   - "src/hash.rs"
   - "src/id.rs"
   - "src/sim/entity.rs"
@@ -45,7 +46,7 @@ Sources: ADR-SIM-3, ADR-SIM-7, ADR-SIM-8, ADR-SIM-9, ADR-REPL-5, ADR-SAVE-4. Als
 
 A hole mask (0b101) hashes and saves; the step log reaches one by LEAVE (only a hole at tick 0 is
 refused). Each impl destructures its type without `..`; a skipped field is `_` with
-`// not hashed: <why>` (`engine/hash_coverage_tests.rs`).
+`// not hashed: <why>` (`engine/hash_coverage_live_tests.rs`; `hash_coverage_tests.rs` lists the frozen rules').
 
 The savepoint mirrors it (`src/sim/state_codec.rs`): the same bytes in the same order.
 `decode_over` refuses a mask without slot 0, past the last slot, or not the fresh engine's; and a

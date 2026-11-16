@@ -142,9 +142,10 @@ pub(super) fn top_up_level(s: &State) -> Option<u32> {
         .max()
 }
 
-/// The boss died this tick: every present player that is up gets the boss's drops, at one tier
-/// for all, the drop table's tier for the highest level among them. A downed or out player gets
-/// none; nobody up, nothing is given (ADR-SIM-7 point 5). A solo player at 0 hit points is not up.
+/// The boss died this tick: every present player that is up gets the equipment bonus
+/// (`starlight::boss_bonus`) and then the boss's drops (`drops::boss_killed`). A downed or out
+/// player gets none; nobody up, nothing is given (ADR-SIM-7 point 5). A solo player at 0 hit
+/// points is not up.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
     super::starlight::boss_bonus(&stage.equipment_rules, s);
     super::drops::boss_killed(stage, s)

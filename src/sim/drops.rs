@@ -229,9 +229,8 @@ pub(super) fn pick_up(stage: &World, s: &mut State, me: PlayerIdx, events: &mut 
 }
 
 /// The boss died this tick: every present member that is up gets the rules' `boss_drops` rolls of its own,
-/// at one rarity for the party, the same one a boss offer would have (the highest of the drop
-/// table's tier for the highest level among those up, held to the difficulty's range). A downed
-/// or out member gets none.
+/// at one rarity for the party (the highest of the drop table's tier for the highest level among
+/// those up, held to the difficulty's range). A downed or out member gets none.
 pub(super) fn boss_killed(stage: &World, s: &mut State) {
     let Some(level) = stars::top_up_level(s) else {
         return;

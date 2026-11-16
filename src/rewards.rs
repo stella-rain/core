@@ -1,5 +1,6 @@
-//! Rewards (ADR-REPL-5, ADR-CONT-1): what an offer from a falling star holds. Each has a
-//! rarity, a stack limit (how many times one run takes it) and an effect. They are content, not
+//! Rewards (ADR-REPL-5, ADR-CONT-1): the stars, the rarities and the `equipment` rules. Each
+//! reward has a rarity, a stack limit (how many times one run takes it), an effect and a
+//! category. They are content, not
 //! code: a JSON list of any length up to `MAX_REWARDS`, read in its order. Data picks, code
 //! acts: a reward's effect is one of the run stats' effect kinds (`StatEffect`), adding
 //! `amount` to that effect's total, as a stat point adds its step, a stage skill: one of the stage skills file's skills, `amount` levels of it, `amount` more

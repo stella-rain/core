@@ -4763,7 +4763,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Craft with the star at index `star` of the setup's star pool.",
+          "description": "Craft with the star at index `star` of the run's star pool.",
           "properties": {
             "craft": {
               "additionalProperties": false,
@@ -5872,7 +5872,7 @@
               "type": "null"
             }
           ],
-          "description": "An equipment action made on this step. It is recorded as an ACTIONS step, never inside a\nTICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: no\nrule accepts an action yet."
+          "description": "An equipment action made on this step. It is recorded as an ACTIONS step, never inside a\nTICKS block, and is not part of the schema 1 stream. `Engine::step` does not read it: an\naction is made between steps by `Engine::act`, or by `RunRecorder::step`, which records\nthe ones `check_action` accepts and clears the field before the tick."
         },
         "assist": {
           "description": "Aim assist is on for this tick, a switch: a combo step faces the target.",
@@ -5887,7 +5887,7 @@
           "type": "boolean"
         },
         "interact": {
-          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules only; the simulation ignores it until they exist. Schema 2 only: the\nschema 1 stream cannot carry it.",
+          "description": "The interact button is held on this tick: the revive hold (ADR-SIM-7). Read by the down\nand revive rules (`player_hits.rs`); the recorder and the replay codec carry it. Schema 2\nonly: the schema 1 stream cannot carry it.",
           "type": "boolean"
         },
         "main": {
@@ -7337,7 +7337,7 @@
           "type": "integer"
         },
         "pool_held": {
-          "description": "For each star of the setup's star pool, in pool order (the index `Craft` takes): whether\na craft of it is refused because this player already holds that named star. Empty in a\nstage run alone and at `sim_version` 1.",
+          "description": "For each star of the run's star pool, in pool order (the index `Craft` takes): whether\na craft of it is refused because this player already holds that named star. Empty in a\nstage run alone and at `sim_version` 1.",
           "items": {
             "type": "boolean"
           },
