@@ -14,11 +14,13 @@ use stella_rain_core::pack::Pack;
 use stella_rain_core::replay::{Replay, ReplayError};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{
-    Command, RunRecorder, RunReplay, RunReplayError, record_run_with,
+    Command, RunRecorder, RunReplay, RunReplayError, record_run_with, verify_run,
 };
 use stella_rain_core::savepoint::SavepointError;
 use stella_rain_core::share;
+use stella_rain_core::validate::limits::MAX_TICKS;
 use stella_rain_core::version::{NEWEST_READ_SCHEMA_VERSION, SCHEMA_VERSION, SIM_VERSION};
+use stella_rain_core::{RangeStep, read_step_range};
 use stella_rain_core_fuzz::{
     MINISIGN_SEED_MANIFEST, change_recorder, commands, minisign_verify, net_decode, pack_load,
     packs_load, party_recorder, replay_load, run_setup, savepoint_load, savepoint_prefixes,
@@ -124,6 +126,21 @@ fn run_sweep_seeds(cases: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut seeds = cases.to_vec();
     seeds.extend(run_prefixes(cases));
     seeds
+}
+
+/// The most ticks one run case adds to a sweep (60 seconds at 60 ticks per second, a multiple of
+/// the 60-tick checkpoint grid). Raising it takes CI minutes: it is Kade's call. The whole cases
+/// are still read whole by `a_real_run_replay_verifies` and `a_real_log_range_gets_past_the_scanner`.
+const SWEEP_TICK_CAP: u32 = 3_600;
+
+/// A run replay cut to `cap` ticks (a stub: the bytes unchanged).
+fn cut_run(bytes: &[u8], _cap: u32) -> Vec<u8> {
+    bytes.to_vec()
+}
+
+/// A step log cut to `cap` ticks, with the ticks it holds (a stub: the log unchanged).
+fn cut_log(log: &[u8], ticks: u32, _cap: u32) -> (u32, Vec<u8>) {
+    (ticks, log.to_vec())
 }
 
 /// `commands` is the inverse of `record_run_with` on every run case that plays on the bundled
@@ -1190,4 +1207,152 @@ fn a_replay_whose_setup_names_pick_stats_is_refused() {
     let forged = text.replace("\"sim_version\":2", "\"pick_stats\":true,\"sim_version\":2");
     assert_ne!(forged, text);
     assert!(!replay_load(forged.as_bytes()));
+}
+
+/// The ticks a step log seed claims (its first word).
+fn claimed_ticks(seed: &[u8]) -> u32 {
+    u32::from_le_bytes(seed[..4].try_into().expect("the ticks word"))
+}
+
+#[test]
+fn a_run_case_adds_at_most_the_cap_to_the_run_sweep() {
+    for case in run_replays() {
+        let sum: u64 = run_sweep_seeds(std::slice::from_ref(&case))
+            .iter()
+            .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
+            .sum();
+        let bound = u64::from(SWEEP_TICK_CAP + SWEEP_TICK_CAP / 2);
+        let ticks = RunReplay::from_bytes(&case).expect("a corpus run").ticks;
+        assert!(
+            sum <= bound,
+            "a run case of {ticks} ticks adds {sum} ticks to the run sweep, over {bound}"
+        );
+    }
+}
+
+#[test]
+fn a_run_case_adds_at_most_the_cap_to_the_step_log_sweep() {
+    let bound = 5 * u64::from(SWEEP_TICK_CAP);
+    for (name, ticks, log) in run_case_logs().into_iter().chain(party_logs()) {
+        let (n, cut) = cut_log(&log, ticks, SWEEP_TICK_CAP);
+        let seeds = run_case_range_seeds(&name, n, &cut);
+        assert_eq!(seeds.len(), 5, "{name}");
+        let mut sum = 0;
+        for (seed_name, seed) in &seeds {
+            let claimed = claimed_ticks(seed);
+            assert!(
+                claimed <= SWEEP_TICK_CAP,
+                "{seed_name} claims {claimed} ticks, over the cap {SWEEP_TICK_CAP}"
+            );
+            sum += u64::from(claimed);
+        }
+        assert!(
+            sum <= bound,
+            "{name} adds {sum} claimed ticks, over {bound}"
+        );
+    }
+}
+
+/// The ticks of the `Ticks` steps of a range.
+fn ticks_of(steps: &[RangeStep]) -> u32 {
+    steps
+        .iter()
+        .map(|step| match step {
+            RangeStep::Ticks { run, .. } => *run,
+            _ => 0,
+        })
+        .sum()
+}
+
+#[test]
+fn a_cut_run_and_a_cut_log_are_prefixes() {
+    for bytes in run_replays() {
+        let run = RunReplay::from_bytes(&bytes).expect("a corpus run");
+        let cut = cut_run(&bytes, SWEEP_TICK_CAP);
+        let short = RunReplay::from_bytes(&cut).expect("a cut run loads");
+        let n = run.ticks.min(SWEEP_TICK_CAP);
+        assert_eq!(short.ticks, n, "ticks of a cut of {} ticks", run.ticks);
+        let groups = 16 * usize::try_from(n / 60).unwrap();
+        assert_eq!(
+            short.checkpoints,
+            run.checkpoints[..groups],
+            "checkpoints of a cut of {} ticks",
+            run.ticks
+        );
+        assert_eq!(
+            short
+                .step_range(0, n, MAX_TICKS)
+                .expect("the cut ranges")
+                .steps,
+            run.step_range(0, n, MAX_TICKS)
+                .expect("the run ranges")
+                .steps,
+            "steps of a cut of {} ticks",
+            run.ticks
+        );
+        assert!(
+            verify_run(&cut).is_ok(),
+            "a cut of {} ticks does not verify",
+            run.ticks
+        );
+        if run.ticks <= SWEEP_TICK_CAP {
+            assert_eq!(
+                cut, bytes,
+                "a case of {} ticks is returned as it is",
+                run.ticks
+            );
+        }
+        // The cutter agrees with the recorder on the bundled cases (their logs hold no join, leave
+        // or action at the cut).
+        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+        let (_, cut_bytes) = cut_log(&log, run.ticks, SWEEP_TICK_CAP);
+        assert_eq!(
+            cut_bytes,
+            stella_rain_core::base64::decode(&short.inputs).expect("the cut step log"),
+            "cut_log of a case of {} ticks differs from the recorder's",
+            run.ticks
+        );
+    }
+    for (name, ticks, log) in run_case_logs().into_iter().chain(party_logs()) {
+        let (n, cut) = cut_log(&log, ticks, SWEEP_TICK_CAP);
+        assert_eq!(n, ticks.min(SWEEP_TICK_CAP), "{name}");
+        let full = read_step_range(&log, ticks, u32::MAX, 0, n).expect("the log ranges");
+        let short = read_step_range(&cut, n, u32::MAX, 0, n).expect("the cut log ranges");
+        assert_eq!(short.steps, full.steps, "{name}: steps of the cut log");
+        assert_eq!(ticks_of(&short.steps), n, "{name}: ticks of the cut log");
+    }
+}
+
+/// The seed files and the whole-replay tests keep every run case whole, so a later change cannot
+/// cap the writers' list or the list of `run_replays()` unseen.
+#[test]
+fn the_seed_files_keep_the_whole_run_cases() {
+    let seeds = step_log_range_seeds();
+    for (name, ticks, _) in run_case_logs() {
+        let (_, whole) = seeds
+            .iter()
+            .find(|(n, _)| *n == format!("{name}-whole"))
+            .unwrap_or_else(|| panic!("no whole seed for {name}"));
+        assert_eq!(
+            claimed_ticks(whole),
+            ticks,
+            "{name}-whole claims its own ticks"
+        );
+        assert!(
+            ticks <= ORACLE_TICK_LIMIT,
+            "{name} is over the oracle's limit"
+        );
+    }
+    let dir = root().join("tests/corpus/current/runs");
+    let mut cases: Vec<_> = fs::read_dir(&dir)
+        .expect("the run corpus directory")
+        .map(|e| e.expect("a run case").path())
+        .filter(|case| pins_bundled(case))
+        .collect();
+    cases.sort();
+    let files: Vec<Vec<u8>> = cases
+        .iter()
+        .map(|case| fs::read(case.join("run.replay")).expect("run.replay"))
+        .collect();
+    assert_eq!(run_replays(), files, "run_replays() holds the files whole");
 }
