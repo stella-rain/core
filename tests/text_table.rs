@@ -642,10 +642,9 @@ fn expected_numbers(root: &Value, id: &str) -> String {
             let k = kind(&c, "counter_bonus");
             effect(&k, "refund_evade");
             let fill = n(&effect(&k, "gauge_fill_pct")["pct"]);
-            vec![
-                fill.to_string(),
-                (n(&kind(&c, "gauge")["max"]) / fill).to_string(),
-            ]
+            let max = n(&kind(&c, "gauge")["max"]);
+            assert_eq!(max % fill, 0, "the line counts whole counters");
+            vec![fill.to_string(), (max / fill).to_string()]
         }
         "titan_trigger_cap" => {
             effect(&kind(&c, "giant_trigger"), "end_ring");
@@ -699,7 +698,9 @@ fn expected_numbers(root: &Value, id: &str) -> String {
         ],
         "titan_trigger_up_2" => {
             let e = effect(&kind(&c, "giant_trigger"), "hold_move_pct");
-            let hold = &kind(&c, "replace_step")["grant"]["hold"];
+            let step = kind(&c, "replace_step");
+            assert_eq!(step["step"], serde_json::json!(["main", "main", "main"]));
+            let hold = &step["grant"]["hold"];
             vec![n(&e["pct"]).to_string(), n(&hold["move_pct"]).to_string()]
         }
         other => panic!("no numbers for {other}"),
