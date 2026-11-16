@@ -1144,3 +1144,57 @@ fn the_bundled_momentum_grant_gains_the_range_then_the_speed() {
     let at = |s: u32, r: u32| Some((5, s, true, true, r));
     assert_eq!(seen, [at(4, 0), at(4, 25), at(6, 25), at(6, 25)]);
 }
+
+fn carry_flag() -> Value {
+    json!({ "type": "carry_at_full" })
+}
+
+/// The folded `carry_at_full` of player `i`'s tempo at `places` places (false for none).
+fn carry_at_full(e: &mut Engine, i: u8, places: usize) -> bool {
+    read(e, i, places, |w, s, me| {
+        w.tempo_of(s, me).map(|g| g.carry_at_full)
+    })
+    .unwrap_or(false)
+}
+
+/// CG1: the capstone names the carry alone; speed, flags and range stay from the earlier levels.
+#[test]
+fn the_carry_at_full_comes_with_the_capstone() {
+    let keep = json!({ "type": "keep_on_smash" });
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4), keep])],
+        vec![tempo(5, vec![range_full(25)])],
+        vec![tempo(5, vec![])],
+        vec![tempo(5, vec![carry_flag()])],
+    );
+    let seen: Vec<bool> = (0..4).map(|n| carry_at_full(&mut e, 0, n)).collect();
+    assert_eq!(seen, [false, false, false, true]);
+    assert_eq!(tempo_at(&mut e, 0, 3), Some((5, 4, true, false)));
+    assert_eq!(range_at_full(&mut e, 0, 3), 25);
+}
+
+/// CG2: a tempo that never names the carry gives false everywhere, each player reads its own
+/// place, and a later level that omits it keeps it.
+#[test]
+fn the_carry_at_full_is_per_player_and_kept() {
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4)])],
+        vec![tempo(5, vec![])],
+        vec![],
+        vec![tempo(5, vec![carry_flag()])],
+    );
+    take(&mut e, 0, 3);
+    take(&mut e, 1, 0);
+    assert!(carry_at_full(&mut e, 0, 3));
+    assert!(!carry_at_full(&mut e, 1, 0));
+    assert!(!(0..3).any(|n| carry_at_full(&mut e, 2, n)));
+
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4)])],
+        vec![tempo(5, vec![carry_flag()])],
+        vec![tempo(5, vec![])],
+        vec![],
+    );
+    let seen: Vec<bool> = (0..3).map(|n| carry_at_full(&mut e, 0, n)).collect();
+    assert_eq!(seen, [false, true, true]);
+}

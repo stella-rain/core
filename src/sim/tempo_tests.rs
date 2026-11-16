@@ -791,3 +791,356 @@ fn below_full_nothing_moves_and_the_sum_is_capped_when_used() {
         other => panic!("{other:?}"),
     }
 }
+
+/// A tempo kind of 5 stacks of 4 percent, 25 percent wider at full stacks, with the flags asked.
+fn flags_kind(keep: bool, carry: bool) -> Value {
+    let mut k = range_kind(25);
+    let effects = k["effects"].as_array_mut().unwrap();
+    if keep {
+        effects.push(json!({ "type": "keep_on_smash" }));
+    }
+    if carry {
+        effects.push(json!({ "type": "carry_at_full" }));
+    }
+    k
+}
+
+/// The kind of the carry tests: keeps on a full-stack smash and carries them.
+fn carry_kind() -> Value {
+    flags_kind(true, true)
+}
+
+impl Rig {
+    /// A smash pressed at full stacks: an A, the stacks set to 5, then the smash, run out.
+    fn full_smash(&mut self) -> Vec<Value> {
+        self.run_step(false);
+        self.set_tempo(0, 5);
+        self.run_step(true).1
+    }
+
+    /// A step pressed and run out: its length, its events and the range it started with.
+    fn run_width(&mut self, smash: bool) -> (u32, Vec<Value>, u32) {
+        let mut events = self.press(smash);
+        let width = self.width().expect("a combo attack runs");
+        let mut ticks = 1;
+        while self.busy() && ticks < 300 {
+            events.extend(self.step([Input::default(); 3]));
+            ticks += 1;
+        }
+        (ticks, events, width)
+    }
+
+    fn evade(&mut self) -> Vec<Value> {
+        let evade = Input {
+            evade: true,
+            ..Input::default()
+        };
+        self.step([evade, Input::default(), Input::default()])
+    }
+}
+
+/// CB1: the combo window running out ends the carry; a press after it is a press at the root.
+#[test]
+fn the_window_ends_the_carry() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    assert_eq!(r.tempo(0), 5);
+    r.idle(200);
+    assert_eq!(r.tempo(0), 0);
+    assert_eq!(count(&r.events, "TempoLost"), 1);
+    assert_eq!(count(&r.events, "ComboReset"), 1);
+
+    let mut plain = rig(1, vec![flags_kind(true, false)], 1);
+    plain.full_smash();
+    plain.idle(200);
+    assert_eq!(plain.tempo(0), 0);
+    assert_eq!(count(&plain.events, "TempoLost"), 1);
+
+    let base = rig(1, vec![carry_kind()], 1).width_at(0);
+    let mut late = rig(1, vec![carry_kind()], 1);
+    late.full_smash();
+    late.idle(30);
+    late.press(false);
+    assert_eq!(late.tempo(0), 0);
+    assert_eq!(late.width(), Some(base));
+}
+
+/// CB2: a plain combo started inside the window keeps the 5 stacks, with their range and speed
+/// from its first step; a smash below full leaves nothing to carry.
+#[test]
+fn a_press_after_the_smash_keeps_the_stacks() {
+    let mut p = rig(1, vec![], 1);
+    let (plain_a, _) = p.run_step(false);
+    let base = rig(1, vec![carry_kind()], 1).width_at(0);
+
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    let lost = count(&r.events, "TempoLost");
+    let (len, ev, width) = r.run_width(false);
+    assert_eq!(r.tempo(0), 5);
+    assert_eq!(count(&ev, "TempoLost"), 0);
+    assert_eq!(count(&r.events, "TempoLost"), lost);
+    assert_eq!(width, base + 25);
+    assert_eq!(len, faster(plain_a, 20));
+    let (_, ev, width) = r.run_width(false);
+    assert_eq!((r.tempo(0), width), (5, base + 25));
+    assert_eq!(count(&ev, "TempoLost"), 0);
+
+    let mut below = rig(1, vec![carry_kind()], 1);
+    below.run_step(false);
+    below.set_tempo(0, 4);
+    below.run_step(true);
+    let (len, _, width) = below.run_width(false);
+    assert_eq!(width, base);
+    assert_eq!(len, plain_a);
+}
+
+/// CB3: what ends the carried stacks.
+#[test]
+fn what_ends_the_carried_stacks() {
+    // (a) the combo that follows ends on an A.
+    let mut a = rig(1, vec![carry_kind()], 1);
+    a.full_smash();
+    a.run_step(false);
+    assert_eq!(a.tempo(0), 5);
+    a.idle(200);
+    assert_eq!(a.tempo(0), 0);
+    assert_eq!(count(&a.events, "TempoLost"), 1);
+
+    // (b) it ends on a smash: a full-stack smash again, and a further A inside the window.
+    let mut b = rig(1, vec![carry_kind()], 1);
+    b.full_smash();
+    b.run_step(false);
+    b.run_step(true);
+    b.run_step(false);
+    assert_eq!(b.tempo(0), 5);
+    assert_eq!(count(&b.events, "TempoLost"), 0);
+
+    // (c) a hit taken, with the stacks carried by an evade.
+    let mut c = rig(1, vec![carry_kind()], 1);
+    c.full_smash();
+    c.evade();
+    c.idle(120);
+    assert_eq!(c.tempo(0), 5);
+    let ev = c.hurt(0, 1);
+    assert_eq!((c.tempo(0), count(&ev, "TempoLost")), (0, 1));
+
+    // (d) a smash below full ends them even with the carry.
+    let mut d = rig(1, vec![carry_kind()], 1);
+    d.run_step(false);
+    d.set_tempo(0, 4);
+    d.run_step(true);
+    assert_eq!(d.tempo(0), 0);
+
+    // (e) a down.
+    let mut e = rig(1, vec![carry_kind()], 1);
+    e.full_smash();
+    e.evade();
+    assert_eq!(e.tempo(0), 5);
+    let Run::V2 { world, state } = e.e.run_mut() else {
+        panic!("the live rules");
+    };
+    super::player::stand_down(world, state, ME, &mut Vec::new());
+    assert_eq!(state.players[ME].combat.combo_tempo, 0);
+}
+
+/// CB4: an evade at once after a full-stack smash keeps the stacks, with no timer at the root;
+/// after an A it ends them as before.
+#[test]
+fn an_evade_after_the_smash_keeps_the_stacks() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    let ev = r.evade();
+    assert_eq!((r.tempo(0), count(&ev, "TempoLost")), (5, 0));
+    r.idle(200);
+    assert_eq!(r.tempo(0), 5);
+    assert_eq!(count(&r.events, "TempoLost"), 0);
+
+    let mut a = rig(1, vec![carry_kind()], 1);
+    a.run_step(false);
+    let ev = a.evade();
+    assert_eq!((a.tempo(0), count(&ev, "TempoLost")), (0, 1));
+}
+
+/// CB5: the auto combo's restart keeps full stacks a full-stack smash left; without the carry
+/// the restart ends them.
+#[test]
+fn the_auto_restart_keeps_the_stacks() {
+    let auto = Input {
+        auto: true,
+        ..Input::default()
+    };
+    let run = |kind: Value| {
+        let mut r = rig(1, vec![kind], 1);
+        for _ in 0..5 {
+            r.run_step(false);
+        }
+        r.set_tempo(0, 5);
+        r.run_step(true);
+        r.idle(200);
+        assert_eq!(r.tempo(0), 0, "the window ended the hand combo's stacks");
+        r.events.clear();
+        for _ in 0..600 {
+            r.step([auto, Input::default(), Input::default()]);
+        }
+        assert!(st(&mut r.e).players[ME].target.is_some());
+        (
+            r.tempo(0),
+            count(&r.events, "ComboReset"),
+            count(&r.events, "TempoLost"),
+        )
+    };
+    let (stacks, resets, lost) = run(carry_kind());
+    assert!(resets >= 2, "the auto combo restarted: {resets}");
+    assert_eq!((stacks, lost), (5, 0));
+    let (_, resets, lost) = run(flags_kind(true, false));
+    assert!(resets >= 2 && lost >= 1, "{resets} {lost}");
+}
+
+/// CB6: without `keep_on_smash` the carry is inert: the smash ends the stacks at the press.
+#[test]
+fn the_carry_is_inert_without_keep_on_smash() {
+    let mut r = rig(1, vec![flags_kind(false, true)], 1);
+    let ev = r.full_smash();
+    assert_eq!(r.tempo(0), 0);
+    assert_eq!(count(&ev, "TempoLost"), 1);
+}
+
+/// CB7: the hold's armour applies from the start of the next combo's hold when the stacks were
+/// carried, and not once they were ended.
+#[test]
+fn the_hold_after_a_carry_is_armoured_and_wide() {
+    let kind = {
+        let mut k = carry_kind();
+        k["effects"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({ "type": "super_armour_at_full" }));
+        k
+    };
+    let hold = Input {
+        main: true,
+        ..Input::default()
+    };
+    let held = |carry: bool| {
+        let mut r = rig(1, vec![kind.clone()], 0);
+        r.full_smash();
+        if !carry {
+            r.hurt(0, 1);
+            assert_eq!(r.tempo(0), 0);
+        }
+        r.run_step(false);
+        r.run_step(false);
+        let mut widths = Vec::new();
+        for _ in 0..30 {
+            r.step([hold, Input::default(), Input::default()]);
+            widths.extend(r.width());
+        }
+        assert!(st(&mut r.e).players[ME].combo.hold.is_some(), "a hold runs");
+        let ev = r.hurt(0, 1);
+        (widths, r.tempo(0), count(&ev, "TempoLost"))
+    };
+    let (plain, stacks, lost) = held(false);
+    assert_eq!((stacks, lost), (0, 0), "the stacks ended before the hold");
+    let (wide, stacks, lost) = held(true);
+    assert_eq!(
+        (stacks, lost),
+        (5, 0),
+        "the armour shelters the carried stacks"
+    );
+    assert!(!plain.is_empty());
+    assert!(
+        wide.iter().all(|w| *w == plain[0] + 25),
+        "{wide:?} {plain:?}"
+    );
+}
+
+/// CB8: nothing else moves: with the stacks never full, naming the carry changes no state.
+#[test]
+fn the_carry_moves_nothing_below_full() {
+    let run = |kind: Value| {
+        let mut r = rig(1, vec![kind], 0);
+        let mut hashes = Vec::new();
+        for t in 0..600u32 {
+            r.set_tempo(0, 4);
+            let input = Input {
+                main: t % 97 == 0,
+                smash: t % 131 == 7,
+                evade: t % 211 == 5,
+                ..Input::default()
+            };
+            r.step([input, Input::default(), Input::default()]);
+            hashes.push(r.e.state_hash());
+        }
+        hashes
+    };
+    assert_eq!(run(carry_kind()), run(flags_kind(true, false)));
+}
+
+/// CB9: in a party each player keeps its own stacks, and two runs agree on every hash.
+#[test]
+fn each_player_carries_alone() {
+    let run = || {
+        let mut r = rig(2, vec![carry_kind()], 1);
+        let both = Input {
+            main: true,
+            ..Input::default()
+        };
+        r.step([both, both, Input::default()]);
+        r.set_tempo(1, 3);
+        r.set_tempo(0, 5);
+        let mut hashes = Vec::new();
+        let (_, ev) = r.run_step(true);
+        hashes.push(r.e.state_hash());
+        r.run_step(false);
+        for t in 0..60 {
+            r.step([Input::default(); 3]);
+            if t % 10 == 0 {
+                hashes.push(r.e.state_hash());
+            }
+        }
+        (r.tempo(0), r.tempo(1), ev, hashes)
+    };
+    let (p0, p1, ev, hashes) = run();
+    assert_eq!((p0, p1), (5, 0), "player 0 carried, player 1 lost its own");
+    assert!(named(&ev, "TempoLost").contains(&json!({ "player": "second" })));
+    assert!(!named(&ev, "TempoLost").contains(&json!({ "player": "first" })));
+    assert_eq!(run().3, hashes);
+}
+
+/// CB10: the carry reads nothing a save does not hold: the combo and combat state saved between
+/// the smash and the reset, and written back, carry the same way.
+#[test]
+fn a_save_between_the_smash_and_the_reset_carries() {
+    use super::state::{ComboState, PlayerCombat};
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    let mut a = rig(1, vec![carry_kind()], 1);
+    let mut b = rig(1, vec![carry_kind()], 1);
+    a.full_smash();
+    b.full_smash();
+    {
+        let c = &st(&mut b.e).players[ME].combo;
+        assert!(c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1, "a smash");
+        assert_eq!(st(&mut b.e).players[ME].combat.combo_tempo, 5);
+    }
+    {
+        let p = &mut st(&mut b.e).players[ME];
+        p.combo = from_bytes::<ComboState>(&to_bytes(&p.combo)).expect("combo");
+        p.combat = from_bytes::<PlayerCombat>(&to_bytes(&p.combat)).expect("combat");
+    }
+    assert_eq!(a.e.state_hash(), b.e.state_hash());
+    let (_, _, wa) = a.run_width(false);
+    let (_, _, wb) = b.run_width(false);
+    assert_eq!((a.tempo(0), b.tempo(0), wa), (5, 5, wb));
+    assert_eq!(count(&b.events, "TempoLost"), 0);
+    for _ in 0..30 {
+        a.step([Input::default(); 3]);
+        b.step([Input::default(); 3]);
+        assert_eq!(a.e.state_hash(), b.e.state_hash());
+    }
+
+    let mut a = rig(1, vec![carry_kind()], 1);
+    a.full_smash();
+    a.idle(200);
+    assert_eq!((a.tempo(0), count(&a.events, "TempoLost")), (0, 1));
+}
