@@ -1,7 +1,7 @@
 //! The instruction count of an equipment rollback (ADR-SIM-6, ADR-SIM-7): the saved engine of a
 //! three-player equipment run is cloned and 8 ticks are played on the clone, each player
 //! equipping a star and extracting another (`bench_fixtures::equip_case`). Run it with
-//! `cargo bench --bench rollback_equip`; its setup plays about 10,400 ticks, so it takes a
+//! `cargo bench --bench rollback_equip`; its setup plays `EQUIP_PEAK_TICK` (9,834) ticks, so it takes a
 //! minute under valgrind. It is budgeted like the other targets: the `[rollback_equip]` key of
 //! `benches/budgets.toml` (ADR-SIM-6), which `tests/bench_teardown.rs` requires of every bench.
 

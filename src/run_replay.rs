@@ -68,12 +68,11 @@ use crate::version::{
 
 /// The most commands a run replay holds (a tuning value; ADR-REPL-5 decides that a cap exists).
 /// Version 1 gives at most 99 points in a run; the rest is room for the offers' choices, a few
-/// per falling star taken. Measured (`tests/command_cap.rs`): the longest run, a `time_limit` run
-/// on normal, hard or rainy played to its end (at most 90,000 ticks, through the whole overtime)
-/// by a bot that cannot die, takes every offer or rerolls and banishes at each, answers a stat
-/// offer at every level-up, with 20 extra rerolls, takes 425 commands at most (seeds 1 to 5).
-/// That is under 500, so the cap stays at 1000, 2.35 times the measure; it is the guard against
-/// a crafted file, which `tests/command_cap.rs` pins at twice the measure or more.
+/// per falling star taken. Measured (`tests/command_cap.rs`): the frozen version 1 run replays
+/// (`tests/corpus/v1/runs`, a folder that never changes) hold at most 317 commands (the
+/// `time_limit` run, `MEASURED_MOST`). The cap stays at 1000, 3.15 times the measure and at
+/// least twice it; it is the guard against a crafted file, which `tests/command_cap.rs` pins at
+/// twice the measure or more.
 pub const MAX_COMMANDS: u32 = 1000;
 
 /// A step log holds at most this many ACTIONS records (equipment actions, ADR-REPL-5 point 8),
