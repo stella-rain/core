@@ -449,6 +449,46 @@ fn pack_with_constellations() -> Vec<u8> {
     serde_json::to_vec(&pack).expect("a pack serialises")
 }
 
+/// `(name, ticks, step log)` of every run case of the corpus, sorted by name: all of them, the
+/// step log reads without the pack.
+fn run_case_logs() -> Vec<(String, u32, Vec<u8>)> {
+    let dir = root().join("tests/corpus/current/runs");
+    let mut cases: Vec<_> = fs::read_dir(&dir)
+        .expect("the run corpus directory")
+        .map(|e| e.expect("a run case").path())
+        .collect();
+    cases.sort();
+    assert!(cases.len() >= 9, "the corpus has fewer than 9 run cases");
+    cases
+        .into_iter()
+        .map(|case| {
+            let name = case.file_name().unwrap().to_string_lossy().into_owned();
+            let run =
+                RunReplay::from_bytes(&fs::read(case.join("run.replay")).expect("run.replay"))
+                    .expect("a corpus run replay");
+            assert_eq!(run.setup.schema_version, 2, "{name}");
+            let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+            (name, run.ticks, log)
+        })
+        .collect()
+}
+
+/// `(name, ticks, step log)` of the two party cases of the corpus.
+fn party_logs() -> Vec<(String, u32, Vec<u8>)> {
+    let parties = root().join("tests/corpus/current/parties");
+    ["join_two", "leave_hole"]
+        .into_iter()
+        .map(|case| {
+            let run = RunReplay::from_bytes(
+                &fs::read(parties.join(case).join("run.replay")).expect("run"),
+            )
+            .expect("a corpus party replay");
+            let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
+            (case.to_owned(), run.ticks, log)
+        })
+        .collect()
+}
+
 /// The five ranges of one run case: `0..0`, `0..ticks`, the middle third, the last tick and
 /// `ticks..ticks`, each claiming `ticks` ticks of `log`.
 fn run_case_range_seeds(name: &str, ticks: u32, log: &[u8]) -> Vec<(String, Vec<u8>)> {
@@ -475,30 +515,12 @@ fn run_case_range_seeds(name: &str, ticks: u32, log: &[u8]) -> Vec<(String, Vec<
 /// third, the last tick and `ticks..ticks`, then three forged logs: a run of `u32::MAX`
 /// ticks, a PICKS record (reserved: refused) and an unknown record. Generated, never committed.
 fn step_log_range_seeds() -> Vec<(String, Vec<u8>)> {
-    let dir = root().join("tests/corpus/current/runs");
-    let mut cases: Vec<_> = fs::read_dir(&dir)
-        .expect("the run corpus directory")
-        .map(|e| e.expect("a run case").path())
-        .collect();
-    cases.sort();
-    assert!(cases.len() >= 9, "the corpus has fewer than 9 run cases");
     let mut seeds = Vec::new();
-    for case in cases {
-        let name = case.file_name().unwrap().to_string_lossy().into_owned();
-        let run = RunReplay::from_bytes(&fs::read(case.join("run.replay")).expect("run.replay"))
-            .expect("a corpus run replay");
-        assert_eq!(run.setup.schema_version, 2, "{name}");
-        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-        seeds.extend(run_case_range_seeds(&name, run.ticks, &log));
+    for (name, ticks, log) in run_case_logs() {
+        seeds.extend(run_case_range_seeds(&name, ticks, &log));
     }
     // The party cases hold joins and leaves: the whole log and the middle third of each.
-    let parties = root().join("tests/corpus/current/parties");
-    for case in ["join_two", "leave_hole"] {
-        let run =
-            RunReplay::from_bytes(&fs::read(parties.join(case).join("run.replay")).expect("run"))
-                .expect("a corpus party replay");
-        let log = stella_rain_core::base64::decode(&run.inputs).expect("the step log");
-        let t = run.ticks;
+    for (case, t, log) in party_logs() {
         for (label, a, b) in [("whole", 0, t), ("middle", t / 3, 2 * t / 3)] {
             seeds.push((
                 format!("{case}-{label}"),
