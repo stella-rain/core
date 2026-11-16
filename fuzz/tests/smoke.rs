@@ -691,7 +691,8 @@ fn step_log_seeds(cap: u32) -> Vec<(String, Vec<u8>)> {
     seeds
 }
 
-/// The files each target is given: stages for the stage targets, and for `stage_parse` also the
+/// The files each target is given (the sweep's: each run case is cut at `SWEEP_TICK_CAP` ticks):
+/// stages for the stage targets, and for `stage_parse` also the
 /// bundled rewards (with their stage skills), run stats and expertise, which it reads too; stage
 /// and run replays for the replay target, share codes (of the corpus pairs) for the share target
 /// and run setups for the setup target.
@@ -1127,20 +1128,6 @@ fn write_net_seeds() {
     }
 }
 
-/// The most ticks the `step_log_range` seeds may claim in all, counting the seeds the target's
-/// oracle runs on (those at or under `EXPAND_LIMIT`, 65,536 ticks). Each seed is swept by
-/// `every_prefix_and_flipped_byte_of_the_seeds_is_survived`, so this bounds the cost of that
-/// sweep for the target. Raising it is a decision to take the CI minutes: it grew from 500,000 by
-/// the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`, `hammer_breaker`),
-/// then to 700,000.
-const STEP_LOG_RANGE_TICK_BUDGET: u64 = 700_000;
-
-/// The most ticks the run replays seeded to `replay_load` may hold in all (what it re-simulates
-/// per call, before the sweep multiplies it). Raising it is a decision to take the CI minutes: it
-/// grew from 56,000 by the three 14,400-tick Hammer run cases (`hammer_titan`, `hammer_momentum`,
-/// `hammer_breaker`), to 100,000.
-const RUN_SEED_TICK_BUDGET: u64 = 100_000;
-
 /// The bound of the target's oracle on the ticks a log claims (`EXPAND_LIMIT`).
 const ORACLE_TICK_LIMIT: u32 = 65_536;
 
@@ -1175,37 +1162,17 @@ fn the_fuzz_crate_tests_are_built_optimised() {
     );
 }
 
+/// The seed files hold whole logs: only a forged one claims more ticks than the oracle of the
+/// target expands.
 #[test]
-fn the_step_log_range_seeds_expand_a_bounded_number_of_ticks() {
-    let mut sum = 0u64;
+fn only_a_forged_step_log_seed_claims_more_than_the_oracle_expands() {
     for (name, bytes) in step_log_range_seeds() {
-        let ticks = u32::from_le_bytes(bytes[..4].try_into().expect("the ticks word"));
-        if ticks <= ORACLE_TICK_LIMIT {
-            sum += u64::from(ticks);
-        } else {
-            assert!(
-                name.starts_with("forged-"),
-                "{name} claims {ticks} ticks, over the oracle's {ORACLE_TICK_LIMIT}"
-            );
-        }
+        let ticks = claimed_ticks(&bytes);
+        assert!(
+            ticks <= ORACLE_TICK_LIMIT || name.starts_with("forged-"),
+            "{name} claims {ticks} ticks, over the oracle's {ORACLE_TICK_LIMIT}"
+        );
     }
-    assert!(
-        sum <= STEP_LOG_RANGE_TICK_BUDGET,
-        "the step_log_range seeds claim {sum} ticks, over the budget {STEP_LOG_RANGE_TICK_BUDGET}"
-    );
-}
-
-#[test]
-fn the_run_seeds_simulate_a_bounded_number_of_ticks() {
-    let sum: u64 = run_replays()
-        .iter()
-        .chain(run_prefixes(&run_replays()).iter())
-        .map(|bytes| u64::from(RunReplay::from_bytes(bytes).expect("a run seed").ticks))
-        .sum();
-    assert!(
-        sum <= RUN_SEED_TICK_BUDGET,
-        "the run seeds hold {sum} ticks, over the budget {RUN_SEED_TICK_BUDGET}"
-    );
 }
 
 #[test]
