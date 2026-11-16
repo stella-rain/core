@@ -1,5 +1,6 @@
 //! The three Hammer run cases, `hammer_titan`, `hammer_momentum` and `hammer_breaker` (ADR-SIM-7,
-//! ADR-SIM-9): the solo run corpus plays `giant_hammer` with each of three styles locked in the setup, and these
+//! ADR-SIM-9): the solo run corpus plays `giant_hammer` with each of three styles locked in the
+//! setup, and these
 //! promises read the picks, the capstone and their effects from the replay and its re-simulated
 //! events, never from the seed. The promise is `hammer_miss`: the first predicate a run misses,
 //! as a message; `promise` in `corpus_seeds.rs` and the tests below use it.
@@ -84,7 +85,7 @@ pub(crate) fn hammer_reach_at(case: &Path) -> HammerReach {
         if let Some(t) = s.players[0].tempo {
             r.max_stacks.get_or_insert(t.max_stacks);
         }
-        let (mut stunned, mut knocked, mut radius) = (0, 0, None);
+        let (mut stunned, mut knocked, first_burst) = (0, 0, r.bursts.len());
         let weapon_hit: BTreeSet<_> = engine
             .events()
             .iter()
@@ -123,7 +124,6 @@ pub(crate) fn hammer_reach_at(case: &Path) -> HammerReach {
                         stunned_free: 0,
                         knocked_free: 0,
                     });
-                    radius = Some(r.bursts.len() - 1);
                 }
                 DomainEvent::TriggerStarted { ticks, .. } => open = Some((tick, *ticks)),
                 DomainEvent::TriggerEnded { .. } => {
@@ -137,12 +137,14 @@ pub(crate) fn hammer_reach_at(case: &Path) -> HammerReach {
                 _ => {}
             }
         }
-        match radius {
-            Some(i) => {
-                r.bursts[i].stunned_free = stunned;
-                r.bursts[i].knocked_free = knocked;
+        // Every burst of the tick shares the tick's statuses.
+        if r.bursts.len() > first_burst {
+            for b in &mut r.bursts[first_burst..] {
+                b.stunned_free = stunned;
+                b.knocked_free = knocked;
             }
-            None => r.stray_statuses += stunned + knocked,
+        } else {
+            r.stray_statuses += stunned + knocked;
         }
     }
     r

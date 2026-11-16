@@ -74,8 +74,8 @@ pub const HAMMER_MOMENTUM_SEED: u64 = 1;
 /// The building bot's seed of the `hammer_momentum` run case.
 pub const HAMMER_MOMENTUM_BOT_SEED: u64 = 1;
 
-/// The world seed of the `hammer_breaker` run case, found by `search_corpus_run_seeds`: the first
-/// world seed in 1..=20 (with `HAMMER_BREAKER_BOT_SEED`) whose run keeps the promise of the case.
+/// The world seed of the `hammer_breaker` run case: with `HAMMER_BREAKER_BOT_SEED` the first pair
+/// (world 1..=20, bot 1..=20) that `search_corpus_run_seeds` finds to keep the promise of the case.
 pub const HAMMER_BREAKER_SEED: u64 = 1;
 /// The building bot's seed of the `hammer_breaker` run case.
 pub const HAMMER_BREAKER_BOT_SEED: u64 = 6;
