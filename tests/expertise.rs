@@ -776,13 +776,6 @@ fn the_stacking_upgrade_levels_are_kinds() {
     ];
     let want = want.into_iter().chain([
         (
-            "titan_trigger_up_2",
-            json!({
-                "type": "giant_trigger", "ticks": 720,
-                "effects": [{ "type": "hold_move_pct", "pct": 80 }]
-            }),
-        ),
-        (
             "titan_trigger_cap",
             json!({
                 "type": "giant_trigger", "ticks": 720,
@@ -822,6 +815,49 @@ fn the_stacking_upgrade_levels_are_kinds() {
         assert_eq!(listed[0], kind, "{id}");
     }
     // No placeholder stat level is left: every upgrade and capstone level names a kind.
+
+    // The second Titan Trigger upgrade names two: the trigger, and an AAA hold (Momentum's
+    // numbers, copied, as a placeholder).
+    let level = &levels["titan_trigger_up_2"];
+    assert_eq!(level["effect"], "none");
+    assert!(level.get("amount").is_none(), "{level}");
+    let strike = |ticks: u32, extra: Value| {
+        let mut p = json!({
+            "kind": "active", "ticks": ticks, "type": "strike",
+            "hit_box": { "type": "circle", "radius": 12_288,
+                         "offset": { "forward": 0, "right": 0 } }
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            p[k] = v.clone();
+        }
+        p
+    };
+    assert_eq!(
+        level["kinds"],
+        json!([
+            {
+                "type": "giant_trigger", "ticks": 720,
+                "effects": [{ "type": "hold_move_pct", "pct": 80 }]
+            },
+            {
+                "type": "replace_step", "step": ["main", "main", "main"],
+                "grant": { "hold": {
+                    "loop": { "inline": [strike(8, json!({ "rehit_ticks": 8 }))] },
+                    "max_ticks": 180,
+                    "move_pct": 50,
+                    "release": { "inline": [
+                        { "kind": "wind_up", "ticks": 10 },
+                        {
+                            "kind": "active", "ticks": 5, "type": "strike", "damage": 10_000,
+                            "hit_box": { "type": "circle", "radius": 16_384,
+                                         "offset": { "forward": 4096, "right": 0 } }
+                        },
+                        { "kind": "recovery", "ticks": 24 }
+                    ] }
+                } }
+            }
+        ])
+    );
 }
 
 /// The bundled Foresight capstone, as the file holds it.

@@ -607,8 +607,9 @@ fn the_hold_move_effect_is_clamped_and_per_player() {
 }
 
 /// C3: the bundled Titan Trigger at each place of its path: the length and effects stack, the
-/// hold movement comes with the second upgrade, and the style's weapon has no hold at any place
-/// (so the effect changes nothing a bundled player sees until a hold is granted).
+/// hold movement comes with the second upgrade, and so does the AAA hold it moves: the style's
+/// weapon has a hold at places 2 and 3 and none at 0 and 1 (so the effect is seen from the second
+/// upgrade on).
 #[test]
 fn the_bundled_titan_trigger_names_the_hold_move_at_its_second_upgrade() {
     let setup = RunSetup {
@@ -631,10 +632,17 @@ fn the_bundled_titan_trigger_names_the_hold_move_at_its_second_upgrade() {
             read(&mut e, 0, n, |w, s, me| {
                 let g = w.trigger_of(s, me)?;
                 let weapon = serde_json::to_string(w.weapon_of(s, me)?).expect("a weapon");
-                assert!(
-                    !weapon.contains("\"hold\""),
-                    "place {n}: no hold in the tree"
+                assert_eq!(
+                    weapon.contains("\"hold\""),
+                    n >= 2,
+                    "place {n}: the hold comes with the second upgrade"
                 );
+                if n >= 2 {
+                    assert!(
+                        weapon.contains("\"max_ticks\":180") && weapon.contains("\"move_pct\":50"),
+                        "place {n}: the hold's numbers"
+                    );
+                }
                 Some((
                     g.ticks,
                     g.range_pct,

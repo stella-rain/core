@@ -1169,3 +1169,271 @@ fn a_retuned_slam_retunes_the_ring() {
     assert!(rang && none == 0);
     assert_eq!(run().2, hash, "the same run twice");
 }
+
+// The bundled Titan Trigger's second upgrade grants an AAA hold: Momentum's numbers, copied, so
+// the trigger's `hold_move_pct` 80 has a hold to move.
+
+/// One bundled Hammer run of `players` on Titan Trigger (style 0), player `i` at `places[i]`.
+fn titan_rig(places: &[usize]) -> Rig {
+    let pack = Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack");
+    let mut r = rig_from(u8::try_from(places.len()).unwrap(), pack, 0);
+    for (i, &n) in places.iter().enumerate() {
+        super::stacking_tests::take(&mut r.e, u8::try_from(i).unwrap(), n);
+    }
+    r
+}
+
+/// The AAA press script of `tests/hold.rs`: A on tick 1, then Main held from tick 3 on except tick 12
+/// (so A is pressed again on 3 and 13, buffered, and stays held into the AAA's recovery), the stick
+/// right. `t` counts from 1.
+fn aaa_input(t: u32) -> Input {
+    Input {
+        main: t == 1 || (t >= 3 && t != 12),
+        move_x: 127,
+        ..Input::default()
+    }
+}
+
+/// Runs the AAA script for the players in `walking` until all are held, `limit` ticks at most;
+/// the tick it stopped on, or none.
+fn drive(r: &mut Rig, walking: &[u8], limit: u32) -> Option<u32> {
+    for t in 1..=limit {
+        let mut inputs = [Input::default(); 3];
+        for &i in walking {
+            inputs[usize::from(i)] = aaa_input(t);
+        }
+        r.step(inputs);
+        if walking.iter().all(|&i| held(r, i)) {
+            return Some(t);
+        }
+    }
+    None
+}
+
+/// One more held tick of the same inputs: each walking player's step.
+fn held_tick(r: &mut Rig, walking: &[u8]) -> Vec<i32> {
+    let before: Vec<i32> = walking.iter().map(|&i| x_of(r, i)).collect();
+    let mut inputs = [Input::default(); 3];
+    for &i in walking {
+        inputs[usize::from(i)] = aaa_input(100);
+    }
+    r.step(inputs);
+    assert!(walking.iter().all(|&i| held(r, i)), "still held");
+    walking
+        .iter()
+        .zip(before)
+        .map(|(&i, b)| x_of(r, i) - b)
+        .collect()
+}
+
+/// The AAA step of player `i`'s weapon, as a value.
+fn aaa_of(r: &mut Rig, i: u8) -> crate::weapon::Step {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    let w = world.weapon_of(state, slot(i)).expect("a weapon");
+    let a = w.combo.main.as_ref().expect("A");
+    let aa = a.next.main.as_ref().expect("AA");
+    (**aa.next.main.as_ref().expect("AAA")).clone()
+}
+
+/// The free step of a walk on a fresh rig at `places`.
+fn free_at(places: &[usize]) -> i32 {
+    free_step(&mut titan_rig(places))
+}
+
+/// B1: the hold is in the tree at places 2 and 3 only, Momentum's, and replaces no attack.
+#[test]
+fn the_second_titan_upgrade_puts_a_hold_on_the_aaa() {
+    let base = aaa_of(&mut titan_rig(&[0]), 0);
+    assert!(base.hold.is_none() && base.charge.is_none());
+    for places in 0..4 {
+        let mut r = titan_rig(&[places]);
+        let step = aaa_of(&mut r, 0);
+        assert_eq!(
+            step.attack, base.attack,
+            "place {places}: the tap is the same"
+        );
+        assert_eq!(
+            step.next, base.next,
+            "place {places}: the next steps are the same"
+        );
+        assert!(step.charge.is_none(), "place {places}");
+        if places < 2 {
+            assert!(step.hold.is_none(), "place {places}: no hold yet");
+            continue;
+        }
+        let hold = step.hold.expect("a hold at places 2 and 3");
+        assert_eq!((hold.max_ticks, hold.move_pct), (180, 50), "place {places}");
+        let got = serde_json::to_value(&hold).unwrap();
+        let strike = json!([{
+            "kind": "active", "ticks": 8, "type": "strike", "rehit_ticks": 8,
+            "hit_box": { "type": "circle", "radius": 12_288,
+                         "offset": { "forward": 0, "right": 0 } }
+        }]);
+        assert_eq!(got["loop"], json!({ "inline": strike }), "place {places}");
+        assert_eq!(
+            got["release"],
+            json!({ "inline": [
+                { "kind": "wind_up", "ticks": 10 },
+                { "kind": "active", "ticks": 5, "type": "strike", "damage": 10_000,
+                  "hit_box": { "type": "circle", "radius": 16_384,
+                               "offset": { "forward": 4096, "right": 0 } } },
+                { "kind": "recovery", "ticks": 24 }
+            ] }),
+            "place {places}"
+        );
+    }
+}
+
+/// B2: a held hold moves at 50%, at 80% while the trigger runs; places 0 and 1 never hold.
+#[test]
+fn the_titan_hold_moves_at_eighty_under_the_trigger() {
+    // The control: Momentum's hold (style 1, place 0) is reached by the same script.
+    let mut control = titan_rig(&[0]);
+    if let Some(g) = st(&mut control.e).players.career_mut(ME).expertise.as_mut() {
+        g.style = Some(1);
+    }
+    assert!(drive(&mut control, &[0], 200).is_some(), "the script holds");
+    for places in [2, 3] {
+        let free = free_at(&[places]);
+        assert!(free > 0);
+        let mut r = titan_rig(&[places]);
+        assert!(drive(&mut r, &[0], 200).is_some(), "place {places}");
+        assert_eq!(
+            held_tick(&mut r, &[0])[0],
+            free * 50 / 100,
+            "place {places}"
+        );
+        let mut r = titan_rig(&[places]);
+        r.set_trigger(0, 600);
+        assert!(drive(&mut r, &[0], 200).is_some(), "place {places}");
+        assert_eq!(
+            held_tick(&mut r, &[0])[0],
+            free * 80 / 100,
+            "place {places}"
+        );
+    }
+    for places in [0, 1] {
+        for ticks in [0, 600] {
+            let mut r = titan_rig(&[places]);
+            r.set_trigger(0, ticks);
+            assert_eq!(drive(&mut r, &[0], 200), None, "place {places}: no hold");
+        }
+    }
+}
+
+/// B3: the trigger's end plays the ring (place 3) and leaves the hold held, at 50% after.
+#[test]
+fn the_end_of_the_trigger_leaves_the_titan_hold_held() {
+    for (places, ring) in [(3, 1), (2, 0)] {
+        let free = free_at(&[places]);
+        let mut r = titan_rig(&[places]);
+        r.set_trigger(0, 600);
+        assert!(drive(&mut r, &[0], 200).is_some(), "place {places}");
+        let before = r.trigger(0);
+        assert!(before > 1);
+        r.set_trigger(0, 1);
+        let held_before = st(&mut r.e).players[ME].combo.hold.expect("held");
+        let ev = r.step([aaa_input(100), Input::default(), Input::default()]);
+        assert_eq!(count(&ev, "TriggerEnded"), 1, "place {places}");
+        assert_eq!(ring_runs(&mut r, 0), ring, "place {places}: the ring");
+        assert!(held(&mut r, 0), "place {places}: still held");
+        assert_eq!(
+            st(&mut r.e).players[ME].combo.hold,
+            Some(held_before + 1),
+            "place {places}"
+        );
+        assert_eq!(
+            held_tick(&mut r, &[0])[0],
+            free * 50 / 100,
+            "place {places}"
+        );
+    }
+}
+
+/// B4: a slam after a hold: the B press waits while Main is held, then takes the smash.
+#[test]
+fn the_slam_after_a_titan_hold_starts_the_trigger() {
+    let free = free_at(&[2]);
+    let mut r = titan_rig(&[2]);
+    assert!(drive(&mut r, &[0], 200).is_some());
+    r.fill_gauge(0);
+    r.step([
+        Input {
+            main: true,
+            smash: true,
+            move_x: 127,
+            ..Input::default()
+        },
+        Input::default(),
+        Input::default(),
+    ]);
+    assert_eq!(r.trigger(0), 0, "buffered, not played");
+    let mut events = Vec::new();
+    for _ in 0..200 {
+        events.extend(r.step([Input::default(); 3]));
+        if count(&events, "GaugeSpent") > 0 && !r.busy() {
+            break;
+        }
+    }
+    assert_eq!(count(&events, "GaugeSpent"), 1);
+    assert_eq!(st(&mut r.e).players[ME].combat.weapon_gauge, 0);
+    assert!(r.trigger(0) > 0 && r.trigger(0) <= 720);
+    // The next AAA under the trigger holds and moves at 80%.
+    assert!(drive(&mut r, &[0], 200).is_some());
+    assert_eq!(held_tick(&mut r, &[0])[0], free * 80 / 100);
+}
+
+/// B5: only this cell moved; each player reads its own place; the run is deterministic.
+#[test]
+fn only_the_second_titan_upgrade_moved() {
+    for style in [1u8, 2] {
+        for places in 0..4 {
+            let mut r = titan_rig(&[places]);
+            if let Some(g) = st(&mut r.e).players.career_mut(ME).expertise.as_mut() {
+                g.style = Some(style);
+            }
+            let step = aaa_of(&mut r, 0);
+            if style == 1 {
+                assert_eq!(step.hold.map(|h| h.move_pct), Some(50), "momentum {places}");
+            } else {
+                assert!(step.hold.is_none(), "breaker {places}");
+            }
+            let smash = r_weapon(&mut r);
+            assert_eq!(
+                smash.contains("\"charge\""),
+                style == 2,
+                "style {style} place {places}: charge"
+            );
+        }
+    }
+    let free = free_at(&[2]);
+    let mut r = titan_rig(&[2, 0]);
+    r.set_trigger(0, 600);
+    assert!(drive(&mut r, &[0], 200).is_some());
+    assert_eq!(held_tick(&mut r, &[0])[0], free * 80 / 100);
+    let mut r = titan_rig(&[2, 0]);
+    r.set_trigger(0, 600);
+    for t in 1..=200 {
+        r.step([aaa_input(t), aaa_input(t), Input::default()]);
+        assert!(!held(&mut r, 1), "the place-0 player never holds");
+    }
+    let run = || {
+        let mut r = titan_rig(&[2]);
+        r.set_trigger(0, 600);
+        for t in 1..=600 {
+            r.step([aaa_input(t), Input::default(), Input::default()]);
+        }
+        r.e.state_hash()
+    };
+    assert_eq!(run(), run());
+}
+
+/// Player 0's weapon, serialised.
+fn r_weapon(r: &mut Rig) -> String {
+    let Run::V2 { world, state } = r.e.run_mut() else {
+        panic!("the live rules");
+    };
+    serde_json::to_string(world.weapon_of(state, ME).expect("a weapon")).unwrap()
+}
