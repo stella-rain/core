@@ -1522,10 +1522,10 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
         "hammer_titan" | "hammer_momentum" => {
             // The Hammer with one style unlocked: the bot's one-option `Style` offer takes it,
             // whatever the seeds.
-            let style = if name == "hammer_titan" {
-                "titan_trigger"
+            let (case, style) = if name == "hammer_titan" {
+                ("hammer_titan", "titan_trigger")
             } else {
-                "momentum"
+                ("hammer_momentum", "momentum")
             };
             let setup = equipment_setup(RunSetup {
                 weapon: "giant_hammer".into(),
@@ -1533,11 +1533,6 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
                 ..limited
             });
             let commands = play_equipment_run_from(&setup, HAMMER_TICKS, &bot);
-            let case = if name == "hammer_titan" {
-                "hammer_titan"
-            } else {
-                "hammer_momentum"
-            };
             (case, setup, None, commands)
         }
         "easy" | "rainy" => {

@@ -171,21 +171,13 @@ fn momentum_miss(r: &HammerReach, cap: u32) -> Option<String> {
             r.raised
         ));
     }
-    let carries = |t: u32, b: u32, a: u32| t > 0 && b == max && a == max;
-    if !r
-        .resets
-        .iter()
-        .any(|&(t, b, a)| t >= cap && carries(t, b, a))
-    {
+    let carries = |b: u32, a: u32| b == max && a == max;
+    if !r.resets.iter().any(|&(t, b, a)| t >= cap && carries(b, a)) {
         return Some(format!(
             "no combo reset keeps full stacks after the capstone (tick {cap})"
         ));
     }
-    if let Some(&(t, ..)) = r
-        .resets
-        .iter()
-        .find(|&&(t, b, a)| t < cap && carries(t, b, a))
-    {
+    if let Some(&(t, ..)) = r.resets.iter().find(|&&(t, b, a)| t < cap && carries(b, a)) {
         return Some(format!(
             "a combo reset keeps full stacks at tick {t}, before the capstone (tick {cap})"
         ));
