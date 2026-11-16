@@ -88,7 +88,13 @@ fn rig(players: u8, kinds: Vec<Value>, foes: u32) -> Rig {
         seed: 20_261_114,
         ..RunSetup::default()
     };
-    let mut e = Engine::start_party_with(&setup, pack.content(), players).expect("a run");
+    let e = Engine::start_party_with(&setup, pack.content(), players).expect("a run");
+    stand(e, players, 0, foes)
+}
+
+/// A run of `e` with the foes stacked in front of player 0, the rule for the perfect evade and
+/// every player on style `style`.
+fn stand(mut e: Engine, players: u8, style: u8, foes: u32) -> Rig {
     while !st(&mut e).enemies.iter().any(|x| x.hp > 0 && !x.hidden()) {
         e.step(&[Input::default(); 3]);
     }
@@ -120,7 +126,7 @@ fn rig(players: u8, kinds: Vec<Value>, foes: u32) -> Rig {
         p.max_hp = 1_000_000;
         p.invulnerable = 0;
         if let Some(g) = s.players.career_mut(slot(i)).expertise.as_mut() {
-            g.style = Some(0);
+            g.style = Some(style);
         }
     }
     Rig { e, foes: ids }
@@ -974,4 +980,301 @@ fn the_payout_is_the_takers_and_deterministic() {
         counter_kind(json!([{ "type": "damage_pct", "pct": 100 }])),
     ]);
     assert_ne!(with, without);
+}
+
+// The Foresight capstone's gauge and slam, on the bundled Sword: B1 to B7.
+
+/// One bundled Sword run of `players` on the Foresight style with `places` path places taken
+/// by player 0, `foes` enemies stacked in front of it.
+fn sword_rig(players: u8, places: usize, foes: u32) -> Rig {
+    let pack = Pack::from_bytes(Pack::BUNDLED).expect("the bundled pack");
+    let setup = RunSetup {
+        mode: "time_limit".into(),
+        weapon: "giant_sword".into(),
+        seed: 20_261_116,
+        ..RunSetup::default()
+    };
+    let e = Engine::start_party_with(&setup, pack.content(), players).expect("a run");
+    let mut r = stand(e, players, 1, foes);
+    super::stacking_tests::take(&mut r.e, 0, places);
+    r
+}
+
+impl Rig {
+    /// Player 0's press of the smash button.
+    fn press_b(&mut self) -> (u32, Vec<Value>) {
+        let press = Input {
+            smash: true,
+            ..Input::default()
+        };
+        self.step([press, Input::default(), Input::default()])
+    }
+
+    /// A counter with a fresh spend and window, the press `press` (A or B) and the step run to
+    /// its end: what it dealt per tick and its events.
+    fn counter(&mut self, b: bool) -> (Vec<u32>, Vec<Value>) {
+        self.idle(5);
+        self.evade_state(2, &[300]);
+        self.set_window(0, 30);
+        self.keep_dash_strike(0);
+        let first = if b { self.press_b() } else { self.press() };
+        let mut dealt = vec![first.0];
+        let mut events = first.1;
+        for _ in 0..70 {
+            let (lost, ev) = self.step([Input::default(); 3]);
+            dealt.push(lost);
+            events.extend(ev);
+        }
+        (dealt, events)
+    }
+
+    fn bar(&mut self) -> u32 {
+        self.evade_gauge(0).3
+    }
+
+    fn set_bar(&mut self, value: u32) {
+        st(&mut self.e).players[ME].combat.weapon_gauge = value;
+    }
+}
+
+fn first_hit(dealt: &[u32]) -> u32 {
+    dealt.iter().copied().find(|d| *d > 0).unwrap_or(0)
+}
+
+/// B1: four landed counters fill the bar 25, 50, 75, 100, each pays one `GaugeFilled` at its
+/// first hit; before the capstone the bar stays empty and the view shows none.
+#[test]
+fn the_foresight_counter_fills_a_quarter_of_the_bar() {
+    let mut r = sword_rig(1, 3, 1);
+    for (n, value) in [25, 50, 75, 100].into_iter().enumerate() {
+        let (dealt, events) = r.counter(false);
+        let fills = named(&events, "GaugeFilled");
+        let mut fill = json!({ "player": "first", "amount": 25, "value": value });
+        if value == 100 {
+            fill["full"] = json!(true);
+        }
+        assert_eq!(fills, vec![fill], "counter {n}");
+        assert_eq!(r.bar(), value);
+        assert_eq!(r.evade_gauge(0).4, 0, "the step fill stays 0");
+        assert_eq!(r.view(0)["gauge"], json!({ "value": value, "max": 100 }));
+        assert!(first_hit(&dealt) > 0);
+    }
+    for places in 0..3 {
+        let mut r = sword_rig(1, places, 1);
+        let (_, events) = r.counter(false);
+        assert_eq!(count(&events, "GaugeFilled"), 0, "{places} places");
+        assert_eq!(r.bar(), 0);
+        assert!(r.view(0).get("gauge").is_none(), "{places} places");
+    }
+}
+
+/// The tick of the first hit of a step: the events up to it hold the payout.
+fn fill_tick(r: &mut Rig, b: bool) -> usize {
+    r.idle(5);
+    r.evade_state(2, &[300]);
+    r.set_window(0, 30);
+    r.keep_dash_strike(0);
+    let mut ticks = vec![if b { r.press_b() } else { r.press() }];
+    for _ in 0..70 {
+        ticks.push(r.step([Input::default(); 3]));
+    }
+    let first = ticks.iter().position(|t| t.0 > 0).expect("a hit");
+    for (i, (_, ev)) in ticks.iter().enumerate() {
+        assert_eq!(
+            count(ev, "GaugeFilled"),
+            usize::from(i == first),
+            "tick {i}"
+        );
+    }
+    first
+}
+
+/// B1b: the first counter's `GaugeFilled` comes on the first tick the foe lost hit points.
+#[test]
+fn the_first_fill_comes_with_the_first_hit() {
+    let mut r = sword_rig(1, 3, 1);
+    fill_tick(&mut r, false);
+    assert_eq!(r.bar(), 25);
+}
+
+/// B2: a dash B counter at a full bar plays the slam as the counter: one take, the whole bar
+/// spent, the first hit twice the neutral slam's, one refill of 25 at that hit.
+#[test]
+fn a_dash_b_counter_at_a_full_bar_plays_the_slam_with_the_bonus() {
+    let mut r = sword_rig(1, 3, 1);
+    for _ in 0..4 {
+        r.counter(false);
+    }
+    assert_eq!(r.bar(), 100);
+    let (dealt, events) = r.counter(true);
+    assert_eq!(count(&events, "CounterBonusTaken"), 1);
+    assert_eq!(
+        named(&events, "GaugeSpent"),
+        vec![json!({ "player": "first", "amount": 100 })]
+    );
+    assert_eq!(
+        named(&events, "GaugeFilled"),
+        vec![json!({ "player": "first", "amount": 25, "value": 25 })],
+        "the payout, once"
+    );
+    assert_eq!(r.bar(), 25);
+    let (timers, ready, _, _, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), ready), (0, 2), "the spent charge came back");
+    // The same slam spent by a neutral B at 100, no window.
+    let mut n = sword_rig(1, 3, 1);
+    n.set_bar(100);
+    n.idle(5);
+    n.keep_dash_strike(0);
+    n.step([Input::default(); 3]);
+    let mut neutral = vec![n.press_b().0];
+    for _ in 0..70 {
+        neutral.push(n.step([Input::default(); 3]).0);
+    }
+    // The counter's damage_pct 100 doubles the hit; integer rounding may be off by one.
+    let (c, d) = (i64::from(first_hit(&dealt)), i64::from(first_hit(&neutral)));
+    assert!(d > 0 && (c - 2 * d).abs() <= 1, "counter {c}, neutral {d}");
+}
+
+/// B3: with the refill a slam comes every fourth counter after the spender; a neutral B at a
+/// full bar refills nothing (four counters, then one B). Pins the behaviour without a guard.
+#[test]
+fn the_cycle_is_pinned_with_the_refill_and_without_it_for_a_neutral_b() {
+    let mut r = sword_rig(1, 3, 1);
+    for _ in 0..4 {
+        r.counter(false);
+    }
+    r.counter(true);
+    assert_eq!(r.bar(), 25);
+    for value in [50, 75, 100] {
+        r.counter(false);
+        assert_eq!(r.bar(), value);
+    }
+    let (_, events) = r.counter(true);
+    assert_eq!(count(&events, "GaugeSpent"), 1);
+    assert_eq!(r.bar(), 25, "the next slam comes every fourth counter");
+    // A neutral B at 100 refills nothing.
+    let mut n = sword_rig(1, 3, 1);
+    n.set_bar(100);
+    n.idle(5);
+    let mut events = vec![n.press_b().1];
+    for _ in 0..70 {
+        events.push(n.step([Input::default(); 3]).1);
+    }
+    let events: Vec<Value> = events.into_iter().flatten().collect();
+    assert_eq!(
+        named(&events, "GaugeSpent"),
+        vec![json!({ "player": "first", "amount": 100 })]
+    );
+    assert_eq!(count(&events, "CounterBonusTaken"), 0);
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+    assert_eq!(n.bar(), 0);
+}
+
+/// B4: a full bar replaces the B charge with the slam; below it the charge starts.
+#[test]
+fn a_full_bar_replaces_the_b_charge() {
+    let hold = |bar: u32| {
+        let mut r = sword_rig(1, 3, 1);
+        r.set_bar(bar);
+        r.idle(5);
+        let held = Input {
+            smash: true,
+            ..Input::default()
+        };
+        let mut spent = 0;
+        let mut charged = Vec::new();
+        for _ in 0..30 {
+            let (_, ev) = r.step([held, Input::default(), Input::default()]);
+            spent += count(&ev, "GaugeSpent");
+            charged.push(st(&mut r.e).players[ME].combo.charge.is_some());
+        }
+        (spent, charged)
+    };
+    let (spent, charged) = hold(100);
+    assert_eq!(spent, 1);
+    assert!(charged.iter().all(|c| !c), "no charge starts at a full bar");
+    for bar in [99, 75] {
+        let (spent, charged) = hold(bar);
+        assert_eq!(spent, 0);
+        assert!(charged.iter().any(|c| *c), "the charge starts at {bar}");
+    }
+    // Dash B with no window at 100 plays the slam and refills nothing.
+    let mut r = sword_rig(1, 3, 1);
+    r.set_bar(100);
+    r.idle(5);
+    r.keep_dash_strike(0);
+    let (_, events) = r.press_b();
+    let (_, events) = r.finish(0, events);
+    assert_eq!(count(&events, "GaugeSpent"), 1);
+    assert_eq!(count(&events, "CounterBonusTaken"), 0);
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+}
+
+/// B5: a dash A counter at a full bar refunds the charge and fills nothing.
+#[test]
+fn a_dash_a_counter_at_a_full_bar_fills_nothing() {
+    let mut r = sword_rig(1, 3, 1);
+    r.set_bar(100);
+    let (_, events) = r.counter(false);
+    let (timers, ready, _, _, _) = r.evade_gauge(0);
+    assert_eq!((timers.len(), ready), (0, 2));
+    assert_eq!(r.bar(), 100);
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+    assert_eq!(count(&events, "GaugeSpent"), 0);
+    assert_eq!(r.view(0)["gauge"], json!({ "value": 100, "max": 100 }));
+}
+
+/// B6: auto mode takes no counter and fills nothing; a bar filled by hand is spent on auto's B.
+#[test]
+fn auto_mode_fills_nothing() {
+    let run = |bar: u32| {
+        let mut r = sword_rig(1, 3, 1);
+        r.set_bar(bar);
+        let c = &mut st(&mut r.e).players[ME].combo;
+        c.auto_path = 0b1;
+        c.auto_depth = 1;
+        let auto = Input {
+            auto: true,
+            ..Input::default()
+        };
+        let mut events = Vec::new();
+        for t in 0..600 {
+            if t % 20 == 0 {
+                r.set_window(0, 30);
+                r.keep_dash_strike(0);
+            }
+            events.extend(r.step([auto, Input::default(), Input::default()]).1);
+        }
+        (events, r.bar(), r.payout(0))
+    };
+    let (events, bar, payout) = run(0);
+    assert_eq!(count(&events, "CounterBonusTaken"), 0);
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+    assert_eq!((bar, payout), (0, 0));
+    let (events, bar, payout) = run(100);
+    assert!(count(&events, "GaugeSpent") >= 1);
+    assert_eq!(count(&events, "GaugeFilled"), 0);
+    assert_eq!((bar, payout), (0, 0));
+}
+
+/// B7: only the player holding the capstone is paid; the run is deterministic and the bar
+/// changes the state.
+#[test]
+fn the_foresight_bar_is_the_holders_and_deterministic() {
+    let mut r = sword_rig(2, 3, 1);
+    r.counter(false);
+    assert_eq!(r.bar(), 25);
+    assert_eq!(r.evade_gauge(1).3, 0);
+    // The same script with the bar emptied after the counter ends in another state.
+    let run = |empty: bool| {
+        let mut r = sword_rig(1, 3, 1);
+        r.counter(false);
+        if empty {
+            r.set_bar(0);
+        }
+        r.idle(600);
+        r.e.state_hash()
+    };
+    assert_eq!(run(false), run(false));
+    assert_ne!(run(false), run(true));
 }

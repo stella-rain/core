@@ -1113,6 +1113,31 @@ fn the_bundled_foresight_path_folds_as_the_content_says() {
     assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
 }
 
+/// What player `i` reads as its gauge at `places` places taken:
+/// `(max, per_step, per_hit, from_damage_pct, step_cap)`.
+fn gauge_at(e: &mut Engine, i: u8, places: usize) -> Option<(u32, u32, u32, u32, u32)> {
+    read(e, i, places, |w, s, me| {
+        let g = w.gauge_of(s, me)?;
+        Some((g.max, g.per_step, g.per_hit, g.from_damage_pct, g.step_cap))
+    })
+}
+
+/// G1: Foresight has no gauge before its capstone and a bar of 100 with no fill of its own at it;
+/// Spirit Blade's gauge is there at every place.
+#[test]
+fn the_bundled_foresight_gauge_comes_with_its_capstone() {
+    let mut e = bundled("giant_sword", 1);
+    for places in 0..3 {
+        assert_eq!(gauge_at(&mut e, 0, places), None, "{places} places");
+    }
+    assert_eq!(gauge_at(&mut e, 0, 3), Some((100, 0, 0, 0, 1)));
+    let mut e = bundled("giant_sword", 0);
+    for places in 0..=3 {
+        let g = gauge_at(&mut e, 0, places).expect("Spirit Blade's gauge");
+        assert_eq!((g.0, g.1), (100, 3), "{places} places");
+    }
+}
+
 /// C3: the bundled Momentum grant at each place of the path through its capstone: five stacks,
 /// both flags, the speed 4, 4, 6, 6 (the second upgrade replaces it), the range at full stacks
 /// 0, 25, 25, 25 (the first upgrade's, kept) and the carry at full stacks only at the capstone.
