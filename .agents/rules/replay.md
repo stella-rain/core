@@ -39,8 +39,11 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
   equipment action, a join or a leave.
 - `tests/corpus/current/` is the blessed tree: `stages/<case>/` holds `stage.json`, `run.replay`,
   `hashes.bin` (the state hash after every tick) and `case.json` (the pack it pins); `runs/<case>/`
-  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`: 11 cases,
-  every one an equipment run (ACTIONS steps) but `tutorial_opening`, the tutorial cut at 240 ticks;
+  holds a run's `run.replay` (`checkpoints` every 60th tick, ADR-REPL-5) and `case.json`: 13 cases,
+  every one an equipment run (ACTIONS steps) but `tutorial_opening`, the tutorial cut at 240 ticks; `hammer_titan` and
+  `hammer_momentum` play `giant_hammer` with the style locked (`tests/corpus_hammer.rs`); the seeds are searched by
+  `search_corpus_run_seeds` (`tests/corpus_seeds.rs`, `#[ignore]`: world and bot seeds 1 to 20, the first pair whose promise holds)
+  and kept in `tests/common/run.rs`;
   `parties/<case>/` holds a party run's `run.replay` and `case.json` only (no `hashes.bin`, no
   `stage.json`): 19 cases, all of `sim_version` 2: `two_time_limit` (2 players), `three_time_limit`,
   `three_tutorial` (3), `join_two` (a solo run that takes slot 1 at tick 600), `leave_hole` (3 players;
@@ -58,7 +61,7 @@ Sources: ADR-REPL-5, ADR-REPL-6, ADR-BRDG-3, ADR-CONT-6, ADR-SVC-7, ADR-SIM-3, A
   (`tests/corpus_contract.rs`). CI readers use `.github/scripts/corpus_paths.py`. An intended
   change: `cargo xtask bless` (it also regenerates `tests/golden/`, `tests/pack_pins.toml`, `tests/bench_pins.toml` and the fuzz regression);
   CI runs `cargo xtask bless --check`. `cargo insta test --features record --review` reviews one.
-- `tests/savepoint_proof.rs`: for every solo run case (11 current and 9 frozen `v1/` cases, floor-pinned) a savepoint
+- `tests/savepoint_proof.rs`: for every solo run case (13 current and 9 frozen `v1/` cases, floor-pinned) a savepoint
   restored mid-run gives the uninterrupted run's hashes (ADR-SAVE-4); the party round trips are
   in `tests/party_run.rs`. `savepoint_load` in `fuzz/` fuzzes it, with a party run among its seeds.
 
