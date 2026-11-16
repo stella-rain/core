@@ -1113,9 +1113,9 @@ fn the_bundled_foresight_path_folds_as_the_content_says() {
     assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
 }
 
-/// C3: the bundled Momentum grant at each place of the path through its second upgrade: five
-/// stacks, both flags, the speed 4, 4, 6, 6 (the second upgrade replaces it) and the range at
-/// full stacks 0, 25, 25, 25 (the first upgrade's, kept).
+/// C3: the bundled Momentum grant at each place of the path through its capstone: five stacks,
+/// both flags, the speed 4, 4, 6, 6 (the second upgrade replaces it), the range at full stacks
+/// 0, 25, 25, 25 (the first upgrade's, kept) and the carry at full stacks only at the capstone.
 #[test]
 fn the_bundled_momentum_grant_gains_the_range_then_the_speed() {
     let setup = RunSetup {
@@ -1137,12 +1137,21 @@ fn the_bundled_momentum_grant_gains_the_range_then_the_speed() {
                     g.keep_on_smash,
                     g.hold_armour,
                     g.range_pct_at_full,
+                    g.carry_at_full,
                 )
             })
         })
         .collect();
-    let at = |s: u32, r: u32| Some((5, s, true, true, r));
-    assert_eq!(seen, [at(4, 0), at(4, 25), at(6, 25), at(6, 25)]);
+    let at = |s: u32, r: u32, c: bool| Some((5, s, true, true, r, c));
+    assert_eq!(
+        seen,
+        [
+            at(4, 0, false),
+            at(4, 25, false),
+            at(6, 25, false),
+            at(6, 25, true)
+        ]
+    );
 }
 
 fn carry_flag() -> Value {
