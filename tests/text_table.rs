@@ -469,10 +469,14 @@ fn the_korean_draft_leaves_no_shown_key_out() {
 }
 
 // The shown text of the upgrade cells that became kinds (their words, and the content's
-// numbers in them). A fixed list: a generic "every kind cell" rule would turn red on a cell
-// that becomes a kind in another change.
+// numbers in them). A fixed list of the kind cells whose lines are pinned: no placeholder
+// stat cell is left, so a generic "no kind cell shows stat text" rule is an open question.
 
-const CELLS: [&str; 10] = [
+const CELLS: [&str; 14] = [
+    "titan_trigger_cap",
+    "momentum_up_1",
+    "momentum_up_2",
+    "momentum_cap",
     "foresight_counter_up_1",
     "foresight_counter_up_2",
     "foresight_counter_cap",
@@ -486,7 +490,27 @@ const CELLS: [&str; 10] = [
 ];
 
 /// The wording Kade approves: (cell id, English, Korean).
-const WORDING: [(&str, &str, &str); 10] = [
+const WORDING: [(&str, &str, &str); 14] = [
+    (
+        "titan_trigger_cap",
+        "When the giant hammer runs out, the full-gauge smash's first ring strikes once more, free",
+        "거대한 망치가 끝나면 꽉 찬 일격의 첫 번째 고리가 공짜로 한 번 더 터져요",
+    ),
+    (
+        "momentum_up_1",
+        "At full stacks, every attack the combo starts reaches 25% wider",
+        "중첩이 가득 차면 콤보의 모든 공격 범위가 25% 넓어져요",
+    ),
+    (
+        "momentum_up_2",
+        "Each stack speeds attacks up 6% instead of 4%, 30% at full stacks",
+        "각 중첩이 공격 속도를 4%에서 6%로 올려, 가득 차면 30% 빨라져요",
+    ),
+    (
+        "momentum_cap",
+        "A smash at full stacks carries them into the next combo, until the combo window runs out",
+        "중첩이 가득 찬 채 강타하면 다음 콤보까지 이어지고, 콤보 시간이 끝나면 사라져요",
+    ),
     (
         "foresight_counter_up_1",
         "The counter window after a perfect evade lasts 0.63 seconds, up from 0.5",
@@ -499,8 +523,8 @@ const WORDING: [(&str, &str, &str); 10] = [
     ),
     (
         "foresight_counter_cap",
-        "The counter's first landed hit returns a spent evade",
-        "반격의 첫 타격이 적중하면 사용한 회피 횟수를 하나 돌려받아요",
+        "A counter's first hit returns a spent evade and fills 25% of a gauge; at 4 counters, your next smash is the full-gauge smash",
+        "반격의 첫 타격이 사용한 회피 횟수를 하나 돌려주고 게이지를 25% 채워요; 반격 4번이면 다음 강타가 꽉 찬 일격이 돼요",
     ),
     (
         "judgement_cut_up_1",
@@ -534,8 +558,8 @@ const WORDING: [(&str, &str, &str); 10] = [
     ),
     (
         "titan_trigger_up_2",
-        "The giant hammer still lasts 12 seconds; no other effect yet",
-        "거대한 망치가 계속 12초 동안 유지돼요; 아직 다른 효과는 없어요",
+        "Hold the third spin, moving at 80% speed while the hammer is giant and 50% otherwise",
+        "세 번째 회전을 누르고 있을 수 있고, 이동 속도는 망치가 거대한 동안 80%, 아니면 50%예요",
     ),
 ];
 
@@ -615,8 +639,34 @@ fn expected_numbers(root: &Value, id: &str) -> String {
             vec![(n(&e["distance"]) / 256).to_string()]
         }
         "foresight_counter_cap" => {
-            effect(&kind(&c, "counter_bonus"), "refund_evade");
+            let k = kind(&c, "counter_bonus");
+            effect(&k, "refund_evade");
+            let fill = n(&effect(&k, "gauge_fill_pct")["pct"]);
+            let max = n(&kind(&c, "gauge")["max"]);
+            assert_eq!(max % fill, 0, "the line counts whole counters");
+            vec![fill.to_string(), (max / fill).to_string()]
+        }
+        "titan_trigger_cap" => {
+            effect(&kind(&c, "giant_trigger"), "end_ring");
             vec![]
+        }
+        "momentum_cap" => {
+            effect(&kind(&c, "combo_tempo_pct"), "carry_at_full");
+            vec![]
+        }
+        "momentum_up_1" => {
+            let e = effect(&kind(&c, "combo_tempo_pct"), "range_pct_at_full");
+            vec![n(&e["pct"]).to_string()]
+        }
+        "momentum_up_2" => {
+            let k = kind(&c, "combo_tempo_pct");
+            let cell_speed = n(&effect(&k, "speed_pct")["pct"]);
+            let style_speed = n(&effect(&kind(&style, "combo_tempo_pct"), "speed_pct")["pct"]);
+            vec![
+                (cell_speed * n(&k["max_stacks"])).to_string(),
+                style_speed.to_string(),
+                cell_speed.to_string(),
+            ]
         }
         "judgement_cut_up_1" => {
             let k = kind(&c, "repeat_breaks_orbs");
@@ -646,7 +696,13 @@ fn expected_numbers(root: &Value, id: &str) -> String {
             seconds(n(&kind(&style, "giant_trigger")["ticks"])),
             seconds(n(&kind(&c, "giant_trigger")["ticks"])),
         ],
-        "titan_trigger_up_2" => vec![seconds(n(&kind(&c, "giant_trigger")["ticks"]))],
+        "titan_trigger_up_2" => {
+            let e = effect(&kind(&c, "giant_trigger"), "hold_move_pct");
+            let step = kind(&c, "replace_step");
+            assert_eq!(step["step"], serde_json::json!(["main", "main", "main"]));
+            let hold = &step["grant"]["hold"];
+            vec![n(&e["pct"]).to_string(), n(&hold["move_pct"]).to_string()]
+        }
         other => panic!("no numbers for {other}"),
     };
     parts.join(" ")
@@ -701,38 +757,5 @@ fn the_kind_cells_show_the_numbers_of_the_content() {
             want,
             "{key} (ko)"
         );
-    }
-}
-
-#[test]
-fn the_cells_still_a_stat_keep_their_true_stat_text() {
-    let root = expertise();
-    let set = TextSet::bundled();
-    let (en, ko) = (set.table("en").unwrap(), set.table("ko").unwrap());
-    for id in [
-        "titan_trigger_cap",
-        "momentum_up_1",
-        "momentum_up_2",
-        "momentum_cap",
-    ] {
-        let c = cell(&root, id).1;
-        if c["effect"] == "none" {
-            continue; // became a kind: its text is a later text task's
-        }
-        let amount = n(&c["amount"]);
-        let (e, k) = match c["effect"].as_str().unwrap() {
-            "attack_pct" => (
-                format!("+{amount}% attack"),
-                format!("공격력이 {amount}% 늘어요"),
-            ),
-            "attack_speed_pct" => (
-                format!("+{amount}% attack speed"),
-                format!("공격 속도가 {amount}% 늘어요"),
-            ),
-            other => panic!("{id}: unexpected effect {other}"),
-        };
-        let key = format!("expertise/{id}");
-        assert_eq!(en.get(&key).unwrap().description, e, "{key} (en)");
-        assert_eq!(ko.get(&key).unwrap().description, k, "{key} (ko)");
     }
 }
