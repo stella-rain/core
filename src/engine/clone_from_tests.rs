@@ -6,7 +6,7 @@ use crate::bench_fixtures::{equip_case, party_case};
 use crate::id::PlayerIdx;
 
 /// The engines the copy is tried on: the three-player equipment run and the dense party minute,
-/// both at tick 10,800.
+/// both at tick 9,834 (`EQUIP_PEAK_TICK`, `PEAK_TICK_3P`).
 fn cases() -> Vec<(&'static str, Engine)> {
     vec![
         ("equip", equip_case::saved()),
