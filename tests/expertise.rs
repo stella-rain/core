@@ -143,8 +143,8 @@ fn momentum_set_range_is_five_percent_a_weapon_level() {
     assert_eq!(at_full["type"], "range_pct_at_full");
     let at_full = at_full["pct"].as_u64().unwrap();
     assert_eq!(at_full, 25);
-    for level in 1..=TABLE_LEVELS as u64 {
-        let tenths = range[level as usize - 1];
+    for (i, &tenths) in range.iter().enumerate() {
+        let level = i as u64 + 1;
         assert_eq!(tenths, 50 * level, "Lv{level} tenths");
         assert_eq!(tenths / 10, 5 * level, "Lv{level} whole percent");
         assert!(
