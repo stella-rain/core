@@ -18,110 +18,110 @@
 bench = "worst_tick"
 before = "0d345dec12499ce2"
 after = "c24be58b2a0f42ce"
-stage = "7b73828f22f24a06"
+stage = "29708438a24a1106"
 input = "cf9a77022954c996"
 
 [hit_tick]
 bench = "hit_tick"
 before = "af46ca4a733f96f7"
 after = "778a6ac8fe0503a6"
-stage = "f296d238089bdfd0"
+stage = "56aa4c5aeb9a5f7a"
 input = "c8f0ff41826bb896"
 
 [hit_tick_spread]
 bench = "hit_tick"
 before = "a9ee48e413f1a801"
 after = "a2aacde3ead95de8"
-stage = "9ebb4f9ff5dd2ac4"
+stage = "60052caeed065a68"
 input = "c8f0ff41826bb896"
 
 [time_limit_tick]
 bench = "time_limit_tick"
 before = "c73b3ab78b459ed8"
 after = "163b3112731814de"
-stage = "90b4ef9a8eb92e2a"
+stage = "4139dd4727d1cabb"
 input = "7b8b9dfd716c8d52"
 
 [worst_minute]
 bench = "worst_minute"
 before = "e84bfad7ac3db987"
 after = "08117a46722d9655"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "17fcaa911e675ec7"
 
 [worst_minute_peak]
 bench = "worst_minute_peak"
 before = "650a2fe4b629d0cb"
 after = "1b07c521486c9652"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "def61785f5993616"
 
 [worst_tick_3p]
 bench = "worst_tick_3p"
 before = "8bb09de5efa377c1"
 after = "860f06607550f30f"
-stage = "7b73828f22f24a06"
+stage = "29708438a24a1106"
 input = "ce2422ff60f961b0"
 
 [worst_tick_combat]
 bench = "worst_tick_combat"
 before = "357005ef562512d1"
 after = "6f081e59973b47a3"
-stage = "3e57cbcd513caf82"
+stage = "5c9ac58e01e216ff"
 input = "c8f0ff41826bb896"
 
 [rollback]
 bench = "rollback"
 before = "07851ba841a8372c"
 after = "74ae43d4c58815bb"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "1ff97425e04c3c5a"
 
 [rollback_equip]
 bench = "rollback_equip"
 before = "d51502189c63ec55"
 after = "ecb3b325d3cd382e"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "42725cbb18ad956d"
 
 [rollback_combat]
 bench = "rollback_combat"
 before = "357005ef562512d1"
 after = "344c40b3e29b7e95"
-stage = "535e4ae919e27b5f"
+stage = "f1cb8e11f5d2a14d"
 input = "9e4379056dce713e"
 
 [rollback_combat_3p]
 bench = "rollback_combat_3p"
 before = "a2bab49276723fa5"
 after = "c08f22116697dacf"
-stage = "535e4ae919e27b5f"
+stage = "f1cb8e11f5d2a14d"
 input = "7ba577b8e8172bfb"
 
 [rollback_session_w4]
 bench = "rollback_session"
 before = "f6f4f17e0a6df607"
 after = "ada8d972f2af21db"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "a4037a748a2245f2"
 
 [rollback_session_w16]
 bench = "rollback_session"
 before = "a0e9b6fe3fbc7be9"
 after = "4953454fa42966fd"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "1b21bd1854ce783f"
 
 [clone_ring_save]
 bench = "rollback_session"
 before = "d51502189c63ec55"
 after = "d51502189c63ec55"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "3f5be22dc234d8d3"
 
 [clone_ring_resave]
 bench = "rollback_session"
 before = "d51502189c63ec55"
 after = "d51502189c63ec55"
-stage = "61c6554ff48b2ff3"
+stage = "767327c467a1d4b1"
 input = "5cd36d0a5b90f1c9"
