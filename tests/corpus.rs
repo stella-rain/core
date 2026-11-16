@@ -1385,7 +1385,7 @@ pub(crate) fn definitions() -> Vec<Definition> {
 /// opening cut at `TUTORIAL_OPENING_TICKS`, the trial,
 /// a run that takes the black hole from an elite's star and uses it, the time_limit mode and its
 /// easy and rainy difficulties, the two short modes that end by the boss's kill and by the
-/// overtime, and the elites run.
+/// overtime, the elites run, and the Hammer's two styles (`hammer_titan`, `hammer_momentum`).
 /// A run case: its name, setup, the derived pack it plays on (the bundled pack for `None`) and its commands.
 pub(crate) type RunDefinition = (&'static str, RunSetup, Option<Vec<u8>>, Vec<Command>);
 
@@ -1395,7 +1395,8 @@ const TUTORIAL_OPENING_TICKS: u32 = 240;
 
 fn run_definitions() -> Vec<RunDefinition> {
     use common::run::{
-        ELITES_BOT_SEED, ELITES_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
+        ELITES_BOT_SEED, ELITES_SEED, HAMMER_MOMENTUM_BOT_SEED, HAMMER_MOMENTUM_SEED,
+        HAMMER_TITAN_BOT_SEED, HAMMER_TITAN_SEED, KEPT_BOT_SEED, KILL_BOT_SEED, KILL_SEED,
         STAGE_SKILL_BOT_SEED, STAGE_SKILL_SEED, TIME_LIMIT_BOT_SEED, TIME_LIMIT_SEED,
         TRIAL_BOT_SEED, TRIAL_KINDS_BOT_SEED, TRIAL_KINDS_SEED, TRIAL_SEED, trial_setup,
     };
@@ -1428,6 +1429,14 @@ fn run_definitions() -> Vec<RunDefinition> {
         equipment_run_definition("time_limit_overtime", kept, KEPT_BOT_SEED),
         // Every elite type, the cap of 5 reached, and each elite's event.
         equipment_run_definition("elites", ELITES_SEED, ELITES_BOT_SEED),
+        // The Hammer with one style locked, played 4 minutes: Titan Trigger to its capstone and a
+        // hold released under the trigger; Momentum to full stacks after the capstone.
+        equipment_run_definition("hammer_titan", HAMMER_TITAN_SEED, HAMMER_TITAN_BOT_SEED),
+        equipment_run_definition(
+            "hammer_momentum",
+            HAMMER_MOMENTUM_SEED,
+            HAMMER_MOMENTUM_BOT_SEED,
+        ),
     ]
 }
 
@@ -1448,7 +1457,7 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
         play_equipment_run_from, play_equipment_run_in, play_equipment_run_with,
     };
     use common::equip_run::equipment_setup;
-    use common::run::{TRIAL_LENGTH, time_limit_setup, trial_setup};
+    use common::run::{HAMMER_TICKS, TRIAL_LENGTH, time_limit_setup, trial_setup};
     let bot = PartyBot::building(bot_seed);
     let bundled = RunContent::bundled();
     let base = RunSetup {
@@ -1509,6 +1518,22 @@ pub(crate) fn equipment_run_definition(name: &str, seed: u64, bot_seed: u64) -> 
             let setup = equipment_setup(limited);
             let commands = play_equipment_run_from(&setup, MAX_TICKS, &bot);
             ("time_limit", setup, None, commands)
+        }
+        "hammer_titan" | "hammer_momentum" => {
+            // The Hammer with one style unlocked: the bot's one-option `Style` offer takes it,
+            // whatever the seeds.
+            let (case, style) = if name == "hammer_titan" {
+                ("hammer_titan", "titan_trigger")
+            } else {
+                ("hammer_momentum", "momentum")
+            };
+            let setup = equipment_setup(RunSetup {
+                weapon: "giant_hammer".into(),
+                unlocked_styles: Some(vec![style.into()]),
+                ..limited
+            });
+            let commands = play_equipment_run_from(&setup, HAMMER_TICKS, &bot);
+            (case, setup, None, commands)
         }
         "easy" | "rainy" => {
             let difficulty = RunSetup {
