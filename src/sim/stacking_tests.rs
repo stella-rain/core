@@ -363,6 +363,21 @@ fn the_range_at_full_stacks_across_the_path() {
     assert_eq!(tempo_at(&mut e, 0, 1), Some((5, 4, true, false)));
 }
 
+/// G1: a second upgrade that lists only the speed keeps the range the first upgrade named, with
+/// no restatement.
+#[test]
+fn a_speed_only_level_keeps_the_range_at_full() {
+    let keep = json!({ "type": "keep_on_smash" });
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4), keep])],
+        vec![tempo(5, vec![range_full(25)])],
+        vec![tempo(5, vec![speed(6)])],
+        vec![tempo(5, vec![])],
+    );
+    let seen: Vec<u32> = (0..4).map(|n| range_at_full(&mut e, 0, n)).collect();
+    assert_eq!(seen, [0, 25, 25, 25]);
+}
+
 /// G2: a range past the cap (a value the validator refuses) folds to `MAX_RANGE_PCT`, a tempo
 /// that never names it gives 0, and each player reads its own place.
 #[test]
