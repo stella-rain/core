@@ -363,6 +363,21 @@ fn the_range_at_full_stacks_across_the_path() {
     assert_eq!(tempo_at(&mut e, 0, 1), Some((5, 4, true, false)));
 }
 
+/// G1: a second upgrade that lists only the speed keeps the range the first upgrade named, with
+/// no restatement.
+#[test]
+fn a_speed_only_level_keeps_the_range_at_full() {
+    let keep = json!({ "type": "keep_on_smash" });
+    let mut e = stacked(
+        vec![tempo(5, vec![speed(4), keep])],
+        vec![tempo(5, vec![range_full(25)])],
+        vec![tempo(5, vec![speed(6)])],
+        vec![tempo(5, vec![])],
+    );
+    let seen: Vec<u32> = (0..4).map(|n| range_at_full(&mut e, 0, n)).collect();
+    assert_eq!(seen, [0, 25, 25, 25]);
+}
+
 /// G2: a range past the cap (a value the validator refuses) folds to `MAX_RANGE_PCT`, a tempo
 /// that never names it gives 0, and each player reads its own place.
 #[test]
@@ -1098,10 +1113,11 @@ fn the_bundled_foresight_path_folds_as_the_content_says() {
     assert_eq!(row(&seen[3]), (38, 12288, base, (true, 25)));
 }
 
-/// C3: the bundled Momentum grant at each place of the path through its first upgrade: five
-/// stacks, speed 4, both flags, and the range at full stacks 0, 25, 25, 25.
+/// C3: the bundled Momentum grant at each place of the path through its second upgrade: five
+/// stacks, both flags, the speed 4, 4, 6, 6 (the second upgrade replaces it) and the range at
+/// full stacks 0, 25, 25, 25 (the first upgrade's, kept).
 #[test]
-fn the_bundled_momentum_grant_gains_the_range_at_its_first_upgrade() {
+fn the_bundled_momentum_grant_gains_the_range_then_the_speed() {
     let setup = RunSetup {
         mode: "time_limit".into(),
         weapon: "giant_hammer".into(),
@@ -1125,6 +1141,6 @@ fn the_bundled_momentum_grant_gains_the_range_at_its_first_upgrade() {
             })
         })
         .collect();
-    let at = |r: u32| Some((5, 4, true, true, r));
-    assert_eq!(seen, [at(0), at(25), at(25), at(25)]);
+    let at = |s: u32, r: u32| Some((5, s, true, true, r));
+    assert_eq!(seen, [at(4, 0), at(4, 25), at(6, 25), at(6, 25)]);
 }

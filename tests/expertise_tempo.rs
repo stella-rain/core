@@ -464,6 +464,53 @@ fn a_later_level_may_name_range_pct_at_full() {
     valid_refused_no_speed();
 }
 
+/// A style, a first and a second upgrade level each naming `kinds` (a three-level path).
+fn three_levels(style: Value, up_1: Value, up_2: Value) -> Value {
+    let mut v = stacked(style, up_1);
+    v["weapons"][0]["styles"][0]["upgrade_2"] = json!([{
+        "id": "second", "effect": "none", "kinds": up_2
+    }]);
+    v
+}
+
+const THIRD: &str = "$.weapons[0].styles[0].upgrade_2[0].kinds[0]";
+
+/// V1: a second upgrade that lists only the speed loads over a style and a first upgrade.
+#[test]
+fn a_second_upgrade_may_list_only_the_speed() {
+    let style = json!([{
+        "type": "combo_tempo_pct", "max_stacks": 5,
+        "effects": [{ "type": "speed_pct", "pct": 4 }, { "type": "keep_on_smash" }, { "type": "super_armour_at_full" }]
+    }]);
+    let up_1 = json!([effects(json!([{ "type": "range_pct_at_full", "pct": 25 }]))]);
+    let up_2 = json!([speed(5, 6)]);
+    let v = three_levels(style, up_1, up_2);
+    if let Err(e) = parse_at(&v, Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+}
+
+/// V3: the 800 ceiling holds over the fold: 5 x 161 is refused at the second upgrade, 5 x 160 loads.
+#[test]
+fn the_ceiling_holds_over_a_three_level_fold() {
+    let style = json!([speed(5, 4)]);
+    let up_1 = json!([effects(json!([{ "type": "range_pct_at_full", "pct": 25 }]))]);
+    let v = three_levels(style.clone(), up_1.clone(), json!([speed(5, 160)]));
+    if let Err(e) = parse_at(&v, Versions::CURRENT) {
+        panic!("expected valid, got {e:?}");
+    }
+    let v = three_levels(style, up_1, json!([speed(5, 161)]));
+    match parse_at(&v, Versions::CURRENT) {
+        Err(Error::Invalid(issues)) => assert!(
+            issues
+                .iter()
+                .any(|i| i.path == format!("{THIRD}.effects") && i.message.contains("at most 800")),
+            "{issues:?}"
+        ),
+        other => panic!("expected invalid, got {other:?}"),
+    }
+}
+
 fn valid_refused_no_speed() {
     refused_at(
         json!([effects(json!([{ "type": "range_pct_at_full", "pct": 25 }]))]),
