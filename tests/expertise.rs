@@ -887,20 +887,22 @@ fn the_foresight_gauge_validates_and_is_the_paths_only_one() {
         .find(|s| s["id"] == "foresight_counter")
         .expect("the Foresight style")
         .clone();
-    let mut gauges = 0;
-    let levels = std::iter::once(&style).chain(
-        ["upgrade_1", "upgrade_2", "capstone"]
-            .iter()
-            .map(|f| &style[f][0]),
-    );
-    for l in levels {
-        gauges += l["kinds"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|k| k["type"] == "gauge")
-            .count();
+    // Every option of every level counts, not only the first.
+    let mut levels = vec![&style];
+    for f in ["upgrade_1", "upgrade_2", "capstone"] {
+        levels.extend(style[f].as_array().unwrap());
     }
+    let gauges: usize = levels
+        .into_iter()
+        .map(|l| {
+            l["kinds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|k| k["type"] == "gauge")
+                .count()
+        })
+        .sum();
     assert_eq!(gauges, 1);
 }
 

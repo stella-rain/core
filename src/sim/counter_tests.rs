@@ -1010,22 +1010,25 @@ impl Rig {
         self.step([press, Input::default(), Input::default()])
     }
 
-    /// A counter with a fresh spend and window, the press `press` (A or B) and the step run to
-    /// its end: what it dealt per tick and its events.
-    fn counter(&mut self, b: bool) -> (Vec<u32>, Vec<Value>) {
+    /// A counter with a fresh spend and window, the press A or B (`b`) and the step run to its
+    /// end: each tick's damage and events.
+    fn counter_ticks(&mut self, b: bool) -> Vec<(u32, Vec<Value>)> {
         self.idle(5);
         self.evade_state(2, &[300]);
         self.set_window(0, 30);
         self.keep_dash_strike(0);
-        let first = if b { self.press_b() } else { self.press() };
-        let mut dealt = vec![first.0];
-        let mut events = first.1;
+        let mut ticks = vec![if b { self.press_b() } else { self.press() }];
         for _ in 0..70 {
-            let (lost, ev) = self.step([Input::default(); 3]);
-            dealt.push(lost);
-            events.extend(ev);
+            ticks.push(self.step([Input::default(); 3]));
         }
-        (dealt, events)
+        ticks
+    }
+
+    /// `counter_ticks`, summed: what it dealt per tick and every event.
+    fn counter(&mut self, b: bool) -> (Vec<u32>, Vec<Value>) {
+        let ticks = self.counter_ticks(b);
+        let dealt = ticks.iter().map(|t| t.0).collect();
+        (dealt, ticks.into_iter().flat_map(|t| t.1).collect())
     }
 
     fn bar(&mut self) -> u32 {
@@ -1070,14 +1073,7 @@ fn the_foresight_counter_fills_a_quarter_of_the_bar() {
 
 /// The tick of the first hit of a step: the events up to it hold the payout.
 fn fill_tick(r: &mut Rig, b: bool) -> usize {
-    r.idle(5);
-    r.evade_state(2, &[300]);
-    r.set_window(0, 30);
-    r.keep_dash_strike(0);
-    let mut ticks = vec![if b { r.press_b() } else { r.press() }];
-    for _ in 0..70 {
-        ticks.push(r.step([Input::default(); 3]));
-    }
+    let ticks = r.counter_ticks(b);
     let first = ticks.iter().position(|t| t.0 > 0).expect("a hit");
     for (i, (_, ev)) in ticks.iter().enumerate() {
         assert_eq!(
