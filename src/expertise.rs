@@ -77,7 +77,7 @@ pub const MAX_LEVEL_KINDS: usize = 4;
 /// The most effects one giant trigger kind names (a bound: one per `TriggerEffect` variant).
 pub const MAX_TRIGGER_EFFECTS: usize = 6;
 /// The most effects one combo tempo kind names (a bound: one per `TempoEffect` variant).
-pub const MAX_TEMPO_EFFECTS: usize = 4;
+pub const MAX_TEMPO_EFFECTS: usize = 5;
 /// The largest `pct` of a giant trigger's `hold_move_pct`: full speed, the `Hold.move_pct` ceiling.
 pub const MAX_HOLD_MOVE_PCT: u32 = 100;
 /// The longest delay of a `repeat` kind, in ticks (a tuning placeholder: 2 seconds).
@@ -491,6 +491,11 @@ pub enum TempoEffect {
         #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
         pct: u32,
     },
+    /// A combo that ends on a smash pressed at full stacks leaves the stacks standing at every
+    /// reset but the combo window running out: a press that does not continue the combo, the
+    /// auto combo's restart and an evade. The next combo then starts at full stacks. Needs
+    /// `keep_on_smash` to have any effect (a smash below full ends the stacks at the press).
+    CarryAtFull {},
 }
 
 impl TempoEffect {
@@ -500,6 +505,7 @@ impl TempoEffect {
             TempoEffect::KeepOnSmash {} => 1,
             TempoEffect::SuperArmourAtFull {} => 2,
             TempoEffect::RangePctAtFull { .. } => 3,
+            TempoEffect::CarryAtFull {} => 4,
         }
     }
 }
