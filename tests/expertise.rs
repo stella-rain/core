@@ -815,9 +815,95 @@ fn the_stacking_upgrade_levels_are_kinds() {
         let level = &levels[id];
         assert_eq!(level["effect"], "none", "{id}");
         assert!(level.get("amount").is_none(), "{id}: {level}");
-        assert_eq!(level["kinds"], json!([kind]), "{id}");
+        // The Foresight capstone names a second kind, its gauge (C1 below reads it).
+        let names = if id == "foresight_counter_cap" { 2 } else { 1 };
+        let listed = level["kinds"].as_array().expect("kinds");
+        assert_eq!(listed.len(), names, "{id}");
+        assert_eq!(listed[0], kind, "{id}");
     }
     // No placeholder stat level is left: every upgrade and capstone level names a kind.
+}
+
+/// The bundled Foresight capstone, as the file holds it.
+fn foresight_cap() -> Value {
+    let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
+    weapons
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|w| w["styles"].as_array().unwrap())
+        .find(|s| s["id"] == "foresight_counter")
+        .expect("the Foresight style")["capstone"][0]
+        .clone()
+}
+
+/// C1: the Foresight capstone names its counter bonus first, unchanged, then a gauge with no fill
+/// of its own (the counter's `gauge_fill_pct` fills it) whose spend is an inline full-gauge smash.
+#[test]
+fn the_foresight_capstone_names_a_gauge_beside_its_counter() {
+    let cap = foresight_cap();
+    assert_eq!(cap["id"], "foresight_counter_cap");
+    assert_eq!(cap["effect"], "none");
+    assert!(cap.get("amount").is_none(), "{cap}");
+    let kinds = cap["kinds"].as_array().unwrap();
+    assert_eq!(kinds.len(), 2, "{cap}");
+    assert_eq!(
+        kinds[0],
+        json!({
+            "type": "counter_bonus", "window_ticks": 38,
+            "effects": [
+                { "type": "refund_evade" },
+                { "type": "gauge_fill_pct", "pct": 25 }
+            ]
+        })
+    );
+    let gauge = kinds[1].as_object().unwrap();
+    assert_eq!(gauge["type"], "gauge");
+    assert_eq!(gauge["max"], 100);
+    assert_eq!(gauge["step_cap"], 1);
+    for own_fill in ["per_step", "per_hit", "from_damage_pct"] {
+        assert!(!gauge.contains_key(own_fill), "{own_fill}");
+    }
+    assert_eq!(gauge["spend"]["type"], "full_smash");
+    // The slam's numbers are a placeholder a balance pass tunes: only its shape is pinned.
+    let phases = gauge["spend"]["attack"]["inline"].as_array().unwrap();
+    assert_eq!(phases.first().unwrap()["kind"], "wind_up");
+    assert_eq!(phases.last().unwrap()["kind"], "recovery");
+    assert!(phases.iter().any(|p| p["kind"] == "active"));
+}
+
+/// C2: the bundled file and pack validate with it (the slam differs from every attack of the
+/// style's tree), and a style path names exactly one gauge.
+#[test]
+fn the_foresight_gauge_validates_and_is_the_paths_only_one() {
+    let _ = Expertise::bundled();
+    let _ = stella_rain_core::pack::Pack::bundled();
+    let weapons = serde_json::to_value(Expertise::bundled().weapons()).unwrap();
+    let style = weapons
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|w| w["styles"].as_array().unwrap())
+        .find(|s| s["id"] == "foresight_counter")
+        .expect("the Foresight style")
+        .clone();
+    // Every option of every level counts, not only the first.
+    let mut levels = vec![&style];
+    for f in ["upgrade_1", "upgrade_2", "capstone"] {
+        levels.extend(style[f].as_array().unwrap());
+    }
+    let gauges: usize = levels
+        .into_iter()
+        .map(|l| {
+            l["kinds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|k| k["type"] == "gauge")
+                .count()
+        })
+        .sum();
+    assert_eq!(gauges, 1);
 }
 
 /// A common option is a stat: it names no kind and is never `none`.

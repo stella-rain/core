@@ -3960,6 +3960,101 @@
                       "pct": 25
                     }
                   ]
+                },
+                {
+                  "type": "gauge",
+                  "max": 100,
+                  "step_cap": 1,
+                  "spend": {
+                    "type": "full_smash",
+                    "attack": {
+                      "inline": [
+                        {
+                          "kind": "wind_up",
+                          "ticks": 12
+                        },
+                        {
+                          "kind": "active",
+                          "ticks": 3,
+                          "damage": 9600,
+                          "type": "slash",
+                          "hit_box": {
+                            "type": "circle",
+                            "radius": 24576,
+                            "offset": {
+                              "forward": 0,
+                              "right": 0
+                            }
+                          },
+                          "rehit_ticks": 3
+                        },
+                        {
+                          "kind": "active",
+                          "ticks": 3,
+                          "damage": 9600,
+                          "type": "slash",
+                          "hit_box": {
+                            "type": "circle",
+                            "radius": 24576,
+                            "offset": {
+                              "forward": 0,
+                              "right": 0
+                            }
+                          },
+                          "rehit_ticks": 3
+                        },
+                        {
+                          "kind": "active",
+                          "ticks": 3,
+                          "damage": 9600,
+                          "type": "slash",
+                          "hit_box": {
+                            "type": "circle",
+                            "radius": 24576,
+                            "offset": {
+                              "forward": 0,
+                              "right": 0
+                            }
+                          },
+                          "rehit_ticks": 3
+                        },
+                        {
+                          "kind": "active",
+                          "ticks": 3,
+                          "damage": 9600,
+                          "type": "slash",
+                          "hit_box": {
+                            "type": "circle",
+                            "radius": 24576,
+                            "offset": {
+                              "forward": 0,
+                              "right": 0
+                            }
+                          },
+                          "rehit_ticks": 3
+                        },
+                        {
+                          "kind": "active",
+                          "ticks": 3,
+                          "damage": 9600,
+                          "type": "slash",
+                          "hit_box": {
+                            "type": "circle",
+                            "radius": 24576,
+                            "offset": {
+                              "forward": 0,
+                              "right": 0
+                            }
+                          },
+                          "rehit_ticks": 3
+                        },
+                        {
+                          "kind": "recovery",
+                          "ticks": 20
+                        }
+                      ]
+                    }
+                  }
                 }
               ]
             }
