@@ -1183,8 +1183,9 @@ fn titan_rig(places: &[usize]) -> Rig {
     r
 }
 
-/// The AAA press script of `tests/hold.rs`: A on tick 1, buffered A on 3 and 13, Main held from
-/// the AAA's recovery on, the stick right. `t` counts from 1.
+/// The AAA press script of `tests/hold.rs`: A on tick 1, then Main held from tick 3 on except tick 12
+/// (so A is pressed again on 3 and 13, buffered, and stays held into the AAA's recovery), the stick
+/// right. `t` counts from 1.
 fn aaa_input(t: u32) -> Input {
     Input {
         main: t == 1 || (t >= 3 && t != 12),
