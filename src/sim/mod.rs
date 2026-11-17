@@ -100,7 +100,9 @@
 //! attack it starts (`player::tempo_range_pct`), and the stacks end on a combo reset, a smash press, a hit taken,
 //! a down or another style (`player::tempo_lose`, `combo_reset`). A combo that ends on a smash pressed at full
 //! stacks leaves them at every reset but the combo window running out, with `carry_at_full`
-//! (`player::tempo_carries`); no state records it. `PlayerView.tempo` and the two
+//! (`player::tempo_carries`); the combo window is the carry's timer at the root too
+//! (`player::combo_reset` restarts `ComboState::window_left`, `player::combo` counts it down and
+//! ends the stacks at 0); no new state. `PlayerView.tempo` and the two
 //! tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
 //! one bool test each. With `super_armour_at_full`, full stacks in a held hold are super armour
 //! (`player::tempo_armoured`), the one armour that shelters the stacks from a hit.
