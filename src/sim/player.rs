@@ -672,7 +672,19 @@ fn combo_reset(
     let mid_combo = s.players[me].combo.depth > 0;
     // Read before `reset`, which clears the path and depth the smash test needs.
     let carry = mid_combo && kind == Reset::Continue && tempo_carries(stage, s, me);
+    // At the root a running `window_left` is the carry's timer: `reset` zeroes it, so it is kept.
+    let carried = if mid_combo {
+        0
+    } else {
+        s.players[me].combo.window_left
+    };
     reset(&mut s.players[me].combo, events);
+    s.players[me].combo.window_left = carried;
+    if carry {
+        // The carry's timer is the combo window, counted from this reset.
+        s.players[me].combo.window_left =
+            stage.weapon_of(s, me).map_or(0, |main| main.window_ticks);
+    }
     if mid_combo && !carry {
         tempo_lose(stage, s, me, events);
     }
@@ -862,6 +874,18 @@ fn combo(
         _ => {
             if !busy && c.depth > 0 {
                 s.players[me].combo.window_left -= 1;
+            } else if !busy && c.window_left > 0 {
+                // At the root a running window is a carry's timer (`combo_reset`): it ends the
+                // stacks when it runs out, and a window with no stacks left is dropped.
+                let left = if s.players[me].combat.combo_tempo == 0 {
+                    0
+                } else {
+                    c.window_left - 1
+                };
+                s.players[me].combo.window_left = left;
+                if left == 0 {
+                    tempo_lose(stage, s, me, events);
+                }
             }
             return;
         }
@@ -2103,6 +2127,8 @@ pub(super) fn stand_down(
 ) {
     s.players[me].dash = None;
     cancel(stage, s, me, events);
+    // A down holds no window at the root either: `combo` does not run while down.
+    s.players[me].combo.window_left = 0;
     // A downed player cannot press, and a revive does not resume an old window.
     s.players[me].combat.counter_window = 0;
     s.players[me].combat.counter_bonus_step = 0;
