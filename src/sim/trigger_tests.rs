@@ -1171,7 +1171,7 @@ fn a_retuned_slam_retunes_the_ring() {
 }
 
 // The bundled Titan Trigger's second upgrade grants an AAA hold: Momentum's numbers, copied, so
-// the trigger's `hold_move_pct` 80 has a hold to move.
+// the trigger's `hold_move_pct` 65 has a hold to move.
 
 /// One bundled Hammer run of `players` on Titan Trigger (style 0), player `i` at `places[i]`.
 fn titan_rig(places: &[usize]) -> Rig {
@@ -1286,9 +1286,9 @@ fn the_second_titan_upgrade_puts_a_hold_on_the_aaa() {
     }
 }
 
-/// B2: a held hold moves at 50%, at 80% while the trigger runs; places 0 and 1 never hold.
+/// B2: a held hold moves at 50%, at 65% while the trigger runs; places 0 and 1 never hold.
 #[test]
-fn the_titan_hold_moves_at_eighty_under_the_trigger() {
+fn the_titan_hold_moves_at_sixty_five_under_the_trigger() {
     // The control: Momentum's hold (style 1, place 0) is reached by the same script.
     let mut control = titan_rig(&[0]);
     if let Some(g) = st(&mut control.e).players.career_mut(ME).expertise.as_mut() {
@@ -1310,7 +1310,7 @@ fn the_titan_hold_moves_at_eighty_under_the_trigger() {
         assert!(drive(&mut r, &[0], 200).is_some(), "place {places}");
         assert_eq!(
             held_tick(&mut r, &[0])[0],
-            free * 80 / 100,
+            free * 65 / 100,
             "place {places}"
         );
     }
@@ -1380,9 +1380,9 @@ fn the_slam_after_a_titan_hold_starts_the_trigger() {
     assert_eq!(count(&events, "GaugeSpent"), 1);
     assert_eq!(st(&mut r.e).players[ME].combat.weapon_gauge, 0);
     assert!(r.trigger(0) > 0 && r.trigger(0) <= 720);
-    // The next AAA under the trigger holds and moves at 80%.
+    // The next AAA under the trigger holds and moves at 65%.
     assert!(drive(&mut r, &[0], 200).is_some());
-    assert_eq!(held_tick(&mut r, &[0])[0], free * 80 / 100);
+    assert_eq!(held_tick(&mut r, &[0])[0], free * 65 / 100);
 }
 
 /// B5: only this cell moved; each player reads its own place; the run is deterministic.
@@ -1412,7 +1412,7 @@ fn only_the_second_titan_upgrade_moved() {
     let mut r = titan_rig(&[2, 0]);
     r.set_trigger(0, 600);
     assert!(drive(&mut r, &[0], 200).is_some());
-    assert_eq!(held_tick(&mut r, &[0])[0], free * 80 / 100);
+    assert_eq!(held_tick(&mut r, &[0])[0], free * 65 / 100);
     let mut r = titan_rig(&[2, 0]);
     r.set_trigger(0, 600);
     for t in 1..=200 {
