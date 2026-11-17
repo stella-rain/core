@@ -2820,7 +2820,7 @@
                   "effects": [
                     {
                       "type": "hold_move_pct",
-                      "pct": 80
+                      "pct": 65
                     }
                   ]
                 },
@@ -3999,7 +3999,7 @@
                           "type": "slash",
                           "hit_box": {
                             "type": "circle",
-                            "radius": 24576,
+                            "radius": 32768,
                             "offset": {
                               "forward": 0,
                               "right": 0
@@ -4014,7 +4014,7 @@
                           "type": "slash",
                           "hit_box": {
                             "type": "circle",
-                            "radius": 24576,
+                            "radius": 32768,
                             "offset": {
                               "forward": 0,
                               "right": 0
@@ -4029,7 +4029,7 @@
                           "type": "slash",
                           "hit_box": {
                             "type": "circle",
-                            "radius": 24576,
+                            "radius": 32768,
                             "offset": {
                               "forward": 0,
                               "right": 0
@@ -4044,7 +4044,7 @@
                           "type": "slash",
                           "hit_box": {
                             "type": "circle",
-                            "radius": 24576,
+                            "radius": 32768,
                             "offset": {
                               "forward": 0,
                               "right": 0
@@ -4059,7 +4059,7 @@
                           "type": "slash",
                           "hit_box": {
                             "type": "circle",
-                            "radius": 24576,
+                            "radius": 32768,
                             "offset": {
                               "forward": 0,
                               "right": 0
