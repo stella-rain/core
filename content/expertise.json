@@ -135,7 +135,7 @@
                   "effects": [
                     {
                       "type": "hold_move_pct",
-                      "pct": 80
+                      "pct": 65
                     }
                   ]
                 },
