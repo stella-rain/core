@@ -978,7 +978,8 @@ pub struct ComboView {
     /// The press waiting for the next step.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffered: Option<Press>,
-    /// Ticks left in which a press continues the combo, once a step has run out.
+    /// Ticks left in which a press continues the combo, once a step has run out. At the root it is
+    /// the ticks left of a carried combo tempo (`carry_at_full`) after an evade or a broken charge.
     pub window_left: u32,
     /// The auto combo: the presses auto mode plays from the root.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

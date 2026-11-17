@@ -52,9 +52,9 @@ numbers.
   `gauge` with a `full_smash` slam (the Foresight capstone) gives the fill a bar; the next B press at a full bar plays the slam.
 - Every combo end seen from outside is `player::combo_reset(.., Reset::{Window, Continue})`: it ends the tempo's stacks
   (`tempo_lose`) unless `tempo_carries` (the combo ended on a smash pressed at full stacks, the grant names `carry_at_full`, and
-  the reset is a `Continue`: a press that does not continue the combo, auto's restart, an evade or a broken charge); the window
-  running out (`Window`) always ends them. A carried state has no timer of its own. The giant trigger's `end_ring` is
-  `player::trigger_ring`, started where the count runs out and only for a player who is up (`trigger_end`: a down, no ring).
+  the reset is a `Continue`: any but the window running out, which always ends them). A carried state is timed by the combo
+  window at the root (`window_left`: set at the carry, kept by a root reset, `tempo_lose` at 0, dropped once the stacks are gone).
+  The giant trigger's `end_ring` is `player::trigger_ring`, started where the count ends, only if the player is up (a down: none).
 - A repeat (`combat::deal_repeats`) has no crit, echo, smash effect or flinch; its side effects are the on-hit runes at its own
   factor; the orb break of the owner's `repeat_breaks_orbs`, read at the deal (`World::repeat_break_of`); and the bleed of its
   stored row (`Repeat.bleed`, fixed when queued: `runes::apply_repeat_bleed`, the status `repeat_bleed`, a damage-over-time status
