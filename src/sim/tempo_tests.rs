@@ -179,6 +179,10 @@ impl Rig {
         st(&mut self.e).players[slot(i)].combat.combo_tempo
     }
 
+    fn window(&mut self, i: u8) -> u32 {
+        u32::from(st(&mut self.e).players[slot(i)].combo.window_left)
+    }
+
     fn set_tempo(&mut self, i: u8, stacks: u8) {
         st(&mut self.e).players[slot(i)].combat.combo_tempo = stacks;
     }
@@ -920,7 +924,7 @@ fn what_ends_the_carried_stacks() {
     let mut c = rig(1, vec![carry_kind()], 1);
     c.full_smash();
     c.evade();
-    c.idle(120);
+    c.idle(20);
     assert_eq!(c.tempo(0), 5);
     let ev = c.hurt(0, 1);
     assert_eq!((c.tempo(0), count(&ev, "TempoLost")), (0, 1));
@@ -944,22 +948,145 @@ fn what_ends_the_carried_stacks() {
     assert_eq!(state.players[ME].combat.combo_tempo, 0);
 }
 
-/// CB4: an evade at once after a full-stack smash keeps the stacks, with no timer at the root;
-/// after an A it ends them as before.
+/// CB4: an evade at once after a full-stack smash carries the stacks for one combo window, timed at
+/// the root; after an A it ends them as before.
 #[test]
-fn an_evade_after_the_smash_keeps_the_stacks() {
+fn an_evade_after_the_smash_carries_the_stacks_for_the_window() {
     let mut r = rig(1, vec![carry_kind()], 1);
     r.full_smash();
     let ev = r.evade();
     assert_eq!((r.tempo(0), count(&ev, "TempoLost")), (5, 0));
-    r.idle(200);
-    assert_eq!(r.tempo(0), 5);
-    assert_eq!(count(&r.events, "TempoLost"), 0);
+    r.idle(22);
+    assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (5, 0));
+    r.idle(1);
+    assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (0, 1));
+    r.idle(3_000);
+    assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (0, 1));
 
     let mut a = rig(1, vec![carry_kind()], 1);
     a.run_step(false);
     let ev = a.evade();
     assert_eq!((a.tempo(0), count(&ev, "TempoLost")), (0, 1));
+}
+
+/// C3: a press inside the evade window keeps the stacks; the combo's own window takes over.
+#[test]
+fn a_press_inside_the_evade_window_keeps_the_stacks() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(10);
+    let ev = r.press(false);
+    assert_eq!((r.tempo(0), r.window(0)), (5, 0));
+    assert_eq!(count(&ev, "TempoLost"), 0);
+}
+
+/// C4: a second evade inside the window keeps the running timer; it does not restart it.
+#[test]
+fn a_second_evade_inside_the_window_does_not_restart_it() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    st(&mut r.e).players[ME].evade_charges = 2;
+    r.evade();
+    r.idle(10);
+    let ev = r.evade();
+    assert_eq!((r.tempo(0), count(&ev, "TempoLost")), (5, 0));
+    r.idle(11);
+    assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (5, 0));
+    r.idle(1);
+    assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (0, 1));
+    r.idle(3_000);
+    assert_eq!(count(&r.events, "TempoLost"), 1);
+}
+
+/// C5: a hit inside the evade window ends the stacks and drops the window with them.
+#[test]
+fn a_hit_inside_the_evade_window_ends_the_stacks_and_the_window() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(5);
+    let ev = r.hurt(0, 1);
+    assert_eq!((r.tempo(0), count(&ev, "TempoLost")), (0, 1));
+    r.idle(1);
+    assert_eq!(r.window(0), 0);
+    r.idle(60);
+    assert_eq!(count(&r.events, "TempoLost"), 1);
+}
+
+/// C6: a save inside the evade window ends the stacks on time. Red because the stacks never end
+/// (the C4 reason, before the change); the save half is a guard.
+#[test]
+fn a_save_inside_the_evade_window_ends_the_stacks_on_time() {
+    use super::state::{ComboState, PlayerCombat};
+    use crate::savepoint::testing::{from_bytes, to_bytes};
+    let mut a = rig(1, vec![carry_kind()], 1);
+    let mut b = rig(1, vec![carry_kind()], 1);
+    for r in [&mut a, &mut b] {
+        r.full_smash();
+        r.evade();
+        r.idle(5);
+    }
+    {
+        let p = &mut st(&mut b.e).players[ME];
+        p.combo = from_bytes::<ComboState>(&to_bytes(&p.combo)).expect("combo");
+        p.combat = from_bytes::<PlayerCombat>(&to_bytes(&p.combat)).expect("combat");
+    }
+    assert_eq!(a.e.state_hash(), b.e.state_hash());
+    for _ in 0..30 {
+        a.step([Input::default(); 3]);
+        b.step([Input::default(); 3]);
+        assert_eq!(a.e.state_hash(), b.e.state_hash());
+    }
+    for r in [&mut a, &mut b] {
+        assert_eq!((r.tempo(0), count(&r.events, "TempoLost")), (0, 1));
+    }
+}
+
+/// C7: a hold broken at the root leaves no window behind, in any style (here no tempo kind). The
+/// carry of a broken hold with stacks runs one tick longer than the evade path: the `running`
+/// re-set gives it a fresh window on the next tick.
+#[test]
+fn a_broken_hold_leaves_no_window_at_the_root() {
+    let mut r = rig(1, vec![], 0);
+    r.run_step(false);
+    r.run_step(false);
+    let hold = Input {
+        main: true,
+        ..Input::default()
+    };
+    for _ in 0..30 {
+        r.step([hold, Input::default(), Input::default()]);
+    }
+    assert!(st(&mut r.e).players[ME].combo.hold.is_some(), "a hold runs");
+    {
+        let Run::V2 { world, state } = r.e.run_mut() else {
+            panic!("the live rules");
+        };
+        super::player::break_charge(world, state, ME, &mut Vec::new());
+    }
+    assert_eq!(st(&mut r.e).players[ME].combo.depth, 0);
+    r.idle(1);
+    assert_eq!(r.window(0), 0);
+    r.idle(100);
+    assert_eq!(r.window(0), 0);
+}
+
+/// C8: a down inside the evade window leaves no window: `combo` does not run while down. A party,
+/// because only a party member is stood down.
+#[test]
+fn a_down_inside_the_evade_window_leaves_no_window() {
+    let mut r = rig(2, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(3);
+    let ev = r.hurt(0, 2_000_000);
+    assert_eq!(st(&mut r.e).players[ME].hp, 0, "player 0 is down");
+    assert_eq!((r.tempo(0), count(&ev, "TempoLost")), (0, 1));
+    for _ in 0..60 {
+        r.idle(1);
+        assert_eq!(r.window(0), 0);
+    }
 }
 
 /// CB5: the auto combo's restart keeps full stacks a full-stack smash left; without the carry
