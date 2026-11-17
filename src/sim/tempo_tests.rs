@@ -180,7 +180,7 @@ impl Rig {
     }
 
     fn window(&mut self, i: u8) -> u32 {
-        u32::from(st(&mut self.e).players[slot(i)].combo.window_left)
+        st(&mut self.e).players[slot(i)].combo.window_left
     }
 
     fn set_tempo(&mut self, i: u8, stacks: u8) {
