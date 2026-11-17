@@ -558,8 +558,8 @@ const WORDING: [(&str, &str, &str); 14] = [
     ),
     (
         "titan_trigger_up_2",
-        "Hold the third spin, moving at 80% speed while the hammer is giant and 50% otherwise",
-        "세 번째 회전을 누르고 있을 수 있고, 이동 속도는 망치가 거대한 동안 80%, 아니면 50%예요",
+        "Hold the third spin, moving at 65% speed while the hammer is giant and 50% otherwise",
+        "세 번째 회전을 누르고 있을 수 있고, 이동 속도는 망치가 거대한 동안 65%, 아니면 50%예요",
     ),
 ];
 
