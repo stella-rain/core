@@ -1380,7 +1380,7 @@
           "type": "array"
         },
         "window_left": {
-          "description": "Ticks left in which a press continues the combo, once a step has run out.",
+          "description": "Ticks left in which a press continues the combo, once a step has run out. At the root it is\nthe ticks left of a carried combo tempo (`carry_at_full`) after an evade or a broken charge.",
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
