@@ -837,7 +837,7 @@ fn the_stacking_upgrade_levels_are_kinds() {
         json!([
             {
                 "type": "giant_trigger", "ticks": 720,
-                "effects": [{ "type": "hold_move_pct", "pct": 80 }]
+                "effects": [{ "type": "hold_move_pct", "pct": 65 }]
             },
             {
                 "type": "replace_step", "step": ["main", "main", "main"],
