@@ -1274,3 +1274,68 @@ fn the_foresight_bar_is_the_holders_and_deterministic() {
     assert_eq!(run(false), run(false));
     assert_ne!(run(false), run(true));
 }
+
+impl Rig {
+    /// A neutral B at a full bar with one foe that holds its place `px` ahead of player 0: the
+    /// foe is placed once and never stacked again, so the slam's knockback moves it between
+    /// hits as in the game. The `Hit` events on the foe and the hit points it lost.
+    fn slam_on_a_held_foe(&mut self, px: i32) -> (usize, u32) {
+        self.set_bar(100);
+        self.idle(5);
+        self.keep_dash_strike(0);
+        self.step([Input::default(); 3]);
+        let foe = self.foes[0];
+        let s = st(&mut self.e);
+        let (at, facing) = (s.players[ME].at, s.players[ME].facing);
+        let (scale, along) = (i64::from(crate::trig::SCALE), i64::from(Fx::px(px).0));
+        let place = Point {
+            x: Fx(at.x.0 + i32::try_from(i64::from(facing.x) * along / scale).unwrap_or(0)),
+            y: Fx(at.y.0 + i32::try_from(i64::from(facing.y) * along / scale).unwrap_or(0)),
+        };
+        s.enemies.retain(|x| x.id == foe);
+        let f = &mut s.enemies[0];
+        f.at = place;
+        f.hp = BIG;
+        f.order = Some(super::state::MoveOrder {
+            to: place,
+            ticks_left: 10_000,
+        });
+        let press = Input {
+            smash: true,
+            ..Input::default()
+        };
+        let mut hits = 0;
+        for tick in 0..71 {
+            let inputs = if tick == 0 {
+                [press, Input::default(), Input::default()]
+            } else {
+                [Input::default(); 3]
+            };
+            self.e.step(&inputs);
+            hits += as_json(self.e.events())
+                .iter()
+                .filter(|e| e["type"] == "Hit" && e["data"]["target"] == json!(foe.0))
+                .count();
+        }
+        let hp = st(&mut self.e).enemies[0].hp;
+        (hits, BIG - hp.min(BIG))
+    }
+}
+
+/// A1: the capstone slam's five circles are 128 px: a foe that holds its place 88 px ahead
+/// takes all five hits and one at 94 px takes at least four (96 px circles: 2 and 1).
+#[test]
+fn the_capstone_slam_reaches_a_foe_that_holds_its_place() {
+    let (hits, _) = sword_rig(1, 3, 1).slam_on_a_held_foe(88);
+    assert_eq!(hits, 5, "88 px ahead");
+    let (hits, _) = sword_rig(1, 3, 1).slam_on_a_held_foe(94);
+    assert!(hits >= 4, "94 px ahead: {hits} hits");
+}
+
+/// A2: at 24 px the slam still lands five hits for 80,640 hit points (the damage and the
+/// knockdown do not move): a guard that passes on both sides of the widening.
+#[test]
+fn the_capstone_slam_in_close_reach_keeps_its_five_hits_and_damage() {
+    let (hits, lost) = sword_rig(1, 3, 1).slam_on_a_held_foe(24);
+    assert_eq!((hits, lost), (5, 80_640));
+}
