@@ -659,8 +659,8 @@ fn the_bundled_titan_trigger_names_the_hold_move_at_its_second_upgrade() {
         [
             (480, 40, 20, true, 0),
             (720, 40, 20, true, 0),
-            (720, 40, 20, true, 80),
-            (720, 40, 20, true, 80)
+            (720, 40, 20, true, 65),
+            (720, 40, 20, true, 65)
         ]
     );
 }
@@ -902,8 +902,8 @@ fn the_bundled_titan_trigger_names_the_end_ring_at_its_capstone() {
         [
             (480, 0, false),
             (720, 0, false),
-            (720, 80, false),
-            (720, 80, true)
+            (720, 65, false),
+            (720, 65, true)
         ]
     );
 }
