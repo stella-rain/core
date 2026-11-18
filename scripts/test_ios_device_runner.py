@@ -516,7 +516,7 @@ class TestWholeRun(unittest.TestCase):
     def test_two_phones_never_wake(self):
         other = dict(udid=OTHER_UDID, name="Second", identifier="other-id")
         cases = (
-            (listing(device(tunnel="disconnected"), device(**other)), True),
+            (listing(device(tunnel="disconnected", **other), device()), True),
             (listing(device(tunnel="disconnected"), device(tunnel="disconnected", **other)), False),
             (listing(device(), device(**other)), False),
         )
