@@ -2,6 +2,7 @@
 globs:
   - "src/sim/{expertise,levels,levels_tests,tree_stats_tests,try_styles_tests,before,stacking_tests}.rs"
   - "src/{expertise,run_stats}.rs"
+  - "src/expertise/**"
   - "tests/{weapon_tree,level_table,before}.rs"
   - "tests/*style*.rs"
 ---

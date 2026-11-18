@@ -1,10 +1,10 @@
 ---
 paths:
   - "src/sim/player.rs"
+  - "src/sim/player/**"
   - "src/sim/schedule.rs"
   - "src/sim/mod.rs"
-  - "src/sim/stars.rs"
-  - "src/sim/levels.rs"
+  - "src/sim/{stars,levels}.rs"
   - "src/sim/stardust.rs"
   - "src/sim/heal.rs"
   - "src/sim/snapshot.rs"
