@@ -47,8 +47,11 @@ Set-up is in `docs/device-gates.md`.
 
 ## iPhone
 
-From a Mac with the iPhone connected, from a checkout of `{tag}`, the `cargo test ... --target aarch64-apple-ios`
-command and its set-up in `docs/device-gates.md`.
+From a Mac with the iPhone connected, from a checkout of `{tag}` (set-up in `docs/device-gates.md`):
+
+```
+cargo test --locked --all-features --test integration --release --target aarch64-apple-ios -- corpus:: the_golden_hash_is_the_same_on_every_platform
+```
 
 ## Results
 
