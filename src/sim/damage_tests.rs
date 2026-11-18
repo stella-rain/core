@@ -543,27 +543,80 @@ fn the_guard_finds_a_write() {
     );
 }
 
+/// The paths, relative to `root` and `/`-separated, of every `.rs` file, sorted.
+fn rs_files(root: &std::path::Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(root).expect("a folder") {
+        let entry = entry.expect("an entry");
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.ends_with(".rs") {
+            out.push(name);
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Whether the guard reads a file: a `.rs` file that is not a test file and not `damage.rs` (the
+/// write) or `act.rs` (the heal, which raises hit points).
+fn is_checked(rel: &str) -> bool {
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    name.ends_with(".rs") && !name.ends_with("_tests.rs") && name != "damage.rs" && name != "act.rs"
+}
+
 #[test]
 fn foe_hit_points_fall_in_one_place() {
     let dir = data_root::data_root().join("src/sim");
     let mut found = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("src/sim") {
-        let path = entry.expect("an entry").path();
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if !name.ends_with(".rs") || name.ends_with("_tests.rs") {
+    for rel in rs_files(&dir) {
+        if !is_checked(&rel) {
             continue;
         }
-        // `damage.rs` is the write; `act.rs` is the heal, which raises hit points.
-        if name == "damage.rs" || name == "act.rs" {
-            continue;
-        }
-        let text = std::fs::read_to_string(&path).expect("a source file");
-        found.extend(writes_in(name, &text));
+        let text = std::fs::read_to_string(dir.join(&rel)).expect("a source file");
+        found.extend(writes_in(&rel, &text));
     }
     assert!(
         found.is_empty(),
         "a hit point write outside `damage::land`: {found:?}"
     );
+}
+
+#[test]
+fn the_walk_reaches_nested_folders() {
+    let tmp = std::env::temp_dir().join(format!("walk_nested_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("n/m")).expect("folders");
+    for f in [
+        "a.rs",
+        "n/b.rs",
+        "n/m/c.rs",
+        "n/notes.txt",
+        "n/m/d_tests.rs",
+    ] {
+        std::fs::write(tmp.join(f), "").expect("a file");
+    }
+    let found = rs_files(&tmp);
+    std::fs::remove_dir_all(&tmp).expect("cleanup");
+    assert_eq!(found, ["a.rs", "n/b.rs", "n/m/c.rs", "n/m/d_tests.rs"]);
+}
+
+#[test]
+fn the_walk_covers_the_real_split_folders() {
+    let found = rs_files(&data_root::data_root().join("src/sim"));
+    for want in ["damage.rs", "act.rs", "attacks/emit.rs", "state/run.rs"] {
+        assert!(found.iter().any(|f| f == want), "{want} not walked");
+    }
+    assert!(found.iter().all(|f| !f.starts_with("../")));
+}
+
+#[test]
+fn the_guard_finds_a_write_in_a_nested_file() {
+    assert!(!is_checked("damage.rs"));
+    assert!(!is_checked("act.rs"));
+    assert!(!is_checked("attacks/attack_table_tests.rs"));
+    assert!(is_checked("attacks/emit.rs"));
+    assert!(is_checked("attacks/act.rs"));
+    assert!(is_checked("state/damage.rs"));
 }
 
 #[test]
