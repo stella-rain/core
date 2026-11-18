@@ -24,6 +24,7 @@ SCRIPT = Path(__file__).resolve().parent / "ios_device_runner.py"
 REPO = SCRIPT.parent.parent
 UDID = "00008110-0000000000000001"
 OTHER_UDID = "00008110-0000000000000002"
+IDENTIFIER = "11111111-2222-3333-4444-555555555555"
 TEAM = "ABCDE12345"
 APP_ID = "com.stellarain.Dinghy"
 CERT = b"cert-one"
@@ -48,17 +49,20 @@ GOOD_LOG = [
 
 
 def device(platform="iOS", reality="physical", tunnel="connected", udid=UDID, name="Test iPhone",
-           device_type="iPhone", cpu=True):
+           device_type="iPhone", cpu=True, transport="wired", pairing="paired", identifier=IDENTIFIER):
     hardware = {"platform": platform, "udid": udid, "deviceType": device_type, "marketingName": name}
     if reality:
         hardware["reality"] = reality
     if cpu:
         hardware["cpuType"] = {"name": "arm64e"}
+    connection = {"tunnelState": tunnel, "transportType": transport}
+    if pairing:
+        connection["pairingState"] = pairing
     return {
         "hardwareProperties": hardware,
-        "connectionProperties": {"tunnelState": tunnel, "transportType": "wired"},
+        "connectionProperties": connection,
         "deviceProperties": {"name": name, "osVersionNumber": "27.2"},
-        "identifier": "11111111-2222-3333-4444-555555555555",
+        "identifier": identifier,
     }
 
 
@@ -300,7 +304,13 @@ def log(label, **extra):
 if TOOL == "xcrun":
     if args[:3] == ["devicectl", "list", "devices"]:
         log("devicectl list")
-        json.dump(conf["devices"], open(args[args.index("--json-output") + 1], "w"))
+        woken = os.path.exists(os.environ["FAKE_LOG"]) and "devicectl details" in open(os.environ["FAKE_LOG"]).read()
+        doc = conf.get("devices_after_wake") if woken and conf.get("devices_after_wake") else conf["devices"]
+        json.dump(doc, open(args[args.index("--json-output") + 1], "w"))
+    elif args[:4] == ["devicectl", "device", "info", "details"]:
+        log("devicectl details")
+        if conf.get("details_status"):
+            print("details boom"); sys.exit(conf["details_status"])
     elif args[:3] == ["devicectl", "device", "install"]:
         log("devicectl install")
         if conf.get("install_status"):
@@ -461,6 +471,94 @@ class TestWholeRun(unittest.TestCase):
         shutil.rmtree(self.home / runner.PROFILE_DIRS[1])
         self.assertEqual(self.run_runner().returncode, 0)
         self.assertIn("devicectl launch", self.labels())
+
+
+    DOWN = "devicectl list", "devicectl details", "devicectl list"
+
+    def test_wake_then_go_on(self):
+        self.conf["devices"] = listing(WATCH, device(tunnel="disconnected"), SIM)
+        self.conf["devices_after_wake"] = listing(WATCH, device(), SIM)
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.labels(), [
+            "devicectl list", "devicectl details", "devicectl list", "security find-identity", "security cms",
+            "codesign sign", "codesign verify", "devicectl install", "devicectl launch"])
+        self.assertEqual(self.calls()[1]["argv"], ["devicectl", "device", "info", "details", "--device", IDENTIFIER])
+        self.assertEqual(self.calls()[-1]["argv"],
+                         runner.launch_command(UDID, ["corpus::", "the_golden_hash_is_the_same_on_every_platform"])[1:])
+
+    def test_wake_that_stays_down(self):
+        self.conf["devices"] = listing(WATCH, device(tunnel="disconnected"), SIM)
+        self.conf["devices_after_wake"] = listing(WATCH, device(tunnel="disconnected"), SIM)
+        r = self.run_runner()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertTrue(r.stderr.startswith("ios-runner:"), r.stderr)
+        for part in ("no physical iPhone is connected", "disconnected", "unlock the phone"):
+            self.assertIn(part, r.stderr)
+        self.assertEqual(self.labels(), list(self.DOWN))
+
+    def test_failed_wake_call_is_not_fatal(self):
+        self.conf["devices"] = listing(device(tunnel="disconnected"))
+        self.conf["devices_after_wake"] = listing(device())
+        self.conf["details_status"] = 1
+        r = self.run_runner()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.labels()[:3], list(self.DOWN))
+
+    def test_no_wake_without_a_physical_phone(self):
+        self.conf["devices"] = listing(WATCH, SIM)
+        r = self.run_runner()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("no physical iPhone is connected", r.stderr)
+        self.assertNotIn("tunnel stayed down", r.stderr)
+        self.assertEqual(self.labels(), ["devicectl list"])
+
+    def test_two_phones_never_wake(self):
+        other = dict(udid=OTHER_UDID, name="Second", identifier="other-id")
+        cases = (
+            (listing(device(tunnel="disconnected"), device(**other)), True),
+            (listing(device(tunnel="disconnected"), device(tunnel="disconnected", **other)), False),
+            (listing(device(), device(**other)), False),
+        )
+        for doc, goes_on in cases:
+            self.conf["devices"] = doc
+            if os.path.exists(self.log):
+                self.log.unlink()
+            r = self.run_runner()
+            self.assertEqual(self.labels()[:1], ["devicectl list"])
+            self.assertNotIn("devicectl details", self.labels())
+            if goes_on:
+                self.assertEqual(r.returncode, 0, r.stderr)
+            else:
+                self.assertNotEqual(r.returncode, 0)
+                self.assertEqual(self.labels(), ["devicectl list"])
+        self.assertIn("more than one physical iPhone", r.stderr)
+
+
+class TestWakeCandidate(unittest.TestCase):
+    def test_wired_paired_disconnected_phone(self):
+        self.assertEqual(runner.wake_target(listing(device(tunnel="disconnected"))), IDENTIFIER)
+
+    def test_other_states_do_not_wake(self):
+        for dev in (device(), device(tunnel="disconnected", transport="localNetwork"),
+                    device(tunnel="disconnected", pairing="unpaired"),
+                    device(tunnel="disconnected", pairing=None),
+                    device(tunnel="disconnected", identifier="")):
+            self.assertIsNone(runner.wake_target(listing(dev)), dev)
+
+    def test_no_physical_ios_device(self):
+        for doc in (listing(), listing(WATCH, SIM), {}):
+            self.assertIsNone(runner.wake_target(doc))
+
+    def test_two_physical_devices_do_not_wake(self):
+        doc = listing(device(tunnel="disconnected"), device(udid=OTHER_UDID, name="Second"))
+        self.assertIsNone(runner.wake_target(doc))
+
+    def test_watch_and_simulator_do_not_count(self):
+        self.assertEqual(runner.wake_target(listing(WATCH, device(tunnel="disconnected"), SIM)), IDENTIFIER)
+
+    def test_wake_command(self):
+        self.assertEqual(runner.wake_command("abc"), ["xcrun", "devicectl", "device", "info", "details", "--device", "abc"])
 
 
 class TestClock(unittest.TestCase):
