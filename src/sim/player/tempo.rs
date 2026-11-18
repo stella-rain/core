@@ -36,6 +36,27 @@ pub(in crate::sim) fn tempo_lose(
     }
 }
 
+/// A hit taken by `me`: the stacks end (`tempo_lose`), unless the tempo's own armour shelters them,
+/// and at the idle root the carry's timer (`ComboState::window_left`) ends with them, in the tick
+/// the hit lands: the next tick's `combo` would drop it anyway with no stacks, but the snapshot of
+/// this tick must not show a carry. Mid-combo, charging or holding, `window_left` is the combo's
+/// own window and a hit leaves it. None after one bool test for a run that names no combo tempo.
+pub(in crate::sim) fn tempo_hit(
+    stage: &World,
+    s: &mut State,
+    me: PlayerIdx,
+    events: &mut Vec<DomainEvent>,
+) {
+    if !stage.has_tempo || tempo_armoured(stage, s, me) {
+        return;
+    }
+    tempo_lose(stage, s, me, events);
+    let combo = &mut s.players[me].combo;
+    if combo.depth == 0 && combo.charge.is_none() && combo.hold.is_none() {
+        combo.window_left = 0;
+    }
+}
+
 /// Whether `me`'s stacks are full in a held hold and its tempo names the armour: the combo tempo's
 /// condition of `super_armour`, and the one armour that shelters the stacks from a hit.
 pub(in crate::sim) fn tempo_armoured(stage: &World, s: &State, me: PlayerIdx) -> bool {

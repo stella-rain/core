@@ -119,7 +119,7 @@ pub(super) use evade::{add_evade_charges, near_miss, perfect_slow, slowed};
 use evade::{dash, start_evade};
 mod tempo;
 pub(super) use tempo::{
-    tempo_armoured, tempo_from_hits, tempo_lose, tempo_range_pct, tempo_speed_pct,
+    tempo_armoured, tempo_from_hits, tempo_hit, tempo_lose, tempo_range_pct, tempo_speed_pct,
 };
 use tempo::{tempo_carries, tempo_on_smash};
 mod counter;
