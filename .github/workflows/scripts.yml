@@ -1,4 +1,5 @@
-# Unit tests of the Python scripts in .github/scripts (release.py) and scripts/ (playtest.py). Runs on every pull
+# Unit tests of the Python scripts in .github/scripts (release.py) and scripts/ (playtest.py), and the size guard
+# (scripts/size_guard.py: warns on a hand-written .rs file past 1,500 lines, never fails). Runs on every pull
 # request, so auto-merge.yml requires it.
 name: Scripts
 
@@ -22,3 +23,5 @@ jobs:
           persist-credentials: false
       - run: python3 -m unittest discover -s .github/scripts -v
       - run: python3 -m unittest discover -s scripts -v
+      - name: size guard (warns, never fails)
+        run: python3 scripts/size_guard.py
