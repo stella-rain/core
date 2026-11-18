@@ -48,8 +48,9 @@
 //! `window_left` at the carry and keeps a running one across a reset at the root, `combo` counts
 //! it down at depth 0 and `tempo_lose`s at 0), a smash press after the smash itself started
 //! (`tempo_on_smash`;
-//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player`; not under `tempo_armoured`,
-//! full stacks in a held hold with `super_armour_at_full`), a down and another style.
+//! full stacks with `keep_on_smash` stay), a hit taken (`hurt_player` through `tempo_hit`: at the
+//! idle root it also drops the carry's timer in the same tick; not under `tempo_armoured`, full
+//! stacks in a held hold with `super_armour_at_full`), a down and another style.
 //!
 //! The giant trigger (when the style names the `giant_trigger` kind): `spend_gauge` starts it
 //! after the full-gauge smash's own attack began (`trigger_start`), `trigger_tick` counts it down
