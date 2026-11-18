@@ -1,4 +1,3 @@
-
 //! Hits on each player of a party (ADR-SIM-7): an enemy's swing or orb reaches every player
 //! it covers, once each and in slot order, and the companions once.
 
