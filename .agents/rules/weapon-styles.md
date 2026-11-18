@@ -1,6 +1,7 @@
 ---
 globs:
   - "src/expertise.rs"
+  - "src/expertise/**"
   - "src/pack/check.rs"
   - "src/sim/{expertise,stacking_tests}.rs"
   - "tests/*style*.rs"

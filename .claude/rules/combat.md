@@ -1,8 +1,8 @@
 ---
 paths:
   - "src/sim/{stun,hit_boxes,player,player_hits,collide,combat,runes}.rs"
-  - "src/sim/attacks/ranged.rs"
-  - "src/sim/attacks/runs.rs"
+  - "src/sim/{hit_boxes,player}/**"
+  - "src/sim/attacks/{ranged,runs}.rs"
   - "src/sim/state/foes.rs"
   - "src/sim/state/player_state.rs"
   - "src/{threat_colours,rules}.rs"
