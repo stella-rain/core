@@ -117,15 +117,15 @@ removed. On a device run set them as `DEVICECTL_CHILD_STELLA_TEST_DATA_ROOT=...`
   gives no `test result:` line and a nonzero exit; the command run from `docs/`.
 - On the iPhone 13 (iOS 27.2) on 2026-11-18, seen once and by hand: the tunnel was `disconnected` on a wired,
   paired, unlocked phone, one `xcrun devicectl device info details --device <udid>` made it `connected`, and
-  the run passed (27 passed, exit 0).
+  the run passed (27 passed, exit 0). The runner's own wake then did the same: `ios-runner: tunnel is down,
+  waking it once`, then 27 passed, exit 0.
 - On any host (CI `script unit tests`): the device and profile choice, the plists, the commands and the
   verdict, and whole runs against fake `xcrun`, `security` and `codesign`, including the runner's wake (one
   call, the second listing, the unchanged errors).
 - On the host: the 26 tests pass from another working directory; with `STELLA_TEST_DATA_ROOT` at a copy whose
   `tests/corpus/current/runs/` is emptied, `corpus::the_corpus_matches` fails with `the corpus has no run case`.
 
-Not verified: the runner's own wake call against a real phone, and a phone that stays down after it (the
-hint); the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
+Not verified: a real phone that stays down after the wake (the hint); the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
 a phone that is not on iOS 27.2; an Xcode other than 27.2 (the shape of `devicectl`'s JSON); the profile
 after Xcode re-creates it; the 7-day expiry cycle itself. The device run cannot run in CI.
 
