@@ -103,8 +103,7 @@
 //! (`player::tempo_carries`); the combo window is the carry's timer at the root too
 //! (`player::combo_reset` restarts `ComboState::window_left`, `player::combo` counts it down and
 //! ends the stacks at 0; a hit taken at the idle root drops it in the same tick: `player::tempo_hit`);
-//! no new state. `PlayerView.tempo` and the two
-//! tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
+//! no new state. `PlayerView.tempo` and the two tempo events are not state. A run whose styles name no combo tempo keeps the field at zero,
 //! one bool test each. With `super_armour_at_full`, full stacks in a held hold are super armour
 //! (`player::tempo_armoured`), the one armour that shelters the stacks from a hit.
 //!
