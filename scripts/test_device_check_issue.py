@@ -119,7 +119,7 @@ class WholeRun(unittest.TestCase):
 
     def test_a_second_run_opens_none(self):
         for state in ("OPEN", "CLOSED"):
-            self.log.unlink(missing_ok=True) if hasattr(Path, "unlink") else None
+            self.log.unlink(missing_ok=True)
             listing = json.dumps([{"number": 7, "title": TITLE, "state": state}])
             r = self.run_script("--tag", "v0.8.0", "--commit", SHA, FAKE_LIST=listing)
             self.assertEqual(r.returncode, 0, r.stderr)
