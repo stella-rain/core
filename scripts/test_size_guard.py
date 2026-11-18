@@ -78,6 +78,15 @@ class Scope(unittest.TestCase):
         self.assertEqual(scan_files(files), ([("src/g.rs", 2000)], []))
 
 
+    def test_a_form_feed_is_not_a_line_break(self):
+        text = "// x\n" * 1490 + "// a\x0cb\x0cc\x0cd\x0ce\x0cf\x0cg\x0ch\x0ci\x0cj\n" * 10
+        self.assertEqual(scan_files({"src/ff.rs": text}), ([], []))
+
+    def test_a_marker_outside_a_comment_is_not_a_marker(self):
+        files = {"src/m.rs": padded(2000, first="let s = \"do not edit\";")}
+        self.assertEqual(scan_files(files), ([("src/m.rs", 2000)], []))
+
+
 class TestOnly(unittest.TestCase):
     def test_by_path(self):
         paths = ["tests/x.rs", "tests/common/y.rs", "fuzz/tests/smoke.rs", "src/a_tests.rs",
