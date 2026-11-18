@@ -1014,6 +1014,79 @@ fn a_hit_inside_the_evade_window_ends_the_stacks_and_the_window() {
     assert_eq!(count(&r.events, "TempoLost"), 1);
 }
 
+/// C5a: a hit inside the evade window drops the carry's timer in the tick it lands, in the
+/// snapshot too, not one tick later. Red before the change: the timer kept its carry value.
+#[test]
+fn a_hit_inside_the_evade_window_drops_the_carry_in_the_same_tick() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(5);
+    assert_eq!(r.tempo(0), 5);
+    assert!(r.window(0) > 0);
+    let ev = r.hurt(0, 1);
+    assert_eq!(count(&ev, "TempoLost"), 1);
+    assert_eq!(r.tempo(0), 0);
+    assert_eq!(r.view(0)["tempo"]["stacks"], 0);
+    assert_eq!(r.window(0), 0);
+    assert_eq!(r.view(0)["combo"]["window_left"], 0);
+}
+
+/// C5b: one tick after that hit nothing differs: stacks and window 0, one `TempoLost`.
+#[test]
+fn a_hit_inside_the_evade_window_stays_dropped_the_next_tick() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(5);
+    r.hurt(0, 1);
+    r.idle(1);
+    assert_eq!((r.tempo(0), r.window(0)), (0, 0));
+    assert_eq!(count(&r.events, "TempoLost"), 1);
+}
+
+/// C5c: a down inside the evade window clears the stacks and the timer at once.
+#[test]
+fn a_down_inside_the_evade_window_clears_both_at_once() {
+    let mut r = rig(2, vec![carry_kind()], 1);
+    r.full_smash();
+    r.evade();
+    r.idle(3);
+    let ev = r.hurt(0, 2_000_000);
+    assert_eq!(st(&mut r.e).players[ME].hp, 0, "player 0 is down");
+    assert_eq!(r.tempo(0), 0);
+    assert_eq!(r.window(0), 0);
+    assert_eq!(r.view(0)["tempo"]["stacks"], 0);
+    assert_eq!(r.view(0)["combo"]["window_left"], 0);
+    assert_eq!(count(&ev, "TempoLost"), 1);
+    assert_eq!(count(&ev, "PlayerDowned"), 1);
+}
+
+/// C5d: a hit in the middle of a combo ends the stacks but leaves the combo's own window.
+#[test]
+fn a_hit_mid_combo_keeps_the_combos_own_window() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    r.run_step(false);
+    r.set_tempo(0, 3);
+    let w = r.window(0);
+    let depth = st(&mut r.e).players[ME].combo.depth;
+    assert!(w > 0 && depth > 0);
+    r.hurt(0, 1);
+    assert_eq!(r.tempo(0), 0);
+    assert_eq!(r.window(0), w);
+    assert_eq!(st(&mut r.e).players[ME].combo.depth, depth);
+}
+
+/// C5e: a hit at the root with no stacks changes nothing.
+#[test]
+fn a_hit_with_no_stacks_leaves_the_root_alone() {
+    let mut r = rig(1, vec![carry_kind()], 1);
+    assert_eq!((r.tempo(0), r.window(0)), (0, 0));
+    let ev = r.hurt(0, 1);
+    assert_eq!((r.tempo(0), r.window(0)), (0, 0));
+    assert_eq!(count(&ev, "TempoLost"), 0);
+}
+
 /// C6: a save inside the evade window ends the stacks on time. Red because the stacks never end
 /// (the C4 reason, before the change); the save half is a guard.
 #[test]
