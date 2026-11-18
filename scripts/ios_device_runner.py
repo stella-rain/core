@@ -65,6 +65,31 @@ def select_device(devices_json):
     return found[0]
 
 
+WAKE_HINT = ("; the tunnel stayed down after one devicectl device info details: "
+             "unlock the phone, keep it unlocked, and run again")
+
+
+def wake_target(devices_json):
+    """The identifier of the one physical iOS device when it is wired, paired and its tunnel is down."""
+    entries = ((devices_json or {}).get("result") or {}).get("devices") or []
+    phones = []
+    for entry in entries:
+        hardware = entry.get("hardwareProperties") or {}
+        if hardware.get("platform") == "iOS" and hardware.get("reality") == "physical":
+            phones.append(entry)
+    if len(phones) != 1:
+        return None
+    connection = phones[0].get("connectionProperties") or {}
+    if (connection.get("transportType") == "wired" and connection.get("pairingState") == "paired"
+            and connection.get("tunnelState") == "disconnected"):
+        return phones[0].get("identifier") or None
+    return None
+
+
+def wake_command(identifier):
+    return ["xcrun", "devicectl", "device", "info", "details", "--device", identifier]
+
+
 def parse_identities(security_output):
     """SHA-1 (upper case) to name of the development identities in `security find-identity`."""
     found = {}
@@ -239,7 +264,21 @@ def run(argv):
         root = Path(tmp)
         listing = root / "devices.json"
         run_tool("device list", ["xcrun", "devicectl", "list", "devices", "--json-output", str(listing)])
-        phone = select_device(json.loads(listing.read_text()))
+        document = json.loads(listing.read_text())
+        target = wake_target(document)
+        if target:
+            say("tunnel is down, waking it once")
+            try:
+                run_tool("device wake", wake_command(target))
+            except RunnerError:
+                pass  # the second listing decides
+            run_tool("device list", ["xcrun", "devicectl", "list", "devices", "--json-output", str(listing)])
+            try:
+                phone = select_device(json.loads(listing.read_text()))
+            except RunnerError as err:
+                raise RunnerError(str(err) + WAKE_HINT)
+        else:
+            phone = select_device(document)
         say("device {}, iOS {}".format(phone.name, phone.os_version))
         identities = parse_identities(
             run_tool("identity list", ["security", "find-identity", "-v", "-p", "codesigning"]).decode("utf-8", "replace"))

@@ -212,3 +212,42 @@ class PromoteTellsTheApp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PromoteOpensTheDeviceIssue(unittest.TestCase):
+    """The device-check issue of each 0.N.0 release (ADR-REL-6 point 4) comes from a job of its
+    own, so `notify` keeps no checkout and no write grant. Whether a tag calls for one is the
+    script's gate, not the workflow's."""
+
+    def setUp(self):
+        self.text = read("promote.yml")
+        self.job = job_block(self.text, "device-issue")
+
+    def test_it_waits_for_the_release(self):
+        self.assertRegex(self.job, r"needs:\s*\[check, tag\]")
+
+    def test_the_grants_are_on_this_job_only(self):
+        self.assertRegex(self.text, re.compile(r"^permissions: \{\}$", re.M))
+        self.assertEqual(self.text.count("issues: write"), 1)
+        self.assertIn("issues: write", self.job)
+        self.assertIn("contents: read", self.job)
+        self.assertNotRegex(self.job, re.compile(r"^\s+contents: write", re.M))
+
+    def test_it_checks_out_the_tagged_commit_without_credentials(self):
+        self.assertIn("actions/checkout@", self.job)
+        self.assertIn("persist-credentials: false", self.job)
+        self.assertIn("ref: ${{ needs.check.outputs.commit }}", self.job)
+
+    def test_it_runs_the_script_with_the_final_tag(self):
+        self.assertIn("scripts/device_check_issue.py", self.job)
+        self.assertIn('--tag "$TAG"', self.job)
+        self.assertIn("TAG: ${{ needs.check.outputs.final }}", self.job)
+
+    def test_the_gate_is_the_scripts_and_a_failure_fails_the_run(self):
+        self.assertNotRegex(self.job, re.compile(r"^\s+if:", re.M))
+        self.assertNotIn("continue-on-error", self.job)
+        self.assertNotIn("|| true", self.job)
+
+    def test_it_uses_the_repository_token_not_the_bridge_app(self):
+        self.assertIn("GH_TOKEN: ${{ github.token }}", self.job)
+        self.assertNotIn("create-github-app-token", self.job)

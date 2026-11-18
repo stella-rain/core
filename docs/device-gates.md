@@ -54,7 +54,9 @@ folder of the repository.
 ## What the runner does
 
 1. Lists the devices with `xcrun devicectl list devices` and takes the one physical iOS device whose tunnel
-   is connected. None, or more than one, stops it.
+   is connected. None, or more than one, stops it. When exactly one physical iPhone is listed, wired and
+   paired with its tunnel down, the runner first runs `xcrun devicectl device info details --device
+   <identifier>` once and lists again.
 2. Reads the provisioning profiles of `~/Library/MobileDevice/Provisioning Profiles` and
    `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (`security cms -D`) and takes the one for
    `com.stellarain.Dinghy` with the latest expiry that is not expired, lists this phone and has a certificate
@@ -85,6 +87,7 @@ folder of the repository.
 | Symptom (runner message) | Cause and fix |
 |---|---|
 | `no physical iPhone is connected (saw: ...)` | Not connected, not trusted or the tunnel is down: unlock, replug, accept the trust prompt. |
+| `no physical iPhone is connected (saw: ...)` ending `the tunnel stayed down after one devicectl device info details` | The runner already tried to bring the tunnel up: unlock the phone, keep it unlocked, replug the cable, run again. No wake is tried when no iPhone, or more than one, is listed. |
 | `more than one physical iPhone is connected` | Disconnect all but one. |
 | `no provisioning profile for com.stellarain.Dinghy` | Setup step 3 was not done: run the **Dinghy** project once from Xcode. |
 | `the provisioning profile ... expired on <date>` | A free Apple ID's profile lasts 7 days: run the Dinghy project from Xcode again. |
@@ -112,12 +115,17 @@ removed. On a device run set them as `DEVICECTL_CHILD_STELLA_TEST_DATA_ROOT=...`
   release, 26 passed and exit 0; the same in debug; `DEVICECTL_CHILD_STELLA_TEST_DATA_ROOT=/nonexistent`
   gives `test result: FAILED`, although `devicectl` reports app exit code 0, and a nonzero exit; `--test-threads=0`
   gives no `test result:` line and a nonzero exit; the command run from `docs/`.
+- On the iPhone 13 (iOS 27.2) on 2026-11-18, seen once and by hand: the tunnel was `disconnected` on a wired,
+  paired, unlocked phone, one `xcrun devicectl device info details --device <udid>` made it `connected`, and
+  the run passed (27 passed, exit 0). The runner's own wake then did the same: `ios-runner: tunnel is down,
+  waking it once`, then 27 passed, exit 0.
 - On any host (CI `script unit tests`): the device and profile choice, the plists, the commands and the
-  verdict, and whole runs against fake `xcrun`, `security` and `codesign`.
+  verdict, and whole runs against fake `xcrun`, `security` and `codesign`, including the runner's wake (one
+  call, the second listing, the unchanged errors).
 - On the host: the 26 tests pass from another working directory; with `STELLA_TEST_DATA_ROOT` at a copy whose
   `tests/corpus/current/runs/` is emptied, `corpus::the_corpus_matches` fails with `the corpus has no run case`.
 
-Not verified: the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
+Not verified: a real phone that stays down after the wake (the hint); the real `devicectl` message for a locked phone and for Developer Mode off; a second iPhone;
 a phone that is not on iOS 27.2; an Xcode other than 27.2 (the shape of `devicectl`'s JSON); the profile
 after Xcode re-creates it; the 7-day expiry cycle itself. The device run cannot run in CI.
 
@@ -220,3 +228,21 @@ status.
 
 Not verified: any phone. The script has not been run against a real device by CI or by its author; the device
 run cannot run in CI.
+
+## Where a device run is recorded
+
+Promote opens one issue in this repository for each `0.N.0` release (a minor or major release,
+ADR-REL-6): `Device check: vX.Y.0`, labelled `cmd:verify-needs-android` and
+`cmd:verify-needs-iphone`, naming the tag and its commit, with one box per device role of
+ADR-PLAT-10: the reference phone, the iOS reference device, and the profiling phones attached
+(write "none" when there are none). A re-run of Promote finds the issue by its title and opens no second one.
+
+Record each device run as one comment on that issue: the role, the OS version, the command and the last
+`test result:` line with the exit status. A full pass removes both labels and closes the issue; a failure
+stays open and starts the next patch. A device run is not a Candidate gate.
+
+A patch release opens no issue. To open one by hand for any release, with `gh` logged in:
+
+```
+python3 scripts/device_check_issue.py --tag vX.Y.0 --commit <sha>
+```
