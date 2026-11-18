@@ -10,7 +10,8 @@
 # Only the tag job can write to this repository, and it runs none of the repository's code.
 # After the release exists, the notify job tells app (a core-release dispatch carrying the tag)
 # with a bridge App token that can write only to app. A failed dispatch leaves the release and
-# fails the run; re-run the failed job.
+# fails the run; re-run the failed job. For a minor or major release (vX.Y.0) the device-issue
+# job also opens the device-check issue in this repository (ADR-REL-6), once: a re-run finds it.
 name: Promote
 
 on:
@@ -182,3 +183,24 @@ jobs:
             exit 1
           fi
           echo "Sent \`core-release\` with tag \`$TAG\` to \`$GITHUB_REPOSITORY_OWNER/app\`." >> "$GITHUB_STEP_SUMMARY"
+
+  device-issue:
+    name: open the device-check issue
+    needs: [check, tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.check.outputs.commit }}
+          persist-credentials: false
+      - name: Open the issue for a 0.N.0 release (none for a patch; a re-run opens no second)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.final }}
+          COMMIT: ${{ needs.check.outputs.commit }}
+        run: python3 scripts/device_check_issue.py --tag "$TAG" --commit "$COMMIT" --repo "$REPO"

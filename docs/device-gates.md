@@ -228,3 +228,21 @@ status.
 
 Not verified: any phone. The script has not been run against a real device by CI or by its author; the device
 run cannot run in CI.
+
+## Where a device run is recorded
+
+Promote opens one issue in this repository for each `0.N.0` release (a minor or major release,
+ADR-REL-6): `Device check: vX.Y.0`, labelled `cmd:verify-needs-android` and
+`cmd:verify-needs-iphone`, naming the tag and its commit, with one box per device role of
+ADR-PLAT-10: the reference phone, the iOS reference device, and the profiling phones attached
+(write "none" when there are none). A re-run of Promote finds the issue by its title and opens no second one.
+
+Record each device run as one comment on that issue: the role, the OS version, the command and the last
+`test result:` line with the exit status. A full pass removes both labels and closes the issue; a failure
+stays open and starts the next patch. A device run is not a Candidate gate.
+
+A patch release opens no issue. To open one by hand for any release, with `gh` logged in:
+
+```
+python3 scripts/device_check_issue.py --tag vX.Y.0 --commit <sha>
+```
