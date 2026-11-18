@@ -543,25 +543,34 @@ fn the_guard_finds_a_write() {
     );
 }
 
-/// The paths, relative to `root` and `/`-separated, of every `.rs` file, sorted.
+/// The paths, relative to `root` and `/`-separated, of every `.rs` file at any depth, sorted so
+/// the order does not depend on the file system. A symlink is not followed.
 fn rs_files(root: &std::path::Path) -> Vec<String> {
-    let mut out = Vec::new();
-    for entry in std::fs::read_dir(root).expect("a folder") {
-        let entry = entry.expect("an entry");
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".rs") {
-            out.push(name);
+    fn walk(dir: &std::path::Path, prefix: &str, out: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir).expect("a folder") {
+            let entry = entry.expect("an entry");
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let rel = format!("{prefix}{name}");
+            let kind = entry.file_type().expect("a file type");
+            if kind.is_dir() {
+                walk(&entry.path(), &format!("{rel}/"), out);
+            } else if kind.is_file() && name.ends_with(".rs") {
+                out.push(rel);
+            }
         }
     }
+    let mut out = Vec::new();
+    walk(root, "", &mut out);
     out.sort();
     out
 }
 
-/// Whether the guard reads a file: a `.rs` file that is not a test file and not `damage.rs` (the
-/// write) or `act.rs` (the heal, which raises hit points).
+/// Whether the guard reads a file, given its path relative to `src/sim`: a `.rs` file that is not
+/// a test file and not `damage.rs` (the write) or `act.rs` (the heal, which raises hit points),
+/// those two matched by the whole path so a same-named file in a folder is still read.
 fn is_checked(rel: &str) -> bool {
     let name = rel.rsplit('/').next().unwrap_or(rel);
-    name.ends_with(".rs") && !name.ends_with("_tests.rs") && name != "damage.rs" && name != "act.rs"
+    name.ends_with(".rs") && !name.ends_with("_tests.rs") && rel != "damage.rs" && rel != "act.rs"
 }
 
 #[test]
