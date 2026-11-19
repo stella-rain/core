@@ -260,7 +260,7 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     report: Option<DesyncReport>,
     local_leave: Option<u32>,
     /// The run this session plays: 0 until a restart changes it. Every packet but the hello
-    /// carries it and a packet of another run is dropped (ADR-NET-6 point 9).
+    /// carries it and a packet of another run is dropped (ADR-NET-6).
     run: u8,
     round: u32,
     own: BTreeMap<u32, u64>,

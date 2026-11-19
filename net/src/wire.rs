@@ -10,7 +10,7 @@
 //! The first byte of a packet is its tag: `0x06` hello (protocol 3), `0x01` the retired protocol 1
 //! hello (never given another meaning), `0x02` input frame, `0x03` ack, `0x04` checkpoint, `0x05`
 //! bye, `0x07` leader command. Every packet but the hello has a run byte right after the tag, the run
-//! the packet belongs to (ADR-NET-6 point 9). A tag from `0x08` up is refused.
+//! the packet belongs to (ADR-NET-6). A tag from `0x08` up is refused.
 
 use std::fmt;
 
@@ -117,7 +117,7 @@ impl WireInput {
 /// One slot's inputs for `inputs.len()` consecutive ticks from `start_tick`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InputFrame {
-    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6 point 9).
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
     pub run: u8,
     /// The sender's own slot.
     pub slot: PlayerIdx,
@@ -130,7 +130,7 @@ pub struct InputFrame {
 /// The receiver has every tick of `slot`'s inputs below `next_tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ack {
-    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6 point 9).
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
     pub run: u8,
     /// Whose inputs are acknowledged.
     pub slot: PlayerIdx,
@@ -141,7 +141,7 @@ pub struct Ack {
 /// The sender's state hash after `tick` ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Checkpoint {
-    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6 point 9).
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
     pub run: u8,
     /// The sender.
     pub slot: PlayerIdx,
@@ -165,7 +165,7 @@ pub enum ByeReason {
 /// A peer is leaving.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bye {
-    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6 point 9).
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
     pub run: u8,
     /// The sender.
     pub slot: PlayerIdx,
