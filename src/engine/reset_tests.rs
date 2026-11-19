@@ -1,5 +1,5 @@
 //! An engine restored to its tick-0 copy with `Clone::clone_from` is the engine a constructor
-//! builds (ADR-NET-3 points 8 and 9): the state hash, every field the hash does not cover, a later
+//! builds (ADR-NET-3): the state hash, every field the hash does not cover, a later
 //! join, and the ticks that follow. Over every corpus stage, run and party, at party sizes 1 to 3,
 //! `sim_version` 1 included.
 
