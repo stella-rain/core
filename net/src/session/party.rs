@@ -519,7 +519,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     }
 
     /// Slot 0 ends the run at the tick it has confirmed and returns that tick (ADR-NET-3
-    /// points 7 to 9). A Cancel finishes at once and the session stops; a Restart is sent to
+    /// point 7). A Cancel finishes at once and the session stops; a Restart is sent to
     /// every peer and happens once the session has stepped to that tick.
     ///
     /// # Errors
