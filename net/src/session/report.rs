@@ -17,8 +17,9 @@ pub enum ReportError {
     Setup(RunReplayError),
     /// The recorder refused a logged leave or tick.
     Recorder(RunReplayError),
-    /// From a [`DesyncReport`] only: the rebuilt run ends on another hash than the one the session held: either the setup is
-    /// not the one the engine started on, or the engine is not deterministic.
+    /// From a [`DesyncReport`] only: the rebuilt run ends on another hash than the one the
+    /// session held: either the setup is not the one the engine started on, or the engine is not
+    /// deterministic.
     HashDiffers,
 }
 
@@ -86,7 +87,8 @@ impl EndedRun {
         }
     }
 
-    /// Rebuilds the run's replay as `DesyncReport::replay` does, cut at `tick`. An ended run
+    /// Rebuilds the run's replay as `DesyncReport::replay` does, cut at `tick` (a log shorter
+    /// than `tick` is replayed as held; the log is not checked for gaps). An ended run
     /// holds no expected hash, so this never returns `ReportError::HashDiffers`; check the
     /// bytes with `verify_run`.
     pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
