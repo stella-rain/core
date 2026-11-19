@@ -8,7 +8,7 @@
 //! a test changes a message: it can alter an input frame on its way out or drop checkpoints.
 #![allow(dead_code)]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use stella_rain_core::id::PlayerIdx;
@@ -41,11 +41,20 @@ pub fn hello() -> Hello {
     }
 }
 
+/// Decides whether a packet is dropped on its way out: `from`, `to`, the packet.
+pub type DropIf = Box<dyn FnMut(usize, usize, &Packet) -> bool>;
+
+/// One packet sent: the round, `from`, `to`, the packet (dropped ones included).
+pub type Sent = (u32, usize, usize, Packet);
+
 /// What the links of a run do to a message on its way out.
 #[derive(Default)]
 struct Rules {
     tamper: Option<FrameTamper>,
     drop_checkpoints_to: Vec<usize>,
+    drop_if: Option<DropIf>,
+    sent: Vec<Sent>,
+    round: Rc<Cell<u32>>,
 }
 
 /// One session's [`Transport`]: its simnet endpoint plus the run's [`Rules`].
@@ -60,6 +69,13 @@ impl Transport for Link {
         let mut out = packet.to_vec();
         if let Ok(decoded) = Packet::decode(packet) {
             let mut rules = self.rules.borrow_mut();
+            let round = rules.round.get();
+            rules.sent.push((round, self.me, to.get(), decoded.clone()));
+            if let Some(drop) = rules.drop_if.as_mut()
+                && drop(self.me, to.get(), &decoded)
+            {
+                return Ok(());
+            }
             match decoded {
                 Packet::Checkpoint(_) if rules.drop_checkpoints_to.contains(&to.get()) => {
                     return Ok(());
@@ -108,6 +124,7 @@ pub struct Peers {
     announced: bool,
     taken: Vec<u32>,
     per_round: Vec<u32>,
+    runs: Vec<u8>,
 }
 
 impl Peers {
@@ -128,6 +145,7 @@ impl Peers {
             announced: false,
             taken: vec![0; count],
             per_round: vec![1; count],
+            runs: vec![0; count],
         };
         peers.rebuild();
         peers
@@ -172,6 +190,11 @@ impl Peers {
         self
     }
 
+    /// From now on slot `who` calls `advance` `calls` times per round (0: it only polls).
+    pub fn set_calls(&mut self, who: usize, calls: u32) {
+        self.per_round[who] = calls;
+    }
+
     /// Every `Checkpoint` sent to slot `who` is dropped on its way out.
     pub fn drop_checkpoints_to(self, who: usize) -> Peers {
         self.rules.borrow_mut().drop_checkpoints_to.push(who);
@@ -184,6 +207,22 @@ impl Peers {
         self.stops[who] = at;
         self.leaver = Some((who, at));
         self
+    }
+
+    /// Drops every packet for which `drop` answers true, on its way out: `from`, `to`, the packet.
+    pub fn set_drop_if(&mut self, drop: DropIf) {
+        self.rules.borrow_mut().drop_if = Some(drop);
+    }
+
+    /// The round counter the harness keeps for the sent log and for `drop_if` windows: the net's
+    /// round, updated at the start of every [`Peers::round`].
+    pub fn round_cell(&self) -> Rc<Cell<u32>> {
+        Rc::clone(&self.rules.borrow().round)
+    }
+
+    /// Every packet sent so far (the dropped ones too): round, `from`, `to`, the packet.
+    pub fn sent(&self) -> Vec<Sent> {
+        self.rules.borrow().sent.clone()
     }
 
     /// Changes every input frame on its way out: `from`, `to`, the frame.
@@ -222,7 +261,14 @@ impl Peers {
     /// advances (or polls once it is finished or stopped).
     pub fn round(&mut self) {
         self.net.step_round();
+        self.rules.borrow().round.set(self.net.round());
         for i in 0..self.sessions.len() {
+            // A restart plays the script again from tick 0, as the engine does.
+            let run = self.sessions[i].run();
+            if run != self.runs[i] {
+                self.runs[i] = run;
+                self.taken[i] = 0;
+            }
             if let Some((who, at)) = self.leaver
                 && who == i
                 && !self.announced
