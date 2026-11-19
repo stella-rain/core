@@ -10,15 +10,16 @@ use stella_rain_core::run_setup::RunSetup;
 
 use super::ConfirmedTick;
 
-/// Why a [`DesyncReport::replay`] failed.
+/// Why a [`DesyncReport::replay`] or [`EndedRun::replay`] failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReportError {
     /// The recorder refused to start from the setup, content or party.
     Setup(RunReplayError),
     /// The recorder refused a logged leave or tick.
     Recorder(RunReplayError),
-    /// The rebuilt run ends on another hash than the one the session held: either the setup is
-    /// not the one the engine started on, or the engine is not deterministic.
+    /// From a [`DesyncReport`] only: the rebuilt run ends on another hash than the one the
+    /// session held: either the setup is not the one the engine started on, or the engine is not
+    /// deterministic.
     HashDiffers,
 }
 
@@ -56,26 +57,74 @@ impl DesyncReport {
     /// Rebuilds the run through a [`stella_rain_core::run_replay::RunRecorder`]: per logged
     /// tick the leaves stamped on it, then the step. Nothing runs until this is called.
     pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
-        let mut recorder = RunRecorder::start_party_with(setup, content, self.party)
-            .map_err(ReportError::Setup)?;
-        for logged in &self.ticks {
-            for slot in 0..3u8 {
-                if logged.leaves >> slot & 1 == 1
-                    && let Some(who) = PlayerIdx::new(slot)
-                {
-                    recorder.leave(who).map_err(ReportError::Recorder)?;
-                }
-            }
-            let inputs = logged.inputs.map(|wire| wire.to_input());
-            recorder.step(&inputs).map_err(ReportError::Recorder)?;
-        }
-        let replay = recorder.replay();
-        if self
-            .local_hash
-            .is_some_and(|hash| replay.final_hash != format!("{hash:016x}"))
-        {
-            return Err(ReportError::HashDiffers);
-        }
-        Ok(replay)
+        rebuild(setup, content, self.party, &self.ticks, self.local_hash)
     }
+}
+
+/// One run that ended: the confirmed ticks it stepped, from which its own replay is rebuilt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EndedRun {
+    /// The run's number, as the run byte on the wire (ADR-NET-6). Data only: `replay` ignores it.
+    pub run: u8,
+    /// The tick the run ended at: it has stepped ticks 0 to `tick` - 1.
+    pub tick: u32,
+    /// The starting party size.
+    pub party: u8,
+    /// The confirmed ticks of the run, below `tick`.
+    pub ticks: Vec<ConfirmedTick>,
+}
+
+impl EndedRun {
+    /// An ended run; `ticks` is cut to `tick` entries, so what a session drained past the end
+    /// never reaches the replay.
+    pub fn new(run: u8, tick: u32, party: u8, mut ticks: Vec<ConfirmedTick>) -> EndedRun {
+        ticks.truncate(usize::try_from(tick).unwrap_or(usize::MAX));
+        EndedRun {
+            run,
+            tick,
+            party,
+            ticks,
+        }
+    }
+
+    /// Rebuilds the run's replay as `DesyncReport::replay` does, cut at `tick` (a log shorter
+    /// than `tick` is replayed as held; the log is not checked for gaps). An ended run
+    /// holds no expected hash, so this never returns `ReportError::HashDiffers`; check the
+    /// bytes with `verify_run`.
+    pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
+        let end = self
+            .ticks
+            .len()
+            .min(usize::try_from(self.tick).unwrap_or(usize::MAX));
+        rebuild(setup, content, self.party, &self.ticks[..end], None)
+    }
+}
+
+/// Replays `ticks` through a recorder started on `party`; with `expect`, the rebuilt run must
+/// end on that hash.
+fn rebuild(
+    setup: &RunSetup,
+    content: &RunContent,
+    party: u8,
+    ticks: &[ConfirmedTick],
+    expect: Option<u64>,
+) -> Result<RunReplay, ReportError> {
+    let mut recorder =
+        RunRecorder::start_party_with(setup, content, party).map_err(ReportError::Setup)?;
+    for logged in ticks {
+        for slot in 0..3u8 {
+            if logged.leaves >> slot & 1 == 1
+                && let Some(who) = PlayerIdx::new(slot)
+            {
+                recorder.leave(who).map_err(ReportError::Recorder)?;
+            }
+        }
+        let inputs = logged.inputs.map(|wire| wire.to_input());
+        recorder.step(&inputs).map_err(ReportError::Recorder)?;
+    }
+    let replay = recorder.replay();
+    if expect.is_some_and(|hash| replay.final_hash != format!("{hash:016x}")) {
+        return Err(ReportError::HashDiffers);
+    }
+    Ok(replay)
 }

@@ -2,10 +2,14 @@
 
 mod support;
 
+use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
-use stella_rain_net::session::Session;
+use stella_rain_core::run_content::RunContent;
+use stella_rain_core::run_replay::{RunReplay, verify_run, verify_run_against};
+use stella_rain_net::session::report::{EndedRun, ReportError};
+use stella_rain_net::session::{ConfirmedTick, Session};
 use stella_rain_net::wire::WireInput;
-use support::{Script, engine, frame_of, script, slot, straight};
+use support::{Script, engine, equipment_setup, frame_of, script, slot, straight};
 
 const DELAY: u32 = 2;
 
@@ -135,4 +139,110 @@ fn without_keep_confirmed_the_log_stays_empty() {
     s.confirm().expect("confirm");
     assert!(s.confirmed() > 90);
     assert!(s.take_confirmed().is_empty());
+}
+
+fn hex(h: u64) -> String {
+    format!("{h:016x}")
+}
+
+/// The confirmed log of a 612-tick run of `n` (slot 2 leaving at 300 when `n` is 3), and the oracle.
+fn log_of(n: u8) -> (Vec<ConfirmedTick>, Vec<u64>) {
+    let leave = (n == 3).then(|| (slot(2), 300));
+    let sc = script(n, 612, DELAY, leave);
+    let oracle = straight(&sc, n);
+    let mut s = drive(&sc, n, 612, true);
+    give(&mut s, &sc, n, 611);
+    s.confirm().expect("confirm");
+    let log = s.take_confirmed();
+    assert_eq!(log.len(), 612, "n {n}");
+    (log, oracle)
+}
+
+fn replay_of(run: &EndedRun) -> RunReplay {
+    run.replay(&equipment_setup(), RunContent::bundled())
+        .expect("a replay")
+}
+
+#[test]
+fn an_ended_run_replays_and_verifies() {
+    for n in [2u8, 3] {
+        let (log, oracle) = log_of(n);
+        let replay = replay_of(&EndedRun::new(0, 360, n, log));
+        assert_eq!(replay.ticks, 360, "n {n}");
+        assert_eq!(replay.final_hash, hex(oracle[360]), "n {n}");
+        let want: String = (1..=6).map(|k| hex(oracle[60 * k])).collect();
+        assert_eq!(replay.checkpoints, want, "n {n}");
+        let bytes = replay.to_bytes();
+        let v = verify_run(&bytes).expect("verifies");
+        assert_eq!((v.ticks, v.outcome), (360, Outcome::Running), "n {n}");
+        verify_run_against(&bytes, &oracle[1..=360]).expect("every tick agrees");
+        assert_eq!(RunReplay::from_bytes(&bytes).expect("parses"), replay);
+    }
+}
+
+#[test]
+fn an_ended_runs_ticks_are_cut_at_t() {
+    let (log, _) = log_of(2);
+    let cut = EndedRun::new(0, 360, 2, log.clone());
+    assert_eq!(cut.ticks.len(), 360);
+    assert_eq!(cut.ticks.last().map(|c| c.tick), Some(359));
+    let literal = EndedRun {
+        run: 0,
+        tick: 360,
+        party: 2,
+        ticks: log.clone(),
+    };
+    let replay = replay_of(&literal);
+    assert_eq!(replay.ticks, 360);
+    assert_eq!(replay.to_bytes(), replay_of(&cut).to_bytes());
+    let zero = EndedRun::new(0, 0, 2, log.clone());
+    assert!(zero.ticks.is_empty());
+    let replay = replay_of(&zero);
+    assert_eq!(replay.ticks, 0);
+    let v = verify_run(&replay.to_bytes()).expect("a 0-tick run verifies");
+    assert_eq!((v.ticks, v.outcome), (0, Outcome::Running));
+    let long = EndedRun {
+        run: 0,
+        tick: 700,
+        party: 2,
+        ticks: log,
+    };
+    let replay = replay_of(&long);
+    assert_eq!(replay.ticks, 612, "fewer ticks than T are replayed as held");
+    verify_run(&replay.to_bytes()).expect("verifies");
+}
+
+#[test]
+fn a_leave_at_the_end_tick_is_in_the_run_only_when_t_is_past_it() {
+    let (log, oracle) = log_of(3);
+    for (t, leaves) in [(300u32, 0usize), (301, 1)] {
+        let replay = replay_of(&EndedRun::new(0, t, 3, log.clone()));
+        assert_eq!(replay.ticks, t);
+        assert_eq!(replay.final_hash, hex(oracle[t as usize]), "T {t}");
+        verify_run(&replay.to_bytes()).expect("verifies");
+        let range = replay.step_range(0, t, u32::MAX).expect("range");
+        let text = format!("{:?}", range.steps);
+        assert_eq!(text.matches("Leave { slot: 2 }").count(), leaves, "T {t}");
+    }
+}
+
+#[test]
+fn the_run_number_is_data_only() {
+    let (log, _) = log_of(2);
+    let a = replay_of(&EndedRun::new(0, 120, 2, log.clone()));
+    let b = replay_of(&EndedRun::new(255, 120, 2, log));
+    assert_eq!(a.to_bytes(), b.to_bytes());
+}
+
+#[test]
+fn a_party_size_the_recorder_refuses_is_a_setup_error() {
+    let (log, _) = log_of(2);
+    for party in [0u8, 4] {
+        let got = EndedRun::new(0, 60, party, log.clone())
+            .replay(&equipment_setup(), RunContent::bundled());
+        assert!(
+            matches!(got, Err(ReportError::Setup(_))),
+            "party {party}: {got:?}"
+        );
+    }
 }
