@@ -176,13 +176,13 @@ fn drop_field(text: &str, key: &str) -> String {
         for (i, c) in value.char_indices() {
             match c {
                 '(' | '[' | '{' => depth += 1,
-                ')' | ']' => depth -= 1,
+                ')' | ']' => depth = depth.saturating_sub(1),
                 '}' if depth == 0 => {
                     // Keep the space before a closing brace of the struct itself.
                     end = value[..i].trim_end().len();
                     break;
                 }
-                '}' => depth -= 1,
+                '}' => depth = depth.saturating_sub(1),
                 ',' if depth == 0 => {
                     end = i;
                     break;

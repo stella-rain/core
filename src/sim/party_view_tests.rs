@@ -26,7 +26,7 @@ fn a_view_publishes_each_players_own_max_hp() {
 
 /// V2: damage lowers `hp` and leaves the maximum alone.
 #[test]
-fn max_hp_follows_the_view_after_a_loss_to_zero_and_back() {
+fn damage_lowers_hp_in_the_view_and_leaves_max_hp_alone() {
     let mut r = rig(2, vec![], 0);
     r.hurt(1, 600, false);
     assert_eq!(r.view(1)["hp"], json!(400));
