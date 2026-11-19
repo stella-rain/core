@@ -29,6 +29,8 @@ use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::content_sha256_with;
 use stella_rain_core::stage::Stage;
 use stella_rain_net::save::CloneRing;
+use stella_rain_net::session::{Config, Session};
+use stella_rain_net::wire::{InputFrame, WireInput};
 
 #[path = "../benches/session_case/mod.rs"]
 #[allow(dead_code)]
@@ -1081,4 +1083,43 @@ fn every_case_is_a_time_limit_case() {
     for spec in specs() {
         assert_eq!(spec.mode, "time_limit", "{}", spec.id);
     }
+}
+
+/// A three-player session at tick 0 that keeps its confirmed log (delay 0, window 0: every tick
+/// is confirmed as it is stepped); `alloc.rs` counts its `restart`.
+pub(crate) fn logging_party_session() -> Session {
+    let engine = Engine::start_party(&stella_rain_core::run_setup::RunSetup::default(), 3)
+        .expect("the party starts");
+    let config = Config {
+        local: PlayerIdx::new(0).expect("slot 0"),
+        delay: 0,
+        window: 0,
+    };
+    let mut session = Session::new(engine, config).expect("the session starts");
+    session.keep_confirmed();
+    session
+}
+
+/// Plays `ticks` ticks of the three-player minute on a session at tick 0, every remote input
+/// received in time and acknowledged.
+pub(crate) fn play_party_session(session: &mut Session, ticks: u32) {
+    let slot = |i: u8| PlayerIdx::new(i).expect("a slot of the party");
+    for t in 0..ticks {
+        let inputs = party_case::minute_inputs(t);
+        for s in [1u8, 2] {
+            let frame = InputFrame {
+                run: 0,
+                slot: slot(s),
+                start_tick: t,
+                inputs: vec![WireInput::from_input(&inputs[usize::from(s)])],
+            };
+            session.receive_inputs(slot(s), &frame).expect("a frame");
+        }
+        let advance = session.advance(&inputs[0]).expect("advances");
+        assert!(advance.waiting.is_none() && advance.rolled_back == 0);
+        for s in [1u8, 2] {
+            session.ack(slot(s), t + 1).expect("an ack");
+        }
+    }
+    assert_eq!(session.confirmed(), ticks);
 }
