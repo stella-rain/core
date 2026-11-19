@@ -137,13 +137,25 @@ fn the_other_refusals() {
         peers.sessions[0].end_run(CommandKind::Cancel),
         Err(EndRunError::NotPlaying)
     );
-    let mut peers = warm(2, 100);
+    // A pending Restart: slot 1's acks are lost for 10 rounds, so the barrier does not hold.
+    let mut peers = Peers::new(script(2, 612, 2, None), 2, 1, clean(1));
+    let rounds = peers.round_cell();
+    let from = Rc::new(Cell::new(u32::MAX));
+    let seen = Rc::clone(&from);
+    peers.set_drop_if(Box::new(move |f, to, p| {
+        f == 1 && to == 0 && matches!(p, Packet::Ack(_)) && rounds.get() >= seen.get()
+    }));
     while peers.sessions[0].session().confirmed() < MIN_RESTART_TICK {
+        peers.round();
+    }
+    from.set(peers.net.round());
+    for _ in 0..10 {
         peers.round();
     }
     peers.sessions[0]
         .end_run(CommandKind::Restart)
         .expect("a restart");
+    assert_eq!(peers.sessions[0].run(), 0, "the restart is pending");
     for kind in [CommandKind::Cancel, CommandKind::Restart] {
         assert_eq!(
             peers.sessions[0].end_run(kind),

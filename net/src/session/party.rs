@@ -272,6 +272,10 @@ struct Peer {
     checkpoints: BTreeMap<u32, u64>,
     /// The tick of the last checkpoint compared with it.
     compared: u32,
+    /// A packet of the next run was seen from it while a Restart was pending: it has restarted.
+    ahead: bool,
+    /// A packet of this run has been accepted from it since the last restart.
+    caught_up: bool,
 }
 
 /// The run a packet belongs to; the hellos have none.
@@ -310,6 +314,9 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     ending: Option<LeaderCommand>,
     /// The latest run that ended, until the caller takes it.
     ended: Option<EndedRun>,
+    /// Leader only: the Restart of the run just left, still sent to a peer not yet heard from
+    /// in the new run (it may have lost the command).
+    resend: Option<LeaderCommand>,
 }
 
 impl<T: Transport> NetSession<T, CloneRing> {
@@ -371,6 +378,8 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 leave: None,
                 checkpoints: BTreeMap::new(),
                 compared: 0,
+                ahead: false,
+                caught_up: false,
             })
             .collect();
         NetSession {
@@ -396,6 +405,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             stats: NetStats::default(),
             ending: None,
             ended: None,
+            resend: None,
         }
     }
 
@@ -620,9 +630,19 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         }
         // Every packet but a hello belongs to a run; another run's is valid but not for this
         // session. The hellos have no run, so a protocol 2 hello still reaches `refusal`.
-        if run_of(&packet).is_some_and(|run| run != self.run) {
-            self.stats.dropped += 1;
-            return;
+        match run_of(&packet) {
+            Some(run) if run != self.run => {
+                // A peer that has already restarted: remembered for the barrier, then dropped.
+                if run == self.run.wrapping_add(1)
+                    && self.ending.is_some_and(|c| c.kind == CommandKind::Restart)
+                {
+                    self.peers[p].ahead = true;
+                }
+                self.stats.dropped += 1;
+                return;
+            }
+            Some(_) => self.peers[p].caught_up = true,
+            None => {}
         }
         let accepted = match packet {
             Packet::Hello(hello) => {
@@ -744,6 +764,9 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     /// One send round to every peer still present, or the stop announcement once stopped.
     fn send_round(&mut self) {
         self.round += 1;
+        if self.resend.is_some() && self.peers.iter().all(|p| p.caught_up) {
+            self.resend = None;
+        }
         for p in 0..self.peers.len() {
             let to = self.peers[p].slot;
             let mut packets = Vec::new();
@@ -796,6 +819,15 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                         }));
                     }
                     self.checkpoint_packets(&mut packets);
+                    // The leader repeats a pending Restart every round, and the one it has
+                    // already made for a peer that has not answered in the new run.
+                    if self.local.get() == 0 {
+                        if let Some(cmd) = self.ending {
+                            packets.push(Packet::Command(cmd));
+                        } else if let Some(cmd) = self.resend.filter(|_| !peer.caught_up) {
+                            packets.push(Packet::Command(cmd));
+                        }
+                    }
                 }
             }
             for packet in packets {
@@ -843,7 +875,38 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 self.ended = Some(EndedRun::new(self.run, cmd.tick, self.party, ticks));
                 self.stop(StopReason::EndedByLeader(CommandKind::Cancel));
             }
-            CommandKind::Restart => {}
+            CommandKind::Restart => {
+                // Every peer must hold what this run still needs from this session: it has left,
+                // or has acked every input below T, or has restarted (a packet of the next run).
+                let barrier = self
+                    .peers
+                    .iter()
+                    .all(|p| p.leave.is_some() || p.acked >= cmd.tick || p.ahead);
+                if barrier {
+                    self.restart_in_place(cmd);
+                }
+            }
+        }
+    }
+
+    /// Hands out the run that ended and starts the next one at tick 0, in place.
+    fn restart_in_place(&mut self, cmd: LeaderCommand) {
+        let ticks = self.session.restart();
+        self.ended = Some(EndedRun::new(self.run, cmd.tick, self.party, ticks));
+        self.resend = (self.local.get() == 0).then_some(cmd);
+        self.run = self.run.wrapping_add(1);
+        self.ending = None;
+        self.own.clear();
+        self.next_checkpoint = CHECKPOINT_TICKS;
+        self.local_leave = None;
+        for peer in &mut self.peers {
+            peer.acked = 0;
+            peer.heard_ack = false;
+            peer.leave = None;
+            peer.checkpoints.clear();
+            peer.compared = 0;
+            peer.ahead = false;
+            peer.caught_up = false;
         }
     }
 
