@@ -252,7 +252,7 @@ fn same(what: &str, case: &str, tick: u32, a: &Engine, b: &Engine) -> Result<(),
 fn check(case: &Case, stranger: &Engine, restore: &Restore, seen: &mut Seen) -> Result<(), String> {
     let name = case.name.as_str();
     let fresh = (case.build)();
-    let pristine = (case.build)().clone();
+    let pristine = (case.build)();
     let pristine_shown = shown(&pristine);
     let last = u32::try_from(
         case.steps
@@ -314,7 +314,7 @@ fn check(case: &Case, stranger: &Engine, restore: &Restore, seen: &mut Seen) -> 
             a.join(two)
                 .and_then(|()| b.join(two))
                 .map_err(|e| format!("{name}: join: {e:?}"))?;
-            same("join", name, point, &a, &b).map_err(|e| e.replace("shown", "join shown"))?;
+            same("join", name, point, &a, &b)?;
         }
 
         // The restored engine and the fresh one play on together.
@@ -351,20 +351,20 @@ fn restore_by_clone_from(d: &mut Engine, pristine: &Engine) {
 fn a_restored_engine_hashes_as_a_fresh_one() {
     let cases = cases();
     let mut seen = Seen::default();
-    let (mut stages, mut runs, mut parties) = (0, 0, 0);
+    let mut dirs_seen: [std::collections::BTreeSet<String>; 3] = Default::default();
     let (mut v1_stage, mut v1_run) = (false, false);
     let mut sizes = std::collections::BTreeSet::new();
     for (i, case) in cases.iter().enumerate() {
         let stranger = (cases[(i + cases.len() - 1) % cases.len()].build)();
         check(case, &stranger, &restore_by_clone_from, &mut seen).unwrap_or_else(|e| panic!("{e}"));
         if case.name.contains("/stages/") {
-            stages += 1;
+            dirs_seen[0].insert(case_dir(&case.name));
             v1_stage |= case.version == 1;
         } else if case.name.contains("/runs/") {
-            runs += 1;
+            dirs_seen[1].insert(case_dir(&case.name));
             v1_run |= case.version == 1;
         } else {
-            parties += 1;
+            dirs_seen[2].insert(case_dir(&case.name));
         }
         if case.name.starts_with("current/") && case.version == 2 {
             sizes.insert(case.name.rsplit(' ').next().unwrap().to_string());
@@ -372,11 +372,19 @@ fn a_restored_engine_hashes_as_a_fresh_one() {
     }
     eprintln!("reset: {} cases, {seen:?}", cases.len());
     // The stage and run cases: 32 stages, 23 runs, 19 parties, floors.
-    assert!(stages >= 32, "{stages} stage engines");
-    assert!(runs >= 23, "{runs} run engines");
-    assert!(parties >= 19, "{parties} party engines");
+    let [stages, runs, parties] = dirs_seen.map(|d| d.len());
+    assert!(stages >= 32, "{stages} corpus stages");
+    assert!(runs >= 23, "{runs} corpus runs");
+    assert!(parties >= 19, "{parties} corpus parties");
     assert!(v1_stage && v1_run, "a frozen engine of each kind");
     assert!(sizes.len() >= 3, "party sizes {sizes:?}");
+}
+
+/// The corpus directory of a case's name, without the party size or rules suffix.
+fn case_dir(name: &str) -> String {
+    name.rsplit_once(' ')
+        .map_or(name, |(dir, _)| dir.trim_end_matches(" party"))
+        .to_string()
 }
 
 fn case_named(name: &str) -> Case {
