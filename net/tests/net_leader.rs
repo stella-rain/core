@@ -3,6 +3,9 @@
 
 mod support;
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use stella_rain_net::session::party::{
     EndRunError, MIN_RESTART_TICK, NetError, NetStats, NetWait, Phase, StopReason,
 };
@@ -209,16 +212,20 @@ fn a_command_past_the_receivers_next_tick_is_refused() {
 #[test]
 fn a_valid_command_is_accepted_and_a_different_second_one_is_refused() {
     let mut peers = warm(2, 70);
-    let cancel = command(0, 0, 60, CommandKind::Cancel);
+    // An end tick this session has not confirmed yet, so the command stays pending.
+    let t = peers.sessions[1].session().tick() + 1;
+    assert!(t >= MIN_RESTART_TICK);
+    let cancel = command(0, 0, t, CommandKind::Cancel);
     let (before, after) = deliver(&mut peers, 0, 1, &cancel);
     assert_eq!(after.accepted, before.accepted + 1);
-    assert_eq!(peers.sessions[1].ending(), Some((60, CommandKind::Cancel)));
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Cancel)));
+    assert_eq!(peers.sessions[1].phase(), Phase::Playing);
     let (before, after) = deliver(&mut peers, 0, 1, &cancel);
     assert_eq!(after.accepted, before.accepted + 1);
-    assert_eq!(peers.sessions[1].ending(), Some((60, CommandKind::Cancel)));
-    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, 60, CommandKind::Restart));
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Cancel)));
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Restart));
     assert_eq!(after.refused, before.refused + 1);
-    assert_eq!(peers.sessions[1].ending(), Some((60, CommandKind::Cancel)));
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Cancel)));
 }
 
 #[test]
@@ -317,11 +324,21 @@ fn a_peer_behind_t_steps_to_t_and_no_further() {
 fn a_stopped_session_keeps_pumping() {
     let sc = script(3, 612, 2, None);
     let oracle = straight(&sc, 3);
-    let mut peers = Peers::new(sc, 3, 7, clean(1));
+    let mut peers = Peers::new(sc, 3, 7, clean(0));
+    // The leader's input frames to slot 2 are lost around the stamp, so slot 2 is behind and
+    // the stopped leader has to keep serving it.
+    let rounds = peers.round_cell();
+    let window = Rc::new(Cell::new((u32::MAX, u32::MAX)));
+    let seen = Rc::clone(&window);
+    peers.set_drop_if(Box::new(move |from, to, p| {
+        let (lo, hi) = seen.get();
+        from == 0 && to == 2 && matches!(p, Packet::Input(_)) && (lo..hi).contains(&rounds.get())
+    }));
     while peers.sessions[0].session().confirmed() < 300 {
         peers.round();
     }
     peers.set_calls(2, 0);
+    window.set((peers.net.round(), u32::MAX));
     for _ in 0..10 {
         peers.round();
     }
@@ -329,6 +346,7 @@ fn a_stopped_session_keeps_pumping() {
         .end_run(CommandKind::Cancel)
         .expect("a cancel");
     let stamped_at = peers.net.round();
+    window.set((window.get().0, stamped_at + 6));
     peers.set_calls(2, 1);
     assert!(peers.run(&oracle));
     let stopped_at = peers.net.round();
@@ -379,7 +397,8 @@ fn a_stopped_session_keeps_pumping() {
             && matches!(p, Packet::Input(_))),
         "the leader serves frames to a peer that is behind"
     );
-    assert_eq!(peers.waits_of(Some(2), Some(NetWait::Ending)), 0);
+    // Slot 2 stepped to T and waited for the end, never past it.
+    assert!(peers.waits_of(Some(2), Some(NetWait::Ending)) > 0);
 
     // An ack still counts; anything else is dropped.
     let ack = Packet::Ack(Ack {

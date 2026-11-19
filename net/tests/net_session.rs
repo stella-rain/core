@@ -11,8 +11,8 @@ use stella_rain_net::session::party::{
 };
 use stella_rain_net::transport::TransportError;
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, InputFrame, LeaderCommand,
-    MAX_FRAME_INPUTS, MAX_PACKET_LEN, PROTOCOL_VERSION, Packet, WireInput,
+    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
+    PROTOCOL_VERSION, Packet, WireInput,
 };
 use support::peers::{Peers, hello};
 use support::simnet::{Impair, SimEndpoint, SimNet};
@@ -984,27 +984,4 @@ fn the_same_packets_of_run_0_are_taken() {
     s.poll().expect("poll");
     assert_eq!(s.phase(), Phase::Stopped);
     assert_eq!(s.stop_reason(), Some(StopReason::RefusedBy(slot(1))));
-}
-
-#[test]
-fn a_leader_command_does_nothing_yet() {
-    for run in [0u8, 1] {
-        let (tap, mut s) = playing();
-        let (before, tick) = (s.stats(), s.session().tick());
-        tap.push(
-            slot(1),
-            &Packet::Command(LeaderCommand {
-                run,
-                slot: slot(1),
-                tick: 60,
-                kind: CommandKind::Restart,
-            }),
-        );
-        s.poll().expect("poll");
-        assert_eq!(s.stats().dropped, before.dropped + 1);
-        assert_eq!(s.stats().accepted, before.accepted);
-        assert_eq!(s.phase(), Phase::Playing);
-        assert_eq!(s.stop_reason(), None);
-        assert_eq!(s.session().tick(), tick);
-    }
 }
