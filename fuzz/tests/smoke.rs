@@ -371,11 +371,12 @@ fn a_real_pack_gets_past_the_loader_and_runs() {
     );
 }
 
-/// One packet of each kind (both hello layouts), and a frame with an action, built through net's own API: the seeds
+/// One packet of each of the seven tags (both hello layouts, both command kinds), and a frame with an action, built through net's own API: the seeds
 /// of `net_decode`.
 fn net_seeds() -> Vec<Vec<u8>> {
     use stella_rain_net::wire::{
-        Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, Packet, WireInput,
+        Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, HelloV1, InputFrame, LeaderCommand,
+        Packet, WireInput,
     };
     let slot = |i| PlayerIdx::new(i).unwrap();
     let mut pack_hash = [0u8; 32];
@@ -400,7 +401,7 @@ fn net_seeds() -> Vec<Vec<u8>> {
     };
     [
         Packet::Hello(Hello {
-            protocol: 2,
+            protocol: 3,
             sim_version: 2,
             pack_hash,
             delay: 2,
@@ -425,27 +426,39 @@ fn net_seeds() -> Vec<Vec<u8>> {
             inputs: vec![WireInput::default()],
         }),
         Packet::Input(InputFrame {
-            run: 0,
+            run: 1,
             slot: slot(1),
             start_tick: 258,
             inputs: vec![walk, equip, tree],
         }),
         Packet::Ack(Ack {
-            run: 0,
+            run: 2,
             slot: slot(2),
             next_tick: 259,
         }),
         Packet::Checkpoint(Checkpoint {
-            run: 0,
+            run: 255,
             slot: slot(0),
             tick: 3600,
             hash: 0x0123_4567_89ab_cdef,
         }),
         Packet::Bye(Bye {
-            run: 0,
+            run: 3,
             slot: slot(1),
             tick: 7200,
             reason: ByeReason::Left,
+        }),
+        Packet::Command(LeaderCommand {
+            run: 1,
+            slot: slot(0),
+            tick: 3600,
+            kind: CommandKind::Restart,
+        }),
+        Packet::Command(LeaderCommand {
+            run: 255,
+            slot: slot(0),
+            tick: 7200,
+            kind: CommandKind::Cancel,
         }),
     ]
     .iter()
@@ -473,7 +486,7 @@ fn the_net_seeds_hold_both_hello_layouts_and_the_layouts_stay_apart() {
         .iter()
         .filter(|s| s.len() == 41 && s[0] == 0x01)
         .collect();
-    assert_eq!(v2.len(), 2, "two protocol 2 hello seeds");
+    assert_eq!(v2.len(), 2, "two seeds of the 49-byte hello layout");
     assert_eq!(v1.len(), 1, "one protocol 1 hello seed");
     assert!(net_decode(v2[0]) && net_decode(v2[1]) && net_decode(v1[0]));
     let mut short_new = v1[0].clone();
@@ -484,6 +497,32 @@ fn the_net_seeds_hold_both_hello_layouts_and_the_layouts_stay_apart() {
     assert!(!net_decode(&long_old), "49 bytes under tag 0x01");
     assert!(!net_decode(&[]));
     assert!(!net_decode(&[0xff; 64]));
+}
+
+#[test]
+fn the_net_seeds_hold_both_command_kinds_and_the_command_length_is_exact() {
+    let seeds = net_seeds();
+    assert_eq!(seeds.len(), 10);
+    let commands: Vec<_> = seeds.iter().filter(|s| s.first() == Some(&0x07)).collect();
+    assert_eq!(commands.len(), 2, "two command seeds");
+    assert!(commands.iter().all(|s| s.len() == 8));
+    assert_eq!(
+        commands.iter().map(|s| s[7]).collect::<Vec<_>>(),
+        [2, 1],
+        "restart then cancel"
+    );
+    for seed in &commands {
+        assert!(net_decode(seed));
+        for kind in [0u8, 3] {
+            let mut bad = seed.to_vec();
+            bad[7] = kind;
+            assert!(!net_decode(&bad), "kind {kind}");
+        }
+        assert!(!net_decode(&seed[..7]), "7 bytes");
+        let mut long = seed.to_vec();
+        long.push(0);
+        assert!(!net_decode(&long), "9 bytes");
+    }
 }
 
 #[test]
