@@ -42,6 +42,7 @@ fn ramped(session: &Session, s: u8, tick: u32) -> Input {
 /// One input of a remote slot as a frame of one tick.
 fn frame(s: u8, tick: u32, input: &Input) -> InputFrame {
     InputFrame {
+        run: 0,
         slot: slot(s),
         start_tick: tick,
         inputs: vec![WireInput::from_input(input)],
@@ -102,6 +103,7 @@ pub fn driven(window: u32) -> Prepared {
             .map(|i| WireInput::from_input(&window_input(usize::from(s), i)))
             .collect();
         let frame = InputFrame {
+            run: 0,
             slot: slot(s),
             start_tick: EQUIP_PEAK_TICK,
             inputs,

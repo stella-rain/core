@@ -25,6 +25,7 @@ fn the_bench_fixtures_literals_and_calls_still_compile_and_play() {
     ring.save(0, session.engine());
     for k in 0..40u32 {
         let remote = InputFrame {
+            run: 0,
             slot: slot(1),
             start_tick: k,
             inputs: vec![WireInput::from_input(&sc.eff[k as usize][1])],

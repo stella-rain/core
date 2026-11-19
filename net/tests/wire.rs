@@ -61,6 +61,7 @@ const BYE: &str = "0501201c000001";
 
 fn ack_packet() -> Packet {
     Packet::Ack(Ack {
+        run: 0,
         slot: slot(2),
         next_tick: 259,
     })
@@ -68,6 +69,7 @@ fn ack_packet() -> Packet {
 
 fn checkpoint_packet() -> Packet {
     Packet::Checkpoint(Checkpoint {
+        run: 0,
         slot: slot(0),
         tick: 3600,
         hash: 0x0123_4567_89ab_cdef,
@@ -76,6 +78,7 @@ fn checkpoint_packet() -> Packet {
 
 fn bye_packet() -> Packet {
     Packet::Bye(Bye {
+        run: 0,
         slot: slot(1),
         tick: 7200,
         reason: ByeReason::Left,
@@ -88,6 +91,7 @@ fn slot(i: u8) -> PlayerIdx {
 
 fn frame(slot_: u8, start_tick: u32, inputs: Vec<WireInput>) -> Packet {
     Packet::Input(InputFrame {
+        run: 0,
         slot: slot(slot_),
         start_tick,
         inputs,
@@ -547,6 +551,7 @@ fn a_checkpoint_tick_is_a_non_zero_multiple_of_60() {
         (3600, true),
     ] {
         let p = Packet::Checkpoint(Checkpoint {
+            run: 0,
             slot: slot(0),
             tick,
             hash: 1,
@@ -586,6 +591,7 @@ fn a_bye_reason_is_one_to_three() {
         (ByeReason::Refused, 3),
     ] {
         let p = Packet::Bye(Bye {
+            run: 0,
             slot: slot(0),
             tick: 0,
             reason,
@@ -684,21 +690,25 @@ fn random_packet(rng: &mut Xorshift) -> Packet {
             let start_tick = rng.word() / 2;
             let inputs = (0..count).map(|_| random_input(rng)).collect();
             Packet::Input(InputFrame {
+                run: 0,
                 slot: s,
                 start_tick,
                 inputs,
             })
         }
         2 => Packet::Ack(Ack {
+            run: 0,
             slot: s,
             next_tick: rng.word(),
         }),
         3 => Packet::Checkpoint(Checkpoint {
+            run: 0,
             slot: s,
             tick: (rng.word() / 60 % 1_000_000 + 1) * 60,
             hash: rng.next(),
         }),
         _ => Packet::Bye(Bye {
+            run: 0,
             slot: s,
             tick: rng.word(),
             reason: [ByeReason::Left, ByeReason::Desync, ByeReason::Refused]

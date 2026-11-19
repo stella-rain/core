@@ -27,6 +27,7 @@ fn solo(n: u8, tap: &Tap, settings: PartySettings) -> NetSession<Scripted> {
 
 fn frame(who: u8, from: u32, to: u32) -> Packet {
     Packet::Input(InputFrame {
+        run: 0,
         slot: slot(who),
         start_tick: from,
         inputs: (from..=to).map(|_| WireInput::default()).collect(),
@@ -35,6 +36,7 @@ fn frame(who: u8, from: u32, to: u32) -> Packet {
 
 fn bye(who: u8, tick: u32, reason: ByeReason) -> Packet {
     Packet::Bye(Bye {
+        run: 0,
         slot: slot(who),
         tick,
         reason,
@@ -246,6 +248,7 @@ fn packets_map_onto_the_session() {
     tap.push(
         slot(2),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(0),
             next_tick: 0,
         }),
@@ -256,6 +259,7 @@ fn packets_map_onto_the_session() {
     tap.push(
         slot(1),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(1),
             next_tick: 0,
         }),
@@ -281,6 +285,7 @@ fn a_bye_left_is_a_leave_of_the_session() {
         tap.push(
             slot(1),
             &Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: own,
             }),
@@ -288,6 +293,7 @@ fn a_bye_left_is_a_leave_of_the_session() {
         tap.push(
             slot(2),
             &Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: own,
             }),
@@ -359,6 +365,7 @@ fn inputs_are_resent_until_acked_and_the_frame_is_bounded() {
     tap.push(
         slot(1),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(0),
             next_tick: 20,
         }),
@@ -447,10 +454,12 @@ fn hostile_bytes_never_panic_and_are_all_accounted_for() {
                 )
             }
             2 => Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: u32::try_from(rng.below(50)).expect("small"),
             }),
             3 => Packet::Checkpoint(Checkpoint {
+                run: 0,
                 slot: slot(1),
                 tick: 60 * u32::try_from(1 + rng.below(9)).expect("small"),
                 hash: rng.next(),
@@ -564,6 +573,7 @@ fn a_checkpoint_from_the_far_future_is_refused() {
     tap.push(
         slot(1),
         &Packet::Checkpoint(Checkpoint {
+            run: 0,
             slot: slot(1),
             tick: 60_000,
             hash: 1,

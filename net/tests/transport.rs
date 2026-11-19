@@ -83,6 +83,7 @@ fn an_encoded_packet_arrives_as_the_packet_that_was_sent() {
     let mut l = Loopback::new(PlayerIdx::Third);
     let t: &mut dyn Transport = &mut l;
     let ack = Packet::Ack(Ack {
+        run: 0,
         slot: PlayerIdx::Second,
         next_tick: 259,
     });

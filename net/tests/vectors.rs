@@ -81,6 +81,7 @@ fn hello_v1() {
 fn input_one_idle_entry() {
     both_ways(
         Packet::Input(InputFrame {
+            run: 0,
             slot: slot(0),
             start_tick: 0,
             inputs: vec![WireInput::default()],
@@ -93,6 +94,7 @@ fn input_one_idle_entry() {
 fn input_three_entries() {
     both_ways(
         Packet::Input(InputFrame {
+            run: 0,
             slot: slot(1),
             start_tick: 258,
             inputs: vec![
@@ -122,6 +124,7 @@ fn input_three_entries() {
 fn ack() {
     both_ways(
         Packet::Ack(Ack {
+            run: 0,
             slot: slot(2),
             next_tick: 259,
         }),
@@ -133,6 +136,7 @@ fn ack() {
 fn checkpoint() {
     both_ways(
         Packet::Checkpoint(Checkpoint {
+            run: 0,
             slot: slot(0),
             tick: 3600,
             hash: 0x0123_4567_89ab_cdef,
@@ -145,6 +149,7 @@ fn checkpoint() {
 fn bye() {
     both_ways(
         Packet::Bye(Bye {
+            run: 0,
             slot: slot(1),
             tick: 7200,
             reason: ByeReason::Left,

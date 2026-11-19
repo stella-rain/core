@@ -502,6 +502,11 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             }
             Packet::Checkpoint(cp) => return self.take_checkpoint(p, cp),
             Packet::Bye(bye) => return self.take_bye(p, bye),
+            // Nothing acts on a leader command yet; the session task fills this arm.
+            Packet::Command(_) => {
+                self.stats.dropped += 1;
+                return;
+            }
         };
         if accepted {
             self.peers[p].alive = true;
@@ -591,6 +596,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 }
                 if self.phase == Phase::Playing {
                     packets.push(Packet::Ack(Ack {
+                        run: 0,
                         slot: to,
                         next_tick: self.session.next_tick(to),
                     }));
@@ -599,6 +605,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                     }
                     if let Some(tick) = self.local_leave {
                         packets.push(Packet::Bye(Bye {
+                            run: 0,
                             slot: self.local,
                             tick,
                             reason: ByeReason::Left,
@@ -628,6 +635,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             }
         };
         Bye {
+            run: 0,
             slot: self.local,
             tick,
             reason,
@@ -697,6 +705,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             .take(CHECKPOINTS_IN_FLIGHT)
         {
             packets.push(Packet::Checkpoint(Checkpoint {
+                run: 0,
                 slot: self.local,
                 tick: *tick,
                 hash: *hash,

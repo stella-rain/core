@@ -378,6 +378,7 @@ impl<S: Save> Session<S> {
         }
         let inputs = queue.run_from(from_tick, MAX_FRAME_INPUTS);
         (!inputs.is_empty()).then_some(InputFrame {
+            run: 0,
             slot: self.config.local,
             start_tick: from_tick,
             inputs,

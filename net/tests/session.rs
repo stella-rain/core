@@ -336,6 +336,7 @@ fn receive_inputs_checks_the_sender_and_the_range() {
     assert_eq!(a.receive_inputs(slot(1), &frame_of(&s, 1, 0, 9)), Ok(()));
     assert_eq!(a.next_tick(slot(1)), 10);
     let near_max = InputFrame {
+        run: 0,
         slot: slot(1),
         start_tick: u32::MAX - 1,
         inputs: vec![WireInput::default(); 3],
