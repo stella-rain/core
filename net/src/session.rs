@@ -191,6 +191,13 @@ impl Session<CloneRing> {
     }
 }
 
+/// The first `delay` ticks of the local slot are neutral; every peer is sent them.
+fn seed_neutral(queue: &mut InputQueue, delay: u32) {
+    for t in 0..delay {
+        let _ = queue.set(t, WireInput::default());
+    }
+}
+
 impl<S: Save> Session<S> {
     /// A session over `engine` that keeps its states in `save`.
     pub fn with_save(engine: Engine, config: Config, save: S) -> Result<Session<S>, ConfigError> {
@@ -208,10 +215,7 @@ impl<S: Save> Session<S> {
             return Err(ConfigError::DelayTooLarge);
         }
         let mut queues = [InputQueue::new(), InputQueue::new(), InputQueue::new()];
-        for t in 0..config.delay {
-            // The first `delay` ticks of the local slot are neutral; every peer is sent them.
-            let _ = queues[config.local.get()].set(t, WireInput::default());
-        }
+        seed_neutral(&mut queues[config.local.get()], config.delay);
         Ok(Session {
             config,
             save,
