@@ -1,7 +1,7 @@
 //! The net session: a [`Session`] behind a [`Transport`], with the handshake, the redundant send
-//! and ack of inputs, frame advantage, the checkpoint exchange and the stop on desync. Every packet
-//! but the hello carries the run it belongs to; this session plays run 0 and drops a packet of any
-//! other run.
+//! and ack of inputs, frame advantage, the checkpoint exchange, the stop on desync and the
+//! leader's end of a run. Every packet but the hello carries the run it belongs to; a session
+//! plays run 0 until the leader restarts the run and drops a packet of any other run.
 
 use std::collections::BTreeMap;
 
@@ -303,7 +303,7 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     stop: Option<StopReason>,
     report: Option<DesyncReport>,
     local_leave: Option<u32>,
-    /// The run this session plays: 0 until a restart changes it. Every packet but the hello
+    /// The run this session plays: 0 until a restart changes it (`wrapping_add(1)` each time). Every packet but the hello
     /// carries it and a packet of another run is dropped (ADR-NET-6).
     run: u8,
     round: u32,
