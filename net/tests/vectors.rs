@@ -1,11 +1,12 @@
-//! The pinned byte vectors of protocol version 2. The literals were worked out by hand from the
+//! The pinned byte vectors of protocol version 3. The literals were worked out by hand from the
 //! layout, never produced by running the encoder; a failure here means the code or the layout
 //! changed, and a layout change raises `PROTOCOL_VERSION`.
 
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::EquipAction;
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, Packet, WireInput,
+    Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, HelloV1, InputFrame, LeaderCommand,
+    Packet, WireInput,
 };
 
 fn hex(s: &str) -> Vec<u8> {
@@ -37,13 +38,13 @@ fn hello() {
     }
     both_ways(
         Packet::Hello(Hello {
-            protocol: 2,
+            protocol: 3,
             sim_version: 2,
             pack_hash,
             delay: 2,
             window: 4,
         }),
-        "060200000002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0200000004000000",
+        "060300000002000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0200000004000000",
     );
 }
 
@@ -86,7 +87,7 @@ fn input_one_idle_entry() {
             start_tick: 0,
             inputs: vec![WireInput::default()],
         }),
-        "02000000000001000000",
+        "0200000000000001000000",
     );
 }
 
@@ -94,7 +95,7 @@ fn input_one_idle_entry() {
 fn input_three_entries() {
     both_ways(
         Packet::Input(InputFrame {
-            run: 0,
+            run: 1,
             slot: slot(1),
             start_tick: 258,
             inputs: vec![
@@ -116,7 +117,7 @@ fn input_three_entries() {
                 },
             ],
         }),
-        "02010201000003037f81c000000107000000020000008000000501000000",
+        "0201010201000003037f81c000000107000000020000008000000501000000",
     );
 }
 
@@ -124,11 +125,11 @@ fn input_three_entries() {
 fn ack() {
     both_ways(
         Packet::Ack(Ack {
-            run: 0,
+            run: 2,
             slot: slot(2),
             next_tick: 259,
         }),
-        "030203010000",
+        "03020203010000",
     );
 }
 
@@ -136,12 +137,12 @@ fn ack() {
 fn checkpoint() {
     both_ways(
         Packet::Checkpoint(Checkpoint {
-            run: 0,
+            run: 255,
             slot: slot(0),
             tick: 3600,
             hash: 0x0123_4567_89ab_cdef,
         }),
-        "0400100e0000efcdab8967452301",
+        "04ff00100e0000efcdab8967452301",
     );
 }
 
@@ -149,11 +150,37 @@ fn checkpoint() {
 fn bye() {
     both_ways(
         Packet::Bye(Bye {
-            run: 0,
+            run: 3,
             slot: slot(1),
             tick: 7200,
             reason: ByeReason::Left,
         }),
-        "0501201c000001",
+        "050301201c000001",
+    );
+}
+
+#[test]
+fn command_restart() {
+    both_ways(
+        Packet::Command(LeaderCommand {
+            run: 1,
+            slot: slot(0),
+            tick: 3600,
+            kind: CommandKind::Restart,
+        }),
+        "070100100e000002",
+    );
+}
+
+#[test]
+fn command_cancel() {
+    both_ways(
+        Packet::Command(LeaderCommand {
+            run: 255,
+            slot: slot(0),
+            tick: 7200,
+            kind: CommandKind::Cancel,
+        }),
+        "07ff00201c000001",
     );
 }

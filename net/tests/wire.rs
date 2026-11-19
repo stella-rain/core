@@ -3,8 +3,8 @@
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, HelloV1, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
-    PROTOCOL_VERSION, Packet, WireError, WireInput,
+    Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, HelloV1, InputFrame, LeaderCommand,
+    MAX_FRAME_INPUTS, MAX_PACKET_LEN, PROTOCOL_VERSION, Packet, WireError, WireInput,
 };
 
 fn hex(s: &str) -> Vec<u8> {
@@ -15,7 +15,7 @@ fn hex(s: &str) -> Vec<u8> {
         .collect()
 }
 
-const HELLO: &str = "06020000000200000000010203040506070809\
+const HELLO: &str = "06030000000200000000010203040506070809\
                      0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\
                      0200000004000000";
 const HELLO_16_0: &str = concat!(
@@ -44,7 +44,7 @@ fn hello_packet() -> Packet {
         *b = u8::try_from(i).unwrap();
     }
     Packet::Hello(Hello {
-        protocol: 2,
+        protocol: 3,
         sim_version: 2,
         pack_hash,
         delay: 2,
@@ -52,16 +52,18 @@ fn hello_packet() -> Packet {
     })
 }
 
-const INPUT_IDLE: &str = "02000000000001000000";
-const INPUT_THREE: &str = "02010201000003037f81c000000107000000020000008000000501000000";
+const INPUT_IDLE: &str = "0200000000000001000000";
+const INPUT_THREE: &str = "0201010201000003037f81c000000107000000020000008000000501000000";
 
-const ACK: &str = "030203010000";
-const CHECKPOINT: &str = "0400100e0000efcdab8967452301";
-const BYE: &str = "0501201c000001";
+const ACK: &str = "03020203010000";
+const CHECKPOINT: &str = "04ff00100e0000efcdab8967452301";
+const BYE: &str = "050301201c000001";
+const COMMAND_RESTART: &str = "070100100e000002";
+const COMMAND_CANCEL: &str = "07ff00201c000001";
 
 fn ack_packet() -> Packet {
     Packet::Ack(Ack {
-        run: 0,
+        run: 2,
         slot: slot(2),
         next_tick: 259,
     })
@@ -69,7 +71,7 @@ fn ack_packet() -> Packet {
 
 fn checkpoint_packet() -> Packet {
     Packet::Checkpoint(Checkpoint {
-        run: 0,
+        run: 255,
         slot: slot(0),
         tick: 3600,
         hash: 0x0123_4567_89ab_cdef,
@@ -78,10 +80,28 @@ fn checkpoint_packet() -> Packet {
 
 fn bye_packet() -> Packet {
     Packet::Bye(Bye {
-        run: 0,
+        run: 3,
         slot: slot(1),
         tick: 7200,
         reason: ByeReason::Left,
+    })
+}
+
+fn command_restart() -> Packet {
+    Packet::Command(LeaderCommand {
+        run: 1,
+        slot: slot(0),
+        tick: 3600,
+        kind: CommandKind::Restart,
+    })
+}
+
+fn command_cancel() -> Packet {
+    Packet::Command(LeaderCommand {
+        run: 255,
+        slot: slot(0),
+        tick: 7200,
+        kind: CommandKind::Cancel,
     })
 }
 
@@ -90,8 +110,12 @@ fn slot(i: u8) -> PlayerIdx {
 }
 
 fn frame(slot_: u8, start_tick: u32, inputs: Vec<WireInput>) -> Packet {
+    frame_of_run(0, slot_, start_tick, inputs)
+}
+
+fn frame_of_run(run: u8, slot_: u8, start_tick: u32, inputs: Vec<WireInput>) -> Packet {
     Packet::Input(InputFrame {
-        run: 0,
+        run,
         slot: slot(slot_),
         start_tick,
         inputs,
@@ -99,7 +123,8 @@ fn frame(slot_: u8, start_tick: u32, inputs: Vec<WireInput>) -> Packet {
 }
 
 fn three_entries() -> Packet {
-    frame(
+    frame_of_run(
+        1,
         1,
         258,
         vec![
@@ -134,12 +159,14 @@ fn vectors() -> Vec<Vec<u8>> {
         hex(ACK),
         hex(CHECKPOINT),
         hex(BYE),
+        hex(COMMAND_RESTART),
+        hex(COMMAND_CANCEL),
     ]
 }
 
 #[test]
 fn the_constants_are_what_the_protocol_says() {
-    assert_eq!(PROTOCOL_VERSION, 2);
+    assert_eq!(PROTOCOL_VERSION, 3);
     assert_eq!(MAX_PACKET_LEN, 1200);
     assert_eq!(MAX_FRAME_INPUTS, 32);
 }
@@ -147,9 +174,10 @@ fn the_constants_are_what_the_protocol_says() {
 #[test]
 fn framing_refuses_the_empty_the_unknown_and_the_too_long() {
     assert_eq!(Packet::decode(&[]), Err(WireError::Empty));
-    for tag in [0x00u8, 0x07, 0xff] {
+    for tag in [0x00u8, 0x08, 0xff] {
         assert_eq!(Packet::decode(&[tag]), Err(WireError::UnknownTag(tag)));
     }
+    assert_eq!(Packet::decode(&[0x07]), Err(WireError::Truncated));
     let mut long = vec![0u8; MAX_PACKET_LEN + 1];
     long[0] = 0x03;
     assert_eq!(Packet::decode(&long), Err(WireError::TooLong));
@@ -282,7 +310,7 @@ fn a_zero_version_is_refused_both_ways() {
 
 fn entry_len(w: WireInput) -> usize {
     Packet::decode(&frame(0, 0, vec![w]).encode().unwrap()).unwrap();
-    frame(0, 0, vec![w]).encode().unwrap().len() - 7
+    frame(0, 0, vec![w]).encode().unwrap().len() - 8
 }
 
 fn flags_input(bits: u8) -> WireInput {
@@ -299,7 +327,7 @@ fn flags_input(bits: u8) -> WireInput {
 }
 
 #[test]
-fn an_idle_entry_is_ten_bytes_in_all() {
+fn an_idle_entry_is_eleven_bytes_in_all() {
     let p = frame(0, 0, vec![WireInput::default()]);
     assert_eq!(p.encode().unwrap(), hex(INPUT_IDLE));
     assert_eq!(Packet::decode(&hex(INPUT_IDLE)), Ok(p));
@@ -365,7 +393,7 @@ fn every_action_round_trips_with_any_operand() {
 #[test]
 fn the_three_entry_vector_round_trips() {
     let bytes = hex(INPUT_THREE);
-    assert_eq!(bytes.len(), 30);
+    assert_eq!(bytes.len(), 31);
     assert_eq!(three_entries().encode().unwrap(), bytes);
     assert_eq!(Packet::decode(&bytes), Ok(three_entries()));
 }
@@ -376,8 +404,8 @@ fn the_count_is_one_to_thirty_two() {
         let p = frame(0, 0, vec![WireInput::default(); n]);
         assert_eq!(p.encode(), Err(WireError::CountOutOfRange), "encode {n}");
         let mut bytes = hex(INPUT_IDLE);
-        bytes[6] = u8::try_from(n).unwrap();
-        bytes.resize(7 + 3 * n, 0);
+        bytes[7] = u8::try_from(n).unwrap();
+        bytes.resize(8 + 3 * n, 0);
         assert_eq!(
             Packet::decode(&bytes),
             Err(WireError::CountOutOfRange),
@@ -389,7 +417,7 @@ fn the_count_is_one_to_thirty_two() {
 #[test]
 fn a_slot_byte_of_three_is_refused() {
     let mut bytes = hex(INPUT_IDLE);
-    bytes[1] = 3;
+    bytes[2] = 3;
     assert_eq!(Packet::decode(&bytes), Err(WireError::SlotOutOfRange));
 }
 
@@ -398,8 +426,8 @@ fn the_ticks_must_fit_in_u32() {
     let two = frame(0, u32::MAX, vec![WireInput::default(); 2]);
     assert_eq!(two.encode(), Err(WireError::TickOverflow));
     let mut bytes = hex(INPUT_IDLE);
-    bytes[2..6].copy_from_slice(&u32::MAX.to_le_bytes());
-    bytes[6] = 2;
+    bytes[3..7].copy_from_slice(&u32::MAX.to_le_bytes());
+    bytes[7] = 2;
     bytes.extend_from_slice(&[0, 0, 0]);
     assert_eq!(Packet::decode(&bytes), Err(WireError::TickOverflow));
     let one = frame(0, u32::MAX, vec![WireInput::default()]);
@@ -420,8 +448,8 @@ fn a_stick_axis_of_minus_128_is_refused() {
         );
         assert_eq!(p.encode(), Err(WireError::StickOutOfRange));
         let mut bytes = hex(INPUT_IDLE);
-        bytes[8] = x.to_le_bytes()[0];
-        bytes[9] = y.to_le_bytes()[0];
+        bytes[9] = x.to_le_bytes()[0];
+        bytes[10] = y.to_le_bytes()[0];
         assert_eq!(Packet::decode(&bytes), Err(WireError::StickOutOfRange));
     }
 }
@@ -430,7 +458,7 @@ fn a_stick_axis_of_minus_128_is_refused() {
 fn an_action_kind_of_zero_or_six_is_refused() {
     for kind in [0u8, 6] {
         let mut bytes = hex(INPUT_IDLE);
-        bytes[7] |= 0x80;
+        bytes[8] |= 0x80;
         bytes.extend_from_slice(&[kind, 0, 0, 0, 0]);
         assert_eq!(
             Packet::decode(&bytes),
@@ -440,14 +468,15 @@ fn an_action_kind_of_zero_or_six_is_refused() {
 }
 
 #[test]
-fn the_largest_frame_is_391_bytes() {
+fn the_largest_frame_is_392_bytes() {
     let w = WireInput {
         action: Some(EquipAction::Equip { item: 1, slot: 1 }),
         ..WireInput::default()
     };
     let p = frame(0, 10, vec![w; MAX_FRAME_INPUTS]);
     let bytes = p.encode().unwrap();
-    assert_eq!(bytes.len(), 391);
+    assert_eq!(bytes.len(), 392);
+    assert!(bytes.len() < MAX_PACKET_LEN);
     assert_eq!(Packet::decode(&bytes), Ok(p));
 }
 
@@ -535,6 +564,8 @@ fn ack_checkpoint_and_bye_round_trip_their_vectors() {
         (ack_packet(), ACK),
         (checkpoint_packet(), CHECKPOINT),
         (bye_packet(), BYE),
+        (command_restart(), COMMAND_RESTART),
+        (command_cancel(), COMMAND_CANCEL),
     ] {
         assert_eq!(p.encode().unwrap(), hex(v));
         assert_eq!(Packet::decode(&hex(v)), Ok(p));
@@ -557,7 +588,7 @@ fn a_checkpoint_tick_is_a_non_zero_multiple_of_60() {
             hash: 1,
         });
         let mut bytes = hex(CHECKPOINT);
-        bytes[2..6].copy_from_slice(&tick.to_le_bytes());
+        bytes[3..7].copy_from_slice(&tick.to_le_bytes());
         if ok {
             assert_eq!(Packet::decode(&p.encode().unwrap()), Ok(p));
             assert!(Packet::decode(&bytes).is_ok());
@@ -576,7 +607,7 @@ fn a_checkpoint_tick_is_a_non_zero_multiple_of_60() {
 fn a_bye_reason_is_one_to_three() {
     for reason in 0..=4u8 {
         let mut bytes = hex(BYE);
-        bytes[6] = reason;
+        bytes[7] = reason;
         match reason {
             1..=3 => assert!(Packet::decode(&bytes).is_ok()),
             _ => assert_eq!(
@@ -596,15 +627,15 @@ fn a_bye_reason_is_one_to_three() {
             tick: 0,
             reason,
         });
-        assert_eq!(p.encode().unwrap()[6], byte);
+        assert_eq!(p.encode().unwrap()[7], byte);
     }
 }
 
 #[test]
 fn a_slot_byte_of_three_is_refused_in_every_slot_packet() {
-    for v in [ACK, CHECKPOINT, BYE, INPUT_IDLE] {
+    for v in [ACK, CHECKPOINT, BYE, INPUT_IDLE, COMMAND_RESTART] {
         let mut bytes = hex(v);
-        bytes[1] = 3;
+        bytes[2] = 3;
         assert_eq!(
             Packet::decode(&bytes),
             Err(WireError::SlotOutOfRange),
@@ -664,7 +695,8 @@ fn random_input(rng: &mut Xorshift) -> WireInput {
 
 fn random_packet(rng: &mut Xorshift) -> Packet {
     let s = slot(u8::try_from(rng.below(3)).unwrap());
-    match rng.below(6) {
+    let run = rng.byte();
+    match rng.below(7) {
         5 => {
             let mut pack_hash = [0u8; 32];
             pack_hash.iter_mut().for_each(|b| *b = rng.byte());
@@ -690,25 +722,32 @@ fn random_packet(rng: &mut Xorshift) -> Packet {
             let start_tick = rng.word() / 2;
             let inputs = (0..count).map(|_| random_input(rng)).collect();
             Packet::Input(InputFrame {
-                run: 0,
+                run,
                 slot: s,
                 start_tick,
                 inputs,
             })
         }
         2 => Packet::Ack(Ack {
-            run: 0,
+            run,
             slot: s,
             next_tick: rng.word(),
         }),
         3 => Packet::Checkpoint(Checkpoint {
-            run: 0,
+            run,
             slot: s,
             tick: (rng.word() / 60 % 1_000_000 + 1) * 60,
             hash: rng.next(),
         }),
+        6 => Packet::Command(LeaderCommand {
+            run,
+            slot: s,
+            tick: rng.word(),
+            kind: [CommandKind::Cancel, CommandKind::Restart]
+                [usize::try_from(rng.below(2)).unwrap()],
+        }),
         _ => Packet::Bye(Bye {
-            run: 0,
+            run,
             slot: s,
             tick: rng.word(),
             reason: [ByeReason::Left, ByeReason::Desync, ByeReason::Refused]
@@ -747,5 +786,112 @@ fn every_single_byte_change_is_refused_or_re_encodes_to_itself() {
                 }
             }
         }
+    }
+}
+
+// ---- protocol 3: the run byte and the command ----
+
+#[test]
+fn the_vectors_have_the_sizes_of_the_table() {
+    assert_eq!(
+        frame(0, 0, vec![WireInput::default()])
+            .encode()
+            .unwrap()
+            .len(),
+        11
+    );
+    for n in 1..=MAX_FRAME_INPUTS {
+        let p = frame(0, 0, vec![WireInput::default(); n]);
+        assert_eq!(p.encode().unwrap().len(), 8 + 3 * n);
+    }
+    assert_eq!(ack_packet().encode().unwrap().len(), 7);
+    assert_eq!(checkpoint_packet().encode().unwrap().len(), 15);
+    assert_eq!(bye_packet().encode().unwrap().len(), 8);
+    assert_eq!(command_restart().encode().unwrap().len(), 8);
+    assert_eq!(hello_packet().encode().unwrap().len(), 49);
+    assert_eq!(hello_v1_packet().encode().unwrap().len(), 41);
+}
+
+#[test]
+fn the_two_command_vectors_round_trip() {
+    for (p, v) in [
+        (command_restart(), COMMAND_RESTART),
+        (command_cancel(), COMMAND_CANCEL),
+    ] {
+        assert_eq!(p.encode().unwrap(), hex(v));
+        assert_eq!(Packet::decode(&hex(v)), Ok(p));
+    }
+}
+
+#[test]
+fn a_command_kind_of_zero_three_or_255_is_refused() {
+    for kind in [0u8, 3, 255] {
+        let mut bytes = hex(COMMAND_RESTART);
+        bytes[7] = kind;
+        assert_eq!(Packet::decode(&bytes), Err(WireError::UnknownKind(kind)));
+    }
+}
+
+#[test]
+fn a_command_of_the_wrong_length_is_refused() {
+    let mut more = hex(COMMAND_RESTART);
+    more.push(0);
+    assert_eq!(Packet::decode(&more), Err(WireError::TrailingBytes));
+    let mut less = hex(COMMAND_RESTART);
+    less.pop();
+    assert_eq!(Packet::decode(&less), Err(WireError::Truncated));
+}
+
+#[test]
+fn every_command_round_trips() {
+    for s in 0..3 {
+        for kind in [CommandKind::Cancel, CommandKind::Restart] {
+            for run in [0u8, 1, 255] {
+                for tick in [0, 3600, u32::MAX] {
+                    let p = Packet::Command(LeaderCommand {
+                        run,
+                        slot: slot(s),
+                        tick,
+                        kind,
+                    });
+                    assert_eq!(Packet::decode(&p.encode().unwrap()), Ok(p));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn the_run_is_the_byte_after_the_tag_and_nothing_else_moves() {
+    let with_run = |run: u8| {
+        [
+            frame_of_run(run, 1, 258, vec![WireInput::default()]),
+            Packet::Ack(Ack {
+                run,
+                slot: slot(1),
+                next_tick: 5,
+            }),
+            Packet::Checkpoint(Checkpoint {
+                run,
+                slot: slot(1),
+                tick: 60,
+                hash: 9,
+            }),
+            Packet::Bye(Bye {
+                run,
+                slot: slot(1),
+                tick: 5,
+                reason: ByeReason::Left,
+            }),
+        ]
+    };
+    for (a, b) in with_run(0).into_iter().zip(with_run(255)) {
+        let (x, y) = (a.encode().unwrap(), b.encode().unwrap());
+        assert_eq!(x.len(), y.len());
+        for i in 0..x.len() {
+            assert_eq!(x[i] == y[i], i != 1, "byte {i} of {x:02x?}");
+        }
+        assert_eq!(y[1], 255);
+        assert_eq!(Packet::decode(&y), Ok(b));
     }
 }
