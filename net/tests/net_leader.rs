@@ -418,3 +418,240 @@ fn a_stopped_session_keeps_pumping() {
     assert_eq!(after.dropped, before.dropped + 1);
     assert_eq!(after.accepted, before.accepted);
 }
+
+// D. Restart.
+
+/// The run every session ended: the same, `t` ticks, on the oracle's hash.
+fn check_ended(peers: &mut Peers, oracle: &[u64], n: u8, t: u32, run: u8, what: &str) {
+    let mut bytes = Vec::new();
+    for (i, s) in peers.sessions.iter_mut().enumerate() {
+        let ended = s.take_ended_run().expect("an ended run");
+        assert_eq!(
+            (ended.run, ended.tick, ended.party),
+            (run, t, n),
+            "{what}: {i}"
+        );
+        assert_eq!(
+            ended.ticks.len(),
+            usize::try_from(t).expect("small"),
+            "{what}: {i}"
+        );
+        let replay = ended
+            .replay(
+                &support::equipment_setup(),
+                stella_rain_core::run_content::RunContent::bundled(),
+            )
+            .expect("a replay");
+        assert_eq!(
+            replay.final_hash,
+            format!("{:016x}", oracle[t as usize]),
+            "{what}: {i}"
+        );
+        bytes.push(replay.to_bytes());
+    }
+    assert!(
+        bytes.windows(2).all(|w| w[0] == w[1]),
+        "{what}: equal bytes"
+    );
+}
+
+/// Every session plays run 1 to tick 612 on the oracle's hash.
+fn check_next_run(peers: &mut Peers, oracle: &[u64], what: &str) {
+    assert!(peers.run(oracle), "{what}: the next run did not finish");
+    for _ in 0..30 {
+        peers.round();
+    }
+    for (i, s) in peers.sessions.iter().enumerate() {
+        assert_eq!(s.run(), 1, "{what}: session {i}");
+        assert_eq!(s.phase(), Phase::Playing, "{what}: session {i}");
+        assert_eq!(s.ending(), None, "{what}: session {i}");
+        assert_eq!(s.session().confirmed(), 612, "{what}: session {i}");
+        assert_eq!(
+            s.session().hash_after(612),
+            Some(oracle[612]),
+            "{what}: session {i}"
+        );
+    }
+}
+
+#[test]
+fn a_restart_plays_the_next_run_from_tick_0() {
+    for n in [2u8, 3] {
+        let sc = script(n, 612, 2, None);
+        let oracle = straight(&sc, n);
+        let mut peers = Peers::new(sc, n, 7, clean(1));
+        let t = stamp(&mut peers, CommandKind::Restart, 300);
+        assert!(t >= 300);
+        // Run until every session has restarted, then the new run plays to 612.
+        while peers.sessions.iter().any(|s| s.run() == 0) {
+            assert!(peers.net.round() < ROUND_LIMIT, "n {n}: never restarted");
+            peers.round();
+            peers.check(&oracle);
+        }
+        check_ended(&mut peers, &oracle, n, t, 0, &format!("n {n}"));
+        check_next_run(&mut peers, &oracle, &format!("n {n}"));
+    }
+}
+
+#[test]
+fn a_silent_peer_holds_the_barrier() {
+    let sc = script(2, 612, 2, None);
+    let oracle = straight(&sc, 2);
+    let mut peers = Peers::new(sc, 2, 7, clean(1));
+    // From 10 rounds before the stamp slot 1's acks are lost, so the leader's `acked` of it is
+    // below T; from the stamp for 40 rounds every packet from slot 1 is lost.
+    let rounds = peers.round_cell();
+    let window = Rc::new(Cell::new((u32::MAX, u32::MAX, u32::MAX)));
+    let seen = Rc::clone(&window);
+    peers.set_drop_if(Box::new(move |from, to, p| {
+        let (acks, lo, hi) = seen.get();
+        let r = rounds.get();
+        from == 1
+            && to == 0
+            && ((r >= acks && matches!(p, Packet::Ack(_))) || (lo..hi).contains(&r))
+    }));
+    while peers.sessions[0].session().confirmed() < 290 {
+        peers.round();
+    }
+    window.set((peers.net.round(), u32::MAX, u32::MAX));
+    for _ in 0..10 {
+        peers.round();
+    }
+    let t = peers.sessions[0]
+        .end_run(CommandKind::Restart)
+        .expect("a restart");
+    let from = peers.net.round() + 1;
+    window.set((window.get().0, from, from + 40));
+    while peers.net.round() < from + 40 {
+        peers.round();
+        assert_eq!(peers.sessions[0].run(), 0, "round {}", peers.net.round());
+        assert_eq!(peers.sessions[0].ending(), Some((t, CommandKind::Restart)));
+    }
+    assert!(peers.waits_of(Some(0), Some(NetWait::Ending)) > 0);
+    assert_eq!(
+        peers.sessions[1].run(),
+        1,
+        "slot 1 restarted behind the silence"
+    );
+    window.set((u32::MAX, u32::MAX, u32::MAX));
+    for _ in 0..10 {
+        peers.round();
+    }
+    assert_eq!(
+        peers.sessions[0].run(),
+        1,
+        "the packets of run 1 pass the barrier"
+    );
+    check_ended(&mut peers, &oracle, 2, t, 0, "silent peer");
+    check_next_run(&mut peers, &oracle, "silent peer");
+}
+
+#[test]
+fn the_acked_arm_passes_the_barrier() {
+    let sc = script(2, 612, 2, None);
+    let mut peers = Peers::new(sc, 2, 7, clean(1));
+    // Slot 1 never hears the command (so it never sends a packet of run 1), and its acks are lost
+    // until `release`: the leader's `acked` of it stays below T.
+    let rounds = peers.round_cell();
+    let release = Rc::new(Cell::new((u32::MAX, u32::MAX)));
+    let seen = Rc::clone(&release);
+    peers.set_drop_if(Box::new(move |from, to, p| {
+        let (acks, release) = seen.get();
+        let r = rounds.get();
+        (from == 0 && to == 1 && matches!(p, Packet::Command(_)))
+            || (from == 1 && to == 0 && matches!(p, Packet::Ack(_)) && (acks..release).contains(&r))
+    }));
+    while peers.sessions[0].session().confirmed() < 290 {
+        peers.round();
+    }
+    release.set((peers.net.round(), u32::MAX));
+    for _ in 0..10 {
+        peers.round();
+    }
+    let t = peers.sessions[0]
+        .end_run(CommandKind::Restart)
+        .expect("a restart");
+    assert_eq!(peers.sessions[0].run(), 0, "acked is below T at the stamp");
+    for _ in 0..20 {
+        peers.round();
+        assert_eq!(peers.sessions[0].run(), 0, "round {}", peers.net.round());
+    }
+    release.set((release.get().0, peers.net.round() + 1));
+    let mut waited = 0;
+    while peers.sessions[0].run() == 0 {
+        peers.round();
+        waited += 1;
+        assert!(waited <= 3, "the leader did not restart on slot 1's acks");
+    }
+    assert_eq!(peers.sessions[1].run(), 0, "slot 1 never heard the command");
+    let ended = peers.sessions[0].take_ended_run().expect("an ended run");
+    assert_eq!((ended.run, ended.tick), (0, t));
+}
+
+#[test]
+fn the_old_command_is_resent_until_the_peer_catches_up() {
+    let sc = script(3, 612, 2, None);
+    let oracle = straight(&sc, 3);
+    let mut peers = Peers::new(sc, 3, 7, clean(1));
+    let rounds = peers.round_cell();
+    let window = Rc::new(Cell::new((u32::MAX, u32::MAX)));
+    let seen = Rc::clone(&window);
+    peers.set_drop_if(Box::new(move |from, to, p| {
+        let (lo, hi) = seen.get();
+        from == 0 && to == 2 && matches!(p, Packet::Command(_)) && (lo..hi).contains(&rounds.get())
+    }));
+    while peers.sessions[0].session().confirmed() < 300 {
+        peers.round();
+    }
+    let t = peers.sessions[0]
+        .end_run(CommandKind::Restart)
+        .expect("a restart");
+    let from = peers.net.round() + 1;
+    window.set((from, from + 40));
+    // Per round: the runs of slots 0, 1 and 2 before and after it.
+    let mut books: Vec<(u32, [u8; 3], [u8; 3])> = Vec::new();
+    let mut leader_restart = None;
+    let mut slot1_restart = None;
+    while peers.sessions.iter().any(|s| s.run() == 0) || peers.net.round() < from + 40 {
+        assert!(peers.net.round() < ROUND_LIMIT, "never restarted");
+        let before = [0, 1, 2].map(|i| peers.sessions[i].run());
+        peers.round();
+        let after = [0, 1, 2].map(|i| peers.sessions[i].run());
+        let r = peers.net.round();
+        if after[0] == 1 && leader_restart.is_none() {
+            leader_restart = Some(r);
+        }
+        if after[1] == 1 && slot1_restart.is_none() {
+            slot1_restart = Some(r);
+        }
+        books.push((r, before, after));
+    }
+    let leader_restart = leader_restart.expect("the leader restarted");
+    let slot1_restart = slot1_restart.expect("slot 1 restarted");
+    assert!(
+        books.iter().any(|(_, _, a)| a[0] == 1 && a[2] == 0),
+        "the leader reaches run 1 while slot 2 is at run 0"
+    );
+    let sent = peers.sent();
+    let old_command = |r: u32, to: usize| {
+        sent.iter().any(|(round, a, b, p)| {
+            *round == r
+                && *a == 0
+                && *b == to
+                && matches!(p, Packet::Command(c) if c.run == 0 && c.tick == t && c.kind == CommandKind::Restart)
+        })
+    };
+    for (r, before, after) in &books {
+        if after[0] == 1 && before[2] == 0 && after[2] == 0 {
+            assert!(old_command(*r, 2), "round {r}: no old command to slot 2");
+        }
+        if *r >= leader_restart.max(slot1_restart) + 2 {
+            assert!(
+                !old_command(*r, 1),
+                "round {r}: old command to caught-up slot 1"
+            );
+        }
+    }
+    check_ended(&mut peers, &oracle, 3, t, 0, "resend");
+    check_next_run(&mut peers, &oracle, "resend");
+}

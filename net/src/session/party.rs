@@ -961,3 +961,79 @@ fn refusal(ours: &Hello, theirs: &Hello) -> Option<Refusal> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use stella_rain_core::engine::Engine;
+    use stella_rain_core::id::PlayerIdx;
+    use stella_rain_core::run_setup::RunSetup;
+    use stella_rain_core::version::SIM_VERSION;
+
+    use super::*;
+    use crate::transport::TransportError;
+    use crate::wire::PROTOCOL_VERSION;
+
+    /// A transport that records every packet sent and receives nothing.
+    struct Record(Rc<RefCell<Vec<(PlayerIdx, Packet)>>>);
+
+    impl Transport for Record {
+        fn send(&mut self, to: PlayerIdx, packet: &[u8]) -> Result<(), TransportError> {
+            let decoded = Packet::decode(packet).expect("a valid packet");
+            self.0.borrow_mut().push((to, decoded));
+            Ok(())
+        }
+
+        fn recv(&mut self) -> Option<(PlayerIdx, Vec<u8>)> {
+            None
+        }
+    }
+
+    #[test]
+    fn restart_wraps_the_run_number_at_255() {
+        let sent = Rc::new(RefCell::new(Vec::new()));
+        let hello = Hello {
+            protocol: PROTOCOL_VERSION,
+            sim_version: SIM_VERSION,
+            pack_hash: [0; 32],
+            delay: DEFAULT_DELAY,
+            window: DEFAULT_WINDOW,
+        };
+        let local = PlayerIdx::new(0).expect("slot 0");
+        let engine = Engine::start_party(&RunSetup::default(), 2).expect("an engine");
+        let mut s = NetSession::new(
+            engine,
+            NetConfig::new(local, hello),
+            Record(Rc::clone(&sent)),
+        )
+        .expect("a session");
+        s.phase = Phase::Playing;
+        s.run = 255;
+        s.ending = Some(LeaderCommand {
+            run: 255,
+            slot: local,
+            tick: 0,
+            kind: CommandKind::Restart,
+        });
+        s.finish();
+        assert_eq!(s.run(), 0, "255 restarts to 0");
+        assert_eq!(s.phase(), Phase::Playing);
+        assert_eq!(s.ending(), None);
+        let ended = s.take_ended_run().expect("the ended run");
+        assert_eq!((ended.run, ended.tick, ended.party), (255, 0, 2));
+        s.send_round();
+        let sent = sent.borrow();
+        assert!(
+            sent.iter()
+                .any(|(_, p)| matches!(p, Packet::Ack(a) if a.run == 0)),
+            "the next packet carries run 0"
+        );
+        assert!(
+            sent.iter()
+                .any(|(_, p)| matches!(p, Packet::Command(c) if c.run == 255 && c.kind == CommandKind::Restart)),
+            "the old command still carries run 255"
+        );
+    }
+}
