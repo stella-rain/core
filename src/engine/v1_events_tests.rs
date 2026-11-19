@@ -526,10 +526,11 @@ fn a_version_1_replay_shows_the_same_offers() {
     // (the hand-built values of `the_offer_views_convert_field_by_field` cover those).
     assert!(kept.contains("\"constellations\":[{"), "a constellation");
     // The fold without `progress.offer` and the four offer events, which leave the live snapshot
-    // and events: recorded before they left, a pin in source, not generated. The fold with them
+    // and events: recorded before they left, a pin in source, not generated. Moved once when the
+    // snapshot's player view gained `max_hp`: with that key stripped the earlier value comes out. The fold with them
     // (the pin before this one) can no longer be produced.
     assert!(kept.contains("\"RewardTaken\""), "a taken reward");
-    assert_eq!(crate::hash::fnv1a64(kept.as_bytes()), 5042547584517530830);
+    assert_eq!(crate::hash::fnv1a64(kept.as_bytes()), 17595434884664518966);
 }
 
 #[test]
