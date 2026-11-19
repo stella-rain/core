@@ -1,5 +1,5 @@
-//! The wire format of an online party: five kinds of packet, each with one strict byte encoding
-//! (the hello has two layouts, the current one and the retired protocol 1 one).
+//! The wire format of an online party: seven tags, six kinds of packet, each with one strict byte
+//! encoding (the hello has two layouts, the current one and the retired protocol 1 one).
 //!
 //! Only inputs and checkpoint hashes cross the network. A message is one datagram or one
 //! WebSocket message, with no length prefix and no stream framing. All integers are little
@@ -7,9 +7,10 @@
 //! closed on anything but the one canonical encoding, and a value that cannot be decoded cannot
 //! be encoded. A change to the layout raises [`PROTOCOL_VERSION`].
 //!
-//! The first byte of a packet is its tag: `0x06` hello (protocol 2), `0x01` the retired protocol 1
+//! The first byte of a packet is its tag: `0x06` hello (protocol 3), `0x01` the retired protocol 1
 //! hello (never given another meaning), `0x02` input frame, `0x03` ack, `0x04` checkpoint, `0x05`
-//! bye. A tag from `0x07` up is refused.
+//! bye, `0x07` leader command. Every packet but the hello has a run byte right after the tag, the run
+//! the packet belongs to (ADR-NET-6). A tag from `0x08` up is refused.
 
 use std::fmt;
 
@@ -18,7 +19,7 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_replay::CHECKPOINT_TICKS;
 
 /// The wire protocol version, one integer; any change to the wire raises it.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 /// The longest packet, in bytes. A longer message is refused on both sides.
 pub const MAX_PACKET_LEN: usize = 1200;
 /// The most inputs one input frame holds.
@@ -116,6 +117,8 @@ impl WireInput {
 /// One slot's inputs for `inputs.len()` consecutive ticks from `start_tick`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InputFrame {
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
+    pub run: u8,
     /// The sender's own slot.
     pub slot: PlayerIdx,
     /// The tick of the first input.
@@ -127,6 +130,8 @@ pub struct InputFrame {
 /// The receiver has every tick of `slot`'s inputs below `next_tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ack {
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
+    pub run: u8,
     /// Whose inputs are acknowledged.
     pub slot: PlayerIdx,
     /// Every tick below this was received; 0 means none.
@@ -136,6 +141,8 @@ pub struct Ack {
 /// The sender's state hash after `tick` ticks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Checkpoint {
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
+    pub run: u8,
     /// The sender.
     pub slot: PlayerIdx,
     /// A multiple of 60 (`CHECKPOINT_TICKS`), not 0.
@@ -158,12 +165,37 @@ pub enum ByeReason {
 /// A peer is leaving.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bye {
+    /// The run this packet belongs to; the session drops another run's packet (ADR-NET-6).
+    pub run: u8,
     /// The sender.
     pub slot: PlayerIdx,
     /// The tick the leave takes effect.
     pub tick: u32,
     /// Why.
     pub reason: ByeReason,
+}
+
+/// What the leader commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommandKind {
+    /// Cancel the run (wire value 1).
+    Cancel,
+    /// Restart the run (wire value 2).
+    Restart,
+}
+
+/// The leader's command for a run (ADR-NET-6 points 1 and 3). The wire checks the slot is 0 to 2
+/// and the kind; whether the slot is the leader's and the tick fits is the session's check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LeaderCommand {
+    /// The run this command belongs to; the session drops another run's packet.
+    pub run: u8,
+    /// The sender.
+    pub slot: PlayerIdx,
+    /// The tick the command refers to; any `u32` on the wire.
+    pub tick: u32,
+    /// What is commanded.
+    pub kind: CommandKind,
 }
 
 /// One message of the protocol.
@@ -181,6 +213,8 @@ pub enum Packet {
     Checkpoint(Checkpoint),
     /// Tag `0x05`.
     Bye(Bye),
+    /// Tag `0x07`.
+    Command(LeaderCommand),
 }
 
 const TAG_HELLO_V1: u8 = 0x01;
@@ -189,6 +223,7 @@ const TAG_ACK: u8 = 0x03;
 const TAG_CHECKPOINT: u8 = 0x04;
 const TAG_BYE: u8 = 0x05;
 const TAG_HELLO: u8 = 0x06;
+const TAG_COMMAND: u8 = 0x07;
 
 /// A cursor over untrusted bytes: every read says `Truncated` instead of panicking.
 struct Reader<'a> {
@@ -376,6 +411,7 @@ fn encode_input(f: &InputFrame, out: &mut Vec<u8>) -> Result<(), WireError> {
         .checked_add(u32::from(count) - 1)
         .ok_or(WireError::TickOverflow)?;
     out.push(TAG_INPUT);
+    out.push(f.run);
     out.push(slot_byte(f.slot));
     out.extend_from_slice(&f.start_tick.to_le_bytes());
     out.push(count);
@@ -386,6 +422,7 @@ fn encode_input(f: &InputFrame, out: &mut Vec<u8>) -> Result<(), WireError> {
 }
 
 fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
+    let run = r.u8()?;
     let slot = read_slot(r)?;
     let start_tick = r.u32()?;
     let count = r.u8()?;
@@ -400,6 +437,7 @@ fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
         inputs.push(decode_entry(r)?);
     }
     Ok(InputFrame {
+        run,
         slot,
         start_tick,
         inputs,
@@ -408,6 +446,7 @@ fn decode_input(r: &mut Reader<'_>) -> Result<InputFrame, WireError> {
 
 fn encode_ack(a: &Ack, out: &mut Vec<u8>) {
     out.push(TAG_ACK);
+    out.push(a.run);
     out.push(slot_byte(a.slot));
     out.extend_from_slice(&a.next_tick.to_le_bytes());
 }
@@ -421,6 +460,7 @@ fn encode_checkpoint(c: &Checkpoint, out: &mut Vec<u8>) -> Result<(), WireError>
         return Err(WireError::CheckpointTick);
     }
     out.push(TAG_CHECKPOINT);
+    out.push(c.run);
     out.push(slot_byte(c.slot));
     out.extend_from_slice(&c.tick.to_le_bytes());
     out.extend_from_slice(&c.hash.to_le_bytes());
@@ -428,6 +468,7 @@ fn encode_checkpoint(c: &Checkpoint, out: &mut Vec<u8>) -> Result<(), WireError>
 }
 
 fn decode_checkpoint(r: &mut Reader<'_>) -> Result<Checkpoint, WireError> {
+    let run = r.u8()?;
     let slot = read_slot(r)?;
     let tick = r.u32()?;
     if !checkpoint_tick_ok(tick) {
@@ -435,11 +476,17 @@ fn decode_checkpoint(r: &mut Reader<'_>) -> Result<Checkpoint, WireError> {
     }
     let b = r.take(8)?;
     let hash = u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
-    Ok(Checkpoint { slot, tick, hash })
+    Ok(Checkpoint {
+        run,
+        slot,
+        tick,
+        hash,
+    })
 }
 
 fn encode_bye(b: &Bye, out: &mut Vec<u8>) {
     out.push(TAG_BYE);
+    out.push(b.run);
     out.push(slot_byte(b.slot));
     out.extend_from_slice(&b.tick.to_le_bytes());
     out.push(match b.reason {
@@ -450,6 +497,7 @@ fn encode_bye(b: &Bye, out: &mut Vec<u8>) {
 }
 
 fn decode_bye(r: &mut Reader<'_>) -> Result<Bye, WireError> {
+    let run = r.u8()?;
     let slot = read_slot(r)?;
     let tick = r.u32()?;
     let reason = match r.u8()? {
@@ -458,7 +506,40 @@ fn decode_bye(r: &mut Reader<'_>) -> Result<Bye, WireError> {
         3 => ByeReason::Refused,
         other => return Err(WireError::UnknownReason(other)),
     };
-    Ok(Bye { slot, tick, reason })
+    Ok(Bye {
+        run,
+        slot,
+        tick,
+        reason,
+    })
+}
+
+fn encode_command(c: &LeaderCommand, out: &mut Vec<u8>) {
+    out.push(TAG_COMMAND);
+    out.push(c.run);
+    out.push(slot_byte(c.slot));
+    out.extend_from_slice(&c.tick.to_le_bytes());
+    out.push(match c.kind {
+        CommandKind::Cancel => 1,
+        CommandKind::Restart => 2,
+    });
+}
+
+fn decode_command(r: &mut Reader<'_>) -> Result<LeaderCommand, WireError> {
+    let run = r.u8()?;
+    let slot = read_slot(r)?;
+    let tick = r.u32()?;
+    let kind = match r.u8()? {
+        1 => CommandKind::Cancel,
+        2 => CommandKind::Restart,
+        other => return Err(WireError::UnknownKind(other)),
+    };
+    Ok(LeaderCommand {
+        run,
+        slot,
+        tick,
+        kind,
+    })
 }
 
 impl Packet {
@@ -472,6 +553,7 @@ impl Packet {
             Packet::Ack(a) => encode_ack(a, &mut out),
             Packet::Checkpoint(c) => encode_checkpoint(c, &mut out)?,
             Packet::Bye(b) => encode_bye(b, &mut out),
+            Packet::Command(c) => encode_command(c, &mut out),
         }
         if out.len() > MAX_PACKET_LEN {
             return Err(WireError::TooLong);
@@ -491,11 +573,13 @@ impl Packet {
             TAG_HELLO_V1 => Packet::HelloV1(decode_hello_v1(&mut r)?),
             TAG_INPUT => Packet::Input(decode_input(&mut r)?),
             TAG_ACK => Packet::Ack(Ack {
+                run: r.u8()?,
                 slot: read_slot(&mut r)?,
                 next_tick: r.u32()?,
             }),
             TAG_CHECKPOINT => Packet::Checkpoint(decode_checkpoint(&mut r)?),
             TAG_BYE => Packet::Bye(decode_bye(&mut r)?),
+            TAG_COMMAND => Packet::Command(decode_command(&mut r)?),
             other => return Err(WireError::UnknownTag(other)),
         };
         r.finish()?;
@@ -532,6 +616,8 @@ pub enum WireError {
     CheckpointTick,
     /// A bye reason is not 1 to 3.
     UnknownReason(u8),
+    /// A command kind is not 1 or 2.
+    UnknownKind(u8),
 }
 
 impl fmt::Display for WireError {
@@ -550,6 +636,7 @@ impl fmt::Display for WireError {
             WireError::UnknownActionKind(k) => write!(f, "unknown action kind {k}"),
             WireError::CheckpointTick => f.write_str("checkpoint tick is not a multiple of 60"),
             WireError::UnknownReason(r) => write!(f, "unknown bye reason {r}"),
+            WireError::UnknownKind(k) => write!(f, "unknown command kind {k}"),
         }
     }
 }

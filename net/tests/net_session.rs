@@ -11,8 +11,8 @@ use stella_rain_net::session::party::{
 };
 use stella_rain_net::transport::TransportError;
 use stella_rain_net::wire::{
-    Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, MAX_FRAME_INPUTS, MAX_PACKET_LEN,
-    PROTOCOL_VERSION, Packet, WireInput,
+    Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, InputFrame, LeaderCommand,
+    MAX_FRAME_INPUTS, MAX_PACKET_LEN, PROTOCOL_VERSION, Packet, WireInput,
 };
 use support::peers::{Peers, hello};
 use support::simnet::{Impair, SimEndpoint, SimNet};
@@ -27,6 +27,7 @@ fn solo(n: u8, tap: &Tap, settings: PartySettings) -> NetSession<Scripted> {
 
 fn frame(who: u8, from: u32, to: u32) -> Packet {
     Packet::Input(InputFrame {
+        run: 0,
         slot: slot(who),
         start_tick: from,
         inputs: (from..=to).map(|_| WireInput::default()).collect(),
@@ -35,6 +36,7 @@ fn frame(who: u8, from: u32, to: u32) -> Packet {
 
 fn bye(who: u8, tick: u32, reason: ByeReason) -> Packet {
     Packet::Bye(Bye {
+        run: 0,
         slot: slot(who),
         tick,
         reason,
@@ -246,6 +248,7 @@ fn packets_map_onto_the_session() {
     tap.push(
         slot(2),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(0),
             next_tick: 0,
         }),
@@ -256,6 +259,7 @@ fn packets_map_onto_the_session() {
     tap.push(
         slot(1),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(1),
             next_tick: 0,
         }),
@@ -281,6 +285,7 @@ fn a_bye_left_is_a_leave_of_the_session() {
         tap.push(
             slot(1),
             &Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: own,
             }),
@@ -288,6 +293,7 @@ fn a_bye_left_is_a_leave_of_the_session() {
         tap.push(
             slot(2),
             &Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: own,
             }),
@@ -359,6 +365,7 @@ fn inputs_are_resent_until_acked_and_the_frame_is_bounded() {
     tap.push(
         slot(1),
         &Packet::Ack(Ack {
+            run: 0,
             slot: slot(0),
             next_tick: 20,
         }),
@@ -447,10 +454,12 @@ fn hostile_bytes_never_panic_and_are_all_accounted_for() {
                 )
             }
             2 => Packet::Ack(Ack {
+                run: 0,
                 slot: slot(0),
                 next_tick: u32::try_from(rng.below(50)).expect("small"),
             }),
             3 => Packet::Checkpoint(Checkpoint {
+                run: 0,
                 slot: slot(1),
                 tick: 60 * u32::try_from(1 + rng.below(9)).expect("small"),
                 hash: rng.next(),
@@ -564,6 +573,7 @@ fn a_checkpoint_from_the_far_future_is_refused() {
     tap.push(
         slot(1),
         &Packet::Checkpoint(Checkpoint {
+            run: 0,
             slot: slot(1),
             tick: 60_000,
             hash: 1,
@@ -765,4 +775,236 @@ fn a_protocol_1_hello_after_a_good_one_is_only_dropped() {
     s.poll().expect("poll");
     assert_eq!(s.phase(), Phase::Playing);
     assert_eq!(s.stats().dropped, dropped + 1);
+}
+
+// ---- protocol 3: the run ----
+
+fn packet_run(packet: &Packet) -> Option<u8> {
+    match packet {
+        Packet::Input(f) => Some(f.run),
+        Packet::Ack(a) => Some(a.run),
+        Packet::Checkpoint(c) => Some(c.run),
+        Packet::Bye(b) => Some(b.run),
+        Packet::Command(c) => Some(c.run),
+        Packet::Hello(_) | Packet::HelloV1(_) => None,
+    }
+}
+
+fn v2_hello() -> Hello {
+    Hello {
+        protocol: 2,
+        ..hello()
+    }
+}
+
+/// A session of two in `Playing` after one good hello from slot 1, and its tap.
+fn playing() -> (Tap, NetSession<Scripted>) {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &Packet::Hello(hello()));
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Playing);
+    (tap, s)
+}
+
+fn ack_of(run: u8) -> Packet {
+    Packet::Ack(Ack {
+        run,
+        slot: slot(0),
+        next_tick: 0,
+    })
+}
+
+fn checkpoint_of(run: u8) -> Packet {
+    Packet::Checkpoint(Checkpoint {
+        run,
+        slot: slot(1),
+        tick: 60,
+        hash: 7,
+    })
+}
+
+fn input_of(run: u8) -> Packet {
+    Packet::Input(InputFrame {
+        run,
+        slot: slot(1),
+        start_tick: 0,
+        inputs: vec![WireInput::default()],
+    })
+}
+
+fn bye_of(run: u8, reason: ByeReason) -> Packet {
+    Packet::Bye(Bye {
+        run,
+        slot: slot(1),
+        tick: 0,
+        reason,
+    })
+}
+
+#[test]
+fn a_protocol_2_hello_is_refused() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &Packet::Hello(v2_hello()));
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Stopped);
+    assert_eq!(
+        s.stop_reason(),
+        Some(StopReason::Refused {
+            slot: slot(1),
+            why: Refusal::Protocol
+        })
+    );
+    assert_eq!(s.stats().dropped, 1);
+    let _ = s.advance(&Input::default());
+    assert!(tap.sent().iter().any(|(_, p)| matches!(
+        p,
+        Packet::Bye(Bye {
+            reason: ByeReason::Refused,
+            ..
+        })
+    )));
+}
+
+#[test]
+fn a_party_with_a_protocol_2_peer_stops_and_sends_no_input() {
+    let (net, mut sessions, taps) = net_of(2, &[hello(), v2_hello()], clean(1));
+    for _ in 0..20 {
+        net.step_round();
+        for s in &mut sessions {
+            let _ = s.advance(&Input::default());
+        }
+    }
+    for s in &sessions {
+        assert_eq!(s.phase(), Phase::Stopped);
+    }
+    for tap in &taps {
+        assert!(
+            tap.sent()
+                .iter()
+                .all(|(_, p)| !matches!(p, Packet::Input(_)))
+        );
+    }
+}
+
+#[test]
+fn every_packet_sent_carries_run_0() {
+    let (net, mut sessions, taps) = net_of(2, &[hello(), hello()], clean(1));
+    for _ in 0..100 {
+        net.step_round();
+        for s in &mut sessions {
+            let _ = s.advance(&Input::default());
+        }
+    }
+    sessions[1].leave().expect("slot 1 may leave");
+    for _ in 0..3 {
+        net.step_round();
+        for s in &mut sessions {
+            let _ = s.advance(&Input::default());
+        }
+    }
+    let mut kinds = [false; 4];
+    for tap in &taps {
+        for (_, p) in tap.sent() {
+            assert!(packet_run(&p).is_none_or(|r| r == 0), "{p:?}");
+            match p {
+                Packet::Input(_) => kinds[0] = true,
+                Packet::Ack(_) => kinds[1] = true,
+                Packet::Checkpoint(_) => kinds[2] = true,
+                Packet::Bye(_) => kinds[3] = true,
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(kinds, [true; 4], "every kind was sent");
+}
+
+#[test]
+fn the_bye_that_announces_a_stop_carries_run_0() {
+    let tap = Tap::new();
+    let mut s = solo(2, &tap, PartySettings::default());
+    tap.push(slot(1), &Packet::Hello(v2_hello()));
+    s.poll().expect("poll");
+    let _ = s.advance(&Input::default());
+    let byes: Vec<_> = tap
+        .sent()
+        .into_iter()
+        .filter_map(|(_, p)| match p {
+            Packet::Bye(b) => Some(b),
+            _ => None,
+        })
+        .collect();
+    assert!(!byes.is_empty());
+    assert!(byes.iter().all(|b| b.run == 0));
+}
+
+#[test]
+fn a_packet_of_another_run_is_dropped() {
+    for run in [1u8, 255] {
+        for packet in [
+            input_of(run),
+            ack_of(run),
+            checkpoint_of(run),
+            bye_of(run, ByeReason::Left),
+            bye_of(run, ByeReason::Refused),
+        ] {
+            let (tap, mut s) = playing();
+            let before = s.stats();
+            tap.push(slot(1), &packet);
+            s.poll().expect("poll");
+            let after = s.stats();
+            assert_eq!(after.dropped, before.dropped + 1, "{packet:?}");
+            assert_eq!(after.accepted, before.accepted, "{packet:?}");
+            assert_eq!(after.refused, before.refused, "{packet:?}");
+            assert_eq!(s.phase(), Phase::Playing, "{packet:?}");
+            assert_eq!(s.stop_reason(), None, "{packet:?}");
+            assert_eq!(s.session().next_tick(slot(1)), 0, "{packet:?}");
+        }
+    }
+}
+
+#[test]
+fn the_same_packets_of_run_0_are_taken() {
+    for packet in [
+        input_of(0),
+        ack_of(0),
+        checkpoint_of(0),
+        bye_of(0, ByeReason::Left),
+    ] {
+        let (tap, mut s) = playing();
+        let before = s.stats();
+        tap.push(slot(1), &packet);
+        s.poll().expect("poll");
+        assert_eq!(s.stats().accepted, before.accepted + 1, "{packet:?}");
+        assert_eq!(s.stats().dropped, before.dropped, "{packet:?}");
+    }
+    let (tap, mut s) = playing();
+    tap.push(slot(1), &bye_of(0, ByeReason::Refused));
+    s.poll().expect("poll");
+    assert_eq!(s.phase(), Phase::Stopped);
+    assert_eq!(s.stop_reason(), Some(StopReason::RefusedBy(slot(1))));
+}
+
+#[test]
+fn a_leader_command_does_nothing_yet() {
+    for run in [0u8, 1] {
+        let (tap, mut s) = playing();
+        let (before, tick) = (s.stats(), s.session().tick());
+        tap.push(
+            slot(1),
+            &Packet::Command(LeaderCommand {
+                run,
+                slot: slot(1),
+                tick: 60,
+                kind: CommandKind::Restart,
+            }),
+        );
+        s.poll().expect("poll");
+        assert_eq!(s.stats().dropped, before.dropped + 1);
+        assert_eq!(s.stats().accepted, before.accepted);
+        assert_eq!(s.phase(), Phase::Playing);
+        assert_eq!(s.stop_reason(), None);
+        assert_eq!(s.session().tick(), tick);
+    }
 }

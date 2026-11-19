@@ -370,7 +370,8 @@ impl<S: Save> Session<S> {
     /// The local inputs from `from_tick`, at most [`crate::wire::MAX_FRAME_INPUTS`], or `None`
     /// when there are none or they were pruned. Inputs below the confirmed tick that every
     /// remote peer has acknowledged are dropped, so a session with no remote peer keeps only
-    /// the inputs from its confirmed tick on.
+    /// the inputs from its confirmed tick on. The frame is of run 0: this session has no run, the
+    /// net session stamps its own.
     pub fn local_frame(&self, from_tick: u32) -> Option<InputFrame> {
         let queue = &self.queues[self.config.local.get()];
         if from_tick < queue.floor() {
@@ -378,6 +379,7 @@ impl<S: Save> Session<S> {
         }
         let inputs = queue.run_from(from_tick, MAX_FRAME_INPUTS);
         (!inputs.is_empty()).then_some(InputFrame {
+            run: 0,
             slot: self.config.local,
             start_tick: from_tick,
             inputs,

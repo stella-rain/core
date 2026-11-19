@@ -254,6 +254,7 @@ use stella_rain_net::wire::{InputFrame, WireInput};
 /// The wire form of `who`'s scripted inputs for ticks `from..=to`, as a peer sends them.
 pub fn frame_of(script: &Script, who: u8, from: u32, to: u32) -> InputFrame {
     InputFrame {
+        run: 0,
         slot: slot(who),
         start_tick: from,
         inputs: (from..=to)

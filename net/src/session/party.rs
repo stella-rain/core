@@ -1,5 +1,7 @@
 //! The net session: a [`Session`] behind a [`Transport`], with the handshake, the redundant send
-//! and ack of inputs, frame advantage, the checkpoint exchange and the stop on desync.
+//! and ack of inputs, frame advantage, the checkpoint exchange and the stop on desync. Every packet
+//! but the hello carries the run it belongs to; this session plays run 0 and drops a packet of any
+//! other run.
 
 use std::collections::BTreeMap;
 
@@ -12,7 +14,7 @@ use super::report::DesyncReport;
 use super::{ConfigError, DEFAULT_DELAY, DEFAULT_WINDOW, Session, SessionError, Wait};
 use crate::save::{CloneRing, Save};
 use crate::transport::Transport;
-use crate::wire::{Ack, Bye, ByeReason, Checkpoint, Hello, Packet};
+use crate::wire::{Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, Packet};
 
 /// How far ahead of a peer (in ticks of lead difference) a session may run before it waits.
 pub const DEFAULT_MAX_SKEW: u32 = 4;
@@ -232,6 +234,18 @@ struct Peer {
     compared: u32,
 }
 
+/// The run a packet belongs to; the hellos have none.
+fn run_of(packet: &Packet) -> Option<u8> {
+    match packet {
+        Packet::Hello(_) | Packet::HelloV1(_) => None,
+        Packet::Input(f) => Some(f.run),
+        Packet::Ack(a) => Some(a.run),
+        Packet::Checkpoint(c) => Some(c.run),
+        Packet::Bye(b) => Some(b.run),
+        Packet::Command(c) => Some(c.run),
+    }
+}
+
 /// A [`Session`] behind a [`Transport`].
 pub struct NetSession<T: Transport, S: Save = CloneRing> {
     session: Session<S>,
@@ -245,6 +259,9 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     stop: Option<StopReason>,
     report: Option<DesyncReport>,
     local_leave: Option<u32>,
+    /// The run this session plays: 0 until a restart changes it. Every packet but the hello
+    /// carries it and a packet of another run is dropped (ADR-NET-6).
+    run: u8,
     round: u32,
     own: BTreeMap<u32, u64>,
     next_checkpoint: u32,
@@ -328,6 +345,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             stop: None,
             report: None,
             local_leave: None,
+            run: 0,
             round: 0,
             own: BTreeMap::new(),
             next_checkpoint: CHECKPOINT_TICKS,
@@ -463,6 +481,12 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             self.stats.dropped += 1;
             return;
         }
+        // Every packet but a hello belongs to a run; another run's is valid but not for this
+        // session. The hellos have no run, so a protocol 2 hello still reaches `refusal`.
+        if run_of(&packet).is_some_and(|run| run != self.run) {
+            self.stats.dropped += 1;
+            return;
+        }
         let accepted = match packet {
             Packet::Hello(hello) => {
                 if !self.peers[p].hello_ok {
@@ -502,6 +526,12 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             }
             Packet::Checkpoint(cp) => return self.take_checkpoint(p, cp),
             Packet::Bye(bye) => return self.take_bye(p, bye),
+            // Nothing acts on a leader command yet: this is the arm the session task fills, after
+            // the run gate above has dropped a command of another run.
+            Packet::Command(_) => {
+                self.stats.dropped += 1;
+                return;
+            }
         };
         if accepted {
             self.peers[p].alive = true;
@@ -591,14 +621,19 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                 }
                 if self.phase == Phase::Playing {
                     packets.push(Packet::Ack(Ack {
+                        run: self.run,
                         slot: to,
                         next_tick: self.session.next_tick(to),
                     }));
                     if let Some(frame) = self.session.local_frame(peer.acked) {
-                        packets.push(Packet::Input(frame));
+                        packets.push(Packet::Input(InputFrame {
+                            run: self.run,
+                            ..frame
+                        }));
                     }
                     if let Some(tick) = self.local_leave {
                         packets.push(Packet::Bye(Bye {
+                            run: self.run,
                             slot: self.local,
                             tick,
                             reason: ByeReason::Left,
@@ -628,6 +663,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             }
         };
         Bye {
+            run: self.run,
             slot: self.local,
             tick,
             reason,
@@ -697,6 +733,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             .take(CHECKPOINTS_IN_FLIGHT)
         {
             packets.push(Packet::Checkpoint(Checkpoint {
+                run: self.run,
                 slot: self.local,
                 tick: *tick,
                 hash: *hash,
