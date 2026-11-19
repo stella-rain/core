@@ -56,26 +56,35 @@ impl DesyncReport {
     /// Rebuilds the run through a [`stella_rain_core::run_replay::RunRecorder`]: per logged
     /// tick the leaves stamped on it, then the step. Nothing runs until this is called.
     pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
-        let mut recorder = RunRecorder::start_party_with(setup, content, self.party)
-            .map_err(ReportError::Setup)?;
-        for logged in &self.ticks {
-            for slot in 0..3u8 {
-                if logged.leaves >> slot & 1 == 1
-                    && let Some(who) = PlayerIdx::new(slot)
-                {
-                    recorder.leave(who).map_err(ReportError::Recorder)?;
-                }
-            }
-            let inputs = logged.inputs.map(|wire| wire.to_input());
-            recorder.step(&inputs).map_err(ReportError::Recorder)?;
-        }
-        let replay = recorder.replay();
-        if self
-            .local_hash
-            .is_some_and(|hash| replay.final_hash != format!("{hash:016x}"))
-        {
-            return Err(ReportError::HashDiffers);
-        }
-        Ok(replay)
+        rebuild(setup, content, self.party, &self.ticks, self.local_hash)
     }
+}
+
+/// Replays `ticks` through a recorder started on `party`; with `expect`, the rebuilt run must
+/// end on that hash.
+fn rebuild(
+    setup: &RunSetup,
+    content: &RunContent,
+    party: u8,
+    ticks: &[ConfirmedTick],
+    expect: Option<u64>,
+) -> Result<RunReplay, ReportError> {
+    let mut recorder =
+        RunRecorder::start_party_with(setup, content, party).map_err(ReportError::Setup)?;
+    for logged in ticks {
+        for slot in 0..3u8 {
+            if logged.leaves >> slot & 1 == 1
+                && let Some(who) = PlayerIdx::new(slot)
+            {
+                recorder.leave(who).map_err(ReportError::Recorder)?;
+            }
+        }
+        let inputs = logged.inputs.map(|wire| wire.to_input());
+        recorder.step(&inputs).map_err(ReportError::Recorder)?;
+    }
+    let replay = recorder.replay();
+    if expect.is_some_and(|hash| replay.final_hash != format!("{hash:016x}")) {
+        return Err(ReportError::HashDiffers);
+    }
+    Ok(replay)
 }
