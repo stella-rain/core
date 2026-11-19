@@ -10,14 +10,14 @@ use stella_rain_core::run_setup::RunSetup;
 
 use super::ConfirmedTick;
 
-/// Why a [`DesyncReport::replay`] failed.
+/// Why a [`DesyncReport::replay`] or [`EndedRun::replay`] failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReportError {
     /// The recorder refused to start from the setup, content or party.
     Setup(RunReplayError),
     /// The recorder refused a logged leave or tick.
     Recorder(RunReplayError),
-    /// The rebuilt run ends on another hash than the one the session held: either the setup is
+    /// From a [`DesyncReport`] only: the rebuilt run ends on another hash than the one the session held: either the setup is
     /// not the one the engine started on, or the engine is not deterministic.
     HashDiffers,
 }
@@ -90,8 +90,11 @@ impl EndedRun {
     /// holds no expected hash, so this never returns `ReportError::HashDiffers`; check the
     /// bytes with `verify_run`.
     pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
-        let _ = (setup, content);
-        unimplemented!()
+        let end = self
+            .ticks
+            .len()
+            .min(usize::try_from(self.tick).unwrap_or(usize::MAX));
+        rebuild(setup, content, self.party, &self.ticks[..end], None)
     }
 }
 
