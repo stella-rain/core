@@ -167,6 +167,8 @@ pub struct Session<S: Save = CloneRing> {
     config: Config,
     save: S,
     engine: Engine,
+    /// The tick-0 engine, the state a restart restores.
+    pristine: Engine,
     start_present: u8,
     tick: u32,
     confirmed: u32,
@@ -191,6 +193,13 @@ impl Session<CloneRing> {
     }
 }
 
+/// The first `delay` ticks of the local slot are neutral; every peer is sent them.
+fn seed_neutral(queue: &mut InputQueue, delay: u32) {
+    for t in 0..delay {
+        let _ = queue.set(t, WireInput::default());
+    }
+}
+
 impl<S: Save> Session<S> {
     /// A session over `engine` that keeps its states in `save`.
     pub fn with_save(engine: Engine, config: Config, save: S) -> Result<Session<S>, ConfigError> {
@@ -208,14 +217,12 @@ impl<S: Save> Session<S> {
             return Err(ConfigError::DelayTooLarge);
         }
         let mut queues = [InputQueue::new(), InputQueue::new(), InputQueue::new()];
-        for t in 0..config.delay {
-            // The first `delay` ticks of the local slot are neutral; every peer is sent them.
-            let _ = queues[config.local.get()].set(t, WireInput::default());
-        }
+        seed_neutral(&mut queues[config.local.get()], config.delay);
         Ok(Session {
             config,
             save,
             hashes: VecDeque::from([engine.state_hash()]),
+            pristine: engine.clone(),
             engine,
             start_present,
             tick: 0,
@@ -284,6 +291,33 @@ impl<S: Save> Session<S> {
     /// Drains the log of confirmed ticks kept since the last call; empty unless
     /// [`Session::keep_confirmed`] was called.
     pub fn take_confirmed(&mut self) -> Vec<ConfirmedTick> {
+        std::mem::take(&mut self.log)
+    }
+
+    /// Puts the session back at tick 0, in place, as if it were new: the engine returns to its
+    /// tick-0 state, the save ring, input queues, leaves, acks, records and hashes are cleared,
+    /// and the settings (the config and [`Session::keep_confirmed`]) stay. Returns the old
+    /// run's log of confirmed ticks, from tick 0 to [`Session::confirmed`], as
+    /// [`Session::take_confirmed`] would: ticks stepped but not yet confirmed are not in it, and
+    /// it is empty unless `keep_confirmed` was called. The restore allocates nothing (under
+    /// `sim_version` 2).
+    pub fn restart(&mut self) -> Vec<ConfirmedTick> {
+        self.engine.clone_from(&self.pristine);
+        // Every state is dropped into the ring's spare slots, to be written by the next saves.
+        self.save.forget_before(u32::MAX);
+        self.tick = 0;
+        self.confirmed = 0;
+        self.record_base = 0;
+        self.hash_base = 0;
+        self.leaves = [None; 3];
+        self.acked = [0; 3];
+        self.records.clear();
+        self.hashes.clear();
+        self.hashes.push_back(self.engine.state_hash());
+        for queue in &mut self.queues {
+            queue.clear();
+        }
+        seed_neutral(&mut self.queues[self.config.local.get()], self.config.delay);
         std::mem::take(&mut self.log)
     }
 

@@ -334,6 +334,77 @@ fn clone_from_of_a_warmed_slot_allocates_nothing() {
     }
 }
 
+/// Plays `ticks` ticks of the three-player minute on `engine`.
+fn play_party(engine: &mut Engine, ticks: u32) {
+    for _ in 0..ticks {
+        engine.step(&bench_fixtures::party_case::minute_inputs(engine.tick()));
+    }
+}
+
+/// Restoring the tick-0 engine over a played one calls the allocator for nothing: a played engine
+/// holds the high-water capacity of every buffer, and the tick-0 source is smaller. This is what
+/// `Session::restart` relies on (`sim_version` 2 only; a `sim_version` 1 restore clones).
+#[test]
+fn restoring_the_tick_zero_engine_allocates_nothing() {
+    let time_limit = || {
+        let pristine = time_limit_case::start();
+        let mut played = pristine.clone();
+        for tick in 1..=time_limit_case::WARMUP_TICKS {
+            played.step(&[
+                time_limit_case::input(tick),
+                Default::default(),
+                Default::default(),
+            ]);
+        }
+        (pristine, played)
+    };
+    let party = || {
+        let pristine = Engine::start_party(&stella_rain_core::run_setup::RunSetup::default(), 3)
+            .expect("the party starts");
+        let mut played = pristine.clone();
+        play_party(&mut played, 600);
+        (pristine, played)
+    };
+    for (name, (pristine, mut slot)) in [("time_limit", time_limit()), ("party", party())] {
+        slot.clone_from(&pristine);
+        assert_eq!(slot.tick(), 0);
+        // Played again, and restored the second time under the count.
+        if name == "party" {
+            play_party(&mut slot, 600);
+        } else {
+            for tick in 1..=time_limit_case::WARMUP_TICKS {
+                slot.step(&[
+                    time_limit_case::input(tick),
+                    Default::default(),
+                    Default::default(),
+                ]);
+            }
+        }
+        let counts = counted3(|| slot.clone_from(&pristine));
+        assert_eq!(counts, pin(0, 0, 0), "{name}: (allocs, reallocs, frees)");
+        assert_eq!(slot.tick(), 0);
+    }
+}
+
+/// `Session::restart` of a played, logging session calls the allocator for nothing, the first
+/// time and after a second run. The returned log is dropped after the count; the next run's first
+/// confirmed tick allocates the new log later, which is not part of the restart. The session is
+/// built and driven in `bench_fixture_pins` (the one test module that names the net crate).
+#[test]
+fn session_restart_allocates_nothing() {
+    let mut session = crate::bench_fixture_pins::logging_party_session();
+    for round in ["first", "second"] {
+        crate::bench_fixture_pins::play_party_session(&mut session, 300);
+        let counts = counted3(|| session.restart());
+        assert_eq!(
+            counts,
+            pin(0, 0, 0),
+            "{round} restart: (allocs, reallocs, frees)"
+        );
+        assert_eq!((session.tick(), session.confirmed()), (0, 0));
+    }
+}
+
 fn pinned(case: &str) -> Allocs {
     BENCH_TICK_ALLOCS
         .iter()

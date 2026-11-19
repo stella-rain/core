@@ -186,6 +186,27 @@ mod tests {
     }
 
     #[test]
+    fn forgetting_every_tick_empties_the_ring_and_keeps_its_engines() {
+        let mut e = engine();
+        let mut ring = CloneRing::new(5);
+        for t in 0..8 {
+            ring.save(t, &e);
+            step(&mut e);
+        }
+        assert_eq!(ring.made, 5);
+        assert!(ring.load(7, &mut e));
+        ring.forget_before(u32::MAX);
+        assert_eq!(ring.held(), 0);
+        let mut e = engine();
+        for t in 0..5 {
+            ring.save(t, &e);
+            step(&mut e);
+        }
+        assert_eq!(ring.made, 5, "the next fill reuses every engine");
+        assert_eq!(ring.held(), 5);
+    }
+
+    #[test]
     fn a_full_ring_makes_no_new_engine() {
         let mut e = engine();
         let mut ring = CloneRing::new(5);
