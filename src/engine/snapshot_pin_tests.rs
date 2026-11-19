@@ -5,6 +5,8 @@
 //! reserved for the player slots (ADR-SIM-7): every other entity's number in the bytes is 2
 //! higher at one player. `tests/gameplay_observables.rs` pins the same views with those numbers
 //! mapped back, and did not move. The walks on version 1 engines are as they were.
+//!
+//! The pins moved once when the player view gained `max_hp`: the only new bytes are that key.
 
 use crate::bench_fixtures::{hit_case, time_limit_case, worst_case, worst_minute_case};
 use crate::fixed::Point;
@@ -170,12 +172,12 @@ fn the_snapshot_and_places_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            5_861_512_557_085_833_180,
-            11_804_565_080_693_115_417,
-            13_689_245_948_984_492_589,
-            4_433_571_114_218_942_636,
-            12_692_238_744_271_886_087,
-            14_144_782_006_893_370_296
+            17_491_086_472_955_404_066,
+            4_128_990_721_140_487_317,
+            2_497_766_836_364_182_085,
+            14_113_708_835_994_285_066,
+            4_085_162_667_984_718_047,
+            4_415_562_993_771_971_609
         ],
         "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs"
     );
@@ -201,12 +203,12 @@ fn the_player_view_bytes_are_pinned() {
     assert_eq!(
         got,
         [
-            10_068_031_454_609_088_382,
-            16_337_349_325_290_688_021,
-            6_703_189_069_145_904_179,
-            6_934_597_344_360_709_639,
-            11_854_411_370_225_542_390,
-            17_735_575_978_225_829_493
+            15_509_909_753_405_260_730,
+            17_672_839_608_273_985_701,
+            4_689_982_256_015_557_451,
+            9_970_105_601_580_836_545,
+            5_976_785_851_359_207_326,
+            2_149_628_225_251_215_676
         ],
         "worst_case, hit_case, time_limit_case, worst_minute_case, orb_cage, corpus runs (time_limit_case moved when the mode bosses began to chase)"
     );
