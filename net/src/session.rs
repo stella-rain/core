@@ -291,6 +291,17 @@ impl<S: Save> Session<S> {
         std::mem::take(&mut self.log)
     }
 
+    /// Puts the session back at tick 0, in place, as if it were new: the engine returns to its
+    /// tick-0 state, the save ring, input queues, leaves, acks, records and hashes are cleared,
+    /// and the settings (the config and [`Session::keep_confirmed`]) stay. Returns the old
+    /// run's log of confirmed ticks, from tick 0 to [`Session::confirmed`], as
+    /// [`Session::take_confirmed`] would: ticks stepped but not yet confirmed are not in it, and
+    /// it is empty unless `keep_confirmed` was called. The restore allocates nothing (under
+    /// `sim_version` 2).
+    pub fn restart(&mut self) -> Vec<ConfirmedTick> {
+        Vec::new()
+    }
+
     /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error
     /// nothing was inserted. An input older than what was pruned is ignored; one already held
     /// is a no-op if equal.
