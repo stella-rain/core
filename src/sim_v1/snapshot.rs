@@ -213,6 +213,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         players: vec![PlayerView {
             at: s.player.at,
             hp: s.player.hp,
+            max_hp: s.player.max_hp,
             radius: Fx(world.tuning.player_radius),
             facing: Facing {
                 x: s.player.facing.x,

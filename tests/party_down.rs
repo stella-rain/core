@@ -278,6 +278,9 @@ fn down_and_revive_events_and_snapshot_views() {
     let down_view = DownView {
         ticks_left: 1200,
         revive_hold: 60,
+        out_ticks: 1200,
+        revive_hold_ticks: 180,
+        revive_range: stella_rain_core::fixed::Fx(12_288),
     };
     let json = serde_json::to_string(&down_view).unwrap();
     let back: DownView = serde_json::from_str(&json).unwrap();

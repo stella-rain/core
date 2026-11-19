@@ -683,6 +683,8 @@ pub struct PerfectEvadeView {
 pub struct PlayerView {
     pub at: Point,
     pub hp: u32,
+    /// The most hit points; `hp` never passes it. Changes when a reward or an equipped star changes it (ADR-SIM-7).
+    pub max_hp: u32,
     /// The main character's hurt circle.
     pub radius: Fx,
     /// The last non-zero movement direction.
@@ -842,6 +844,14 @@ pub struct PlayerView {
 pub struct DownView {
     pub ticks_left: u32,
     pub revive_hold: u32,
+    /// The length of the out timer in ticks: `ticks_left / out_ticks` is the fraction left. The rules' own constant.
+    pub out_ticks: u32,
+    /// The ticks a teammate in range holds interact to revive: `revive_hold / revive_hold_ticks` is the progress. The
+    /// rules' own constant.
+    pub revive_hold_ticks: u32,
+    /// The radius of the revive test, in the same fixed-point units as `PlayerView.radius`: a teammate within it,
+    /// holding interact, counts as the reviver. The rules' own constant.
+    pub revive_range: Fx,
 }
 
 /// The type bonus the main character holds for one damage type: the one-type

@@ -22,7 +22,10 @@ use crate::snapshot::{
 };
 
 use super::equipment::{Held, SlotKind};
-use super::state::{AgentState, AttackRun, OUT_TIMER_TICKS, ShrineState, State, StatusState};
+use super::state::{
+    AgentState, AttackRun, OUT_TIMER_TICKS, REVIVE_HOLD_TICKS, REVIVE_RANGE, ShrineState, State,
+    StatusState,
+};
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
     combo_view, constellation_views, expertise_styles_view, hold_view, phase, starlight,
@@ -242,6 +245,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
     let player_view = |me: PlayerIdx| PlayerView {
         at: s.players[me].at,
         hp: s.players[me].hp,
+        max_hp: s.players[me].max_hp,
         radius: Fx(world.tuning.player_radius),
         facing: Facing {
             x: s.players[me].facing.x,
@@ -419,6 +423,9 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             Some(DownView {
                 ticks_left: OUT_TIMER_TICKS.saturating_sub(s.players[me].down_ticks),
                 revive_hold: s.players[me].revive_hold,
+                out_ticks: OUT_TIMER_TICKS,
+                revive_hold_ticks: REVIVE_HOLD_TICKS,
+                revive_range: REVIVE_RANGE,
             })
         } else {
             None
