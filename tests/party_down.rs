@@ -148,6 +148,39 @@ fn down_state_and_out_timer() {
     assert!(snap_after.players[1].down.is_none());
 }
 
+/// V5: the downed view carries the lengths and the range the app reads: the literals are the
+/// contract, and a changed constant fails here on purpose.
+#[test]
+fn the_down_view_pins_the_lengths_the_app_reads() {
+    let (setup, content) = lethal_setup(60_000, 15);
+    let mut e = Engine::start_party_with(&setup, &content, 2).unwrap();
+    let mut p0_dash = Input {
+        move_x: 100,
+        evade: true,
+        ..Input::default()
+    };
+    let idle = Input::default();
+    while e.snapshot().players[1].hp > 0 && e.tick() < 60 {
+        e.step(&[p0_dash, idle, idle]);
+        p0_dash.evade = false;
+        p0_dash.move_x = 0;
+    }
+    let snap = e.snapshot();
+    assert_eq!(
+        serde_json::to_value(snap.players[1].down).unwrap(),
+        serde_json::json!({
+            "ticks_left": 1200,
+            "revive_hold": 0,
+            "out_ticks": 1200,
+            "revive_hold_ticks": 180,
+            "revive_range": 12288
+        })
+    );
+    let max_hp = |i: usize| serde_json::to_value(&snap.players[i]).unwrap()["max_hp"].clone();
+    assert!(max_hp(1).is_u64());
+    assert_eq!(max_hp(1), max_hp(0));
+}
+
 /// B. Teammate revive with interact button (ADR-SIM-7, ADR-SIM-8).
 #[test]
 fn teammate_revive_with_interact_button() {
@@ -245,6 +278,9 @@ fn down_and_revive_events_and_snapshot_views() {
     let down_view = DownView {
         ticks_left: 1200,
         revive_hold: 60,
+        out_ticks: 1200,
+        revive_hold_ticks: 180,
+        revive_range: stella_rain_core::fixed::Fx(12_288),
     };
     let json = serde_json::to_string(&down_view).unwrap();
     let back: DownView = serde_json::from_str(&json).unwrap();

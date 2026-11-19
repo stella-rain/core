@@ -129,7 +129,8 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
 /// dormant): `TreeReadyView.kinds`, `TreeStatsView.grants` (the style kinds) and
 /// `threat_colour` of `AttackView` and `ZoneView` (the threat colours), `gauge`,
 /// `spirit`, `counter`, `tempo`, `trigger`, `rally` and `perfect_evade` of `PlayerView` (the weapon gauge, the spirit level, the counter window, the combo tempo, the giant trigger, the rally and the perfect evade), `stagger` and
-/// `stagger_max` of `EntityView` (the stagger gauge), and `repeat: false` of a `Hit` event (the
+/// `stagger_max` of `EntityView` (the stagger gauge), `max_hp` of a `PlayerView` and `out_ticks`,
+/// `revive_hold_ticks` and `revive_range` of a `DownView` (derived reads of existing state and constants), and `repeat: false` of a `Hit` event (the
 /// step repeat), `counterable: false` of an `AttackView` and `super_armour` of a `PlayerView`
 /// (the counter and super armour; the armour flag is derived from the charge and the running
 /// smash step, so it reads true in a shipped run while a smash swings, whichever value, it is
@@ -139,7 +140,8 @@ pub(crate) fn restore_removed_fields(text: &str) -> String {
 /// the orb, and the event's other fields and the tick it comes on are still digested. A view that names
 /// a kind or a colour keeps its field and so moves the digest.
 pub(crate) fn drop_empty_added_fields(text: &str) -> String {
-    text.replace(", kinds: [] }", " }")
+    let text = text
+        .replace(", kinds: [] }", " }")
         .replace(", counterable: false }", " }")
         .replace(", super_armour: false", "")
         .replace(", super_armour: true", "")
@@ -153,7 +155,57 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         )
         .replace(", player: Some(First) }", " }")
         .replace(", player: Some(Second) }", " }")
-        .replace(", player: Some(Third) }", " }")
+        .replace(", player: Some(Third) }", " }");
+    // Derived reads of existing state and constants, by key and never by value.
+    ["max_hp", "out_ticks", "revive_hold_ticks", "revive_range"]
+        .iter()
+        .fold(text, |text, key| drop_field(&text, key))
+}
+
+/// Removes every `, <key>: <value>` from a `Debug` text, the value running to the next `,` or
+/// closing brace outside any parentheses, brackets or braces of its own (`Fx(12288)` holds some).
+fn drop_field(text: &str, key: &str) -> String {
+    let needle = format!(", {key}: ");
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(&needle) {
+        out.push_str(&rest[..at]);
+        let value = &rest[at + needle.len()..];
+        let mut depth = 0u32;
+        let mut end = value.len();
+        for (i, c) in value.char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' => depth = depth.saturating_sub(1),
+                '}' if depth == 0 => {
+                    // Keep the space before a closing brace of the struct itself.
+                    end = value[..i].trim_end().len();
+                    break;
+                }
+                '}' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    end = i;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        rest = &value[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// O1: the mask removes the new view fields and leaves the text as the Base printed it.
+#[test]
+fn the_mask_removes_the_new_view_fields() {
+    let before = "PlayerView { at: P, hp: 1000, radius: Fx(5), out: false }, DownView { ticks_left: 1200, revive_hold: 0 }";
+    let after = "PlayerView { at: P, hp: 1000, max_hp: 1000, radius: Fx(5), out: false }, DownView { ticks_left: 1200, revive_hold: 0, out_ticks: 1200, revive_hold_ticks: 180, revive_range: Fx(12288) }";
+    assert_eq!(
+        drop_empty_added_fields(after),
+        drop_empty_added_fields(before)
+    );
+    assert_eq!(drop_empty_added_fields(before), before);
 }
 
 /// Feeds `text` to `sha` with its entity IDs mapped.

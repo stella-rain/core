@@ -80,6 +80,18 @@ fn the_starting_rune_fills_rune_slot_0() {
     assert_eq!(c.offer.state(), q.offer.state(), "no draw moved");
 }
 
+/// V4: the view shows the most hit points the equipped star gave (the build's path, not a poke).
+#[test]
+fn the_view_shows_the_max_hp_a_star_gave() {
+    let plain = Engine::start(&setup(None, None)).expect("starts");
+    let e = Engine::start(&setup(None, Some("max_hp_common"))).expect("starts");
+    let me = &state_of(&e).players[PlayerIdx::SOLO];
+    let was = &state_of(&plain).players[PlayerIdx::SOLO];
+    let shown = serde_json::to_value(&e.snapshot().players[0]).expect("a view")["max_hp"].clone();
+    assert_eq!(shown, serde_json::json!(me.max_hp));
+    assert_eq!(shown, serde_json::json!(was.max_hp + 20_000));
+}
+
 /// T3: the Lumine star is in the build at tick 0 (its +20,000 max hp, hp full).
 #[test]
 fn the_lumine_star_is_in_the_build_at_tick_0() {
