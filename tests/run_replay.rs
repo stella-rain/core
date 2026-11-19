@@ -14,7 +14,7 @@ use stella_rain_core::run_replay::{CHECKPOINT_TICKS, MAX_RUN_REPLAY_BYTES};
 use stella_rain_core::run_replay::{
     Command, CommandKind, MAX_COMMANDS, RunRecorder, RunReplay, RunReplayError, TickCommand,
     content_sha256, pack_commands, record_run, record_run_with, record_run_with_pack, verify_run,
-    verify_run_against, verify_run_with,
+    verify_run_against, verify_run_against_with_pack, verify_run_with, verify_run_with_pack,
 };
 use stella_rain_core::run_setup::RunSetup;
 use stella_rain_core::time_limit::TimeLimit;
@@ -1145,4 +1145,245 @@ fn a_replay_naming_build_mode_is_refused() {
         Err(RunReplayError::Damaged { .. })
     ));
     assert!(verify_run(text.as_bytes()).is_err());
+}
+
+// ---- A run that stops early, and a run of no ticks (ADR-REPL-5 point 6) ----
+
+mod ended_early {
+    use super::*;
+    use crate::common::run_steps::{RunSteps, Step, apply_to};
+    use crate::corpus_pins::run_case_pack;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Kind {
+        Solo,
+        Party(u8),
+        /// `sim_version` 1, schema 1, on the frozen pack.
+        Frozen,
+    }
+
+    const KINDS: [Kind; 4] = [Kind::Solo, Kind::Party(2), Kind::Party(3), Kind::Frozen];
+    const POINTS: [u32; 6] = [0, 1, 59, 60, 61, 130];
+
+    fn setup(kind: Kind) -> RunSetup {
+        match kind {
+            Kind::Frozen => RunSetup {
+                schema_version: 1,
+                sim_version: 1,
+                mode: "time_limit".into(),
+                ..trial_setup()
+            },
+            _ => trial_setup(),
+        }
+    }
+
+    fn pack(kind: Kind) -> &'static Pack {
+        match kind {
+            Kind::Frozen => crate::frozen_v1::pack(),
+            _ => Pack::bundled(),
+        }
+    }
+
+    fn start(kind: Kind) -> RunRecorder {
+        let n = match kind {
+            Kind::Party(n) => n,
+            _ => 1,
+        };
+        RunRecorder::start_party_with_pack(&setup(kind), pack(kind), n).unwrap()
+    }
+
+    /// Three distinct scripted inputs, so that every slot is in the log.
+    fn input_of(slot: usize, tick: u32) -> Input {
+        Input {
+            move_x: if (tick / 40 + u32::try_from(slot).unwrap()) % 2 == 0 {
+                100
+            } else {
+                -100
+            },
+            move_y: 40 * i8::try_from(slot).unwrap(),
+            main: tick % 3 != 0,
+            ..Input::default()
+        }
+    }
+
+    /// A recorder played for 130 ticks, the state hash after every tick, and the fresh hash.
+    fn played(kind: Kind) -> (RunRecorder, Vec<u64>, u64) {
+        let mut rec = start(kind);
+        let fresh = rec.engine().state_hash();
+        let mut hashes = Vec::new();
+        for t in 0..130 {
+            let inputs = [input_of(0, t), input_of(1, t), input_of(2, t)];
+            rec.step(&inputs).unwrap();
+            hashes.push(rec.engine().state_hash());
+        }
+        assert_eq!(rec.engine().outcome(), Outcome::Running, "{kind:?}");
+        (rec, hashes, fresh)
+    }
+
+    #[test]
+    fn a_replay_ended_early_verifies() {
+        for kind in KINDS {
+            let (rec, hashes, fresh) = played(kind);
+            for n in POINTS {
+                let hash = if n == 0 {
+                    fresh
+                } else {
+                    hashes[n as usize - 1]
+                };
+                let replay = rec.replay_at(n, hash);
+                let bytes = replay.to_bytes();
+                let at = format!("{kind:?} at tick {n}");
+                let verified = verify_run_with_pack(&bytes, pack(kind))
+                    .unwrap_or_else(|e| panic!("{at}: {e:?}"));
+                assert_eq!(verified.ticks, n, "{at}");
+                assert_eq!(verified.final_hash, hash, "{at}");
+                assert_eq!(verified.outcome, Outcome::Running, "{at}");
+                assert_eq!(
+                    replay.checkpoints.len(),
+                    16 * (n / CHECKPOINT_TICKS) as usize,
+                    "{at}"
+                );
+                verify_run_against_with_pack(&bytes, pack(kind), &hashes[..n as usize])
+                    .unwrap_or_else(|e| panic!("{at}, per-tick hashes: {e:?}"));
+                assert_eq!(
+                    RunReplay::from_bytes(&bytes).unwrap(),
+                    replay,
+                    "{at}: round trip"
+                );
+                assert_eq!(replay.to_bytes(), bytes, "{at}: bytes");
+            }
+        }
+    }
+
+    #[test]
+    fn a_zero_tick_replay_verifies() {
+        let expected = [
+            (Kind::Solo, "AQ=="),
+            (Kind::Party(2), "Aw=="),
+            (Kind::Party(3), "Bw=="),
+            (Kind::Frozen, ""),
+        ];
+        for (kind, inputs) in expected {
+            let rec = start(kind);
+            let replay = rec.replay();
+            let at = format!("{kind:?}");
+            assert_eq!(replay.ticks, 0, "{at}");
+            assert_eq!(replay.checkpoints, "", "{at}");
+            assert_eq!(replay.inputs, inputs, "{at}");
+            assert_eq!(
+                replay.final_hash,
+                hash_to_hex(rec.engine().state_hash()),
+                "{at}"
+            );
+            let bytes = replay.to_bytes();
+            let verified =
+                verify_run_with_pack(&bytes, pack(kind)).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+            assert_eq!(verified.ticks, 0, "{at}");
+            assert_eq!(verified.outcome, Outcome::Running, "{at}");
+            assert_eq!(verified.commands, 0, "{at}");
+            assert_eq!(verified.stardust, 0, "{at}");
+            assert_eq!(verified.final_hash, rec.engine().state_hash(), "{at}");
+            verify_run_against_with_pack(&bytes, pack(kind), &[])
+                .unwrap_or_else(|e| panic!("{at}: {e:?}"));
+            assert_eq!(
+                verify_run_against_with_pack(&bytes, pack(kind), &[0]),
+                Err(RunReplayError::HashCount {
+                    expected: 0,
+                    given: 1
+                }),
+                "{at}"
+            );
+            let range = replay
+                .step_range(0, 0, u32::MAX)
+                .unwrap_or_else(|e| panic!("{at}: {e:?}"));
+            assert!(range.steps.is_empty(), "{at}");
+        }
+    }
+
+    /// Cuts the party case `name` of `current/` right after its step number `cut(steps)`,
+    /// recorded as it was: the replay as a recorder writes it at that point.
+    fn cut_after(name: &str, cut: impl Fn(&[Step]) -> usize) -> (RunRecorder, Pack, RunReplay) {
+        let dir = crate::data_root::data_root()
+            .join("tests/corpus/current/parties")
+            .join(name);
+        let bytes = std::fs::read(dir.join("run.replay")).unwrap();
+        let replay = RunReplay::from_bytes(&bytes).unwrap();
+        let pack = run_case_pack(&dir, &bytes).unwrap();
+        let steps = RunSteps::of(&replay);
+        let end = cut(steps.steps());
+        let mut rec =
+            RunRecorder::start_party_with_pack(&replay.setup, &pack, steps.party).unwrap();
+        for step in &steps.steps()[..end] {
+            apply_to(&mut rec, step);
+        }
+        (rec, pack, replay)
+    }
+
+    fn verified_at_the_cut(name: &str, cut: impl Fn(&[Step]) -> usize, last: fn(&Step) -> bool) {
+        let (rec, pack, _) = cut_after(name, cut);
+        let hash = rec.engine().state_hash();
+        let replay = rec.replay();
+        assert_eq!(replay, rec.replay_at(rec.engine().tick(), hash), "{name}");
+        let verified = verify_run_with_pack(&replay.to_bytes(), &pack)
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert_eq!(verified.final_hash, hash, "{name}: the hash after the step");
+        assert_eq!(verified.ticks, rec.engine().tick(), "{name}");
+        let steps = RunSteps::of(&replay);
+        assert!(
+            last(steps.steps().last().unwrap()),
+            "{name}: the log ends on the step"
+        );
+    }
+
+    /// The index after the `n`th step (from 1) of the kind `is`.
+    fn after_nth(steps: &[Step], is: fn(&Step) -> bool, n: usize) -> usize {
+        steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| is(s))
+            .nth(n - 1)
+            .unwrap_or_else(|| panic!("the case holds {n} such steps ({} steps)", steps.len()))
+            .0
+            + 1
+    }
+
+    #[test]
+    fn an_early_end_after_a_presence_change_or_an_action_verifies() {
+        let leave: fn(&Step) -> bool = |s| matches!(s, Step::Leave(_));
+        let join: fn(&Step) -> bool = |s| matches!(s, Step::Join(_));
+        let act: fn(&Step) -> bool = |s| matches!(s, Step::Actions(_));
+        // A LEAVE and a JOIN of `leave_hole`, then ACTIONS of equipment cases: each cut right
+        // after the step, so the log's last record is the step.
+        verified_at_the_cut("leave_hole", |s| after_nth(s, leave, 1), leave);
+        verified_at_the_cut("leave_hole", |s| after_nth(s, join, 1), join);
+        verified_at_the_cut("join_two", |s| after_nth(s, join, 1), join);
+        verified_at_the_cut("equipment_equip", |s| after_nth(s, act, 1), act);
+    }
+
+    #[test]
+    fn a_step_after_the_end_is_still_refused() {
+        let setup = time_limit_setup();
+        let content = falling_content();
+        let mut rec = RunRecorder::start_with(&setup, &content).unwrap();
+        for c in &play_run_in(&setup, &content, TRIAL_LENGTH) {
+            let Command::Step(input) = *c else {
+                unreachable!("the live rules hold no choice")
+            };
+            rec.step(&[input, Default::default(), Default::default()])
+                .unwrap();
+        }
+        assert_ne!(rec.engine().outcome(), Outcome::Running, "the run ended");
+        let mut replay = rec.replay();
+        verify_run_with(&replay.to_bytes(), &content).expect("the ended run verifies");
+        // One more tick than the log holds: the early-end allowance is not a hole.
+        replay.ticks += 1;
+        let got = verify_run_with(&replay.to_bytes(), &content);
+        assert_eq!(
+            got,
+            Err(RunReplayError::BadInputs(
+                "there are fewer inputs than ticks"
+            )),
+            "a step past the end is refused"
+        );
+    }
 }
