@@ -60,6 +60,41 @@ impl DesyncReport {
     }
 }
 
+/// One run that ended: the confirmed ticks it stepped, from which its own replay is rebuilt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EndedRun {
+    /// The run's number, as the run byte on the wire (ADR-NET-6). Data only: `replay` ignores it.
+    pub run: u8,
+    /// The tick the run ended at: it has stepped ticks 0 to `tick` - 1.
+    pub tick: u32,
+    /// The starting party size.
+    pub party: u8,
+    /// The confirmed ticks of the run, below `tick`.
+    pub ticks: Vec<ConfirmedTick>,
+}
+
+impl EndedRun {
+    /// An ended run; `ticks` is cut to `tick` entries, so what a session drained past the end
+    /// never reaches the replay.
+    pub fn new(run: u8, tick: u32, party: u8, mut ticks: Vec<ConfirmedTick>) -> EndedRun {
+        ticks.truncate(usize::try_from(tick).unwrap_or(usize::MAX));
+        EndedRun {
+            run,
+            tick,
+            party,
+            ticks,
+        }
+    }
+
+    /// Rebuilds the run's replay as `DesyncReport::replay` does, cut at `tick`. An ended run
+    /// holds no expected hash, so this never returns `ReportError::HashDiffers`; check the
+    /// bytes with `verify_run`.
+    pub fn replay(&self, setup: &RunSetup, content: &RunContent) -> Result<RunReplay, ReportError> {
+        let _ = (setup, content);
+        unimplemented!()
+    }
+}
+
 /// Replays `ticks` through a recorder started on `party`; with `expect`, the rebuilt run must
 /// end on that hash.
 fn rebuild(
