@@ -1,5 +1,5 @@
-//! The wire format of an online party: six kinds of packet, each with one strict byte encoding
-//! (the hello has two layouts, the current one and the retired protocol 1 one).
+//! The wire format of an online party: seven tags, six kinds of packet, each with one strict byte
+//! encoding (the hello has two layouts, the current one and the retired protocol 1 one).
 //!
 //! Only inputs and checkpoint hashes cross the network. A message is one datagram or one
 //! WebSocket message, with no length prefix and no stream framing. All integers are little

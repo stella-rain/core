@@ -371,8 +371,8 @@ fn a_real_pack_gets_past_the_loader_and_runs() {
     );
 }
 
-/// One packet of each of the seven tags (both hello layouts, both command kinds), and a frame with an action, built through net's own API: the seeds
-/// of `net_decode`.
+/// One packet of each of the seven tags (both hello layouts, both command kinds), and a frame with
+/// an action, built through net's own API: the seeds of `net_decode`.
 fn net_seeds() -> Vec<Vec<u8>> {
     use stella_rain_net::wire::{
         Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, HelloV1, InputFrame, LeaderCommand,
