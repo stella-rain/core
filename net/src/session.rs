@@ -167,6 +167,8 @@ pub struct Session<S: Save = CloneRing> {
     config: Config,
     save: S,
     engine: Engine,
+    /// The tick-0 engine, the state a restart restores.
+    pristine: Engine,
     start_present: u8,
     tick: u32,
     confirmed: u32,
@@ -220,6 +222,7 @@ impl<S: Save> Session<S> {
             config,
             save,
             hashes: VecDeque::from([engine.state_hash()]),
+            pristine: engine.clone(),
             engine,
             start_present,
             tick: 0,
@@ -299,7 +302,23 @@ impl<S: Save> Session<S> {
     /// it is empty unless `keep_confirmed` was called. The restore allocates nothing (under
     /// `sim_version` 2).
     pub fn restart(&mut self) -> Vec<ConfirmedTick> {
-        Vec::new()
+        self.engine.clone_from(&self.pristine);
+        // Every state is dropped into the ring's spare slots, to be written by the next saves.
+        self.save.forget_before(u32::MAX);
+        self.tick = 0;
+        self.confirmed = 0;
+        self.record_base = 0;
+        self.hash_base = 0;
+        self.leaves = [None; 3];
+        self.acked = [0; 3];
+        self.records.clear();
+        self.hashes.clear();
+        self.hashes.push_back(self.engine.state_hash());
+        for queue in &mut self.queues {
+            queue.clear();
+        }
+        seed_neutral(&mut self.queues[self.config.local.get()], self.config.delay);
+        std::mem::take(&mut self.log)
     }
 
     /// Takes the inputs of the remote slot `from`. The frame is checked whole first: on an error

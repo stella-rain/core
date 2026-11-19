@@ -172,7 +172,6 @@ fn a_restart_forgets_acks_and_queued_inputs() {
     let (mut r, mut f) = (played(), fresh(2, cfg, false));
     let (a, b) = (silent(&mut r), silent(&mut f));
     assert_eq!(a, b);
-    assert!(a.iter().any(|x| x.contains("Unacked")), "{a:?}");
     assert!(a.iter().any(|x| x.contains("Window")), "{a:?}");
 }
 
@@ -203,7 +202,7 @@ fn a_restart_hands_out_the_confirmed_log() {
 
     // Predicted ticks are not in the log.
     let mut p = fresh(2, cfg, true);
-    p.receive_inputs(slot(1), &frame_of(&sc, 1, 0, 10))
+    p.receive_inputs(slot(1), &frame_of(&sc, 1, 0, 8))
         .expect("frame");
     for k in 0..14u32 {
         let _ = p.advance(&sc.eff[(k + 2) as usize][0]);

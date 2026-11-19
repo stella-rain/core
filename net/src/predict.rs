@@ -29,6 +29,14 @@ impl InputQueue {
         }
     }
 
+    /// Empties the queue as [`InputQueue::new`] would, keeping the buffer's capacity.
+    pub(crate) fn clear(&mut self) {
+        self.floor = 0;
+        self.slots.clear();
+        self.next = 0;
+        self.highest = None;
+    }
+
     /// The first tick not received: every tick below it is held (or pruned).
     pub(crate) fn next_tick(&self) -> u32 {
         self.next
@@ -177,6 +185,26 @@ mod tests {
         q.set(7, held(false)).unwrap();
         assert_eq!(q.predicted(7), held(false));
         assert_eq!(q.predicted(3), held(true));
+    }
+
+    #[test]
+    fn a_cleared_queue_equals_a_new_one() {
+        let mut q = InputQueue::new();
+        for t in 0..6 {
+            q.set(t, held(t % 2 == 0)).unwrap();
+        }
+        q.set(9, held(true)).unwrap();
+        q.prune_below(3);
+        q.clear();
+        let new = InputQueue::new();
+        assert_eq!(q.next_tick(), new.next_tick());
+        assert_eq!(q.floor(), new.floor());
+        assert_eq!(q.highest(), new.highest());
+        for t in 0..12 {
+            assert_eq!(q.get(t), new.get(t), "get {t}");
+            assert_eq!(q.predicted(t), new.predicted(t), "predicted {t}");
+        }
+        assert_eq!(q.set(0, held(false)), Ok(()), "no stale conflict");
     }
 
     #[test]
