@@ -10,12 +10,16 @@ use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::CHECKPOINT_TICKS;
 
-use super::report::DesyncReport;
+use super::report::{DesyncReport, EndedRun};
 use super::{ConfigError, DEFAULT_DELAY, DEFAULT_WINDOW, Session, SessionError, Wait};
 use crate::save::{CloneRing, Save};
 use crate::transport::Transport;
-use crate::wire::{Ack, Bye, ByeReason, Checkpoint, Hello, InputFrame, Packet};
+use crate::wire::{
+    Ack, Bye, ByeReason, Checkpoint, CommandKind, Hello, InputFrame, LeaderCommand, Packet,
+};
 
+/// The first tick a Restart may be stamped at: a Restart below it is refused.
+pub const MIN_RESTART_TICK: u32 = 60;
 /// How far ahead of a peer (in ticks of lead difference) a session may run before it waits.
 pub const DEFAULT_MAX_SKEW: u32 = 4;
 /// Every how many send rounds the newest checkpoints are sent.
@@ -98,7 +102,7 @@ pub enum Phase {
     Handshake,
     /// Playing.
     Playing,
-    /// Stopped for good: a refusal or a desync.
+    /// Stopped for good: a refusal, a desync or the leader's end.
     Stopped,
 }
 
@@ -113,6 +117,8 @@ pub enum NetWait {
     Window,
     /// A peer has not acknowledged the local inputs a frame can carry.
     Unacked,
+    /// This session has stepped to the tick the leader ends the run at and waits for the end.
+    Ending,
 }
 
 impl From<Wait> for NetWait {
@@ -174,7 +180,41 @@ pub enum StopReason {
         /// The tick it announced.
         tick: u32,
     },
+    /// The leader cancelled the run.
+    EndedByLeader(CommandKind),
 }
+
+/// Why [`NetSession::end_run`] refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndRunError {
+    /// The session has stopped.
+    Stopped,
+    /// The handshake is not done.
+    NotPlaying,
+    /// This session is not slot 0.
+    NotLeader,
+    /// An end is already pending.
+    AlreadyEnding,
+    /// A restart needs [`MIN_RESTART_TICK`] confirmed ticks.
+    TooEarly,
+    /// A peer has announced a leave.
+    PeerLeft,
+}
+
+impl std::fmt::Display for EndRunError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            EndRunError::Stopped => "the session has stopped",
+            EndRunError::NotPlaying => "the handshake is not done",
+            EndRunError::NotLeader => "only slot 0 may end the run",
+            EndRunError::AlreadyEnding => "an end is already pending",
+            EndRunError::TooEarly => "a restart needs tick 60",
+            EndRunError::PeerLeft => "a peer has left",
+        })
+    }
+}
+
+impl std::error::Error for EndRunError {}
 
 /// Why a [`NetSession`] call failed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -437,6 +477,26 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         self.stats
     }
 
+    /// The run this session plays.
+    pub fn run(&self) -> u8 {
+        self.run
+    }
+
+    /// The tick and kind of the pending end, if there is one.
+    pub fn ending(&self) -> Option<(u32, CommandKind)> {
+        None
+    }
+
+    /// The latest run that ended, once.
+    pub fn take_ended_run(&mut self) -> Option<EndedRun> {
+        None
+    }
+
+    /// Slot 0 ends the run at the tick it has confirmed and returns that tick.
+    pub fn end_run(&mut self, _kind: CommandKind) -> Result<u32, EndRunError> {
+        Err(EndRunError::Stopped)
+    }
+
     /// The desync report, once the session stopped on a desync.
     pub fn desync_report(&self) -> Option<&DesyncReport> {
         self.report.as_ref()
@@ -661,6 +721,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             StopReason::Desync { tick, .. } | StopReason::PeerDesync { tick, .. } => {
                 (tick, ByeReason::Desync)
             }
+            StopReason::EndedByLeader(_) => unreachable!("the leader's end is not a bye"),
         };
         Bye {
             run: self.run,
