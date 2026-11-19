@@ -432,7 +432,7 @@ fn advance(engine: &mut Engine, steps: &[Step], next: &mut usize) -> bool {
     true
 }
 
-fn pack_of(tree: &Path, case: &Path) -> Pack {
+pub(super) fn pack_of(tree: &Path, case: &Path) -> Pack {
     let json: serde_json::Value =
         serde_json::from_slice(&std::fs::read(case.join("case.json")).unwrap()).unwrap();
     let pin = json["pack_sha256"].as_str().unwrap();

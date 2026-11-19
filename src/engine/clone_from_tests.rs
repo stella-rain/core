@@ -14,14 +14,14 @@ fn cases() -> Vec<(&'static str, Engine)> {
     ]
 }
 
-fn step_n(engine: &mut Engine, ticks: u32) {
+pub(super) fn step_n(engine: &mut Engine, ticks: u32) {
     for _ in 0..ticks {
         engine.step(&party_case::minute_inputs(engine.tick()));
     }
 }
 
 /// Everything an engine shows from outside, as one string, so a mismatch names the field.
-fn shown(engine: &Engine) -> String {
+pub(super) fn shown(engine: &Engine) -> String {
     format!(
         "hash {} tick {} present {} snapshot {:?} events {:?} caps {:?} ledger {:?} stats {:?}",
         engine.state_hash(),
@@ -36,7 +36,7 @@ fn shown(engine: &Engine) -> String {
 }
 
 /// `slot` and `reference` step 20 ticks on the same inputs and agree at every one.
-fn same_for_20_ticks(slot: &mut Engine, reference: &mut Engine, why: &str) {
+pub(super) fn same_for_20_ticks(slot: &mut Engine, reference: &mut Engine, why: &str) {
     for _ in 0..20 {
         let inputs = party_case::minute_inputs(reference.tick());
         slot.step(&inputs);
