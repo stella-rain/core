@@ -4018,9 +4018,26 @@
       "additionalProperties": false,
       "description": "The downed state of a party player (ADR-SIM-7).",
       "properties": {
+        "out_ticks": {
+          "description": "The length of the out timer in ticks: `ticks_left / out_ticks` is the fraction left. The rules' own constant.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "revive_hold": {
           "format": "uint32",
           "minimum": 0,
+          "type": "integer"
+        },
+        "revive_hold_ticks": {
+          "description": "The ticks a teammate in range holds interact to revive: `revive_hold / revive_hold_ticks` is the progress. The\nrules' own constant.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revive_range": {
+          "description": "The radius of the revive test, in the same fixed-point units as `PlayerView.radius`: a teammate within it,\nholding interact, counts as the reviver. The rules' own constant.",
+          "format": "int32",
           "type": "integer"
         },
         "ticks_left": {
@@ -4031,7 +4048,10 @@
       },
       "required": [
         "ticks_left",
-        "revive_hold"
+        "revive_hold",
+        "out_ticks",
+        "revive_hold_ticks",
+        "revive_range"
       ],
       "type": "object"
     },
@@ -7308,6 +7328,12 @@
           "minimum": 0,
           "type": "integer"
         },
+        "max_hp": {
+          "description": "The most hit points; `hp` never passes it. Changes when a reward or an equipped star changes it (ADR-SIM-7).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "orbits": {
           "description": "The orbits rewards gave, in the order they came.",
           "items": {
@@ -7518,6 +7544,7 @@
       "required": [
         "at",
         "hp",
+        "max_hp",
         "radius",
         "facing",
         "invulnerable",
