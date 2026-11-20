@@ -22,10 +22,10 @@ use stella_rain_net::transport::{Transport, TransportError};
 use stella_rain_net::wire::{Hello, InputFrame, PROTOCOL_VERSION, Packet};
 
 use super::simnet::{Impair, SimEndpoint, SimNet};
-use super::{Script, engine, equipment_setup, slot};
+use super::{Script, engine_of, equipment_setup, slot};
 
 /// The most rounds a run may take.
-pub const ROUND_LIMIT: u32 = 4000;
+pub const ROUND_LIMIT: u32 = 8000;
 
 /// A change made to a frame before it is encoded: `from`, `to`, the frame.
 pub type FrameTamper = Box<dyn FnMut(usize, usize, &mut InputFrame)>;
@@ -164,9 +164,16 @@ impl Peers {
                     me: usize::from(i),
                     rules: Rc::clone(&self.rules),
                 };
-                NetSession::new(engine(n), config, link).expect("a valid config")
+                NetSession::new(engine_of(&self.script.setup, n), config, link)
+                    .expect("a valid config")
             })
             .collect();
+    }
+
+    /// Every session stops advancing at tick `ticks` and keeps polling.
+    pub fn stop_at(mut self, ticks: u32) -> Peers {
+        self.stops.fill(ticks);
+        self
     }
 
     /// The party's delay and window for every session (the script must have been made for the
