@@ -534,10 +534,16 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         if self.local.get() != 0 {
             return Err(EndRunError::NotLeader);
         }
-        if self.ending.is_some() {
-            return Err(EndRunError::AlreadyEnding);
-        }
-        let tick = self.session.confirmed();
+        // A Cancel replaces a pending Restart at the Restart's own tick, which this session has
+        // already confirmed; every other second end is refused.
+        let replaced = match self.ending {
+            Some(held) if held.kind == CommandKind::Restart && kind == CommandKind::Cancel => {
+                Some(held.tick)
+            }
+            Some(_) => return Err(EndRunError::AlreadyEnding),
+            None => None,
+        };
+        let tick = replaced.unwrap_or_else(|| self.session.confirmed());
         if kind == CommandKind::Restart {
             if tick < MIN_RESTART_TICK {
                 return Err(EndRunError::TooEarly);
@@ -684,7 +690,12 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                     && cmd.slot == from
                     && (cmd.kind != CommandKind::Restart || cmd.tick >= MIN_RESTART_TICK)
                     && cmd.tick <= self.session.next_tick(self.local)
-                    && self.ending.is_none_or(|held| held == cmd);
+                    && self.ending.is_none_or(|held| {
+                        held == cmd
+                            || (held.kind == CommandKind::Restart
+                                && cmd.kind == CommandKind::Cancel
+                                && held.tick == cmd.tick)
+                    });
                 if ok {
                     self.ending = Some(cmd);
                 }
