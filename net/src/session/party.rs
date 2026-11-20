@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use stella_rain_core::engine::Engine;
+use stella_rain_core::engine::{Engine, Outcome};
 use stella_rain_core::id::PlayerIdx;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_replay::CHECKPOINT_TICKS;
@@ -315,6 +315,9 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     ending: Option<LeaderCommand>,
     /// The latest run that ended, until the caller takes it.
     ended: Option<EndedRun>,
+    /// The run was Cleared or Failed and its `EndedRun` is handed out: no other end hands out a
+    /// second one, and the confirmed log is dropped while the session plays on.
+    run_ended: bool,
     /// Leader only: the Restart of the run just left, still sent to a peer not yet heard from
     /// in the new run (it may have lost the command).
     resend: Option<LeaderCommand>,
@@ -406,6 +409,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             stats: NetStats::default(),
             ending: None,
             ended: None,
+            run_ended: false,
             resend: None,
         }
     }
@@ -877,6 +881,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     /// Ends the run once this session has confirmed the end tick: a Cancel stops the session
     /// with the run it played.
     fn finish(&mut self) {
+        self.note_natural_end();
         let Some(cmd) = self.ending else {
             return;
         };
@@ -907,6 +912,33 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         }
     }
 
+    /// Hands out the run once its outcome is Cleared or Failed on confirmed ticks only: the
+    /// engine's tick is the tick the outcome turned at, the same at every peer, and the log is
+    /// cut there whenever this session notices (a head ahead of `confirmed` may still be
+    /// predicting). The session stays `Playing`; once the run has ended its log is dropped.
+    fn note_natural_end(&mut self) {
+        if self.phase != Phase::Playing {
+            return;
+        }
+        if self.run_ended {
+            drop(self.session.take_confirmed());
+            return;
+        }
+        let engine = self.session.engine();
+        let kind = match engine.outcome() {
+            Outcome::Running => return,
+            Outcome::Cleared => EndKind::Cleared,
+            Outcome::Failed => EndKind::Failed,
+        };
+        let end = engine.tick();
+        if end > self.session.confirmed() {
+            return;
+        }
+        let ticks = self.session.take_confirmed();
+        self.ended = Some(EndedRun::new(self.run, end, self.party, kind, ticks));
+        self.run_ended = true;
+    }
+
     /// Whether `p` no longer holds up the pending Restart at `t`. Slot 0 is the arbiter of the
     /// run: a session other than slot 0 passes it only once it has left or has restarted.
     fn holds(&self, p: &Peer, t: u32) -> bool {
@@ -928,6 +960,7 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         ));
         self.resend = (self.local.get() == 0).then_some(cmd);
         self.run = self.run.wrapping_add(1);
+        self.run_ended = false;
         self.ending = None;
         self.own.clear();
         self.next_checkpoint = CHECKPOINT_TICKS;
