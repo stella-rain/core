@@ -75,7 +75,9 @@ pub enum EndKind {
     Failed,
 }
 
-/// One run that ended: the confirmed ticks it stepped, from which its own replay is rebuilt.
+/// One run that ended, by a leader's Cancel or Restart or by itself (Cleared or Failed): the
+/// confirmed ticks it stepped, from which its own replay is rebuilt. Every peer holds the same
+/// value for one run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EndedRun {
     /// The run's number, as the run byte on the wire (ADR-NET-6). Data only: `replay` ignores it.

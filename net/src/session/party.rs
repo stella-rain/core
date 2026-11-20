@@ -315,8 +315,8 @@ pub struct NetSession<T: Transport, S: Save = CloneRing> {
     ending: Option<LeaderCommand>,
     /// The latest run that ended, until the caller takes it.
     ended: Option<EndedRun>,
-    /// The run was Cleared or Failed and its `EndedRun` is handed out: no other end hands out a
-    /// second one, and the confirmed log is dropped while the session plays on.
+    /// The run was Cleared or Failed and its `EndedRun` is noted: no other end of the run hands out
+    /// a second one, and the confirmed log is dropped while the session plays on.
     run_ended: bool,
     /// Leader only: the Restart of the run just left, still sent to a peer not yet heard from
     /// in the new run (it may have lost the command).
@@ -517,8 +517,10 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         self.ending.map(|c| (c.tick, c.kind))
     }
 
-    /// The latest run that ended (a restart or a cancel), once: a second call returns `None`
-    /// until another run ends.
+    /// The latest run that ended, once: a leader's Cancel or Restart, or a party run that was
+    /// Cleared or Failed (the session stays `Playing`; the run ends at the tick the outcome
+    /// turned, and only confirmed ticks count). A run hands out one: a Cancel or Restart after
+    /// its natural end hands out none. A second call returns `None` until another run ends.
     pub fn take_ended_run(&mut self) -> Option<EndedRun> {
         self.ended.take()
     }
