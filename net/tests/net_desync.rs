@@ -7,7 +7,7 @@ use stella_rain_core::input::{EquipAction, Input};
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::verify_run;
 use stella_rain_net::session::party::{NetError, Phase, StopReason};
-use stella_rain_net::session::report::{EndedRun, ReportError};
+use stella_rain_net::session::report::{EndKind, EndedRun, ReportError};
 use support::peers::{Peers, ROUND_LIMIT, flip};
 use support::simnet::Impair;
 use support::{Script, equipment_setup, script, slot, straight};
@@ -206,7 +206,13 @@ fn the_desync_report_and_the_ended_run_build_the_same_bytes() {
     assert!(peers.run_with(|_| {}));
     let report = peers.sessions[1].desync_report().expect("a report");
     let content = RunContent::bundled();
-    let ended = EndedRun::new(0, report.tick, report.party, report.ticks.clone());
+    let ended = EndedRun::new(
+        0,
+        report.tick,
+        report.party,
+        EndKind::Cancel,
+        report.ticks.clone(),
+    );
     assert_eq!(
         report
             .replay(&equipment_setup(), content)

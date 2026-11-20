@@ -316,3 +316,37 @@ fn a_cancel_over_a_pending_restart_under_every_impairment() {
         }
     }
 }
+
+#[test]
+fn a_natural_end_is_the_same_run_at_every_peer_under_every_impairment() {
+    use stella_rain_core::engine::Outcome;
+    use stella_rain_core::run_replay::verify_run_with;
+    use support::peers::Got;
+
+    let scn = support::failed_three();
+    let mut spread = 0;
+    for (seed, loss) in [(7u64, 100u16), (9, 300)] {
+        let mut peers = Peers::new(scn.script.clone(), 3, seed, five(loss)).stop_at(scn.end + 60);
+        let mut got: Vec<Vec<Got>> = vec![Vec::new(); 3];
+        peers.play_until(&mut got, |_, _| false);
+        let first = got[0][0].ended.clone();
+        let mut rounds = Vec::new();
+        for (i, list) in got.iter().enumerate() {
+            assert_eq!(list.len(), 1, "seed {seed}: session {i}");
+            let e = &list[0].ended;
+            assert_eq!(e, &first, "seed {seed}: session {i}");
+            assert_eq!((e.run, e.tick, e.party), (0, scn.end, 3));
+            assert!(list[0].confirmed >= scn.end, "never from a prediction");
+            let replay = e
+                .replay(&scn.script.setup, RunContent::bundled())
+                .expect("a replay");
+            let v = verify_run_with(&replay.to_bytes(), RunContent::bundled()).expect("verifies");
+            assert_eq!((v.ticks, v.outcome), (scn.end, Outcome::Failed));
+            rounds.push(list[0].round);
+        }
+        rounds.sort_unstable();
+        rounds.dedup();
+        spread = spread.max(rounds.len());
+    }
+    assert!(spread >= 2, "the peers took it in different rounds");
+}

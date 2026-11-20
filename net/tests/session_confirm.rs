@@ -6,7 +6,7 @@ use stella_rain_core::engine::Outcome;
 use stella_rain_core::input::Input;
 use stella_rain_core::run_content::RunContent;
 use stella_rain_core::run_replay::{RunReplay, verify_run, verify_run_against};
-use stella_rain_net::session::report::{EndedRun, ReportError};
+use stella_rain_net::session::report::{EndKind, EndedRun, ReportError};
 use stella_rain_net::session::{ConfirmedTick, Session};
 use stella_rain_net::wire::WireInput;
 use support::{Script, engine, equipment_setup, frame_of, script, slot, straight};
@@ -167,7 +167,7 @@ fn replay_of(run: &EndedRun) -> RunReplay {
 fn an_ended_run_replays_and_verifies() {
     for n in [2u8, 3] {
         let (log, oracle) = log_of(n);
-        let replay = replay_of(&EndedRun::new(0, 360, n, log));
+        let replay = replay_of(&EndedRun::new(0, 360, n, EndKind::Cancel, log));
         assert_eq!(replay.ticks, 360, "n {n}");
         assert_eq!(replay.final_hash, hex(oracle[360]), "n {n}");
         let want: String = (1..=6).map(|k| hex(oracle[60 * k])).collect();
@@ -183,19 +183,20 @@ fn an_ended_run_replays_and_verifies() {
 #[test]
 fn an_ended_runs_ticks_are_cut_at_t() {
     let (log, _) = log_of(2);
-    let cut = EndedRun::new(0, 360, 2, log.clone());
+    let cut = EndedRun::new(0, 360, 2, EndKind::Cancel, log.clone());
     assert_eq!(cut.ticks.len(), 360);
     assert_eq!(cut.ticks.last().map(|c| c.tick), Some(359));
     let literal = EndedRun {
         run: 0,
         tick: 360,
         party: 2,
+        kind: EndKind::Cancel,
         ticks: log.clone(),
     };
     let replay = replay_of(&literal);
     assert_eq!(replay.ticks, 360);
     assert_eq!(replay.to_bytes(), replay_of(&cut).to_bytes());
-    let zero = EndedRun::new(0, 0, 2, log.clone());
+    let zero = EndedRun::new(0, 0, 2, EndKind::Cancel, log.clone());
     assert!(zero.ticks.is_empty());
     let replay = replay_of(&zero);
     assert_eq!(replay.ticks, 0);
@@ -205,6 +206,7 @@ fn an_ended_runs_ticks_are_cut_at_t() {
         run: 0,
         tick: 700,
         party: 2,
+        kind: EndKind::Cancel,
         ticks: log,
     };
     let replay = replay_of(&long);
@@ -216,7 +218,7 @@ fn an_ended_runs_ticks_are_cut_at_t() {
 fn a_leave_at_the_end_tick_is_in_the_run_only_when_t_is_past_it() {
     let (log, oracle) = log_of(3);
     for (t, leaves) in [(300u32, 0usize), (301, 1)] {
-        let replay = replay_of(&EndedRun::new(0, t, 3, log.clone()));
+        let replay = replay_of(&EndedRun::new(0, t, 3, EndKind::Cancel, log.clone()));
         assert_eq!(replay.ticks, t);
         assert_eq!(replay.final_hash, hex(oracle[t as usize]), "T {t}");
         verify_run(&replay.to_bytes()).expect("verifies");
@@ -229,8 +231,8 @@ fn a_leave_at_the_end_tick_is_in_the_run_only_when_t_is_past_it() {
 #[test]
 fn the_run_number_is_data_only() {
     let (log, _) = log_of(2);
-    let a = replay_of(&EndedRun::new(0, 120, 2, log.clone()));
-    let b = replay_of(&EndedRun::new(255, 120, 2, log));
+    let a = replay_of(&EndedRun::new(0, 120, 2, EndKind::Cancel, log.clone()));
+    let b = replay_of(&EndedRun::new(255, 120, 2, EndKind::Cancel, log));
     assert_eq!(a.to_bytes(), b.to_bytes());
 }
 
@@ -238,7 +240,7 @@ fn the_run_number_is_data_only() {
 fn a_party_size_the_recorder_refuses_is_a_setup_error() {
     let (log, _) = log_of(2);
     for party in [0u8, 4] {
-        let got = EndedRun::new(0, 60, party, log.clone())
+        let got = EndedRun::new(0, 60, party, EndKind::Cancel, log.clone())
             .replay(&equipment_setup(), RunContent::bundled());
         assert!(
             matches!(got, Err(ReportError::Setup(_))),

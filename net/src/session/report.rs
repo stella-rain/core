@@ -61,7 +61,23 @@ impl DesyncReport {
     }
 }
 
-/// One run that ended: the confirmed ticks it stepped, from which its own replay is rebuilt.
+/// How a run ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EndKind {
+    /// The leader cancelled the run: the session stopped.
+    Cancel,
+    /// The leader restarted the run: the session went on to the next one.
+    Restart,
+    /// The party cleared the stage.
+    Cleared,
+    /// The party failed the stage: every player down, or the stage's time ran out.
+    Failed,
+}
+
+/// One run that ended, by a leader's Cancel or Restart or by itself (Cleared or Failed): the
+/// confirmed ticks it stepped, from which its own replay is rebuilt. Every peer holds the same
+/// value for one run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EndedRun {
     /// The run's number, as the run byte on the wire (ADR-NET-6). Data only: `replay` ignores it.
@@ -70,6 +86,8 @@ pub struct EndedRun {
     pub tick: u32,
     /// The starting party size.
     pub party: u8,
+    /// How the run ended. Data only: `replay` ignores it.
+    pub kind: EndKind,
     /// The confirmed ticks of the run, below `tick`.
     pub ticks: Vec<ConfirmedTick>,
 }
@@ -77,12 +95,19 @@ pub struct EndedRun {
 impl EndedRun {
     /// An ended run; `ticks` is cut to `tick` entries, so what a session drained past the end
     /// never reaches the replay.
-    pub fn new(run: u8, tick: u32, party: u8, mut ticks: Vec<ConfirmedTick>) -> EndedRun {
+    pub fn new(
+        run: u8,
+        tick: u32,
+        party: u8,
+        kind: EndKind,
+        mut ticks: Vec<ConfirmedTick>,
+    ) -> EndedRun {
         ticks.truncate(usize::try_from(tick).unwrap_or(usize::MAX));
         EndedRun {
             run,
             tick,
             party,
+            kind,
             ticks,
         }
     }

@@ -19,7 +19,12 @@ pub fn equipment_setup() -> RunSetup {
 
 /// An engine of `n` players (1 to 3) at tick 0 on [`equipment_setup`].
 pub fn engine(n: u8) -> Engine {
-    Engine::start_party(&equipment_setup(), n).expect("the equipment setup starts")
+    engine_of(&equipment_setup(), n)
+}
+
+/// An engine of `n` players at tick 0 on `setup`.
+pub fn engine_of(setup: &RunSetup, n: u8) -> Engine {
+    Engine::start_party(setup, n).expect("the setup starts")
 }
 
 /// The slot `i`.
@@ -60,6 +65,8 @@ impl Xorshift {
 /// which a slot leaves. `eff[t]` is stepped at tick `t`; its `action` is made before the step.
 #[derive(Clone, Debug)]
 pub struct Script {
+    /// What the run starts from: [`equipment_setup`] unless the script was made by [`script_of`].
+    pub setup: RunSetup,
     /// The party size the script was made for.
     pub n: u8,
     /// The input of every slot at every tick.
@@ -163,8 +170,19 @@ fn bot_input(engine: &Engine, who: PlayerIdx, tick: u32, rng: &mut Xorshift) -> 
 /// below `delay` are neutral (every peer's first inputs are); a slot's inputs from its leave tick
 /// on are neutral. `leave` is `(slot, tick)`.
 pub fn script(n: u8, ticks: u32, delay: u32, leave: Option<(PlayerIdx, u32)>) -> Script {
+    script_of(&equipment_setup(), n, ticks, delay, leave)
+}
+
+/// As [`script`], on `setup`.
+pub fn script_of(
+    setup: &RunSetup,
+    n: u8,
+    ticks: u32,
+    delay: u32,
+    leave: Option<(PlayerIdx, u32)>,
+) -> Script {
     let leaves: Vec<(u32, PlayerIdx)> = leave.into_iter().map(|(who, t)| (t, who)).collect();
-    let mut e = engine(n);
+    let mut e = engine_of(setup, n);
     let mut rng = Xorshift::new(0xC0FF_EE11);
     let mut eff = Vec::new();
     for t in 0..ticks {
@@ -181,13 +199,18 @@ pub fn script(n: u8, ticks: u32, delay: u32, leave: Option<(PlayerIdx, u32)>) ->
         apply_tick(&mut e, t, &row, &leaves);
         eff.push(row);
     }
-    Script { n, eff, leaves }
+    Script {
+        setup: setup.clone(),
+        n,
+        eff,
+        leaves,
+    }
 }
 
 /// The oracle: a fresh engine of `n` players stepped through the script, no session involved.
 /// `hashes[k]` is the state hash after `k` ticks, so the vector is one longer than the script.
 pub fn straight(script: &Script, n: u8) -> Vec<u64> {
-    let mut e = engine(n);
+    let mut e = engine_of(&script.setup, n);
     let mut hashes = vec![e.state_hash()];
     for (t, row) in script.eff.iter().enumerate() {
         let t = u32::try_from(t).expect("short");
@@ -534,3 +557,137 @@ impl<'a> Mesh<'a> {
 pub mod peers;
 pub mod simnet;
 pub mod wiretap;
+
+/// The script a corpus replay of a three-player run holds: every stepped input, the equipment
+/// actions on the tick that follows them, and the replay's own setup. Panics on a replay with a
+/// pick, a join or a leave (the corpus case this is read for has none). The first `delay`
+/// ticks are neutral, as every peer's first inputs are, so the oracle and the session agree.
+pub fn script_from_replay(bytes: &[u8], delay: usize) -> Script {
+    use stella_rain_core::run_replay::RunReplay;
+    let replay = RunReplay::from_bytes(bytes).expect("a replay");
+    let range = replay
+        .step_range(0, replay.ticks, replay.ticks)
+        .expect("a step range");
+    let mut eff: Vec<[Input; 3]> = Vec::new();
+    let mut pending: [Option<EquipAction>; 3] = [None; 3];
+    for step in range.steps {
+        match step {
+            stella_rain_core::RangeStep::Ticks { run, inputs } => {
+                for _ in 0..run {
+                    let mut row = [Input::default(); 3];
+                    for (i, input) in inputs.iter().enumerate() {
+                        row[i] = *input;
+                        row[i].action = pending[i].take();
+                    }
+                    eff.push(row);
+                }
+            }
+            stella_rain_core::RangeStep::Actions { actions } => {
+                for (i, a) in actions.into_iter().enumerate() {
+                    if a.is_some() {
+                        pending[i] = a;
+                    }
+                }
+            }
+            other => panic!("a step this script cannot hold: {other:?}"),
+        }
+    }
+    for row in eff.iter_mut().take(delay) {
+        *row = [Input::default(); 3];
+    }
+    Script {
+        setup: replay.setup,
+        n: 3,
+        eff,
+        leaves: Vec::new(),
+    }
+}
+
+/// The ticks the bot plays before a [`failing_script`] goes idle.
+pub const IDLE_FROM: usize = 100;
+
+/// A trial run the party loses: the bot plays [`IDLE_FROM`] ticks, then every slot sends
+/// neutral input, so the run ends Failed a few hundred ticks later (the bot alone clears the
+/// trial). `leave` is as in [`script`].
+pub fn failing_script(n: u8, leave: Option<(PlayerIdx, u32)>) -> Script {
+    let mut s = script(n, 2400, 2, leave);
+    for row in s.eff.iter_mut().skip(IDLE_FROM) {
+        *row = [Input::default(); 3];
+    }
+    s
+}
+
+/// The tick a straight engine on `script` first reports an outcome, and the outcome.
+pub fn end_of(script: &Script, n: u8) -> Option<(u32, stella_rain_core::engine::Outcome)> {
+    let mut e = engine_of(&script.setup, n);
+    for (t, row) in script.eff.iter().enumerate() {
+        apply_tick(
+            &mut e,
+            u32::try_from(t).expect("short"),
+            row,
+            &script.leaves,
+        );
+        if e.outcome() != stella_rain_core::engine::Outcome::Running {
+            return Some((e.tick(), e.outcome()));
+        }
+    }
+    None
+}
+
+/// One way a party run ends by itself.
+pub struct Natural {
+    /// A name for assertion messages.
+    pub name: &'static str,
+    /// The party size.
+    pub n: u8,
+    /// What every peer plays.
+    pub script: Script,
+    /// The tick the run ends at, by the straight oracle.
+    pub end: u32,
+    /// How it ends: Cleared or Failed.
+    pub outcome: stella_rain_core::engine::Outcome,
+}
+
+impl Natural {
+    fn of(name: &'static str, n: u8, script: Script) -> Natural {
+        let (end, outcome) = end_of(&script, n).expect("the scenario ends");
+        Natural {
+            name,
+            n,
+            script,
+            end,
+            outcome,
+        }
+    }
+
+    /// The straight oracle: `hashes[k]` after `k` ticks.
+    pub fn oracle(&self) -> Vec<u64> {
+        straight(&self.script, self.n)
+    }
+}
+
+/// A trial the party loses, at 2 peers.
+pub fn failed_two() -> Natural {
+    Natural::of("failed, 2 peers", 2, failing_script(2, None))
+}
+
+/// A trial the party loses, at 3 peers.
+pub fn failed_three() -> Natural {
+    Natural::of("failed, 3 peers", 3, failing_script(3, None))
+}
+
+/// The corpus's three-player `tutorial` run (`three_tutorial`), which the party clears.
+pub fn cleared_three() -> Natural {
+    let bytes = std::fs::read("../tests/corpus/current/parties/three_tutorial/run.replay")
+        .expect("the corpus replay");
+    Natural::of("cleared, 3 peers", 3, script_from_replay(&bytes, 2))
+}
+
+/// A trial the party loses, at 3 peers, slot 2 leaving at tick 300.
+pub fn leave_three() -> Natural {
+    Natural::of(
+        "failed with a leave",
+        3,
+        failing_script(3, Some((slot(2), 300))),
+    )
+}
