@@ -891,13 +891,15 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         match cmd.kind {
             CommandKind::Cancel => {
                 let ticks = self.session.take_confirmed();
-                self.ended = Some(EndedRun::new(
-                    self.run,
-                    cmd.tick,
-                    self.party,
-                    EndKind::Cancel,
-                    ticks,
-                ));
+                if !self.run_ended {
+                    self.ended = Some(EndedRun::new(
+                        self.run,
+                        cmd.tick,
+                        self.party,
+                        EndKind::Cancel,
+                        ticks,
+                    ));
+                }
                 self.stop(StopReason::EndedByLeader(CommandKind::Cancel));
             }
             CommandKind::Restart => {
@@ -951,13 +953,15 @@ impl<T: Transport, S: Save> NetSession<T, S> {
     /// Hands out the run that ended and starts the next one at tick 0, in place.
     fn restart_in_place(&mut self, cmd: LeaderCommand) {
         let ticks = self.session.restart();
-        self.ended = Some(EndedRun::new(
-            self.run,
-            cmd.tick,
-            self.party,
-            EndKind::Restart,
-            ticks,
-        ));
+        if !self.run_ended {
+            self.ended = Some(EndedRun::new(
+                self.run,
+                cmd.tick,
+                self.party,
+                EndKind::Restart,
+                ticks,
+            ));
+        }
         self.resend = (self.local.get() == 0).then_some(cmd);
         self.run = self.run.wrapping_add(1);
         self.run_ended = false;
