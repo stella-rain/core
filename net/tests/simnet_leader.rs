@@ -259,3 +259,60 @@ fn reordered_old_run_packets_are_dropped() {
         );
     }
 }
+
+/// A Restart pending at slot 0: the acks of the last slot to slot 0 are lost from before the
+/// stamp, and with `silent` every packet from it, until the flag is cleared at the end.
+fn held_restart(n: u8, seed: u64, loss: u16, silent: bool) -> (Peers, Vec<u64>, u32) {
+    let sc = script(n, TICKS, 2, None);
+    let oracle = straight(&sc, n);
+    let mut peers = Peers::new(sc, n, seed, five(loss));
+    let rounds = peers.round_cell();
+    let from = Rc::new(Cell::new(u32::MAX));
+    let seen = Rc::clone(&from);
+    let last = usize::from(n - 1);
+    peers.set_drop_if(Box::new(move |f, to, p| {
+        f == last
+            && to == 0
+            && rounds.get() >= seen.get()
+            && (silent || matches!(p, Packet::Ack(_)))
+    }));
+    while peers.sessions[0].session().confirmed() < 290 {
+        assert!(peers.net.round() < ROUND_LIMIT, "never confirmed 290");
+        peers.round();
+    }
+    from.set(peers.net.round());
+    for _ in 0..10 {
+        peers.round();
+    }
+    let t = peers.sessions[0]
+        .end_run(CommandKind::Restart)
+        .expect("a restart");
+    for _ in 0..30 {
+        peers.round();
+        assert_eq!(peers.sessions[0].run(), 0, "the Restart is held");
+    }
+    (peers, oracle, t)
+}
+
+#[test]
+fn a_cancel_over_a_pending_restart_under_every_impairment() {
+    for silent in [false, true] {
+        for (seed, loss) in [(7, 100), (9, 300)] {
+            for n in [2u8, 3] {
+                let (mut peers, oracle, t) = held_restart(n, seed, loss, silent);
+                assert_eq!(
+                    peers.sessions[0].end_run(CommandKind::Cancel),
+                    Ok(t),
+                    "silent {silent} n {n} seed {seed}"
+                );
+                finish_cancel(
+                    &mut peers,
+                    &oracle,
+                    n,
+                    t,
+                    &format!("silent {silent} n {n} seed {seed}"),
+                );
+            }
+        }
+    }
+}

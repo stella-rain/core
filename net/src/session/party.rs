@@ -180,7 +180,7 @@ pub enum StopReason {
         /// The tick it announced.
         tick: u32,
     },
-    /// The leader cancelled the run.
+    /// The leader cancelled the run, possibly replacing a pending Restart at its tick.
     EndedByLeader(CommandKind),
 }
 
@@ -193,7 +193,7 @@ pub enum EndRunError {
     NotPlaying,
     /// This session is not slot 0.
     NotLeader,
-    /// An end is already pending.
+    /// A Restart is pending, or a Cancel is; only a Cancel may replace a pending Restart.
     AlreadyEnding,
     /// A restart needs [`MIN_RESTART_TICK`] confirmed ticks.
     TooEarly,
@@ -273,6 +273,7 @@ struct Peer {
     /// The tick of the last checkpoint compared with it.
     compared: u32,
     /// A packet of the next run was seen from it while a Restart was pending: it has restarted.
+    /// A session other than slot 0 waits for slot 0's before it restarts itself.
     ahead: bool,
     /// A packet of this run has been accepted from it since the last restart.
     caught_up: bool,
@@ -520,7 +521,9 @@ impl<T: Transport, S: Save> NetSession<T, S> {
 
     /// Slot 0 ends the run at the tick it has confirmed and returns that tick (ADR-NET-3
     /// point 7). A Cancel finishes at once and the session stops; a Restart is sent to
-    /// every peer and happens once the session has stepped to that tick.
+    /// every peer and happens once the session has stepped to that tick. A Cancel while a Restart
+    /// is pending replaces it at the Restart's tick and returns that tick; every peer then ends
+    /// the run as cancelled, since none restarts before the leader.
     ///
     /// # Errors
     ///
@@ -534,10 +537,16 @@ impl<T: Transport, S: Save> NetSession<T, S> {
         if self.local.get() != 0 {
             return Err(EndRunError::NotLeader);
         }
-        if self.ending.is_some() {
-            return Err(EndRunError::AlreadyEnding);
-        }
-        let tick = self.session.confirmed();
+        // A Cancel replaces a pending Restart at the Restart's own tick, which this session has
+        // already confirmed; every other second end is refused.
+        let replaced = match self.ending {
+            Some(held) if held.kind == CommandKind::Restart && kind == CommandKind::Cancel => {
+                Some(held.tick)
+            }
+            Some(_) => return Err(EndRunError::AlreadyEnding),
+            None => None,
+        };
+        let tick = replaced.unwrap_or_else(|| self.session.confirmed());
         if kind == CommandKind::Restart {
             if tick < MIN_RESTART_TICK {
                 return Err(EndRunError::TooEarly);
@@ -684,7 +693,12 @@ impl<T: Transport, S: Save> NetSession<T, S> {
                     && cmd.slot == from
                     && (cmd.kind != CommandKind::Restart || cmd.tick >= MIN_RESTART_TICK)
                     && cmd.tick <= self.session.next_tick(self.local)
-                    && self.ending.is_none_or(|held| held == cmd);
+                    && self.ending.is_none_or(|held| {
+                        held == cmd
+                            || (held.kind == CommandKind::Restart
+                                && cmd.kind == CommandKind::Cancel
+                                && held.tick == cmd.tick)
+                    });
                 if ok {
                     self.ending = Some(cmd);
                 }
@@ -878,15 +892,22 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             CommandKind::Restart => {
                 // Every peer must hold what this run still needs from this session: it has left,
                 // or has acked every input below T, or has restarted (a packet of the next run).
-                let barrier = self
-                    .peers
-                    .iter()
-                    .all(|p| p.leave.is_some() || p.acked >= cmd.tick || p.ahead);
-                if barrier {
+                // A peer other than slot 0 also waits for the leader, the only one that may still
+                // replace the Restart by a Cancel.
+                if self.peers.iter().all(|p| self.holds(p, cmd.tick)) {
                     self.restart_in_place(cmd);
                 }
             }
         }
+    }
+
+    /// Whether `p` no longer holds up the pending Restart at `t`. Slot 0 is the arbiter of the
+    /// run: a session other than slot 0 passes it only once it has left or has restarted.
+    fn holds(&self, p: &Peer, t: u32) -> bool {
+        if self.local.get() != 0 && p.slot.get() == 0 {
+            return p.leave.is_some() || p.ahead;
+        }
+        p.leave.is_some() || p.acked >= t || p.ahead
     }
 
     /// Hands out the run that ended and starts the next one at tick 0, in place.
@@ -1098,5 +1119,43 @@ mod tests {
                 .any(|(_, p)| matches!(p, Packet::Command(c) if c.run == 255 && c.kind == CommandKind::Restart)),
             "the old command still carries run 255"
         );
+    }
+
+    #[test]
+    fn a_cancel_over_a_cancel_is_already_ending() {
+        let sent = Rc::new(RefCell::new(Vec::new()));
+        let hello = Hello {
+            protocol: PROTOCOL_VERSION,
+            sim_version: SIM_VERSION,
+            pack_hash: [0; 32],
+            delay: DEFAULT_DELAY,
+            window: DEFAULT_WINDOW,
+        };
+        let local = PlayerIdx::new(0).expect("slot 0");
+        let engine = Engine::start_party(&RunSetup::default(), 2).expect("an engine");
+        let mut s =
+            NetSession::new(engine, NetConfig::new(local, hello), Record(sent)).expect("a session");
+        s.phase = Phase::Playing;
+        let held = |kind| LeaderCommand {
+            run: 0,
+            slot: local,
+            tick: 90,
+            kind,
+        };
+        s.ending = Some(held(CommandKind::Cancel));
+        assert_eq!(
+            s.end_run(CommandKind::Cancel),
+            Err(EndRunError::AlreadyEnding)
+        );
+        assert_eq!(
+            s.end_run(CommandKind::Restart),
+            Err(EndRunError::AlreadyEnding)
+        );
+        s.ending = Some(held(CommandKind::Restart));
+        assert_eq!(
+            s.end_run(CommandKind::Restart),
+            Err(EndRunError::AlreadyEnding)
+        );
+        assert_eq!(s.end_run(CommandKind::Cancel), Ok(90));
     }
 }
