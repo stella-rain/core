@@ -156,13 +156,13 @@ fn the_other_refusals() {
         .end_run(CommandKind::Restart)
         .expect("a restart");
     assert_eq!(peers.sessions[0].run(), 0, "the restart is pending");
-    for kind in [CommandKind::Cancel, CommandKind::Restart] {
-        assert_eq!(
-            peers.sessions[0].end_run(kind),
-            Err(EndRunError::AlreadyEnding),
-            "{kind:?}"
-        );
-    }
+    let t = peers.sessions[0].ending().expect("pending").0;
+    assert_eq!(
+        peers.sessions[0].end_run(CommandKind::Restart),
+        Err(EndRunError::AlreadyEnding)
+    );
+    // A Cancel replaces the pending Restart, at its tick.
+    assert_eq!(peers.sessions[0].end_run(CommandKind::Cancel), Ok(t));
     let mut peers = warm(2, 100);
     peers.sessions[0]
         .end_run(CommandKind::Cancel)
@@ -542,8 +542,8 @@ fn a_silent_peer_holds_the_barrier() {
     assert!(peers.waits_of(Some(0), Some(NetWait::Ending)) > 0);
     assert_eq!(
         peers.sessions[1].run(),
-        1,
-        "slot 1 restarted behind the silence"
+        0,
+        "slot 1 waits for the leader behind the silence"
     );
     window.set((u32::MAX, u32::MAX, u32::MAX));
     for _ in 0..10 {
@@ -552,8 +552,12 @@ fn a_silent_peer_holds_the_barrier() {
     assert_eq!(
         peers.sessions[0].run(),
         1,
-        "the packets of run 1 pass the barrier"
+        "slot 1's acks pass the leader's barrier"
     );
+    while peers.sessions[1].run() == 0 {
+        assert!(peers.net.round() < ROUND_LIMIT, "slot 1 never restarted");
+        peers.round();
+    }
     check_ended(&mut peers, &oracle, 2, t, 0, "silent peer");
     check_next_run(&mut peers, &oracle, "silent peer");
 }

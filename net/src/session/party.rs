@@ -889,15 +889,22 @@ impl<T: Transport, S: Save> NetSession<T, S> {
             CommandKind::Restart => {
                 // Every peer must hold what this run still needs from this session: it has left,
                 // or has acked every input below T, or has restarted (a packet of the next run).
-                let barrier = self
-                    .peers
-                    .iter()
-                    .all(|p| p.leave.is_some() || p.acked >= cmd.tick || p.ahead);
-                if barrier {
+                // A peer other than slot 0 also waits for the leader, the only one that may still
+                // replace the Restart by a Cancel.
+                if self.peers.iter().all(|p| self.holds(p, cmd.tick)) {
                     self.restart_in_place(cmd);
                 }
             }
         }
+    }
+
+    /// Whether `p` no longer holds up the pending Restart at `t`. Slot 0 is the arbiter of the
+    /// run: a session other than slot 0 passes it only once it has left or has restarted.
+    fn holds(&self, p: &Peer, t: u32) -> bool {
+        if self.local.get() != 0 && p.slot.get() == 0 {
+            return p.leave.is_some() || p.ahead;
+        }
+        p.leave.is_some() || p.acked >= t || p.ahead
     }
 
     /// Hands out the run that ended and starts the next one at tick 0, in place.
