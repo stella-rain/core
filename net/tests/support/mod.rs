@@ -560,8 +560,9 @@ pub mod wiretap;
 
 /// The script a corpus replay of a three-player run holds: every stepped input, the equipment
 /// actions on the tick that follows them, and the replay's own setup. Panics on a replay with a
-/// pick, a join or a leave (the corpus case this is read for has none).
-pub fn script_from_replay(bytes: &[u8]) -> Script {
+/// pick, a join or a leave (the corpus case this is read for has none). The first `delay`
+/// ticks are neutral, as every peer's first inputs are, so the oracle and the session agree.
+pub fn script_from_replay(bytes: &[u8], delay: usize) -> Script {
     use stella_rain_core::run_replay::RunReplay;
     let replay = RunReplay::from_bytes(bytes).expect("a replay");
     let range = replay
@@ -590,6 +591,9 @@ pub fn script_from_replay(bytes: &[u8]) -> Script {
             }
             other => panic!("a step this script cannot hold: {other:?}"),
         }
+    }
+    for row in eff.iter_mut().take(delay) {
+        *row = [Input::default(); 3];
     }
     Script {
         setup: replay.setup,
@@ -628,4 +632,62 @@ pub fn end_of(script: &Script, n: u8) -> Option<(u32, stella_rain_core::engine::
         }
     }
     None
+}
+
+/// One way a party run ends by itself.
+pub struct Natural {
+    /// A name for assertion messages.
+    pub name: &'static str,
+    /// The party size.
+    pub n: u8,
+    /// What every peer plays.
+    pub script: Script,
+    /// The tick the run ends at, by the straight oracle.
+    pub end: u32,
+    /// How it ends: Cleared or Failed.
+    pub outcome: stella_rain_core::engine::Outcome,
+}
+
+impl Natural {
+    fn of(name: &'static str, n: u8, script: Script) -> Natural {
+        let (end, outcome) = end_of(&script, n).expect("the scenario ends");
+        Natural {
+            name,
+            n,
+            script,
+            end,
+            outcome,
+        }
+    }
+
+    /// The straight oracle: `hashes[k]` after `k` ticks.
+    pub fn oracle(&self) -> Vec<u64> {
+        straight(&self.script, self.n)
+    }
+}
+
+/// A trial the party loses, at 2 peers.
+pub fn failed_two() -> Natural {
+    Natural::of("failed, 2 peers", 2, failing_script(2, None))
+}
+
+/// A trial the party loses, at 3 peers.
+pub fn failed_three() -> Natural {
+    Natural::of("failed, 3 peers", 3, failing_script(3, None))
+}
+
+/// The corpus's three-player `tutorial` run (`three_tutorial`), which the party clears.
+pub fn cleared_three() -> Natural {
+    let bytes = std::fs::read("../tests/corpus/current/parties/three_tutorial/run.replay")
+        .expect("the corpus replay");
+    Natural::of("cleared, 3 peers", 3, script_from_replay(&bytes, 2))
+}
+
+/// A trial the party loses, at 3 peers, slot 2 leaving at tick 300.
+pub fn leave_three() -> Natural {
+    Natural::of(
+        "failed with a leave",
+        3,
+        failing_script(3, Some((slot(2), 300))),
+    )
 }

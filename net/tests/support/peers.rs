@@ -106,6 +106,17 @@ pub struct NetCall {
     pub out: NetAdvance,
 }
 
+/// A run a session handed out, with when.
+#[derive(Clone, Debug)]
+pub struct Got {
+    /// The ended run.
+    pub ended: stella_rain_net::session::report::EndedRun,
+    /// The session's confirmed tick when it came.
+    pub confirmed: u32,
+    /// The net round when it came.
+    pub round: u32,
+}
+
 /// The sessions, the network between them and the books of the run.
 pub struct Peers {
     /// The sessions, by slot.
@@ -235,6 +246,33 @@ impl Peers {
     /// Changes every input frame on its way out: `from`, `to`, the frame.
     pub fn set_tamper(&mut self, tamper: FrameTamper) {
         self.rules.borrow_mut().tamper = Some(tamper);
+    }
+
+    /// Takes every session's ended run, as the app does after each call, into `got[i]`.
+    pub fn drain(&mut self, got: &mut [Vec<Got>]) {
+        let round = self.net.round();
+        for (i, s) in self.sessions.iter_mut().enumerate() {
+            if let Some(ended) = s.take_ended_run() {
+                got[i].push(Got {
+                    ended,
+                    confirmed: s.session().confirmed(),
+                    round,
+                });
+            }
+        }
+    }
+
+    /// Rounds, draining after each, until `done` or `stop` says so; `got` per session.
+    pub fn play_until(
+        &mut self,
+        got: &mut [Vec<Got>],
+        mut stop: impl FnMut(&Peers, &[Vec<Got>]) -> bool,
+    ) {
+        while !self.done() && !stop(self, got) {
+            assert!(self.net.round() < ROUND_LIMIT, "the run did not finish");
+            self.round();
+            self.drain(got);
+        }
     }
 
     /// Whether every session has reached its stop tick or has stopped.
