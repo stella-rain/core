@@ -180,7 +180,7 @@ pub enum StopReason {
         /// The tick it announced.
         tick: u32,
     },
-    /// The leader cancelled the run.
+    /// The leader cancelled the run, possibly replacing a pending Restart at its tick.
     EndedByLeader(CommandKind),
 }
 
@@ -193,7 +193,7 @@ pub enum EndRunError {
     NotPlaying,
     /// This session is not slot 0.
     NotLeader,
-    /// An end is already pending.
+    /// A Restart is pending, or a Cancel is; only a Cancel may replace a pending Restart.
     AlreadyEnding,
     /// A restart needs [`MIN_RESTART_TICK`] confirmed ticks.
     TooEarly,
@@ -273,6 +273,7 @@ struct Peer {
     /// The tick of the last checkpoint compared with it.
     compared: u32,
     /// A packet of the next run was seen from it while a Restart was pending: it has restarted.
+    /// A session other than slot 0 waits for slot 0's before it restarts itself.
     ahead: bool,
     /// A packet of this run has been accepted from it since the last restart.
     caught_up: bool,
@@ -520,7 +521,9 @@ impl<T: Transport, S: Save> NetSession<T, S> {
 
     /// Slot 0 ends the run at the tick it has confirmed and returns that tick (ADR-NET-3
     /// point 7). A Cancel finishes at once and the session stops; a Restart is sent to
-    /// every peer and happens once the session has stepped to that tick.
+    /// every peer and happens once the session has stepped to that tick. A Cancel while a Restart
+    /// is pending replaces it at the Restart's tick and returns that tick; every peer then ends
+    /// the run as cancelled, since none restarts before the leader.
     ///
     /// # Errors
     ///
