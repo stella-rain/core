@@ -1099,4 +1099,42 @@ mod tests {
             "the old command still carries run 255"
         );
     }
+
+    #[test]
+    fn a_cancel_over_a_cancel_is_already_ending() {
+        let sent = Rc::new(RefCell::new(Vec::new()));
+        let hello = Hello {
+            protocol: PROTOCOL_VERSION,
+            sim_version: SIM_VERSION,
+            pack_hash: [0; 32],
+            delay: DEFAULT_DELAY,
+            window: DEFAULT_WINDOW,
+        };
+        let local = PlayerIdx::new(0).expect("slot 0");
+        let engine = Engine::start_party(&RunSetup::default(), 2).expect("an engine");
+        let mut s =
+            NetSession::new(engine, NetConfig::new(local, hello), Record(sent)).expect("a session");
+        s.phase = Phase::Playing;
+        let held = |kind| LeaderCommand {
+            run: 0,
+            slot: local,
+            tick: 90,
+            kind,
+        };
+        s.ending = Some(held(CommandKind::Cancel));
+        assert_eq!(
+            s.end_run(CommandKind::Cancel),
+            Err(EndRunError::AlreadyEnding)
+        );
+        assert_eq!(
+            s.end_run(CommandKind::Restart),
+            Err(EndRunError::AlreadyEnding)
+        );
+        s.ending = Some(held(CommandKind::Restart));
+        assert_eq!(
+            s.end_run(CommandKind::Restart),
+            Err(EndRunError::AlreadyEnding)
+        );
+        assert_eq!(s.end_run(CommandKind::Cancel), Ok(90));
+    }
 }

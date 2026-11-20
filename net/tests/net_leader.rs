@@ -667,3 +667,215 @@ fn the_old_command_is_resent_until_the_peer_catches_up() {
     check_ended(&mut peers, &oracle, 3, t, 0, "resend");
     check_next_run(&mut peers, &oracle, "resend");
 }
+
+// F. A Cancel replaces a pending Restart.
+
+/// `n` peers with a Restart pending at slot 0: the acks of the last slot to slot 0 are lost from
+/// 10 rounds before the stamp, so the leader's `acked` of it stays below T. The flag silences
+/// every packet from that slot to slot 0. Returns the peers, T and the flag.
+fn held_restart(n: u8, impair: Impair) -> (Peers, u32, Rc<Cell<bool>>) {
+    let mut peers = Peers::new(script(n, 612, 2, None), n, 612, impair);
+    let rounds = peers.round_cell();
+    let from = Rc::new(Cell::new(u32::MAX));
+    let silent = Rc::new(Cell::new(false));
+    let (seen, mute) = (Rc::clone(&from), Rc::clone(&silent));
+    let last = usize::from(n - 1);
+    peers.set_drop_if(Box::new(move |f, to, p| {
+        f == last
+            && to == 0
+            && (mute.get() || (matches!(p, Packet::Ack(_)) && rounds.get() >= seen.get()))
+    }));
+    while peers.sessions[0].session().confirmed() < 290 {
+        assert!(peers.net.round() < ROUND_LIMIT, "never confirmed 290");
+        peers.round();
+    }
+    from.set(peers.net.round());
+    for _ in 0..10 {
+        peers.round();
+    }
+    let t = peers.sessions[0]
+        .end_run(CommandKind::Restart)
+        .expect("a restart");
+    assert_eq!(peers.sessions[0].run(), 0, "the restart is pending");
+    assert_eq!(peers.sessions[0].ending(), Some((t, CommandKind::Restart)));
+    (peers, t, silent)
+}
+
+/// The leader's Cancel over the held Restart is at the same T and stops it at once.
+fn cancel_over(peers: &mut Peers, t: u32) {
+    assert_eq!(peers.sessions[0].end_run(CommandKind::Cancel), Ok(t));
+    let leader = &peers.sessions[0];
+    assert_eq!(leader.phase(), Phase::Stopped);
+    assert_eq!(
+        leader.stop_reason(),
+        Some(StopReason::EndedByLeader(CommandKind::Cancel))
+    );
+    assert_eq!(leader.run(), 0);
+}
+
+#[test]
+fn a_cancel_replaces_a_pending_restart() {
+    for n in [2u8, 3] {
+        let sc = script(n, 612, 2, None);
+        let oracle = straight(&sc, n);
+        let (mut peers, t, _) = held_restart(n, clean(1));
+        assert!(t >= 290);
+        cancel_over(&mut peers, t);
+        assert!(peers.run(&oracle), "n {n}: not stopped");
+        for s in &peers.sessions {
+            assert_eq!(s.run(), 0, "n {n}");
+        }
+        check_cancelled(&mut peers, &oracle, n, t, &format!("n {n}"));
+    }
+}
+
+#[test]
+fn a_silent_peer_holding_the_restart_can_be_left() {
+    let sc = script(3, 612, 2, None);
+    let oracle = straight(&sc, 3);
+    let (mut peers, t, silent) = held_restart(3, clean(1));
+    silent.set(true);
+    for _ in 0..40 {
+        peers.round();
+        assert_eq!(peers.sessions[0].run(), 0);
+        assert_eq!(peers.sessions[0].ending(), Some((t, CommandKind::Restart)));
+    }
+    assert!(peers.waits_of(Some(0), Some(NetWait::Ending)) > 0);
+    cancel_over(&mut peers, t);
+    assert!(peers.run(&oracle), "not stopped");
+    for s in &peers.sessions {
+        assert_eq!(s.run(), 0);
+    }
+    check_cancelled(&mut peers, &oracle, 3, t, "silent peer");
+}
+
+#[test]
+fn a_peer_does_not_restart_before_the_leader() {
+    for n in [2u8, 3] {
+        let sc = script(n, 612, 2, None);
+        let oracle = straight(&sc, n);
+        let (mut peers, t, _) = held_restart(n, clean(1));
+        for r in 0..40 {
+            peers.round();
+            assert_eq!(peers.sessions[0].run(), 0, "n {n} round {r}");
+            assert_eq!(
+                peers.sessions[1].run(),
+                0,
+                "n {n} round {r}: slot 1 restarted"
+            );
+            if r >= 10 {
+                assert!(
+                    peers.sessions[1].session().confirmed() >= t,
+                    "n {n} round {r}"
+                );
+                assert_eq!(
+                    peers.sessions[1].ending(),
+                    Some((t, CommandKind::Restart)),
+                    "n {n} round {r}"
+                );
+            }
+        }
+        cancel_over(&mut peers, t);
+        assert!(peers.run(&oracle), "n {n}: not stopped");
+        check_cancelled(&mut peers, &oracle, n, t, &format!("n {n}"));
+    }
+}
+
+#[test]
+fn a_restart_still_waits_for_the_leader_when_it_does_restart() {
+    let sc = script(3, 612, 2, None);
+    let oracle = straight(&sc, 3);
+    let mut peers = Peers::new(sc, 3, 7, clean(1));
+    let t = stamp(&mut peers, CommandKind::Restart, 300);
+    while peers.sessions.iter().any(|s| s.run() == 0) {
+        assert!(peers.net.round() < ROUND_LIMIT, "never restarted");
+        peers.round();
+        peers.check(&oracle);
+        if peers.sessions[0].run() == 0 {
+            for i in 1..3 {
+                assert_eq!(peers.sessions[i].run(), 0, "slot {i} ahead of the leader");
+            }
+        }
+    }
+    check_ended(&mut peers, &oracle, 3, t, 0, "leader first");
+    check_next_run(&mut peers, &oracle, "leader first");
+}
+
+#[test]
+fn a_restart_over_a_pending_restart_is_still_already_ending() {
+    let (mut peers, t, _) = held_restart(2, clean(1));
+    assert_eq!(
+        peers.sessions[0].end_run(CommandKind::Restart),
+        Err(EndRunError::AlreadyEnding)
+    );
+    assert_eq!(peers.sessions[0].ending(), Some((t, CommandKind::Restart)));
+}
+
+#[test]
+fn a_cancel_after_the_leader_restarted_is_a_cancel_of_the_new_run() {
+    let sc = script(2, 612, 2, None);
+    let oracle = straight(&sc, 2);
+    let mut peers = Peers::new(sc, 2, 7, clean(1));
+    stamp(&mut peers, CommandKind::Restart, 300);
+    while peers.sessions.iter().any(|s| s.run() == 0) {
+        assert!(peers.net.round() < ROUND_LIMIT, "never restarted");
+        peers.round();
+    }
+    for s in &mut peers.sessions {
+        s.take_ended_run().expect("run 0");
+    }
+    assert_eq!(peers.sessions[0].end_run(CommandKind::Cancel), Ok(0));
+    assert_eq!(peers.sessions[0].run(), 1);
+    assert!(peers.run(&oracle), "not stopped");
+    for (i, s) in peers.sessions.iter_mut().enumerate() {
+        assert_eq!(
+            s.stop_reason(),
+            Some(StopReason::EndedByLeader(CommandKind::Cancel)),
+            "{i}"
+        );
+        let ended = s.take_ended_run().expect("an ended run");
+        assert_eq!((ended.run, ended.tick), (1, 0), "{i}");
+    }
+}
+
+// B (cont.). A held Restart and a Cancel.
+
+#[test]
+fn a_cancel_replaces_a_held_restart_of_the_same_tick() {
+    let mut peers = warm(2, 70);
+    let t = peers.sessions[1].session().tick() + 1;
+    assert!(t >= MIN_RESTART_TICK);
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Restart));
+    assert_eq!(after.accepted, before.accepted + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Restart)));
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Cancel));
+    assert_eq!(after.accepted, before.accepted + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Cancel)));
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Restart));
+    assert_eq!(after.refused, before.refused + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Cancel)));
+}
+
+#[test]
+fn a_cancel_at_another_tick_than_the_held_restart_is_refused() {
+    let mut peers = warm(2, 70);
+    let t = peers.sessions[1].session().tick() + 1;
+    deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Restart));
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, t - 1, CommandKind::Cancel));
+    assert_eq!(after.refused, before.refused + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Restart)));
+    let above = peers.sessions[1].session().next_tick(slot(1)) + 1;
+    let (before, after) = deliver(&mut peers, 0, 1, &command(0, 0, above, CommandKind::Cancel));
+    assert_eq!(after.refused, before.refused + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Restart)));
+}
+
+#[test]
+fn a_cancel_of_another_run_over_a_held_restart_is_dropped() {
+    let mut peers = warm(2, 70);
+    let t = peers.sessions[1].session().tick() + 1;
+    deliver(&mut peers, 0, 1, &command(0, 0, t, CommandKind::Restart));
+    let (before, after) = deliver(&mut peers, 0, 1, &command(1, 0, t, CommandKind::Cancel));
+    assert_eq!(after.dropped, before.dropped + 1);
+    assert_eq!(peers.sessions[1].ending(), Some((t, CommandKind::Restart)));
+}
