@@ -133,6 +133,7 @@ perturb_through! {
     DotState => damage,
     Echo => damage,
     Repeat => due,
+    Linger => owner,
     HealPickup => id,
     StarState => id,
     ShrineState => guardians,
@@ -160,6 +161,16 @@ perturb_through! {
     StarField => misses,
     ExpertiseGauge => points,
     Horde => spawned,
+}
+
+/// A place moves; a player anchor is not perturbed (the base holds a place).
+impl Perturb for LingerAnchor {
+    fn perturb(&mut self) {
+        match self {
+            LingerAnchor::Place { at, .. } => at.perturb(),
+            LingerAnchor::Player => panic!("the base state must hold the linger on a place"),
+        }
+    }
 }
 
 /// A hit list gains a target; a place moves.
@@ -782,6 +793,25 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         damage: 7,
         width_pct: 50,
         bleed: 0,
+        stack_given: 1,
+        queued: 2,
+    }];
+    s.lingers = vec![Linger {
+        owner: 1,
+        anchor: LingerAnchor::Place {
+            at: pt(2),
+            facing: dir(3),
+        },
+        ticks_left: 4,
+        ticks: 5,
+        next_pulse: 6,
+        rate_ticks: 7,
+        damage: 8,
+        damage_pct: 9,
+        shape: ZoneShape::Circle { radius: Fx(10) },
+        pull: Fx(11),
+        cuts_orbs: true,
+        proc_pct: Some(12),
     }];
     s.echoes = vec![Echo {
         source: EntityId(1),
@@ -911,7 +941,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     let mut p = Probe::new();
 
     each_field_moves_the_hash!(p, State, |s| s,
-        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
+        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats, lingers],
         not_hashed: [move_index],
         // `stars` and each career's `offers` are `Some` together (`hash_fields` asserts it):
         // they are perturbed as a pair below.
@@ -921,7 +951,11 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Repeat, |s| &mut s.repeats[0],
-        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed],
+        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed, stack_given, queued],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, Linger, |s| &mut s.lingers[0],
+        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],

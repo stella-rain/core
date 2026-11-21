@@ -239,6 +239,8 @@ pub fn prepare_party(engine: &mut Engine, party: u8) {
             damage: 1,
             width_pct: 0,
             bleed: 1,
+            stack_given: 0,
+            queued: 0,
         });
     }
     let t = world.tuning;

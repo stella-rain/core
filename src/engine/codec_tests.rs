@@ -729,7 +729,10 @@ fn the_state_has_no_star_offer_fields() {
     ];
     for (e, base, removed) in cases {
         let len = crate::savepoint::encode_state(&e).len();
-        assert_eq!(len - combat_bytes(&e), base - removed);
+        assert_eq!(
+            len - combat_bytes(&e) - wave_three_bytes(&e),
+            base - removed
+        );
     }
 }
 
@@ -762,8 +765,23 @@ fn the_state_holds_the_combat_fields() {
     ];
     for (e, base) in cases {
         let added = combat_bytes(&e);
-        assert_eq!(crate::savepoint::encode_state(&e).len(), base + added);
+        let wave = wave_three_bytes(&e);
+        assert_eq!(
+            crate::savepoint::encode_state(&e).len(),
+            base + added + wave
+        );
     }
+}
+
+/// The bytes the Wave 3 fields add (format 14): 9 per present player, 5 per queued repeat and the
+/// `lingers` queue's 4-byte prefix, plus what each entry takes (none in the bench cases).
+fn wave_three_bytes(e: &crate::engine::Engine) -> usize {
+    let st = match e.run() {
+        crate::engine::run::Run::V2 { state, .. } => state,
+        crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
+    };
+    assert!(st.lingers.is_empty());
+    9 * st.players.iter().count() + 5 * st.repeats.len() + 4
 }
 
 /// The live state holds the Wave 3 fields (format 14): the encoding is the Base length plus what

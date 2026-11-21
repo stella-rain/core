@@ -84,6 +84,8 @@ fn entry(w: &World, owner: u8, due: u32, percent: u16, anchor: RepeatAnchor) -> 
         damage: 1_000,
         width_pct: 0,
         bleed: 0,
+        stack_given: 0,
+        queued: 0,
     }
 }
 
