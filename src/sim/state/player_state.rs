@@ -129,6 +129,16 @@ pub(crate) struct PlayerCombat {
     /// 1 from the take until the taken step's first landed combo hit or the step's end, 0
     /// otherwise: the payout the counter still owes. Cleared wherever `counter_bonus_step` is.
     pub counter_payout: u8,
+    /// Distinct enemies the player's running swing has hit so far; cleared with the swing.
+    pub sweep_count: u16,
+    /// The size stacks held, and the ticks left before they lapse.
+    pub size_stacks: u8,
+    pub size_ticks: u16,
+    /// 1 while a rune fire is owed (the opening of a lingering area), 0 otherwise.
+    pub rune_fire_owed: u8,
+    /// Ticks left of the encore window, and 1 while the encore is ready.
+    pub encore_ticks: u16,
+    pub encore_ready: u8,
 }
 
 impl Clone for PlayerState {

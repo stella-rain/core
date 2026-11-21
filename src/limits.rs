@@ -145,6 +145,33 @@ pub const MAX_COUNTER_BONUS_STEP: u8 = 1;
 /// Bounds the player's counter payout flag (1 while the taken step has not landed a hit): combat
 /// state, a tuning value (ADR-SIM-5 point 9).
 pub const MAX_COUNTER_PAYOUT: u8 = 1;
+// The Wave 3 combat state's caps (ADR-SIM-5 point 9): each bounds a decode and fixes no
+// behaviour; they are tuning values, and a rule task may raise one within its field's type.
+
+/// The sweep count: a swing cannot hit more distinct regular enemies than can be alive.
+pub const MAX_SWEEP_COUNT: u16 = MAX_ENEMY_CAP;
+/// Size stacks held (the Yo-Yo's base cap is 3, its spirit level 1 makes it 4; doubled).
+pub const MAX_SIZE_STACKS: u8 = 8;
+/// Ticks left of the size stacks (300 base, 450 at spirit level 2).
+pub const MAX_SIZE_TICKS: u16 = 1_800;
+/// The rune fire the opening of a lingering area still owes (a flag).
+pub const MAX_RUNE_FIRE_OWED: u8 = 1;
+/// Ticks left of the encore window (180 base, 300 at upgrade 2).
+pub const MAX_ENCORE_TICKS: u16 = 1_800;
+/// Whether the encore is ready (a flag).
+pub const MAX_ENCORE_READY: u8 = 1;
+/// Whether a throw's repeats already gave their stack (a flag).
+pub const MAX_STACK_GIVEN: u8 = 1;
+/// Lingering areas alive at once; held below `MAX_ZONES_ALIVE`, inside which the placement check
+/// will count them once a rule opens one.
+pub const MAX_LINGERS_ALIVE: usize = 16;
+/// Lingering areas one player holds at once.
+pub const MAX_LINGERS_PER_OWNER: usize = 4;
+/// Ticks of a lingering area: its whole length, its time left, its pulse rate.
+pub const MAX_LINGER_TICKS: u16 = 1_800;
+/// The pull of a lingering area, in px: the view's half width, as `MAX_PERFECT_REACH`.
+pub const MAX_LINGER_PULL_PX: i32 = VIEW_HALF_WIDTH;
+const _: () = assert!(MAX_LINGERS_ALIVE <= MAX_ZONES_ALIVE as usize);
 pub const MAX_REPEATS_QUEUED: usize = 64;
 pub const MAX_REPEAT_TARGETS: usize = 16;
 
@@ -272,6 +299,17 @@ pub const LIMITS: &[LimitEntry] = &[
     LimitEntry::new("MAX_RANGED_GRACE_TICKS", "600", "ticks", "ADR-SIM-5"),
     LimitEntry::new("MAX_COUNTER_BONUS_STEP", "1", "flag", "ADR-SIM-5"),
     LimitEntry::new("MAX_COUNTER_PAYOUT", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SWEEP_COUNT", "500", "enemies", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SIZE_STACKS", "8", "stacks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_SIZE_TICKS", "1800", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_RUNE_FIRE_OWED", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_ENCORE_TICKS", "1800", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_ENCORE_READY", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_STACK_GIVEN", "1", "flag", "ADR-SIM-5"),
+    LimitEntry::new("MAX_LINGERS_ALIVE", "16", "entries", "ADR-SIM-5"),
+    LimitEntry::new("MAX_LINGERS_PER_OWNER", "4", "entries", "ADR-SIM-5"),
+    LimitEntry::new("MAX_LINGER_TICKS", "1800", "ticks", "ADR-SIM-5"),
+    LimitEntry::new("MAX_LINGER_PULL_PX", "420", "px", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEATS_QUEUED", "64", "entries", "ADR-SIM-5"),
     LimitEntry::new("MAX_REPEAT_TARGETS", "16", "targets", "ADR-SIM-5"),
     LimitEntry::new("MAX_TIME_LIMIT_BYTES", "131072", "bytes", "ADR-SVC-1"),
@@ -459,6 +497,37 @@ mod tests {
             assert_eq!(row.unit, unit, "{name}");
             assert_eq!(row.adr, "ADR-SIM-5", "{name}");
         }
+    }
+
+    /// The Wave 3 combat state's caps (ADR-SIM-5 point 9): tuning values; a cap bounds a decode
+    /// and fixes no behaviour. The sweep count is held to the enemies that can be alive and the
+    /// lingering areas to the zone cap they count inside.
+    #[test]
+    fn the_wave_three_caps_have_rows() {
+        let rows = [
+            ("MAX_SWEEP_COUNT", "500", "enemies"),
+            ("MAX_SIZE_STACKS", "8", "stacks"),
+            ("MAX_SIZE_TICKS", "1800", "ticks"),
+            ("MAX_RUNE_FIRE_OWED", "1", "flag"),
+            ("MAX_ENCORE_TICKS", "1800", "ticks"),
+            ("MAX_ENCORE_READY", "1", "flag"),
+            ("MAX_STACK_GIVEN", "1", "flag"),
+            ("MAX_LINGERS_ALIVE", "16", "entries"),
+            ("MAX_LINGERS_PER_OWNER", "4", "entries"),
+            ("MAX_LINGER_TICKS", "1800", "ticks"),
+            ("MAX_LINGER_PULL_PX", "420", "px"),
+        ];
+        for (name, value, unit) in rows {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
+        assert_eq!(MAX_SWEEP_COUNT, MAX_ENEMY_CAP);
+        assert!(MAX_LINGERS_ALIVE <= MAX_ZONES_ALIVE as usize);
     }
 
     /// The gauge's caps (ADR-SIM-5): a fill formula's percent and the orb clear's radius.

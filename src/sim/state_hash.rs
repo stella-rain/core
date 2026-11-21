@@ -522,6 +522,8 @@ impl StableHash for Repeat {
             damage,
             width_pct,
             bleed,
+            stack_given,
+            queued,
         } = self;
         owner.stable_hash(h);
         due.stable_hash(h);
@@ -533,6 +535,52 @@ impl StableHash for Repeat {
         damage.stable_hash(h);
         width_pct.stable_hash(h);
         bleed.stable_hash(h);
+        stack_given.stable_hash(h);
+        queued.stable_hash(h);
+    }
+}
+
+impl StableHash for Linger {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        let Linger {
+            owner,
+            anchor,
+            ticks_left,
+            ticks,
+            next_pulse,
+            rate_ticks,
+            damage,
+            damage_pct,
+            shape,
+            pull,
+            cuts_orbs,
+            proc_pct,
+        } = self;
+        owner.stable_hash(h);
+        anchor.stable_hash(h);
+        ticks_left.stable_hash(h);
+        ticks.stable_hash(h);
+        next_pulse.stable_hash(h);
+        rate_ticks.stable_hash(h);
+        damage.stable_hash(h);
+        damage_pct.stable_hash(h);
+        shape.stable_hash(h);
+        pull.stable_hash(h);
+        cuts_orbs.stable_hash(h);
+        proc_pct.stable_hash(h);
+    }
+}
+
+impl StableHash for LingerAnchor {
+    fn stable_hash(&self, h: &mut StateHasher) {
+        match self {
+            LingerAnchor::Place { at, facing } => {
+                h.write_u8(0);
+                at.stable_hash(h);
+                facing.stable_hash(h);
+            }
+            LingerAnchor::Player => h.write_u8(1),
+        }
     }
 }
 
@@ -570,6 +618,12 @@ impl StableHash for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
+            sweep_count,
+            size_stacks,
+            size_ticks,
+            rune_fire_owed,
+            encore_ticks,
+            encore_ready,
         } = self;
         perfect_window.stable_hash(h);
         perfect_slow.stable_hash(h);
@@ -586,6 +640,12 @@ impl StableHash for PlayerCombat {
         ranged_grace.stable_hash(h);
         counter_bonus_step.stable_hash(h);
         counter_payout.stable_hash(h);
+        sweep_count.stable_hash(h);
+        size_stacks.stable_hash(h);
+        size_ticks.stable_hash(h);
+        rune_fire_owed.stable_hash(h);
+        encore_ticks.stable_hash(h);
+        encore_ready.stable_hash(h);
     }
 }
 
@@ -1121,6 +1181,7 @@ impl State {
             crit_seed,
             echoes,
             repeats,
+            lingers,
         } = self;
         tick.stable_hash(h);
         hash_streams(rng, h);
@@ -1147,6 +1208,7 @@ impl State {
         crit_seed.stable_hash(h);
         echoes.stable_hash(h);
         repeats.stable_hash(h);
+        lingers.stable_hash(h);
         // The presence byte (bit `i` is slot `i`, as in the step log's byte 0), then the block of
         // each present player, ascending. Absent slots write nothing.
         h.write_u8(players.mask());

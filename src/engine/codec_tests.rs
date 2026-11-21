@@ -729,7 +729,10 @@ fn the_state_has_no_star_offer_fields() {
     ];
     for (e, base, removed) in cases {
         let len = crate::savepoint::encode_state(&e).len();
-        assert_eq!(len - combat_bytes(&e), base - removed);
+        assert_eq!(
+            len - combat_bytes(&e) - wave_three_bytes(&e),
+            base - removed
+        );
     }
 }
 
@@ -762,6 +765,44 @@ fn the_state_holds_the_combat_fields() {
     ];
     for (e, base) in cases {
         let added = combat_bytes(&e);
+        let wave = wave_three_bytes(&e);
+        assert_eq!(
+            crate::savepoint::encode_state(&e).len(),
+            base + added + wave
+        );
+    }
+}
+
+/// The bytes the Wave 3 fields add (format 14): 9 per present player, 5 per queued repeat and the
+/// `lingers` queue's 4-byte prefix, plus what each entry takes (none in the bench cases).
+fn wave_three_bytes(e: &crate::engine::Engine) -> usize {
+    let st = match e.run() {
+        crate::engine::run::Run::V2 { state, .. } => state,
+        crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
+    };
+    assert!(st.lingers.is_empty());
+    9 * st.players.iter().count() + 5 * st.repeats.len() + 4
+}
+
+/// The live state holds the Wave 3 fields (format 14): the encoding is the Base length plus what
+/// they take. Per present player `PlayerCombat` 9 (`u16 + u8 + u16 + u8 + u16 + u8`), per queued
+/// repeat 5 (`stack_given` one byte, `queued` four), and the `lingers` queue's 4-byte length prefix
+/// (empty in these cases). The counts are read from the state.
+#[test]
+fn the_state_holds_the_wave_three_fields() {
+    use crate::bench_fixtures::{hit_case, time_limit_case, worst_case};
+    // (case, encoded length at the Base, format 13, measured before the Wave 3 fields)
+    let cases = [
+        (worst_case::warmed_up(), 146_882),
+        (hit_case::warmed_up(), 265_430),
+        (time_limit_case::warmed_up(), 25_167),
+    ];
+    for (e, base) in cases {
+        let st = match e.run() {
+            crate::engine::run::Run::V2 { state, .. } => state,
+            crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
+        };
+        let added = 9 * st.players.iter().count() + 5 * st.repeats.len() + 4;
         assert_eq!(crate::savepoint::encode_state(&e).len(), base + added);
     }
 }

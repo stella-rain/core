@@ -232,3 +232,97 @@ fn run_snapshot_is_the_engines() {
         ]);
     }
 }
+
+/// The Wave 3 views (derived each frame, never hashed): with every field zero the snapshot holds
+/// no `size`, `encore` or `lingers` key; each is built from its state while that is non-zero.
+/// `sweep_count`, `rune_fire_owed` and `stack_given` have no view and change no snapshot byte.
+#[test]
+fn the_wave_three_views_are_absent_at_zero_and_built_from_the_state() {
+    use crate::id::PlayerIdx;
+    use crate::sim::state::{Linger, LingerAnchor};
+    let mut e = super::live_support::live_bundled_run("normal", 1);
+    e.join(PlayerIdx::new(1).unwrap()).unwrap();
+    let zero = serde_json::to_value(e.snapshot()).unwrap();
+    assert!(zero.get("lingers").is_none());
+    for p in zero["players"].as_array().unwrap() {
+        assert!(p.get("size").is_none() && p.get("encore").is_none());
+    }
+
+    // The fields without a view change no byte.
+    {
+        let s = e.run.live_mut();
+        s.players[PlayerIdx::SOLO].combat.sweep_count = 3;
+        s.players[PlayerIdx::SOLO].combat.rune_fire_owed = 1;
+    }
+    assert_eq!(serde_json::to_value(e.snapshot()).unwrap(), zero);
+
+    {
+        let s = e.run.live_mut();
+        let c = &mut s.players[PlayerIdx::SOLO].combat;
+        c.size_stacks = 2;
+        c.size_ticks = 90;
+        c.encore_ticks = 50;
+        c.encore_ready = 1;
+    }
+    let v = serde_json::to_value(e.snapshot()).unwrap();
+    let p0 = &v["players"][0];
+    assert_eq!(
+        p0["size"],
+        serde_json::json!({"stacks": 2, "ticks_left": 90})
+    );
+    assert_eq!(
+        p0["encore"],
+        serde_json::json!({"ticks_left": 50, "ready": true})
+    );
+    assert!(v["players"][1].get("size").is_none());
+    assert!(v["players"][1].get("encore").is_none());
+    e.run.live_mut().players[PlayerIdx::SOLO]
+        .combat
+        .encore_ready = 0;
+    let v = serde_json::to_value(e.snapshot()).unwrap();
+    assert_eq!(
+        v["players"][0]["encore"],
+        serde_json::json!({"ticks_left": 50})
+    );
+
+    let at = Point::default();
+    let owner_at = e.run.live().players[PlayerIdx::new(1).unwrap()].at;
+    let linger = |owner: u8, anchor: LingerAnchor| Linger {
+        owner,
+        anchor,
+        ticks_left: 40,
+        ticks: 100,
+        next_pulse: 5,
+        rate_ticks: 10,
+        damage: 7,
+        damage_pct: 50,
+        shape: crate::attack::ZoneShape::Circle {
+            radius: crate::fixed::Fx(256),
+        },
+        pull: crate::fixed::Fx(0),
+        cuts_orbs: false,
+        proc_pct: None,
+    };
+    e.run.live_mut().lingers = vec![
+        linger(
+            0,
+            LingerAnchor::Place {
+                at,
+                facing: crate::sim::state::Dir::UP,
+            },
+        ),
+        linger(1, LingerAnchor::Player),
+    ];
+    let v = serde_json::to_value(e.snapshot()).unwrap();
+    let l = v["lingers"].as_array().unwrap();
+    assert_eq!(l.len(), 2);
+    assert_eq!(l[0]["owner"], "first");
+    assert_eq!(l[0]["follows_owner"], false);
+    assert_eq!(
+        (l[0]["ticks_left"].as_u64(), l[0]["ticks"].as_u64()),
+        (Some(40), Some(100))
+    );
+    assert_eq!(l[1]["owner"], "second");
+    assert_eq!(l[1]["follows_owner"], true);
+    assert_eq!(l[1]["at"], serde_json::to_value(owner_at).unwrap());
+}

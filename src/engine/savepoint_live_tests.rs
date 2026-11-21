@@ -302,6 +302,8 @@ fn a_repeat_past_its_attack_or_phase_is_refused() {
         damage: 10,
         width_pct: 0,
         bleed: 0,
+        stack_given: 0,
+        queued: 0,
     };
     let last = attacks - 1;
     let edit = |r: Repeat| decode_edited(move |s| s.repeats = vec![r]).map(drop);
@@ -333,6 +335,8 @@ fn a_repeat_bleed_past_the_table_is_refused() {
         damage: 10,
         width_pct: 0,
         bleed,
+        stack_given: 0,
+        queued: 0,
     };
     let row = crate::weapon::RepeatBleed {
         stacks: 1,

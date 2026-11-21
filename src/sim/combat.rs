@@ -208,6 +208,8 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
             damage,
             width_pct: r.width_pct.min(MAX_RANGE_PCT),
             bleed: world.repeat_bleed_index(repeat.bleed),
+            stack_given: 0,
+            queued: s.tick,
         });
     }
 }

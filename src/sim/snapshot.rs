@@ -23,8 +23,8 @@ use crate::snapshot::{
 
 use super::equipment::{Held, SlotKind};
 use super::state::{
-    AgentState, AttackRun, OUT_TIMER_TICKS, REVIVE_HOLD_TICKS, REVIVE_RANGE, ShrineState, State,
-    StatusState,
+    AgentState, AttackRun, LingerAnchor, OUT_TIMER_TICKS, REVIVE_HOLD_TICKS, REVIVE_RANGE,
+    ShrineState, State, StatusState,
 };
 use super::{
     World, announced_patterns, aura_percent, aura_sources, auto_charge_view, beam_to, charge_view,
@@ -291,6 +291,14 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
                 ticks_left: u32::from(s.players[me].combat.rally_ticks),
             }
         }),
+        size: (s.players[me].combat.size_stacks > 0).then(|| crate::snapshot::SizeView {
+            stacks: u32::from(s.players[me].combat.size_stacks),
+            ticks_left: u32::from(s.players[me].combat.size_ticks),
+        }),
+        encore: (s.players[me].combat.encore_ticks > 0).then(|| crate::snapshot::EncoreView {
+            ticks_left: u32::from(s.players[me].combat.encore_ticks),
+            ready: s.players[me].combat.encore_ready != 0,
+        }),
         perfect_evade: world.tuning.perfect_evade.and_then(|t| {
             let c = &s.players[me].combat;
             (c.perfect_slow > 0 || c.perfect_cooldown > 0).then(|| PerfectEvadeView {
@@ -440,6 +448,46 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
         },
         players: s.players.indices().map(player_view).collect(),
         entities,
+        lingers: s
+            .lingers
+            .iter()
+            .filter_map(|l| {
+                let owner = PlayerIdx::new(l.owner)?;
+                let (at, direction, follows_owner) = match l.anchor {
+                    LingerAnchor::Place { at, facing } => (
+                        at,
+                        Facing {
+                            x: facing.x,
+                            y: facing.y,
+                        },
+                        false,
+                    ),
+                    LingerAnchor::Player => {
+                        // An area that follows an owner who left has nowhere to be drawn.
+                        if !s.players.is_present(owner) {
+                            return None;
+                        }
+                        (
+                            s.players[owner].at,
+                            Facing {
+                                x: s.players[owner].facing.x,
+                                y: s.players[owner].facing.y,
+                            },
+                            true,
+                        )
+                    }
+                };
+                Some(crate::snapshot::LingerView {
+                    owner,
+                    shape: l.shape.clone(),
+                    at,
+                    direction,
+                    follows_owner,
+                    ticks_left: u32::from(l.ticks_left),
+                    ticks: u32::from(l.ticks),
+                })
+            })
+            .collect(),
         zones: s
             .zones
             .iter()

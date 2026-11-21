@@ -133,6 +133,7 @@ perturb_through! {
     DotState => damage,
     Echo => damage,
     Repeat => due,
+    Linger => owner,
     HealPickup => id,
     StarState => id,
     ShrineState => guardians,
@@ -160,6 +161,16 @@ perturb_through! {
     StarField => misses,
     ExpertiseGauge => points,
     Horde => spawned,
+}
+
+/// A place moves; a player anchor is not perturbed (the base holds a place).
+impl Perturb for LingerAnchor {
+    fn perturb(&mut self) {
+        match self {
+            LingerAnchor::Place { at, .. } => at.perturb(),
+            LingerAnchor::Player => panic!("the base state must hold the linger on a place"),
+        }
+    }
 }
 
 /// A hit list gains a target; a place moves.
@@ -694,6 +705,12 @@ fn player(p: &mut PlayerState) {
         ranged_grace: 13,
         counter_bonus_step: 1,
         counter_payout: 1,
+        sweep_count: 14,
+        size_stacks: 2,
+        size_ticks: 15,
+        rune_fire_owed: 1,
+        encore_ticks: 16,
+        encore_ready: 1,
     };
     p.combo = ComboState {
         path: 5,
@@ -776,6 +793,25 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         damage: 7,
         width_pct: 50,
         bleed: 0,
+        stack_given: 1,
+        queued: 2,
+    }];
+    s.lingers = vec![Linger {
+        owner: 1,
+        anchor: LingerAnchor::Place {
+            at: pt(2),
+            facing: dir(3),
+        },
+        ticks_left: 4,
+        ticks: 5,
+        next_pulse: 6,
+        rate_ticks: 7,
+        damage: 8,
+        damage_pct: 9,
+        shape: ZoneShape::Circle { radius: Fx(10) },
+        pull: Fx(11),
+        cuts_orbs: true,
+        proc_pct: Some(12),
     }];
     s.echoes = vec![Echo {
         source: EntityId(1),
@@ -905,7 +941,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     let mut p = Probe::new();
 
     each_field_moves_the_hash!(p, State, |s| s,
-        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
+        moves: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats, lingers],
         not_hashed: [move_index],
         // `stars` and each career's `offers` are `Some` together (`hash_fields` asserts it):
         // they are perturbed as a pair below.
@@ -915,7 +951,11 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Repeat, |s| &mut s.repeats[0],
-        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed],
+        moves: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed, stack_given, queued],
+        not_hashed: [],
+        content: []);
+    each_field_moves_the_hash!(p, Linger, |s| &mut s.lingers[0],
+        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],
@@ -963,7 +1003,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout],
+        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
