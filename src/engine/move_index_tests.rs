@@ -11,6 +11,7 @@ fn phase(move_pct: u8) -> AttackPhase {
         damage: None,
         damage_type: None,
         rehit_ticks: None,
+        keeps_hits: false,
         spawn: Vec::new(),
         move_pct,
         breaks_charge: false,

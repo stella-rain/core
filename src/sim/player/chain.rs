@@ -68,6 +68,20 @@ pub(in crate::sim) fn last_press_smash(c: &ComboState) -> bool {
     c.depth > 0 && c.path >> (c.depth - 1) & 1 == 1
 }
 
+/// The A presses of the combo path before its last step, plus `extra`, held to
+/// `MAX_COUNTED_PRESSES`: what a smash's `press_factor` counts. The path holds one bit a press from
+/// bit 0 (1 for a smash) and the last bit is the step itself, so only the bits below it count. The
+/// combo's own resets (and a dash branch's own root) restart it; `extra` is the one place a later
+/// rule adds presses the path does not hold.
+pub(in crate::sim) fn counted_presses(c: &ComboState, extra: u32) -> u32 {
+    let before = u32::from(c.depth.saturating_sub(1));
+    let mask = 1u32.checked_shl(before).map_or(u32::MAX, |m| m - 1);
+    let a_presses = before - (c.path & mask).count_ones();
+    a_presses
+        .saturating_add(extra)
+        .min(crate::expertise::MAX_COUNTED_PRESSES)
+}
+
 /// Back to the root, reported if the combo was anywhere else. A combo with a press by hand
 /// becomes the auto combo, unless it began in the dash branch.
 fn reset(c: &mut ComboState, events: &mut Vec<DomainEvent>) {
@@ -400,6 +414,18 @@ pub(super) fn strike(
         None
     };
     let (mut bonus_pct, mut range_pct) = (bonus_pct, levels::range_pct(s, me));
+    if last_press_smash(&s.players[me].combo) {
+        // Additive, as every smash bonus is; the term is held to `MAX_PCT` (ADR-SVC-1).
+        let factor = stage.weapon_of(s, me).and_then(|w| w.press_factor);
+        if let Some(f) = factor {
+            let counted = counted_presses(&s.players[me].combo, 0);
+            let added = f
+                .pct_per_press
+                .saturating_mul(counted)
+                .min(crate::limits::MAX_PCT);
+            bonus_pct = bonus_pct.saturating_add(added);
+        }
+    }
     if stage.has_spirit {
         let level = s.players[me].combat.spirit_level;
         if let Some(fx) = stage.spirit_of(s, me).and_then(|g| g.fx(level)) {
@@ -473,4 +499,37 @@ pub(crate) fn combo_view(
         c.window_left,
         presses_of(c.auto_path, c.auto_depth),
     )
+}
+
+#[cfg(test)]
+mod press_tests {
+    use super::*;
+
+    /// A combo at `depth` along `path` (bit 0 first, 1 for a smash).
+    fn at(path: u32, depth: u8) -> ComboState {
+        ComboState {
+            path,
+            depth,
+            ..ComboState::default()
+        }
+    }
+
+    #[test]
+    fn the_count_is_the_a_presses_before_the_smash() {
+        // B from the root: no press before it.
+        assert_eq!(counted_presses(&at(0b1, 1), 0), 0);
+        // AAAAAB: five.
+        assert_eq!(counted_presses(&at(0b100000, 6), 0), 5);
+        // A smash earlier in the path is no A press.
+        assert_eq!(counted_presses(&at(0b10_0010, 6), 0), 4);
+        // The root, before any press.
+        assert_eq!(counted_presses(&at(0, 0), 0), 0);
+    }
+
+    #[test]
+    fn the_count_is_held_to_the_cap_and_takes_extra_presses() {
+        assert_eq!(counted_presses(&at(0, 20), 0), 16);
+        assert_eq!(counted_presses(&at(0b100000, 6), 3), 8);
+        assert_eq!(counted_presses(&at(0b100000, 6), u32::MAX), 16);
+    }
 }

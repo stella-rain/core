@@ -152,6 +152,20 @@ impl<'a> Ctx<'a> {
         if let Some(l) = &p.linger {
             self.key("linger", |c| c.linger(p, l));
         }
+        if p.keeps_hits {
+            let refusal = if p.kind != PhaseKind::Active || p.hit_box.is_none() {
+                Some("only an active phase with a hit box keeps its hits")
+            } else if self.foe != Foe::Other {
+                Some("a main character's or an ally's attack only")
+            } else if self.sim_version < 2 {
+                Some("needs sim_version 2")
+            } else {
+                None
+            };
+            if let Some(why) = refusal {
+                self.key("keeps_hits", |c| c.fail(why));
+            }
+        }
         if let Some(r) = p.rehit_ticks {
             if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 self.key("rehit_ticks", |c| {

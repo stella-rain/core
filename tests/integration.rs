@@ -130,6 +130,7 @@ mod player_stats;
 mod players_api;
 mod poise;
 mod poison_burn;
+mod press_factor;
 mod progression;
 mod properties;
 mod push_apart;

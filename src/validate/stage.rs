@@ -250,7 +250,7 @@ impl<'a> Ctx<'a> {
         self.within("hp", i64::from(p.hp), 1, i64::from(MAX_PLAYER_HP));
         self.within("atk", i64::from(p.atk), 1, i64::from(MAX_PLAYER_ATK));
         self.within("defence", i64::from(p.defence), 0, i64::from(MAX_DEFENCE));
-        self.key("weapon", |c| c.weapon_ref(&p.weapon, Self::weapon));
+        self.key("weapon", |c| c.weapon_ref(&p.weapon, Self::stage_weapon));
         self.key("evade", |c| c.evade(&p.evade));
     }
 
