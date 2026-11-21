@@ -31,6 +31,23 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// A stage's inline weapon: `weapon`, then each decided optional field it names must have its
+    /// rule in (`ContentFieldName::shipped`) and a `sim_version` that reads it (2: the frozen rules
+    /// ignore it). The pack check does the first for a weapons file; a stage has no pack check.
+    pub(super) fn stage_weapon(&mut self, w: &Weapon) {
+        self.weapon(w);
+        for (name, key) in w.named_fields() {
+            if !name.shipped() {
+                self.key(key, |c| {
+                    c.fail(format!("the field {} is not shipped yet", name.tag()))
+                });
+            }
+            if self.sim_version < 2 {
+                self.key(key, |c| c.fail("needs sim_version 2"));
+            }
+        }
+    }
+
     /// The weapon's combo tree: at most `MAX_COMBO_STEPS` steps in all, none deeper
     /// than `MAX_COMBO_DEPTH`, each attack and charge checked, and its smash effect.
     pub(super) fn weapon(&mut self, w: &Weapon) {

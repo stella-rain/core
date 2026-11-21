@@ -313,6 +313,10 @@
           ],
           "description": "The area the phase covers, attached to the attacker."
         },
+        "keeps_hits": {
+          "description": "An active phase with a hit box of a main character's or an ally's attack only: the phase\ndoes not start a new hit list, so a target the attack already hit in the phase before is not\nhit again, and consecutive growing circles make a ring that hits each target once as it\nspreads. Absent or false, an active phase starts a new hit list. `sim_version` 2 only.",
+          "type": "boolean"
+        },
         "kind": {
           "$ref": "#/$defs/PhaseKind"
         },
@@ -14329,7 +14333,7 @@
               "type": "null"
             }
           ],
-          "description": "The base tree's per-press factor. What it scales is its rule's. Typed only: no rule reads\nit yet."
+          "description": "The base tree's per-press factor: a smash step's hits deal `pct_per_press` percent more\ndamage for each A press before it in the combo path, up to `MAX_COUNTED_PRESSES`, the sum\nheld to `MAX_PCT`. It reaches every strike the step makes (a tap, a charge release, a\nhold's loop and release, the full-gauge attack), added with the smash's other bonuses; a\nnormal step never takes it. The count is derived from the combo path, so a reset or a dash\nbranch restarts it."
         },
         "size_stacks": {
           "anyOf": [

@@ -424,14 +424,10 @@ fn the_pack_refuses_the_fields_and_the_key() {
     let mut v = pack();
     tree(&mut v["weapons"])["size_stacks"] = stacks(20, 3, 300);
     gated(&v, "weapons", &format!("{TREE}.size_stacks"), "size_stacks");
+    // `press_factor` is shipped: a pack names it and loads.
     let mut v = pack();
     tree(&mut v["weapons"])["press_factor"] = json!({ "pct_per_press": 25 });
-    gated(
-        &v,
-        "weapons",
-        &format!("{TREE}.press_factor"),
-        "press_factor",
-    );
+    assert!(pack_issues(&v, "weapons").is_empty());
     let mut v = pack();
     v["rules"]["sweep_min_enemies"] = json!(5);
     gated(&v, "rules", "$.sweep_min_enemies", "sweep_min_enemies");
@@ -495,12 +491,12 @@ fn the_sweep_accessor_reads_the_key() {
     assert_eq!(parse_rules(&v, 2).unwrap().sweep_min_enemies(), Some(5));
 }
 
-/// M: the unshipped fields are exactly the four, and the tags are unique (the test a rule task
+/// M: the unshipped fields are exactly the three, and the tags are unique (the test a rule task
 /// edits when it flips an arm of `ContentFieldName::shipped`).
 #[test]
-fn the_unshipped_fields_are_the_four() {
+fn the_unshipped_fields_are_the_three() {
     use stella_rain_core::weapon::ContentFieldName::{
-        PhaseLinger, RulesSweepMinEnemies, WeaponPressFactor, WeaponSizeStacks,
+        PhaseLinger, RulesSweepMinEnemies, WeaponSizeStacks,
     };
     let unshipped: Vec<_> = ContentFieldName::ALL
         .into_iter()
@@ -508,12 +504,7 @@ fn the_unshipped_fields_are_the_four() {
         .collect();
     assert_eq!(
         unshipped,
-        [
-            WeaponSizeStacks,
-            WeaponPressFactor,
-            PhaseLinger,
-            RulesSweepMinEnemies
-        ]
+        [WeaponSizeStacks, PhaseLinger, RulesSweepMinEnemies]
     );
     let mut tags: Vec<&str> = ContentFieldName::ALL.iter().map(|n| n.tag()).collect();
     tags.sort_unstable();

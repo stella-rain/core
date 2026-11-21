@@ -69,6 +69,12 @@ pub struct AttackPhase {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::validate::limits::MAX_PHASE_TICKS))]
     pub rehit_ticks: Option<u32>,
+    /// An active phase with a hit box of a main character's or an ally's attack only: the phase
+    /// does not start a new hit list, so a target the attack already hit in the phase before is not
+    /// hit again, and consecutive growing circles make a ring that hits each target once as it
+    /// spreads. Absent or false, an active phase starts a new hit list. `sim_version` 2 only.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keeps_hits: bool,
     /// Emitter nodes started on the phase's first tick, carried out in order (see `sim`'s
     /// attacks for what each one does).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
