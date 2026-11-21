@@ -97,7 +97,7 @@ impl<'a> Ctx<'a> {
             i64::from(crate::limits::MAX_SIZE_TICKS),
         );
         let reach = i64::from(s.pct_per_stack).saturating_mul(i64::from(s.max_stacks));
-        if reach > range {
+        if reach > range && i64::from(s.pct_per_stack) <= range {
             self.key("pct_per_stack", |c| {
                 c.fail(format!("times max_stacks, at most {range} (found {reach})"))
             });

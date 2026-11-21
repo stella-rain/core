@@ -264,7 +264,24 @@ fn kind_attacks(kind: &StyleKind) -> Vec<&crate::attack::AttackRef> {
                 .collect(),
             crate::expertise::StepGrant::Hold(h) => vec![&h.loop_attack, &h.release],
         },
-        _ => Vec::new(),
+        StyleKind::SmashEffect { .. }
+        | StyleKind::Repeat { .. }
+        | StyleKind::RepeatBreaksOrbs { .. }
+        | StyleKind::RepeatBleed { .. }
+        | StyleKind::ProcFactor { .. }
+        | StyleKind::ChargeSooner { .. }
+        | StyleKind::Spirit(_)
+        | StyleKind::CounterBonus(_)
+        | StyleKind::ComboTempoPct(_)
+        | StyleKind::GiantTrigger(_)
+        | StyleKind::Breaker(_)
+        | StyleKind::RepeatRangePct { .. }
+        | StyleKind::RepeatProcPct { .. }
+        | StyleKind::RepeatSizeStack {}
+        | StyleKind::Encore(_)
+        | StyleKind::KnockdownSteps(_)
+        | StyleKind::DownBonusPct { .. }
+        | StyleKind::AreaBonus(_) => Vec::new(),
     }
 }
 
