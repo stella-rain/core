@@ -207,3 +207,20 @@ fn each_player_counts_their_own_presses() {
     assert_eq!(got[0].last(), Some(&150), "{got:?}");
     assert_eq!(got[1].first(), Some(&100), "{got:?}");
 }
+
+#[test]
+fn a_perfect_charged_release_adds_to_the_press_term() {
+    // The smash after AA charges: level 1 at 30 ticks, perfect for 8, +50.
+    let mut w = weapon(Some(25));
+    let charged = json!({ "attack": attack(), "charge": { "levels": [
+        { "at_ticks": 30, "perfect_ticks": 8, "perfect_pct": 50, "attack": attack() }
+    ], "max_ticks": 60, "move_pct": 100 } });
+    w["inline"]["combo"]["main"]["next"]["main"]["next"]["smash"] = charged;
+    let mut e = engine(&stage_of(w));
+    damages(&mut e, &[idle(), idle(), idle()]);
+    damages(&mut e, &presses("AA"));
+    let mut inputs: Vec<Input> = vec![pressing(true); 32];
+    inputs.extend(vec![idle(); GAP]);
+    // 100 + 50 (perfect) + 2 x 25 (presses), added.
+    assert_eq!(damages(&mut e, &inputs), vec![200]);
+}
