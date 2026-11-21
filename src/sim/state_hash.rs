@@ -555,6 +555,7 @@ impl StableHash for Linger {
             pull,
             cuts_orbs,
             proc_pct,
+            damage_type,
         } = self;
         owner.stable_hash(h);
         anchor.stable_hash(h);
@@ -568,6 +569,7 @@ impl StableHash for Linger {
         pull.stable_hash(h);
         cuts_orbs.stable_hash(h);
         proc_pct.stable_hash(h);
+        damage_type.stable_hash(h);
     }
 }
 

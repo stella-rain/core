@@ -389,7 +389,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
         fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed, stack_given, queued]);
     each_field_moves_the_encoding!(failures, base, Linger, |s| &mut s.lingers[0],
-        fields: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct]);
+        fields: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct, damage_type]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -1032,6 +1032,7 @@ fn the_linger_queue_is_bounded_at_decode() {
         pull: Fx(MAX_LINGER_PULL_PX * crate::fixed::UNITS_PER_PX),
         cuts_orbs: true,
         proc_pct: Some(max_proc),
+        damage_type: Some(crate::attack::DamageType::ALL[crate::attack::DamageType::ALL.len() - 1]),
     };
     round_trip_hashed(&at_cap);
     round_trip_hashed(&Linger {

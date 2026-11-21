@@ -384,6 +384,8 @@ pub(crate) struct Linger {
     pub cuts_orbs: bool,
     /// The chance, in percent, that a pulse fires a ready on-hit rune; none: no proc.
     pub proc_pct: Option<u16>,
+    /// The damage type of the phase that opened the area, fixed then; a pulse deals it.
+    pub damage_type: Option<DamageType>,
 }
 
 /// Where a lingering area stands: on a place, or on its owner.

@@ -302,6 +302,7 @@ fn the_wave_three_views_are_absent_at_zero_and_built_from_the_state() {
         pull: crate::fixed::Fx(0),
         cuts_orbs: false,
         proc_pct: None,
+        damage_type: None,
     };
     e.run.live_mut().lingers = vec![
         linger(

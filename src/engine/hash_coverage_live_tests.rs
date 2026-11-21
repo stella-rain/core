@@ -812,6 +812,7 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         pull: Fx(11),
         cuts_orbs: true,
         proc_pct: Some(12),
+        damage_type: Some(DamageType::Pyro),
     }];
     s.echoes = vec![Echo {
         source: EntityId(1),
@@ -955,7 +956,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Linger, |s| &mut s.lingers[0],
-        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct],
+        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct, damage_type],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],

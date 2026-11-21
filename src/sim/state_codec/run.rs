@@ -78,6 +78,7 @@ impl Encode for Linger {
             pull,
             cuts_orbs,
             proc_pct,
+            damage_type,
         } = self;
         owner.encode(w);
         anchor.encode(w);
@@ -91,6 +92,7 @@ impl Encode for Linger {
         pull.encode(w);
         cuts_orbs.encode(w);
         proc_pct.encode(w);
+        damage_type.encode(w);
     }
 }
 
@@ -156,6 +158,7 @@ impl Decode for Linger {
             )?),
             _ => return Err(DecodeError::Invalid("linger proc factor tag")),
         };
+        let damage_type = Decode::decode(r)?;
         Ok(Linger {
             owner,
             anchor,
@@ -169,6 +172,7 @@ impl Decode for Linger {
             pull,
             cuts_orbs,
             proc_pct,
+            damage_type,
         })
     }
 }
