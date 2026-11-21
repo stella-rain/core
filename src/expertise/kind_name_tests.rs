@@ -25,11 +25,8 @@ fn the_list_of_kinds_is_the_schemas() {
 
 /// The test a rule task edits when it flips an arm of `shipped`.
 #[test]
-fn the_unshipped_kinds_are_the_three_riders_and_the_four_wave_three_kinds() {
-    use StyleKindName::{
-        AreaBonus, DownBonusPct, Encore, KnockdownSteps, RepeatProcPct, RepeatRangePct,
-        RepeatSizeStack,
-    };
+fn the_unshipped_kinds_are_the_size_stack_rider_and_the_four_wave_three_kinds() {
+    use StyleKindName::{AreaBonus, DownBonusPct, Encore, KnockdownSteps, RepeatSizeStack};
     let unshipped: Vec<StyleKindName> = StyleKindName::ALL
         .into_iter()
         .filter(|n| !n.shipped())
@@ -37,8 +34,6 @@ fn the_unshipped_kinds_are_the_three_riders_and_the_four_wave_three_kinds() {
     assert_eq!(
         unshipped,
         [
-            RepeatRangePct,
-            RepeatProcPct,
             RepeatSizeStack,
             Encore,
             KnockdownSteps,

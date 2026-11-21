@@ -1252,3 +1252,182 @@ fn a_fifth_repeat_on_a_member_is_refused_though_the_group_is_one_kind() {
     assert!(text.contains("at most 4 repeats on one step"), "{text}");
     assert!(text.contains("AAAAA"), "{text}");
 }
+
+// ---- The riders on a style's repeats (ADR-SIM-9 points 3 and 4) ----
+
+fn proc_rider(pct: u32) -> Value {
+    json!({ "type": "repeat_proc_pct", "proc_pct": pct })
+}
+
+fn range_rider(pct: u32) -> Value {
+    json!({ "type": "repeat_range_pct", "pct": pct })
+}
+
+const FIVE: [&str; 5] = ["main"; 5];
+
+/// The Hammer's style 0 over the bundled pack's base tree, built with `taken` places.
+fn copy_of(own: Vec<Value>, levels: [Vec<Value>; 3], taken: usize) -> crate::weapon::Weapon {
+    use crate::expertise::{Expertise, weapon_with_style};
+    use crate::version::Versions;
+    let v = bundled_levelled(own, levels);
+    let e = Expertise::parse(v["expertise"].to_string().as_bytes(), Versions::CURRENT)
+        .expect("the expertise");
+    let style = &e
+        .weapons()
+        .iter()
+        .find(|w| w.weapon.as_str() == "giant_hammer")
+        .unwrap()
+        .styles[0];
+    let base = crate::pack::Pack::from_bytes(crate::pack::Pack::BUNDLED)
+        .unwrap()
+        .content()
+        .weapons()
+        .tree("giant_hammer", None)
+        .unwrap()
+        .clone();
+    weapon_with_style(&base, style, taken)
+}
+
+/// What `read` gives for each repeat of the step `presses`.
+fn per_repeat<T>(
+    w: &crate::weapon::Weapon,
+    presses: &[crate::event::Press],
+    read: impl Fn(&crate::weapon::StepRepeat) -> T,
+) -> Vec<T> {
+    crate::expertise::step_ref(&w.combo, presses)
+        .expect("a step")
+        .repeats
+        .iter()
+        .map(read)
+        .collect()
+}
+
+/// The style of the group tests: its own level's two repeats on `normals` carry 30, the capstone's
+/// two on AAAAA too; `rider` sits at the level `at` (1 or 2 for an upgrade).
+fn rider_style(rider: Value, at: usize) -> (Vec<Value>, [Vec<Value>; 3]) {
+    let own = vec![
+        place_repeat_kind(json!("normals"), 8, 50, Some(30)),
+        place_repeat_kind(json!("normals"), 16, 40, Some(30)),
+    ];
+    let mut levels = [
+        vec![],
+        vec![],
+        vec![
+            place_repeat_kind(json!(FIVE), 24, 30, Some(30)),
+            place_repeat_kind(json!(FIVE), 32, 20, Some(30)),
+        ],
+    ];
+    levels[at - 1] = vec![rider];
+    (own, levels)
+}
+
+/// P1: the proc rider stamps the repeats granted at or before its level and replaces their own
+/// factor; a repeat a later level grants keeps its own.
+#[test]
+fn the_proc_rider_stamps_the_repeats_at_or_before_its_level() {
+    use crate::event::Press::Main;
+    let (own, levels) = rider_style(proc_rider(50), 2);
+    let procs = |taken, presses: &[crate::event::Press]| {
+        per_repeat(&copy_of(own.clone(), levels.clone(), taken), presses, |r| {
+            r.proc_pct
+        })
+    };
+    let (s30, s50) = (Some(30), Some(50));
+    assert_eq!(procs(0, &[Main; 5]), [s30, s30]);
+    assert_eq!(procs(1, &[Main; 5]), [s30, s30]);
+    assert_eq!(procs(2, &[Main; 5]), [s50, s50]);
+    assert_eq!(procs(3, &[Main; 5]), [s50, s50, s30, s30]);
+    assert_eq!(procs(2, &[Main]), [s50, s50]);
+    assert_eq!(procs(3, &[Main]), [s50, s50]);
+}
+
+/// P1: a repeat with no factor of its own takes the rider's, 100 and 0 included.
+#[test]
+fn the_proc_rider_gives_a_repeat_with_no_factor_its_own_value() {
+    use crate::event::Press::Main;
+    for pct in [100, 0] {
+        let own = vec![
+            place_repeat_kind(json!("normals"), 8, 50, None),
+            proc_rider(pct),
+        ];
+        let w = copy_of(own, [vec![], vec![], vec![]], 0);
+        let want = Some(u16::try_from(pct).unwrap());
+        assert_eq!(per_repeat(&w, &[Main], |r| r.proc_pct), [want]);
+    }
+}
+
+/// P2: the rider reaches the repeats of its own level whatever the order inside it.
+#[test]
+fn the_proc_rider_reaches_its_own_level_in_either_order() {
+    use crate::event::Press::Main;
+    let repeat = place_repeat_kind(json!("normals"), 8, 50, Some(30));
+    for own in [
+        vec![proc_rider(50), repeat.clone()],
+        vec![repeat, proc_rider(50)],
+    ] {
+        let w = copy_of(own, [vec![], vec![], vec![]], 0);
+        assert_eq!(per_repeat(&w, &[Main; 3], |r| r.proc_pct), [Some(50)]);
+    }
+}
+
+/// P3: the range rider stamps every repeat of the path, those a later level grants included, and
+/// none before its place is taken.
+#[test]
+fn the_range_rider_stamps_every_repeat_of_the_path() {
+    use crate::event::Press::Main;
+    let (own, levels) = rider_style(range_rider(20), 1);
+    let ranges = |taken, presses: &[crate::event::Press]| {
+        per_repeat(&copy_of(own.clone(), levels.clone(), taken), presses, |r| {
+            r.range_pct
+        })
+    };
+    assert_eq!(ranges(0, &[Main; 5]), [0, 0]);
+    assert_eq!(ranges(1, &[Main; 5]), [20, 20]);
+    assert_eq!(ranges(2, &[Main; 5]), [20, 20]);
+    assert_eq!(ranges(3, &[Main; 5]), [20, 20, 20, 20]);
+    assert_eq!(ranges(3, &[Main]), [20, 20]);
+}
+
+/// P4, P5: what A queues, as `(width_pct, proc_pct)`, with the run's width set to `run_width`
+/// once it starts and `places` taken of a style whose first upgrade names the range rider.
+fn queued_width(places: usize, run_width: u32) -> Vec<(u32, Option<u16>)> {
+    let own = vec![place_repeat_kind(json!(["main"]), 10, 50, Some(30))];
+    let mut r = bundled_rig(own, [vec![range_rider(20)], vec![], vec![]]);
+    take(&mut r.e, 0, places);
+    r.press(false);
+    for _ in 0..120 {
+        let s = st(&mut r.e);
+        if let Some(i) = (0..s.runs.len()).find(|&i| super::attacks::is_combo(s, &s.runs[i])) {
+            s.runs[i].width_pct = run_width;
+            break;
+        }
+        r.step([Default::default(); 3]);
+    }
+    for _ in 0..300 {
+        let s = st(&mut r.e);
+        if !s.repeats.is_empty() {
+            return s
+                .repeats
+                .iter()
+                .map(|x| (x.width_pct, x.proc_pct))
+                .collect();
+        }
+        r.step([Default::default(); 3]);
+    }
+    Vec::new()
+}
+
+/// P4: the stored width is the run's plus the rider's, held to `MAX_RANGE_PCT`.
+#[test]
+fn a_queued_repeat_adds_the_riders_range_to_the_runs_and_clamps_it() {
+    assert_eq!(queued_width(1, 0), [(20, Some(30))]);
+    assert_eq!(queued_width(1, 90), [(100, Some(30))]);
+}
+
+/// P5: with the rider's place not taken a repeat is queued as before: the run's own width and the
+/// repeat's own factor.
+#[test]
+fn a_style_that_has_not_taken_a_rider_queues_as_before() {
+    assert_eq!(queued_width(0, 0), [(0, Some(30))]);
+    assert_eq!(queued_width(0, 90), [(90, Some(30))]);
+}

@@ -415,19 +415,28 @@ fn is_refused(v: &Value, message: &str) -> bool {
 }
 
 /// M1: parse accepts an unshipped kind; the pack check refuses it at the kind, whatever the tree.
+/// The size-stack rider is the one rider whose rule is not in; the range and proc riders load.
 #[test]
 fn the_pack_refuses_an_unshipped_kind() {
-    for (rider, name) in [
-        (range_pct(20), "repeat_range_pct"),
-        (proc_pct(50), "repeat_proc_pct"),
-        (size_stack(), "repeat_size_stack"),
-    ] {
-        parses(&own(vec![repeat(json!(A)), rider.clone()]));
-        pack_refused_at(
-            &hammer_pack(vec![repeat(json!(A)), rider], [None, None, None]),
-            &format!("{K0}[1]"),
-            &format!("the kind {name} is not shipped yet"),
+    parses(&own(vec![repeat(json!(A)), size_stack()]));
+    pack_refused_at(
+        &hammer_pack(vec![repeat(json!(A)), size_stack()], [None, None, None]),
+        &format!("{K0}[1]"),
+        "the kind repeat_size_stack is not shipped yet",
+    );
+    for rider in [range_pct(20), proc_pct(50)] {
+        let first = if rider["type"] == "repeat_range_pct" {
+            place_repeat()
+        } else {
+            repeat(json!(A))
+        };
+        let v = hammer_pack(vec![first, rider], [None, None, None]);
+        assert!(
+            !is_refused(&v, "is not shipped yet"),
+            "{:?}",
+            pack_issues(&v)
         );
+        loads(&v);
     }
     // A shipped kind is not refused for it.
     loads(&hammer_pack(
@@ -444,7 +453,7 @@ fn the_pack_refuses_an_unshipped_kind() {
         .iter_mut()
         .find(|w| w["weapon"] == "giant_sword")
         .expect("the Sword's expertise");
-    sword["styles"][0]["kinds"] = json!([range_pct(20)]);
+    sword["styles"][0]["kinds"] = json!([size_stack()]);
     assert!(
         is_refused(&v, "is not shipped yet"),
         "{:?}",
