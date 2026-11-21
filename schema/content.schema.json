@@ -12602,7 +12602,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "From the level that names it on, every repeat the style queues reaches `pct` percent\nfurther (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the\nstyle names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2\nonly. Typed and viewed only: no rule reads it yet.",
+          "description": "From the level that names it on, every repeat the style queues, those a later level\ngrants included, reaches `pct` percent further (1 to `MAX_RANGE_PCT`): the percent is added\nto the run's own range, held to `MAX_RANGE_PCT`, and only a `place` repeat is widened by\nit. One per style path; the pack check refuses it where the style names no `repeat`, or no\n`place` repeat, at or before its level. `sim_version` 2 only.",
           "properties": {
             "pct": {
               "format": "uint32",
@@ -12623,7 +12623,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "From the level that names it on, every repeat the style queues fires ready on-hit runes\nat `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack\ncheck refuses it where the style names no `repeat` at or before its level. `sim_version`\n2 only. Typed and viewed only: no rule reads it yet.",
+          "description": "Every repeat the style has granted at or before the level that names it fires ready\non-hit runes at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each, in place of the\nfactor the repeat names; a repeat a later level grants keeps its own. One per style path;\nthe pack check refuses it where the style names no `repeat` at or before its level.\n`sim_version` 2 only.",
           "properties": {
             "proc_pct": {
               "format": "uint32",
@@ -12969,7 +12969,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Each repeat of the style reaches `pct` percent further.",
+          "description": "Each repeat of the style reaches `pct` percent further (a place repeat is widened).",
           "properties": {
             "pct": {
               "format": "uint32",
@@ -12989,7 +12989,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Each repeat of the style fires ready on-hit runes at `proc_pct` percent.",
+          "description": "Each repeat granted at or before this level fires ready on-hit runes at `proc_pct` percent.",
           "properties": {
             "proc_pct": {
               "format": "uint32",
