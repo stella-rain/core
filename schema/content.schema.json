@@ -316,6 +316,17 @@
         "kind": {
           "$ref": "#/$defs/PhaseKind"
         },
+        "linger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LingerNode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An active phase of the main character's or an ally's attack: a lingering area the phase\nleaves behind, pulsing on its own (ADR-SIM-9 points 3 and 4). `sim_version` 2 only. Absent:\nnone. Typed only: no rule reads it yet."
+        },
         "move_pct": {
           "description": "The attacker's movement speed during the phase, in percent; 0 roots it.",
           "format": "uint8",
@@ -4150,6 +4161,39 @@
             "data"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The swing of `player` reached the rules' `sweep_min_enemies` with `count` distinct enemies\n(ADR-SIM-9). Emitted once per swing; nothing emits it yet.",
+          "properties": {
+            "data": {
+              "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "player": {
+                  "$ref": "#/$defs/PlayerIdx"
+                }
+              },
+              "required": [
+                "player",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": {
+              "const": "SweepSet",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -6356,6 +6400,92 @@
       ],
       "type": "object"
     },
+    "LingerAt": {
+      "description": "Where a lingering area stands.",
+      "oneOf": [
+        {
+          "const": "place",
+          "description": "On the place the phase strikes.",
+          "type": "string"
+        },
+        {
+          "const": "player",
+          "description": "On the player, following them.",
+          "type": "string"
+        }
+      ]
+    },
+    "LingerNode": {
+      "additionalProperties": false,
+      "description": "A lingering area's numbers (ADR-SIM-9 points 3 and 4, ADR-SVC-1), every one bounded by the\nvalidator.",
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/LingerAt",
+          "description": "Where the area stands."
+        },
+        "cuts_orbs": {
+          "description": "Whether the area breaks the enemy orbs it reaches.",
+          "type": "boolean"
+        },
+        "damage_pct": {
+          "description": "The percent of the phase's damage each pulse deals: 1 to `MAX_PCT`.",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "opens_with_runes": {
+          "description": "Whether the area opens with a fire of the ready runes.",
+          "type": "boolean"
+        },
+        "proc_pct": {
+          "description": "The chance each pulse fires ready on-hit runes, in percent: 1 to `MAX_PROC_PCT`.",
+          "format": "uint32",
+          "maximum": 100,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pull": {
+          "description": "The pull toward the area's centre each pulse, in 1/256 px: 1 px to `MAX_LINGER_PULL_PX`.",
+          "format": "int32",
+          "maximum": 107520,
+          "minimum": 256,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rate_ticks": {
+          "description": "Ticks between two pulses: 1 to `ticks` (at least one pulse).",
+          "format": "uint32",
+          "maximum": 1800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "shape": {
+          "$ref": "#/$defs/ZoneShape",
+          "description": "The area's shape, bounded as a zone's."
+        },
+        "ticks": {
+          "description": "How long the area lasts: 1 to `MAX_LINGER_TICKS`.",
+          "format": "uint32",
+          "maximum": 1800,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "anchor",
+        "ticks",
+        "rate_ticks",
+        "shape",
+        "damage_pct"
+      ],
+      "type": "object"
+    },
     "LingerView": {
       "additionalProperties": false,
       "description": "A lingering area (Wave 3), friendly: where it stands, how long it has left and the whole\nlength to draw a fill against. Not state, built each frame.",
@@ -7880,6 +8010,23 @@
       ],
       "type": "string"
     },
+    "PressFactor": {
+      "additionalProperties": false,
+      "description": "A weapon's per-press factor (ADR-SIM-9 points 3 and 4, ADR-SVC-1).",
+      "properties": {
+        "pct_per_press": {
+          "description": "The percent each A press adds: 1 to `MAX_PCT`.",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pct_per_press"
+      ],
+      "type": "object"
+    },
     "PricedId": {
       "additionalProperties": false,
       "description": "One item sold at one price.",
@@ -8996,6 +9143,16 @@
             "null"
           ]
         },
+        "sweep_min_enemies": {
+          "description": "The distinct enemies one swing must reach for the sweep: 1 to `limits::MAX_SWEEP_COUNT`\n(500). `sim_version` 2 only. Absent: no swing sweeps. Typed only: no rule reads it yet.",
+          "format": "uint32",
+          "maximum": 500,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "vulnerable_pcts": {
           "anyOf": [
             {
@@ -9599,6 +9756,39 @@
         "right"
       ],
       "type": "string"
+    },
+    "SizeStacks": {
+      "additionalProperties": false,
+      "description": "A weapon's size stacks (ADR-SIM-9 points 3 and 4, ADR-SVC-1): each stack widens the weapon's\nhit boxes through the range term, which `MAX_RANGE_PCT` holds in all.",
+      "properties": {
+        "max_stacks": {
+          "description": "The most stacks held: 1 to `MAX_SIZE_STACKS`.",
+          "format": "uint32",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pct_per_stack": {
+          "description": "The percent each stack widens: 1 to `MAX_RANGE_PCT`, and `pct_per_stack * max_stacks` at\nmost `MAX_RANGE_PCT`.",
+          "format": "uint32",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "ticks": {
+          "description": "Ticks the stacks last after the latest one: 1 to `MAX_SIZE_TICKS`.",
+          "format": "uint32",
+          "maximum": 1800,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pct_per_stack",
+        "max_stacks",
+        "ticks"
+      ],
+      "type": "object"
     },
     "SizeView": {
       "additionalProperties": false,
@@ -12465,6 +12655,166 @@
             "type"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's encore: after `skip_presses` presses of the combo the step reached by `step`\nis entered as though they were played, for `ticks`, with the attack speed raised by\n`speed_pct` (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several\nlevels, a later level restating the required fields. `sim_version` 2 only. Typed and\nviewed only: no rule reads it yet.",
+          "properties": {
+            "skip_presses": {
+              "description": "The presses skipped: 1 to `MAX_COMBO_DEPTH - 2` (fewer than the five-A shape's presses).",
+              "format": "uint32",
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "speed_pct": {
+              "description": "The attack speed percent gained: 1 to `MAX_ATTACK_SPEED_PCT`.",
+              "format": "uint32",
+              "maximum": 800,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "step": {
+              "$ref": "#/$defs/StepRef",
+              "description": "The step the encore enters (a group: each member the tree has); 1 to `MAX_COMBO_DEPTH`\npresses."
+            },
+            "ticks": {
+              "description": "How long the encore runs: 1 to `MAX_ENCORE_TICKS`.",
+              "format": "uint32",
+              "maximum": 1800,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "encore",
+              "type": "string"
+            },
+            "wave_presses": {
+              "description": "The presses each wave adds to the combo's count: 1 to `MAX_COUNTED_PRESSES`.",
+              "format": "uint32",
+              "maximum": 16,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "skip_presses",
+            "ticks",
+            "speed_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's knockdown steps: the steps listed knock a foe down. One per level; a path may\nname it at several levels, a later level's list adding steps. The pack check refuses it\nwhere the rules name no `down_ticks`. Typed and viewed only: no rule reads it yet.",
+          "properties": {
+            "second_hit_pct": {
+              "description": "The percent of damage a second hit on the downed foe deals: 1 to `MAX_PCT`.",
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "steps": {
+              "description": "The steps that knock down: 1 to `MAX_KNOCKDOWN_STEPS` entries at the first naming, 0 to\n`MAX_KNOCKDOWN_STEPS` at a later level of the path; an entry names each member the tree\nhas, and no member is listed twice along the path.",
+              "items": {
+                "$ref": "#/$defs/StepRef"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "knockdown_steps",
+              "type": "string"
+            },
+            "vulnerable_after": {
+              "description": "Ticks after the knockdown the foe turns vulnerable: 1 to `MAX_VULNERABLE_AFTER_TICKS`.",
+              "format": "uint32",
+              "maximum": 300,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "steps"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's down bonus: `pct` percent more damage to a foe that is down (1 to `MAX_PCT`).\nOne per style path; the pack check refuses it where the rules name no `down_ticks`. Typed\nand viewed only: no rule reads it yet.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "down_bonus_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's area bonus on its lingering area: each field changes the area the full-gauge\nattack opens. One per level; at least one field is named. Typed and viewed only: no rule\nreads it yet.",
+          "properties": {
+            "proc_pct": {
+              "description": "The chance the area fires a ready on-hit rune, in percent: 1 to `MAX_PROC_PCT`.",
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "range_pct": {
+              "description": "More reach for the area, in percent: 1 to `MAX_RANGE_PCT`.",
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "ticks_pct": {
+              "description": "More ticks for the area, in percent: 1 to `MAX_PCT`.",
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "area_bonus",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -12663,6 +13013,145 @@
           "properties": {
             "type": {
               "const": "repeat_size_stack",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's encore: `step` entered after `skip_presses` skipped presses, for `ticks`, at\n`speed_pct` more attack speed.",
+          "properties": {
+            "skip_presses": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "speed_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "step": {
+              "$ref": "#/$defs/StepRef"
+            },
+            "ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "encore",
+              "type": "string"
+            },
+            "wave_presses": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "step",
+            "skip_presses",
+            "ticks",
+            "speed_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The steps that knock a foe down.",
+          "properties": {
+            "second_hit_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/StepRef"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "knockdown_steps",
+              "type": "string"
+            },
+            "vulnerable_after": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "steps"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The percent more damage to a foe that is down.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "down_bonus_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The bonus to the style's lingering area.",
+          "properties": {
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "range_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "ticks_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "area_bonus",
               "type": "string"
             }
           },
@@ -13830,6 +14319,28 @@
           "maximum": 60,
           "minimum": 0,
           "type": "integer"
+        },
+        "press_factor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PressFactor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base tree's per-press factor. What it scales is its rule's. Typed only: no rule reads\nit yet."
+        },
+        "size_stacks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SizeStacks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The base tree's size stacks: how much each stack widens, how many there are and how long\nthey last. Never a `SmashEffect`. Typed only: no rule reads it yet."
         },
         "smash": {
           "anyOf": [
