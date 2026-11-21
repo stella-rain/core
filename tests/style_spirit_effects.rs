@@ -224,9 +224,9 @@ fn strike(radius: i32) -> Value {
     ] })
 }
 
-fn charge_kind(levels: usize) -> Value {
-    let levels: Vec<Value> = (0..levels)
-        .map(|i| json!({ "at_ticks": 10 * (i as u32 + 1), "attack": strike(6_000 + 1_000 * i as i32) }))
+fn charge_kind(levels: i32) -> Value {
+    let levels: Vec<Value> = (1..=levels)
+        .map(|i| json!({ "at_ticks": 10 * i, "attack": strike(5_000 + 1_000 * i) }))
         .collect();
     json!({ "type": "replace_step", "step": "smashes",
         "grant": { "charge": { "levels": levels, "max_ticks": 100 } } })
