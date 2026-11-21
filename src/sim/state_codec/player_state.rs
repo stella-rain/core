@@ -105,6 +105,7 @@ impl Encode for PlayerState {
             revive_hold,
             out,
             combat,
+            sweep_hits,
         } = self;
         at.encode(w);
         hp.encode(w);
@@ -144,6 +145,7 @@ impl Encode for PlayerState {
         revive_hold.encode(w);
         out.encode(w);
         combat.encode(w);
+        sweep_hits.encode(w);
     }
 }
 
@@ -191,10 +193,23 @@ impl Decode for PlayerState {
             revive_hold: Decode::decode(r)?,
             out: Decode::decode(r)?,
             combat: Decode::decode(r)?,
+            sweep_hits: decode_vec(r, cap_u32(usize::from(crate::limits::MAX_SWEEP_COUNT)))?,
         };
         // The hit points a rally can win back never pass the player's own maximum.
         if player.combat.rally > player.max_hp {
             return Err(DecodeError::Invalid("rally past its bound"));
+        }
+        // The swing's record is sorted and distinct, and holds no player and no number past the
+        // entity range (`id.rs`: enemies are numbered from `MAX_PLAYERS`).
+        if !player.sweep_hits.windows(2).all(|w| w[0] < w[1]) {
+            return Err(DecodeError::Invalid("sweep_hits not strictly ascending"));
+        }
+        if player.sweep_hits.iter().any(|id| {
+            id.0 < u32::from(crate::id::MAX_PLAYERS) || id.0 >= crate::id::MAX_ENTITY_NUMBER
+        }) {
+            return Err(DecodeError::Invalid(
+                "sweep_hits outside the entity numbers",
+            ));
         }
         Ok(player)
     }
@@ -218,7 +233,6 @@ impl Encode for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
-            sweep_count,
             size_stacks,
             size_ticks,
             rune_fire_owed,
@@ -240,7 +254,6 @@ impl Encode for PlayerCombat {
         ranged_grace.encode(w);
         counter_bonus_step.encode(w);
         counter_payout.encode(w);
-        sweep_count.encode(w);
         size_stacks.encode(w);
         size_ticks.encode(w);
         rune_fire_owed.encode(w);
@@ -297,7 +310,6 @@ impl Decode for PlayerCombat {
                 "counter_bonus_step past its bound",
             )?,
             counter_payout: within(r.u8()?, MAX_COUNTER_PAYOUT, "counter_payout past its bound")?,
-            sweep_count: within(r.u16()?, MAX_SWEEP_COUNT, "sweep_count past its bound")?,
             size_stacks: within(r.u8()?, MAX_SIZE_STACKS, "size_stacks past its bound")?,
             size_ticks: within(r.u16()?, MAX_SIZE_TICKS, "size_ticks past its bound")?,
             rune_fire_owed: within(r.u8()?, MAX_RUNE_FIRE_OWED, "rune_fire_owed past its bound")?,

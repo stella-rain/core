@@ -257,6 +257,7 @@ fn unreserved_state(
                 revive_hold: 0,
                 out: false,
                 combat: PlayerCombat::default(),
+                sweep_hits: Vec::new(),
             },
             Career::new(
                 seed,

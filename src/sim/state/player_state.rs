@@ -94,6 +94,11 @@ pub(crate) struct PlayerState {
     pub out: bool,
     /// The combat rules' counters; all zero until a rule writes them.
     pub combat: PlayerCombat,
+    /// The entity IDs the running swing has hit, sorted and without duplicates, at most
+    /// `MAX_SWEEP_COUNT`; empty when no swing has hit anything. Its length is the count of distinct
+    /// enemies the swing has reached (ADR-SIM-5 point 9); it cannot sit in `PlayerCombat`, which is
+    /// `Copy`.
+    pub sweep_hits: Vec<EntityId>,
 }
 
 /// A player's combat counters (ADR-SIM-5 point 9: each is capped at decode by its `limits.rs`
@@ -129,8 +134,6 @@ pub(crate) struct PlayerCombat {
     /// 1 from the take until the taken step's first landed combo hit or the step's end, 0
     /// otherwise: the payout the counter still owes. Cleared wherever `counter_bonus_step` is.
     pub counter_payout: u8,
-    /// Distinct enemies the player's running swing has hit so far; cleared with the swing.
-    pub sweep_count: u16,
     /// The size stacks held, and the ticks left before they lapse.
     pub size_stacks: u8,
     pub size_ticks: u16,
@@ -182,6 +185,7 @@ impl Clone for PlayerState {
             revive_hold,
             out,
             combat,
+            sweep_hits,
         } = self;
         PlayerState {
             at: *at,
@@ -222,6 +226,7 @@ impl Clone for PlayerState {
             revive_hold: *revive_hold,
             out: *out,
             combat: *combat,
+            sweep_hits: sweep_hits.clone(),
         }
     }
 
@@ -266,6 +271,7 @@ impl Clone for PlayerState {
             revive_hold,
             out,
             combat,
+            sweep_hits,
         } = self;
         let PlayerState {
             at: s_at,
@@ -306,6 +312,7 @@ impl Clone for PlayerState {
             revive_hold: s_revive_hold,
             out: s_out,
             combat: s_combat,
+            sweep_hits: s_sweep_hits,
         } = source;
         *at = *s_at;
         *hp = *s_hp;
@@ -345,6 +352,7 @@ impl Clone for PlayerState {
         *revive_hold = *s_revive_hold;
         *out = *s_out;
         *combat = *s_combat;
+        sweep_hits.clone_from(s_sweep_hits);
     }
 }
 

@@ -773,7 +773,7 @@ fn the_state_holds_the_combat_fields() {
     }
 }
 
-/// The bytes the Wave 3 fields add (format 14): 9 per present player, 5 per queued repeat and the
+/// The bytes the Wave 3 fields add (formats 14 and 15): 9 per present player, 5 per queued repeat and the
 /// `lingers` queue's 4-byte prefix, plus what each entry takes (none in the bench cases).
 fn wave_three_bytes(e: &crate::engine::Engine) -> usize {
     let st = match e.run() {
@@ -792,8 +792,8 @@ fn wave_three_bytes(e: &crate::engine::Engine) -> usize {
     9 * players + 5 * st.repeats.len() + 4 + record - 2 * players
 }
 
-/// The live state holds the Wave 3 fields (format 14): the encoding is the Base length plus what
-/// they take. Per present player `PlayerCombat` 9 (`u16 + u8 + u16 + u8 + u16 + u8`), per queued
+/// The live state holds the Wave 3 fields (format 15): the encoding is the Base length plus what
+/// they take (`wave_three_bytes`). Per present player `PlayerCombat` 9 (`u16 + u8 + u16 + u8 + u16 + u8`), per queued
 /// repeat 5 (`stack_given` one byte, `queued` four), and the `lingers` queue's 4-byte length prefix
 /// (empty in these cases). The counts are read from the state.
 #[test]
@@ -806,11 +806,7 @@ fn the_state_holds_the_wave_three_fields() {
         (time_limit_case::warmed_up(), 25_167),
     ];
     for (e, base) in cases {
-        let st = match e.run() {
-            crate::engine::run::Run::V2 { state, .. } => state,
-            crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
-        };
-        let added = 9 * st.players.iter().count() + 5 * st.repeats.len() + 4;
+        let added = wave_three_bytes(&e);
         assert_eq!(crate::savepoint::encode_state(&e).len(), base + added);
     }
 }

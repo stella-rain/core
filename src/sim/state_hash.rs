@@ -618,7 +618,6 @@ impl StableHash for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
-            sweep_count,
             size_stacks,
             size_ticks,
             rune_fire_owed,
@@ -640,7 +639,6 @@ impl StableHash for PlayerCombat {
         ranged_grace.stable_hash(h);
         counter_bonus_step.stable_hash(h);
         counter_payout.stable_hash(h);
-        sweep_count.stable_hash(h);
         size_stacks.stable_hash(h);
         size_ticks.stable_hash(h);
         rune_fire_owed.stable_hash(h);
@@ -961,6 +959,7 @@ impl StableHash for PlayerState {
             revive_hold,
             out,
             combat,
+            sweep_hits,
         } = self;
         at.stable_hash(h);
         hp.stable_hash(h);
@@ -1000,6 +999,7 @@ impl StableHash for PlayerState {
         revive_hold.stable_hash(h);
         out.stable_hash(h);
         combat.stable_hash(h);
+        sweep_hits.stable_hash(h);
     }
 }
 

@@ -687,7 +687,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
     each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat]);
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat, sweep_hits]);
     each_field_moves_the_encoding!(failures, base, Career, |s| s.players.career_mut(PlayerIdx::SOLO),
         fields: [progress, offer, expertise, stardust, regen, equipment],
         skip: [offers]);
@@ -696,7 +696,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
     each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -829,7 +829,6 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         ranged_grace: MAX_RANGED_GRACE_TICKS,
         counter_bonus_step: MAX_COUNTER_BONUS_STEP,
         counter_payout: MAX_COUNTER_PAYOUT,
-        sweep_count: MAX_SWEEP_COUNT,
         size_stacks: MAX_SIZE_STACKS,
         size_ticks: MAX_SIZE_TICKS,
         rune_fire_owed: MAX_RUNE_FIRE_OWED,
@@ -862,7 +861,6 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.counter_bonus_step = 255);
     refused(&|c| c.counter_payout += 1);
     refused(&|c| c.counter_payout = 255);
-    refused(&|c| c.sweep_count += 1);
     refused(&|c| c.size_stacks += 1);
     refused(&|c| c.size_ticks += 1);
     refused(&|c| c.rune_fire_owed += 1);
@@ -1112,14 +1110,18 @@ fn the_linger_queue_is_bounded_at_decode() {
     let c = &fresh.run.live().players[PlayerIdx::SOLO].combat;
     assert_eq!(
         (
-            c.sweep_count,
             c.size_stacks,
             c.size_ticks,
             c.rune_fire_owed,
             c.encore_ticks,
             c.encore_ready
         ),
-        (0, 0, 0, 0, 0, 0)
+        (0, 0, 0, 0, 0)
+    );
+    assert!(
+        fresh.run.live().players[PlayerIdx::SOLO]
+            .sweep_hits
+            .is_empty()
     );
 }
 
@@ -1176,7 +1178,7 @@ fn with_record(ids: &[u32]) -> PlayerState {
 
 fn ascending(len: u32) -> Vec<u32> {
     (0..len)
-        .map(|i| crate::id::MAX_PLAYERS as u32 + i)
+        .map(|i| u32::from(crate::id::MAX_PLAYERS) + i)
         .collect()
 }
 

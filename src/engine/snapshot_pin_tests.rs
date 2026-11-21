@@ -235,7 +235,7 @@ fn run_snapshot_is_the_engines() {
 
 /// The Wave 3 views (derived each frame, never hashed): with every field zero the snapshot holds
 /// no `size`, `encore` or `lingers` key; each is built from its state while that is non-zero.
-/// `sweep_count`, `rune_fire_owed` and `stack_given` have no view and change no snapshot byte.
+/// `sweep_hits`, `rune_fire_owed` and `stack_given` have no view and change no snapshot byte.
 #[test]
 fn the_wave_three_views_are_absent_at_zero_and_built_from_the_state() {
     use crate::id::PlayerIdx;
@@ -251,7 +251,7 @@ fn the_wave_three_views_are_absent_at_zero_and_built_from_the_state() {
     // The fields without a view change no byte.
     {
         let s = e.run.live_mut();
-        s.players[PlayerIdx::SOLO].combat.sweep_count = 3;
+        s.players[PlayerIdx::SOLO].sweep_hits = vec![crate::id::EntityId(5)];
         s.players[PlayerIdx::SOLO].combat.rune_fire_owed = 1;
     }
     assert_eq!(serde_json::to_value(e.snapshot()).unwrap(), zero);
