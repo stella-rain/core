@@ -188,6 +188,7 @@ mod style_gauge_fills;
 mod style_grants;
 mod style_spirit_effects;
 mod style_step_groups;
+mod style_sweep_event;
 mod swap_rating;
 mod sync_rig;
 mod tally;
