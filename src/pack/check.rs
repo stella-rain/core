@@ -20,6 +20,7 @@ use crate::expertise::{
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
+use crate::rules::Rules;
 use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
 use crate::time_limit::TimeLimit;
@@ -154,8 +155,7 @@ struct WeaponLists {
 }
 
 /// Whether the weapon's base tree has a size-stack field for `repeat_size_stack` to fill. The
-/// field does not exist yet: the stub answers `false`, and the task that adds the field replaces
-/// this body.
+/// field is typed and unshipped: no rule reads it yet.
 fn has_size_stack_base(_base: &Weapon) -> bool {
     false
 }
@@ -236,6 +236,82 @@ pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<
             file: "weapons",
             error: validate::Error::Invalid(issues),
         })
+    }
+}
+
+/// The kinds that name `knockdown_steps` or `down_bonus_pct` where the rules name no `down_ticks`:
+/// each is an issue at its path (ADR-SIM-9 points 3 and 4).
+fn down_ticks_issues(expertise: &Expertise, rules: &Rules) -> Vec<validate::Issue> {
+    let mut issues = Vec::new();
+    if rules.down_ticks() != 0 {
+        return issues;
+    }
+    for (w, we) in expertise.weapons().iter().enumerate() {
+        for (s, style) in we.styles.iter().enumerate() {
+            let at = format!("$.weapons[{w}].styles[{s}]");
+            let mut levels = vec![(format!("{at}.kinds"), style.kinds.as_slice())];
+            for (field, option) in style_levels(style) {
+                if let Some(o) = option {
+                    levels.push((format!("{at}.{field}[0].kinds"), o.kinds.as_slice()));
+                }
+            }
+            for (path, kinds) in levels {
+                for (k, kind) in kinds.iter().enumerate() {
+                    if matches!(
+                        kind,
+                        StyleKind::KnockdownSteps(_) | StyleKind::DownBonusPct { .. }
+                    ) {
+                        issues.push(validate::Issue {
+                            path: format!("{path}[{k}]"),
+                            message: format!(
+                                "the kind {} needs the rules' down_ticks",
+                                kind.name().tag()
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    issues
+}
+
+/// A style naming `knockdown_steps` or `down_bonus_pct` needs the rules' `down_ticks`. It runs
+/// after the rules parse, which the style check precedes.
+pub(super) fn check_down_ticks(expertise: &Expertise, rules: &Rules) -> Result<(), PackError> {
+    let issues = down_ticks_issues(expertise, rules);
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(PackError::File {
+            file: "expertise",
+            error: validate::Error::Invalid(issues),
+        })
+    }
+}
+
+/// The style check's refusal with the `down_ticks` issues added, when the rules parsed: the
+/// refusal a pack reports stays the style check's, and a pack with both faults shows both.
+pub(super) fn with_down_ticks(
+    refusal: PackError,
+    expertise: &Expertise,
+    rules: Option<&Rules>,
+) -> PackError {
+    match (refusal, rules) {
+        (
+            PackError::File {
+                file: "expertise",
+                error: validate::Error::Invalid(mut issues),
+            },
+            Some(rules),
+        ) => {
+            issues.extend(down_ticks_issues(expertise, rules));
+            PackError::File {
+                file: "expertise",
+                error: validate::Error::Invalid(issues),
+            }
+        }
+        (refusal, _) => refusal,
     }
 }
 
@@ -433,6 +509,41 @@ pub(super) fn check_style_grants(
                         // The breaker changes no step: it reads the fills, poise damage and
                         // part hits of the player's hits.
                         StyleKind::Breaker(_) => continue,
+                        // The encore reads the tree: its step, and the step the skipped presses
+                        // reach, must be steps the base tree has.
+                        StyleKind::Encore(e) => {
+                            if e.step.members_in(&tree.combo).is_empty() {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.step"),
+                                    message: "no such step in the weapon's base tree".into(),
+                                });
+                            }
+                            let deep = e.skip_presses.saturating_add(1);
+                            let reached = StepRef::Path(vec![Press::Main; deep as usize]);
+                            if reached.members_in(&tree.combo).is_empty() {
+                                issues.push(validate::Issue {
+                                    path: format!("{at}.skip_presses"),
+                                    message: format!(
+                                        "the base tree has no step {deep} presses deep"
+                                    ),
+                                });
+                            }
+                            continue;
+                        }
+                        // Each knockdown step must reach a step of the tree.
+                        StyleKind::KnockdownSteps(n) => {
+                            for (i, step) in n.steps.iter().enumerate() {
+                                if step.members_in(&tree.combo).is_empty() {
+                                    issues.push(validate::Issue {
+                                        path: format!("{at}.steps[{i}]"),
+                                        message: "no such step in the weapon's base tree".into(),
+                                    });
+                                }
+                            }
+                            continue;
+                        }
+                        // The down bonus and the area bonus change no step.
+                        StyleKind::DownBonusPct { .. } | StyleKind::AreaBonus(_) => continue,
                     };
                     let found = validate::validate_weapon_preset(&tree, crate::registry::ENTRIES)
                         .err()

@@ -7,15 +7,16 @@ use super::style::step_ref;
 use super::{
     MAX_CHARGE_SOONER_PCT, MAX_COUNTED_PRESSES, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
     MAX_REPEAT_AFTER_TICKS, MAX_REPEAT_BLEED_STACKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
-    MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
+    MAX_SPIRIT_BLEED_STACKS, MAX_VULNERABLE_AFTER_TICKS, REPEAT_BLEED_INTERVAL_TICKS,
 };
 use crate::attack::AttackRef;
 use crate::event::Press;
 use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
-    MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
+    MAX_COUNTER_WINDOW_TICKS, MAX_ENCORE_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS,
+    MAX_WEAPON_GAUGE,
 };
 use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
@@ -320,6 +321,86 @@ pub enum StyleKind {
     /// `repeat` at or before its level and where the base tree has no size-stack field.
     /// `sim_version` 2 only. Typed and viewed only: no rule reads it yet.
     RepeatSizeStack {},
+    /// The style's encore: after `skip_presses` presses of the combo the step reached by `step`
+    /// is entered as though they were played, for `ticks`, with the attack speed raised by
+    /// `speed_pct` (ADR-SIM-9 points 2 to 7). One per level; a path may name it at several
+    /// levels, a later level restating the required fields. `sim_version` 2 only. Typed and
+    /// viewed only: no rule reads it yet.
+    Encore(Encore),
+    /// The style's knockdown steps: the steps listed knock a foe down. One per level; a path may
+    /// name it at several levels, a later level's list adding steps. The pack check refuses it
+    /// where the rules name no `down_ticks`. Typed and viewed only: no rule reads it yet.
+    KnockdownSteps(KnockdownSteps),
+    /// The style's down bonus: `pct` percent more damage to a foe that is down (1 to `MAX_PCT`).
+    /// One per style path; the pack check refuses it where the rules name no `down_ticks`. Typed
+    /// and viewed only: no rule reads it yet.
+    DownBonusPct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// The style's area bonus on its lingering area: each field changes the area the full-gauge
+    /// attack opens. One per level; at least one field is named. Typed and viewed only: no rule
+    /// reads it yet.
+    AreaBonus(AreaBonus),
+}
+
+/// The encore's numbers, every one bounded by the validator (ADR-SVC-1).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Encore {
+    /// The step the encore enters (a group: each member the tree has); 1 to `MAX_COMBO_DEPTH`
+    /// presses.
+    pub step: StepRef,
+    /// The presses skipped: 1 to `MAX_COMBO_DEPTH - 2` (fewer than the five-A shape's presses).
+    #[schemars(range(min = 1, max = MAX_COMBO_DEPTH - 2))]
+    pub skip_presses: u32,
+    /// How long the encore runs: 1 to `MAX_ENCORE_TICKS`.
+    #[schemars(range(min = 1, max = MAX_ENCORE_TICKS))]
+    pub ticks: u32,
+    /// The attack speed percent gained: 1 to `MAX_ATTACK_SPEED_PCT`.
+    #[schemars(range(min = 1, max = MAX_ATTACK_SPEED_PCT))]
+    pub speed_pct: u32,
+    /// The presses each wave adds to the combo's count: 1 to `MAX_COUNTED_PRESSES`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_COUNTED_PRESSES))]
+    pub wave_presses: Option<u32>,
+}
+
+/// The knockdown steps' numbers, every one bounded by the validator (ADR-SVC-1).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct KnockdownSteps {
+    /// The steps that knock down: 1 to `MAX_KNOCKDOWN_STEPS` entries at the first naming, 0 to
+    /// `MAX_KNOCKDOWN_STEPS` at a later level of the path; an entry names each member the tree
+    /// has, and no member is listed twice along the path.
+    pub steps: Vec<StepRef>,
+    /// Ticks after the knockdown the foe turns vulnerable: 1 to `MAX_VULNERABLE_AFTER_TICKS`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_VULNERABLE_AFTER_TICKS))]
+    pub vulnerable_after: Option<u32>,
+    /// The percent of damage a second hit on the downed foe deals: 1 to `MAX_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_PCT))]
+    pub second_hit_pct: Option<u32>,
+}
+
+/// The area bonus's numbers, every one bounded by the validator (ADR-SVC-1); at least one is
+/// named.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AreaBonus {
+    /// More ticks for the area, in percent: 1 to `MAX_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_PCT))]
+    pub ticks_pct: Option<u32>,
+    /// More reach for the area, in percent: 1 to `MAX_RANGE_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+    pub range_pct: Option<u32>,
+    /// The chance the area fires a ready on-hit rune, in percent: 1 to `MAX_PROC_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_PROC_PCT))]
+    pub proc_pct: Option<u32>,
 }
 
 /// The name of each `StyleKind`, in declaration order: the list `shipped` and the pack check read
@@ -346,11 +427,15 @@ pub enum StyleKindName {
     RepeatRangePct,
     RepeatProcPct,
     RepeatSizeStack,
+    Encore,
+    KnockdownSteps,
+    DownBonusPct,
+    AreaBonus,
 }
 
 impl StyleKindName {
     /// Every kind, in `StyleKind`'s declaration order (a test keeps it equal to the schema's).
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 20] = [
         Self::ReplaceStep,
         Self::SmashEffect,
         Self::Repeat,
@@ -367,6 +452,10 @@ impl StyleKindName {
         Self::RepeatRangePct,
         Self::RepeatProcPct,
         Self::RepeatSizeStack,
+        Self::Encore,
+        Self::KnockdownSteps,
+        Self::DownBonusPct,
+        Self::AreaBonus,
     ];
 
     /// The kind's `type` tag in the JSON.
@@ -388,6 +477,10 @@ impl StyleKindName {
             Self::RepeatRangePct => "repeat_range_pct",
             Self::RepeatProcPct => "repeat_proc_pct",
             Self::RepeatSizeStack => "repeat_size_stack",
+            Self::Encore => "encore",
+            Self::KnockdownSteps => "knockdown_steps",
+            Self::DownBonusPct => "down_bonus_pct",
+            Self::AreaBonus => "area_bonus",
         }
     }
 
@@ -408,7 +501,13 @@ impl StyleKindName {
             | Self::ComboTempoPct
             | Self::GiantTrigger
             | Self::Breaker => true,
-            Self::RepeatRangePct | Self::RepeatProcPct | Self::RepeatSizeStack => false,
+            Self::RepeatRangePct
+            | Self::RepeatProcPct
+            | Self::RepeatSizeStack
+            | Self::Encore
+            | Self::KnockdownSteps
+            | Self::DownBonusPct
+            | Self::AreaBonus => false,
         }
     }
 }
@@ -433,6 +532,10 @@ impl StyleKind {
             Self::RepeatRangePct { .. } => StyleKindName::RepeatRangePct,
             Self::RepeatProcPct { .. } => StyleKindName::RepeatProcPct,
             Self::RepeatSizeStack {} => StyleKindName::RepeatSizeStack,
+            Self::Encore(_) => StyleKindName::Encore,
+            Self::KnockdownSteps(_) => StyleKindName::KnockdownSteps,
+            Self::DownBonusPct { .. } => StyleKindName::DownBonusPct,
+            Self::AreaBonus(_) => StyleKindName::AreaBonus,
         }
     }
 }
@@ -471,12 +574,18 @@ pub enum StyleEffectName {
     CounterFillSizeStacks,
     CounterClearBullets,
     CounterFireRunes,
+    EncoreWavePresses,
+    KnockdownVulnerableAfter,
+    KnockdownSecondHitPct,
+    AreaTicksPct,
+    AreaRangePct,
+    AreaProcPct,
 }
 
 impl StyleEffectName {
     /// Every name: the gauge fills, then the spirit's, then the counter bonus's, each in
     /// declaration order (a test keeps it equal to the schema's).
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 31] = [
         Self::GaugePerRune,
         Self::GaugeOuterHalfPct,
         Self::GaugePerSmashHit,
@@ -502,6 +611,12 @@ impl StyleEffectName {
         Self::CounterFillSizeStacks,
         Self::CounterClearBullets,
         Self::CounterFireRunes,
+        Self::EncoreWavePresses,
+        Self::KnockdownVulnerableAfter,
+        Self::KnockdownSecondHitPct,
+        Self::AreaTicksPct,
+        Self::AreaRangePct,
+        Self::AreaProcPct,
     ];
 
     /// The JSON key of a field, or the `type` tag of an effect.
@@ -531,6 +646,12 @@ impl StyleEffectName {
             Self::CounterFillSizeStacks => "fill_size_stacks",
             Self::CounterClearBullets => "clear_bullets",
             Self::CounterFireRunes => "fire_runes",
+            Self::EncoreWavePresses => "wave_presses",
+            Self::KnockdownVulnerableAfter => "vulnerable_after",
+            Self::KnockdownSecondHitPct => "second_hit_pct",
+            Self::AreaTicksPct => "ticks_pct",
+            Self::AreaRangePct => "range_pct",
+            Self::AreaProcPct => "proc_pct",
         }
     }
 
@@ -562,7 +683,13 @@ impl StyleEffectName {
             | Self::CounterPullRound
             | Self::CounterFillSizeStacks
             | Self::CounterClearBullets
-            | Self::CounterFireRunes => false,
+            | Self::CounterFireRunes
+            | Self::EncoreWavePresses
+            | Self::KnockdownVulnerableAfter
+            | Self::KnockdownSecondHitPct
+            | Self::AreaTicksPct
+            | Self::AreaRangePct
+            | Self::AreaProcPct => false,
         }
     }
 }
@@ -667,6 +794,54 @@ impl StyleKind {
                 .enumerate()
                 .map(|(e, effect)| (effect.effect_name(), format!(".effects[{e}]")))
                 .collect(),
+            Self::Encore(Encore {
+                step: _,
+                skip_presses: _,
+                ticks: _,
+                speed_pct: _,
+                wave_presses,
+            }) => named(&[(
+                wave_presses.is_some(),
+                StyleEffectName::EncoreWavePresses,
+                ".wave_presses",
+            )]),
+            Self::KnockdownSteps(KnockdownSteps {
+                steps: _,
+                vulnerable_after,
+                second_hit_pct,
+            }) => named(&[
+                (
+                    vulnerable_after.is_some(),
+                    StyleEffectName::KnockdownVulnerableAfter,
+                    ".vulnerable_after",
+                ),
+                (
+                    second_hit_pct.is_some(),
+                    StyleEffectName::KnockdownSecondHitPct,
+                    ".second_hit_pct",
+                ),
+            ]),
+            Self::AreaBonus(AreaBonus {
+                ticks_pct,
+                range_pct,
+                proc_pct,
+            }) => named(&[
+                (
+                    ticks_pct.is_some(),
+                    StyleEffectName::AreaTicksPct,
+                    ".ticks_pct",
+                ),
+                (
+                    range_pct.is_some(),
+                    StyleEffectName::AreaRangePct,
+                    ".range_pct",
+                ),
+                (
+                    proc_pct.is_some(),
+                    StyleEffectName::AreaProcPct,
+                    ".proc_pct",
+                ),
+            ]),
             Self::ReplaceStep { .. }
             | Self::SmashEffect { .. }
             | Self::Repeat { .. }
@@ -679,9 +854,19 @@ impl StyleKind {
             | Self::Breaker(_)
             | Self::RepeatRangePct { .. }
             | Self::RepeatProcPct { .. }
-            | Self::RepeatSizeStack {} => Vec::new(),
+            | Self::RepeatSizeStack {}
+            | Self::DownBonusPct { .. } => Vec::new(),
         }
     }
+}
+
+/// The effects of `listed` that are named, each with its path suffix.
+fn named(listed: &[(bool, StyleEffectName, &str)]) -> Vec<(StyleEffectName, String)> {
+    listed
+        .iter()
+        .filter(|(is_named, _, _)| *is_named)
+        .map(|(_, name, suffix)| (*name, (*suffix).to_string()))
+        .collect()
 }
 
 /// A breaker's effects, every number bounded by the validator and clamped again when the world

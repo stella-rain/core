@@ -149,7 +149,11 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 // The riders change no step and no rule reads them yet: typed and viewed only.
                 StyleKind::RepeatRangePct { .. }
                 | StyleKind::RepeatProcPct { .. }
-                | StyleKind::RepeatSizeStack {} => {}
+                | StyleKind::RepeatSizeStack {}
+                | StyleKind::Encore(_)
+                | StyleKind::KnockdownSteps(_)
+                | StyleKind::DownBonusPct { .. }
+                | StyleKind::AreaBonus(_) => {}
                 // Nor does the orb-breaking kind change a step: `World::repeat_break_of`.
                 StyleKind::RepeatBreaksOrbs { .. } => {}
                 // The repeat bleed is stamped on every repeat once all the kinds are read.

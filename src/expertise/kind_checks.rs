@@ -1,16 +1,17 @@
 //! The style-kind checks: each closed kind's numbers, and the per-path and per-step rules.
 
 use super::{
-    Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, Gauge,
-    GaugeSpend, GiantTrigger, MAX_COUNTED_PRESSES, MAX_COUNTER_EFFECTS, MAX_HOLD_MOVE_PCT,
-    MAX_LEVEL_KINDS, MAX_PROC_PCT, MAX_REPEAT_AFTER_TICKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
-    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, SmashRepeat, Spirit,
+    AreaBonus, Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect,
+    Encore, Gauge, GaugeSpend, GiantTrigger, KnockdownSteps, MAX_COUNTED_PRESSES,
+    MAX_COUNTER_EFFECTS, MAX_HOLD_MOVE_PCT, MAX_KNOCKDOWN_STEPS, MAX_LEVEL_KINDS, MAX_PROC_PCT,
+    MAX_REPEAT_AFTER_TICKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS, MAX_SPIRIT_BLEED_STACKS,
+    MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, MAX_VULNERABLE_AFTER_TICKS, SmashRepeat, Spirit,
     SpiritEffect, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
 };
 use crate::event::Press;
 use crate::fixed::Fx;
 use crate::limits::{
-    MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SIZE_STACKS,
+    MAX_COUNTER_WINDOW_TICKS, MAX_ENCORE_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SIZE_STACKS,
     MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS,
     MAX_WEAPON_GAUGE,
 };
@@ -508,15 +509,129 @@ pub(super) fn check_counter_bonus(
 }
 
 pub(super) fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &StepRef) {
+    check_step_len_at(issue, &format!("{at}.step"), step);
+}
+
+/// A step's length, reported at `path` itself (a list entry such as `.steps[2]`).
+pub(super) fn check_step_len_at(
+    issue: &mut impl FnMut(String, String),
+    path: &str,
+    step: &StepRef,
+) {
     let StepRef::Path(step) = step else {
         return;
     };
     if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
         issue(
-            format!("{at}.step"),
+            path.to_string(),
             format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
         );
     }
+}
+
+/// A value in `lo..=hi`, or an issue at `at.key`.
+fn check_range(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    key: &str,
+    value: u32,
+    (lo, hi): (u32, u32),
+) {
+    if !(lo..=hi).contains(&value) {
+        issue(
+            format!("{at}.{key}"),
+            format!("{lo} to {hi} (found {value})"),
+        );
+    }
+}
+
+/// An encore's numbers, each in its own range, and its step as a step of one to
+/// `MAX_COMBO_DEPTH` presses.
+pub(super) fn check_encore(issue: &mut impl FnMut(String, String), at: &str, e: &Encore) {
+    check_step_len(issue, at, &e.step);
+    let skip_most = MAX_COMBO_DEPTH - 2;
+    check_range(issue, at, "skip_presses", e.skip_presses, (1, skip_most));
+    check_range(
+        issue,
+        at,
+        "ticks",
+        e.ticks,
+        (1, u32::from(MAX_ENCORE_TICKS)),
+    );
+    check_range(
+        issue,
+        at,
+        "speed_pct",
+        e.speed_pct,
+        (1, MAX_ATTACK_SPEED_PCT),
+    );
+    if let Some(w) = e.wave_presses {
+        check_range(issue, at, "wave_presses", w, (1, MAX_COUNTED_PRESSES));
+    }
+}
+
+/// The knockdown steps' numbers; `later` is whether an earlier level of the path names the kind
+/// (it may then list no step, if it names an effect). No member is listed twice in the level.
+pub(super) fn check_knockdown(
+    issue: &mut impl FnMut(String, String),
+    at: &str,
+    k: &KnockdownSteps,
+    later: bool,
+) {
+    let least = usize::from(!later);
+    if k.steps.len() < least || k.steps.len() > MAX_KNOCKDOWN_STEPS {
+        issue(
+            format!("{at}.steps"),
+            format!(
+                "{least} to {MAX_KNOCKDOWN_STEPS} steps (found {})",
+                k.steps.len()
+            ),
+        );
+    }
+    let mut listed: Vec<Vec<Press>> = Vec::new();
+    for (i, step) in k.steps.iter().enumerate().take(MAX_KNOCKDOWN_STEPS) {
+        let entry = format!("{at}.steps[{i}]");
+        check_step_len_at(issue, &entry, step);
+        if claims(&mut listed, step) {
+            issue(entry, "the step is already listed".into());
+        }
+    }
+    if let Some(v) = k.vulnerable_after {
+        check_range(
+            issue,
+            at,
+            "vulnerable_after",
+            v,
+            (1, MAX_VULNERABLE_AFTER_TICKS),
+        );
+    }
+    if let Some(p) = k.second_hit_pct {
+        check_range(issue, at, "second_hit_pct", p, (1, MAX_PCT));
+    }
+    if later && k.steps.is_empty() && k.vulnerable_after.is_none() && k.second_hit_pct.is_none() {
+        issue(at.to_string(), "the kind names nothing".into());
+    }
+}
+
+/// The area bonus's numbers; at least one is named.
+pub(super) fn check_area_bonus(issue: &mut impl FnMut(String, String), at: &str, a: &AreaBonus) {
+    if a.ticks_pct.is_none() && a.range_pct.is_none() && a.proc_pct.is_none() {
+        issue(at.to_string(), "the kind names no effect".into());
+    }
+    if let Some(t) = a.ticks_pct {
+        check_range(issue, at, "ticks_pct", t, (1, MAX_PCT));
+    }
+    if let Some(r) = a.range_pct {
+        check_range(issue, at, "range_pct", r, (1, MAX_RANGE_PCT));
+    }
+    if let Some(p) = a.proc_pct {
+        check_range(issue, at, "proc_pct", p, (1, MAX_PROC_PCT));
+    }
+}
+
+/// A down bonus's `pct`.
+pub(super) fn check_down_bonus(issue: &mut impl FnMut(String, String), at: &str, pct: u32) {
+    check_range(issue, at, "pct", pct, (1, MAX_PCT));
 }
 
 pub(super) fn check_proc_pct(
@@ -560,6 +675,9 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
     let mut proc_set = false;
     let mut stack_set = false;
     let mut gauge_set = false;
+    let mut down_bonus_set = false;
+    // The members earlier levels list as knockdown steps.
+    let mut knocked: Vec<Vec<Press>> = Vec::new();
     // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
     let mut tempo: Option<(u32, u32)> = None;
     let mut levels: Vec<(String, &[StyleKind])> = vec![(format!("{base}.kinds"), &style.kinds)];
@@ -576,6 +694,10 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
         let mut counter_here = false;
         let mut tempo_here = false;
         let mut trigger_here = false;
+        let mut encore_here = false;
+        let mut knockdown_here = false;
+        let mut area_here = false;
+        let knocked_before = knocked.clone();
         for (k, kind) in kinds.iter().enumerate().take(MAX_LEVEL_KINDS) {
             match kind {
                 StyleKind::Breaker(_) => {
@@ -714,6 +836,57 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
                         );
                     }
                     trigger_here = true;
+                }
+                StyleKind::Encore(_) => {
+                    if encore_here {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the level already names an encore".into(),
+                        );
+                    }
+                    encore_here = true;
+                }
+                StyleKind::KnockdownSteps(n) => {
+                    if knockdown_here {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the level already names knockdown steps".into(),
+                        );
+                    }
+                    knockdown_here = true;
+                    for (i, step) in n.steps.iter().enumerate().take(MAX_KNOCKDOWN_STEPS) {
+                        let members = step.members();
+                        if members.iter().any(|m| knocked_before.contains(m)) {
+                            issue(
+                                format!("{path}[{k}].steps[{i}]"),
+                                "the step is already listed by an earlier level of the style"
+                                    .into(),
+                            );
+                        }
+                        for member in members {
+                            if !knocked.contains(&member) {
+                                knocked.push(member);
+                            }
+                        }
+                    }
+                }
+                StyleKind::DownBonusPct { .. } => {
+                    if down_bonus_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already sets the down bonus".into(),
+                        );
+                    }
+                    down_bonus_set = true;
+                }
+                StyleKind::AreaBonus(_) => {
+                    if area_here {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the level already names an area bonus".into(),
+                        );
+                    }
+                    area_here = true;
                 }
             }
         }
