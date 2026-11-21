@@ -275,7 +275,7 @@ fn the_kinds_count_and_need_version_2() {
         area(),
         json!({ "type": "combo_tempo_pct", "max_stacks": 2, "effects": [] }),
     ];
-    refused_at(&own(five), &format!("{K0}"), "");
+    refused_at(&own(five), K0, "");
     for kind in [
         encore(),
         knockdown(json!(["smashes"])),
@@ -305,6 +305,17 @@ fn hammer_pack(kinds: Vec<Value>) -> Value {
         level["effect"] = json!("attack_pct");
         level["amount"] = json!(10);
         level["kinds"] = json!([]);
+    }
+    v
+}
+
+/// The pack with the rules naming no `down_ticks` (and none of the keys that need it).
+fn without_down_ticks(mut v: Value) -> Value {
+    let rules = v["rules"].as_object_mut().unwrap();
+    rules.remove("down_ticks");
+    rules.remove("down_bonus_pct");
+    for table in ["vulnerable_pcts", "stagger_values"] {
+        rules[table].as_object_mut().unwrap().remove("knockdown");
     }
     v
 }
@@ -353,7 +364,7 @@ fn the_pack_reads_the_steps_against_the_tree() {
         encore_with("step", json!(["main"])),
         3,
     )]);
-    for w in shallow["weapons"].as_array_mut().unwrap() {
+    for w in shallow["weapons"]["weapons"].as_array_mut().unwrap() {
         if w["id"] == "giant_hammer" {
             let main =
                 &mut w["trees"][0]["weapon"]["combo"]["main"]["next"]["main"]["next"]["main"];
@@ -386,11 +397,7 @@ fn encore_with_skip(kind: Value, skip: u32) -> Value {
 fn the_down_kinds_need_the_rules_down_ticks() {
     let kinds = vec![knockdown(json!(["smashes"])), down_bonus(50)];
     let word = "needs the rules' down_ticks";
-    let mut without = hammer_pack(kinds.clone());
-    without["rules"]
-        .as_object_mut()
-        .unwrap()
-        .remove("down_ticks");
+    let without = without_down_ticks(hammer_pack(kinds.clone()));
     assert!(pack_has(&without, &format!("{K0}[0]"), word));
     assert!(pack_has(&without, &format!("{K0}[1]"), word));
     let with = hammer_pack(kinds);
@@ -399,11 +406,7 @@ fn the_down_kinds_need_the_rules_down_ticks() {
         "{:?}",
         pack_issues(&with)
     );
-    let mut neither = hammer_pack(vec![encore(), area()]);
-    neither["rules"]
-        .as_object_mut()
-        .unwrap()
-        .remove("down_ticks");
+    let neither = without_down_ticks(hammer_pack(vec![encore(), area()]));
     assert!(!pack_issues(&neither).iter().any(|(_, m)| m.contains(word)));
 }
 

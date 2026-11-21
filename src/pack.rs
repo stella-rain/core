@@ -50,7 +50,7 @@ pub mod trust;
 use check::{
     check_budgets, check_default_difficulty, check_default_perk_set, check_difficulty_boss_times,
     check_down_ticks, check_equipment_rules, check_holds, check_perk_categories,
-    check_style_grants, with_down_ticks,
+    check_style_grants, check_unshipped_fields, with_down_ticks,
 };
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
@@ -498,6 +498,7 @@ impl Pack {
         }
         let rules = rules.map_err(PackError::in_file("rules"))?;
         check_down_ticks(&expertise, &rules)?;
+        check_unshipped_fields(&weapons, &rules)?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()

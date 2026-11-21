@@ -11,6 +11,7 @@ use stella_rain_core::registry;
 use stella_rain_core::rules::Rules;
 use stella_rain_core::validate::{Error, Issue, validate_attack};
 use stella_rain_core::version::Versions;
+use stella_rain_core::weapon::ContentFieldName;
 use stella_rain_core::weapons::Weapons;
 
 const TREE: &str = "$.weapons[0].trees[0].weapon";
@@ -466,5 +467,66 @@ fn repeat_size_stack_finds_the_base_field() {
     assert!(
         found.iter().all(|m| m.contains("is not shipped yet")),
         "{found:?}"
+    );
+}
+
+/// R1, the accessor: absent is dormant, named is the number.
+#[test]
+fn the_sweep_accessor_reads_the_key() {
+    let mut v = rules_file();
+    assert_eq!(parse_rules(&v, 2).unwrap().sweep_min_enemies(), None);
+    v["sweep_min_enemies"] = json!(5);
+    assert_eq!(parse_rules(&v, 2).unwrap().sweep_min_enemies(), Some(5));
+}
+
+/// M: the unshipped fields are exactly the four, and the tags are unique (the test a rule task
+/// edits when it flips an arm of `ContentFieldName::shipped`).
+#[test]
+fn the_unshipped_fields_are_the_four() {
+    use stella_rain_core::weapon::ContentFieldName::{
+        PhaseLinger, RulesSweepMinEnemies, WeaponPressFactor, WeaponSizeStacks,
+    };
+    let unshipped: Vec<_> = ContentFieldName::ALL
+        .into_iter()
+        .filter(|n| !n.shipped())
+        .collect();
+    assert_eq!(
+        unshipped,
+        [
+            WeaponSizeStacks,
+            WeaponPressFactor,
+            PhaseLinger,
+            RulesSweepMinEnemies
+        ]
+    );
+    let mut tags: Vec<&str> = ContentFieldName::ALL.iter().map(|n| n.tag()).collect();
+    tags.sort_unstable();
+    tags.dedup();
+    assert_eq!(tags.len(), ContentFieldName::ALL.len());
+}
+
+/// M: a tag of the named-fields helper and of each rules and weapon name is a property of the
+/// schema of its own type.
+#[test]
+fn the_weapon_and_rules_tags_are_schema_properties() {
+    let props = |schema: schemars::Schema| -> Vec<String> {
+        serde_json::to_value(schema).unwrap()["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect()
+    };
+    assert!(
+        props(schemars::schema_for!(stella_rain_core::weapon::Weapon))
+            .contains(&"size_stacks".into())
+    );
+    assert!(
+        props(schemars::schema_for!(stella_rain_core::weapon::Weapon))
+            .contains(&"press_factor".into())
+    );
+    assert!(
+        props(schemars::schema_for!(stella_rain_core::rules::RulesFile))
+            .contains(&"sweep_min_enemies".into())
     );
 }

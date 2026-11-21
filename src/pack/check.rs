@@ -25,7 +25,7 @@ use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
-use crate::weapon::{RepeatAnchorKind, Weapon};
+use crate::weapon::{ContentFieldName, RepeatAnchorKind, Weapon};
 use crate::weapons::Weapons;
 
 /// The counts of a file's lists, read leniently: a file of the wrong shape is left to its own
@@ -155,9 +155,10 @@ struct WeaponLists {
 }
 
 /// Whether the weapon's base tree has a size-stack field for `repeat_size_stack` to fill. The
-/// field is typed and unshipped: no rule reads it yet.
-fn has_size_stack_base(_base: &Weapon) -> bool {
-    false
+/// field is typed and unshipped: no rule reads it yet, and the field's own refusal is
+/// `check_unshipped_fields`.
+fn has_size_stack_base(base: &Weapon) -> bool {
+    base.size_stacks.is_some()
 }
 
 /// A kind whose rule has not landed is refused at the kind, for every weapon of the expertise file
@@ -237,6 +238,42 @@ pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<
             error: validate::Error::Invalid(issues),
         })
     }
+}
+
+/// A field outside a style whose rule has not landed is refused where it stands
+/// (`ContentFieldName::shipped`): a base tree's `size_stacks` and `press_factor` at the tree, and
+/// the rules' `sweep_min_enemies` at the rules file. It runs after the rules parse.
+pub(super) fn check_unshipped_fields(weapons: &Weapons, rules: &Rules) -> Result<(), PackError> {
+    let refusal = |name: ContentFieldName| format!("the field {} is not shipped yet", name.tag());
+    let mut issues = Vec::new();
+    for (w, entry) in weapons.list().iter().enumerate() {
+        for (t, tree) in entry.trees.iter().enumerate() {
+            for (name, key) in tree.weapon.named_fields() {
+                if !name.shipped() {
+                    issues.push(validate::Issue {
+                        path: format!("$.weapons[{w}].trees[{t}].weapon.{key}"),
+                        message: refusal(name),
+                    });
+                }
+            }
+        }
+    }
+    if !issues.is_empty() {
+        return Err(PackError::File {
+            file: "weapons",
+            error: validate::Error::Invalid(issues),
+        });
+    }
+    if rules.sweep_min_enemies().is_some() && !ContentFieldName::RulesSweepMinEnemies.shipped() {
+        return Err(PackError::File {
+            file: "rules",
+            error: validate::Error::Invalid(vec![validate::Issue {
+                path: "$.sweep_min_enemies".into(),
+                message: refusal(ContentFieldName::RulesSweepMinEnemies),
+            }]),
+        });
+    }
+    Ok(())
 }
 
 /// The kinds that name `knockdown_steps` or `down_bonus_pct` where the rules name no `down_ticks`:

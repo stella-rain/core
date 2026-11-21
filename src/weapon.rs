@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::attack::AttackRef;
 use crate::fixed::Fx;
 use crate::id::ContentId;
+use crate::limits::{MAX_PCT, MAX_SIZE_STACKS, MAX_SIZE_TICKS};
+use crate::rewards::MAX_RANGE_PCT;
 
 /// A weapon preset by ID, or an inline weapon.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -53,6 +55,112 @@ pub struct Weapon {
     /// when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smash: Option<SmashEffect>,
+    /// The base tree's size stacks: how much each stack widens, how many there are and how long
+    /// they last. Never a `SmashEffect`. Typed only: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_stacks: Option<SizeStacks>,
+    /// The base tree's per-press factor. What it scales is its rule's. Typed only: no rule reads
+    /// it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub press_factor: Option<PressFactor>,
+}
+
+/// A weapon's size stacks (ADR-SIM-9 points 3 and 4, ADR-SVC-1): each stack widens the weapon's
+/// hit boxes through the range term, which `MAX_RANGE_PCT` holds in all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SizeStacks {
+    /// The percent each stack widens: 1 to `MAX_RANGE_PCT`, and `pct_per_stack * max_stacks` at
+    /// most `MAX_RANGE_PCT`.
+    #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+    pub pct_per_stack: u32,
+    /// The most stacks held: 1 to `MAX_SIZE_STACKS`.
+    #[schemars(range(min = 1, max = MAX_SIZE_STACKS))]
+    pub max_stacks: u32,
+    /// Ticks the stacks last after the latest one: 1 to `MAX_SIZE_TICKS`.
+    #[schemars(range(min = 1, max = MAX_SIZE_TICKS))]
+    pub ticks: u32,
+}
+
+/// A weapon's per-press factor (ADR-SIM-9 points 3 and 4, ADR-SVC-1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PressFactor {
+    /// The percent each A press adds: 1 to `MAX_PCT`.
+    #[schemars(range(min = 1, max = MAX_PCT))]
+    pub pct_per_press: u32,
+}
+
+impl Weapon {
+    /// The decided optional fields this weapon names. The destructuring names every field: a new
+    /// one does not compile until it is decided here (shipped or not, `ContentFieldName`).
+    pub fn named_fields(&self) -> Vec<(ContentFieldName, &'static str)> {
+        let Self {
+            combo: _,
+            dash: _,
+            window_ticks: _,
+            dash_strike_ticks: _,
+            assist_range: _,
+            smash: _,
+            size_stacks,
+            press_factor,
+        } = self;
+        let mut out = Vec::new();
+        if size_stacks.is_some() {
+            out.push((ContentFieldName::WeaponSizeStacks, "size_stacks"));
+        }
+        if press_factor.is_some() {
+            out.push((ContentFieldName::WeaponPressFactor, "press_factor"));
+        }
+        out
+    }
+}
+
+/// A content field outside a style whose shipping is a decision of its own (ADR-SIM-9 points 3
+/// and 4, ADR-SVC-1), the way `StyleEffectName` is one inside a style kind: the pack check refuses
+/// an unshipped field, while parse and the schema accept it. `shipped` is exhaustive with no
+/// wildcard.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContentFieldName {
+    /// `Weapon.size_stacks`.
+    WeaponSizeStacks,
+    /// `Weapon.press_factor`.
+    WeaponPressFactor,
+    /// `AttackPhase.linger`.
+    PhaseLinger,
+    /// `RulesFile.sweep_min_enemies`.
+    RulesSweepMinEnemies,
+}
+
+impl ContentFieldName {
+    /// Every name, in declaration order.
+    pub const ALL: [Self; 4] = [
+        Self::WeaponSizeStacks,
+        Self::WeaponPressFactor,
+        Self::PhaseLinger,
+        Self::RulesSweepMinEnemies,
+    ];
+
+    /// The field's JSON key.
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::WeaponSizeStacks => "size_stacks",
+            Self::WeaponPressFactor => "press_factor",
+            Self::PhaseLinger => "linger",
+            Self::RulesSweepMinEnemies => "sweep_min_enemies",
+        }
+    }
+
+    /// Whether the pack check lets a pack name it: its rule is in. The flip of a field is its arm
+    /// here and the expected list of its test.
+    pub const fn shipped(self) -> bool {
+        match self {
+            Self::WeaponSizeStacks
+            | Self::WeaponPressFactor
+            | Self::PhaseLinger
+            | Self::RulesSweepMinEnemies => false,
+        }
+    }
 }
 
 /// The steps that follow: at most one for a press of each button.
