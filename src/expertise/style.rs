@@ -1,6 +1,6 @@
 //! The style application: the levels of a style's path, a grant on a step, and the weapon a style builds.
 
-use super::{ExpertiseOption, StepGrant, Style, StyleKind};
+use super::{ExpertiseOption, StepGrant, StepRef, Style, StyleKind};
 use crate::attack::AttackRef;
 use crate::event::Press;
 use crate::validate::limits::MAX_DAMAGE;
@@ -30,6 +30,20 @@ pub(crate) fn step_mut<'a>(branches: &'a mut Branches, presses: &[Press]) -> Opt
     }
 }
 
+/// The step the `presses` reach from the root of a combo tree, read only.
+pub(crate) fn step_ref<'a>(branches: &'a Branches, presses: &[Press]) -> Option<&'a Step> {
+    let (first, rest) = presses.split_first()?;
+    let step = match first {
+        Press::Main => branches.main.as_deref(),
+        Press::Smash => branches.smash.as_deref(),
+    }?;
+    if rest.is_empty() {
+        Some(step)
+    } else {
+        step_ref(&step.next, rest)
+    }
+}
+
 /// Applies one `replace_step` grant to the step of `weapon` that `presses` reach from the root
 /// of the combo tree: the grant sets the step's charge (clearing its hold) or its hold
 /// (clearing its charge). `false`, nothing changed, when no step is there.
@@ -48,6 +62,16 @@ pub(crate) fn apply_grant(weapon: &mut Weapon, presses: &[Press], grant: &StepGr
         }
     }
     true
+}
+
+/// Applies a `replace_step` grant to each member of `step` the weapon's tree has. `false`,
+/// nothing changed, when it has none.
+pub(crate) fn grant_step(weapon: &mut Weapon, step: &StepRef, grant: &StepGrant) -> bool {
+    let members = step.members_in(&weapon.combo);
+    for member in &members {
+        apply_grant(weapon, member, grant);
+    }
+    !members.is_empty()
 }
 
 /// A level's `at_ticks` made `pct` percent sooner: `at * (100 - pct) / 100`, floored, at least 1.
@@ -71,6 +95,19 @@ pub(crate) fn charge_sooner(weapon: &mut Weapon, presses: &[Press], pct: u32) ->
     true
 }
 
+/// Makes the charge of each member of `step` the tree has `pct` percent sooner: the members the
+/// tree has and that charge. Returns the members the tree has that have no charge there (none
+/// when every one shortened).
+pub(crate) fn sooner_step(weapon: &mut Weapon, step: &StepRef, pct: u32) -> Vec<Vec<Press>> {
+    let mut uncharged = Vec::new();
+    for member in step.members_in(&weapon.combo) {
+        if !charge_sooner(weapon, &member, pct) {
+            uncharged.push(member);
+        }
+    }
+    uncharged
+}
+
 /// `base` with the grants a style gives when it is chosen and `taken` places of its path
 /// (0 to 3: the first upgrade, the second, the capstone) are taken, in path order: the style's
 /// own kinds, then each taken place's one choice. A grant that finds no step, or a
@@ -87,7 +124,7 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
         for kind in kinds {
             match kind {
                 StyleKind::ReplaceStep { step, grant } => {
-                    apply_grant(&mut weapon, step.path(), grant);
+                    grant_step(&mut weapon, step, grant);
                 }
                 StyleKind::SmashEffect { effect } => weapon.smash = Some(*effect),
                 StyleKind::Repeat {
@@ -97,14 +134,16 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     anchor,
                     proc_pct,
                 } => {
-                    if let Some(s) = step_mut(&mut weapon.combo, step.path()) {
-                        s.repeats.push(StepRepeat {
-                            after_ticks: *after_ticks,
-                            repeat_pct: u16::try_from(*repeat_pct).unwrap_or(u16::MAX),
-                            anchor: *anchor,
-                            proc_pct: proc_pct.map(|p| u16::try_from(p).unwrap_or(u16::MAX)),
-                            bleed: None,
-                        });
+                    for member in step.members_in(&weapon.combo) {
+                        if let Some(s) = step_mut(&mut weapon.combo, &member) {
+                            s.repeats.push(StepRepeat {
+                                after_ticks: *after_ticks,
+                                repeat_pct: u16::try_from(*repeat_pct).unwrap_or(u16::MAX),
+                                anchor: *anchor,
+                                proc_pct: proc_pct.map(|p| u16::try_from(p).unwrap_or(u16::MAX)),
+                                bleed: None,
+                            });
+                        }
                     }
                 }
                 // Nor does the orb-breaking kind change a step: `World::repeat_break_of`.
@@ -124,13 +163,15 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     });
                 }
                 StyleKind::ProcFactor { step, proc_pct } => {
-                    if let Some(s) = step_mut(&mut weapon.combo, step.path()) {
-                        s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
+                    for member in step.members_in(&weapon.combo) {
+                        if let Some(s) = step_mut(&mut weapon.combo, &member) {
+                            s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
+                        }
                     }
                 }
                 // A path with no charge at this place is refused by the pack check.
                 StyleKind::ChargeSooner { step, pct } => {
-                    charge_sooner(&mut weapon, step.path(), *pct);
+                    sooner_step(&mut weapon, step, *pct);
                 }
                 // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
                 StyleKind::Gauge(_) => {}

@@ -79,7 +79,9 @@ pub const REPEAT_BLEED_INTERVAL_TICKS: u32 = 20;
 /// The largest `pct` of a `charge_sooner` kind: a share of the charge's ticks taken off (a bound,
 /// not a design number).
 pub const MAX_CHARGE_SOONER_PCT: u32 = 90;
-/// The most repeats on one step, summed over one style's path (a tuning placeholder).
+/// The most repeats on one step, summed over one style's path (a tuning placeholder). Counted per
+/// member: a `repeat` on a group adds one to each member the tree has, and a kind that would put
+/// any member over the cap is refused whole.
 pub const MAX_STEP_REPEATS: usize = 4;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
 /// tuning placeholder).
@@ -94,15 +96,15 @@ mod style;
 mod types;
 
 pub use check::validate;
-#[cfg(test)]
-pub(crate) use style::sooner_at;
 pub(crate) use style::{
-    apply_grant, charge_sooner, step_mut, style_levels, weapon_attacks, weapon_with_style,
+    grant_step, sooner_step, step_mut, style_levels, weapon_attacks, weapon_with_style,
 };
+#[cfg(test)]
+pub(crate) use style::{sooner_at, step_ref};
 pub use types::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, ExpertiseEffect,
     ExpertiseFile, ExpertiseOption, Gauge, GaugeSpend, GiantTrigger, SetStat, Spirit, SpiritEffect,
-    StepGrant, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, WeaponExpertise,
+    StepGrant, StepGroup, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 
 /// Expertise content that passed validation, and the SHA-256 of the bytes it came from.

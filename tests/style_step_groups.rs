@@ -108,7 +108,7 @@ fn refused_at(file: &Value, path: &str, word: &str) {
 const K0: &str = "$.weapons[0].styles[0].kinds";
 
 fn hammer_pack(own: Vec<Value>, levels: [Option<Vec<Value>>; 3]) -> Value {
-    let mut v: Value = serde_json::from_slice(crate::before::pack_bytes()).unwrap();
+    let mut v: Value = serde_json::from_slice(Pack::BUNDLED).unwrap();
     let w = v["expertise"]["weapons"]
         .as_array_mut()
         .unwrap()
@@ -116,12 +116,18 @@ fn hammer_pack(own: Vec<Value>, levels: [Option<Vec<Value>>; 3]) -> Value {
         .find(|w| w["weapon"] == "giant_hammer")
         .expect("the Hammer's expertise");
     w["styles"][0]["kinds"] = json!(own);
+    // A level left out is emptied: the fixture's own (the Titan's hold on AAA) would join the path.
     for (field, kinds) in ["upgrade_1", "upgrade_2", "capstone"].iter().zip(levels) {
+        let level = &mut w["styles"][0][field][0];
         if let Some(kinds) = kinds {
-            let level = &mut w["styles"][0][field][0];
             level["effect"] = json!("none");
             level.as_object_mut().unwrap().remove("amount");
             level["kinds"] = json!(kinds);
+        } else {
+            // A level with no kind needs a stat effect instead.
+            level["effect"] = json!("attack_pct");
+            level["amount"] = json!(10);
+            level["kinds"] = json!([]);
         }
     }
     v

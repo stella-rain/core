@@ -13,9 +13,10 @@ use super::{
 };
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
+use crate::event::Press;
 use crate::expertise::{
-    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StepRef, StyleKind, apply_grant,
-    charge_sooner, step_mut, style_levels, weapon_attacks,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, grant_step,
+    sooner_step, step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -151,6 +152,22 @@ struct WeaponLists {
     common: Vec<IgnoredAny>,
 }
 
+/// The steps as the buttons that reach them, `AAB, B`: the members a message names.
+fn step_names(steps: &[Vec<Press>]) -> String {
+    let names: Vec<String> = steps
+        .iter()
+        .map(|s| {
+            s.iter()
+                .map(|p| match p {
+                    Press::Main => 'A',
+                    Press::Smash => 'B',
+                })
+                .collect()
+        })
+        .collect();
+    names.join(", ")
+}
+
 /// The held-step checks that read a preset's phases, for every tree of the pack's weapons against
 /// the pack's own attack presets (ADR-CONT-3 point 6, CS1b-1): the weapons file alone cannot say.
 pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<(), PackError> {
@@ -204,7 +221,7 @@ pub(super) fn check_style_grants(
             }
             let mut tree = base.clone();
             // Each repeat kind's path and step, for the checks that need the whole path applied.
-            let mut repeats: Vec<(String, &StepRef)> = Vec::new();
+            let mut repeats: Vec<(String, Vec<Press>)> = Vec::new();
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             let mut spirits: Vec<(String, &Spirit)> = Vec::new();
             let mut triggers: Vec<String> = Vec::new();
@@ -216,7 +233,7 @@ pub(super) fn check_style_grants(
                     let at = format!("{path}[{k}]");
                     let field = match kind {
                         StyleKind::ReplaceStep { step, grant } => {
-                            if !apply_grant(&mut tree, step.path(), grant) {
+                            if !grant_step(&mut tree, step, grant) {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -230,25 +247,32 @@ pub(super) fn check_style_grants(
                             "effect"
                         }
                         StyleKind::ChargeSooner { step, pct } => {
-                            if step_mut(&mut tree.combo, step.path()).is_none() {
+                            if step.members_in(&tree.combo).is_empty() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
                                 });
                                 break 'style;
                             }
-                            if !charge_sooner(&mut tree, step.path(), *pct) {
+                            let uncharged = sooner_step(&mut tree, step, *pct);
+                            if !uncharged.is_empty() {
+                                let mut message =
+                                    "the step has no charge at this level of the path".to_string();
+                                // A group names the members that have none.
+                                if step.as_path().is_none() {
+                                    message.push_str(&format!(": {}", step_names(&uncharged)));
+                                }
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
-                                    message: "the step has no charge at this level of the path"
-                                        .into(),
+                                    message,
                                 });
                                 break 'style;
                             }
                             "pct"
                         }
                         StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
-                            if step_mut(&mut tree.combo, step.path()).is_none() {
+                            let members = step.members_in(&tree.combo);
+                            if members.is_empty() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -256,16 +280,33 @@ pub(super) fn check_style_grants(
                                 break 'style;
                             }
                             if matches!(kind, StyleKind::Repeat { .. }) {
-                                let same = repeats.iter().filter(|(_, s)| *s == step).count();
-                                if same >= MAX_STEP_REPEATS {
+                                // Counted per member: a member this kind would take past the
+                                // cap refuses the whole kind, and none of its members counts.
+                                let over: Vec<String> = members
+                                    .iter()
+                                    .filter_map(|m| {
+                                        let had = repeats.iter().filter(|(_, s)| s == m).count();
+                                        (had >= MAX_STEP_REPEATS).then(|| {
+                                            format!(
+                                                "{} would have {}",
+                                                step_names(std::slice::from_ref(m)),
+                                                had + 1
+                                            )
+                                        })
+                                    })
+                                    .collect();
+                                if over.is_empty() {
+                                    for member in members {
+                                        repeats.push((at.clone(), member));
+                                    }
+                                } else {
                                     issues.push(validate::Issue {
                                         path: at.clone(),
                                         message: format!(
-                                            "at most {MAX_STEP_REPEATS} repeats on one step"
+                                            "at most {MAX_STEP_REPEATS} repeats on one step: {}",
+                                            over.join(", ")
                                         ),
                                     });
-                                } else {
-                                    repeats.push((at.clone(), step));
                                 }
                             }
                             continue;
@@ -324,12 +365,16 @@ pub(super) fn check_style_grants(
             }
             // A held step does not repeat: the grants may come after the repeat, so the check
             // reads the tree the whole path made.
-            for (at, step) in repeats {
-                if step_mut(&mut tree.combo, step.path()).is_some_and(|s| s.hold.is_some()) {
-                    issues.push(validate::Issue {
+            for (at, member) in repeats {
+                if step_mut(&mut tree.combo, &member).is_some_and(|s| s.hold.is_some()) {
+                    let issue = validate::Issue {
                         path: at,
                         message: "a held step does not repeat".into(),
-                    });
+                    };
+                    // A group reaching several held members is one issue.
+                    if !issues.contains(&issue) {
+                        issues.push(issue);
+                    }
                 }
             }
             // The spirit is raised by the full-gauge smash and its extra bleed stacks ride a bleed

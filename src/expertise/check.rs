@@ -14,7 +14,7 @@ use super::{
 use crate::id::ContentId;
 use crate::registry::{self, Kind};
 use crate::rewards::MAX_BURST_RADIUS_PX;
-use crate::validate::limits::{MAX_COMBO_DEPTH, MAX_DAMAGE};
+use crate::validate::limits::MAX_DAMAGE;
 use crate::validate::{self, Error, Issue};
 
 /// The weapon presets a file must cover: the registry's, no newer than this `sim_version`.
@@ -260,15 +260,7 @@ fn check_level(
         let at = format!("{at}[{k}]");
         match kind {
             StyleKind::ReplaceStep { step, grant } => {
-                if step.path().is_empty() || step.path().len() > MAX_COMBO_DEPTH as usize {
-                    issue(
-                        format!("{at}.step"),
-                        format!(
-                            "1 to {MAX_COMBO_DEPTH} presses (found {})",
-                            step.path().len()
-                        ),
-                    );
-                }
+                check_step_len(issue, &at, step);
                 if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
                     for f in found {
                         issue(
