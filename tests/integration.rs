@@ -182,6 +182,7 @@ mod statuses;
 mod step_three;
 mod stun;
 mod style_counter_effects;
+mod style_encore_down_area;
 mod style_gauge_fills;
 mod style_grants;
 mod style_spirit_effects;
