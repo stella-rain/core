@@ -692,7 +692,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
     each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout]);
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -825,6 +825,12 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         ranged_grace: MAX_RANGED_GRACE_TICKS,
         counter_bonus_step: MAX_COUNTER_BONUS_STEP,
         counter_payout: MAX_COUNTER_PAYOUT,
+        sweep_count: MAX_SWEEP_COUNT,
+        size_stacks: MAX_SIZE_STACKS,
+        size_ticks: MAX_SIZE_TICKS,
+        rune_fire_owed: MAX_RUNE_FIRE_OWED,
+        encore_ticks: MAX_ENCORE_TICKS,
+        encore_ready: MAX_ENCORE_READY,
     };
     round_trip(&at_cap);
     let refused = |f: &dyn Fn(&mut PlayerCombat)| {
@@ -852,6 +858,14 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.counter_bonus_step = 255);
     refused(&|c| c.counter_payout += 1);
     refused(&|c| c.counter_payout = 255);
+    refused(&|c| c.sweep_count += 1);
+    refused(&|c| c.size_stacks += 1);
+    refused(&|c| c.size_ticks += 1);
+    refused(&|c| c.rune_fire_owed += 1);
+    refused(&|c| c.rune_fire_owed = 255);
+    refused(&|c| c.encore_ticks += 1);
+    refused(&|c| c.encore_ready += 1);
+    refused(&|c| c.encore_ready = 255);
 
     let mut p = solo(&base()).clone();
     p.combat.rally = p.max_hp;

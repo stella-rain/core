@@ -694,6 +694,12 @@ fn player(p: &mut PlayerState) {
         ranged_grace: 13,
         counter_bonus_step: 1,
         counter_payout: 1,
+        sweep_count: 14,
+        size_stacks: 2,
+        size_ticks: 15,
+        rune_fire_owed: 1,
+        encore_ticks: 16,
+        encore_ready: 1,
     };
     p.combo = ComboState {
         path: 5,
@@ -963,7 +969,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout],
+        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,

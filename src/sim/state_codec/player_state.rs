@@ -218,6 +218,12 @@ impl Encode for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
+            sweep_count,
+            size_stacks,
+            size_ticks,
+            rune_fire_owed,
+            encore_ticks,
+            encore_ready,
         } = self;
         perfect_window.encode(w);
         perfect_slow.encode(w);
@@ -234,6 +240,12 @@ impl Encode for PlayerCombat {
         ranged_grace.encode(w);
         counter_bonus_step.encode(w);
         counter_payout.encode(w);
+        sweep_count.encode(w);
+        size_stacks.encode(w);
+        size_ticks.encode(w);
+        rune_fire_owed.encode(w);
+        encore_ticks.encode(w);
+        encore_ready.encode(w);
     }
 }
 
@@ -285,6 +297,12 @@ impl Decode for PlayerCombat {
                 "counter_bonus_step past its bound",
             )?,
             counter_payout: within(r.u8()?, MAX_COUNTER_PAYOUT, "counter_payout past its bound")?,
+            sweep_count: within(r.u16()?, MAX_SWEEP_COUNT, "sweep_count past its bound")?,
+            size_stacks: within(r.u8()?, MAX_SIZE_STACKS, "size_stacks past its bound")?,
+            size_ticks: within(r.u16()?, MAX_SIZE_TICKS, "size_ticks past its bound")?,
+            rune_fire_owed: within(r.u8()?, MAX_RUNE_FIRE_OWED, "rune_fire_owed past its bound")?,
+            encore_ticks: within(r.u16()?, MAX_ENCORE_TICKS, "encore_ticks past its bound")?,
+            encore_ready: within(r.u8()?, MAX_ENCORE_READY, "encore_ready past its bound")?,
         })
     }
 }

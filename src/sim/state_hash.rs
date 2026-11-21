@@ -570,6 +570,12 @@ impl StableHash for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
+            sweep_count,
+            size_stacks,
+            size_ticks,
+            rune_fire_owed,
+            encore_ticks,
+            encore_ready,
         } = self;
         perfect_window.stable_hash(h);
         perfect_slow.stable_hash(h);
@@ -586,6 +592,12 @@ impl StableHash for PlayerCombat {
         ranged_grace.stable_hash(h);
         counter_bonus_step.stable_hash(h);
         counter_payout.stable_hash(h);
+        sweep_count.stable_hash(h);
+        size_stacks.stable_hash(h);
+        size_ticks.stable_hash(h);
+        rune_fire_owed.stable_hash(h);
+        encore_ticks.stable_hash(h);
+        encore_ready.stable_hash(h);
     }
 }
 
