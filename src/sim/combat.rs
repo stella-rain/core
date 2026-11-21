@@ -206,7 +206,11 @@ pub(super) fn queue_repeats(world: &World, s: &mut State, i: usize) {
             attack: r.attack,
             phase: phase_at,
             damage,
-            width_pct: r.width_pct.min(MAX_RANGE_PCT),
+            // The style's range rider adds to the run's own range, held to the cap.
+            width_pct: r
+                .width_pct
+                .saturating_add(u32::from(repeat.range_pct))
+                .min(MAX_RANGE_PCT),
             bleed: world.repeat_bleed_index(repeat.bleed),
             stack_given: 0,
             queued: s.tick,

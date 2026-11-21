@@ -595,3 +595,78 @@ fn the_views_carry_the_spirit_kind() {
     let bundled = std::str::from_utf8(common::bundled_file("expertise")).unwrap();
     assert!(bundled.contains("\"spirit\""));
 }
+
+/// Style 0 grants the two-level charge on every smash (the group), nothing else.
+fn smashes_expertise() -> Expertise {
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    for w in file["weapons"].as_array_mut().unwrap() {
+        w["base"] = json!([]);
+        for s in w["styles"].as_array_mut().unwrap() {
+            s["stats"] = json!([]);
+        }
+        if w["weapon"] == "giant_hammer" {
+            w["styles"][0]["kinds"] = json!([{
+                "type": "replace_step", "step": "smashes", "grant": charge([6_000, 8_000])
+            }]);
+        }
+    }
+    Expertise::parse(file.to_string().as_bytes(), Versions::CURRENT).expect("the test expertise")
+}
+
+/// The most charge level seen (holding stops at 2) while holding the smash button right after the
+/// combo prefix `before` (a press of A each).
+fn charge_after(e: &mut Engine, before: usize) -> u8 {
+    settle(e);
+    for _ in 0..before {
+        step(e, main_held());
+        for _ in 0..3 {
+            step(e, idle());
+        }
+    }
+    let mut most = 0;
+    for _ in 0..60 {
+        step(e, smash_held());
+        most = most.max(charge_of(e).unwrap_or(0));
+        if most == 2 {
+            break;
+        }
+    }
+    most
+}
+
+/// G8: a `replace_step` on the group `smashes` gives every smash of the tree a charge a player
+/// can hold and release (ADR-SIM-9 points 3 and 4): B at the root and after one to five A.
+#[test]
+fn a_group_grant_charges_every_smash_through_the_engine() {
+    let mut e = build(smashes_expertise());
+    // Before the pick: no charge on any smash.
+    for before in 0..=5 {
+        assert_eq!(
+            charge_after(&mut e, before),
+            0,
+            "{before} A before the pick"
+        );
+    }
+    pick(&mut e, 0);
+    for before in 0..=5 {
+        assert_eq!(charge_after(&mut e, before), 2, "{before} A, then B");
+        // The release plays the grant's second level.
+        let mut seen = Vec::new();
+        for _ in 0..12 {
+            step(&mut e, idle());
+            seen.extend(radius_of(&e));
+        }
+        assert!(seen.contains(&8_000), "{before} A: {seen:?}");
+    }
+}
+
+/// G8: another style charges no smash.
+#[test]
+fn another_style_charges_no_smash() {
+    let mut e = build(smashes_expertise());
+    pick(&mut e, 1);
+    for before in 0..=5 {
+        assert_eq!(charge_after(&mut e, before), 0, "{before} A");
+    }
+}

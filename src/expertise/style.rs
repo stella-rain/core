@@ -116,11 +116,13 @@ pub(crate) fn sooner_step(weapon: &mut Weapon, step: &StepRef, pct: u32) -> Vec<
 pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> Weapon {
     let mut weapon = base.clone();
     let mut bleed = None;
+    let mut range = None;
     let places = style_levels(style)
         .into_iter()
         .take(taken)
         .filter_map(|(_, option)| option.map(|o| o.kinds.as_slice()));
     for kinds in std::iter::once(style.kinds.as_slice()).chain(places) {
+        let mut level_proc = None;
         for kind in kinds {
             match kind {
                 StyleKind::ReplaceStep { step, grant } => {
@@ -142,14 +144,22 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                                 anchor: *anchor,
                                 proc_pct: proc_pct.map(|p| u16::try_from(p).unwrap_or(u16::MAX)),
                                 bleed: None,
+                                range_pct: 0,
                             });
                         }
                     }
                 }
-                // The riders change no step and no rule reads them yet: typed and viewed only.
-                StyleKind::RepeatRangePct { .. }
-                | StyleKind::RepeatProcPct { .. }
-                | StyleKind::RepeatSizeStack {}
+                // The range rider reaches every repeat of the path: stamped once all kinds are read.
+                StyleKind::RepeatRangePct { pct } => {
+                    range = Some(u16::try_from(*pct).unwrap_or(u16::MAX));
+                }
+                // The proc rider replaces the factor of the repeats granted at or before its
+                // level, so it waits for the level's other kinds, whatever their order.
+                StyleKind::RepeatProcPct { proc_pct } => {
+                    level_proc = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
+                }
+                // No rule reads these yet: typed and viewed only.
+                StyleKind::RepeatSizeStack {}
                 | StyleKind::Encore(_)
                 | StyleKind::KnockdownSteps(_)
                 | StyleKind::DownBonusPct { .. }
@@ -194,13 +204,24 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                 StyleKind::Breaker(_) => {}
             }
         }
+        if let Some(proc_pct) = level_proc {
+            for_each_step_mut(&mut weapon.combo, &mut |step| {
+                for repeat in &mut step.repeats {
+                    repeat.proc_pct = Some(proc_pct);
+                }
+            });
+        }
     }
     // A repeat granted by a later level carries the bleed too: it is read when the repeat is
     // queued, so a path that has taken the kind bleeds on every repeat it holds.
-    if bleed.is_some() {
+    // The range rider is stamped the same way: it is a property of the weapon's repeats.
+    if bleed.is_some() || range.is_some() {
         for_each_step_mut(&mut weapon.combo, &mut |step| {
             for repeat in &mut step.repeats {
-                repeat.bleed = bleed;
+                if bleed.is_some() {
+                    repeat.bleed = bleed;
+                }
+                repeat.range_pct = range.unwrap_or(0);
             }
         });
     }

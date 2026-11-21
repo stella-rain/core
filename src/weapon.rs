@@ -234,6 +234,9 @@ pub struct StepRepeat {
     /// The repeat bleed the style's `repeat_bleed` kind gives this repeat; none: it bleeds
     /// nothing. Runtime only, stamped by `weapon_with_style`.
     pub bleed: Option<RepeatBleed>,
+    /// Percent the style's `repeat_range_pct` kind makes this repeat reach further, 0 for none.
+    /// Runtime only, stamped by `weapon_with_style`; a place entry adds it to the run's range.
+    pub range_pct: u16,
 }
 
 /// The numbers of a `repeat_bleed` kind at run time, each clamped again to its cap (ADR-SVC-1):
