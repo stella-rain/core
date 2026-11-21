@@ -358,8 +358,8 @@ pub(crate) struct Repeat {
     pub queued: u32,
 }
 
-/// A lingering area (ADR-SIM-5 point 9: the queue and each field are capped at decode; they count
-/// inside `MAX_ZONES_ALIVE`). It pulses every `rate_ticks` until `ticks_left` runs out. Every
+/// A lingering area (ADR-SIM-5 point 9: the queue and each field are capped at decode; the queue is
+/// held below `MAX_ZONES_ALIVE`, which the placement check will count it inside). It pulses every `rate_ticks` until `ticks_left` runs out. Every
 /// number is resolved when the area opens (a style's area bonus is baked into `shape` and
 /// `proc_pct`, as `Repeat` fixes `damage` and `width_pct` when queued), so a later style change
 /// changes nothing inside it. Hashed and saved; the lingering rules are not here yet.

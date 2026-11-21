@@ -145,8 +145,9 @@ pub const MAX_COUNTER_BONUS_STEP: u8 = 1;
 /// Bounds the player's counter payout flag (1 while the taken step has not landed a hit): combat
 /// state, a tuning value (ADR-SIM-5 point 9).
 pub const MAX_COUNTER_PAYOUT: u8 = 1;
-/// The Wave 3 combat state's caps (ADR-SIM-5 point 9): each bounds a decode and fixes no
-/// behaviour; they are tuning values, and a rule task may raise one within its field's type.
+// The Wave 3 combat state's caps (ADR-SIM-5 point 9): each bounds a decode and fixes no
+// behaviour; they are tuning values, and a rule task may raise one within its field's type.
+
 /// The sweep count: a swing cannot hit more distinct regular enemies than can be alive.
 pub const MAX_SWEEP_COUNT: u16 = MAX_ENEMY_CAP;
 /// Size stacks held (the Yo-Yo's base cap is 3, its spirit level 1 makes it 4; doubled).
@@ -161,7 +162,8 @@ pub const MAX_ENCORE_TICKS: u16 = 1_800;
 pub const MAX_ENCORE_READY: u8 = 1;
 /// Whether a throw's repeats already gave their stack (a flag).
 pub const MAX_STACK_GIVEN: u8 = 1;
-/// Lingering areas alive at once; they count inside `MAX_ZONES_ALIVE`.
+/// Lingering areas alive at once; held below `MAX_ZONES_ALIVE`, inside which the placement check
+/// will count them once a rule opens one.
 pub const MAX_LINGERS_ALIVE: usize = 16;
 /// Lingering areas one player holds at once.
 pub const MAX_LINGERS_PER_OWNER: usize = 4;
