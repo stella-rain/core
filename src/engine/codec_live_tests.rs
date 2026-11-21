@@ -1164,3 +1164,59 @@ fn the_repeat_bleed_is_status_tag_seven() {
         hash_of(&StatusKind::Stun)
     );
 }
+
+use crate::limits::MAX_SWEEP_COUNT as SWEEP_CAP;
+
+/// A solo player holding `ids` as the swing's hit record.
+fn with_record(ids: &[u32]) -> PlayerState {
+    let mut p = solo(&base()).clone();
+    p.sweep_hits = ids.iter().map(|&n| EntityId(n)).collect();
+    p
+}
+
+fn ascending(len: u32) -> Vec<u32> {
+    (0..len)
+        .map(|i| crate::id::MAX_PLAYERS as u32 + i)
+        .collect()
+}
+
+#[test]
+fn the_swing_record_round_trips_and_takes_four_bytes_an_id() {
+    let empty = to_bytes(&with_record(&[]));
+    for len in [0u32, 1, u32::from(SWEEP_CAP)] {
+        let p = with_record(&ascending(len));
+        round_trip_hashed(&p);
+        assert_eq!(to_bytes(&p).len(), empty.len() + 4 * len as usize);
+    }
+    // The whole state carries the record at the cap.
+    let mut s = base();
+    s.players[PlayerIdx::SOLO].sweep_hits = ascending(u32::from(SWEEP_CAP))
+        .into_iter()
+        .map(EntityId)
+        .collect();
+    let back = decoded(&bytes(&s), &base()).unwrap();
+    assert_eq!(bytes(&back), bytes(&s));
+    assert_eq!(solo(&back).sweep_hits, solo(&s).sweep_hits);
+}
+
+#[test]
+fn the_swing_record_is_refused_unless_sorted_distinct_and_in_range() {
+    let refused = |ids: &[u32]| {
+        assert!(
+            matches!(
+                from_bytes::<PlayerState>(&to_bytes(&with_record(ids))),
+                Err(DecodeError::Invalid(_))
+            ),
+            "{ids:?} decoded"
+        );
+    };
+    refused(&ascending(u32::from(SWEEP_CAP) + 1));
+    refused(&[5, 4]);
+    refused(&[4, 4]);
+    refused(&[2]);
+    refused(&[crate::id::MAX_ENTITY_NUMBER]);
+    refused(&[4, crate::id::MAX_ENTITY_NUMBER]);
+    // The edges decode.
+    let ok = with_record(&[3, crate::id::MAX_ENTITY_NUMBER - 1]);
+    round_trip(&ok);
+}

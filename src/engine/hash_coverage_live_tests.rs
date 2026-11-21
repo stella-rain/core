@@ -1156,3 +1156,29 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
     }
     p.assert_clean();
 }
+
+#[test]
+fn the_swing_record_moves_the_hash_by_its_length_and_its_ids() {
+    let mut p = Probe::new();
+    let set = |ids: &'static [u32]| {
+        move |s: &mut State| {
+            s.players[PlayerIdx::SOLO].sweep_hits = ids.iter().map(|&n| EntityId(n)).collect();
+        }
+    };
+    let hash = |p: &mut Probe, f: &dyn Fn(&mut State)| {
+        let mut s = p.base.clone();
+        f(&mut s);
+        p.engine.run.set_live_state(s);
+        p.engine.state_hash()
+    };
+    let empty = hash(&mut p, &set(&[]));
+    let one = hash(&mut p, &set(&[3]));
+    let two = hash(&mut p, &set(&[3, 4]));
+    let other = hash(&mut p, &set(&[3, 5]));
+    let all = [empty, one, two, other];
+    for (i, a) in all.iter().enumerate() {
+        for b in &all[i + 1..] {
+            assert_ne!(a, b);
+        }
+    }
+}

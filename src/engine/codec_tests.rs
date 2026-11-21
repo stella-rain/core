@@ -781,7 +781,15 @@ fn wave_three_bytes(e: &crate::engine::Engine) -> usize {
         crate::engine::run::Run::V1 { .. } => panic!("the live rules"),
     };
     assert!(st.lingers.is_empty());
-    9 * st.players.iter().count() + 5 * st.repeats.len() + 4
+    let players = st.players.iter().count();
+    // The swing's hit record (format 15): a 4-byte prefix and 4 bytes an ID per present player,
+    // and `PlayerCombat.sweep_count` (2 bytes) is gone, the record's length being the count.
+    let record: usize = st.players.iter().map(|p| 4 + 4 * p.sweep_hits.len()).sum();
+    assert!(
+        st.players.iter().all(|p| p.sweep_hits.is_empty()),
+        "the bench cases hold no swing record"
+    );
+    9 * players + 5 * st.repeats.len() + 4 + record - 2 * players
 }
 
 /// The live state holds the Wave 3 fields (format 14): the encoding is the Base length plus what
