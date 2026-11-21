@@ -260,3 +260,174 @@ fn a_stage_refuses_an_inline_field_whose_rule_has_not_landed() {
         "{found:?}"
     );
 }
+
+// --- The ring: consecutive active phases that keep one hit list --------------------------------
+
+use stella_rain_core::id::EntityId;
+use stella_rain_core::registry;
+
+/// Distances ahead of the character of the three enemies, and the ring's three radii: each
+/// enemy (radius 2048) is first inside the next circle only.
+const RING_AT: [i32; 3] = [2_000, 8_000, 14_000];
+const RING_RADII: [i32; 3] = [4_096, 8_192, 12_288];
+
+fn ring_phase(radius: i32, keeps: bool) -> Value {
+    let mut p = json!({ "kind": "active", "ticks": 2, "damage": 100,
+        "hit_box": { "type": "circle", "offset": { "forward": 0, "right": 0 },
+                     "radius": radius } });
+    if keeps {
+        p["keeps_hits"] = json!(true);
+    }
+    p
+}
+
+fn ring(keeps: bool) -> Value {
+    let mut phases: Vec<Value> = RING_RADII
+        .iter()
+        .enumerate()
+        .map(|(i, r)| ring_phase(*r, keeps && i > 0))
+        .collect();
+    phases.push(json!({ "kind": "recovery", "ticks": 2 }));
+    json!({ "inline": phases })
+}
+
+/// A weapon whose smash from the root, and after AA, is the ring; A is a quiet step.
+fn ring_weapon(keeps: bool) -> Value {
+    let quiet = || json!({ "attack": quiet_attack() });
+    let mut step = quiet();
+    step["next"] = json!({ "main": { "attack": quiet_attack(),
+                                      "next": { "smash": { "attack": ring(keeps) } } } });
+    json!({ "inline": { "combo": { "main": step, "smash": { "attack": ring(keeps) } },
+                        "window_ticks": WINDOW, "assist_range": 0,
+                        "press_factor": { "pct_per_press": 25 } } })
+}
+
+fn ring_stage(weapon: Value, at: [i32; 3]) -> Stage {
+    let waves = at
+        .iter()
+        .map(|d| {
+            let y = START_Y - d;
+            wave(
+                1,
+                1,
+                0,
+                enemy(1_000_000, hold(START_X, y), json!([])),
+                START_X,
+                y,
+            )
+        })
+        .collect();
+    let mut stage = armed(stage_full(18_000, Some(far_boss()), waves, vec![]), weapon);
+    stage.sim_version = 2;
+    stage
+}
+
+/// `(tick, target, damage)` of every hit while `inputs` are played.
+fn ring_hits(e: &mut Engine, inputs: &[Input]) -> Vec<(u32, EntityId, u32)> {
+    let mut out = Vec::new();
+    for input in inputs {
+        e.step(&[*input, Default::default(), Default::default()]);
+        for ev in e.events() {
+            if let DomainEvent::Hit { target, damage, .. } = ev {
+                out.push((e.tick(), *target, *damage));
+            }
+        }
+    }
+    out
+}
+
+fn ring_run(weapon: Value, path: &str) -> Vec<(u32, EntityId, u32)> {
+    let mut e = engine(&ring_stage(weapon, RING_AT));
+    ring_hits(&mut e, &[idle(), idle(), idle()]);
+    ring_hits(&mut e, &presses(path))
+}
+
+#[test]
+fn a_ring_hits_each_enemy_once_as_it_spreads() {
+    let hits = ring_run(ring_weapon(true), "B");
+    let targets: std::collections::BTreeSet<_> = hits.iter().map(|h| h.1).collect();
+    assert_eq!((hits.len(), targets.len()), (3, 3), "{hits:?}");
+    // In the order the ring reaches them: three phases of two ticks, so a tick apart pair by pair.
+    assert!(hits[0].0 < hits[1].0 && hits[1].0 < hits[2].0, "{hits:?}");
+    // Enemies spawn near to far, so their IDs rise in the order they are hit.
+    let ids: Vec<EntityId> = hits.iter().map(|h| h.1).collect();
+    let mut sorted = ids.clone();
+    sorted.sort();
+    assert_eq!(ids, sorted);
+}
+
+#[test]
+fn without_the_flag_a_growing_phase_hits_again() {
+    let hits = ring_run(ring_weapon(false), "B");
+    // The enemy inside every circle is hit by each of the three phases; the middle one by two.
+    assert_eq!(hits.len(), 6, "{hits:?}");
+}
+
+#[test]
+fn the_press_factor_applies_to_every_ring_hit_alike() {
+    let hits = ring_run(ring_weapon(true), "AAB");
+    assert_eq!(
+        hits.iter().map(|h| h.2).collect::<Vec<_>>(),
+        vec![150, 150, 150],
+        "{hits:?}"
+    );
+}
+
+#[test]
+fn an_enemy_past_the_last_circle_is_missed() {
+    let mut e = engine(&ring_stage(
+        ring_weapon(true),
+        [RING_AT[0], RING_AT[1], 16_000],
+    ));
+    ring_hits(&mut e, &[idle(), idle(), idle()]);
+    // The third enemy stands at 16,000: past 12,288 plus its radius.
+    let hits = ring_hits(&mut e, &presses("B"));
+    assert_eq!(hits.len(), 2, "{hits:?}");
+}
+
+fn keeps_in_stage(weapon_phase: Value, sim_version: u32) -> Vec<(String, String)> {
+    let weapon = json!({ "inline": {
+        "combo": { "main": { "attack": { "inline": [weapon_phase] } } },
+        "window_ticks": 10, "assist_range": 0 } });
+    let mut stage = armed(stage_with(600, None, vec![]), weapon);
+    stage.sim_version = sim_version;
+    match stella_rain_core::validate::validate(&stage) {
+        Ok(()) => Vec::new(),
+        Err(stella_rain_core::validate::Error::Invalid(issues)) => {
+            issues.into_iter().map(|i| (i.path, i.message)).collect()
+        }
+        Err(e) => panic!("{e:?}"),
+    }
+}
+
+#[test]
+fn keeps_hits_stands_on_a_players_active_phase_at_version_two() {
+    let active = ring_phase(4_096, true);
+    assert!(keeps_in_stage(active.clone(), 2).is_empty());
+    // Version 1.
+    let old = keeps_in_stage(active, 1);
+    assert!(
+        old.iter()
+            .any(|(p, m)| p.ends_with("keeps_hits") && m.contains("needs sim_version 2")),
+        "{old:?}"
+    );
+    // A wind-up phase.
+    let wind_up = json!({ "kind": "wind_up", "ticks": 2, "keeps_hits": true });
+    let found = keeps_in_stage(wind_up, 2);
+    assert!(
+        found.iter().any(|(p, m)| p.ends_with("keeps_hits")
+            && m.contains("only an active phase with a hit box keeps its hits")),
+        "{found:?}"
+    );
+    // An enemy's or the boss's attack.
+    let phases: Vec<stella_rain_core::attack::AttackPhase> =
+        serde_json::from_value(json!([ring_phase(8_192, true)])).expect("the phase parses");
+    let found =
+        stella_rain_core::validate::validate_attack(&phases, 0, registry::ENTRIES).unwrap_err();
+    assert!(
+        found.iter().any(|i| i
+            .message
+            .contains("a main character's or an ally's attack only")),
+        "{found:?}"
+    );
+}
