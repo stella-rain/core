@@ -224,3 +224,39 @@ fn a_perfect_charged_release_adds_to_the_press_term() {
     // 100 + 50 (perfect) + 2 x 25 (presses), added.
     assert_eq!(damages(&mut e, &inputs), vec![200]);
 }
+
+/// The refusals of `validate` for `stage`, as `(path, message)`.
+fn refused(stage: &Stage) -> Vec<(String, String)> {
+    match stella_rain_core::validate::validate(stage) {
+        Err(stella_rain_core::validate::Error::Invalid(issues)) => {
+            issues.into_iter().map(|i| (i.path, i.message)).collect()
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_stage_at_version_one_refuses_an_inline_press_factor() {
+    let mut stage = stage_of(weapon(Some(25)));
+    stage.sim_version = 1;
+    let found = refused(&stage);
+    assert!(
+        found
+            .iter()
+            .any(|(p, m)| p.ends_with("press_factor") && m.contains("needs sim_version 2")),
+        "{found:?}"
+    );
+}
+
+/// The marker of an unshipped field: an inline weapon naming `size_stacks` is refused at a stage.
+#[test]
+fn a_stage_refuses_an_inline_field_whose_rule_has_not_landed() {
+    let mut w = weapon(None);
+    w["inline"]["size_stacks"] = json!({ "pct_per_stack": 20, "max_stacks": 3, "ticks": 300 });
+    let found = refused(&stage_of(w));
+    assert!(
+        found.iter().any(|(p, m)| p.ends_with("size_stacks")
+            && m.contains("the field size_stacks is not shipped yet")),
+        "{found:?}"
+    );
+}
