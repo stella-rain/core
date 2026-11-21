@@ -157,10 +157,8 @@ impl ContentFieldName {
     /// here and the expected list of its test.
     pub const fn shipped(self) -> bool {
         match self {
-            Self::WeaponSizeStacks
-            | Self::WeaponPressFactor
-            | Self::PhaseLinger
-            | Self::RulesSweepMinEnemies => false,
+            Self::WeaponPressFactor => true,
+            Self::WeaponSizeStacks | Self::PhaseLinger | Self::RulesSweepMinEnemies => false,
         }
     }
 }
