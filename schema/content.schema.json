@@ -14333,7 +14333,7 @@
               "type": "null"
             }
           ],
-          "description": "The base tree's per-press factor: a smash step's hits deal `pct_per_press` percent more\ndamage for each A press before it in the combo path, up to `MAX_COUNTED_PRESSES`, the sum\nheld to `MAX_PCT`. Added with the smash's other bonuses; a normal step never takes it. The\ncount is derived from the combo path, so a reset or a dash branch restarts it."
+          "description": "The base tree's per-press factor: a smash step's hits deal `pct_per_press` percent more\ndamage for each A press before it in the combo path, up to `MAX_COUNTED_PRESSES`, the sum\nheld to `MAX_PCT`. It reaches every strike the step makes (a tap, a charge release, a\nhold's loop and release, the full-gauge attack), added with the smash's other bonuses; a\nnormal step never takes it. The count is derived from the combo path, so a reset or a dash\nbranch restarts it."
         },
         "size_stacks": {
           "anyOf": [
