@@ -1560,6 +1560,7 @@ mod attack_table_tests {
             poise_damage: None,
             stagger: None,
             advance: None,
+            linger: None,
         }
     }
 

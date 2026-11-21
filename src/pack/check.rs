@@ -240,27 +240,102 @@ pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<
     }
 }
 
+/// Whether any phase of an inline attack names a lingering node.
+fn attack_has_linger(attack: &crate::attack::AttackRef) -> bool {
+    match attack {
+        crate::attack::AttackRef::Inline(phases) => phases.iter().any(|p| p.linger.is_some()),
+        crate::attack::AttackRef::Preset { .. } => false,
+    }
+}
+
+/// The attacks a style kind carries: a full-gauge attack, a granted charge's levels and a granted
+/// hold's loop and release.
+fn kind_attacks(kind: &StyleKind) -> Vec<&crate::attack::AttackRef> {
+    match kind {
+        StyleKind::Gauge(g) => {
+            let GaugeSpend::FullSmash { attack } = &g.spend;
+            vec![attack]
+        }
+        StyleKind::ReplaceStep { grant, .. } => match grant {
+            crate::expertise::StepGrant::Charge(c) => c
+                .levels
+                .iter()
+                .flat_map(|l| std::iter::once(&l.attack).chain(l.perfect_attack.as_ref()))
+                .collect(),
+            crate::expertise::StepGrant::Hold(h) => vec![&h.loop_attack, &h.release],
+        },
+        _ => Vec::new(),
+    }
+}
+
 /// A field outside a style whose rule has not landed is refused where it stands
 /// (`ContentFieldName::shipped`): a base tree's `size_stacks` and `press_factor` at the tree, and
 /// the rules' `sweep_min_enemies` at the rules file. It runs after the rules parse.
-pub(super) fn check_unshipped_fields(weapons: &Weapons, rules: &Rules) -> Result<(), PackError> {
+pub(super) fn check_unshipped_fields(
+    weapons: &Weapons,
+    expertise: &Expertise,
+    rules: &Rules,
+) -> Result<(), PackError> {
     let refusal = |name: ContentFieldName| format!("the field {} is not shipped yet", name.tag());
     let mut issues = Vec::new();
     for (w, entry) in weapons.list().iter().enumerate() {
         for (t, tree) in entry.trees.iter().enumerate() {
+            let at = format!("$.weapons[{w}].trees[{t}].weapon");
             for (name, key) in tree.weapon.named_fields() {
                 if !name.shipped() {
                     issues.push(validate::Issue {
-                        path: format!("$.weapons[{w}].trees[{t}].weapon.{key}"),
+                        path: format!("{at}.{key}"),
                         message: refusal(name),
                     });
                 }
+            }
+            // A lingering node on any attack the tree starts, a preset's phases apart (a preset
+            // is validated as an enemy's attack, which refuses the node).
+            if !ContentFieldName::PhaseLinger.shipped()
+                && weapon_attacks(&tree.weapon)
+                    .into_iter()
+                    .any(attack_has_linger)
+            {
+                issues.push(validate::Issue {
+                    path: at,
+                    message: refusal(ContentFieldName::PhaseLinger),
+                });
             }
         }
     }
     if !issues.is_empty() {
         return Err(PackError::File {
             file: "weapons",
+            error: validate::Error::Invalid(issues),
+        });
+    }
+    let mut issues = Vec::new();
+    if !ContentFieldName::PhaseLinger.shipped() {
+        for (w, we) in expertise.weapons().iter().enumerate() {
+            for (s, style) in we.styles.iter().enumerate() {
+                let at = format!("$.weapons[{w}].styles[{s}]");
+                let mut levels = vec![(format!("{at}.kinds"), style.kinds.as_slice())];
+                for (field, option) in style_levels(style) {
+                    if let Some(o) = option {
+                        levels.push((format!("{at}.{field}[0].kinds"), o.kinds.as_slice()));
+                    }
+                }
+                for (path, kinds) in levels {
+                    for (k, kind) in kinds.iter().enumerate() {
+                        if kind_attacks(kind).into_iter().any(attack_has_linger) {
+                            issues.push(validate::Issue {
+                                path: format!("{path}[{k}]"),
+                                message: refusal(ContentFieldName::PhaseLinger),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !issues.is_empty() {
+        return Err(PackError::File {
+            file: "expertise",
             error: validate::Error::Invalid(issues),
         });
     }

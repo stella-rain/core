@@ -149,6 +149,9 @@ impl<'a> Ctx<'a> {
         if let Some(a) = p.advance {
             self.key("advance", |c| c.advance(a));
         }
+        if let Some(l) = &p.linger {
+            self.key("linger", |c| c.linger(p, l));
+        }
         if let Some(r) = p.rehit_ticks {
             if p.kind != PhaseKind::Active || p.hit_box.is_none() {
                 self.key("rehit_ticks", |c| {
@@ -178,6 +181,51 @@ impl<'a> Ctx<'a> {
                 "must be between {least} and {most} (found {})",
                 a.0
             ));
+        }
+    }
+
+    /// A lingering area is an active phase's of the main character's or an ally's attack,
+    /// `sim_version` 2 only, each number in its own range and at least one pulse in its ticks.
+    fn linger(&mut self, p: &AttackPhase, l: &crate::attack::LingerNode) {
+        if p.kind != PhaseKind::Active {
+            self.fail("only an active phase opens a lingering area");
+        }
+        if self.foe != Foe::Other {
+            self.fail("a main character's or an ally's attack only");
+        }
+        if self.sim_version < 2 {
+            self.fail("needs sim_version 2");
+        }
+        let most = i64::from(crate::limits::MAX_LINGER_TICKS);
+        self.within("ticks", i64::from(l.ticks), 1, most);
+        self.within(
+            "rate_ticks",
+            i64::from(l.rate_ticks),
+            1,
+            i64::from(l.ticks).min(most),
+        );
+        self.key("shape", |c| c.zone_shape(&l.shape));
+        self.within(
+            "damage_pct",
+            i64::from(l.damage_pct),
+            1,
+            i64::from(crate::limits::MAX_PCT),
+        );
+        if let Some(pull) = l.pull {
+            self.within(
+                "pull",
+                i64::from(pull.0),
+                i64::from(crate::fixed::Fx::px(1).0),
+                i64::from(crate::fixed::Fx::px(crate::limits::MAX_LINGER_PULL_PX).0),
+            );
+        }
+        if let Some(pct) = l.proc_pct {
+            self.within(
+                "proc_pct",
+                i64::from(pct),
+                1,
+                i64::from(crate::expertise::MAX_PROC_PCT),
+            );
         }
     }
 

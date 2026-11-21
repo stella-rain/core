@@ -498,7 +498,7 @@ impl Pack {
         }
         let rules = rules.map_err(PackError::in_file("rules"))?;
         check_down_ticks(&expertise, &rules)?;
-        check_unshipped_fields(&weapons, &rules)?;
+        check_unshipped_fields(&weapons, &expertise, &rules)?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()

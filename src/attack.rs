@@ -97,6 +97,55 @@ pub struct AttackPhase {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 256, max = crate::limits::MAX_ADVANCE_DISTANCE * 256))]
     pub advance: Option<Fx>,
+    /// An active phase of the main character's or an ally's attack: a lingering area the phase
+    /// leaves behind, pulsing on its own (ADR-SIM-9 points 3 and 4). `sim_version` 2 only. Absent:
+    /// none. Typed only: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linger: Option<LingerNode>,
+}
+
+/// Where a lingering area stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LingerAt {
+    /// On the place the phase strikes.
+    Place,
+    /// On the player, following them.
+    Player,
+}
+
+/// A lingering area's numbers (ADR-SIM-9 points 3 and 4, ADR-SVC-1), every one bounded by the
+/// validator.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LingerNode {
+    /// Where the area stands.
+    pub anchor: LingerAt,
+    /// How long the area lasts: 1 to `MAX_LINGER_TICKS`.
+    #[schemars(range(min = 1, max = crate::limits::MAX_LINGER_TICKS))]
+    pub ticks: u32,
+    /// Ticks between two pulses: 1 to `ticks` (at least one pulse).
+    #[schemars(range(min = 1, max = crate::limits::MAX_LINGER_TICKS))]
+    pub rate_ticks: u32,
+    /// The area's shape, bounded as a zone's.
+    pub shape: ZoneShape,
+    /// The percent of the phase's damage each pulse deals: 1 to `MAX_PCT`.
+    #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
+    pub damage_pct: u32,
+    /// The pull toward the area's centre each pulse, in 1/256 px: 1 px to `MAX_LINGER_PULL_PX`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 256, max = crate::limits::MAX_LINGER_PULL_PX * 256))]
+    pub pull: Option<Fx>,
+    /// Whether the area breaks the enemy orbs it reaches.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]
+    pub cuts_orbs: bool,
+    /// The chance each pulse fires ready on-hit runes, in percent: 1 to `MAX_PROC_PCT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::expertise::MAX_PROC_PCT))]
+    pub proc_pct: Option<u32>,
+    /// Whether the area opens with a fire of the ready runes.
+    #[serde(default, skip_serializing_if = "crate::behaviour::is_false")]
+    pub opens_with_runes: bool,
 }
 
 /// A phase that carries its attacker forward: it covers `distance` over the phase's ticks, held
