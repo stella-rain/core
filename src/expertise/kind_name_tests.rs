@@ -25,13 +25,27 @@ fn the_list_of_kinds_is_the_schemas() {
 
 /// The test a rule task edits when it flips an arm of `shipped`.
 #[test]
-fn the_unshipped_kinds_are_the_three_riders() {
-    use StyleKindName::{RepeatProcPct, RepeatRangePct, RepeatSizeStack};
+fn the_unshipped_kinds_are_the_three_riders_and_the_four_wave_three_kinds() {
+    use StyleKindName::{
+        AreaBonus, DownBonusPct, Encore, KnockdownSteps, RepeatProcPct, RepeatRangePct,
+        RepeatSizeStack,
+    };
     let unshipped: Vec<StyleKindName> = StyleKindName::ALL
         .into_iter()
         .filter(|n| !n.shipped())
         .collect();
-    assert_eq!(unshipped, [RepeatRangePct, RepeatProcPct, RepeatSizeStack]);
+    assert_eq!(
+        unshipped,
+        [
+            RepeatRangePct,
+            RepeatProcPct,
+            RepeatSizeStack,
+            Encore,
+            KnockdownSteps,
+            DownBonusPct,
+            AreaBonus,
+        ]
+    );
 }
 
 #[test]
@@ -104,6 +118,24 @@ fn the_list_of_effects_is_the_schemas() {
     want.extend(new_fields::<super::Spirit>(&["decay_ticks", "levels"]));
     want.extend(tags_of::<super::SpiritEffect>());
     want.extend(tags_of::<super::CounterEffect>());
+    let in_order = |mut fields: Vec<String>, order: &[&str]| {
+        fields.sort_by_key(|k| order.iter().position(|t| t == k));
+        fields
+    };
+    want.extend(new_fields::<super::Encore>(&[
+        "step",
+        "skip_presses",
+        "ticks",
+        "speed_pct",
+    ]));
+    want.extend(in_order(
+        new_fields::<super::KnockdownSteps>(&["steps"]),
+        &["vulnerable_after", "second_hit_pct"],
+    ));
+    want.extend(in_order(
+        new_fields::<super::AreaBonus>(&[]),
+        &["ticks_pct", "range_pct", "proc_pct"],
+    ));
     let all: Vec<&str> = StyleEffectName::ALL.iter().map(|n| n.tag()).collect();
     assert_eq!(all, want);
 }
@@ -135,6 +167,12 @@ fn the_unshipped_effects_are_the_new_ones() {
             CounterFillSizeStacks,
             CounterClearBullets,
             CounterFireRunes,
+            EncoreWavePresses,
+            KnockdownVulnerableAfter,
+            KnockdownSecondHitPct,
+            AreaTicksPct,
+            AreaRangePct,
+            AreaProcPct,
         ]
     );
 }

@@ -363,6 +363,35 @@ pub enum StyleKindView {
     RepeatProcPct { proc_pct: u32 },
     /// The style's repeats add to the weapon's size stack.
     RepeatSizeStack {},
+    /// The style's encore: `step` entered after `skip_presses` skipped presses, for `ticks`, at
+    /// `speed_pct` more attack speed.
+    Encore {
+        step: crate::expertise::StepRef,
+        skip_presses: u32,
+        ticks: u32,
+        speed_pct: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        wave_presses: Option<u32>,
+    },
+    /// The steps that knock a foe down.
+    KnockdownSteps {
+        steps: Vec<crate::expertise::StepRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        vulnerable_after: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        second_hit_pct: Option<u32>,
+    },
+    /// The percent more damage to a foe that is down.
+    DownBonusPct { pct: u32 },
+    /// The bonus to the style's lingering area.
+    AreaBonus {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ticks_pct: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        range_pct: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        proc_pct: Option<u32>,
+    },
     /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
     ProcFactor {
         step: crate::expertise::StepRef,

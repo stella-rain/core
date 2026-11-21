@@ -400,4 +400,10 @@ pub enum DomainEvent {
         at: Point,
         radius: i32,
     },
+    /// The swing of `player` reached the rules' `sweep_min_enemies` with `count` distinct enemies
+    /// (ADR-SIM-9). Emitted once per swing; nothing emits it yet.
+    SweepSet {
+        player: PlayerIdx,
+        count: u32,
+    },
 }

@@ -91,6 +91,11 @@ pub const MAX_COUNTED_PRESSES: u32 = 16;
 pub const MAX_SMASH_REPEATS: usize = 4;
 /// The most steps one spirit `rune_surge` effect lists (a tuning placeholder).
 pub const MAX_RUNE_SURGE_STEPS: usize = 4;
+/// The most steps one `knockdown_steps` kind lists (a tuning placeholder).
+pub const MAX_KNOCKDOWN_STEPS: usize = 6;
+/// The most ticks of a `knockdown_steps` kind's `vulnerable_after` (a tuning placeholder: the
+/// status's own cap is the rule's to hold).
+pub const MAX_VULNERABLE_AFTER_TICKS: u32 = 300;
 /// The most effects one counter bonus kind names (a bound: one per `CounterEffect` variant).
 pub const MAX_COUNTER_EFFECTS: usize = 10;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
@@ -114,10 +119,10 @@ mod kind_name_tests;
 #[cfg(test)]
 pub(crate) use style::{sooner_at, step_ref};
 pub use types::{
-    Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, ExpertiseEffect,
-    ExpertiseFile, ExpertiseOption, Gauge, GaugeSpend, GiantTrigger, SetStat, SmashRepeat, Spirit,
-    SpiritEffect, StepGrant, StepGroup, StepRef, Style, StyleEffectName, StyleKind, StyleKindName,
-    TempoEffect, TriggerEffect, WeaponExpertise,
+    AreaBonus, Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect,
+    Encore, ExpertiseEffect, ExpertiseFile, ExpertiseOption, Gauge, GaugeSpend, GiantTrigger,
+    KnockdownSteps, SetStat, SmashRepeat, Spirit, SpiritEffect, StepGrant, StepGroup, StepRef,
+    Style, StyleEffectName, StyleKind, StyleKindName, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 
 /// Expertise content that passed validation, and the SHA-256 of the bytes it came from.

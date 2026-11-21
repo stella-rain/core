@@ -19,6 +19,7 @@ fn phase(move_pct: u8) -> AttackPhase {
         poise_damage: None,
         stagger: None,
         advance: None,
+        linger: None,
     }
 }
 

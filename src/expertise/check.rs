@@ -1,8 +1,9 @@
 //! The validator: the file's own checks, the level and option checks, and the ID and set checks.
 
 use super::kind_checks::{
-    check_breaker, check_combo_tempo, check_counter_bonus, check_gauge, check_giant_trigger,
-    check_proc_pct, check_spirit, check_step_len, check_step_once,
+    check_area_bonus, check_breaker, check_combo_tempo, check_counter_bonus, check_down_bonus,
+    check_encore, check_gauge, check_giant_trigger, check_knockdown, check_proc_pct, check_spirit,
+    check_step_len, check_step_once,
 };
 use super::types::set_stat_most;
 use super::{
@@ -171,6 +172,7 @@ struct Earlier {
     counter: bool,
     tempo: bool,
     trigger: bool,
+    knockdown: bool,
 }
 
 impl Earlier {
@@ -182,6 +184,7 @@ impl Earlier {
                 StyleKind::CounterBonus(_) => self.counter = true,
                 StyleKind::ComboTempoPct(_) => self.tempo = true,
                 StyleKind::GiantTrigger(_) => self.trigger = true,
+                StyleKind::KnockdownSteps(_) => self.knockdown = true,
                 _ => {}
             }
         }
@@ -384,6 +387,10 @@ fn check_level(
             StyleKind::ComboTempoPct(t) => check_combo_tempo(issue, &at, t, earlier.tempo),
             StyleKind::GiantTrigger(t) => check_giant_trigger(issue, &at, t, earlier.trigger),
             StyleKind::Breaker(b) => check_breaker(issue, &at, b),
+            StyleKind::Encore(e) => check_encore(issue, &at, e),
+            StyleKind::KnockdownSteps(n) => check_knockdown(issue, &at, n, earlier.knockdown),
+            StyleKind::DownBonusPct { pct } => check_down_bonus(issue, &at, *pct),
+            StyleKind::AreaBonus(a) => check_area_bonus(issue, &at, a),
         }
     }
 }

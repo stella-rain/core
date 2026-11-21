@@ -65,6 +65,43 @@ impl<'a> Ctx<'a> {
         if let Some(effect) = &w.smash {
             self.key("smash", |c| c.smash(effect));
         }
+        if let Some(s) = &w.size_stacks {
+            self.key("size_stacks", |c| c.size_stacks(s));
+        }
+        if let Some(f) = &w.press_factor {
+            self.key("press_factor", |c| {
+                c.within(
+                    "pct_per_press",
+                    i64::from(f.pct_per_press),
+                    1,
+                    i64::from(crate::limits::MAX_PCT),
+                )
+            });
+        }
+    }
+
+    /// The size stacks' numbers, and the widening they reach together within the range term.
+    fn size_stacks(&mut self, s: &crate::weapon::SizeStacks) {
+        let range = i64::from(crate::rewards::MAX_RANGE_PCT);
+        self.within("pct_per_stack", i64::from(s.pct_per_stack), 1, range);
+        self.within(
+            "max_stacks",
+            i64::from(s.max_stacks),
+            1,
+            i64::from(crate::limits::MAX_SIZE_STACKS),
+        );
+        self.within(
+            "ticks",
+            i64::from(s.ticks),
+            1,
+            i64::from(crate::limits::MAX_SIZE_TICKS),
+        );
+        let reach = i64::from(s.pct_per_stack).saturating_mul(i64::from(s.max_stacks));
+        if reach > range && i64::from(s.pct_per_stack) <= range {
+            self.key("pct_per_stack", |c| {
+                c.fail(format!("times max_stacks, at most {range} (found {reach})"))
+            });
+        }
     }
 
     fn branches(&mut self, b: &Branches, depth: u32, steps: &mut usize) {

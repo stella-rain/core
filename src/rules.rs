@@ -295,6 +295,11 @@ pub struct RulesFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = crate::limits::MAX_PCT))]
     pub down_bonus_pct: Option<u32>,
+    /// The distinct enemies one swing must reach for the sweep: 1 to `limits::MAX_SWEEP_COUNT`
+    /// (500). `sim_version` 2 only. Absent: no swing sweeps. Typed only: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::limits::MAX_SWEEP_COUNT))]
+    pub sweep_min_enemies: Option<u32>,
     /// The ticks a counter stuns a regular enemy or an elite (an elite for its share): 1 to
     /// `validate::limits::MAX_STUN_TICKS` (120). `sim_version` 2 only. Absent: a counter stuns
     /// nothing (it still cancels the attack and fills the gauge).
@@ -570,6 +575,12 @@ impl Rules {
             .as_ref()
             .and_then(|v| v.stagger)
             .unwrap_or(0)
+    }
+
+    /// The distinct enemies one swing must reach for the sweep; none when absent (no swing
+    /// sweeps).
+    pub fn sweep_min_enemies(&self) -> Option<u32> {
+        self.file.sweep_min_enemies
     }
 
     /// The ticks a knockdown lasts; 0 when absent (no knockdown).
@@ -884,6 +895,7 @@ fn named_combat_keys(file: &RulesFile) -> Vec<&'static str> {
         ("$.stagger_damage_pct", file.stagger_damage_pct.is_some()),
         ("$.down_ticks", file.down_ticks.is_some()),
         ("$.down_bonus_pct", file.down_bonus_pct.is_some()),
+        ("$.sweep_min_enemies", file.sweep_min_enemies.is_some()),
         ("$.counter_stun_ticks", file.counter_stun_ticks.is_some()),
         ("$.ranged_grace_ticks", file.ranged_grace_ticks.is_some()),
     ];
@@ -1377,6 +1389,15 @@ fn validate_stagger_keys(file: &RulesFile, issues: &mut Vec<Issue>) {
             i64::from(n),
             1,
             i64::from(MAX_PCT),
+        );
+    }
+    if let Some(n) = file.sweep_min_enemies {
+        within(
+            issues,
+            "sweep_min_enemies",
+            i64::from(n),
+            1,
+            i64::from(crate::limits::MAX_SWEEP_COUNT),
         );
     }
 }

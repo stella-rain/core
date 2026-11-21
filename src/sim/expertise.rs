@@ -715,6 +715,24 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 proc_pct: *proc_pct,
             },
             StyleKind::RepeatSizeStack {} => StyleKindView::RepeatSizeStack {},
+            StyleKind::Encore(e) => StyleKindView::Encore {
+                step: e.step.clone(),
+                skip_presses: e.skip_presses,
+                ticks: e.ticks,
+                speed_pct: e.speed_pct,
+                wave_presses: e.wave_presses,
+            },
+            StyleKind::KnockdownSteps(k) => StyleKindView::KnockdownSteps {
+                steps: k.steps.clone(),
+                vulnerable_after: k.vulnerable_after,
+                second_hit_pct: k.second_hit_pct,
+            },
+            StyleKind::DownBonusPct { pct } => StyleKindView::DownBonusPct { pct: *pct },
+            StyleKind::AreaBonus(a) => StyleKindView::AreaBonus {
+                ticks_pct: a.ticks_pct,
+                range_pct: a.range_pct,
+                proc_pct: a.proc_pct,
+            },
             StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
                 step: step.clone(),
                 proc_pct: *proc_pct,

@@ -49,7 +49,8 @@ pub mod trust;
 
 use check::{
     check_budgets, check_default_difficulty, check_default_perk_set, check_difficulty_boss_times,
-    check_equipment_rules, check_holds, check_perk_categories, check_style_grants,
+    check_down_ticks, check_equipment_rules, check_holds, check_perk_categories,
+    check_style_grants, check_unshipped_fields, with_down_ticks,
 };
 use introduced::{check_introduced, check_offer_effects, introduced_at};
 
@@ -490,9 +491,14 @@ impl Pack {
         let weapons = Weapons::parse(&file_bytes(&pack.weapons), versions)
             .map_err(PackError::in_file("weapons"))?;
         check_holds(&weapons, &attack_presets)?;
-        check_style_grants(&expertise, &weapons, &attack_presets)?;
-        let rules = Rules::parse(&file_bytes(&pack.rules), versions)
-            .map_err(PackError::in_file("rules"))?;
+        let styles = check_style_grants(&expertise, &weapons, &attack_presets);
+        let rules = Rules::parse(&file_bytes(&pack.rules), versions);
+        if let Err(refusal) = styles {
+            return Err(with_down_ticks(refusal, &expertise, rules.as_ref().ok()));
+        }
+        let rules = rules.map_err(PackError::in_file("rules"))?;
+        check_down_ticks(&expertise, &rules)?;
+        check_unshipped_fields(&weapons, &expertise, &rules)?;
         let starting_unlocks = pack
             .starting_unlocks
             .as_deref()

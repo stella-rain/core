@@ -85,6 +85,7 @@ fn phase_of(kind: PhaseKind, ticks: u32, hit_box: Option<HitBox>) -> AttackPhase
         poise_damage: None,
         stagger: None,
         advance: None,
+        linger: None,
     }
 }
 
