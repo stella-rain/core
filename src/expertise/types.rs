@@ -93,6 +93,28 @@ impl ExpertiseEffect {
     }
 }
 
+// The step a kind names: the presses from the root of the combo tree, `[main, main]` is AA. Its
+// `Debug` text is the list's own and it has no schema description, so the refactor moves no digest
+// (the observables digests read `Debug` text) and no generated schema byte. Not a doc comment: a
+// doc comment would be a schema `description`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(inline)]
+pub struct StepRef(Vec<Press>);
+
+impl std::fmt::Debug for StepRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl StepRef {
+    /// The presses of the step.
+    pub fn path(&self) -> &[Press] {
+        &self.0
+    }
+}
+
 /// A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -114,7 +136,7 @@ pub enum StyleKind {
     /// `grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its
     /// charge), so a step never ends with both; two grants on one step inside one style are
     /// refused.
-    ReplaceStep { step: Vec<Press>, grant: StepGrant },
+    ReplaceStep { step: StepRef, grant: StepGrant },
     /// The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the
     /// base's (ADR-SIM-9 point 4). One per style path: a second is refused.
     SmashEffect { effect: SmashEffect },
@@ -123,7 +145,7 @@ pub enum StyleKind {
     /// `proc_pct` (absent: every ready rune, no draw). Not on a held step; at most
     /// `MAX_STEP_REPEATS` per step over one style's path.
     Repeat {
-        step: Vec<Press>,
+        step: StepRef,
         after_ticks: u32,
         repeat_pct: u32,
         anchor: RepeatAnchorKind,
@@ -165,7 +187,7 @@ pub enum StyleKind {
     },
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
-    ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    ProcFactor { step: StepRef, proc_pct: u32 },
     /// The charge of the step reached by `step` reaches each of its levels `pct` percent sooner
     /// (1 to `MAX_CHARGE_SOONER_PCT`): each level's `at_ticks` becomes `at_ticks * (100 - pct) /
     /// 100`, floored, at least 1. The perfect windows, the longest hold, the movement and the
@@ -174,7 +196,7 @@ pub enum StyleKind {
     /// path. It is applied when the world builds the style's weapon (`weapon_with_style`): no
     /// state, no hash field. `sim_version` 2 only.
     ChargeSooner {
-        step: Vec<Press>,
+        step: StepRef,
         #[schemars(range(min = 1, max = MAX_CHARGE_SOONER_PCT))]
         pct: u32,
     },

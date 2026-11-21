@@ -3,10 +3,9 @@
 use super::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, Gauge,
     GaugeSpend, GiantTrigger, MAX_HOLD_MOVE_PCT, MAX_LEVEL_KINDS, MAX_PROC_PCT,
-    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, Spirit, SpiritEffect, Style,
-    StyleKind, TempoEffect, TriggerEffect, style_levels,
+    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, Spirit, SpiritEffect, StepRef,
+    Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
 };
-use crate::event::Press;
 use crate::fixed::Fx;
 use crate::limits::{
     MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
@@ -352,7 +351,8 @@ pub(super) fn check_counter_bonus(
     }
 }
 
-pub(super) fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &[Press]) {
+pub(super) fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &StepRef) {
+    let step = step.path();
     if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
         issue(
             format!("{at}.step"),
@@ -379,9 +379,9 @@ pub(super) fn check_proc_pct(
 /// later one. The spirit, counter bonus, combo tempo and giant trigger are named once per level
 /// and may be named at every level of the path.
 pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
-    let mut seen: Vec<&Vec<Press>> = Vec::new();
-    let mut factored: Vec<&Vec<Press>> = Vec::new();
-    let mut hastened: Vec<&Vec<Press>> = Vec::new();
+    let mut seen: Vec<&StepRef> = Vec::new();
+    let mut factored: Vec<&StepRef> = Vec::new();
+    let mut hastened: Vec<&StepRef> = Vec::new();
     let mut smash_set = false;
     let mut orbs_set = false;
     let mut bleed_set = false;

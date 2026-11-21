@@ -14,7 +14,7 @@ use super::{
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::expertise::{
-    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, apply_grant,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StepRef, StyleKind, apply_grant,
     charge_sooner, step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
@@ -204,7 +204,7 @@ pub(super) fn check_style_grants(
             }
             let mut tree = base.clone();
             // Each repeat kind's path and step, for the checks that need the whole path applied.
-            let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
+            let mut repeats: Vec<(String, &StepRef)> = Vec::new();
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             let mut spirits: Vec<(String, &Spirit)> = Vec::new();
             let mut triggers: Vec<String> = Vec::new();
@@ -216,7 +216,7 @@ pub(super) fn check_style_grants(
                     let at = format!("{path}[{k}]");
                     let field = match kind {
                         StyleKind::ReplaceStep { step, grant } => {
-                            if !apply_grant(&mut tree, step, grant) {
+                            if !apply_grant(&mut tree, step.path(), grant) {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -230,14 +230,14 @@ pub(super) fn check_style_grants(
                             "effect"
                         }
                         StyleKind::ChargeSooner { step, pct } => {
-                            if step_mut(&mut tree.combo, step).is_none() {
+                            if step_mut(&mut tree.combo, step.path()).is_none() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
                                 });
                                 break 'style;
                             }
-                            if !charge_sooner(&mut tree, step, *pct) {
+                            if !charge_sooner(&mut tree, step.path(), *pct) {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "the step has no charge at this level of the path"
@@ -248,7 +248,7 @@ pub(super) fn check_style_grants(
                             "pct"
                         }
                         StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
-                            if step_mut(&mut tree.combo, step).is_none() {
+                            if step_mut(&mut tree.combo, step.path()).is_none() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -325,7 +325,7 @@ pub(super) fn check_style_grants(
             // A held step does not repeat: the grants may come after the repeat, so the check
             // reads the tree the whole path made.
             for (at, step) in repeats {
-                if step_mut(&mut tree.combo, step).is_some_and(|s| s.hold.is_some()) {
+                if step_mut(&mut tree.combo, step.path()).is_some_and(|s| s.hold.is_some()) {
                     issues.push(validate::Issue {
                         path: at,
                         message: "a held step does not repeat".into(),

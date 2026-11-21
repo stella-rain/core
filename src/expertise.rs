@@ -102,7 +102,7 @@ pub(crate) use style::{
 pub use types::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, ExpertiseEffect,
     ExpertiseFile, ExpertiseOption, Gauge, GaugeSpend, GiantTrigger, SetStat, Spirit, SpiritEffect,
-    StepGrant, Style, StyleKind, TempoEffect, TriggerEffect, WeaponExpertise,
+    StepGrant, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, WeaponExpertise,
 };
 
 /// Expertise content that passed validation, and the SHA-256 of the bytes it came from.

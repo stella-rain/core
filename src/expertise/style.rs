@@ -87,7 +87,7 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
         for kind in kinds {
             match kind {
                 StyleKind::ReplaceStep { step, grant } => {
-                    apply_grant(&mut weapon, step, grant);
+                    apply_grant(&mut weapon, step.path(), grant);
                 }
                 StyleKind::SmashEffect { effect } => weapon.smash = Some(*effect),
                 StyleKind::Repeat {
@@ -97,7 +97,7 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     anchor,
                     proc_pct,
                 } => {
-                    if let Some(s) = step_mut(&mut weapon.combo, step) {
+                    if let Some(s) = step_mut(&mut weapon.combo, step.path()) {
                         s.repeats.push(StepRepeat {
                             after_ticks: *after_ticks,
                             repeat_pct: u16::try_from(*repeat_pct).unwrap_or(u16::MAX),
@@ -124,13 +124,13 @@ pub(crate) fn weapon_with_style(base: &Weapon, style: &Style, taken: usize) -> W
                     });
                 }
                 StyleKind::ProcFactor { step, proc_pct } => {
-                    if let Some(s) = step_mut(&mut weapon.combo, step) {
+                    if let Some(s) = step_mut(&mut weapon.combo, step.path()) {
                         s.proc_pct = Some(u16::try_from(*proc_pct).unwrap_or(u16::MAX));
                     }
                 }
                 // A path with no charge at this place is refused by the pack check.
                 StyleKind::ChargeSooner { step, pct } => {
-                    charge_sooner(&mut weapon, step, *pct);
+                    charge_sooner(&mut weapon, step.path(), *pct);
                 }
                 // The gauge changes no step: the rules read it beside the weapon (`World::gauge_of`).
                 StyleKind::Gauge(_) => {}

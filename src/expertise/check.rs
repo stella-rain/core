@@ -260,10 +260,13 @@ fn check_level(
         let at = format!("{at}[{k}]");
         match kind {
             StyleKind::ReplaceStep { step, grant } => {
-                if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
+                if step.path().is_empty() || step.path().len() > MAX_COMBO_DEPTH as usize {
                     issue(
                         format!("{at}.step"),
-                        format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
+                        format!(
+                            "1 to {MAX_COMBO_DEPTH} presses (found {})",
+                            step.path().len()
+                        ),
                     );
                 }
                 if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
