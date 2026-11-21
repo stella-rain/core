@@ -182,6 +182,7 @@ mod statuses;
 mod step_three;
 mod stun;
 mod style_grants;
+mod style_step_groups;
 mod swap_rating;
 mod sync_rig;
 mod tally;

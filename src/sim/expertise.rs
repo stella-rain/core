@@ -626,6 +626,11 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 damage: *damage,
                 max_stacks: *max_stacks,
             },
+            StyleKind::RepeatRangePct { pct } => StyleKindView::RepeatRangePct { pct: *pct },
+            StyleKind::RepeatProcPct { proc_pct } => StyleKindView::RepeatProcPct {
+                proc_pct: *proc_pct,
+            },
+            StyleKind::RepeatSizeStack {} => StyleKindView::RepeatSizeStack {},
             StyleKind::ProcFactor { step, proc_pct } => StyleKindView::ProcFactor {
                 step: step.clone(),
                 proc_pct: *proc_pct,

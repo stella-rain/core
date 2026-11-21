@@ -3,8 +3,8 @@
 use super::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, Gauge,
     GaugeSpend, GiantTrigger, MAX_HOLD_MOVE_PCT, MAX_LEVEL_KINDS, MAX_PROC_PCT,
-    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, Spirit, SpiritEffect, Style,
-    StyleKind, TempoEffect, TriggerEffect, style_levels,
+    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, Spirit, SpiritEffect, StepRef,
+    Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
 };
 use crate::event::Press;
 use crate::fixed::Fx;
@@ -352,7 +352,10 @@ pub(super) fn check_counter_bonus(
     }
 }
 
-pub(super) fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &[Press]) {
+pub(super) fn check_step_len(issue: &mut impl FnMut(String, String), at: &str, step: &StepRef) {
+    let StepRef::Path(step) = step else {
+        return;
+    };
     if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
         issue(
             format!("{at}.step"),
@@ -374,17 +377,33 @@ pub(super) fn check_proc_pct(
     }
 }
 
+/// Whether any member of `step` is already in `taken`; the members are added either way.
+fn claims(taken: &mut Vec<Vec<Press>>, step: &StepRef) -> bool {
+    let members = step.members();
+    let again = members.iter().any(|m| taken.contains(m));
+    for member in members {
+        if !taken.contains(&member) {
+            taken.push(member);
+        }
+    }
+    again
+}
+
 /// One grant on a step per style, and one smash effect and one gauge: a second grant on a step an
 /// earlier level of the same style granted, or a second smash effect or gauge, is refused at the
 /// later one. The spirit, counter bonus, combo tempo and giant trigger are named once per level
 /// and may be named at every level of the path.
 pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str, style: &Style) {
-    let mut seen: Vec<&Vec<Press>> = Vec::new();
-    let mut factored: Vec<&Vec<Press>> = Vec::new();
-    let mut hastened: Vec<&Vec<Press>> = Vec::new();
+    // The steps each list has granted so far, member by member: a group claims all of its own.
+    let mut seen: Vec<Vec<Press>> = Vec::new();
+    let mut factored: Vec<Vec<Press>> = Vec::new();
+    let mut hastened: Vec<Vec<Press>> = Vec::new();
     let mut smash_set = false;
     let mut orbs_set = false;
     let mut bleed_set = false;
+    let mut range_set = false;
+    let mut proc_set = false;
+    let mut stack_set = false;
     let mut gauge_set = false;
     // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
     let mut tempo: Option<(u32, u32)> = None;
@@ -414,13 +433,11 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
                     breaker_here = true;
                 }
                 StyleKind::ReplaceStep { step, .. } => {
-                    if seen.contains(&step) {
+                    if claims(&mut seen, step) {
                         issue(
                             format!("{path}[{k}].step"),
                             "the step is already granted by an earlier level of the style".into(),
                         );
-                    } else {
-                        seen.push(step);
                     }
                 }
                 StyleKind::SmashEffect { .. } => {
@@ -451,27 +468,50 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
                     }
                     bleed_set = true;
                 }
+                StyleKind::RepeatRangePct { .. } => {
+                    if range_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already widens its repeats".into(),
+                        );
+                    }
+                    range_set = true;
+                }
+                StyleKind::RepeatProcPct { .. } => {
+                    if proc_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already sets its repeats' proc chance".into(),
+                        );
+                    }
+                    proc_set = true;
+                }
+                StyleKind::RepeatSizeStack {} => {
+                    if stack_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already stacks size on its repeats".into(),
+                        );
+                    }
+                    stack_set = true;
+                }
                 StyleKind::ProcFactor { step, .. } => {
-                    if factored.contains(&step) {
+                    if claims(&mut factored, step) {
                         issue(
                             format!("{path}[{k}].step"),
                             "the step already has a proc factor from an earlier level of the style"
                                 .into(),
                         );
-                    } else {
-                        factored.push(step);
                     }
                 }
                 StyleKind::ChargeSooner { step, .. } => {
-                    if hastened.contains(&step) {
+                    if claims(&mut hastened, step) {
                         issue(
                             format!("{path}[{k}].step"),
                             "the step's charge is already made sooner by an earlier level of the \
                              style"
                                 .into(),
                         );
-                    } else {
-                        hastened.push(step);
                     }
                 }
                 StyleKind::Gauge(_) => {

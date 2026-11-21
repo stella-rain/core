@@ -13,8 +13,8 @@ use super::{
 };
 use crate::id::ContentId;
 use crate::registry::{self, Kind};
-use crate::rewards::MAX_BURST_RADIUS_PX;
-use crate::validate::limits::{MAX_COMBO_DEPTH, MAX_DAMAGE};
+use crate::rewards::{MAX_BURST_RADIUS_PX, MAX_RANGE_PCT};
+use crate::validate::limits::MAX_DAMAGE;
 use crate::validate::{self, Error, Issue};
 
 /// The weapon presets a file must cover: the registry's, no newer than this `sim_version`.
@@ -260,12 +260,7 @@ fn check_level(
         let at = format!("{at}[{k}]");
         match kind {
             StyleKind::ReplaceStep { step, grant } => {
-                if step.is_empty() || step.len() > MAX_COMBO_DEPTH as usize {
-                    issue(
-                        format!("{at}.step"),
-                        format!("1 to {MAX_COMBO_DEPTH} presses (found {})", step.len()),
-                    );
-                }
+                check_step_len(issue, &at, step);
                 if let Err(found) = validate::validate_step_grant(grant, registry::ENTRIES) {
                     for f in found {
                         issue(
@@ -324,6 +319,17 @@ fn check_level(
                     );
                 }
             }
+            StyleKind::RepeatRangePct { pct } => {
+                if !(1..=MAX_RANGE_PCT).contains(pct) {
+                    issue(
+                        format!("{at}.pct"),
+                        format!("1 to {MAX_RANGE_PCT} (found {pct})"),
+                    );
+                }
+            }
+            StyleKind::RepeatProcPct { proc_pct } => check_proc_pct(issue, &at, Some(*proc_pct)),
+            // The size stack's numbers are the base tree's own field: nothing to bound here.
+            StyleKind::RepeatSizeStack {} => {}
             StyleKind::RepeatBleed {
                 stacks,
                 duration_ticks,

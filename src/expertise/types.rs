@@ -3,9 +3,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::style::step_ref;
 use super::{
-    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_REPEAT_BLEED_STACKS,
-    MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
+    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
+    MAX_REPEAT_BLEED_STACKS, MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
 };
 use crate::attack::AttackRef;
 use crate::event::Press;
@@ -17,8 +18,8 @@ use crate::limits::{
 };
 use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
-use crate::validate::limits::MAX_DAMAGE;
-use crate::weapon::{Charge, Hold, RepeatAnchorKind, SmashEffect};
+use crate::validate::limits::{MAX_COMBO_DEPTH, MAX_DAMAGE};
+use crate::weapon::{Branches, Charge, Hold, RepeatAnchorKind, SmashEffect};
 
 /// One stat of a weapon base set or a style set (the equipment build): its value at weapon level
 /// 1 to 10.
@@ -93,6 +94,83 @@ impl ExpertiseEffect {
     }
 }
 
+/// The step or steps a kind names: the presses from the root of the combo tree (`[main, main]`
+/// is AA), or a group, `normals` or `smashes`, that stands for each member of the group the
+/// weapon's base tree has (ADR-SIM-9 points 3 and 4). A path is one step; the groups are closed
+/// lists fixed by the tree's depth, so a check that needs no weapon can tell two names overlap.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum StepRef {
+    /// One step: 1 to `MAX_COMBO_DEPTH` presses from the root.
+    Path(Vec<Press>),
+    /// A named group of steps.
+    Group(StepGroup),
+}
+
+/// A closed name for the steps of the base tree a kind reaches together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StepGroup {
+    /// The A-only steps: A, AA, AAA, AAAA and AAAAA (1 to `MAX_COMBO_DEPTH - 1` A presses; the
+    /// dash branch is in neither group).
+    Normals,
+    /// B after 0 to `MAX_COMBO_DEPTH - 1` A presses: B, AB, AAB, AAAB, AAAAB and AAAAAB.
+    Smashes,
+}
+
+// The `Debug` text of a path is the list's own, as it was before a step could be a group: the
+// observables digests read `Debug` text.
+impl std::fmt::Debug for StepRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Path(p) => p.fmt(f),
+            Self::Group(g) => g.fmt(f),
+        }
+    }
+}
+
+impl StepGroup {
+    /// The group's steps, shortest first, whatever the weapon's tree holds.
+    pub fn members(self) -> Vec<Vec<Press>> {
+        let deep = MAX_COMBO_DEPTH as usize;
+        match self {
+            Self::Normals => (1..deep).map(|n| vec![Press::Main; n]).collect(),
+            Self::Smashes => (0..deep)
+                .map(|n| {
+                    let mut path = vec![Press::Main; n];
+                    path.push(Press::Smash);
+                    path
+                })
+                .collect(),
+        }
+    }
+}
+
+impl StepRef {
+    /// The one step a path names; `None` for a group.
+    pub fn as_path(&self) -> Option<&[Press]> {
+        match self {
+            Self::Path(p) => Some(p),
+            Self::Group(_) => None,
+        }
+    }
+
+    /// Every step the reference names, whether or not a tree has it: a path is itself.
+    pub fn members(&self) -> Vec<Vec<Press>> {
+        match self {
+            Self::Path(p) => vec![p.clone()],
+            Self::Group(g) => g.members(),
+        }
+    }
+
+    /// The members the combo tree `branches` has, in `members` order.
+    pub(crate) fn members_in(&self, branches: &Branches) -> Vec<Vec<Press>> {
+        let mut members = self.members();
+        members.retain(|m| step_ref(branches, m).is_some());
+        members
+    }
+}
+
 /// A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -110,20 +188,20 @@ pub enum StepGrant {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum StyleKind {
     /// The step reached by `step` (the presses from the root of the combo tree, 1 to
-    /// `MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral) gets
-    /// `grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its
-    /// charge), so a step never ends with both; two grants on one step inside one style are
-    /// refused.
-    ReplaceStep { step: Vec<Press>, grant: StepGrant },
+    /// `MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral; a group
+    /// names each member the tree has) gets `grant`. A grant sets the step's charge (clearing its
+    /// hold) or its hold (clearing its charge), so a step never ends with both; two grants on one
+    /// step inside one style are refused.
+    ReplaceStep { step: StepRef, grant: StepGrant },
     /// The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the
     /// base's (ADR-SIM-9 point 4). One per style path: a second is refused.
     SmashEffect { effect: SmashEffect },
-    /// The step reached by `step` repeats: `after_ticks` after its last `active` phase ends,
-    /// `repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at
-    /// `proc_pct` (absent: every ready rune, no draw). Not on a held step; at most
-    /// `MAX_STEP_REPEATS` per step over one style's path.
+    /// The step reached by `step` (a group: each member the tree has, counted one by one) repeats:
+    /// `after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands
+    /// again on `anchor`, firing ready on-hit runes at `proc_pct` (absent: every ready rune, no
+    /// draw). Not on a held step; at most `MAX_STEP_REPEATS` per step over one style's path.
     Repeat {
-        step: Vec<Press>,
+        step: StepRef,
         after_ticks: u32,
         repeat_pct: u32,
         anchor: RepeatAnchorKind,
@@ -164,8 +242,9 @@ pub enum StyleKind {
         max_stacks: u32,
     },
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
-    /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.
-    ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style, a group counting each of its
+    /// members.
+    ProcFactor { step: StepRef, proc_pct: u32 },
     /// The charge of the step reached by `step` reaches each of its levels `pct` percent sooner
     /// (1 to `MAX_CHARGE_SOONER_PCT`): each level's `at_ticks` becomes `at_ticks * (100 - pct) /
     /// 100`, floored, at least 1. The perfect windows, the longest hold, the movement and the
@@ -174,7 +253,7 @@ pub enum StyleKind {
     /// path. It is applied when the world builds the style's weapon (`weapon_with_style`): no
     /// state, no hash field. `sim_version` 2 only.
     ChargeSooner {
-        step: Vec<Press>,
+        step: StepRef,
         #[schemars(range(min = 1, max = MAX_CHARGE_SOONER_PCT))]
         pct: u32,
     },
@@ -219,6 +298,142 @@ pub enum StyleKind {
     /// the effects stacking in path order and a later level's same effect replacing the
     /// earlier one.
     Breaker(Breaker),
+    /// From the level that names it on, every repeat the style queues reaches `pct` percent
+    /// further (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the
+    /// style names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2
+    /// only. Typed and viewed only: no rule reads it yet.
+    RepeatRangePct {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
+    /// From the level that names it on, every repeat the style queues fires ready on-hit runes
+    /// at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack
+    /// check refuses it where the style names no `repeat` at or before its level. `sim_version`
+    /// 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatProcPct {
+        #[schemars(range(min = 0, max = MAX_PROC_PCT))]
+        proc_pct: u32,
+    },
+    /// The style's repeats add to the weapon's size stack, whose size, cap and ticks are the base
+    /// tree's own fields. One per style path; the pack check refuses it where the style names no
+    /// `repeat` at or before its level and where the base tree has no size-stack field.
+    /// `sim_version` 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatSizeStack {},
+}
+
+/// The name of each `StyleKind`, in declaration order: the list `shipped` and the pack check read
+/// (ADR-SIM-9 points 3 and 4). A kind is unshipped until the rule that gives it a play effect
+/// lands: the pack check refuses an unshipped kind, while parse and the schema accept it, so a kind
+/// can be typed, viewed and tested a step before it ships. Both matches below are exhaustive with
+/// no wildcard: a new `StyleKind` variant does not compile until its author writes the arms, so
+/// "shipped or not" is always a decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StyleKindName {
+    ReplaceStep,
+    SmashEffect,
+    Repeat,
+    RepeatBreaksOrbs,
+    RepeatBleed,
+    ProcFactor,
+    ChargeSooner,
+    Gauge,
+    Spirit,
+    CounterBonus,
+    ComboTempoPct,
+    GiantTrigger,
+    Breaker,
+    RepeatRangePct,
+    RepeatProcPct,
+    RepeatSizeStack,
+}
+
+impl StyleKindName {
+    /// Every kind, in `StyleKind`'s declaration order (a test keeps it equal to the schema's).
+    pub const ALL: [Self; 16] = [
+        Self::ReplaceStep,
+        Self::SmashEffect,
+        Self::Repeat,
+        Self::RepeatBreaksOrbs,
+        Self::RepeatBleed,
+        Self::ProcFactor,
+        Self::ChargeSooner,
+        Self::Gauge,
+        Self::Spirit,
+        Self::CounterBonus,
+        Self::ComboTempoPct,
+        Self::GiantTrigger,
+        Self::Breaker,
+        Self::RepeatRangePct,
+        Self::RepeatProcPct,
+        Self::RepeatSizeStack,
+    ];
+
+    /// The kind's `type` tag in the JSON.
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::ReplaceStep => "replace_step",
+            Self::SmashEffect => "smash_effect",
+            Self::Repeat => "repeat",
+            Self::RepeatBreaksOrbs => "repeat_breaks_orbs",
+            Self::RepeatBleed => "repeat_bleed",
+            Self::ProcFactor => "proc_factor",
+            Self::ChargeSooner => "charge_sooner",
+            Self::Gauge => "gauge",
+            Self::Spirit => "spirit",
+            Self::CounterBonus => "counter_bonus",
+            Self::ComboTempoPct => "combo_tempo_pct",
+            Self::GiantTrigger => "giant_trigger",
+            Self::Breaker => "breaker",
+            Self::RepeatRangePct => "repeat_range_pct",
+            Self::RepeatProcPct => "repeat_proc_pct",
+            Self::RepeatSizeStack => "repeat_size_stack",
+        }
+    }
+
+    /// Whether the pack check lets a style name the kind: its rule is in. The flip of an unshipped
+    /// kind is its arm here and the expected list of the test beside `ALL`.
+    pub const fn shipped(self) -> bool {
+        match self {
+            Self::ReplaceStep
+            | Self::SmashEffect
+            | Self::Repeat
+            | Self::RepeatBreaksOrbs
+            | Self::RepeatBleed
+            | Self::ProcFactor
+            | Self::ChargeSooner
+            | Self::Gauge
+            | Self::Spirit
+            | Self::CounterBonus
+            | Self::ComboTempoPct
+            | Self::GiantTrigger
+            | Self::Breaker => true,
+            Self::RepeatRangePct | Self::RepeatProcPct | Self::RepeatSizeStack => false,
+        }
+    }
+}
+
+impl StyleKind {
+    /// The kind's name.
+    pub const fn name(&self) -> StyleKindName {
+        match self {
+            Self::ReplaceStep { .. } => StyleKindName::ReplaceStep,
+            Self::SmashEffect { .. } => StyleKindName::SmashEffect,
+            Self::Repeat { .. } => StyleKindName::Repeat,
+            Self::RepeatBreaksOrbs { .. } => StyleKindName::RepeatBreaksOrbs,
+            Self::RepeatBleed { .. } => StyleKindName::RepeatBleed,
+            Self::ProcFactor { .. } => StyleKindName::ProcFactor,
+            Self::ChargeSooner { .. } => StyleKindName::ChargeSooner,
+            Self::Gauge(_) => StyleKindName::Gauge,
+            Self::Spirit(_) => StyleKindName::Spirit,
+            Self::CounterBonus(_) => StyleKindName::CounterBonus,
+            Self::ComboTempoPct(_) => StyleKindName::ComboTempoPct,
+            Self::GiantTrigger(_) => StyleKindName::GiantTrigger,
+            Self::Breaker(_) => StyleKindName::Breaker,
+            Self::RepeatRangePct { .. } => StyleKindName::RepeatRangePct,
+            Self::RepeatProcPct { .. } => StyleKindName::RepeatProcPct,
+            Self::RepeatSizeStack {} => StyleKindName::RepeatSizeStack,
+        }
+    }
 }
 
 /// A breaker's effects, every number bounded by the validator and clamped again when the world

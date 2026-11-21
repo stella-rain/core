@@ -11218,6 +11218,37 @@
       ],
       "type": "string"
     },
+    "StepGroup": {
+      "description": "A closed name for the steps of the base tree a kind reaches together.",
+      "oneOf": [
+        {
+          "const": "normals",
+          "description": "The A-only steps: A, AA, AAA, AAAA and AAAAA (1 to `MAX_COMBO_DEPTH - 1` A presses; the\ndash branch is in neither group).",
+          "type": "string"
+        },
+        {
+          "const": "smashes",
+          "description": "B after 0 to `MAX_COMBO_DEPTH - 1` A presses: B, AB, AAB, AAAB, AAAAB and AAAAAB.",
+          "type": "string"
+        }
+      ]
+    },
+    "StepRef": {
+      "anyOf": [
+        {
+          "description": "One step: 1 to `MAX_COMBO_DEPTH` presses from the root.",
+          "items": {
+            "$ref": "#/$defs/Press"
+          },
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/StepGroup",
+          "description": "A named group of steps."
+        }
+      ],
+      "description": "The step or steps a kind names: the presses from the root of the combo tree (`[main, main]`\nis AA), or a group, `normals` or `smashes`, that stands for each member of the group the\nweapon's base tree has (ADR-SIM-9 points 3 and 4). A path is one step; the groups are closed\nlists fixed by the tree's depth, so a check that needs no weapon can tell two names overlap."
+    },
     "StunRules": {
       "additionalProperties": false,
       "description": "The stun rules: run rules read with the stats, as they are content\ntoo. Both are tuning values; that each is bounded is the decision.",
@@ -11308,16 +11339,13 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "The step reached by `step` (the presses from the root of the combo tree, 1 to\n`MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral) gets\n`grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its\ncharge), so a step never ends with both; two grants on one step inside one style are\nrefused.",
+          "description": "The step reached by `step` (the presses from the root of the combo tree, 1 to\n`MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral; a group\nnames each member the tree has) gets `grant`. A grant sets the step's charge (clearing its\nhold) or its hold (clearing its charge), so a step never ends with both; two grants on one\nstep inside one style are refused.",
           "properties": {
             "grant": {
               "$ref": "#/$defs/StepGrant"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "replace_step",
@@ -11351,7 +11379,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The step reached by `step` repeats: `after_ticks` after its last `active` phase ends,\n`repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at\n`proc_pct` (absent: every ready rune, no draw). Not on a held step; at most\n`MAX_STEP_REPEATS` per step over one style's path.",
+          "description": "The step reached by `step` (a group: each member the tree has, counted one by one) repeats:\n`after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands\nagain on `anchor`, firing ready on-hit runes at `proc_pct` (absent: every ready rune, no\ndraw). Not on a held step; at most `MAX_STEP_REPEATS` per step over one style's path.",
           "properties": {
             "after_ticks": {
               "format": "uint32",
@@ -11375,10 +11403,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "repeat",
@@ -11466,7 +11491,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls\nunder `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style.",
+          "description": "Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls\nunder `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style, a group counting each of its\nmembers.",
           "properties": {
             "proc_pct": {
               "format": "uint32",
@@ -11474,10 +11499,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "proc_factor",
@@ -11502,10 +11524,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "charge_sooner",
@@ -11716,6 +11735,62 @@
             "effects"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "From the level that names it on, every repeat the style queues reaches `pct` percent\nfurther (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the\nstyle names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2\nonly. Typed and viewed only: no rule reads it yet.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_range_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "From the level that names it on, every repeat the style queues fires ready on-hit runes\nat `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack\ncheck refuses it where the style names no `repeat` at or before its level. `sim_version`\n2 only. Typed and viewed only: no rule reads it yet.",
+          "properties": {
+            "proc_pct": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_proc_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "proc_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's repeats add to the weapon's size stack, whose size, cap and ticks are the base\ntree's own fields. One per style path; the pack check refuses it where the style names no\n`repeat` at or before its level and where the base tree has no size-stack field.\n`sim_version` 2 only. Typed and viewed only: no rule reads it yet.",
+          "properties": {
+            "type": {
+              "const": "repeat_size_stack",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -11730,10 +11805,7 @@
               "$ref": "#/$defs/StepGrantKind"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "replace_step",
@@ -11791,10 +11863,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "repeat",
@@ -11876,6 +11945,60 @@
         },
         {
           "additionalProperties": false,
+          "description": "Each repeat of the style reaches `pct` percent further.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_range_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each repeat of the style fires ready on-hit runes at `proc_pct` percent.",
+          "properties": {
+            "proc_pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "repeat_proc_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "proc_pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The style's repeats add to the weapon's size stack.",
+          "properties": {
+            "type": {
+              "const": "repeat_size_stack",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.",
           "properties": {
             "proc_pct": {
@@ -11884,10 +12007,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "proc_factor",
@@ -11911,10 +12031,7 @@
               "type": "integer"
             },
             "step": {
-              "items": {
-                "$ref": "#/$defs/Press"
-              },
-              "type": "array"
+              "$ref": "#/$defs/StepRef"
             },
             "type": {
               "const": "charge_sooner",

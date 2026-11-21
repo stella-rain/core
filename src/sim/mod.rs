@@ -189,6 +189,8 @@ mod build_pin_tests;
 #[cfg(test)]
 mod charge_sooner_tests;
 mod drops;
+#[cfg(test)]
+mod step_group_tests;
 mod world;
 pub(crate) use attacks::phase;
 pub(crate) use world::{

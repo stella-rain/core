@@ -259,14 +259,14 @@ pub enum GaugeSpendKind {
 pub enum StyleKindView {
     /// The step the presses reach from the root of the combo tree gets a charge or a hold.
     ReplaceStep {
-        step: Vec<Press>,
+        step: crate::expertise::StepRef,
         grant: StepGrantKind,
     },
     /// The weapon's smash effect is this one in place of the base's.
     SmashEffect { effect: SmashEffectKind },
     /// The step repeats after `after_ticks`, `repeat_pct` percent of its damage, on `anchor`.
     Repeat {
-        step: Vec<Press>,
+        step: crate::expertise::StepRef,
         after_ticks: u32,
         repeat_pct: u32,
         anchor: crate::weapon::RepeatAnchorKind,
@@ -284,10 +284,22 @@ pub enum StyleKindView {
         damage: u32,
         max_stacks: u32,
     },
+    /// Each repeat of the style reaches `pct` percent further.
+    RepeatRangePct { pct: u32 },
+    /// Each repeat of the style fires ready on-hit runes at `proc_pct` percent.
+    RepeatProcPct { proc_pct: u32 },
+    /// The style's repeats add to the weapon's size stack.
+    RepeatSizeStack {},
     /// Each hit of the step fires a ready on-hit rune only at `proc_pct` percent.
-    ProcFactor { step: Vec<Press>, proc_pct: u32 },
+    ProcFactor {
+        step: crate::expertise::StepRef,
+        proc_pct: u32,
+    },
     /// The step's charge reaches each level `pct` percent sooner.
-    ChargeSooner { step: Vec<Press>, pct: u32 },
+    ChargeSooner {
+        step: crate::expertise::StepRef,
+        pct: u32,
+    },
     /// The style has a weapon gauge `max` long, spent as `spend`.
     Gauge { max: u32, spend: GaugeSpendKind },
     /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.

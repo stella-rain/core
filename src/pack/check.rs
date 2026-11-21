@@ -13,9 +13,10 @@ use super::{
 };
 use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
+use crate::event::Press;
 use crate::expertise::{
-    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, apply_grant,
-    charge_sooner, step_mut, style_levels, weapon_attacks,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, grant_step,
+    sooner_step, step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -23,6 +24,7 @@ use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
+use crate::weapon::{RepeatAnchorKind, Weapon};
 use crate::weapons::Weapons;
 
 /// The counts of a file's lists, read leniently: a file of the wrong shape is left to its own
@@ -151,6 +153,56 @@ struct WeaponLists {
     common: Vec<IgnoredAny>,
 }
 
+/// Whether the weapon's base tree has a size-stack field for `repeat_size_stack` to fill. The
+/// field does not exist yet: the stub answers `false`, and the task that adds the field replaces
+/// this body.
+fn has_size_stack_base(_base: &Weapon) -> bool {
+    false
+}
+
+/// A kind whose rule has not landed is refused at the kind, for every weapon of the expertise file
+/// whether or not the weapons file has a tree for it (`StyleKindName::shipped`).
+fn check_shipped(expertise: &Expertise, issues: &mut Vec<validate::Issue>) {
+    for (w, we) in expertise.weapons().iter().enumerate() {
+        for (s, style) in we.styles.iter().enumerate() {
+            let at = format!("$.weapons[{w}].styles[{s}]");
+            let mut levels = vec![(format!("{at}.kinds"), style.kinds.as_slice())];
+            for (field, option) in style_levels(style) {
+                if let Some(o) = option {
+                    levels.push((format!("{at}.{field}[0].kinds"), o.kinds.as_slice()));
+                }
+            }
+            for (path, kinds) in levels {
+                for (k, kind) in kinds.iter().enumerate() {
+                    let name = kind.name();
+                    if !name.shipped() {
+                        issues.push(validate::Issue {
+                            path: format!("{path}[{k}]"),
+                            message: format!("the kind {} is not shipped yet", name.tag()),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The steps as the buttons that reach them, `AAB, B`: the members a message names.
+fn step_names(steps: &[Vec<Press>]) -> String {
+    let names: Vec<String> = steps
+        .iter()
+        .map(|s| {
+            s.iter()
+                .map(|p| match p {
+                    Press::Main => 'A',
+                    Press::Smash => 'B',
+                })
+                .collect()
+        })
+        .collect();
+    names.join(", ")
+}
+
 /// The held-step checks that read a preset's phases, for every tree of the pack's weapons against
 /// the pack's own attack presets (ADR-CONT-3 point 6, CS1b-1): the weapons file alone cannot say.
 pub(super) fn check_holds(weapons: &Weapons, presets: &AttackPresets) -> Result<(), PackError> {
@@ -190,6 +242,7 @@ pub(super) fn check_style_grants(
     presets: &AttackPresets,
 ) -> Result<(), PackError> {
     let mut issues = Vec::new();
+    check_shipped(expertise, &mut issues);
     for (w, we) in expertise.weapons().iter().enumerate() {
         let Some(base) = weapons.tree(we.weapon.as_str(), None) else {
             continue;
@@ -204,19 +257,30 @@ pub(super) fn check_style_grants(
             }
             let mut tree = base.clone();
             // Each repeat kind's path and step, for the checks that need the whole path applied.
-            let mut repeats: Vec<(String, &Vec<crate::event::Press>)> = Vec::new();
+            let mut repeats: Vec<(String, Vec<Press>)> = Vec::new();
             let mut gauges: Vec<(String, &crate::attack::AttackRef)> = Vec::new();
             let mut spirits: Vec<(String, &Spirit)> = Vec::new();
             let mut triggers: Vec<String> = Vec::new();
             // Whether the path so far, this level included, names a `repeat`.
             let mut repeat_seen = false;
+            // Whether it names a `repeat` that lands on a `place`.
+            let mut place_repeat_seen = false;
             'style: for (path, kinds) in levels {
                 repeat_seen |= kinds.iter().any(|k| matches!(k, StyleKind::Repeat { .. }));
+                place_repeat_seen |= kinds.iter().any(|k| {
+                    matches!(
+                        k,
+                        StyleKind::Repeat {
+                            anchor: RepeatAnchorKind::Place,
+                            ..
+                        }
+                    )
+                });
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
                     let field = match kind {
                         StyleKind::ReplaceStep { step, grant } => {
-                            if !apply_grant(&mut tree, step, grant) {
+                            if !grant_step(&mut tree, step, grant) {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -225,30 +289,67 @@ pub(super) fn check_style_grants(
                             }
                             "grant"
                         }
+                        // The riders change no step; each needs a repeat to close.
+                        StyleKind::RepeatRangePct { .. }
+                        | StyleKind::RepeatProcPct { .. }
+                        | StyleKind::RepeatSizeStack {} => {
+                            let nothing = |what: &str| validate::Issue {
+                                path: at.clone(),
+                                message: format!(
+                                    "nothing closes: the style names no {what} at or before this \
+                                     level"
+                                ),
+                            };
+                            if !repeat_seen {
+                                issues.push(nothing("repeat"));
+                            }
+                            if matches!(kind, StyleKind::RepeatRangePct { .. })
+                                && !place_repeat_seen
+                            {
+                                issues.push(nothing("place repeat"));
+                            }
+                            if matches!(kind, StyleKind::RepeatSizeStack {})
+                                && !has_size_stack_base(&tree)
+                            {
+                                issues.push(validate::Issue {
+                                    path: at.clone(),
+                                    message: "the weapon's base tree has no size-stack field"
+                                        .into(),
+                                });
+                            }
+                            continue;
+                        }
                         StyleKind::SmashEffect { effect } => {
                             tree.smash = Some(*effect);
                             "effect"
                         }
                         StyleKind::ChargeSooner { step, pct } => {
-                            if step_mut(&mut tree.combo, step).is_none() {
+                            if step.members_in(&tree.combo).is_empty() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
                                 });
                                 break 'style;
                             }
-                            if !charge_sooner(&mut tree, step, *pct) {
+                            let uncharged = sooner_step(&mut tree, step, *pct);
+                            if !uncharged.is_empty() {
+                                let mut message =
+                                    "the step has no charge at this level of the path".to_string();
+                                // A group names the members that have none.
+                                if step.as_path().is_none() {
+                                    message.push_str(&format!(": {}", step_names(&uncharged)));
+                                }
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
-                                    message: "the step has no charge at this level of the path"
-                                        .into(),
+                                    message,
                                 });
                                 break 'style;
                             }
                             "pct"
                         }
                         StyleKind::Repeat { step, .. } | StyleKind::ProcFactor { step, .. } => {
-                            if step_mut(&mut tree.combo, step).is_none() {
+                            let members = step.members_in(&tree.combo);
+                            if members.is_empty() {
                                 issues.push(validate::Issue {
                                     path: format!("{at}.step"),
                                     message: "no such step in the weapon's base tree".into(),
@@ -256,16 +357,33 @@ pub(super) fn check_style_grants(
                                 break 'style;
                             }
                             if matches!(kind, StyleKind::Repeat { .. }) {
-                                let same = repeats.iter().filter(|(_, s)| *s == step).count();
-                                if same >= MAX_STEP_REPEATS {
+                                // Counted per member: a member this kind would take past the
+                                // cap refuses the whole kind, and none of its members counts.
+                                let over: Vec<String> = members
+                                    .iter()
+                                    .filter_map(|m| {
+                                        let had = repeats.iter().filter(|(_, s)| s == m).count();
+                                        (had >= MAX_STEP_REPEATS).then(|| {
+                                            format!(
+                                                "{} would have {}",
+                                                step_names(std::slice::from_ref(m)),
+                                                had + 1
+                                            )
+                                        })
+                                    })
+                                    .collect();
+                                if over.is_empty() {
+                                    for member in members {
+                                        repeats.push((at.clone(), member));
+                                    }
+                                } else {
                                     issues.push(validate::Issue {
                                         path: at.clone(),
                                         message: format!(
-                                            "at most {MAX_STEP_REPEATS} repeats on one step"
+                                            "at most {MAX_STEP_REPEATS} repeats on one step: {}",
+                                            over.join(", ")
                                         ),
                                     });
-                                } else {
-                                    repeats.push((at.clone(), step));
                                 }
                             }
                             continue;
@@ -324,12 +442,16 @@ pub(super) fn check_style_grants(
             }
             // A held step does not repeat: the grants may come after the repeat, so the check
             // reads the tree the whole path made.
-            for (at, step) in repeats {
-                if step_mut(&mut tree.combo, step).is_some_and(|s| s.hold.is_some()) {
-                    issues.push(validate::Issue {
+            for (at, member) in repeats {
+                if step_mut(&mut tree.combo, &member).is_some_and(|s| s.hold.is_some()) {
+                    let issue = validate::Issue {
                         path: at,
                         message: "a held step does not repeat".into(),
-                    });
+                    };
+                    // A group reaching several held members is one issue.
+                    if !issues.contains(&issue) {
+                        issues.push(issue);
+                    }
                 }
             }
             // The spirit is raised by the full-gauge smash and its extra bleed stacks ride a bleed
