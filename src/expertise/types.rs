@@ -171,7 +171,7 @@ impl StepRef {
     }
 }
 
-// A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).
+/// A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StepGrant {
@@ -189,17 +189,17 @@ pub enum StepGrant {
 pub enum StyleKind {
     /// The step reached by `step` (the presses from the root of the combo tree, 1 to
     /// `MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral; a group
-    /// names each member the tree has) gets `grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its
-    /// charge), so a step never ends with both; two grants on one step inside one style are
-    /// refused.
+    /// names each member the tree has) gets `grant`. A grant sets the step's charge (clearing its
+    /// hold) or its hold (clearing its charge), so a step never ends with both; two grants on one
+    /// step inside one style are refused.
     ReplaceStep { step: StepRef, grant: StepGrant },
     /// The weapon's smash effect (every smash, the dash branch's too) is `effect` in place of the
     /// base's (ADR-SIM-9 point 4). One per style path: a second is refused.
     SmashEffect { effect: SmashEffect },
     /// The step reached by `step` (a group: each member the tree has, counted one by one) repeats:
-    /// `after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at
-    /// `proc_pct` (absent: every ready rune, no draw). Not on a held step; at most
-    /// `MAX_STEP_REPEATS` per step over one style's path.
+    /// `after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands
+    /// again on `anchor`, firing ready on-hit runes at `proc_pct` (absent: every ready rune, no
+    /// draw). Not on a held step; at most `MAX_STEP_REPEATS` per step over one style's path.
     Repeat {
         step: StepRef,
         after_ticks: u32,
