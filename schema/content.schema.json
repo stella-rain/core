@@ -4544,6 +4544,26 @@
         }
       ]
     },
+    "EncoreView": {
+      "additionalProperties": false,
+      "description": "A player's encore window (Wave 3): the ticks it has left and whether the encore is ready. Not\nstate, built each frame.",
+      "properties": {
+        "ready": {
+          "description": "The encore is ready; absent is the key missing.",
+          "type": "boolean"
+        },
+        "ticks_left": {
+          "description": "The ticks before the window closes.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ticks_left"
+      ],
+      "type": "object"
+    },
     "EntityId": {
       "description": "An entity in a run, numbered in spawn order. Agents are evaluated in this order (ADR-SIM-4).",
       "format": "uint32",
@@ -6126,6 +6146,52 @@
       ],
       "type": "object"
     },
+    "LingerView": {
+      "additionalProperties": false,
+      "description": "A lingering area (Wave 3), friendly: where it stands, how long it has left and the whole\nlength to draw a fill against. Not state, built each frame.",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Point",
+          "description": "The fixed centre of a placed area; the owner's current position for one that follows."
+        },
+        "direction": {
+          "$ref": "#/$defs/Facing",
+          "description": "The direction an arc or a line points."
+        },
+        "follows_owner": {
+          "description": "The area follows its owner.",
+          "type": "boolean"
+        },
+        "owner": {
+          "$ref": "#/$defs/PlayerIdx",
+          "description": "The player whose area it is."
+        },
+        "shape": {
+          "$ref": "#/$defs/ZoneShape"
+        },
+        "ticks": {
+          "description": "The area's whole length.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ticks_left": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "owner",
+        "shape",
+        "at",
+        "direction",
+        "follows_owner",
+        "ticks_left",
+        "ticks"
+      ],
+      "type": "object"
+    },
     "Link": {
       "additionalProperties": false,
       "description": "The beams between the orbs of one ring (Z3a-3): between slot `j` and slot `j + 1` of the orbs\none `ring`, `spread` or `repeat` fires (the last to the first, unless there are only two), while\nboth are on the map. A beam is a rectangle `width` across that hurts the main character, each\nbeam at most once per `rehit_ticks`.",
@@ -7270,6 +7336,17 @@
           "minimum": 0,
           "type": "integer"
         },
+        "encore": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EncoreView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The encore window, while it runs (Wave 3); absent otherwise."
+        },
         "evade": {
           "$ref": "#/$defs/EvadeView"
         },
@@ -7425,6 +7502,17 @@
             }
           ],
           "description": "The stage skill's shield while it holds."
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SizeView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The size stacks, while any are held (Wave 3); absent otherwise."
         },
         "skill": {
           "anyOf": [
@@ -9302,6 +9390,29 @@
       ],
       "type": "string"
     },
+    "SizeView": {
+      "additionalProperties": false,
+      "description": "A player's size stacks (Wave 3): the stacks held and the ticks before they lapse. Not state,\nbuilt each frame; the style's own cap is a later typed view.",
+      "properties": {
+        "stacks": {
+          "description": "The stacks held.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ticks_left": {
+          "description": "The ticks before the stacks lapse.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stacks",
+        "ticks_left"
+      ],
+      "type": "object"
+    },
     "Skill": {
       "description": "A skill block (ADR-SIM-4). Percentages are whole percent.",
       "oneOf": [
@@ -9899,6 +10010,13 @@
           "description": "Heal pickups on the map, in the order they dropped; empty without healing.",
           "items": {
             "$ref": "#/$defs/HealPickupView"
+          },
+          "type": "array"
+        },
+        "lingers": {
+          "description": "Lingering areas, in the order they opened (Wave 3), drawn friendly.",
+          "items": {
+            "$ref": "#/$defs/LingerView"
           },
           "type": "array"
         },
