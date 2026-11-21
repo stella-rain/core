@@ -286,8 +286,8 @@ pub(in crate::sim) fn is_combo(s: &State, r: &AttackRun) -> bool {
 }
 
 /// The first tick of run `i`'s current phase: a wind-up announces itself, an active phase
-/// starts a new hit list (unless it `keeps_hits`, the ring's growing phases), and the phase's nodes start as a task (unless too many attacks are
-/// going already).
+/// starts a new hit list (unless it `keeps_hits`, the ring's growing phases), and the phase's
+/// nodes start as a task (unless too many attacks are going already).
 pub(super) fn begin_phase(world: &World, s: &mut State, i: usize, events: &mut Vec<DomainEvent>) {
     let r = &s.runs[i];
     let keeps = phase(world, r, r.phase as usize).keeps_hits;

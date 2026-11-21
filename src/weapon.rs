@@ -61,8 +61,10 @@ pub struct Weapon {
     pub size_stacks: Option<SizeStacks>,
     /// The base tree's per-press factor: a smash step's hits deal `pct_per_press` percent more
     /// damage for each A press before it in the combo path, up to `MAX_COUNTED_PRESSES`, the sum
-    /// held to `MAX_PCT`. Added with the smash's other bonuses; a normal step never takes it. The
-    /// count is derived from the combo path, so a reset or a dash branch restarts it.
+    /// held to `MAX_PCT`. It reaches every strike the step makes (a tap, a charge release, a
+    /// hold's loop and release, the full-gauge attack), added with the smash's other bonuses; a
+    /// normal step never takes it. The count is derived from the combo path, so a reset or a dash
+    /// branch restarts it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub press_factor: Option<PressFactor>,
 }
