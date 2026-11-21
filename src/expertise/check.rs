@@ -13,7 +13,7 @@ use super::{
 };
 use crate::id::ContentId;
 use crate::registry::{self, Kind};
-use crate::rewards::MAX_BURST_RADIUS_PX;
+use crate::rewards::{MAX_BURST_RADIUS_PX, MAX_RANGE_PCT};
 use crate::validate::limits::MAX_DAMAGE;
 use crate::validate::{self, Error, Issue};
 
@@ -319,6 +319,17 @@ fn check_level(
                     );
                 }
             }
+            StyleKind::RepeatRangePct { pct } => {
+                if !(1..=MAX_RANGE_PCT).contains(pct) {
+                    issue(
+                        format!("{at}.pct"),
+                        format!("1 to {MAX_RANGE_PCT} (found {pct})"),
+                    );
+                }
+            }
+            StyleKind::RepeatProcPct { proc_pct } => check_proc_pct(issue, &at, Some(*proc_pct)),
+            // The size stack's numbers are the base tree's own field: nothing to bound here.
+            StyleKind::RepeatSizeStack {} => {}
             StyleKind::RepeatBleed {
                 stacks,
                 duration_ticks,

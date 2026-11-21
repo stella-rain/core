@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::style::step_ref;
 use super::{
-    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_REPEAT_BLEED_STACKS,
-    MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
+    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
+    MAX_REPEAT_BLEED_STACKS, MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
 };
 use crate::attack::AttackRef;
 use crate::event::Press;
@@ -241,6 +241,27 @@ pub enum StyleKind {
         #[schemars(range(min = 1, max = crate::runes::MAX_DOT_STACKS))]
         max_stacks: u32,
     },
+    /// From the level that names it on, every repeat the style queues reaches `pct` percent
+    /// further (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the
+    /// style names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2
+    /// only. Typed and viewed only: no rule reads it yet.
+    RepeatRangePct {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
+    /// From the level that names it on, every repeat the style queues fires ready on-hit runes
+    /// at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack
+    /// check refuses it where the style names no `repeat` at or before its level. `sim_version`
+    /// 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatProcPct {
+        #[schemars(range(min = 0, max = MAX_PROC_PCT))]
+        proc_pct: u32,
+    },
+    /// The style's repeats add to the weapon's size stack, whose size, cap and ticks are the base
+    /// tree's own fields. One per style path; the pack check refuses it where the style names no
+    /// `repeat` at or before its level and where the base tree has no size-stack field.
+    /// `sim_version` 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatSizeStack {},
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style, a group counting each of its
     /// members.

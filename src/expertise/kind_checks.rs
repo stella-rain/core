@@ -401,6 +401,9 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
     let mut smash_set = false;
     let mut orbs_set = false;
     let mut bleed_set = false;
+    let mut range_set = false;
+    let mut proc_set = false;
+    let mut stack_set = false;
     let mut gauge_set = false;
     // The tempo's folded `max_stacks` and `speed_pct` over the levels so far, once one named it.
     let mut tempo: Option<(u32, u32)> = None;
@@ -464,6 +467,33 @@ pub(super) fn check_step_once(issue: &mut impl FnMut(String, String), base: &str
                         );
                     }
                     bleed_set = true;
+                }
+                StyleKind::RepeatRangePct { .. } => {
+                    if range_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already widens its repeats".into(),
+                        );
+                    }
+                    range_set = true;
+                }
+                StyleKind::RepeatProcPct { .. } => {
+                    if proc_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already sets its repeats' proc chance".into(),
+                        );
+                    }
+                    proc_set = true;
+                }
+                StyleKind::RepeatSizeStack {} => {
+                    if stack_set {
+                        issue(
+                            format!("{path}[{k}]"),
+                            "the style already stacks size on its repeats".into(),
+                        );
+                    }
+                    stack_set = true;
                 }
                 StyleKind::ProcFactor { step, .. } => {
                     if claims(&mut factored, step) {

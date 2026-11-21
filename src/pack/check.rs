@@ -242,6 +242,10 @@ pub(super) fn check_style_grants(
                             }
                             "grant"
                         }
+                        // Replaced by the riders' refusals: the marker comes first.
+                        StyleKind::RepeatRangePct { .. }
+                        | StyleKind::RepeatProcPct { .. }
+                        | StyleKind::RepeatSizeStack {} => continue,
                         StyleKind::SmashEffect { effect } => {
                             tree.smash = Some(*effect);
                             "effect"
