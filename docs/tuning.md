@@ -84,6 +84,17 @@
 | `MAX_RANGED_GRACE_TICKS` | 600 | ticks | ADR-SIM-5 |
 | `MAX_COUNTER_BONUS_STEP` | 1 | flag | ADR-SIM-5 |
 | `MAX_COUNTER_PAYOUT` | 1 | flag | ADR-SIM-5 |
+| `MAX_SWEEP_COUNT` | 500 | enemies | ADR-SIM-5 |
+| `MAX_SIZE_STACKS` | 8 | stacks | ADR-SIM-5 |
+| `MAX_SIZE_TICKS` | 1800 | ticks | ADR-SIM-5 |
+| `MAX_RUNE_FIRE_OWED` | 1 | flag | ADR-SIM-5 |
+| `MAX_ENCORE_TICKS` | 1800 | ticks | ADR-SIM-5 |
+| `MAX_ENCORE_READY` | 1 | flag | ADR-SIM-5 |
+| `MAX_STACK_GIVEN` | 1 | flag | ADR-SIM-5 |
+| `MAX_LINGERS_ALIVE` | 16 | entries | ADR-SIM-5 |
+| `MAX_LINGERS_PER_OWNER` | 4 | entries | ADR-SIM-5 |
+| `MAX_LINGER_TICKS` | 1800 | ticks | ADR-SIM-5 |
+| `MAX_LINGER_PULL_PX` | 420 | px | ADR-SIM-5 |
 | `MAX_REPEATS_QUEUED` | 64 | entries | ADR-SIM-5 |
 | `MAX_REPEAT_TARGETS` | 16 | targets | ADR-SIM-5 |
 | `MAX_TIME_LIMIT_BYTES` | 131072 | bytes | ADR-SVC-1 |
