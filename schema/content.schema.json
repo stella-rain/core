@@ -11062,6 +11062,7 @@
       ]
     },
     "StepGrant": {
+      "description": "A grant on a step of the base tree: a charge or a hold, never both (ADR-SIM-9 point 3).",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -11220,7 +11221,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "The step reached by `step` (the presses from the root of the combo tree, 1 to\n`MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral; a group\nnames each member the tree has) gets `grant`. A grant sets the step's charge (clearing its hold) or its hold (clearing its\ncharge), so a step never ends with both; two grants on one step inside one style are\nrefused.",
+          "description": "The step reached by `step` (the presses from the root of the combo tree, 1 to\n`MAX_COMBO_DEPTH` long: `[main, main, main]` is AAA, `[smash]` is B from neutral; a group\nnames each member the tree has) gets `grant`. A grant sets the step's charge (clearing its\nhold) or its hold (clearing its charge), so a step never ends with both; two grants on one\nstep inside one style are refused.",
           "properties": {
             "grant": {
               "$ref": "#/$defs/StepGrant"
@@ -11260,7 +11261,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The step reached by `step` (a group: each member the tree has, counted one by one) repeats:\n`after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands again on `anchor`, firing ready on-hit runes at\n`proc_pct` (absent: every ready rune, no draw). Not on a held step; at most\n`MAX_STEP_REPEATS` per step over one style's path.",
+          "description": "The step reached by `step` (a group: each member the tree has, counted one by one) repeats:\n`after_ticks` after its last `active` phase ends, `repeat_pct` percent of its damage lands\nagain on `anchor`, firing ready on-hit runes at `proc_pct` (absent: every ready rune, no\ndraw). Not on a held step; at most `MAX_STEP_REPEATS` per step over one style's path.",
           "properties": {
             "after_ticks": {
               "format": "uint32",
