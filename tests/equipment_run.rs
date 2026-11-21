@@ -273,8 +273,8 @@ fn a_default_setup_runs_in_equipment_mode() {
     for _ in 0..600 {
         engine.step(&Default::default());
     }
-    // The state hash of this run at tick 600; re-pinned when the combat fields joined the hash, then for the counter-bonus mark, then for the shipped ranged grace, then for the stagger length, then for the Wave 3 fields.
-    assert_eq!(format!("{:016x}", engine.state_hash()), "bfd53094e51239f7");
+    // The state hash of this run at tick 600; re-pinned when the combat fields joined the hash, then for the counter-bonus mark, then for the shipped ranged grace, then for the stagger length, then for the Wave 3 fields, then for the swing's hit record in place of `sweep_count`.
+    assert_eq!(format!("{:016x}", engine.state_hash()), "7d65a6e99761b61f");
 
     let frozen = RunSetup {
         schema_version: 1,
