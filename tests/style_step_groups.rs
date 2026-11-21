@@ -524,3 +524,19 @@ fn a_rider_with_nothing_to_close_is_refused() {
     assert!(run(vec![size_stack()], None, None, nothing));
     assert!(run(vec![size_stack()], None, None, no_field));
 }
+
+/// G10: one group `repeat` is one kind of the level's four, through the pack check: four kinds
+/// load, a fifth is refused at `.kinds`.
+#[test]
+fn a_group_repeat_is_one_kind_through_the_pack() {
+    let four = vec![
+        repeat(json!(A)),
+        repeat(json!(AA)),
+        factor(json!(A)),
+        repeat(json!("normals")),
+    ];
+    loads(&hammer_pack(four.clone(), [None, None, None]));
+    let mut five = four;
+    five.push(repeat(json!("smashes")));
+    pack_refused_at(&hammer_pack(five, [None, None, None]), K0, "");
+}

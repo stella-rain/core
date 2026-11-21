@@ -1077,3 +1077,178 @@ fn the_world_indexes_the_bleed_rows() {
         "fails closed"
     );
 }
+
+// ---- A group `repeat` through the world (ADR-SIM-9 points 3 and 4) ----
+
+use super::trigger_tests::{Rig, rig_from, st};
+
+/// The bundled pack's JSON with the Hammer's style 0 naming `own` and then, at each level that
+/// has kinds, those kinds; a level with none names a stat effect instead.
+fn bundled_levelled(own: Vec<Value>, levels: [Vec<Value>; 3]) -> Value {
+    let mut v: Value = serde_json::from_slice(crate::pack::Pack::BUNDLED).unwrap();
+    let w = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .expect("the Hammer's expertise");
+    w["base"] = json!([]);
+    for style in w["styles"].as_array_mut().unwrap() {
+        style["stats"] = json!([]);
+    }
+    w["styles"][0]["kinds"] = json!(own);
+    for (field, kinds) in ["upgrade_1", "upgrade_2", "capstone"].iter().zip(levels) {
+        let level = &mut w["styles"][0][field][0];
+        if kinds.is_empty() {
+            level["effect"] = json!("attack_pct");
+            level["amount"] = json!(10);
+            level["kinds"] = json!([]);
+        } else {
+            level["effect"] = json!("none");
+            level.as_object_mut().unwrap().remove("amount");
+            level["kinds"] = json!(kinds);
+        }
+    }
+    v
+}
+
+fn bundled_rig(own: Vec<Value>, levels: [Vec<Value>; 3]) -> Rig {
+    let bytes = serde_json::to_vec(&bundled_levelled(own, levels)).unwrap();
+    rig_from(
+        1,
+        crate::pack::Pack::from_bytes(&bytes).expect("the pack"),
+        1,
+    )
+}
+
+fn place_repeat_kind(step: Value, after: u32, pct: u32, proc_pct: Option<u32>) -> Value {
+    let mut k = json!({ "type": "repeat", "step": step, "after_ticks": after,
+        "repeat_pct": pct, "anchor": "place" });
+    if let Some(p) = proc_pct {
+        k["proc_pct"] = json!(p);
+    }
+    k
+}
+
+/// Two `repeat`s on `normals` of the style's own level, two on AAAAA at the capstone.
+fn group_levels() -> (Vec<Value>, [Vec<Value>; 3]) {
+    (
+        vec![
+            place_repeat_kind(json!("normals"), 8, 50, Some(30)),
+            place_repeat_kind(json!("normals"), 16, 40, None),
+        ],
+        [
+            vec![],
+            vec![],
+            vec![
+                place_repeat_kind(
+                    json!(["main", "main", "main", "main", "main"]),
+                    24,
+                    30,
+                    None,
+                ),
+                place_repeat_kind(
+                    json!(["main", "main", "main", "main", "main"]),
+                    32,
+                    20,
+                    None,
+                ),
+            ],
+        ],
+    )
+}
+
+/// What each press of a combo of `n` A presses queues: `(ticks until due, percent, anchor is a
+/// place)` of the entries on the tick they are queued.
+fn queued_by(r: &mut Rig, n: usize) -> Vec<(u32, u16, bool)> {
+    for _ in 0..n - 1 {
+        r.run_step(false);
+    }
+    st(&mut r.e).repeats.clear();
+    r.press(false);
+    for _ in 0..300 {
+        let s = st(&mut r.e);
+        if !s.repeats.is_empty() {
+            let tick = s.tick;
+            return s
+                .repeats
+                .iter()
+                .map(|x| {
+                    (
+                        x.due - tick,
+                        x.percent,
+                        matches!(x.anchor, RepeatAnchor::Place { .. }),
+                    )
+                })
+                .collect();
+        }
+        r.step([Default::default(); 3]);
+    }
+    Vec::new()
+}
+
+/// G9: a group repeat is on each of A to AAAAA and no smash, and queues each of its entries;
+/// the capstone's two on AAAAA make four, the cap, on that step only.
+#[test]
+fn a_group_repeat_queues_on_each_normal_step_and_the_cap_counts_per_member() {
+    let (own, levels) = group_levels();
+    for (places, aaaaa) in [(0, 2), (3, 4)] {
+        let mut r = bundled_rig(own.clone(), levels.clone());
+        take(&mut r.e, 0, places);
+        let Run::V2 { world, state, .. } = r.e.run() else {
+            panic!("the live rules");
+        };
+        let counts = |presses: &[crate::event::Press]| {
+            let w = world.weapon_of(state, slot(0)).expect("a weapon");
+            crate::expertise::step_ref(&w.combo, presses)
+                .map(|s| s.repeats.len())
+                .expect("a step")
+        };
+        use crate::event::Press::{Main, Smash};
+        assert_eq!(counts(&[Main]), 2);
+        assert_eq!(counts(&[Main, Main]), 2);
+        assert_eq!(counts(&[Main; 5]), aaaaa);
+        assert_eq!(counts(&[Smash]), 0);
+        assert_eq!(counts(&[Main, Smash]), 0);
+    }
+    // Driven: A queues the two entries, due 8 and 16 ticks on.
+    let mut r = bundled_rig(own.clone(), levels.clone());
+    take(&mut r.e, 0, 0);
+    let a = queued_by(&mut r, 1);
+    assert_eq!(a, [(8, 50, true), (16, 40, true)]);
+    // AAAAA at the capstone queues four.
+    let mut r = bundled_rig(own, levels);
+    take(&mut r.e, 0, 3);
+    let five = queued_by(&mut r, 5);
+    assert_eq!(
+        five,
+        [
+            (8, 50, true),
+            (16, 40, true),
+            (24, 30, true),
+            (32, 20, true)
+        ]
+    );
+}
+
+/// G9: a fifth repeat on AAAAA is refused at its kind, the group's two counted on that member.
+#[test]
+fn a_fifth_repeat_on_a_member_is_refused_though_the_group_is_one_kind() {
+    use crate::pack::{Pack, PackError};
+    let (own, levels) = group_levels();
+    let five = ["main"; 5];
+    let [_, _, cap] = levels;
+    // Two from the group and the capstone's two are four: loaded.
+    let v = bundled_levelled(own.clone(), [vec![], vec![], cap.clone()]);
+    assert!(Pack::from_bytes(&serde_json::to_vec(&v).unwrap()).is_ok());
+    // One more, from the second upgrade, is the fifth.
+    let up_2 = vec![place_repeat_kind(json!(five), 40, 10, None)];
+    let v = bundled_levelled(own, [vec![], up_2, cap]);
+    let Err(PackError::File { error, .. }) = Pack::from_bytes(&serde_json::to_vec(&v).unwrap())
+    else {
+        panic!("the fifth repeat is refused");
+    };
+    let text = format!("{error:?}");
+    assert!(text.contains("at most 4 repeats on one step"), "{text}");
+    assert!(text.contains("AAAAA"), "{text}");
+}
