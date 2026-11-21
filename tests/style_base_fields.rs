@@ -290,22 +290,11 @@ fn gated(v: &Value, file: &str, path: &str, field: &str) {
     );
 }
 
-/// L4: the pack check refuses `linger` wherever an attack of a base tree stands: a step's, a
-/// charge level's, a hold's, a style's full-gauge attack.
+/// L4: the pack check refuses `linger` wherever an attack of a base tree stands (at the tree): a
+/// step's, a charge level's and a hold's; and a style's full-gauge attack or granted attack (at
+/// the kind, in the expertise file).
 #[test]
 fn the_pack_refuses_a_node_on_any_attack() {
-    let phase = |i: usize| format!("attack.inline[{i}].linger");
-    // A step's attack.
-    let mut v = pack();
-    v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["attack"]["inline"][1]["linger"] =
-        node();
-    gated(
-        &v,
-        "weapons",
-        &format!("{TREE}.combo.main.{}", phase(1)),
-        "linger",
-    );
-    // A charge level's attack.
     let active = |linger: bool| {
         let mut p = json!({ "kind": "active", "ticks": 3, "type": "strike",
             "hit_box": { "type": "circle", "offset": { "forward": 0, "right": 0 },
@@ -315,28 +304,24 @@ fn the_pack_refuses_a_node_on_any_attack() {
         }
         p
     };
+    // A step's attack.
+    let mut v = pack();
+    v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["attack"]["inline"][1]["linger"] =
+        node();
+    gated(&v, "weapons", TREE, "linger");
+    // A charge level's attack.
     let mut v = pack();
     v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["main"]["charge"] = json!({
         "levels": [{ "at_ticks": 10, "attack": { "inline": [active(true)] } }],
         "max_ticks": 40 });
-    assert!(
-        pack_issues(&v, "weapons")
-            .iter()
-            .any(|(_, m)| m.contains("the field linger is not shipped yet")),
-        "a charge level's attack"
-    );
+    gated(&v, "weapons", TREE, "linger");
     // A hold's loop attack.
     let mut v = pack();
     v["weapons"]["weapons"][0]["trees"][0]["weapon"]["combo"]["smash"]["hold"] = json!({
         "loop": { "inline": [active(true)] },
         "release": { "inline": [active(false)] }, "max_ticks": 60 });
-    assert!(
-        pack_issues(&v, "weapons")
-            .iter()
-            .any(|(_, m)| m.contains("the field linger is not shipped yet")),
-        "a hold's loop"
-    );
-    // A style's full-gauge attack.
+    gated(&v, "weapons", TREE, "linger");
+    // A style's full-gauge attack, and a granted charge's attack.
     let mut v = pack();
     let hammer = v["expertise"]["weapons"]
         .as_array_mut()
@@ -345,14 +330,31 @@ fn the_pack_refuses_a_node_on_any_attack() {
         .find(|w| w["weapon"] == "giant_hammer")
         .unwrap();
     let kinds = hammer["styles"][0]["kinds"].as_array_mut().unwrap();
-    let gauge = kinds.iter_mut().find(|k| k["type"] == "gauge").unwrap();
-    gauge["spend"]["attack"]["inline"][1]["linger"] = node();
-    assert!(
-        pack_issues(&v, "weapons")
-            .iter()
-            .any(|(_, m)| m.contains("the field linger is not shipped yet")),
-        "a style's gauge attack"
+    let at = kinds.iter().position(|k| k["type"] == "gauge").unwrap();
+    kinds[at]["spend"]["attack"]["inline"][1]["linger"] = node();
+    gated(
+        &v,
+        "expertise",
+        &format!("$.weapons[0].styles[0].kinds[{at}]"),
+        "linger",
     );
+    let mut v = pack();
+    let hammer = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_hammer")
+        .unwrap();
+    hammer["styles"][0]["kinds"] = json!([{ "type": "replace_step", "step": ["main"],
+        "grant": { "charge": { "levels": [
+            { "at_ticks": 10, "attack": { "inline": [active(true)] } }], "max_ticks": 40 } } }]);
+    for field in ["upgrade_1", "upgrade_2", "capstone"] {
+        let level = &mut hammer["styles"][0][field][0];
+        level["effect"] = json!("attack_pct");
+        level["amount"] = json!(10);
+        level["kinds"] = json!([]);
+    }
+    gated(&v, "expertise", "$.weapons[0].styles[0].kinds[0]", "linger");
     assert!(Pack::from_bytes(Pack::BUNDLED).is_ok());
 }
 
