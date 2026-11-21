@@ -12277,7 +12277,7 @@
               "type": "array"
             },
             "raise_per_smash": {
-              "description": "How many levels a full-gauge smash raises the spirit by; absent: one. 1 to\n`MAX_SPIRIT_LEVEL`. A later level restating the spirit that omits it keeps the earlier\nvalue. Unshipped: no rule reads it yet.",
+              "description": "How many levels a full-gauge smash raises the spirit by; absent: one. 1 to\n`MAX_SPIRIT_LEVEL`. The rule that lands with it folds a path so that a later level\nrestating the spirit without it keeps the earlier value; nothing folds or reads it yet.",
               "format": "uint8",
               "maximum": 3,
               "minimum": 1,
