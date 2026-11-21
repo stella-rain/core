@@ -461,6 +461,37 @@ mod tests {
         }
     }
 
+    /// The Wave 3 combat state's caps (ADR-SIM-5 point 9): tuning values; a cap bounds a decode
+    /// and fixes no behaviour. The sweep count is held to the enemies that can be alive and the
+    /// lingering areas to the zone cap they count inside.
+    #[test]
+    fn the_wave_three_caps_have_rows() {
+        let rows = [
+            ("MAX_SWEEP_COUNT", "500", "enemies"),
+            ("MAX_SIZE_STACKS", "8", "stacks"),
+            ("MAX_SIZE_TICKS", "1800", "ticks"),
+            ("MAX_RUNE_FIRE_OWED", "1", "flag"),
+            ("MAX_ENCORE_TICKS", "1800", "ticks"),
+            ("MAX_ENCORE_READY", "1", "flag"),
+            ("MAX_STACK_GIVEN", "1", "flag"),
+            ("MAX_LINGERS_ALIVE", "16", "entries"),
+            ("MAX_LINGERS_PER_OWNER", "4", "entries"),
+            ("MAX_LINGER_TICKS", "1800", "ticks"),
+            ("MAX_LINGER_PULL_PX", "420", "px"),
+        ];
+        for (name, value, unit) in rows {
+            let row = LIMITS
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("no row for {name}"));
+            assert_eq!(row.value, value, "{name}");
+            assert_eq!(row.unit, unit, "{name}");
+            assert_eq!(row.adr, "ADR-SIM-5", "{name}");
+        }
+        assert_eq!(MAX_SWEEP_COUNT, MAX_ENEMY_CAP);
+        assert!(MAX_LINGERS_ALIVE as u32 <= MAX_ZONES_ALIVE);
+    }
+
     /// The gauge's caps (ADR-SIM-5): a fill formula's percent and the orb clear's radius.
     #[test]
     fn the_gauge_caps_have_rows() {
