@@ -1808,6 +1808,145 @@
             "pct"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, the enemies within `radius_px` of the player are\ndrawn in. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.",
+          "properties": {
+            "radius_px": {
+              "format": "uint32",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "pull_round",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, the weapon's size stacks fill. A flag with no\nfield. Unshipped: no rule reads it yet.",
+          "properties": {
+            "type": {
+              "const": "fill_size_stacks",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, the enemy bullets within `radius_px` of the player\nare cleared. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.",
+          "properties": {
+            "radius_px": {
+              "format": "uint32",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "clear_bullets",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "At the counter's first landed combo hit, the ready on-hit runes fire. A flag with no\nfield. Unshipped: no rule reads it yet.",
+          "properties": {
+            "type": {
+              "const": "fire_runes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CounterEffectView": {
+      "description": "What a counter bonus gives beyond the six effects it always had, in the compact form a snapshot\ncarries.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "radius_px": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "pull_round",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "fill_size_stacks",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "radius_px": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "clear_bullets",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "radius_px"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "fire_runes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -5488,6 +5627,77 @@
         "y"
       ],
       "type": "object"
+    },
+    "GaugeFillView": {
+      "description": "One extra fill of a style's weapon gauge, in the compact form a snapshot carries.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Each on-hit rune of the player that fires from its combo hit adds `amount`.",
+          "properties": {
+            "amount": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "per_rune",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The outer half of a step's hits fills `pct` percent more.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "outer_half_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each enemy a smash step hits adds `amount`, up to `cap` for the step.",
+          "properties": {
+            "amount": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "cap": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "per_smash_hit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "amount",
+            "cap"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "GaugeSpend": {
       "description": "What a full gauge is spent on: a closed list, one variant now.",
@@ -9978,6 +10188,70 @@
       ],
       "type": "string"
     },
+    "SmashRepeat": {
+      "additionalProperties": false,
+      "description": "One repeat a spirit's smash queues, always on the `place` anchor.",
+      "properties": {
+        "after_ticks": {
+          "description": "Ticks after the smash. 1 to `MAX_REPEAT_AFTER_TICKS`.",
+          "format": "uint32",
+          "maximum": 120,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_charge_level": {
+          "description": "Queued only when the smash's charge reached this level (1 is the first level); absent:\nalways. 1 to `MAX_CHARGE_LEVELS`, and the style's tree must have a smash step whose\ncharge has that many levels (the pack check).",
+          "format": "uint32",
+          "maximum": 8,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repeat_pct": {
+          "description": "The share of the smash's damage, in percent. 1 to `MAX_PCT`.",
+          "format": "uint32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "after_ticks",
+        "repeat_pct"
+      ],
+      "type": "object"
+    },
+    "SmashRepeatView": {
+      "additionalProperties": false,
+      "description": "One repeat of a spirit's smash.",
+      "properties": {
+        "after_ticks": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_charge_level": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repeat_pct": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "after_ticks",
+        "repeat_pct"
+      ],
+      "type": "object"
+    },
     "Snapshot": {
       "additionalProperties": false,
       "properties": {
@@ -10167,6 +10441,371 @@
           "required": [
             "type",
             "stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Added to the base weapon's size-stack cap. 1 to `MAX_SIZE_STACKS`; the sum is held to\n`MAX_SIZE_STACKS` by the rule. Unshipped: no rule reads it yet.",
+          "properties": {
+            "stacks": {
+              "format": "uint32",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stack_cap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The size stacks last this percent longer; the result is held to `MAX_SIZE_TICKS` by the\nrule. 1 to `MAX_PCT`. Unshipped: no rule reads it yet.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stack_ticks_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each hit adds this many size stacks. 1 to `MAX_SIZE_STACKS`. Unshipped: no rule reads it\nyet.",
+          "properties": {
+            "stacks": {
+              "format": "uint32",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stacks_per_hit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The player's normal steps pull what they hit as `SmashEffect::Pull` does: `distance`\n(1 px to `MAX_PULL_DISTANCE`) over `ticks` (1 to `MAX_PULL_TICKS`). Unshipped: no rule\nreads it yet.",
+          "properties": {
+            "distance": {
+              "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+              "format": "int32",
+              "maximum": 16384,
+              "minimum": 256,
+              "type": "integer"
+            },
+            "ticks": {
+              "format": "uint32",
+              "maximum": 60,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "normal_pull",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "distance",
+            "ticks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The on-hit runes recover this percent faster; the rule holds the sum to the run's\n`max_rune_haste_pct`. 1 to `MAX_RUNE_HASTE_PCT`. Unshipped: no rule reads it yet.",
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "rune_cooldown_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A level reached fires the on-hit runes on the listed steps at once; empty: owed at the\nlevel reached only. 0 to `MAX_RUNE_SURGE_STEPS` entries, each a legal step or group, no\ntwo sharing a member. Unshipped: no rule reads it yet.",
+          "properties": {
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/StepRef"
+              },
+              "maxItems": 4,
+              "type": "array"
+            },
+            "type": {
+              "const": "rune_surge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "steps"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The combo counts this many more presses. 1 to `MAX_COUNTED_PRESSES`. Unshipped: no rule\nreads it yet.",
+          "properties": {
+            "presses": {
+              "format": "uint32",
+              "maximum": 16,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": {
+              "const": "extra_presses",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "presses"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A smash queues these repeats on its `place` anchor. 1 to `MAX_SMASH_REPEATS` entries.\nUnshipped: no rule reads it yet.",
+          "properties": {
+            "repeats": {
+              "items": {
+                "$ref": "#/$defs/SmashRepeat"
+              },
+              "maxItems": 4,
+              "minItems": 1,
+              "type": "array"
+            },
+            "type": {
+              "const": "smash_repeat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "repeats"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SpiritEffectAt": {
+      "additionalProperties": false,
+      "description": "A spirit effect with the level that carries it, in the compact form a snapshot carries.",
+      "properties": {
+        "effect": {
+          "$ref": "#/$defs/SpiritEffectView"
+        },
+        "level": {
+          "description": "The spirit level, 1-based.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "level",
+        "effect"
+      ],
+      "type": "object"
+    },
+    "SpiritEffectView": {
+      "description": "What a spirit level does beyond the damage, range and bleed it always had.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "stacks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stack_cap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stack_ticks_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "stacks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "size_stacks_per_hit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "stacks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "distance": {
+              "description": "A length in 1/256 pixel units. In files it is the plain integer.",
+              "format": "int32",
+              "type": "integer"
+            },
+            "ticks": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "normal_pull",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "distance",
+            "ticks"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pct": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "rune_cooldown_pct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/StepRef"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "rune_surge",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "steps"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "presses": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "extra_presses",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "presses"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "repeats": {
+              "items": {
+                "$ref": "#/$defs/SmashRepeatView"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "smash_repeat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "repeats"
           ],
           "type": "object"
         }
@@ -11556,14 +12195,39 @@
               "minimum": 1,
               "type": "integer"
             },
+            "outer_half_pct": {
+              "description": "The outer half of a step's hits fills `per_step` this percent more; absent (0): no rule.\nAt most `MAX_PCT`, and it needs `per_step`. Unshipped: no rule reads it yet.",
+              "format": "uint32",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
             "per_hit": {
               "description": "Added for each enemy a normal step's hit box hits on a tick; absent (0): no rule. At most\n`max`.",
               "format": "uint32",
               "minimum": 0,
               "type": "integer"
             },
+            "per_rune": {
+              "description": "Each on-hit rune of the player that fires from its combo hit adds this, inside the step's\ncap; absent (0): no rule. At most `max`. Unshipped: no rule reads it yet.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "per_smash_hit": {
+              "description": "Added for each enemy a smash step's hit box hits on a tick, up to `smash_cap` for the\nstep; absent (0): no rule. At most `smash_cap`, and the two are named together.\nUnshipped: no rule reads it yet.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
             "per_step": {
               "description": "Added once to a normal step the first time one of its hit boxes hits an enemy; absent\n(0): no rule. At most `max`.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "smash_cap": {
+              "description": "The most one smash step's hits add, in place of `step_cap` for smash steps only; absent\n(0): no rule. At most `max`, and named together with `per_smash_hit`.",
               "format": "uint32",
               "minimum": 0,
               "type": "integer"
@@ -11612,6 +12276,16 @@
               },
               "type": "array"
             },
+            "raise_per_smash": {
+              "description": "How many levels a full-gauge smash raises the spirit by; absent: one. 1 to\n`MAX_SPIRIT_LEVEL`. A later level restating the spirit that omits it keeps the earlier\nvalue. Unshipped: no rule reads it yet.",
+              "format": "uint8",
+              "maximum": 3,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "type": {
               "const": "spirit",
               "type": "string"
@@ -11629,7 +12303,7 @@
           "description": "The style's counter bonus: a near miss of the player's evade opens a window of\n`window_ticks`, and the first dash-branch step started inside it takes the bonus's\neffects (ADR-SIM-9 points 2 to 7). Dormant without the run's perfect evade. One per\nlevel; a path may name it at several levels, the numbers stacking in path order: a later\nlevel's `window_ticks` replaces the earlier one and each effect it lists replaces the\nsame effect; one it does not list stays.",
           "properties": {
             "effects": {
-              "description": "What the step takes, each variant at most once; 1 to 6 entries (0 to 6 at a level after\none that names the kind).",
+              "description": "What the step takes, each variant at most once; 1 to `MAX_COUNTER_EFFECTS` entries (0 to\n`MAX_COUNTER_EFFECTS` at a level after one that names the kind).",
               "items": {
                 "$ref": "#/$defs/CounterEffect"
               },
@@ -12049,6 +12723,13 @@
           "additionalProperties": false,
           "description": "The style has a weapon gauge `max` long, spent as `spend`.",
           "properties": {
+            "fills": {
+              "description": "The extra fills the gauge names, in the order `per_rune`, `outer_half_pct`,\n`per_smash_hit`; absent when none.",
+              "items": {
+                "$ref": "#/$defs/GaugeFillView"
+              },
+              "type": "array"
+            },
             "max": {
               "format": "uint32",
               "minimum": 0,
@@ -12078,11 +12759,28 @@
               "minimum": 0,
               "type": "integer"
             },
+            "effects": {
+              "description": "The extra effects the levels name, each with its 1-based level; absent when none.",
+              "items": {
+                "$ref": "#/$defs/SpiritEffectAt"
+              },
+              "type": "array"
+            },
             "max_level": {
               "format": "uint8",
               "maximum": 255,
               "minimum": 0,
               "type": "integer"
+            },
+            "raise_per_smash": {
+              "description": "How many levels a full-gauge smash raises it by; absent: one.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
             },
             "type": {
               "const": "spirit",
@@ -12100,6 +12798,13 @@
           "additionalProperties": false,
           "description": "The style has a counter bonus whose window lasts `window_ticks` after a near miss.",
           "properties": {
+            "effects": {
+              "description": "The extra effects the bonus names (the four with a view); absent when none.",
+              "items": {
+                "$ref": "#/$defs/CounterEffectView"
+              },
+              "type": "array"
+            },
             "type": {
               "const": "counter_bonus",
               "type": "string"
