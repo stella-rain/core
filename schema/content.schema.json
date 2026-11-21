@@ -14329,7 +14329,7 @@
               "type": "null"
             }
           ],
-          "description": "The base tree's per-press factor. What it scales is its rule's. Typed only: no rule reads\nit yet."
+          "description": "The base tree's per-press factor: a smash step's hits deal `pct_per_press` percent more\ndamage for each A press before it in the combo path, up to `MAX_COUNTED_PRESSES`, the sum\nheld to `MAX_PCT`. Added with the smash's other bonuses; a normal step never takes it. The\ncount is derived from the combo path, so a reset or a dash branch restarts it."
         },
         "size_stacks": {
           "anyOf": [
