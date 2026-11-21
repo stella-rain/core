@@ -181,6 +181,15 @@ fn check_shipped(expertise: &Expertise, issues: &mut Vec<validate::Issue>) {
                             message: format!("the kind {} is not shipped yet", name.tag()),
                         });
                     }
+                    // An effect or field inside a shipped kind is gated the same way.
+                    for (effect, suffix) in kind.effects() {
+                        if !effect.shipped() {
+                            issues.push(validate::Issue {
+                                path: format!("{path}[{k}]{suffix}"),
+                                message: format!("the effect {} is not shipped yet", effect.tag()),
+                            });
+                        }
+                    }
                 }
             }
         }

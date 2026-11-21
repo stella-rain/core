@@ -252,6 +252,18 @@ pub enum GaugeSpendKind {
     FullSmash,
 }
 
+/// One extra fill of a style's weapon gauge, in the compact form a snapshot carries.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GaugeFillView {
+    /// Each on-hit rune of the player that fires from its combo hit adds `amount`.
+    PerRune { amount: u32 },
+    /// The outer half of a step's hits fills `pct` percent more.
+    OuterHalfPct { pct: u32 },
+    /// Each enemy a smash step hits adds `amount`, up to `cap` for the step.
+    PerSmashHit { amount: u32, cap: u32 },
+}
+
 /// A mechanic kind a style level grants, in the compact form a snapshot carries (built every
 /// frame, so the grant's attacks are not inside).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -301,7 +313,14 @@ pub enum StyleKindView {
         pct: u32,
     },
     /// The style has a weapon gauge `max` long, spent as `spend`.
-    Gauge { max: u32, spend: GaugeSpendKind },
+    Gauge {
+        max: u32,
+        spend: GaugeSpendKind,
+        /// The extra fills the gauge names, in the order `per_rune`, `outer_half_pct`,
+        /// `per_smash_hit`; absent when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fills: Vec<GaugeFillView>,
+    },
     /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.
     Spirit { max_level: u8, decay_ticks: u32 },
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.

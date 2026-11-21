@@ -684,5 +684,9 @@ fn clamped(g: &Gauge) -> Gauge {
         from_damage_pct: g.from_damage_pct.min(MAX_GAUGE_DAMAGE_PCT),
         step_cap: g.step_cap.clamp(1, max),
         spend: g.spend.clone(),
+        per_rune: g.per_rune.min(max),
+        outer_half_pct: g.outer_half_pct.min(MAX_PCT),
+        per_smash_hit: g.per_smash_hit.min(max),
+        smash_cap: g.smash_cap.min(max),
     }
 }

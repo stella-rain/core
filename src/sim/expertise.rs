@@ -37,8 +37,9 @@ use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StaggerBurstView,
-    StatValueView, StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    ExpertiseOfferKind, GaugeFillView, GaugeSpendKind, LevelKindsView, SmashEffectKind,
+    StaggerBurstView, StatValueView, StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView,
+    WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::{SmashEffect, WeaponRef};
@@ -574,6 +575,26 @@ pub(crate) fn weapon_stats_view(
     })
 }
 
+/// The extra fills a gauge names, as the view lists them.
+fn gauge_fills(g: &crate::expertise::Gauge) -> Vec<GaugeFillView> {
+    let mut fills = Vec::new();
+    if g.per_rune != 0 {
+        fills.push(GaugeFillView::PerRune { amount: g.per_rune });
+    }
+    if g.outer_half_pct != 0 {
+        fills.push(GaugeFillView::OuterHalfPct {
+            pct: g.outer_half_pct,
+        });
+    }
+    if g.per_smash_hit != 0 || g.smash_cap != 0 {
+        fills.push(GaugeFillView::PerSmashHit {
+            amount: g.per_smash_hit,
+            cap: g.smash_cap,
+        });
+    }
+    fills
+}
+
 /// The compact view of a level's kinds.
 fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
     kinds
@@ -644,6 +665,7 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 spend: match g.spend {
                     GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
                 },
+                fills: gauge_fills(g),
             },
             StyleKind::Spirit(s) => StyleKindView::Spirit {
                 max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),

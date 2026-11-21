@@ -36,6 +36,49 @@ pub(super) fn check_gauge(issue: &mut impl FnMut(String, String), at: &str, g: &
             );
         }
     }
+    if g.per_rune > most {
+        issue(
+            format!("{at}.per_rune"),
+            format!("0 to the gauge's max {most} (found {})", g.per_rune),
+        );
+    }
+    if g.outer_half_pct > MAX_PCT {
+        issue(
+            format!("{at}.outer_half_pct"),
+            format!("0 to {MAX_PCT} (found {})", g.outer_half_pct),
+        );
+    } else if g.outer_half_pct != 0 && g.per_step == 0 {
+        issue(
+            format!("{at}.outer_half_pct"),
+            "raises per_step, which is 0".into(),
+        );
+    }
+    // `per_smash_hit` and `smash_cap` are named together, the hit inside the cap, the cap inside
+    // the bar; `smash_cap` replaces `step_cap` for smash steps only.
+    if g.smash_cap > most {
+        issue(
+            format!("{at}.smash_cap"),
+            format!("0 to the gauge's max {most} (found {})", g.smash_cap),
+        );
+    }
+    if g.per_smash_hit > most {
+        issue(
+            format!("{at}.per_smash_hit"),
+            format!("0 to the gauge's max {most} (found {})", g.per_smash_hit),
+        );
+    } else if g.per_smash_hit != 0 && g.smash_cap == 0 {
+        issue(format!("{at}.smash_cap"), "needs smash_cap".into());
+    } else if g.smash_cap != 0 && g.per_smash_hit == 0 {
+        issue(format!("{at}.smash_cap"), "needs per_smash_hit".into());
+    } else if g.per_smash_hit > g.smash_cap {
+        issue(
+            format!("{at}.per_smash_hit"),
+            format!(
+                "at most smash_cap {} (found {})",
+                g.smash_cap, g.per_smash_hit
+            ),
+        );
+    }
     if g.from_damage_pct > MAX_GAUGE_DAMAGE_PCT {
         issue(
             format!("{at}.from_damage_pct"),

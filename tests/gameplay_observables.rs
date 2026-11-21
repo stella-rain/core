@@ -146,6 +146,8 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", super_armour: false", "")
         .replace(", super_armour: true", "")
         .replace(", grants: [] }", " }")
+        // The gauge kind's extra fills, empty while no style names one.
+        .replace(", fills: [] }", " }")
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
@@ -214,6 +216,11 @@ fn the_mask_removes_the_new_view_fields() {
     assert_eq!(
         drop_empty_added_fields("rally: None, size: None, encore: None, perfect_evade: None }"),
         "rally: None, perfect_evade: None }"
+    );
+    // The gauge view's empty fills list prints nothing.
+    assert_eq!(
+        drop_empty_added_fields("Gauge { max: 100, spend: FullSmash, fills: [] }"),
+        "Gauge { max: 100, spend: FullSmash }"
     );
     assert_eq!(
         drop_empty_added_fields("entities: [], lingers: [], zones: []"),

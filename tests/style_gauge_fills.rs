@@ -9,16 +9,14 @@ use stella_rain_core::pack::{Pack, PackError};
 use stella_rain_core::validate::Error;
 use stella_rain_core::version::Versions;
 
-use crate::common;
 use crate::style_grants::build;
 
-const AT: &str = "/weapons/0/styles/0/kinds";
 const PATH: &str = "$.weapons[0].styles[0].kinds[0]";
 
 fn gauge() -> Value {
     json!({
         "type": "gauge", "max": 100, "per_step": 3, "per_hit": 1, "step_cap": 14,
-        "spend": { "type": "full_smash", "attack": { "preset": { "id": "slash" } } }
+        "spend": { "type": "full_smash", "attack": { "preset": { "id": "slash", "args": [] } } }
     })
 }
 
@@ -236,5 +234,4 @@ fn the_pack_refuses_each_unshipped_fill() {
             other => panic!("{tag}: expected a refusal, got {:?}", other.map(|_| ())),
         }
     }
-    let _ = common::bundled_file("expertise");
 }

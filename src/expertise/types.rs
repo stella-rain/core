@@ -436,6 +436,180 @@ impl StyleKind {
     }
 }
 
+/// The name of each effect, and of each field of a kind, whose shipping is a decision of its own
+/// (ADR-SIM-9 points 3 and 4, ADR-SVC-1): one level below `StyleKindName`. `Gauge`, `Spirit` and
+/// `CounterBonus` are shipped kinds, so a new field or effect inside one would pass the kind's
+/// test and do nothing; the pack check refuses an unshipped effect as it refuses an unshipped kind,
+/// while parse and the schema accept it. `shipped` and `effect_name` are exhaustive with no
+/// wildcard, and `StyleKind::effects` destructures `Gauge` and `Spirit` without `..`: a new field
+/// or effect does not compile until its author decides whether it ships.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StyleEffectName {
+    GaugePerRune,
+    GaugeOuterHalfPct,
+    GaugePerSmashHit,
+    SpiritDamagePct,
+    SpiritRangePct,
+    SpiritSmashBleedStacks,
+    CounterDamagePct,
+    CounterStaggerPct,
+    CounterStunTicks,
+    CounterAdvance,
+    CounterRefundEvade,
+    CounterGaugeFillPct,
+}
+
+impl StyleEffectName {
+    /// Every name: the gauge fills, then the spirit's, then the counter bonus's, each in
+    /// declaration order (a test keeps it equal to the schema's).
+    pub const ALL: [Self; 12] = [
+        Self::GaugePerRune,
+        Self::GaugeOuterHalfPct,
+        Self::GaugePerSmashHit,
+        Self::SpiritDamagePct,
+        Self::SpiritRangePct,
+        Self::SpiritSmashBleedStacks,
+        Self::CounterDamagePct,
+        Self::CounterStaggerPct,
+        Self::CounterStunTicks,
+        Self::CounterAdvance,
+        Self::CounterRefundEvade,
+        Self::CounterGaugeFillPct,
+    ];
+
+    /// The JSON key of a field, or the `type` tag of an effect.
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::GaugePerRune => "per_rune",
+            Self::GaugeOuterHalfPct => "outer_half_pct",
+            Self::GaugePerSmashHit => "per_smash_hit",
+            Self::SpiritDamagePct | Self::CounterDamagePct => "damage_pct",
+            Self::SpiritRangePct => "range_pct",
+            Self::SpiritSmashBleedStacks => "smash_bleed_stacks",
+            Self::CounterStaggerPct => "stagger_pct",
+            Self::CounterStunTicks => "stun_ticks",
+            Self::CounterAdvance => "advance",
+            Self::CounterRefundEvade => "refund_evade",
+            Self::CounterGaugeFillPct => "gauge_fill_pct",
+        }
+    }
+
+    /// Whether the pack check lets a style name it: its rule is in. The flip of an unshipped
+    /// effect is its arm here and the expected list of the test beside `ALL`.
+    pub const fn shipped(self) -> bool {
+        match self {
+            Self::SpiritDamagePct
+            | Self::SpiritRangePct
+            | Self::SpiritSmashBleedStacks
+            | Self::CounterDamagePct
+            | Self::CounterStaggerPct
+            | Self::CounterStunTicks
+            | Self::CounterAdvance
+            | Self::CounterRefundEvade
+            | Self::CounterGaugeFillPct => true,
+            Self::GaugePerRune | Self::GaugeOuterHalfPct | Self::GaugePerSmashHit => false,
+        }
+    }
+}
+
+impl SpiritEffect {
+    /// The effect's name for the shipped marker.
+    pub const fn effect_name(&self) -> StyleEffectName {
+        match self {
+            Self::DamagePct { .. } => StyleEffectName::SpiritDamagePct,
+            Self::RangePct { .. } => StyleEffectName::SpiritRangePct,
+            Self::SmashBleedStacks { .. } => StyleEffectName::SpiritSmashBleedStacks,
+        }
+    }
+}
+
+impl CounterEffect {
+    /// The effect's name for the shipped marker.
+    pub const fn effect_name(&self) -> StyleEffectName {
+        match self {
+            Self::DamagePct { .. } => StyleEffectName::CounterDamagePct,
+            Self::StaggerPct { .. } => StyleEffectName::CounterStaggerPct,
+            Self::StunTicks { .. } => StyleEffectName::CounterStunTicks,
+            Self::Advance { .. } => StyleEffectName::CounterAdvance,
+            Self::RefundEvade {} => StyleEffectName::CounterRefundEvade,
+            Self::GaugeFillPct { .. } => StyleEffectName::CounterGaugeFillPct,
+        }
+    }
+}
+
+impl StyleKind {
+    /// Every effect and decided field the kind names, each with the path suffix the pack check
+    /// reports it at (`.per_rune`, `.levels[l][e]`, `.effects[e]`). Both destructurings below
+    /// name every field: a new one does not compile until it is decided here.
+    pub fn effects(&self) -> Vec<(StyleEffectName, String)> {
+        match self {
+            Self::Gauge(Gauge {
+                max: _,
+                per_step: _,
+                per_hit: _,
+                from_damage_pct: _,
+                step_cap: _,
+                spend: _,
+                per_rune,
+                outer_half_pct,
+                per_smash_hit,
+                smash_cap,
+            }) => {
+                let mut out = Vec::new();
+                if *per_rune != 0 {
+                    out.push((StyleEffectName::GaugePerRune, ".per_rune".to_string()));
+                }
+                if *outer_half_pct != 0 {
+                    out.push((
+                        StyleEffectName::GaugeOuterHalfPct,
+                        ".outer_half_pct".to_string(),
+                    ));
+                }
+                if *per_smash_hit != 0 || *smash_cap != 0 {
+                    out.push((
+                        StyleEffectName::GaugePerSmashHit,
+                        ".per_smash_hit".to_string(),
+                    ));
+                }
+                out
+            }
+            Self::Spirit(Spirit {
+                decay_ticks: _,
+                levels,
+            }) => {
+                let mut out = Vec::new();
+                for (l, level) in levels.iter().enumerate() {
+                    for (e, effect) in level.iter().enumerate() {
+                        out.push((effect.effect_name(), format!(".levels[{l}][{e}]")));
+                    }
+                }
+                out
+            }
+            Self::CounterBonus(CounterBonus {
+                window_ticks: _,
+                effects,
+            }) => effects
+                .iter()
+                .enumerate()
+                .map(|(e, effect)| (effect.effect_name(), format!(".effects[{e}]")))
+                .collect(),
+            Self::ReplaceStep { .. }
+            | Self::SmashEffect { .. }
+            | Self::Repeat { .. }
+            | Self::RepeatBreaksOrbs { .. }
+            | Self::RepeatBleed { .. }
+            | Self::ProcFactor { .. }
+            | Self::ChargeSooner { .. }
+            | Self::ComboTempoPct(_)
+            | Self::GiantTrigger(_)
+            | Self::Breaker(_)
+            | Self::RepeatRangePct { .. }
+            | Self::RepeatProcPct { .. }
+            | Self::RepeatSizeStack {} => Vec::new(),
+        }
+    }
+}
+
 /// A breaker's effects, every number bounded by the validator and clamped again when the world
 /// is built (ADR-SVC-1, ADR-SIM-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -781,6 +955,24 @@ pub struct Gauge {
     pub step_cap: u32,
     /// What a full gauge buys.
     pub spend: GaugeSpend,
+    /// Each on-hit rune of the player that fires from its combo hit adds this, inside the step's
+    /// cap; absent (0): no rule. At most `max`. Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_rune: u32,
+    /// The outer half of a step's hits fills `per_step` this percent more; absent (0): no rule.
+    /// At most `MAX_PCT`, and it needs `per_step`. Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    #[schemars(range(min = 0, max = MAX_PCT))]
+    pub outer_half_pct: u32,
+    /// Added for each enemy a smash step's hit box hits on a tick, up to `smash_cap` for the
+    /// step; absent (0): no rule. At most `smash_cap`, and the two are named together.
+    /// Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_smash_hit: u32,
+    /// The most one smash step's hits add, in place of `step_cap` for smash steps only; absent
+    /// (0): no rule. At most `max`, and named together with `per_smash_hit`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub smash_cap: u32,
 }
 
 /// What a full gauge is spent on: a closed list, one variant now.

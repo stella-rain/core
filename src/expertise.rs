@@ -107,8 +107,8 @@ pub(crate) use style::{sooner_at, step_ref};
 pub use types::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, ExpertiseEffect,
     ExpertiseFile, ExpertiseOption, Gauge, GaugeSpend, GiantTrigger, SetStat, Spirit, SpiritEffect,
-    StepGrant, StepGroup, StepRef, Style, StyleKind, StyleKindName, TempoEffect, TriggerEffect,
-    WeaponExpertise,
+    StepGrant, StepGroup, StepRef, Style, StyleEffectName, StyleKind, StyleKindName, TempoEffect,
+    TriggerEffect, WeaponExpertise,
 };
 
 /// Expertise content that passed validation, and the SHA-256 of the bytes it came from.
