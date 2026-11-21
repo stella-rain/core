@@ -181,6 +181,7 @@ mod starting_unlocks;
 mod statuses;
 mod step_three;
 mod stun;
+mod style_base_fields;
 mod style_counter_effects;
 mod style_encore_down_area;
 mod style_gauge_fills;

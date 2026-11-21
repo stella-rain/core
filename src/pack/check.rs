@@ -1017,3 +1017,29 @@ pub(super) fn check_perk_categories(
         })
     }
 }
+
+#[cfg(test)]
+mod size_stack_base_tests {
+    use super::has_size_stack_base;
+    use crate::weapon::Weapon;
+    use serde_json::json;
+
+    fn weapon(extra: serde_json::Value) -> Weapon {
+        let mut v = json!({ "combo": {}, "window_ticks": 10, "assist_range": 0 });
+        if let Some(extra) = extra.as_object() {
+            for (k, x) in extra {
+                v[k] = x.clone();
+            }
+        }
+        serde_json::from_value(v).expect("the weapon parses")
+    }
+
+    /// F3: the stub's replacement answers by the field, validated or not.
+    #[test]
+    fn the_base_field_decides() {
+        let with = weapon(json!({ "size_stacks":
+            { "pct_per_stack": 20, "max_stacks": 3, "ticks": 300 } }));
+        assert!(has_size_stack_base(&with));
+        assert!(!has_size_stack_base(&weapon(json!({}))));
+    }
+}
