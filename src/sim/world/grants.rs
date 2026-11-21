@@ -669,6 +669,15 @@ pub(in crate::sim) fn spirit_fold(g: &mut SpiritGrant, sp: &crate::expertise::Sp
                 SpiritEffect::SmashBleedStacks { stacks } => {
                     fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
                 }
+                // Typed and viewed only: no rule reads these yet.
+                SpiritEffect::SizeStackCap { .. }
+                | SpiritEffect::SizeStackTicksPct { .. }
+                | SpiritEffect::SizeStacksPerHit { .. }
+                | SpiritEffect::NormalPull { .. }
+                | SpiritEffect::RuneCooldownPct { .. }
+                | SpiritEffect::RuneSurge { .. }
+                | SpiritEffect::ExtraPresses { .. }
+                | SpiritEffect::SmashRepeat { .. } => {}
             }
         }
     }

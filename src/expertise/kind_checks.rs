@@ -2,18 +2,20 @@
 
 use super::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, Gauge,
-    GaugeSpend, GiantTrigger, MAX_HOLD_MOVE_PCT, MAX_LEVEL_KINDS, MAX_PROC_PCT,
-    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, Spirit, SpiritEffect, StepRef,
-    Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
+    GaugeSpend, GiantTrigger, MAX_COUNTED_PRESSES, MAX_HOLD_MOVE_PCT, MAX_LEVEL_KINDS,
+    MAX_PROC_PCT, MAX_REPEAT_AFTER_TICKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
+    MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, SmashRepeat, Spirit,
+    SpiritEffect, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
 };
 use crate::event::Press;
 use crate::fixed::Fx;
 use crate::limits::{
-    MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
+    MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SIZE_STACKS,
+    MAX_SPIRIT_DECAY_TICKS, MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS,
+    MAX_WEAPON_GAUGE,
 };
 use crate::registry;
-use crate::rewards::{MAX_BURST_RADIUS_PX, MAX_RANGE_PCT};
+use crate::rewards::{MAX_BURST_RADIUS_PX, MAX_RANGE_PCT, MAX_RUNE_HASTE_PCT};
 use crate::run_stats::MAX_ATTACK_SPEED_PCT;
 use crate::validate;
 use crate::validate::limits::MAX_COMBO_DEPTH;
@@ -116,23 +118,68 @@ pub(super) fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: 
             format!("1 to {MAX_SPIRIT_LEVEL} levels (found {})", s.levels.len()),
         );
     }
+    if let Some(r) = s
+        .raise_per_smash
+        .filter(|r| !(1..=MAX_SPIRIT_LEVEL).contains(r))
+    {
+        issue(
+            format!("{at}.raise_per_smash"),
+            format!("1 to {MAX_SPIRIT_LEVEL} (found {r})"),
+        );
+    }
     for (l, level) in s
         .levels
         .iter()
         .enumerate()
         .take(usize::from(MAX_SPIRIT_LEVEL))
     {
-        let mut seen = [false; 3];
+        let mut seen = [false; 11];
         for (e, effect) in level.iter().enumerate() {
             let at = format!("{at}.levels[{l}][{e}]");
-            let (key, v, most) = match effect {
-                SpiritEffect::DamagePct { pct } => ("pct", *pct, MAX_PCT),
-                SpiritEffect::RangePct { pct } => ("pct", *pct, MAX_RANGE_PCT),
+            let scalar = match effect {
+                SpiritEffect::DamagePct { pct } => Some(("pct", *pct, MAX_PCT)),
+                SpiritEffect::RangePct { pct } => Some(("pct", *pct, MAX_RANGE_PCT)),
                 SpiritEffect::SmashBleedStacks { stacks } => {
-                    ("stacks", *stacks, MAX_SPIRIT_BLEED_STACKS)
+                    Some(("stacks", *stacks, MAX_SPIRIT_BLEED_STACKS))
+                }
+                SpiritEffect::SizeStackCap { stacks }
+                | SpiritEffect::SizeStacksPerHit { stacks } => {
+                    Some(("stacks", *stacks, u32::from(MAX_SIZE_STACKS)))
+                }
+                SpiritEffect::SizeStackTicksPct { pct } => Some(("pct", *pct, MAX_PCT)),
+                SpiritEffect::RuneCooldownPct { pct } => Some(("pct", *pct, MAX_RUNE_HASTE_PCT)),
+                SpiritEffect::ExtraPresses { presses } => {
+                    Some(("presses", *presses, MAX_COUNTED_PRESSES))
+                }
+                SpiritEffect::NormalPull { distance, ticks } => {
+                    let most = validate::limits::MAX_PULL_DISTANCE;
+                    if !(Fx::px(1).0..=most).contains(&distance.0) {
+                        issue(
+                            format!("{at}.distance"),
+                            format!("{} to {most} (found {})", Fx::px(1).0, distance.0),
+                        );
+                    }
+                    let most = validate::limits::MAX_PULL_TICKS;
+                    if !(1..=most).contains(ticks) {
+                        issue(
+                            format!("{at}.ticks"),
+                            format!("1 to {most} (found {ticks})"),
+                        );
+                    }
+                    None
+                }
+                SpiritEffect::RuneSurge { steps } => {
+                    check_rune_surge(issue, &at, steps);
+                    None
+                }
+                SpiritEffect::SmashRepeat { repeats } => {
+                    check_smash_repeats(issue, &at, repeats);
+                    None
                 }
             };
-            if !(1..=most).contains(&v) {
+            if let Some((key, v, most)) = scalar
+                && !(1..=most).contains(&v)
+            {
                 issue(format!("{at}.{key}"), format!("1 to {most} (found {v})"));
             }
             let slot = &mut seen[usize::from(effect.name())];
@@ -140,6 +187,57 @@ pub(super) fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: 
                 issue(at, "the level already names this effect".into());
             }
             *slot = true;
+        }
+    }
+}
+
+/// A `rune_surge`'s steps: a bounded list of legal steps, none sharing a member with another.
+fn check_rune_surge(issue: &mut impl FnMut(String, String), at: &str, steps: &[StepRef]) {
+    if steps.len() > MAX_RUNE_SURGE_STEPS {
+        issue(
+            format!("{at}.steps"),
+            format!("0 to {MAX_RUNE_SURGE_STEPS} steps (found {})", steps.len()),
+        );
+    }
+    let mut taken: Vec<Vec<Press>> = Vec::new();
+    for (i, step) in steps.iter().enumerate().take(MAX_RUNE_SURGE_STEPS) {
+        let at = format!("{at}.steps[{i}]");
+        // `check_step_len` names the step's own field; this entry is the step.
+        check_step_len(
+            &mut |path: String, message| {
+                issue(path.trim_end_matches(".step").to_string(), message);
+            },
+            &at,
+            step,
+        );
+        if claims(&mut taken, step) {
+            issue(at, "already listed".into());
+        }
+    }
+}
+
+/// A `smash_repeat`'s entries: a bounded list, each number in its own range.
+fn check_smash_repeats(issue: &mut impl FnMut(String, String), at: &str, repeats: &[SmashRepeat]) {
+    if repeats.is_empty() || repeats.len() > MAX_SMASH_REPEATS {
+        issue(
+            format!("{at}.repeats"),
+            format!("1 to {MAX_SMASH_REPEATS} repeats (found {})", repeats.len()),
+        );
+    }
+    for (r, repeat) in repeats.iter().enumerate().take(MAX_SMASH_REPEATS) {
+        let at = format!("{at}.repeats[{r}]");
+        let numbers = [
+            ("after_ticks", repeat.after_ticks, MAX_REPEAT_AFTER_TICKS),
+            ("repeat_pct", repeat.repeat_pct, MAX_PCT),
+        ];
+        let levels = repeat.min_charge_level.map(|m| {
+            let most = u32::try_from(validate::limits::MAX_CHARGE_LEVELS).unwrap_or(u32::MAX);
+            ("min_charge_level", m, most)
+        });
+        for (key, v, most) in numbers.into_iter().chain(levels) {
+            if !(1..=most).contains(&v) {
+                issue(format!("{at}.{key}"), format!("1 to {most} (found {v})"));
+            }
         }
     }
 }

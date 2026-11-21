@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use super::style::step_ref;
 use super::{
-    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
-    MAX_REPEAT_BLEED_STACKS, MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
+    MAX_CHARGE_SOONER_PCT, MAX_COUNTED_PRESSES, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
+    MAX_REPEAT_AFTER_TICKS, MAX_REPEAT_BLEED_STACKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
+    MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
 };
 use crate::attack::AttackRef;
 use crate::event::Press;
@@ -14,7 +15,7 @@ use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
     MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
 };
 use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
@@ -448,9 +449,18 @@ pub enum StyleEffectName {
     GaugePerRune,
     GaugeOuterHalfPct,
     GaugePerSmashHit,
+    SpiritRaisePerSmash,
     SpiritDamagePct,
     SpiritRangePct,
     SpiritSmashBleedStacks,
+    SpiritSizeStackCap,
+    SpiritSizeStackTicksPct,
+    SpiritSizeStacksPerHit,
+    SpiritNormalPull,
+    SpiritRuneCooldownPct,
+    SpiritRuneSurge,
+    SpiritExtraPresses,
+    SpiritSmashRepeat,
     CounterDamagePct,
     CounterStaggerPct,
     CounterStunTicks,
@@ -462,13 +472,22 @@ pub enum StyleEffectName {
 impl StyleEffectName {
     /// Every name: the gauge fills, then the spirit's, then the counter bonus's, each in
     /// declaration order (a test keeps it equal to the schema's).
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 21] = [
         Self::GaugePerRune,
         Self::GaugeOuterHalfPct,
         Self::GaugePerSmashHit,
+        Self::SpiritRaisePerSmash,
         Self::SpiritDamagePct,
         Self::SpiritRangePct,
         Self::SpiritSmashBleedStacks,
+        Self::SpiritSizeStackCap,
+        Self::SpiritSizeStackTicksPct,
+        Self::SpiritSizeStacksPerHit,
+        Self::SpiritNormalPull,
+        Self::SpiritRuneCooldownPct,
+        Self::SpiritRuneSurge,
+        Self::SpiritExtraPresses,
+        Self::SpiritSmashRepeat,
         Self::CounterDamagePct,
         Self::CounterStaggerPct,
         Self::CounterStunTicks,
@@ -483,9 +502,18 @@ impl StyleEffectName {
             Self::GaugePerRune => "per_rune",
             Self::GaugeOuterHalfPct => "outer_half_pct",
             Self::GaugePerSmashHit => "per_smash_hit",
+            Self::SpiritRaisePerSmash => "raise_per_smash",
             Self::SpiritDamagePct | Self::CounterDamagePct => "damage_pct",
             Self::SpiritRangePct => "range_pct",
             Self::SpiritSmashBleedStacks => "smash_bleed_stacks",
+            Self::SpiritSizeStackCap => "size_stack_cap",
+            Self::SpiritSizeStackTicksPct => "size_stack_ticks_pct",
+            Self::SpiritSizeStacksPerHit => "size_stacks_per_hit",
+            Self::SpiritNormalPull => "normal_pull",
+            Self::SpiritRuneCooldownPct => "rune_cooldown_pct",
+            Self::SpiritRuneSurge => "rune_surge",
+            Self::SpiritExtraPresses => "extra_presses",
+            Self::SpiritSmashRepeat => "smash_repeat",
             Self::CounterStaggerPct => "stagger_pct",
             Self::CounterStunTicks => "stun_ticks",
             Self::CounterAdvance => "advance",
@@ -507,7 +535,18 @@ impl StyleEffectName {
             | Self::CounterAdvance
             | Self::CounterRefundEvade
             | Self::CounterGaugeFillPct => true,
-            Self::GaugePerRune | Self::GaugeOuterHalfPct | Self::GaugePerSmashHit => false,
+            Self::GaugePerRune
+            | Self::GaugeOuterHalfPct
+            | Self::GaugePerSmashHit
+            | Self::SpiritRaisePerSmash
+            | Self::SpiritSizeStackCap
+            | Self::SpiritSizeStackTicksPct
+            | Self::SpiritSizeStacksPerHit
+            | Self::SpiritNormalPull
+            | Self::SpiritRuneCooldownPct
+            | Self::SpiritRuneSurge
+            | Self::SpiritExtraPresses
+            | Self::SpiritSmashRepeat => false,
         }
     }
 }
@@ -519,6 +558,14 @@ impl SpiritEffect {
             Self::DamagePct { .. } => StyleEffectName::SpiritDamagePct,
             Self::RangePct { .. } => StyleEffectName::SpiritRangePct,
             Self::SmashBleedStacks { .. } => StyleEffectName::SpiritSmashBleedStacks,
+            Self::SizeStackCap { .. } => StyleEffectName::SpiritSizeStackCap,
+            Self::SizeStackTicksPct { .. } => StyleEffectName::SpiritSizeStackTicksPct,
+            Self::SizeStacksPerHit { .. } => StyleEffectName::SpiritSizeStacksPerHit,
+            Self::NormalPull { .. } => StyleEffectName::SpiritNormalPull,
+            Self::RuneCooldownPct { .. } => StyleEffectName::SpiritRuneCooldownPct,
+            Self::RuneSurge { .. } => StyleEffectName::SpiritRuneSurge,
+            Self::ExtraPresses { .. } => StyleEffectName::SpiritExtraPresses,
+            Self::SmashRepeat { .. } => StyleEffectName::SpiritSmashRepeat,
         }
     }
 }
@@ -576,8 +623,15 @@ impl StyleKind {
             Self::Spirit(Spirit {
                 decay_ticks: _,
                 levels,
+                raise_per_smash,
             }) => {
                 let mut out = Vec::new();
+                if raise_per_smash.is_some() {
+                    out.push((
+                        StyleEffectName::SpiritRaisePerSmash,
+                        ".raise_per_smash".to_string(),
+                    ));
+                }
                 for (l, level) in levels.iter().enumerate() {
                     for (e, effect) in level.iter().enumerate() {
                         out.push((effect.effect_name(), format!(".levels[{l}][{e}]")));
@@ -893,6 +947,12 @@ pub struct Spirit {
     /// a level names each effect at most once. At a later level of the path an entry lays over
     /// the earlier level's same entry, and a longer table extends it.
     pub levels: Vec<Vec<SpiritEffect>>,
+    /// How many levels a full-gauge smash raises the spirit by; absent: one. 1 to
+    /// `MAX_SPIRIT_LEVEL`. A later level restating the spirit that omits it keeps the earlier
+    /// value. Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_SPIRIT_LEVEL))]
+    pub raise_per_smash: Option<u8>,
 }
 
 /// What a spirit level does: a closed list built into `core`, one variant per effect, each
@@ -917,6 +977,76 @@ pub enum SpiritEffect {
         #[schemars(range(min = 1, max = MAX_SPIRIT_BLEED_STACKS))]
         stacks: u32,
     },
+    /// Added to the base weapon's size-stack cap. 1 to `MAX_SIZE_STACKS`; the sum is held to
+    /// `MAX_SIZE_STACKS` by the rule. Unshipped: no rule reads it yet.
+    SizeStackCap {
+        #[schemars(range(min = 1, max = crate::limits::MAX_SIZE_STACKS))]
+        stacks: u32,
+    },
+    /// The size stacks last this percent longer; the result is held to `MAX_SIZE_TICKS` by the
+    /// rule. 1 to `MAX_PCT`. Unshipped: no rule reads it yet.
+    SizeStackTicksPct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// Each hit adds this many size stacks. 1 to `MAX_SIZE_STACKS`. Unshipped: no rule reads it
+    /// yet.
+    SizeStacksPerHit {
+        #[schemars(range(min = 1, max = crate::limits::MAX_SIZE_STACKS))]
+        stacks: u32,
+    },
+    /// The player's normal steps pull what they hit as `SmashEffect::Pull` does: `distance`
+    /// (1 px to `MAX_PULL_DISTANCE`) over `ticks` (1 to `MAX_PULL_TICKS`). Unshipped: no rule
+    /// reads it yet.
+    NormalPull {
+        #[schemars(range(min = 256, max = crate::validate::limits::MAX_PULL_DISTANCE))]
+        distance: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_PULL_TICKS))]
+        ticks: u32,
+    },
+    /// The on-hit runes recover this percent faster; the rule holds the sum to the run's
+    /// `max_rune_haste_pct`. 1 to `MAX_RUNE_HASTE_PCT`. Unshipped: no rule reads it yet.
+    RuneCooldownPct {
+        #[schemars(range(min = 1, max = crate::rewards::MAX_RUNE_HASTE_PCT))]
+        pct: u32,
+    },
+    /// A level reached fires the on-hit runes on the listed steps at once; empty: owed at the
+    /// level reached only. 0 to `MAX_RUNE_SURGE_STEPS` entries, each a legal step or group, no
+    /// two sharing a member. Unshipped: no rule reads it yet.
+    RuneSurge {
+        #[schemars(length(max = MAX_RUNE_SURGE_STEPS))]
+        steps: Vec<StepRef>,
+    },
+    /// The combo counts this many more presses. 1 to `MAX_COUNTED_PRESSES`. Unshipped: no rule
+    /// reads it yet.
+    ExtraPresses {
+        #[schemars(range(min = 1, max = MAX_COUNTED_PRESSES))]
+        presses: u32,
+    },
+    /// A smash queues these repeats on its `place` anchor. 1 to `MAX_SMASH_REPEATS` entries.
+    /// Unshipped: no rule reads it yet.
+    SmashRepeat {
+        #[schemars(length(min = 1, max = MAX_SMASH_REPEATS))]
+        repeats: Vec<SmashRepeat>,
+    },
+}
+
+/// One repeat a spirit's smash queues, always on the `place` anchor.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SmashRepeat {
+    /// Ticks after the smash. 1 to `MAX_REPEAT_AFTER_TICKS`.
+    #[schemars(range(min = 1, max = MAX_REPEAT_AFTER_TICKS))]
+    pub after_ticks: u32,
+    /// The share of the smash's damage, in percent. 1 to `MAX_PCT`.
+    #[schemars(range(min = 1, max = MAX_PCT))]
+    pub repeat_pct: u32,
+    /// Queued only when the smash's charge reached this level (1 is the first level); absent:
+    /// always. 1 to `MAX_CHARGE_LEVELS`, and the style's tree must have a smash step whose
+    /// charge has that many levels (the pack check).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_CHARGE_LEVELS))]
+    pub min_charge_level: Option<u32>,
 }
 
 impl SpiritEffect {
@@ -925,6 +1055,14 @@ impl SpiritEffect {
             SpiritEffect::DamagePct { .. } => 0,
             SpiritEffect::RangePct { .. } => 1,
             SpiritEffect::SmashBleedStacks { .. } => 2,
+            SpiritEffect::SizeStackCap { .. } => 3,
+            SpiritEffect::SizeStackTicksPct { .. } => 4,
+            SpiritEffect::SizeStacksPerHit { .. } => 5,
+            SpiritEffect::NormalPull { .. } => 6,
+            SpiritEffect::RuneCooldownPct { .. } => 7,
+            SpiritEffect::RuneSurge { .. } => 8,
+            SpiritEffect::ExtraPresses { .. } => 9,
+            SpiritEffect::SmashRepeat { .. } => 10,
         }
     }
 }

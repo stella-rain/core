@@ -111,14 +111,27 @@ fn the_list_of_effects_is_the_schemas() {
 /// The test a rule task edits when it flips an arm of `StyleEffectName::shipped`.
 #[test]
 fn the_unshipped_effects_are_the_new_ones() {
-    use StyleEffectName::{GaugeOuterHalfPct, GaugePerRune, GaugePerSmashHit};
+    use StyleEffectName::*;
     let unshipped: Vec<StyleEffectName> = StyleEffectName::ALL
         .into_iter()
         .filter(|n| !n.shipped())
         .collect();
     assert_eq!(
         unshipped,
-        [GaugePerRune, GaugeOuterHalfPct, GaugePerSmashHit]
+        [
+            GaugePerRune,
+            GaugeOuterHalfPct,
+            GaugePerSmashHit,
+            SpiritRaisePerSmash,
+            SpiritSizeStackCap,
+            SpiritSizeStackTicksPct,
+            SpiritSizeStacksPerHit,
+            SpiritNormalPull,
+            SpiritRuneCooldownPct,
+            SpiritRuneSurge,
+            SpiritExtraPresses,
+            SpiritSmashRepeat,
+        ]
     );
 }
 

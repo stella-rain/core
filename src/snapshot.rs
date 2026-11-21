@@ -264,6 +264,56 @@ pub enum GaugeFillView {
     PerSmashHit { amount: u32, cap: u32 },
 }
 
+/// A spirit effect with the level that carries it, in the compact form a snapshot carries.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SpiritEffectAt {
+    /// The spirit level, 1-based.
+    pub level: u8,
+    pub effect: SpiritEffectView,
+}
+
+/// What a spirit level does beyond the damage, range and bleed it always had.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SpiritEffectView {
+    SizeStackCap {
+        stacks: u32,
+    },
+    SizeStackTicksPct {
+        pct: u32,
+    },
+    SizeStacksPerHit {
+        stacks: u32,
+    },
+    NormalPull {
+        distance: Fx,
+        ticks: u32,
+    },
+    RuneCooldownPct {
+        pct: u32,
+    },
+    RuneSurge {
+        steps: Vec<crate::expertise::StepRef>,
+    },
+    ExtraPresses {
+        presses: u32,
+    },
+    SmashRepeat {
+        repeats: Vec<SmashRepeatView>,
+    },
+}
+
+/// One repeat of a spirit's smash.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SmashRepeatView {
+    pub after_ticks: u32,
+    pub repeat_pct: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_charge_level: Option<u32>,
+}
+
 /// A mechanic kind a style level grants, in the compact form a snapshot carries (built every
 /// frame, so the grant's attacks are not inside).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -322,7 +372,16 @@ pub enum StyleKindView {
         fills: Vec<GaugeFillView>,
     },
     /// The style has a spirit level, 0 to `max_level`, that falls `decay_ticks` after a smash.
-    Spirit { max_level: u8, decay_ticks: u32 },
+    Spirit {
+        max_level: u8,
+        decay_ticks: u32,
+        /// How many levels a full-gauge smash raises it by; absent: one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        raise_per_smash: Option<u8>,
+        /// The extra effects the levels name, each with its 1-based level; absent when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        effects: Vec<SpiritEffectAt>,
+    },
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
     CounterBonus { window_ticks: u32 },
     /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
