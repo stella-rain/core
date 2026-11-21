@@ -2,8 +2,8 @@
 
 use super::{
     Breaker, BreakerEffect, BurstEffect, ComboTempo, CounterBonus, CounterEffect, Gauge,
-    GaugeSpend, GiantTrigger, MAX_COUNTED_PRESSES, MAX_HOLD_MOVE_PCT, MAX_LEVEL_KINDS,
-    MAX_PROC_PCT, MAX_REPEAT_AFTER_TICKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
+    GaugeSpend, GiantTrigger, MAX_COUNTED_PRESSES, MAX_COUNTER_EFFECTS, MAX_HOLD_MOVE_PCT,
+    MAX_LEVEL_KINDS, MAX_PROC_PCT, MAX_REPEAT_AFTER_TICKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
     MAX_SPIRIT_BLEED_STACKS, MAX_TEMPO_EFFECTS, MAX_TRIGGER_EFFECTS, SmashRepeat, Spirit,
     SpiritEffect, StepRef, Style, StyleKind, TempoEffect, TriggerEffect, style_levels,
 };
@@ -450,17 +450,28 @@ pub(super) fn check_counter_bonus(
         );
     }
     let least = usize::from(!later);
-    if c.effects.len() < least || c.effects.len() > 6 {
+    if c.effects.len() < least || c.effects.len() > MAX_COUNTER_EFFECTS {
         issue(
             format!("{at}.effects"),
-            format!("{least} to 6 effects (found {})", c.effects.len()),
+            format!(
+                "{least} to {MAX_COUNTER_EFFECTS} effects (found {})",
+                c.effects.len()
+            ),
         );
     }
-    let mut seen = [false; 6];
-    for (e, effect) in c.effects.iter().enumerate().take(6) {
+    let mut seen = [false; MAX_COUNTER_EFFECTS];
+    for (e, effect) in c.effects.iter().enumerate().take(MAX_COUNTER_EFFECTS) {
         let at = format!("{at}.effects[{e}]");
         let (key, v, lo, hi) = match effect {
-            CounterEffect::RefundEvade {} => {
+            CounterEffect::PullRound { radius_px } | CounterEffect::ClearBullets { radius_px } => (
+                "radius_px",
+                i64::from(*radius_px),
+                1,
+                i64::from(MAX_BURST_RADIUS_PX),
+            ),
+            CounterEffect::RefundEvade {}
+            | CounterEffect::FillSizeStacks {}
+            | CounterEffect::FireRunes {} => {
                 if std::mem::replace(&mut seen[usize::from(effect.name())], true) {
                     issue(at, "the kind already names this effect".into());
                 }

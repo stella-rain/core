@@ -91,6 +91,8 @@ pub const MAX_COUNTED_PRESSES: u32 = 16;
 pub const MAX_SMASH_REPEATS: usize = 4;
 /// The most steps one spirit `rune_surge` effect lists (a tuning placeholder).
 pub const MAX_RUNE_SURGE_STEPS: usize = 4;
+/// The most effects one counter bonus kind names (a bound: one per `CounterEffect` variant).
+pub const MAX_COUNTER_EFFECTS: usize = 10;
 /// The most extra bleed stacks a spirit level's `smash_bleed_stacks` adds to a smash hit (a
 /// tuning placeholder).
 pub const MAX_SPIRIT_BLEED_STACKS: u32 = 4;

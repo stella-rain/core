@@ -467,12 +467,16 @@ pub enum StyleEffectName {
     CounterAdvance,
     CounterRefundEvade,
     CounterGaugeFillPct,
+    CounterPullRound,
+    CounterFillSizeStacks,
+    CounterClearBullets,
+    CounterFireRunes,
 }
 
 impl StyleEffectName {
     /// Every name: the gauge fills, then the spirit's, then the counter bonus's, each in
     /// declaration order (a test keeps it equal to the schema's).
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 25] = [
         Self::GaugePerRune,
         Self::GaugeOuterHalfPct,
         Self::GaugePerSmashHit,
@@ -494,6 +498,10 @@ impl StyleEffectName {
         Self::CounterAdvance,
         Self::CounterRefundEvade,
         Self::CounterGaugeFillPct,
+        Self::CounterPullRound,
+        Self::CounterFillSizeStacks,
+        Self::CounterClearBullets,
+        Self::CounterFireRunes,
     ];
 
     /// The JSON key of a field, or the `type` tag of an effect.
@@ -519,6 +527,10 @@ impl StyleEffectName {
             Self::CounterAdvance => "advance",
             Self::CounterRefundEvade => "refund_evade",
             Self::CounterGaugeFillPct => "gauge_fill_pct",
+            Self::CounterPullRound => "pull_round",
+            Self::CounterFillSizeStacks => "fill_size_stacks",
+            Self::CounterClearBullets => "clear_bullets",
+            Self::CounterFireRunes => "fire_runes",
         }
     }
 
@@ -546,7 +558,11 @@ impl StyleEffectName {
             | Self::SpiritRuneCooldownPct
             | Self::SpiritRuneSurge
             | Self::SpiritExtraPresses
-            | Self::SpiritSmashRepeat => false,
+            | Self::SpiritSmashRepeat
+            | Self::CounterPullRound
+            | Self::CounterFillSizeStacks
+            | Self::CounterClearBullets
+            | Self::CounterFireRunes => false,
         }
     }
 }
@@ -580,6 +596,10 @@ impl CounterEffect {
             Self::Advance { .. } => StyleEffectName::CounterAdvance,
             Self::RefundEvade {} => StyleEffectName::CounterRefundEvade,
             Self::GaugeFillPct { .. } => StyleEffectName::CounterGaugeFillPct,
+            Self::PullRound { .. } => StyleEffectName::CounterPullRound,
+            Self::FillSizeStacks {} => StyleEffectName::CounterFillSizeStacks,
+            Self::ClearBullets { .. } => StyleEffectName::CounterClearBullets,
+            Self::FireRunes {} => StyleEffectName::CounterFireRunes,
         }
     }
 }
@@ -878,8 +898,8 @@ pub struct CounterBonus {
     /// `MAX_COUNTER_WINDOW_TICKS`.
     #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
     pub window_ticks: u32,
-    /// What the step takes, each variant at most once; 1 to 6 entries (0 to 6 at a level after
-    /// one that names the kind).
+    /// What the step takes, each variant at most once; 1 to `MAX_COUNTER_EFFECTS` entries (0 to
+    /// `MAX_COUNTER_EFFECTS` at a level after one that names the kind).
     pub effects: Vec<CounterEffect>,
 }
 
@@ -919,6 +939,24 @@ pub enum CounterEffect {
         #[schemars(range(min = 1, max = 100))]
         pct: u32,
     },
+    /// At the counter's first landed combo hit, the enemies within `radius_px` of the player are
+    /// drawn in. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.
+    PullRound {
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
+    },
+    /// At the counter's first landed combo hit, the weapon's size stacks fill. A flag with no
+    /// field. Unshipped: no rule reads it yet.
+    FillSizeStacks {},
+    /// At the counter's first landed combo hit, the enemy bullets within `radius_px` of the player
+    /// are cleared. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.
+    ClearBullets {
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
+    },
+    /// At the counter's first landed combo hit, the ready on-hit runes fire. A flag with no
+    /// field. Unshipped: no rule reads it yet.
+    FireRunes {},
 }
 
 impl CounterEffect {
@@ -930,6 +968,10 @@ impl CounterEffect {
             CounterEffect::Advance { .. } => 3,
             CounterEffect::RefundEvade {} => 4,
             CounterEffect::GaugeFillPct { .. } => 5,
+            CounterEffect::PullRound { .. } => 6,
+            CounterEffect::FillSizeStacks {} => 7,
+            CounterEffect::ClearBullets { .. } => 8,
+            CounterEffect::FireRunes {} => 9,
         }
     }
 }

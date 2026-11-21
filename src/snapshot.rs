@@ -264,6 +264,17 @@ pub enum GaugeFillView {
     PerSmashHit { amount: u32, cap: u32 },
 }
 
+/// What a counter bonus gives beyond the six effects it always had, in the compact form a snapshot
+/// carries.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum CounterEffectView {
+    PullRound { radius_px: u32 },
+    FillSizeStacks {},
+    ClearBullets { radius_px: u32 },
+    FireRunes {},
+}
+
 /// A spirit effect with the level that carries it, in the compact form a snapshot carries.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -383,7 +394,12 @@ pub enum StyleKindView {
         effects: Vec<SpiritEffectAt>,
     },
     /// The style has a counter bonus whose window lasts `window_ticks` after a near miss.
-    CounterBonus { window_ticks: u32 },
+    CounterBonus {
+        window_ticks: u32,
+        /// The extra effects the bonus names (the four with a view); absent when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        effects: Vec<CounterEffectView>,
+    },
     /// The style has a combo tempo of up to `max_stacks` stacks, each `pct_per_stack` percent
     /// faster; `armour_at_full` when the full stacks held in a hold give super armour and
     /// `range_pct_at_full` percent wider attacks while the stacks are full (0 where none);

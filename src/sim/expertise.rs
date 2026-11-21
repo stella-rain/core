@@ -29,17 +29,18 @@
 
 use super::World;
 use crate::expertise::{
-    BreakerEffect, BurstEffect, Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat,
-    StepGrant, Style, StyleKind, TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
+    BreakerEffect, BurstEffect, CounterEffect, Expertise, ExpertiseEffect, ExpertiseOption,
+    GaugeSpend, SetStat, StepGrant, Style, StyleKind, TABLE_LEVELS, TempoEffect, TriggerEffect,
+    WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, GaugeFillView, GaugeSpendKind, LevelKindsView, SmashEffectKind,
-    SmashRepeatView, SpiritEffectAt, SpiritEffectView, StaggerBurstView, StatValueView,
-    StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
+    CounterEffectView, ExpertiseOfferKind, GaugeFillView, GaugeSpendKind, LevelKindsView,
+    SmashEffectKind, SmashRepeatView, SpiritEffectAt, SpiritEffectView, StaggerBurstView,
+    StatValueView, StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
 use crate::weapon::{SmashEffect, WeaponRef};
@@ -737,6 +738,33 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
             },
             StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
                 window_ticks: c.window_ticks,
+                effects: c
+                    .effects
+                    .iter()
+                    .filter_map(|e| match e {
+                        // The six built effects keep no view.
+                        CounterEffect::DamagePct { .. }
+                        | CounterEffect::StaggerPct { .. }
+                        | CounterEffect::StunTicks { .. }
+                        | CounterEffect::Advance { .. }
+                        | CounterEffect::RefundEvade {}
+                        | CounterEffect::GaugeFillPct { .. } => None,
+                        CounterEffect::PullRound { radius_px } => {
+                            Some(CounterEffectView::PullRound {
+                                radius_px: *radius_px,
+                            })
+                        }
+                        CounterEffect::FillSizeStacks {} => {
+                            Some(CounterEffectView::FillSizeStacks {})
+                        }
+                        CounterEffect::ClearBullets { radius_px } => {
+                            Some(CounterEffectView::ClearBullets {
+                                radius_px: *radius_px,
+                            })
+                        }
+                        CounterEffect::FireRunes {} => Some(CounterEffectView::FireRunes {}),
+                    })
+                    .collect(),
             },
             StyleKind::ComboTempoPct(t) => StyleKindView::ComboTempoPct {
                 max_stacks: t.max_stacks,

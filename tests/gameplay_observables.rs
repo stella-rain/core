@@ -150,6 +150,8 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", fills: [] }", " }")
         // The spirit kind's raise and extra effects, empty while no style names one.
         .replace(", raise_per_smash: None, effects: [] }", " }")
+        // The counter bonus kind's extra effects, empty while no style names one.
+        .replace(", effects: [] }", " }")
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
@@ -229,6 +231,10 @@ fn the_mask_removes_the_new_view_fields() {
             "Spirit { max_level: 3, decay_ticks: 1200, raise_per_smash: None, effects: [] }"
         ),
         "Spirit { max_level: 3, decay_ticks: 1200 }"
+    );
+    assert_eq!(
+        drop_empty_added_fields("CounterBonus { window_ticks: 30, effects: [] }"),
+        "CounterBonus { window_ticks: 30 }"
     );
     assert_eq!(
         drop_empty_added_fields("entities: [], lingers: [], zones: []"),

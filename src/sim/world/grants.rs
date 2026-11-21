@@ -617,7 +617,7 @@ pub(in crate::sim) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::C
     g.window = u16::try_from(c.window_ticks)
         .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
         .clamp(1, MAX_COUNTER_WINDOW_TICKS);
-    for e in c.effects.iter().take(6) {
+    for e in c.effects.iter().take(crate::expertise::MAX_COUNTER_EFFECTS) {
         match e {
             CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
             CounterEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
@@ -629,6 +629,11 @@ pub(in crate::sim) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::C
             }
             CounterEffect::RefundEvade {} => g.refund_evade = true,
             CounterEffect::GaugeFillPct { pct } => g.gauge_fill_pct = (*pct).min(100),
+            // Typed and viewed only: no rule reads these yet.
+            CounterEffect::PullRound { .. }
+            | CounterEffect::FillSizeStacks {}
+            | CounterEffect::ClearBullets { .. }
+            | CounterEffect::FireRunes {} => {}
         }
     }
 }

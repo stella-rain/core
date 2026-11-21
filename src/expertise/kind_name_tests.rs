@@ -131,6 +131,10 @@ fn the_unshipped_effects_are_the_new_ones() {
             SpiritRuneSurge,
             SpiritExtraPresses,
             SpiritSmashRepeat,
+            CounterPullRound,
+            CounterFillSizeStacks,
+            CounterClearBullets,
+            CounterFireRunes,
         ]
     );
 }
