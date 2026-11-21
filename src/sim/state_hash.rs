@@ -555,6 +555,7 @@ impl StableHash for Linger {
             pull,
             cuts_orbs,
             proc_pct,
+            damage_type,
         } = self;
         owner.stable_hash(h);
         anchor.stable_hash(h);
@@ -568,6 +569,7 @@ impl StableHash for Linger {
         pull.stable_hash(h);
         cuts_orbs.stable_hash(h);
         proc_pct.stable_hash(h);
+        damage_type.stable_hash(h);
     }
 }
 
@@ -618,7 +620,6 @@ impl StableHash for PlayerCombat {
             ranged_grace,
             counter_bonus_step,
             counter_payout,
-            sweep_count,
             size_stacks,
             size_ticks,
             rune_fire_owed,
@@ -640,7 +641,6 @@ impl StableHash for PlayerCombat {
         ranged_grace.stable_hash(h);
         counter_bonus_step.stable_hash(h);
         counter_payout.stable_hash(h);
-        sweep_count.stable_hash(h);
         size_stacks.stable_hash(h);
         size_ticks.stable_hash(h);
         rune_fire_owed.stable_hash(h);
@@ -961,6 +961,7 @@ impl StableHash for PlayerState {
             revive_hold,
             out,
             combat,
+            sweep_hits,
         } = self;
         at.stable_hash(h);
         hp.stable_hash(h);
@@ -1000,6 +1001,7 @@ impl StableHash for PlayerState {
         revive_hold.stable_hash(h);
         out.stable_hash(h);
         combat.stable_hash(h);
+        sweep_hits.stable_hash(h);
     }
 }
 

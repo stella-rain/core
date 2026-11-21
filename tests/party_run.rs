@@ -348,10 +348,10 @@ fn actions_per_slot(replay: &RunReplay) -> [u32; 3] {
 /// What the rig cases hold of downs and revives: per case the counts of `PlayerDowned`,
 /// `PlayerRevived` and `PlayerOut`, the tick of the first down and of the first revive (the
 /// engine's tick count after the step), and the final hash. From the seed search; the hashes
-/// re-pinned when the combat fields joined the state hash, then for the counter-bonus mark, then for the shipped ranged grace, then for the Wave 3 fields.
+/// re-pinned when the combat fields joined the state hash, then for the counter-bonus mark, then for the shipped ranged grace, then for the Wave 3 fields, then for the swing's hit record in place of `sweep_count`.
 const RIG_EVENTS: [(&str, [u32; 3], u32, u32, &str); 2] = [
-    ("two_revive", [1, 1, 0], 2074, 2254, "6d360fd33c9b0253"),
-    ("three_revive", [3, 3, 0], 2254, 2434, "00832228bdad7891"),
+    ("two_revive", [1, 1, 0], 2074, 2254, "cb68c78dfb5a8683"),
+    ("three_revive", [3, 3, 0], 2254, 2434, "316cc59809f1bb09"),
 ];
 
 /// What the building rig cases hold: per case and slot the actions the bot made, as `[equip,

@@ -705,13 +705,13 @@ fn player(p: &mut PlayerState) {
         ranged_grace: 13,
         counter_bonus_step: 1,
         counter_payout: 1,
-        sweep_count: 14,
         size_stacks: 2,
         size_ticks: 15,
         rune_fire_owed: 1,
         encore_ticks: 16,
         encore_ready: 1,
     };
+    p.sweep_hits = vec![EntityId(3), EntityId(9), EntityId(200)];
     p.combo = ComboState {
         path: 5,
         depth: 2,
@@ -812,6 +812,7 @@ pub(super) fn live_full_state(e: &Engine) -> State {
         pull: Fx(11),
         cuts_orbs: true,
         proc_pct: Some(12),
+        damage_type: Some(DamageType::Pyro),
     }];
     s.echoes = vec![Echo {
         source: EntityId(1),
@@ -955,7 +956,7 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Linger, |s| &mut s.lingers[0],
-        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct],
+        moves: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct, damage_type],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, Echo, |s| &mut s.echoes[0],
@@ -999,11 +1000,11 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
         not_hashed: [stats],
         content: []);
     each_field_moves_the_hash!(p, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat],
+        moves: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat, sweep_hits],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready],
+        moves: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready],
         not_hashed: [],
         content: []);
     each_field_moves_the_hash!(p, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
@@ -1155,4 +1156,46 @@ fn every_state_field_moves_the_hash_or_is_listed_as_content() {
             .push("Offers.set_counts does not move the hash".into());
     }
     p.assert_clean();
+}
+
+#[test]
+fn the_swing_record_moves_the_hash_by_its_length_and_its_ids() {
+    let mut p = Probe::new();
+    let set = |ids: &'static [u32]| {
+        move |s: &mut State| {
+            s.players[PlayerIdx::SOLO].sweep_hits = ids.iter().map(|&n| EntityId(n)).collect();
+        }
+    };
+    let hash = |p: &mut Probe, f: &dyn Fn(&mut State)| {
+        let mut s = p.base.clone();
+        f(&mut s);
+        p.engine.run.set_live_state(s);
+        p.engine.state_hash()
+    };
+    let empty = hash(&mut p, &set(&[]));
+    let one = hash(&mut p, &set(&[3]));
+    let two = hash(&mut p, &set(&[3, 4]));
+    let other = hash(&mut p, &set(&[3, 5]));
+    let all = [empty, one, two, other];
+    for (i, a) in all.iter().enumerate() {
+        for b in &all[i + 1..] {
+            assert_ne!(a, b);
+        }
+    }
+}
+
+#[test]
+fn a_lingering_areas_damage_type_moves_the_hash() {
+    use crate::attack::DamageType;
+    let mut p = Probe::new();
+    let mut hashes = Vec::new();
+    for t in [None, Some(DamageType::Slash), Some(DamageType::Anemo)] {
+        let mut s = p.base.clone();
+        s.lingers[0].damage_type = t;
+        p.engine.run.set_live_state(s);
+        hashes.push(p.engine.state_hash());
+    }
+    assert_ne!(hashes[0], hashes[1]);
+    assert_ne!(hashes[0], hashes[2]);
+    assert_ne!(hashes[1], hashes[2]);
 }

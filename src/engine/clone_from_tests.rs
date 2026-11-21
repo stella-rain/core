@@ -240,3 +240,42 @@ fn every_heap_owning_type_names_each_field_in_its_copy() {
         }
     }
 }
+
+#[test]
+fn the_swing_record_is_copied_and_its_buffer_kept() {
+    use crate::id::EntityId;
+    let ids = |n: u32| -> Vec<EntityId> { (3..3 + n).map(EntityId).collect() };
+    let slots: Vec<PlayerIdx> = (0..3).filter_map(PlayerIdx::new).collect();
+    let mut source = party_case::saved();
+    let mut target = party_case::saved();
+    let (Run::V2 { state: src, .. }, Run::V2 { state: dst, .. }) =
+        (source.run_mut(), target.run_mut())
+    else {
+        panic!("the live rules");
+    };
+    let present: Vec<PlayerIdx> = slots
+        .iter()
+        .copied()
+        .filter(|i| src.players.mask() >> i.get() & 1 == 1)
+        .collect();
+    assert!(!present.is_empty());
+    for &i in &present {
+        src.players[i].sweep_hits = ids(500);
+    }
+    dst.clone_from(src);
+    for &i in &present {
+        assert_eq!(src.players[i].sweep_hits, dst.players[i].sweep_hits);
+    }
+    let copy = src.clone();
+    for &i in &present {
+        assert_eq!(copy.players[i].sweep_hits, src.players[i].sweep_hits);
+    }
+    for &i in &present {
+        src.players[i].sweep_hits.clear();
+    }
+    dst.clone_from(src);
+    for &i in &present {
+        assert!(dst.players[i].sweep_hits.is_empty());
+        assert!(dst.players[i].sweep_hits.capacity() >= 500);
+    }
+}

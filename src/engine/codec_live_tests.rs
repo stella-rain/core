@@ -389,7 +389,7 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
         fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed, stack_given, queued]);
     each_field_moves_the_encoding!(failures, base, Linger, |s| &mut s.lingers[0],
-        fields: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct]);
+        fields: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct, damage_type]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -687,7 +687,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
     each_field_moves_the_encoding!(failures, base, PlayerState, |s| &mut s.players[PlayerIdx::SOLO],
-        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat]);
+        fields: [at, hp, max_hp, defence, invulnerable, facing, target, evade_charges, evade_recovering, held, combo, dash, skill, pull, shield, orbits, range_pct, rune_haste_pct, pickup_radius_pct, skill_cooldown_pct, kill_heal, kill_heal_every, kills_counted, crit_chance_pct, crit_damage_pct, echo_hit_pct, burst_pct, burst_radius, burst_depth, burst_depth_extra, type_bonus_pct, runes, aggro, statuses, down_ticks, revive_hold, out, combat, sweep_hits]);
     each_field_moves_the_encoding!(failures, base, Career, |s| s.players.career_mut(PlayerIdx::SOLO),
         fields: [progress, offer, expertise, stardust, regen, equipment],
         skip: [offers]);
@@ -696,7 +696,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
     each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -829,7 +829,6 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         ranged_grace: MAX_RANGED_GRACE_TICKS,
         counter_bonus_step: MAX_COUNTER_BONUS_STEP,
         counter_payout: MAX_COUNTER_PAYOUT,
-        sweep_count: MAX_SWEEP_COUNT,
         size_stacks: MAX_SIZE_STACKS,
         size_ticks: MAX_SIZE_TICKS,
         rune_fire_owed: MAX_RUNE_FIRE_OWED,
@@ -862,7 +861,6 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.counter_bonus_step = 255);
     refused(&|c| c.counter_payout += 1);
     refused(&|c| c.counter_payout = 255);
-    refused(&|c| c.sweep_count += 1);
     refused(&|c| c.size_stacks += 1);
     refused(&|c| c.size_ticks += 1);
     refused(&|c| c.rune_fire_owed += 1);
@@ -1034,6 +1032,7 @@ fn the_linger_queue_is_bounded_at_decode() {
         pull: Fx(MAX_LINGER_PULL_PX * crate::fixed::UNITS_PER_PX),
         cuts_orbs: true,
         proc_pct: Some(max_proc),
+        damage_type: Some(crate::attack::DamageType::ALL[crate::attack::DamageType::ALL.len() - 1]),
     };
     round_trip_hashed(&at_cap);
     round_trip_hashed(&Linger {
@@ -1112,14 +1111,18 @@ fn the_linger_queue_is_bounded_at_decode() {
     let c = &fresh.run.live().players[PlayerIdx::SOLO].combat;
     assert_eq!(
         (
-            c.sweep_count,
             c.size_stacks,
             c.size_ticks,
             c.rune_fire_owed,
             c.encore_ticks,
             c.encore_ready
         ),
-        (0, 0, 0, 0, 0, 0)
+        (0, 0, 0, 0, 0)
+    );
+    assert!(
+        fresh.run.live().players[PlayerIdx::SOLO]
+            .sweep_hits
+            .is_empty()
     );
 }
 
@@ -1163,4 +1166,89 @@ fn the_repeat_bleed_is_status_tag_seven() {
         hash_of(&StatusKind::RepeatBleed),
         hash_of(&StatusKind::Stun)
     );
+}
+
+use crate::limits::MAX_SWEEP_COUNT as SWEEP_CAP;
+
+/// A solo player holding `ids` as the swing's hit record.
+fn with_record(ids: &[u32]) -> PlayerState {
+    let mut p = solo(&base()).clone();
+    p.sweep_hits = ids.iter().map(|&n| EntityId(n)).collect();
+    p
+}
+
+fn ascending(len: u32) -> Vec<u32> {
+    (0..len)
+        .map(|i| u32::from(crate::id::MAX_PLAYERS) + i)
+        .collect()
+}
+
+#[test]
+fn the_swing_record_round_trips_and_takes_four_bytes_an_id() {
+    let empty = to_bytes(&with_record(&[]));
+    for len in [0u32, 1, u32::from(SWEEP_CAP)] {
+        let p = with_record(&ascending(len));
+        round_trip_hashed(&p);
+        assert_eq!(to_bytes(&p).len(), empty.len() + 4 * len as usize);
+    }
+    // The whole state carries the record at the cap.
+    let mut s = base();
+    s.players[PlayerIdx::SOLO].sweep_hits = ascending(u32::from(SWEEP_CAP))
+        .into_iter()
+        .map(EntityId)
+        .collect();
+    let back = decoded(&bytes(&s), &base()).unwrap();
+    assert_eq!(bytes(&back), bytes(&s));
+    assert_eq!(solo(&back).sweep_hits, solo(&s).sweep_hits);
+}
+
+#[test]
+fn the_swing_record_is_refused_unless_sorted_distinct_and_in_range() {
+    let refused = |ids: &[u32]| {
+        assert!(
+            matches!(
+                from_bytes::<PlayerState>(&to_bytes(&with_record(ids))),
+                Err(DecodeError::Invalid(_))
+            ),
+            "{ids:?} decoded"
+        );
+    };
+    refused(&ascending(u32::from(SWEEP_CAP) + 1));
+    refused(&[5, 4]);
+    refused(&[4, 4]);
+    refused(&[2]);
+    refused(&[crate::id::MAX_ENTITY_NUMBER]);
+    refused(&[4, crate::id::MAX_ENTITY_NUMBER]);
+    // The edges decode.
+    let ok = with_record(&[3, crate::id::MAX_ENTITY_NUMBER - 1]);
+    round_trip(&ok);
+}
+
+#[test]
+fn a_lingering_areas_damage_type_round_trips_over_the_closed_list_and_refuses_the_rest() {
+    use crate::attack::DamageType;
+    let mut l = base().lingers[0].clone();
+    l.damage_type = None;
+    round_trip_hashed(&l);
+    let none_len = to_bytes(&l).len();
+    for t in DamageType::ALL {
+        l.damage_type = Some(t);
+        round_trip_hashed(&l);
+        assert_eq!(to_bytes(&l).len(), none_len + 1);
+    }
+    // A tag past 1, and a type byte past the closed list, are refused.
+    l.damage_type = None;
+    let mut b = to_bytes(&l);
+    *b.last_mut().unwrap() = 2;
+    assert!(matches!(
+        from_bytes::<crate::sim::state::Linger>(&b),
+        Err(DecodeError::Invalid(_))
+    ));
+    l.damage_type = Some(DamageType::Slash);
+    let mut b = to_bytes(&l);
+    *b.last_mut().unwrap() = u8::try_from(DamageType::ALL.len()).unwrap();
+    assert!(matches!(
+        from_bytes::<crate::sim::state::Linger>(&b),
+        Err(DecodeError::Invalid(_))
+    ));
 }
