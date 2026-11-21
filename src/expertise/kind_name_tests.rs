@@ -161,3 +161,12 @@ fn the_bundled_pack_names_no_unshipped_effect() {
         }
     }
 }
+
+/// The once-per-level array of `check_spirit` has a slot for every effect variant.
+#[test]
+fn the_spirit_slots_cover_every_effect() {
+    assert_eq!(
+        tags_of::<super::SpiritEffect>().len(),
+        super::kind_checks::SPIRIT_EFFECT_KINDS
+    );
+}

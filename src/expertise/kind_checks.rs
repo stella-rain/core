@@ -104,6 +104,9 @@ pub(super) fn check_gauge(issue: &mut impl FnMut(String, String), at: &str, g: &
     }
 }
 
+/// One slot per `SpiritEffect` variant (`name()` is the slot; a test keeps it equal to the schema's).
+pub(super) const SPIRIT_EFFECT_KINDS: usize = 11;
+
 /// A spirit's numbers, each in its own range; a level names an effect once.
 pub(super) fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: &Spirit) {
     if !(1..=u32::from(MAX_SPIRIT_DECAY_TICKS)).contains(&s.decay_ticks) {
@@ -133,7 +136,7 @@ pub(super) fn check_spirit(issue: &mut impl FnMut(String, String), at: &str, s: 
         .enumerate()
         .take(usize::from(MAX_SPIRIT_LEVEL))
     {
-        let mut seen = [false; 11];
+        let mut seen = [false; SPIRIT_EFFECT_KINDS];
         for (e, effect) in level.iter().enumerate() {
             let at = format!("{at}.levels[{l}][{e}]");
             let scalar = match effect {

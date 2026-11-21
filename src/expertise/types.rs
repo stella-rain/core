@@ -990,8 +990,8 @@ pub struct Spirit {
     /// the earlier level's same entry, and a longer table extends it.
     pub levels: Vec<Vec<SpiritEffect>>,
     /// How many levels a full-gauge smash raises the spirit by; absent: one. 1 to
-    /// `MAX_SPIRIT_LEVEL`. A later level restating the spirit that omits it keeps the earlier
-    /// value. Unshipped: no rule reads it yet.
+    /// `MAX_SPIRIT_LEVEL`. The rule that lands with it folds a path so that a later level
+    /// restating the spirit without it keeps the earlier value; nothing folds or reads it yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = MAX_SPIRIT_LEVEL))]
     pub raise_per_smash: Option<u8>,
