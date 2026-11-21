@@ -318,3 +318,205 @@ fn repeat_is_counted_per_member() {
         repeat(json!("normals")),
     ]));
 }
+
+fn range_pct(pct: u32) -> Value {
+    json!({ "type": "repeat_range_pct", "pct": pct })
+}
+
+fn proc_pct(pct: u32) -> Value {
+    json!({ "type": "repeat_proc_pct", "proc_pct": pct })
+}
+
+fn size_stack() -> Value {
+    json!({ "type": "repeat_size_stack" })
+}
+
+fn place_repeat() -> Value {
+    json!({ "type": "repeat", "step": A, "after_ticks": 10, "repeat_pct": 50, "anchor": "place" })
+}
+
+const UP1: &str = "$.weapons[0].styles[0].upgrade_1[0].kinds[0]";
+
+/// R1: each rider round trips; its number is bounded at its key; it needs `sim_version` 2 and is
+/// named once per style path.
+#[test]
+fn a_rider_round_trips_and_is_bounded_at_its_key() {
+    for rider in [range_pct(20), proc_pct(50), size_stack()] {
+        let parsed: StyleKind = serde_json::from_value(rider.clone())
+            .unwrap_or_else(|e| panic!("{rider}: a rider parses: {e}"));
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), rider);
+        parses(&own(vec![rider]));
+    }
+    for (rider, key) in [
+        (range_pct(0), "pct"),
+        (range_pct(101), "pct"),
+        (proc_pct(101), "proc_pct"),
+    ] {
+        refused_at(&own(vec![rider]), &format!("{K0}[0].{key}"), "");
+    }
+    for rider in [range_pct(1), range_pct(100), proc_pct(0), proc_pct(100)] {
+        parses(&own(vec![rider]));
+    }
+    // No key but its own.
+    assert!(
+        serde_json::from_value::<StyleKind>(json!({ "type": "repeat_size_stack", "pct": 1 }))
+            .is_err()
+    );
+    for rider in [range_pct(20), proc_pct(50), size_stack()] {
+        match parse_at(&own(vec![rider.clone()]), 1) {
+            Err(Error::Invalid(issues)) => assert!(
+                issues
+                    .iter()
+                    .any(|i| i.path == K0 && i.message.contains("sim_version 2")),
+                "{rider}: {issues:?}"
+            ),
+            other => panic!("{rider}: expected invalid, got {:?}", other.map(|_| ())),
+        }
+        // Once per level and once per style path.
+        refused_at(
+            &own(vec![rider.clone(), rider.clone()]),
+            &format!("{K0}[1]"),
+            "already",
+        );
+        refused_at(
+            &file_with(vec![rider.clone()], [Some(vec![rider.clone()]), None, None]),
+            UP1,
+            "already",
+        );
+    }
+}
+
+/// R2: the views carry the riders (read from an `Expertise` that parse accepted).
+#[test]
+fn the_views_carry_the_riders() {
+    let riders = vec![range_pct(20), proc_pct(50), size_stack()];
+    let mut file: Value = serde_json::from_slice(crate::before::EXPERTISE).unwrap();
+    file["thresholds"] = json!([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    for w in file["weapons"].as_array_mut().unwrap() {
+        if w["weapon"] != "giant_hammer" {
+            continue;
+        }
+        w["base"] = json!([]);
+        for style in w["styles"].as_array_mut().unwrap() {
+            style["stats"] = json!([]);
+        }
+        w["styles"][0]["kinds"] = json!(riders);
+    }
+    let expertise = parse_at(&file, 2).expect("the riders parse");
+    let e = crate::style_grants::build(expertise);
+    let snap = e.snapshot();
+    let ready =
+        serde_json::to_value(snap.players[0].tree_ready.as_ref().expect("a point")).unwrap();
+    assert_eq!(ready["kinds"][0], json!(riders));
+}
+
+fn is_refused(v: &Value, message: &str) -> bool {
+    pack_issues(v).iter().any(|(_, m)| m.contains(message))
+}
+
+/// M1: parse accepts an unshipped kind; the pack check refuses it at the kind, whatever the tree.
+#[test]
+fn the_pack_refuses_an_unshipped_kind() {
+    for (rider, name) in [
+        (range_pct(20), "repeat_range_pct"),
+        (proc_pct(50), "repeat_proc_pct"),
+        (size_stack(), "repeat_size_stack"),
+    ] {
+        parses(&own(vec![repeat(json!(A)), rider.clone()]));
+        pack_refused_at(
+            &hammer_pack(vec![repeat(json!(A)), rider], [None, None, None]),
+            &format!("{K0}[1]"),
+            &format!("the kind {name} is not shipped yet"),
+        );
+    }
+    // A shipped kind is not refused for it.
+    loads(&hammer_pack(
+        vec![repeat(json!(A)), factor(json!(AA))],
+        [None, None, None],
+    ));
+    // A weapon of the expertise file with no tree in the weapons file is gated as well.
+    let mut v = hammer_pack(vec![repeat(json!(A))], [None, None, None]);
+    let mut orphan = v["expertise"]["weapons"][0].clone();
+    orphan["weapon"] = json!("giant_sword");
+    orphan["styles"][0]["kinds"] = json!([range_pct(20)]);
+    v["expertise"]["weapons"] = json!([orphan]);
+    v["weapons"]["weapons"] = json!([]);
+    assert!(
+        is_refused(&v, "is not shipped yet"),
+        "{:?}",
+        pack_issues(&v)
+    );
+}
+
+/// M3: the riders need a repeat to close; `repeat_range_pct` a place repeat; `repeat_size_stack`
+/// the base tree's size-stack field, which no tree has yet.
+#[test]
+fn a_rider_with_nothing_to_close_is_refused() {
+    let nothing = "nothing closes";
+    let no_place = "no place repeat";
+    let no_field = "no size-stack field";
+    let run = |own: Vec<Value>, up1: Option<Vec<Value>>, cap: Option<Vec<Value>>, word: &str| {
+        is_refused(&hammer_pack(own, [up1, None, cap]), word)
+    };
+    // `repeat_range_pct`: none, a hit-list repeat only, a place repeat before, one only after.
+    assert!(run(vec![range_pct(20)], None, None, nothing));
+    assert!(run(
+        vec![repeat(json!(A)), range_pct(20)],
+        None,
+        None,
+        no_place
+    ));
+    assert!(!run(
+        vec![place_repeat(), range_pct(20)],
+        None,
+        None,
+        no_place
+    ));
+    assert!(!run(
+        vec![place_repeat(), range_pct(20)],
+        None,
+        None,
+        nothing
+    ));
+    assert!(run(
+        vec![range_pct(20)],
+        None,
+        Some(vec![place_repeat()]),
+        no_place
+    ));
+    // `repeat_proc_pct`: none, and a repeat at or before its level.
+    assert!(run(vec![proc_pct(50)], None, None, nothing));
+    assert!(!run(
+        vec![repeat(json!(A)), proc_pct(50)],
+        None,
+        None,
+        nothing
+    ));
+    assert!(!run(
+        vec![repeat(json!(A))],
+        Some(vec![proc_pct(50)]),
+        None,
+        nothing
+    ));
+    assert!(run(
+        vec![proc_pct(50)],
+        None,
+        Some(vec![repeat(json!(A))]),
+        nothing
+    ));
+    // `repeat_size_stack`: a repeat does not make up for the missing field.
+    assert!(run(
+        vec![repeat(json!(A)), size_stack()],
+        None,
+        None,
+        no_field
+    ));
+    assert!(!run(
+        vec![repeat(json!(A)), size_stack()],
+        None,
+        None,
+        nothing
+    ));
+    assert!(run(vec![size_stack()], None, None, nothing));
+    assert!(run(vec![size_stack()], None, None, no_field));
+}
