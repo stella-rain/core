@@ -146,6 +146,10 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", super_armour: false", "")
         .replace(", super_armour: true", "")
         .replace(", grants: [] }", " }")
+        // The gauge kind's extra fills, empty while no style names one.
+        .replace(", fills: [] }", " }")
+        // The spirit kind's raise and extra effects, empty while no style names one.
+        .replace(", raise_per_smash: None, effects: [] }", " }")
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
@@ -160,10 +164,34 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", player: Some(First) }", " }")
         .replace(", player: Some(Second) }", " }")
         .replace(", player: Some(Third) }", " }");
+    let text = drop_empty_counter_effects(&text);
     // Derived reads of existing state and constants, by key and never by value.
     ["max_hp", "out_ticks", "revive_hold_ticks", "revive_range"]
         .iter()
         .fold(text, |text, key| drop_field(&text, key))
+}
+
+/// Removes the empty `effects` list the counter bonus view prints after its window
+/// (`CounterBonus { window_ticks: 30, effects: [] }`); no other view is touched.
+fn drop_empty_counter_effects(text: &str) -> String {
+    let head = "CounterBonus { window_ticks: ";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(head) {
+        let after = at + head.len();
+        let digits = rest[after..]
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(rest.len() - after);
+        let end = after + digits;
+        out.push_str(&rest[..end]);
+        rest = &rest[end..];
+        if let Some(tail) = rest.strip_prefix(", effects: [] }") {
+            out.push_str(" }");
+            rest = tail;
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Removes every `, <key>: <value>` from a `Debug` text, the value running to the next `,` or
@@ -214,6 +242,21 @@ fn the_mask_removes_the_new_view_fields() {
     assert_eq!(
         drop_empty_added_fields("rally: None, size: None, encore: None, perfect_evade: None }"),
         "rally: None, perfect_evade: None }"
+    );
+    // The gauge view's empty fills list prints nothing.
+    assert_eq!(
+        drop_empty_added_fields("Gauge { max: 100, spend: FullSmash, fills: [] }"),
+        "Gauge { max: 100, spend: FullSmash }"
+    );
+    assert_eq!(
+        drop_empty_added_fields(
+            "Spirit { max_level: 3, decay_ticks: 1200, raise_per_smash: None, effects: [] }"
+        ),
+        "Spirit { max_level: 3, decay_ticks: 1200 }"
+    );
+    assert_eq!(
+        drop_empty_added_fields("CounterBonus { window_ticks: 30, effects: [] }"),
+        "CounterBonus { window_ticks: 30 }"
     );
     assert_eq!(
         drop_empty_added_fields("entities: [], lingers: [], zones: []"),

@@ -15,8 +15,8 @@ use crate::attack_presets::AttackPresets;
 use crate::difficulties::Difficulties;
 use crate::event::Press;
 use crate::expertise::{
-    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StyleKind, grant_step,
-    sooner_step, step_mut, style_levels, weapon_attacks,
+    Expertise, GaugeSpend, MAX_STEP_REPEATS, Spirit, SpiritEffect, StepGroup, StepRef, StyleKind,
+    grant_step, sooner_step, step_mut, style_levels, weapon_attacks,
 };
 use crate::perk_sets::PerkSets;
 use crate::rewards::Rewards;
@@ -180,6 +180,15 @@ fn check_shipped(expertise: &Expertise, issues: &mut Vec<validate::Issue>) {
                             path: format!("{path}[{k}]"),
                             message: format!("the kind {} is not shipped yet", name.tag()),
                         });
+                    }
+                    // An effect or field inside a shipped kind is gated the same way.
+                    for (effect, suffix) in kind.effects() {
+                        if !effect.shipped() {
+                            issues.push(validate::Issue {
+                                path: format!("{path}[{k}]{suffix}"),
+                                message: format!("the effect {} is not shipped yet", effect.tag()),
+                            });
+                        }
                     }
                 }
             }
@@ -456,6 +465,17 @@ pub(super) fn check_style_grants(
             }
             // The spirit is raised by the full-gauge smash and its extra bleed stacks ride a bleed
             // smash: both read the tree and the gauges the whole path made.
+            // A `smash_repeat` entry naming `min_charge_level` needs a smash step with that many
+            // charge levels in the finished tree (a charge granted later in the path counts).
+            let smashes = StepRef::Group(StepGroup::Smashes);
+            let mut most_charge = 0usize;
+            for member in smashes.members_in(&tree.combo) {
+                if let Some(step) = step_mut(&mut tree.combo, &member) {
+                    most_charge =
+                        most_charge.max(step.charge.as_ref().map_or(0, |c| c.levels.len()));
+                }
+            }
+            let most_charge = u32::try_from(most_charge).unwrap_or(u32::MAX);
             for (at, spirit) in spirits {
                 if gauges.is_empty() {
                     issues.push(validate::Issue {
@@ -466,6 +486,25 @@ pub(super) fn check_style_grants(
                 }
                 for (l, level) in spirit.levels.iter().enumerate() {
                     for (e, effect) in level.iter().enumerate() {
+                        if let SpiritEffect::SmashRepeat { repeats } = effect {
+                            for (r, repeat) in repeats.iter().enumerate() {
+                                let Some(wanted) = repeat.min_charge_level else {
+                                    continue;
+                                };
+                                if wanted <= most_charge {
+                                    continue;
+                                }
+                                issues.push(validate::Issue {
+                                    path: format!(
+                                        "{at}.levels[{l}][{e}].repeats[{r}].min_charge_level"
+                                    ),
+                                    message: format!(
+                                        "no smash step of the style's tree has a charge of \
+                                         {wanted} levels (the most is {most_charge})"
+                                    ),
+                                });
+                            }
+                        }
                         if matches!(effect, SpiritEffect::SmashBleedStacks { .. })
                             && tree.smash != Some(crate::weapon::SmashEffect::Bleed {})
                         {

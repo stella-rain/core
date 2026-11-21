@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use super::style::step_ref;
 use super::{
-    MAX_CHARGE_SOONER_PCT, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
-    MAX_REPEAT_BLEED_STACKS, MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
+    MAX_CHARGE_SOONER_PCT, MAX_COUNTED_PRESSES, MAX_HOLD_MOVE_PCT, MAX_ORB_BREAK_PCT, MAX_PROC_PCT,
+    MAX_REPEAT_AFTER_TICKS, MAX_REPEAT_BLEED_STACKS, MAX_RUNE_SURGE_STEPS, MAX_SMASH_REPEATS,
+    MAX_SPIRIT_BLEED_STACKS, REPEAT_BLEED_INTERVAL_TICKS,
 };
 use crate::attack::AttackRef;
 use crate::event::Press;
@@ -14,7 +15,7 @@ use crate::fixed::Fx;
 use crate::id::ContentId;
 use crate::limits::{
     MAX_COUNTER_WINDOW_TICKS, MAX_GAUGE_DAMAGE_PCT, MAX_PCT, MAX_SPIRIT_DECAY_TICKS,
-    MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
+    MAX_SPIRIT_LEVEL, MAX_TEMPO_STACKS, MAX_TRIGGER_TICKS, MAX_WEAPON_GAUGE,
 };
 use crate::rewards::{MAX_AMOUNT, MAX_BURST_RADIUS_PX, MAX_HP_AMOUNT, MAX_RANGE_PCT};
 use crate::run_stats::{MAX_ATTACK_SPEED_PCT, MAX_STEP, StatEffect};
@@ -436,6 +437,253 @@ impl StyleKind {
     }
 }
 
+/// The name of each effect, and of each field of a kind, whose shipping is a decision of its own
+/// (ADR-SIM-9 points 3 and 4, ADR-SVC-1): one level below `StyleKindName`. `Gauge`, `Spirit` and
+/// `CounterBonus` are shipped kinds, so a new field or effect inside one would pass the kind's
+/// test and do nothing; the pack check refuses an unshipped effect as it refuses an unshipped kind,
+/// while parse and the schema accept it. `shipped` and `effect_name` are exhaustive with no
+/// wildcard, and `StyleKind::effects` destructures `Gauge` and `Spirit` without `..`: a new field
+/// or effect does not compile until its author decides whether it ships.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StyleEffectName {
+    GaugePerRune,
+    GaugeOuterHalfPct,
+    GaugePerSmashHit,
+    SpiritRaisePerSmash,
+    SpiritDamagePct,
+    SpiritRangePct,
+    SpiritSmashBleedStacks,
+    SpiritSizeStackCap,
+    SpiritSizeStackTicksPct,
+    SpiritSizeStacksPerHit,
+    SpiritNormalPull,
+    SpiritRuneCooldownPct,
+    SpiritRuneSurge,
+    SpiritExtraPresses,
+    SpiritSmashRepeat,
+    CounterDamagePct,
+    CounterStaggerPct,
+    CounterStunTicks,
+    CounterAdvance,
+    CounterRefundEvade,
+    CounterGaugeFillPct,
+    CounterPullRound,
+    CounterFillSizeStacks,
+    CounterClearBullets,
+    CounterFireRunes,
+}
+
+impl StyleEffectName {
+    /// Every name: the gauge fills, then the spirit's, then the counter bonus's, each in
+    /// declaration order (a test keeps it equal to the schema's).
+    pub const ALL: [Self; 25] = [
+        Self::GaugePerRune,
+        Self::GaugeOuterHalfPct,
+        Self::GaugePerSmashHit,
+        Self::SpiritRaisePerSmash,
+        Self::SpiritDamagePct,
+        Self::SpiritRangePct,
+        Self::SpiritSmashBleedStacks,
+        Self::SpiritSizeStackCap,
+        Self::SpiritSizeStackTicksPct,
+        Self::SpiritSizeStacksPerHit,
+        Self::SpiritNormalPull,
+        Self::SpiritRuneCooldownPct,
+        Self::SpiritRuneSurge,
+        Self::SpiritExtraPresses,
+        Self::SpiritSmashRepeat,
+        Self::CounterDamagePct,
+        Self::CounterStaggerPct,
+        Self::CounterStunTicks,
+        Self::CounterAdvance,
+        Self::CounterRefundEvade,
+        Self::CounterGaugeFillPct,
+        Self::CounterPullRound,
+        Self::CounterFillSizeStacks,
+        Self::CounterClearBullets,
+        Self::CounterFireRunes,
+    ];
+
+    /// The JSON key of a field, or the `type` tag of an effect.
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::GaugePerRune => "per_rune",
+            Self::GaugeOuterHalfPct => "outer_half_pct",
+            Self::GaugePerSmashHit => "per_smash_hit",
+            Self::SpiritRaisePerSmash => "raise_per_smash",
+            Self::SpiritDamagePct | Self::CounterDamagePct => "damage_pct",
+            Self::SpiritRangePct => "range_pct",
+            Self::SpiritSmashBleedStacks => "smash_bleed_stacks",
+            Self::SpiritSizeStackCap => "size_stack_cap",
+            Self::SpiritSizeStackTicksPct => "size_stack_ticks_pct",
+            Self::SpiritSizeStacksPerHit => "size_stacks_per_hit",
+            Self::SpiritNormalPull => "normal_pull",
+            Self::SpiritRuneCooldownPct => "rune_cooldown_pct",
+            Self::SpiritRuneSurge => "rune_surge",
+            Self::SpiritExtraPresses => "extra_presses",
+            Self::SpiritSmashRepeat => "smash_repeat",
+            Self::CounterStaggerPct => "stagger_pct",
+            Self::CounterStunTicks => "stun_ticks",
+            Self::CounterAdvance => "advance",
+            Self::CounterRefundEvade => "refund_evade",
+            Self::CounterGaugeFillPct => "gauge_fill_pct",
+            Self::CounterPullRound => "pull_round",
+            Self::CounterFillSizeStacks => "fill_size_stacks",
+            Self::CounterClearBullets => "clear_bullets",
+            Self::CounterFireRunes => "fire_runes",
+        }
+    }
+
+    /// Whether the pack check lets a style name it: its rule is in. The flip of an unshipped
+    /// effect is its arm here and the expected list of the test beside `ALL`.
+    pub const fn shipped(self) -> bool {
+        match self {
+            Self::SpiritDamagePct
+            | Self::SpiritRangePct
+            | Self::SpiritSmashBleedStacks
+            | Self::CounterDamagePct
+            | Self::CounterStaggerPct
+            | Self::CounterStunTicks
+            | Self::CounterAdvance
+            | Self::CounterRefundEvade
+            | Self::CounterGaugeFillPct => true,
+            Self::GaugePerRune
+            | Self::GaugeOuterHalfPct
+            | Self::GaugePerSmashHit
+            | Self::SpiritRaisePerSmash
+            | Self::SpiritSizeStackCap
+            | Self::SpiritSizeStackTicksPct
+            | Self::SpiritSizeStacksPerHit
+            | Self::SpiritNormalPull
+            | Self::SpiritRuneCooldownPct
+            | Self::SpiritRuneSurge
+            | Self::SpiritExtraPresses
+            | Self::SpiritSmashRepeat
+            | Self::CounterPullRound
+            | Self::CounterFillSizeStacks
+            | Self::CounterClearBullets
+            | Self::CounterFireRunes => false,
+        }
+    }
+}
+
+impl SpiritEffect {
+    /// The effect's name for the shipped marker.
+    pub const fn effect_name(&self) -> StyleEffectName {
+        match self {
+            Self::DamagePct { .. } => StyleEffectName::SpiritDamagePct,
+            Self::RangePct { .. } => StyleEffectName::SpiritRangePct,
+            Self::SmashBleedStacks { .. } => StyleEffectName::SpiritSmashBleedStacks,
+            Self::SizeStackCap { .. } => StyleEffectName::SpiritSizeStackCap,
+            Self::SizeStackTicksPct { .. } => StyleEffectName::SpiritSizeStackTicksPct,
+            Self::SizeStacksPerHit { .. } => StyleEffectName::SpiritSizeStacksPerHit,
+            Self::NormalPull { .. } => StyleEffectName::SpiritNormalPull,
+            Self::RuneCooldownPct { .. } => StyleEffectName::SpiritRuneCooldownPct,
+            Self::RuneSurge { .. } => StyleEffectName::SpiritRuneSurge,
+            Self::ExtraPresses { .. } => StyleEffectName::SpiritExtraPresses,
+            Self::SmashRepeat { .. } => StyleEffectName::SpiritSmashRepeat,
+        }
+    }
+}
+
+impl CounterEffect {
+    /// The effect's name for the shipped marker.
+    pub const fn effect_name(&self) -> StyleEffectName {
+        match self {
+            Self::DamagePct { .. } => StyleEffectName::CounterDamagePct,
+            Self::StaggerPct { .. } => StyleEffectName::CounterStaggerPct,
+            Self::StunTicks { .. } => StyleEffectName::CounterStunTicks,
+            Self::Advance { .. } => StyleEffectName::CounterAdvance,
+            Self::RefundEvade {} => StyleEffectName::CounterRefundEvade,
+            Self::GaugeFillPct { .. } => StyleEffectName::CounterGaugeFillPct,
+            Self::PullRound { .. } => StyleEffectName::CounterPullRound,
+            Self::FillSizeStacks {} => StyleEffectName::CounterFillSizeStacks,
+            Self::ClearBullets { .. } => StyleEffectName::CounterClearBullets,
+            Self::FireRunes {} => StyleEffectName::CounterFireRunes,
+        }
+    }
+}
+
+impl StyleKind {
+    /// Every effect and decided field the kind names, each with the path suffix the pack check
+    /// reports it at (`.per_rune`, `.levels[l][e]`, `.effects[e]`). Both destructurings below
+    /// name every field: a new one does not compile until it is decided here.
+    pub fn effects(&self) -> Vec<(StyleEffectName, String)> {
+        match self {
+            Self::Gauge(Gauge {
+                max: _,
+                per_step: _,
+                per_hit: _,
+                from_damage_pct: _,
+                step_cap: _,
+                spend: _,
+                per_rune,
+                outer_half_pct,
+                per_smash_hit,
+                smash_cap,
+            }) => {
+                let mut out = Vec::new();
+                if *per_rune != 0 {
+                    out.push((StyleEffectName::GaugePerRune, ".per_rune".to_string()));
+                }
+                if *outer_half_pct != 0 {
+                    out.push((
+                        StyleEffectName::GaugeOuterHalfPct,
+                        ".outer_half_pct".to_string(),
+                    ));
+                }
+                if *per_smash_hit != 0 || *smash_cap != 0 {
+                    out.push((
+                        StyleEffectName::GaugePerSmashHit,
+                        ".per_smash_hit".to_string(),
+                    ));
+                }
+                out
+            }
+            Self::Spirit(Spirit {
+                decay_ticks: _,
+                levels,
+                raise_per_smash,
+            }) => {
+                let mut out = Vec::new();
+                if raise_per_smash.is_some() {
+                    out.push((
+                        StyleEffectName::SpiritRaisePerSmash,
+                        ".raise_per_smash".to_string(),
+                    ));
+                }
+                for (l, level) in levels.iter().enumerate() {
+                    for (e, effect) in level.iter().enumerate() {
+                        out.push((effect.effect_name(), format!(".levels[{l}][{e}]")));
+                    }
+                }
+                out
+            }
+            Self::CounterBonus(CounterBonus {
+                window_ticks: _,
+                effects,
+            }) => effects
+                .iter()
+                .enumerate()
+                .map(|(e, effect)| (effect.effect_name(), format!(".effects[{e}]")))
+                .collect(),
+            Self::ReplaceStep { .. }
+            | Self::SmashEffect { .. }
+            | Self::Repeat { .. }
+            | Self::RepeatBreaksOrbs { .. }
+            | Self::RepeatBleed { .. }
+            | Self::ProcFactor { .. }
+            | Self::ChargeSooner { .. }
+            | Self::ComboTempoPct(_)
+            | Self::GiantTrigger(_)
+            | Self::Breaker(_)
+            | Self::RepeatRangePct { .. }
+            | Self::RepeatProcPct { .. }
+            | Self::RepeatSizeStack {} => Vec::new(),
+        }
+    }
+}
+
 /// A breaker's effects, every number bounded by the validator and clamped again when the world
 /// is built (ADR-SVC-1, ADR-SIM-5).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -650,8 +898,8 @@ pub struct CounterBonus {
     /// `MAX_COUNTER_WINDOW_TICKS`.
     #[schemars(range(min = 1, max = MAX_COUNTER_WINDOW_TICKS))]
     pub window_ticks: u32,
-    /// What the step takes, each variant at most once; 1 to 6 entries (0 to 6 at a level after
-    /// one that names the kind).
+    /// What the step takes, each variant at most once; 1 to `MAX_COUNTER_EFFECTS` entries (0 to
+    /// `MAX_COUNTER_EFFECTS` at a level after one that names the kind).
     pub effects: Vec<CounterEffect>,
 }
 
@@ -691,6 +939,24 @@ pub enum CounterEffect {
         #[schemars(range(min = 1, max = 100))]
         pct: u32,
     },
+    /// At the counter's first landed combo hit, the enemies within `radius_px` of the player are
+    /// drawn in. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.
+    PullRound {
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
+    },
+    /// At the counter's first landed combo hit, the weapon's size stacks fill. A flag with no
+    /// field. Unshipped: no rule reads it yet.
+    FillSizeStacks {},
+    /// At the counter's first landed combo hit, the enemy bullets within `radius_px` of the player
+    /// are cleared. 1 to `MAX_BURST_RADIUS_PX`. Unshipped: no rule reads it yet.
+    ClearBullets {
+        #[schemars(range(min = 1, max = MAX_BURST_RADIUS_PX))]
+        radius_px: u32,
+    },
+    /// At the counter's first landed combo hit, the ready on-hit runes fire. A flag with no
+    /// field. Unshipped: no rule reads it yet.
+    FireRunes {},
 }
 
 impl CounterEffect {
@@ -702,6 +968,10 @@ impl CounterEffect {
             CounterEffect::Advance { .. } => 3,
             CounterEffect::RefundEvade {} => 4,
             CounterEffect::GaugeFillPct { .. } => 5,
+            CounterEffect::PullRound { .. } => 6,
+            CounterEffect::FillSizeStacks {} => 7,
+            CounterEffect::ClearBullets { .. } => 8,
+            CounterEffect::FireRunes {} => 9,
         }
     }
 }
@@ -719,6 +989,12 @@ pub struct Spirit {
     /// a level names each effect at most once. At a later level of the path an entry lays over
     /// the earlier level's same entry, and a longer table extends it.
     pub levels: Vec<Vec<SpiritEffect>>,
+    /// How many levels a full-gauge smash raises the spirit by; absent: one. 1 to
+    /// `MAX_SPIRIT_LEVEL`. The rule that lands with it folds a path so that a later level
+    /// restating the spirit without it keeps the earlier value; nothing folds or reads it yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = MAX_SPIRIT_LEVEL))]
+    pub raise_per_smash: Option<u8>,
 }
 
 /// What a spirit level does: a closed list built into `core`, one variant per effect, each
@@ -743,6 +1019,76 @@ pub enum SpiritEffect {
         #[schemars(range(min = 1, max = MAX_SPIRIT_BLEED_STACKS))]
         stacks: u32,
     },
+    /// Added to the base weapon's size-stack cap. 1 to `MAX_SIZE_STACKS`; the sum is held to
+    /// `MAX_SIZE_STACKS` by the rule. Unshipped: no rule reads it yet.
+    SizeStackCap {
+        #[schemars(range(min = 1, max = crate::limits::MAX_SIZE_STACKS))]
+        stacks: u32,
+    },
+    /// The size stacks last this percent longer; the result is held to `MAX_SIZE_TICKS` by the
+    /// rule. 1 to `MAX_PCT`. Unshipped: no rule reads it yet.
+    SizeStackTicksPct {
+        #[schemars(range(min = 1, max = MAX_PCT))]
+        pct: u32,
+    },
+    /// Each hit adds this many size stacks. 1 to `MAX_SIZE_STACKS`. Unshipped: no rule reads it
+    /// yet.
+    SizeStacksPerHit {
+        #[schemars(range(min = 1, max = crate::limits::MAX_SIZE_STACKS))]
+        stacks: u32,
+    },
+    /// The player's normal steps pull what they hit as `SmashEffect::Pull` does: `distance`
+    /// (1 px to `MAX_PULL_DISTANCE`) over `ticks` (1 to `MAX_PULL_TICKS`). Unshipped: no rule
+    /// reads it yet.
+    NormalPull {
+        #[schemars(range(min = 256, max = crate::validate::limits::MAX_PULL_DISTANCE))]
+        distance: Fx,
+        #[schemars(range(min = 1, max = crate::validate::limits::MAX_PULL_TICKS))]
+        ticks: u32,
+    },
+    /// The on-hit runes recover this percent faster; the rule holds the sum to the run's
+    /// `max_rune_haste_pct`. 1 to `MAX_RUNE_HASTE_PCT`. Unshipped: no rule reads it yet.
+    RuneCooldownPct {
+        #[schemars(range(min = 1, max = crate::rewards::MAX_RUNE_HASTE_PCT))]
+        pct: u32,
+    },
+    /// A level reached fires the on-hit runes on the listed steps at once; empty: owed at the
+    /// level reached only. 0 to `MAX_RUNE_SURGE_STEPS` entries, each a legal step or group, no
+    /// two sharing a member. Unshipped: no rule reads it yet.
+    RuneSurge {
+        #[schemars(length(max = MAX_RUNE_SURGE_STEPS))]
+        steps: Vec<StepRef>,
+    },
+    /// The combo counts this many more presses. 1 to `MAX_COUNTED_PRESSES`. Unshipped: no rule
+    /// reads it yet.
+    ExtraPresses {
+        #[schemars(range(min = 1, max = MAX_COUNTED_PRESSES))]
+        presses: u32,
+    },
+    /// A smash queues these repeats on its `place` anchor. 1 to `MAX_SMASH_REPEATS` entries.
+    /// Unshipped: no rule reads it yet.
+    SmashRepeat {
+        #[schemars(length(min = 1, max = MAX_SMASH_REPEATS))]
+        repeats: Vec<SmashRepeat>,
+    },
+}
+
+/// One repeat a spirit's smash queues, always on the `place` anchor.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SmashRepeat {
+    /// Ticks after the smash. 1 to `MAX_REPEAT_AFTER_TICKS`.
+    #[schemars(range(min = 1, max = MAX_REPEAT_AFTER_TICKS))]
+    pub after_ticks: u32,
+    /// The share of the smash's damage, in percent. 1 to `MAX_PCT`.
+    #[schemars(range(min = 1, max = MAX_PCT))]
+    pub repeat_pct: u32,
+    /// Queued only when the smash's charge reached this level (1 is the first level); absent:
+    /// always. 1 to `MAX_CHARGE_LEVELS`, and the style's tree must have a smash step whose
+    /// charge has that many levels (the pack check).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = crate::validate::limits::MAX_CHARGE_LEVELS))]
+    pub min_charge_level: Option<u32>,
 }
 
 impl SpiritEffect {
@@ -751,6 +1097,14 @@ impl SpiritEffect {
             SpiritEffect::DamagePct { .. } => 0,
             SpiritEffect::RangePct { .. } => 1,
             SpiritEffect::SmashBleedStacks { .. } => 2,
+            SpiritEffect::SizeStackCap { .. } => 3,
+            SpiritEffect::SizeStackTicksPct { .. } => 4,
+            SpiritEffect::SizeStacksPerHit { .. } => 5,
+            SpiritEffect::NormalPull { .. } => 6,
+            SpiritEffect::RuneCooldownPct { .. } => 7,
+            SpiritEffect::RuneSurge { .. } => 8,
+            SpiritEffect::ExtraPresses { .. } => 9,
+            SpiritEffect::SmashRepeat { .. } => 10,
         }
     }
 }
@@ -781,6 +1135,24 @@ pub struct Gauge {
     pub step_cap: u32,
     /// What a full gauge buys.
     pub spend: GaugeSpend,
+    /// Each on-hit rune of the player that fires from its combo hit adds this, inside the step's
+    /// cap; absent (0): no rule. At most `max`. Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_rune: u32,
+    /// The outer half of a step's hits fills `per_step` this percent more; absent (0): no rule.
+    /// At most `MAX_PCT`, and it needs `per_step`. Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    #[schemars(range(min = 0, max = MAX_PCT))]
+    pub outer_half_pct: u32,
+    /// Added for each enemy a smash step's hit box hits on a tick, up to `smash_cap` for the
+    /// step; absent (0): no rule. At most `smash_cap`, and the two are named together.
+    /// Unshipped: no rule reads it yet.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub per_smash_hit: u32,
+    /// The most one smash step's hits add, in place of `step_cap` for smash steps only; absent
+    /// (0): no rule. At most `max`, and named together with `per_smash_hit`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub smash_cap: u32,
 }
 
 /// What a full gauge is spent on: a closed list, one variant now.

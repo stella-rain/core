@@ -128,16 +128,21 @@ fn the_counter_kind_is_bounded() {
         240 * 256 + 1,
     );
     refused_at(json!([effects(json!([]))]), &format!("{PATH}.effects"));
-    let seven = json!([
+    // The cap is `MAX_COUNTER_EFFECTS` (10): six built effects, four newer ones, and a repeat.
+    let eleven = json!([
         { "type": "damage_pct", "pct": 5 },
         { "type": "stagger_pct", "pct": 150 },
         { "type": "stun_ticks", "ticks": 5 },
         { "type": "advance", "distance": 256 },
         { "type": "refund_evade" },
         { "type": "gauge_fill_pct", "pct": 5 },
+        { "type": "pull_round", "radius_px": 96 },
+        { "type": "fill_size_stacks" },
+        { "type": "clear_bullets", "radius_px": 96 },
+        { "type": "fire_runes" },
         { "type": "damage_pct", "pct": 6 }
     ]);
-    refused_at(json!([effects(seven)]), &format!("{PATH}.effects"));
+    refused_at(json!([effects(eleven)]), &format!("{PATH}.effects"));
 }
 
 /// S1: `window_ticks` and `effects` are required, an unknown effect type and an unknown key are

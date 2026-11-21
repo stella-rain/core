@@ -617,7 +617,7 @@ pub(in crate::sim) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::C
     g.window = u16::try_from(c.window_ticks)
         .unwrap_or(MAX_COUNTER_WINDOW_TICKS)
         .clamp(1, MAX_COUNTER_WINDOW_TICKS);
-    for e in c.effects.iter().take(6) {
+    for e in c.effects.iter().take(crate::expertise::MAX_COUNTER_EFFECTS) {
         match e {
             CounterEffect::DamagePct { pct } => g.damage_pct = (*pct).min(MAX_PCT),
             CounterEffect::StaggerPct { pct } => g.stagger_pct = (*pct).clamp(100, MAX_PCT),
@@ -629,6 +629,11 @@ pub(in crate::sim) fn counter_fold(g: &mut CounterGrant, c: &crate::expertise::C
             }
             CounterEffect::RefundEvade {} => g.refund_evade = true,
             CounterEffect::GaugeFillPct { pct } => g.gauge_fill_pct = (*pct).min(100),
+            // Typed and viewed only: no rule reads these yet.
+            CounterEffect::PullRound { .. }
+            | CounterEffect::FillSizeStacks {}
+            | CounterEffect::ClearBullets { .. }
+            | CounterEffect::FireRunes {} => {}
         }
     }
 }
@@ -669,6 +674,15 @@ pub(in crate::sim) fn spirit_fold(g: &mut SpiritGrant, sp: &crate::expertise::Sp
                 SpiritEffect::SmashBleedStacks { stacks } => {
                     fx.bleed_stacks = (*stacks).min(MAX_SPIRIT_BLEED_STACKS);
                 }
+                // Typed and viewed only: no rule reads these yet.
+                SpiritEffect::SizeStackCap { .. }
+                | SpiritEffect::SizeStackTicksPct { .. }
+                | SpiritEffect::SizeStacksPerHit { .. }
+                | SpiritEffect::NormalPull { .. }
+                | SpiritEffect::RuneCooldownPct { .. }
+                | SpiritEffect::RuneSurge { .. }
+                | SpiritEffect::ExtraPresses { .. }
+                | SpiritEffect::SmashRepeat { .. } => {}
             }
         }
     }
@@ -684,5 +698,9 @@ fn clamped(g: &Gauge) -> Gauge {
         from_damage_pct: g.from_damage_pct.min(MAX_GAUGE_DAMAGE_PCT),
         step_cap: g.step_cap.clamp(1, max),
         spend: g.spend.clone(),
+        per_rune: g.per_rune.min(max),
+        outer_half_pct: g.outer_half_pct.min(MAX_PCT),
+        per_smash_hit: g.per_smash_hit.min(max),
+        smash_cap: g.smash_cap.min(max),
     }
 }

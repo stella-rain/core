@@ -29,15 +29,17 @@
 
 use super::World;
 use crate::expertise::{
-    BreakerEffect, BurstEffect, Expertise, ExpertiseEffect, ExpertiseOption, GaugeSpend, SetStat,
-    StepGrant, Style, StyleKind, TABLE_LEVELS, TempoEffect, TriggerEffect, WeaponExpertise,
+    BreakerEffect, BurstEffect, CounterEffect, Expertise, ExpertiseEffect, ExpertiseOption,
+    GaugeSpend, SetStat, StepGrant, Style, StyleKind, TABLE_LEVELS, TempoEffect, TriggerEffect,
+    WeaponExpertise,
 };
 use crate::id::ContentId;
 use crate::run_stats::StatEffect;
 use crate::sim::state::PlayerIdx;
 use crate::sim::state::{AgentSource, ExpertiseGauge, PlayerState, Progress, State};
 use crate::snapshot::{
-    ExpertiseOfferKind, GaugeSpendKind, LevelKindsView, SmashEffectKind, StaggerBurstView,
+    CounterEffectView, ExpertiseOfferKind, GaugeFillView, GaugeSpendKind, LevelKindsView,
+    SmashEffectKind, SmashRepeatView, SpiritEffectAt, SpiritEffectView, StaggerBurstView,
     StatValueView, StepGrantKind, StyleKindView, TreeReadyView, TreeStatsView, WeaponStatsView,
 };
 use crate::stage::{ExpertisePoints, LevelTable};
@@ -574,6 +576,88 @@ pub(crate) fn weapon_stats_view(
     })
 }
 
+/// The extra fills a gauge names, as the view lists them.
+fn gauge_fills(g: &crate::expertise::Gauge) -> Vec<GaugeFillView> {
+    let mut fills = Vec::new();
+    if g.per_rune != 0 {
+        fills.push(GaugeFillView::PerRune { amount: g.per_rune });
+    }
+    if g.outer_half_pct != 0 {
+        fills.push(GaugeFillView::OuterHalfPct {
+            pct: g.outer_half_pct,
+        });
+    }
+    if g.per_smash_hit != 0 || g.smash_cap != 0 {
+        fills.push(GaugeFillView::PerSmashHit {
+            amount: g.per_smash_hit,
+            cap: g.smash_cap,
+        });
+    }
+    fills
+}
+
+/// The spirit's effects beyond the three built ones, each with its 1-based level.
+fn spirit_effects(s: &crate::expertise::Spirit) -> Vec<SpiritEffectAt> {
+    let mut out = Vec::new();
+    for (l, effects) in s.levels.iter().enumerate() {
+        let level = u8::try_from(l + 1).unwrap_or(u8::MAX);
+        for effect in level_effects(effects) {
+            out.push(SpiritEffectAt { level, effect });
+        }
+    }
+    out
+}
+
+fn level_effects(effects: &[crate::expertise::SpiritEffect]) -> Vec<SpiritEffectView> {
+    effects
+        .iter()
+        .filter_map(|e| match e {
+            // The three built effects keep no view.
+            crate::expertise::SpiritEffect::DamagePct { .. }
+            | crate::expertise::SpiritEffect::RangePct { .. }
+            | crate::expertise::SpiritEffect::SmashBleedStacks { .. } => None,
+            crate::expertise::SpiritEffect::SizeStackCap { stacks } => {
+                Some(SpiritEffectView::SizeStackCap { stacks: *stacks })
+            }
+            crate::expertise::SpiritEffect::SizeStackTicksPct { pct } => {
+                Some(SpiritEffectView::SizeStackTicksPct { pct: *pct })
+            }
+            crate::expertise::SpiritEffect::SizeStacksPerHit { stacks } => {
+                Some(SpiritEffectView::SizeStacksPerHit { stacks: *stacks })
+            }
+            crate::expertise::SpiritEffect::NormalPull { distance, ticks } => {
+                Some(SpiritEffectView::NormalPull {
+                    distance: *distance,
+                    ticks: *ticks,
+                })
+            }
+            crate::expertise::SpiritEffect::RuneCooldownPct { pct } => {
+                Some(SpiritEffectView::RuneCooldownPct { pct: *pct })
+            }
+            crate::expertise::SpiritEffect::RuneSurge { steps } => {
+                Some(SpiritEffectView::RuneSurge {
+                    steps: steps.clone(),
+                })
+            }
+            crate::expertise::SpiritEffect::ExtraPresses { presses } => {
+                Some(SpiritEffectView::ExtraPresses { presses: *presses })
+            }
+            crate::expertise::SpiritEffect::SmashRepeat { repeats } => {
+                Some(SpiritEffectView::SmashRepeat {
+                    repeats: repeats
+                        .iter()
+                        .map(|r| SmashRepeatView {
+                            after_ticks: r.after_ticks,
+                            repeat_pct: r.repeat_pct,
+                            min_charge_level: r.min_charge_level,
+                        })
+                        .collect(),
+                })
+            }
+        })
+        .collect()
+}
+
 /// The compact view of a level's kinds.
 fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
     kinds
@@ -644,13 +728,43 @@ fn kind_views(kinds: &[StyleKind]) -> Vec<StyleKindView> {
                 spend: match g.spend {
                     GaugeSpend::FullSmash { .. } => GaugeSpendKind::FullSmash,
                 },
+                fills: gauge_fills(g),
             },
             StyleKind::Spirit(s) => StyleKindView::Spirit {
                 max_level: u8::try_from(s.levels.len()).unwrap_or(u8::MAX),
                 decay_ticks: s.decay_ticks,
+                raise_per_smash: s.raise_per_smash,
+                effects: spirit_effects(s),
             },
             StyleKind::CounterBonus(c) => StyleKindView::CounterBonus {
                 window_ticks: c.window_ticks,
+                effects: c
+                    .effects
+                    .iter()
+                    .filter_map(|e| match e {
+                        // The six built effects keep no view.
+                        CounterEffect::DamagePct { .. }
+                        | CounterEffect::StaggerPct { .. }
+                        | CounterEffect::StunTicks { .. }
+                        | CounterEffect::Advance { .. }
+                        | CounterEffect::RefundEvade {}
+                        | CounterEffect::GaugeFillPct { .. } => None,
+                        CounterEffect::PullRound { radius_px } => {
+                            Some(CounterEffectView::PullRound {
+                                radius_px: *radius_px,
+                            })
+                        }
+                        CounterEffect::FillSizeStacks {} => {
+                            Some(CounterEffectView::FillSizeStacks {})
+                        }
+                        CounterEffect::ClearBullets { radius_px } => {
+                            Some(CounterEffectView::ClearBullets {
+                                radius_px: *radius_px,
+                            })
+                        }
+                        CounterEffect::FireRunes {} => Some(CounterEffectView::FireRunes {}),
+                    })
+                    .collect(),
             },
             StyleKind::ComboTempoPct(t) => StyleKindView::ComboTempoPct {
                 max_stacks: t.max_stacks,
