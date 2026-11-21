@@ -259,11 +259,25 @@ fn the_node_stands_on_a_players_active_phase_at_version_2() {
             .contains("a main character's or an ally's attack only")),
         "{found:?}"
     );
-    // sim_version 1.
+    // sim_version 1: a stage's inline weapon is validated at the stage's own version.
+    let weapon = json!({ "inline": {
+        "combo": { "main": { "attack": { "inline": [
+            { "kind": "active", "ticks": 3, "type": "strike",
+              "hit_box": { "type": "circle", "offset": { "forward": 0, "right": 0 },
+                  "radius": 8192 },
+              "linger": node() }
+        ] } } },
+        "window_ticks": 10, "assist_range": 0 } });
+    let mut stage = crate::common::armed(crate::common::stage_with(600, None, vec![]), weapon);
+    stage.sim_version = 1;
+    let old = match stella_rain_core::validate::validate(&stage) {
+        Err(Error::Invalid(issues)) => issues,
+        other => panic!("expected a refusal, got {other:?}"),
+    };
     assert!(
-        weapon_issues(&weapons_with_node(node()), 1)
-            .iter()
-            .any(|(p, m)| p.ends_with("linger") && m.contains("needs sim_version 2")),
+        old.iter()
+            .any(|i| i.path.ends_with("linger") && i.message.contains("needs sim_version 2")),
+        "{old:?}"
     );
 }
 
