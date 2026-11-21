@@ -169,7 +169,7 @@ pub const MAX_LINGERS_PER_OWNER: usize = 4;
 pub const MAX_LINGER_TICKS: u16 = 1_800;
 /// The pull of a lingering area, in px: the view's half width, as `MAX_PERFECT_REACH`.
 pub const MAX_LINGER_PULL_PX: i32 = VIEW_HALF_WIDTH;
-const _: () = assert!(MAX_LINGERS_ALIVE as u32 <= MAX_ZONES_ALIVE);
+const _: () = assert!(MAX_LINGERS_ALIVE <= MAX_ZONES_ALIVE as usize);
 pub const MAX_REPEATS_QUEUED: usize = 64;
 pub const MAX_REPEAT_TARGETS: usize = 16;
 
@@ -525,7 +525,7 @@ mod tests {
             assert_eq!(row.adr, "ADR-SIM-5", "{name}");
         }
         assert_eq!(MAX_SWEEP_COUNT, MAX_ENEMY_CAP);
-        assert!(MAX_LINGERS_ALIVE as u32 <= MAX_ZONES_ALIVE);
+        assert!(MAX_LINGERS_ALIVE <= MAX_ZONES_ALIVE as usize);
     }
 
     /// The gauge's caps (ADR-SIM-5): a fill formula's percent and the orb clear's radius.
