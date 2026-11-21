@@ -233,6 +233,8 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             tempo: None,
             trigger: None,
             rally: None,
+            size: None,
+            encore: None,
             perfect_evade: None,
             combo: {
                 let (presses, dash, buffered, window_left, auto) = combo_view(s);
@@ -334,6 +336,7 @@ pub(crate) fn build(world: &World, content: &RunContent, s: &State) -> Snapshot 
             out: false,
         }],
         entities,
+        lingers: Vec::new(),
         zones: s
             .zones
             .iter()
