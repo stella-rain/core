@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::attack::{DamageType, HitBox, PhaseKind, ZoneShape};
 pub use crate::event::Press;
 use crate::fixed::{Fx, Point};
-use crate::id::{ContentId, EntityId};
+use crate::id::{ContentId, EntityId, PlayerIdx};
 use crate::kinds::KindIndex;
 use crate::rewards::Rarity;
 use crate::rune::Rune;
@@ -109,6 +109,9 @@ pub struct Snapshot {
     /// each as a telegraph while it warns and as a hit while it is active.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zones: Vec<ZoneView>,
+    /// Lingering areas, in the order they opened (Wave 3), drawn friendly.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lingers: Vec<LingerView>,
     /// Falling stars on the map, in the order they dropped (ADR-REPL-5).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stars: Vec<StarView>,
@@ -678,6 +681,48 @@ pub struct RallyView {
     pub ticks_left: u32,
 }
 
+/// A player's size stacks (Wave 3): the stacks held and the ticks before they lapse. Not state,
+/// built each frame; the style's own cap is a later typed view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SizeView {
+    /// The stacks held.
+    pub stacks: u32,
+    /// The ticks before the stacks lapse.
+    pub ticks_left: u32,
+}
+
+/// A player's encore window (Wave 3): the ticks it has left and whether the encore is ready. Not
+/// state, built each frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EncoreView {
+    /// The ticks before the window closes.
+    pub ticks_left: u32,
+    /// The encore is ready; absent is the key missing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ready: bool,
+}
+
+/// A lingering area (Wave 3), friendly: where it stands, how long it has left and the whole
+/// length to draw a fill against. Not state, built each frame.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LingerView {
+    /// The player whose area it is.
+    pub owner: PlayerIdx,
+    pub shape: ZoneShape,
+    /// The fixed centre of a placed area; the owner's current position for one that follows.
+    pub at: Point,
+    /// The direction an arc or a line points.
+    pub direction: Facing,
+    /// The area follows its owner.
+    pub follows_owner: bool,
+    pub ticks_left: u32,
+    /// The area's whole length.
+    pub ticks: u32,
+}
+
 /// A player's perfect evade after the near miss (ADR-SIM-8).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -730,6 +775,12 @@ pub struct PlayerView {
     /// The rally, while it holds hit points (ADR-SIM-9); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rally: Option<RallyView>,
+    /// The size stacks, while any are held (Wave 3); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<SizeView>,
+    /// The encore window, while it runs (Wave 3); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encore: Option<EncoreView>,
     /// The perfect evade's slow and cooldown, while either runs and the run's rules name the
     /// perfect evade (ADR-SIM-8); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]

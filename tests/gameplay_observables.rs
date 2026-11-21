@@ -149,6 +149,10 @@ pub(crate) fn drop_empty_added_fields(text: &str) -> String {
         .replace(", threat_colour: None }", " }")
         .replace(", repeat: false, player:", ", player:")
         .replace(", stagger: None, stagger_max: None }", " }")
+        // Wave 3: the size and encore views and the lingering areas, absent while their state is
+        // zero, as it is in every pinned case.
+        .replace(", size: None, encore: None", "")
+        .replace(", lingers: []", "")
         .replace(
             ", gauge: None, spirit: None, counter: None, tempo: None, trigger: None, rally: None, perfect_evade: None",
             "",
@@ -206,6 +210,15 @@ fn the_mask_removes_the_new_view_fields() {
         drop_empty_added_fields(before)
     );
     assert_eq!(drop_empty_added_fields(before), before);
+    // Wave 3: the empty views and the empty lingers list print nothing.
+    assert_eq!(
+        drop_empty_added_fields("rally: None, size: None, encore: None, perfect_evade: None }"),
+        "rally: None, perfect_evade: None }"
+    );
+    assert_eq!(
+        drop_empty_added_fields("entities: [], lingers: [], zones: []"),
+        "entities: [], zones: []"
+    );
 }
 
 /// Feeds `text` to `sha` with its entity IDs mapped.

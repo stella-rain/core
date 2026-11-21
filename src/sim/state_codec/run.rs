@@ -45,6 +45,8 @@ impl Encode for Repeat {
             damage,
             width_pct,
             bleed,
+            stack_given,
+            queued,
         } = self;
         owner.encode(w);
         due.encode(w);
@@ -56,6 +58,144 @@ impl Encode for Repeat {
         damage.encode(w);
         width_pct.encode(w);
         bleed.encode(w);
+        stack_given.encode(w);
+        queued.encode(w);
+    }
+}
+
+impl Encode for Linger {
+    fn encode(&self, w: &mut Writer) {
+        let Linger {
+            owner,
+            anchor,
+            ticks_left,
+            ticks,
+            next_pulse,
+            rate_ticks,
+            damage,
+            damage_pct,
+            shape,
+            pull,
+            cuts_orbs,
+            proc_pct,
+        } = self;
+        owner.encode(w);
+        anchor.encode(w);
+        ticks_left.encode(w);
+        ticks.encode(w);
+        next_pulse.encode(w);
+        rate_ticks.encode(w);
+        damage.encode(w);
+        damage_pct.encode(w);
+        shape.encode(w);
+        pull.encode(w);
+        cuts_orbs.encode(w);
+        proc_pct.encode(w);
+    }
+}
+
+impl Decode for Linger {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        use super::foes::within;
+        use crate::limits::*;
+        let owner: u8 = Decode::decode(r)?;
+        if u32::from(owner) >= u32::from(MAX_PLAYERS) {
+            return Err(DecodeError::Invalid("linger owner past its bound"));
+        }
+        let anchor = Decode::decode(r)?;
+        let ticks_left = within(
+            r.u16()?,
+            MAX_LINGER_TICKS,
+            "linger ticks_left past its bound",
+        )?;
+        let ticks = within(r.u16()?, MAX_LINGER_TICKS, "linger ticks past its bound")?;
+        let next_pulse = within(
+            r.u16()?,
+            MAX_LINGER_TICKS,
+            "linger next_pulse past its bound",
+        )?;
+        let rate_ticks = within(
+            r.u16()?,
+            MAX_LINGER_TICKS,
+            "linger rate_ticks past its bound",
+        )?;
+        if rate_ticks == 0 {
+            return Err(DecodeError::Invalid("linger rate_ticks past its bound"));
+        }
+        let damage = Decode::decode(r)?;
+        let max_pct = u16::try_from(MAX_PCT).unwrap_or(u16::MAX);
+        let damage_pct = within(r.u16()?, max_pct, "linger damage_pct past its bound")?;
+        let shape: crate::attack::ZoneShape = Decode::decode(r)?;
+        let radius = |v: crate::fixed::Fx| {
+            if v.0 < 1 || v.0 > crate::validate::limits::MAX_RADIUS {
+                Err(DecodeError::Invalid("linger shape past its bound"))
+            } else {
+                Ok(())
+            }
+        };
+        match &shape {
+            crate::attack::ZoneShape::Circle { radius: a }
+            | crate::attack::ZoneShape::Arc { radius: a, .. } => radius(*a)?,
+            crate::attack::ZoneShape::Line { length, width } => {
+                radius(*length)?;
+                radius(*width)?;
+            }
+        }
+        let pull: crate::fixed::Fx = Decode::decode(r)?;
+        if pull.0 < 0 || pull.0 > MAX_LINGER_PULL_PX * crate::fixed::UNITS_PER_PX {
+            return Err(DecodeError::Invalid("linger pull past its bound"));
+        }
+        let cuts_orbs = Decode::decode(r)?;
+        let max_proc = u16::try_from(crate::expertise::MAX_PROC_PCT).unwrap_or(u16::MAX);
+        let proc_pct = match r.u8()? {
+            0 => None,
+            1 => Some(within(
+                r.u16()?,
+                max_proc,
+                "linger proc factor past its bound",
+            )?),
+            _ => return Err(DecodeError::Invalid("linger proc factor tag")),
+        };
+        Ok(Linger {
+            owner,
+            anchor,
+            ticks_left,
+            ticks,
+            next_pulse,
+            rate_ticks,
+            damage,
+            damage_pct,
+            shape,
+            pull,
+            cuts_orbs,
+            proc_pct,
+        })
+    }
+}
+
+impl Encode for LingerAnchor {
+    fn encode(&self, w: &mut Writer) {
+        match self {
+            LingerAnchor::Place { at, facing } => {
+                w.u8(0);
+                at.encode(w);
+                facing.encode(w);
+            }
+            LingerAnchor::Player => w.u8(1),
+        }
+    }
+}
+
+impl Decode for LingerAnchor {
+    fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
+        match r.u8()? {
+            0 => Ok(LingerAnchor::Place {
+                at: Decode::decode(r)?,
+                facing: Decode::decode(r)?,
+            }),
+            1 => Ok(LingerAnchor::Player),
+            _ => Err(DecodeError::Invalid("linger anchor tag")),
+        }
     }
 }
 
@@ -90,6 +230,15 @@ impl Decode for Repeat {
             return Err(DecodeError::Invalid("repeat range past its bound"));
         }
         let bleed = Decode::decode(r)?;
+        let stack_given = super::foes::within(
+            r.u8()?,
+            crate::limits::MAX_STACK_GIVEN,
+            "repeat stack_given past its bound",
+        )?;
+        let queued: u32 = Decode::decode(r)?;
+        if queued > due {
+            return Err(DecodeError::Invalid("repeat queued past its due tick"));
+        }
         Ok(Repeat {
             owner,
             due,
@@ -101,6 +250,8 @@ impl Decode for Repeat {
             damage,
             width_pct,
             bleed,
+            stack_given,
+            queued,
         })
     }
 }
@@ -209,6 +360,7 @@ impl State {
             crit_seed,
             echoes,
             repeats,
+            lingers,
         } = self;
         tick.encode(w);
         encode_streams(rng, w);
@@ -235,6 +387,7 @@ impl State {
         crit_seed.encode(w);
         echoes.encode(w);
         repeats.encode(w);
+        lingers.encode(w);
         // The presence byte, then the block of each present player in slot order, as the hash.
         w.u8(players.mask());
         for g in players.generations() {
@@ -333,7 +486,16 @@ impl State {
             crit_seed: Decode::decode(r)?,
             echoes: decode_vec(r, cap_u32(crate::limits::MAX_ECHOES_PER_TICK))?,
             repeats: decode_vec(r, cap_u32(crate::limits::MAX_REPEATS_QUEUED))?,
+            lingers: decode_vec(r, cap_u32(crate::limits::MAX_LINGERS_ALIVE))?,
         };
+        let mut held = [0usize; crate::id::MAX_PLAYERS as usize];
+        for l in &state.lingers {
+            let n = &mut held[usize::from(l.owner)];
+            *n += 1;
+            if *n > crate::limits::MAX_LINGERS_PER_OWNER {
+                return Err(DecodeError::Invalid("linger owner holds too many"));
+            }
+        }
         // The presence byte: slot 0 always, never a slot past the last, and the party the setup
         // started.
         let mask = r.u8()?;

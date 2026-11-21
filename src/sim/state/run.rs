@@ -1,8 +1,8 @@
 //! The run's state, its generators and the echo (ADR-SIM-2, ADR-SIM-3).
 
-use crate::attack::DamageType;
+use crate::attack::{DamageType, ZoneShape};
 use crate::engine::Outcome;
-use crate::fixed::Point;
+use crate::fixed::{Fx, Point};
 use crate::id::EntityId;
 use crate::inline::InlineVec;
 use crate::kinds::KindTable;
@@ -134,6 +134,8 @@ pub(crate) struct State {
     /// The repeats waiting to be dealt, at most `MAX_REPEATS_QUEUED`; empty until a rule queues
     /// one.
     pub repeats: Vec<Repeat>,
+    /// The lingering areas, at most `MAX_LINGERS_ALIVE`; empty until a rule opens one.
+    pub lingers: Vec<Linger>,
 }
 
 impl Clone for State {
@@ -171,6 +173,7 @@ impl Clone for State {
             crit_seed,
             echoes,
             repeats,
+            lingers,
         } = self;
         State {
             scratch: scratch.clone(),
@@ -205,6 +208,7 @@ impl Clone for State {
             crit_seed: *crit_seed,
             echoes: echoes.clone(),
             repeats: repeats.clone(),
+            lingers: lingers.clone(),
         }
     }
 
@@ -243,6 +247,7 @@ impl Clone for State {
             crit_seed,
             echoes,
             repeats,
+            lingers,
         } = self;
         let State {
             scratch: s_scratch,
@@ -277,6 +282,7 @@ impl Clone for State {
             crit_seed: s_crit_seed,
             echoes: s_echoes,
             repeats: s_repeats,
+            lingers: s_lingers,
         } = source;
         scratch.clone_from(s_scratch);
         kinds.clone_from(s_kinds);
@@ -310,6 +316,7 @@ impl Clone for State {
         *crit_seed = *s_crit_seed;
         echoes.clone_from(s_echoes);
         repeats.clone_from(s_repeats);
+        lingers.clone_from(s_lingers);
     }
 }
 
@@ -343,6 +350,47 @@ pub(crate) struct Repeat {
     /// hits and leaves standing; 0: none. Fixed when the repeat is queued, as `damage` is, so a
     /// style change inside the delay changes nothing. Hashed and saved.
     pub bleed: u8,
+    /// 1 once the throw this entry belongs to has given its stack, 0 before; shared by the entries
+    /// of one throw, which `owner` and `queued` name. Hashed and saved.
+    pub stack_given: u8,
+    /// The tick the throw's entries were queued on (at most `due`): with `owner` it names the
+    /// throw, so the entries of one throw find each other. Hashed and saved.
+    pub queued: u32,
+}
+
+/// A lingering area (ADR-SIM-5 point 9: the queue and each field are capped at decode; the queue is
+/// held below `MAX_ZONES_ALIVE`, which the placement check will count it inside). It pulses every `rate_ticks` until `ticks_left` runs out. Every
+/// number is resolved when the area opens (a style's area bonus is baked into `shape` and
+/// `proc_pct`, as `Repeat` fixes `damage` and `width_pct` when queued), so a later style change
+/// changes nothing inside it. Hashed and saved; the lingering rules are not here yet.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Linger {
+    /// The slot of the player whose area it is.
+    pub owner: u8,
+    /// Where it stands.
+    pub anchor: LingerAnchor,
+    /// Ticks left, and the whole length (the view draws a fill against it).
+    pub ticks_left: u16,
+    pub ticks: u16,
+    /// Ticks to the next pulse, and the rate (at least 1).
+    pub next_pulse: u16,
+    pub rate_ticks: u16,
+    /// The opening step's damage per target, and the percent of it a pulse deals.
+    pub damage: u32,
+    pub damage_pct: u16,
+    pub shape: ZoneShape,
+    /// The pull's distance in px; 0: none.
+    pub pull: Fx,
+    pub cuts_orbs: bool,
+    /// The chance, in percent, that a pulse fires a ready on-hit rune; none: no proc.
+    pub proc_pct: Option<u16>,
+}
+
+/// Where a lingering area stands: on a place, or on its owner.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum LingerAnchor {
+    Place { at: Point, facing: Dir },
+    Player,
 }
 
 /// Where a repeat lands: on the enemies the step hit, or on a place.

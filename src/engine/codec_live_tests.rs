@@ -251,6 +251,7 @@ fn the_agent_boss_and_status_types_of_the_full_state_round_trip() {
     round_trip_hashed(&status.dot.unwrap());
     round_trip_hashed(&s.echoes[0]);
     round_trip_hashed(&s.repeats[0]);
+    round_trip_hashed(&s.lingers[0]);
     for kind in StatusKind::ALL {
         round_trip_hashed(&kind);
     }
@@ -273,6 +274,7 @@ fn a_cut_or_damaged_agent_or_boss_never_panics_a_decode() {
     never_panics(s.boss.as_ref().unwrap());
     never_panics(&s.echoes[0]);
     never_panics(&s.repeats[0]);
+    never_panics(&s.lingers[0]);
 }
 
 #[test]
@@ -385,7 +387,9 @@ fn every_agent_boss_and_status_field_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, DotState, |s| s.players[PlayerIdx::SOLO].statuses[0].dot.as_mut().unwrap(),
         fields: [damage, damage_type, atk_up_pct, type_bonus_pct, interval, next_in]);
     each_field_moves_the_encoding!(failures, base, Repeat, |s| &mut s.repeats[0],
-        fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed]);
+        fields: [owner, due, percent, proc_pct, anchor, attack, phase, damage, width_pct, bleed, stack_given, queued]);
+    each_field_moves_the_encoding!(failures, base, Linger, |s| &mut s.lingers[0],
+        fields: [owner, anchor, ticks_left, ticks, next_pulse, rate_ticks, damage, damage_pct, shape, pull, cuts_orbs, proc_pct]);
     each_field_moves_the_encoding!(failures, base, Echo, |s| &mut s.echoes[0],
         fields: [source, target, damage, damage_type]);
 
@@ -678,7 +682,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     let base = base();
     let mut failures: Vec<String> = Vec::new();
     each_field_moves_the_encoding!(failures, base, State, |s| s,
-        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats],
+        fields: [tick, rng, outcome, players, boss, companions, enemies, tasks, runs, ranged_cooling, orbs, zones, spawned, next_id, next_orb_group, heal_pickups, max_attack_speed_pct, enemy_attack_damage, max_rune_haste_pct, horde, hp_pct, damage_pct, crit_seed, echoes, repeats, lingers],
         rebuilt: [scratch, kinds, move_index, match_ups, runes, stun],
         // `stars` and each career's `offers` are saved together: perturbed as a pair below.
         skip: [stars]);
@@ -692,7 +696,7 @@ fn every_saved_field_of_the_state_moves_the_encoding() {
     each_field_moves_the_encoding!(failures, base, EquipSlot, |s| &mut s.players.career_mut(PlayerIdx::SOLO).equipment.slots[0],
         fields: [kind, held, level, expertise]);
     each_field_moves_the_encoding!(failures, base, PlayerCombat, |s| &mut s.players[PlayerIdx::SOLO].combat,
-        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout]);
+        fields: [perfect_window, perfect_slow, perfect_cooldown, weapon_gauge, gauge_step_fill, rally, rally_ticks, spirit_level, spirit_decay, counter_window, combo_tempo, giant_trigger, ranged_grace, counter_bonus_step, counter_payout, sweep_count, size_stacks, size_ticks, rune_fire_owed, encore_ticks, encore_ready]);
     each_field_moves_the_encoding!(failures, base, ComboState, |s| &mut s.players[PlayerIdx::SOLO].combo,
         fields: [path, depth, dash, buffered, running, window_left, dash_strike_left, charge, hold, released, hand, auto_path, auto_depth, levels, auto_levels, charge_auto]);
     each_field_moves_the_encoding!(failures, base, SkillSlot, |s| s.players[PlayerIdx::SOLO].skill.as_mut().unwrap(),
@@ -825,6 +829,12 @@ fn the_player_combat_fields_are_bounded_at_decode() {
         ranged_grace: MAX_RANGED_GRACE_TICKS,
         counter_bonus_step: MAX_COUNTER_BONUS_STEP,
         counter_payout: MAX_COUNTER_PAYOUT,
+        sweep_count: MAX_SWEEP_COUNT,
+        size_stacks: MAX_SIZE_STACKS,
+        size_ticks: MAX_SIZE_TICKS,
+        rune_fire_owed: MAX_RUNE_FIRE_OWED,
+        encore_ticks: MAX_ENCORE_TICKS,
+        encore_ready: MAX_ENCORE_READY,
     };
     round_trip(&at_cap);
     let refused = |f: &dyn Fn(&mut PlayerCombat)| {
@@ -852,6 +862,14 @@ fn the_player_combat_fields_are_bounded_at_decode() {
     refused(&|c| c.counter_bonus_step = 255);
     refused(&|c| c.counter_payout += 1);
     refused(&|c| c.counter_payout = 255);
+    refused(&|c| c.sweep_count += 1);
+    refused(&|c| c.size_stacks += 1);
+    refused(&|c| c.size_ticks += 1);
+    refused(&|c| c.rune_fire_owed += 1);
+    refused(&|c| c.rune_fire_owed = 255);
+    refused(&|c| c.encore_ticks += 1);
+    refused(&|c| c.encore_ready += 1);
+    refused(&|c| c.encore_ready = 255);
 
     let mut p = solo(&base()).clone();
     p.combat.rally = p.max_hp;
@@ -905,6 +923,8 @@ fn the_repeat_queue_is_bounded_at_decode() {
         damage: u32::MAX,
         width_pct: crate::rewards::MAX_RANGE_PCT,
         bleed: 3,
+        stack_given: MAX_STACK_GIVEN,
+        queued: 9,
     };
     round_trip_hashed(&place);
     let full = Repeat {
@@ -934,8 +954,24 @@ fn the_repeat_queue_is_bounded_at_decode() {
         width_pct: crate::rewards::MAX_RANGE_PCT + 1,
         ..place
     });
-    // H2: the byte is the entry's last one: each encoded entry is one byte longer than before.
-    assert_eq!(*to_bytes(&place).last().unwrap(), 3);
+    // `stack_given` and `queued` come after `bleed`: the bleed byte is the sixth from the end.
+    let placed = to_bytes(&place);
+    assert_eq!(placed[placed.len() - 6], 3);
+    assert_eq!(placed[placed.len() - 5], 1);
+    assert_eq!(placed[placed.len() - 4..], 9u32.to_le_bytes());
+    refused(&Repeat {
+        stack_given: MAX_STACK_GIVEN + 1,
+        ..place
+    });
+    refused(&Repeat {
+        stack_given: 255,
+        ..place
+    });
+    refused(&Repeat {
+        queued: place.due + 1,
+        ..place
+    });
+    round_trip_hashed(&Repeat { queued: 0, ..place });
     round_trip_hashed(&Repeat {
         bleed: 255,
         ..place
@@ -965,6 +1001,126 @@ fn the_repeat_queue_is_bounded_at_decode() {
         Err(DecodeError::Invalid(_))
     ));
     assert!(fresh.run.live().repeats.is_empty());
+}
+
+/// The lingering areas are bounded at decode: an entry at its caps round-trips, each field one
+/// past its bound is refused, as are a queue past `MAX_LINGERS_ALIVE` and more than
+/// `MAX_LINGERS_PER_OWNER` entries of one owner. A fresh state holds none, and every Wave 3 field
+/// is zero.
+#[test]
+fn the_linger_queue_is_bounded_at_decode() {
+    use crate::attack::ZoneShape;
+    use crate::fixed::Point;
+    use crate::limits::*;
+    use crate::sim::state::{Dir, Linger, LingerAnchor, MAX_PLAYERS};
+    let max_proc = u16::try_from(crate::expertise::MAX_PROC_PCT).unwrap();
+    let max_radius = crate::validate::limits::MAX_RADIUS;
+    let at_cap = Linger {
+        owner: MAX_PLAYERS - 1,
+        anchor: LingerAnchor::Place {
+            at: Point::default(),
+            facing: Dir::UP,
+        },
+        ticks_left: MAX_LINGER_TICKS,
+        ticks: MAX_LINGER_TICKS,
+        next_pulse: MAX_LINGER_TICKS,
+        rate_ticks: MAX_LINGER_TICKS,
+        damage: u32::MAX,
+        damage_pct: u16::try_from(MAX_PCT).unwrap(),
+        shape: ZoneShape::Line {
+            length: Fx(max_radius),
+            width: Fx(max_radius),
+        },
+        pull: Fx(MAX_LINGER_PULL_PX * crate::fixed::UNITS_PER_PX),
+        cuts_orbs: true,
+        proc_pct: Some(max_proc),
+    };
+    round_trip_hashed(&at_cap);
+    round_trip_hashed(&Linger {
+        anchor: LingerAnchor::Player,
+        proc_pct: None,
+        shape: ZoneShape::Circle { radius: Fx(1) },
+        rate_ticks: 1,
+        pull: Fx(0),
+        ..at_cap.clone()
+    });
+    let refused = |l: &Linger| {
+        assert!(matches!(
+            from_bytes::<Linger>(&to_bytes(l)),
+            Err(DecodeError::Invalid(_))
+        ));
+    };
+    let with = |f: &dyn Fn(&mut Linger)| {
+        let mut l = at_cap.clone();
+        f(&mut l);
+        l
+    };
+    refused(&with(&|l| l.owner = MAX_PLAYERS));
+    refused(&with(&|l| l.ticks_left += 1));
+    refused(&with(&|l| l.ticks += 1));
+    refused(&with(&|l| l.next_pulse += 1));
+    refused(&with(&|l| l.rate_ticks += 1));
+    refused(&with(&|l| l.rate_ticks = 0));
+    refused(&with(&|l| l.damage_pct += 1));
+    refused(&with(&|l| {
+        l.pull = Fx(MAX_LINGER_PULL_PX * crate::fixed::UNITS_PER_PX + 1)
+    }));
+    refused(&with(&|l| l.proc_pct = Some(max_proc + 1)));
+    refused(&with(&|l| {
+        l.shape = ZoneShape::Circle {
+            radius: Fx(max_radius + 1),
+        }
+    }));
+    refused(&with(&|l| {
+        l.shape = ZoneShape::Line {
+            length: Fx(max_radius),
+            width: Fx(max_radius + 1),
+        }
+    }));
+    // An anchor tag past the two, written by hand: the anchor's tag follows the owner byte.
+    let mut bytes = to_bytes(&at_cap);
+    bytes[1] = 2;
+    assert!(matches!(
+        from_bytes::<Linger>(&bytes),
+        Err(DecodeError::Invalid(_))
+    ));
+
+    let fresh = engine();
+    let mut s = base();
+    let owned = |owner: u8| Linger {
+        owner,
+        ..at_cap.clone()
+    };
+    s.lingers = (0..MAX_LINGERS_PER_OWNER).map(|_| owned(0)).collect();
+    assert!(decoded(&bytes_of(&s), fresh.run.live()).is_ok());
+    s.lingers.push(owned(0));
+    assert!(matches!(
+        decoded(&bytes_of(&s), fresh.run.live()),
+        Err(DecodeError::Invalid(_))
+    ));
+    // The whole queue: four owners' worth is more than the slots; one owner short of the cap each.
+    s.lingers = (0..MAX_LINGERS_ALIVE)
+        .map(|n| owned(u8::try_from(n % usize::from(MAX_PLAYERS)).unwrap()))
+        .collect();
+    s.lingers.push(owned(0));
+    assert!(matches!(
+        decoded(&bytes_of(&s), fresh.run.live()),
+        Err(DecodeError::Invalid(_))
+    ));
+    // A fresh state: no area and every new field zero.
+    assert!(fresh.run.live().lingers.is_empty());
+    let c = &fresh.run.live().players[PlayerIdx::SOLO].combat;
+    assert_eq!(
+        (
+            c.sweep_count,
+            c.size_stacks,
+            c.size_ticks,
+            c.rune_fire_owed,
+            c.encore_ticks,
+            c.encore_ready
+        ),
+        (0, 0, 0, 0, 0, 0)
+    );
 }
 
 fn bytes_of(s: &State) -> Vec<u8> {
