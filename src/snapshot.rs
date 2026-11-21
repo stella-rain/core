@@ -357,9 +357,9 @@ pub enum StyleKindView {
         damage: u32,
         max_stacks: u32,
     },
-    /// Each repeat of the style reaches `pct` percent further.
+    /// Each repeat of the style reaches `pct` percent further (a place repeat is widened).
     RepeatRangePct { pct: u32 },
-    /// Each repeat of the style fires ready on-hit runes at `proc_pct` percent.
+    /// Each repeat granted at or before this level fires ready on-hit runes at `proc_pct` percent.
     RepeatProcPct { proc_pct: u32 },
     /// The style's repeats add to the weapon's size stack.
     RepeatSizeStack {},

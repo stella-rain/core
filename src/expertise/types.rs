@@ -300,18 +300,20 @@ pub enum StyleKind {
     /// the effects stacking in path order and a later level's same effect replacing the
     /// earlier one.
     Breaker(Breaker),
-    /// From the level that names it on, every repeat the style queues reaches `pct` percent
-    /// further (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the
-    /// style names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2
-    /// only. Typed and viewed only: no rule reads it yet.
+    /// From the level that names it on, every repeat the style queues, those a later level
+    /// grants included, reaches `pct` percent further (1 to `MAX_RANGE_PCT`): the percent is added
+    /// to the run's own range, held to `MAX_RANGE_PCT`, and only a `place` repeat is widened by
+    /// it. One per style path; the pack check refuses it where the style names no `repeat`, or no
+    /// `place` repeat, at or before its level. `sim_version` 2 only.
     RepeatRangePct {
         #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
         pct: u32,
     },
-    /// From the level that names it on, every repeat the style queues fires ready on-hit runes
-    /// at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack
-    /// check refuses it where the style names no `repeat` at or before its level. `sim_version`
-    /// 2 only. Typed and viewed only: no rule reads it yet.
+    /// Every repeat the style has granted at or before the level that names it fires ready
+    /// on-hit runes at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each, in place of the
+    /// factor the repeat names; a repeat a later level grants keeps its own. One per style path;
+    /// the pack check refuses it where the style names no `repeat` at or before its level.
+    /// `sim_version` 2 only.
     RepeatProcPct {
         #[schemars(range(min = 0, max = MAX_PROC_PCT))]
         proc_pct: u32,
