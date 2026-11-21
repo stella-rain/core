@@ -1222,3 +1222,32 @@ fn the_swing_record_is_refused_unless_sorted_distinct_and_in_range() {
     let ok = with_record(&[3, crate::id::MAX_ENTITY_NUMBER - 1]);
     round_trip(&ok);
 }
+
+#[test]
+fn a_lingering_areas_damage_type_round_trips_over_the_closed_list_and_refuses_the_rest() {
+    use crate::attack::DamageType;
+    let mut l = base().lingers[0].clone();
+    l.damage_type = None;
+    round_trip_hashed(&l);
+    let none_len = to_bytes(&l).len();
+    for t in DamageType::ALL {
+        l.damage_type = Some(t);
+        round_trip_hashed(&l);
+        assert_eq!(to_bytes(&l).len(), none_len + 1);
+    }
+    // A tag past 1, and a type byte past the closed list, are refused.
+    l.damage_type = None;
+    let mut b = to_bytes(&l);
+    *b.last_mut().unwrap() = 2;
+    assert!(matches!(
+        from_bytes::<crate::sim::state::Linger>(&b),
+        Err(DecodeError::Invalid(_))
+    ));
+    l.damage_type = Some(DamageType::Slash);
+    let mut b = to_bytes(&l);
+    *b.last_mut().unwrap() = u8::try_from(DamageType::ALL.len()).unwrap();
+    assert!(matches!(
+        from_bytes::<crate::sim::state::Linger>(&b),
+        Err(DecodeError::Invalid(_))
+    ));
+}

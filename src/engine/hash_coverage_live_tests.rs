@@ -1182,3 +1182,19 @@ fn the_swing_record_moves_the_hash_by_its_length_and_its_ids() {
         }
     }
 }
+
+#[test]
+fn a_lingering_areas_damage_type_moves_the_hash() {
+    use crate::attack::DamageType;
+    let mut p = Probe::new();
+    let mut hashes = Vec::new();
+    for t in [None, Some(DamageType::Slash), Some(DamageType::Anemo)] {
+        let mut s = p.base.clone();
+        s.lingers[0].damage_type = t;
+        p.engine.run.set_live_state(s);
+        hashes.push(p.engine.state_hash());
+    }
+    assert_ne!(hashes[0], hashes[1]);
+    assert_ne!(hashes[0], hashes[2]);
+    assert_ne!(hashes[1], hashes[2]);
+}
