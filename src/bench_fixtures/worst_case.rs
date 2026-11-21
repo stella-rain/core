@@ -480,9 +480,10 @@ mod tests {
 
     /// The hashes of `start()` at tick 0 and after 10 ticks, captured before the party
     /// constructor: the solo start is the party of one.
-    /// Re-pinned when the Wave 3 fields joined the hash (every player holds them, all zero).
-    const SOLO_HASH_0: u64 = 14_114_193_346_390_960_474;
-    const SOLO_HASH_10: u64 = 25_622_470_703_683_152;
+    /// Re-pinned when the Wave 3 fields joined the hash (every player holds them, all zero), then
+    /// for the swing's hit record (an empty one, in place of `sweep_count`).
+    const SOLO_HASH_0: u64 = 15_356_899_805_289_952_066;
+    const SOLO_HASH_10: u64 = 9_084_022_726_920_150_600;
 
     fn hashes(mut e: Engine) -> (u64, u64) {
         let first = e.state_hash();
