@@ -500,10 +500,10 @@ impl StyleKindName {
             | Self::CounterBonus
             | Self::ComboTempoPct
             | Self::GiantTrigger
-            | Self::Breaker => true,
-            Self::RepeatRangePct
-            | Self::RepeatProcPct
-            | Self::RepeatSizeStack
+            | Self::Breaker
+            | Self::RepeatRangePct
+            | Self::RepeatProcPct => true,
+            Self::RepeatSizeStack
             | Self::Encore
             | Self::KnockdownSteps
             | Self::DownBonusPct
