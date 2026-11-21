@@ -241,27 +241,6 @@ pub enum StyleKind {
         #[schemars(range(min = 1, max = crate::runes::MAX_DOT_STACKS))]
         max_stacks: u32,
     },
-    /// From the level that names it on, every repeat the style queues reaches `pct` percent
-    /// further (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the
-    /// style names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2
-    /// only. Typed and viewed only: no rule reads it yet.
-    RepeatRangePct {
-        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
-        pct: u32,
-    },
-    /// From the level that names it on, every repeat the style queues fires ready on-hit runes
-    /// at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack
-    /// check refuses it where the style names no `repeat` at or before its level. `sim_version`
-    /// 2 only. Typed and viewed only: no rule reads it yet.
-    RepeatProcPct {
-        #[schemars(range(min = 0, max = MAX_PROC_PCT))]
-        proc_pct: u32,
-    },
-    /// The style's repeats add to the weapon's size stack, whose size, cap and ticks are the base
-    /// tree's own fields. One per style path; the pack check refuses it where the style names no
-    /// `repeat` at or before its level and where the base tree has no size-stack field.
-    /// `sim_version` 2 only. Typed and viewed only: no rule reads it yet.
-    RepeatSizeStack {},
     /// Each hit of the step reached by `step` fires a ready on-hit rune only when a draw falls
     /// under `proc_pct` (0 to `MAX_PROC_PCT`); one per step per style, a group counting each of its
     /// members.
@@ -319,6 +298,142 @@ pub enum StyleKind {
     /// the effects stacking in path order and a later level's same effect replacing the
     /// earlier one.
     Breaker(Breaker),
+    /// From the level that names it on, every repeat the style queues reaches `pct` percent
+    /// further (1 to `MAX_RANGE_PCT`). One per style path; the pack check refuses it where the
+    /// style names no `repeat`, or no `place` repeat, at or before its level. `sim_version` 2
+    /// only. Typed and viewed only: no rule reads it yet.
+    RepeatRangePct {
+        #[schemars(range(min = 1, max = MAX_RANGE_PCT))]
+        pct: u32,
+    },
+    /// From the level that names it on, every repeat the style queues fires ready on-hit runes
+    /// at `proc_pct` percent (0 to `MAX_PROC_PCT`), a draw each. One per style path; the pack
+    /// check refuses it where the style names no `repeat` at or before its level. `sim_version`
+    /// 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatProcPct {
+        #[schemars(range(min = 0, max = MAX_PROC_PCT))]
+        proc_pct: u32,
+    },
+    /// The style's repeats add to the weapon's size stack, whose size, cap and ticks are the base
+    /// tree's own fields. One per style path; the pack check refuses it where the style names no
+    /// `repeat` at or before its level and where the base tree has no size-stack field.
+    /// `sim_version` 2 only. Typed and viewed only: no rule reads it yet.
+    RepeatSizeStack {},
+}
+
+/// The name of each `StyleKind`, in declaration order: the list `shipped` and the pack check read
+/// (ADR-SIM-9 points 3 and 4). A kind is unshipped until the rule that gives it a play effect
+/// lands: the pack check refuses an unshipped kind, while parse and the schema accept it, so a kind
+/// can be typed, viewed and tested a step before it ships. Both matches below are exhaustive with
+/// no wildcard: a new `StyleKind` variant does not compile until its author writes the arms, so
+/// "shipped or not" is always a decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StyleKindName {
+    ReplaceStep,
+    SmashEffect,
+    Repeat,
+    RepeatBreaksOrbs,
+    RepeatBleed,
+    ProcFactor,
+    ChargeSooner,
+    Gauge,
+    Spirit,
+    CounterBonus,
+    ComboTempoPct,
+    GiantTrigger,
+    Breaker,
+    RepeatRangePct,
+    RepeatProcPct,
+    RepeatSizeStack,
+}
+
+impl StyleKindName {
+    /// Every kind, in `StyleKind`'s declaration order (a test keeps it equal to the schema's).
+    pub const ALL: [Self; 16] = [
+        Self::ReplaceStep,
+        Self::SmashEffect,
+        Self::Repeat,
+        Self::RepeatBreaksOrbs,
+        Self::RepeatBleed,
+        Self::ProcFactor,
+        Self::ChargeSooner,
+        Self::Gauge,
+        Self::Spirit,
+        Self::CounterBonus,
+        Self::ComboTempoPct,
+        Self::GiantTrigger,
+        Self::Breaker,
+        Self::RepeatRangePct,
+        Self::RepeatProcPct,
+        Self::RepeatSizeStack,
+    ];
+
+    /// The kind's `type` tag in the JSON.
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::ReplaceStep => "replace_step",
+            Self::SmashEffect => "smash_effect",
+            Self::Repeat => "repeat",
+            Self::RepeatBreaksOrbs => "repeat_breaks_orbs",
+            Self::RepeatBleed => "repeat_bleed",
+            Self::ProcFactor => "proc_factor",
+            Self::ChargeSooner => "charge_sooner",
+            Self::Gauge => "gauge",
+            Self::Spirit => "spirit",
+            Self::CounterBonus => "counter_bonus",
+            Self::ComboTempoPct => "combo_tempo_pct",
+            Self::GiantTrigger => "giant_trigger",
+            Self::Breaker => "breaker",
+            Self::RepeatRangePct => "repeat_range_pct",
+            Self::RepeatProcPct => "repeat_proc_pct",
+            Self::RepeatSizeStack => "repeat_size_stack",
+        }
+    }
+
+    /// Whether the pack check lets a style name the kind: its rule is in. The flip of an unshipped
+    /// kind is its arm here and the expected list of the test beside `ALL`.
+    pub const fn shipped(self) -> bool {
+        match self {
+            Self::ReplaceStep
+            | Self::SmashEffect
+            | Self::Repeat
+            | Self::RepeatBreaksOrbs
+            | Self::RepeatBleed
+            | Self::ProcFactor
+            | Self::ChargeSooner
+            | Self::Gauge
+            | Self::Spirit
+            | Self::CounterBonus
+            | Self::ComboTempoPct
+            | Self::GiantTrigger
+            | Self::Breaker => true,
+            Self::RepeatRangePct | Self::RepeatProcPct | Self::RepeatSizeStack => false,
+        }
+    }
+}
+
+impl StyleKind {
+    /// The kind's name.
+    pub const fn name(&self) -> StyleKindName {
+        match self {
+            Self::ReplaceStep { .. } => StyleKindName::ReplaceStep,
+            Self::SmashEffect { .. } => StyleKindName::SmashEffect,
+            Self::Repeat { .. } => StyleKindName::Repeat,
+            Self::RepeatBreaksOrbs { .. } => StyleKindName::RepeatBreaksOrbs,
+            Self::RepeatBleed { .. } => StyleKindName::RepeatBleed,
+            Self::ProcFactor { .. } => StyleKindName::ProcFactor,
+            Self::ChargeSooner { .. } => StyleKindName::ChargeSooner,
+            Self::Gauge(_) => StyleKindName::Gauge,
+            Self::Spirit(_) => StyleKindName::Spirit,
+            Self::CounterBonus(_) => StyleKindName::CounterBonus,
+            Self::ComboTempoPct(_) => StyleKindName::ComboTempoPct,
+            Self::GiantTrigger(_) => StyleKindName::GiantTrigger,
+            Self::Breaker(_) => StyleKindName::Breaker,
+            Self::RepeatRangePct { .. } => StyleKindName::RepeatRangePct,
+            Self::RepeatProcPct { .. } => StyleKindName::RepeatProcPct,
+            Self::RepeatSizeStack {} => StyleKindName::RepeatSizeStack,
+        }
+    }
 }
 
 /// A breaker's effects, every number bounded by the validator and clamped again when the world

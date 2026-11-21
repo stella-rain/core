@@ -24,6 +24,7 @@ use crate::run_setup::{DEFAULT_DIFFICULTY, DEFAULT_PERK_SET};
 use crate::star_chart;
 use crate::time_limit::TimeLimit;
 use crate::validate::{self, Error, Issue};
+use crate::weapon::{RepeatAnchorKind, Weapon};
 use crate::weapons::Weapons;
 
 /// The counts of a file's lists, read leniently: a file of the wrong shape is left to its own
@@ -152,6 +153,40 @@ struct WeaponLists {
     common: Vec<IgnoredAny>,
 }
 
+/// Whether the weapon's base tree has a size-stack field for `repeat_size_stack` to fill. The
+/// field does not exist yet: the stub answers `false`, and the task that adds the field replaces
+/// this body.
+fn has_size_stack_base(_base: &Weapon) -> bool {
+    false
+}
+
+/// A kind whose rule has not landed is refused at the kind, for every weapon of the expertise file
+/// whether or not the weapons file has a tree for it (`StyleKindName::shipped`).
+fn check_shipped(expertise: &Expertise, issues: &mut Vec<validate::Issue>) {
+    for (w, we) in expertise.weapons().iter().enumerate() {
+        for (s, style) in we.styles.iter().enumerate() {
+            let at = format!("$.weapons[{w}].styles[{s}]");
+            let mut levels = vec![(format!("{at}.kinds"), style.kinds.as_slice())];
+            for (field, option) in style_levels(style) {
+                if let Some(o) = option {
+                    levels.push((format!("{at}.{field}[0].kinds"), o.kinds.as_slice()));
+                }
+            }
+            for (path, kinds) in levels {
+                for (k, kind) in kinds.iter().enumerate() {
+                    let name = kind.name();
+                    if !name.shipped() {
+                        issues.push(validate::Issue {
+                            path: format!("{path}[{k}]"),
+                            message: format!("the kind {} is not shipped yet", name.tag()),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The steps as the buttons that reach them, `AAB, B`: the members a message names.
 fn step_names(steps: &[Vec<Press>]) -> String {
     let names: Vec<String> = steps
@@ -207,6 +242,7 @@ pub(super) fn check_style_grants(
     presets: &AttackPresets,
 ) -> Result<(), PackError> {
     let mut issues = Vec::new();
+    check_shipped(expertise, &mut issues);
     for (w, we) in expertise.weapons().iter().enumerate() {
         let Some(base) = weapons.tree(we.weapon.as_str(), None) else {
             continue;
@@ -227,8 +263,19 @@ pub(super) fn check_style_grants(
             let mut triggers: Vec<String> = Vec::new();
             // Whether the path so far, this level included, names a `repeat`.
             let mut repeat_seen = false;
+            // Whether it names a `repeat` that lands on a `place`.
+            let mut place_repeat_seen = false;
             'style: for (path, kinds) in levels {
                 repeat_seen |= kinds.iter().any(|k| matches!(k, StyleKind::Repeat { .. }));
+                place_repeat_seen |= kinds.iter().any(|k| {
+                    matches!(
+                        k,
+                        StyleKind::Repeat {
+                            anchor: RepeatAnchorKind::Place,
+                            ..
+                        }
+                    )
+                });
                 for (k, kind) in kinds.iter().enumerate() {
                     let at = format!("{path}[{k}]");
                     let field = match kind {
@@ -242,10 +289,36 @@ pub(super) fn check_style_grants(
                             }
                             "grant"
                         }
-                        // Replaced by the riders' refusals: the marker comes first.
+                        // The riders change no step; each needs a repeat to close.
                         StyleKind::RepeatRangePct { .. }
                         | StyleKind::RepeatProcPct { .. }
-                        | StyleKind::RepeatSizeStack {} => continue,
+                        | StyleKind::RepeatSizeStack {} => {
+                            let nothing = |what: &str| validate::Issue {
+                                path: at.clone(),
+                                message: format!(
+                                    "nothing closes: the style names no {what} at or before this \
+                                     level"
+                                ),
+                            };
+                            if !repeat_seen {
+                                issues.push(nothing("repeat"));
+                            }
+                            if matches!(kind, StyleKind::RepeatRangePct { .. })
+                                && !place_repeat_seen
+                            {
+                                issues.push(nothing("place repeat"));
+                            }
+                            if matches!(kind, StyleKind::RepeatSizeStack {})
+                                && !has_size_stack_base(&tree)
+                            {
+                                issues.push(validate::Issue {
+                                    path: at.clone(),
+                                    message: "the weapon's base tree has no size-stack field"
+                                        .into(),
+                                });
+                            }
+                            continue;
+                        }
                         StyleKind::SmashEffect { effect } => {
                             tree.smash = Some(*effect);
                             "effect"

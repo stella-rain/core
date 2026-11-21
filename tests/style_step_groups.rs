@@ -434,13 +434,17 @@ fn the_pack_refuses_an_unshipped_kind() {
         vec![repeat(json!(A)), factor(json!(AA))],
         [None, None, None],
     ));
-    // A weapon of the expertise file with no tree in the weapons file is gated as well.
+    // Every weapon of the expertise file is gated, not only the Hammer. (A weapon with no tree is
+    // unreachable here: the weapons file's own checks refuse it first, so the gate that runs
+    // before the tree lookup is code, not a case.)
     let mut v = hammer_pack(vec![repeat(json!(A))], [None, None, None]);
-    let mut orphan = v["expertise"]["weapons"][0].clone();
-    orphan["weapon"] = json!("giant_sword");
-    orphan["styles"][0]["kinds"] = json!([range_pct(20)]);
-    v["expertise"]["weapons"] = json!([orphan]);
-    v["weapons"]["weapons"] = json!([]);
+    let sword = v["expertise"]["weapons"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|w| w["weapon"] == "giant_sword")
+        .expect("the Sword's expertise");
+    sword["styles"][0]["kinds"] = json!([range_pct(20)]);
     assert!(
         is_refused(&v, "is not shipped yet"),
         "{:?}",
