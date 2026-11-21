@@ -183,6 +183,7 @@ mod step_three;
 mod stun;
 mod style_gauge_fills;
 mod style_grants;
+mod style_spirit_effects;
 mod style_step_groups;
 mod swap_rating;
 mod sync_rig;
